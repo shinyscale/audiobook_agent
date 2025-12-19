@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Audiobook Prep
+Comment=AI-powered manuscript analysis for audiobook narrators
+Exec=/home/zacharymandrews/Tools/audiobook_agent/launch_gui.sh
+Icon=applications-development
+Terminal=false
+Categories=AudioVideo;Audio;Development;
+StartupNotify=true
+

@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environment
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Output files
+output/
+*.analysis.json
+report.html
+
+# Test data
+*.pdf
+*.epub
+gatsby.txt
+
+# Keep these
+!README.md
+!requirements.txt
+
+# Claude
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

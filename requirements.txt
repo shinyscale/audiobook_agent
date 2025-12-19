@@ -1,0 +1,35 @@
+# Document Ingestion
+pdfplumber>=0.10.0          # PDF text extraction with layout awareness
+python-docx>=1.1.0          # DOCX parsing
+ebooklib>=0.18              # EPUB parsing
+beautifulsoup4>=4.12.0      # HTML/XML parsing for EPUB content
+lxml>=5.0.0                 # Fast XML parser
+
+# NLP & Analysis
+spacy>=3.7.0                # NER, tokenization, linguistic analysis
+# Run after install: python -m spacy download en_core_web_trf (transformer model)
+# Or for lighter: python -m spacy download en_core_web_lg
+
+# Pronunciation
+pronouncing>=0.2.0          # CMU Pronouncing Dictionary wrapper
+nltk>=3.8.0                 # Additional NLP utilities, syllable counting
+
+# Local LLM Integration
+llama-cpp-python>=0.2.0     # For running GGUF models locally (optional)
+requests>=2.31.0            # For Ollama HTTP API (primary LLM backend)
+# Or use: transformers + accelerate + bitsandbytes for HF models
+
+# Utilities
+pyyaml>=6.0                 # Configuration
+rich>=13.0.0                # Nice terminal output
+tqdm>=4.66.0                # Progress bars
+pydantic>=2.5.0             # Data validation and schemas
+
+# Export & GUI
+python-docx>=1.1.0          # For generating prep documents (already listed)
+jinja2>=3.1.0               # Templating for HTML reports
+textual>=0.47.0             # TUI framework for interactive browsing
+
+# Development
+pytest>=8.0.0               # Testing
+ipython>=8.0.0              # Interactive development
