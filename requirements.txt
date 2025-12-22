@@ -13,6 +13,7 @@ spacy>=3.7.0                # NER, tokenization, linguistic analysis
 # Pronunciation
 pronouncing>=0.2.0          # CMU Pronouncing Dictionary wrapper
 nltk>=3.8.0                 # Additional NLP utilities, syllable counting
+pyspellchecker>=0.8.0       # Dictionary-based validation for de-hyphenation
 
 # Local LLM Integration
 llama-cpp-python>=0.2.0     # For running GGUF models locally (optional)

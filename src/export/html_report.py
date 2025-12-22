@@ -390,6 +390,12 @@ HTML_TEMPLATE = '''
                 <div class="value">{{ chapter_count }}</div>
                 <div class="label">Chapters</div>
             </div>
+            {% if prologue_count > 0 %}
+            <div class="stat-card">
+                <div class="value">{{ prologue_count }}</div>
+                <div class="label">Prologue Materials</div>
+            </div>
+            {% endif %}
             <div class="stat-card">
                 <div class="value">{{ main_character_count }}</div>
                 <div class="label">Main Characters</div>
@@ -402,10 +408,38 @@ HTML_TEMPLATE = '''
 
         <section id="chapters">
             <h2>📑 Chapter Guide</h2>
-            {% for ch in chapters %}
+
+            {% if prologue_chapters %}
+            <h3 style="margin-top: 1rem; margin-bottom: 1rem; color: var(--accent-soft);">Prologue Materials</h3>
+            {% for ch in prologue_chapters %}
             <div class="chapter-card">
                 <h4>
-                    <span>Chapter {{ ch.index }}{% if ch.title %}: {{ ch.title }}{% endif %}</span>
+                    <span>{{ ch.label }}{% if ch.title %}: {{ ch.title }}{% endif %}</span>
+                    <span class="meta">{{ ch.word_count }} words &middot; {{ ch.duration }}</span>
+                </h4>
+                {% if ch.summary %}
+                <div class="chapter-summary">{{ ch.summary }}</div>
+                {% endif %}
+                {% if ch.characters %}
+                <div class="chapter-characters" style="margin-top: 0.75rem;">
+                    <strong style="margin-right: 0.5rem; color: var(--muted);">Characters:</strong>
+                    {% for char_name in ch.characters[:8] %}
+                    <span class="tag">{{ char_name }}</span>
+                    {% endfor %}
+                    {% if ch.characters|length > 8 %}
+                    <span class="tag">+{{ ch.characters|length - 8 }} more</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: var(--accent-soft);">Chapters</h3>
+            {% for ch in main_chapters_list %}
+            <div class="chapter-card">
+                <h4>
+                    <span>{{ ch.label }}{% if ch.title %}: {{ ch.title }}{% endif %}</span>
                     <span class="meta">{{ ch.word_count }} words &middot; {{ ch.duration }}</span>
                 </h4>
                 {% if ch.summary %}
@@ -695,6 +729,47 @@ def format_number(value: int) -> str:
     return f"{value:,}"
 
 
+def _classify_chapter(title: str) -> str:
+    """
+    Classify a chapter as 'prologue', 'title_page', or 'main'.
+
+    Args:
+        title: The chapter title
+
+    Returns:
+        'prologue' - Letters, preface, introduction, etc.
+        'title_page' - Title page entries (to be filtered)
+        'main' - Regular story chapters
+    """
+    if not title:
+        return 'main'
+
+    title_upper = title.upper().strip()
+
+    # Title page detection (filter out)
+    # Matches patterns like "FRANKENSTEIN; OR," or standalone book titles
+    if '; OR,' in title_upper or title_upper.endswith('; OR'):
+        return 'title_page'
+
+    # Prologue material detection
+    prologue_patterns = [
+        'LETTER',      # LETTER I, LETTER II, etc.
+        'PREFACE',
+        'INTRODUCTION',
+        'FOREWORD',
+        'DEDICATION',
+        'EDITOR',
+        'PROLOGUE',
+        "AUTHOR'S NOTE",
+    ]
+
+    for pattern in prologue_patterns:
+        if title_upper.startswith(pattern) or pattern in title_upper:
+            return 'prologue'
+
+    return 'main'
+
+
 def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
     """
     Export analysis results as an HTML report.
@@ -709,11 +784,21 @@ def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
     mins = int(total_mins % 60)
     duration = f"{hours}h {mins}m"
 
-    # Get chapters with character info
-    chapters = []
+    # Get chapters and split into prologue vs main chapters
     chapter_elements = [e for e in result.structure if e.type == StructureType.CHAPTER]
 
+    prologue_chapters = []
+    main_chapters = []
+    prologue_idx = 1
+    main_idx = 1
+
     for elem in chapter_elements:
+        classification = _classify_chapter(elem.title)
+
+        # Skip title pages entirely
+        if classification == 'title_page':
+            continue
+
         ch_mins = elem.estimated_duration_minutes
         ch_hours = int(ch_mins // 60)
         ch_mins_remainder = int(ch_mins % 60)
@@ -721,15 +806,25 @@ def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
         # Get characters that appear in this chapter
         chapter_chars = elem.characters_present if elem.characters_present else []
 
-        chapters.append({
-            'index': elem.index,
+        chapter_data = {
             'title': elem.title,
             'word_count': format_number(elem.word_count),
             'duration': f"{ch_hours}h {ch_mins_remainder}m" if ch_hours else f"{ch_mins_remainder}m",
             'confidence': elem.confidence.value,
             'characters': chapter_chars,
             'summary': elem.summary,  # LLM-generated chapter summary
-        })
+        }
+
+        if classification == 'prologue':
+            chapter_data['index'] = prologue_idx
+            chapter_data['label'] = f"Prologue {prologue_idx}"
+            prologue_chapters.append(chapter_data)
+            prologue_idx += 1
+        else:
+            chapter_data['index'] = main_idx
+            chapter_data['label'] = f"Chapter {main_idx}"
+            main_chapters.append(chapter_data)
+            main_idx += 1
 
     # Separate main vs minor characters (threshold: 10+ mentions = main)
     main_characters = [c for c in result.characters if c.mention_count >= 10]
@@ -759,10 +854,12 @@ def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
         analyzed_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
         word_count=format_number(result.metadata.total_word_count),
         duration=duration,
-        chapter_count=len(chapters),
+        chapter_count=len(main_chapters),
+        prologue_count=len(prologue_chapters),
         main_character_count=len(main_characters),
         pronunciation_count=len(result.pronunciations),
-        chapters=chapters,
+        prologue_chapters=prologue_chapters,
+        main_chapters_list=main_chapters,
         relationships=relationships,
         main_characters=main_characters,
         minor_characters=minor_characters,

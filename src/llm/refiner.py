@@ -21,6 +21,12 @@ from ..models import (
     StructureType,
 )
 from .config import get_default_model, LLMProvider, CONTEXT_PERCENT
+from .prompts import PromptConfig, DEFAULT_PROMPTS
+from .exceptions import (
+    ChapterDetectionError,
+    CharacterProfileError,
+    ChapterSummaryError,
+)
 
 
 @dataclass
@@ -46,6 +52,7 @@ class LLMRefiner:
         provider: str = "lm_studio",
         api_key: Optional[str] = None,
         context_length: int = 32768,
+        custom_prompts: Optional[PromptConfig] = None,
     ):
         """
         Initialize the LLM refiner.
@@ -57,6 +64,7 @@ class LLMRefiner:
             provider: LLM provider ("ollama", "lm_studio", "openai", "anthropic")
             api_key: API key for cloud providers (OpenAI, Anthropic)
             context_length: Model context length in tokens (used to scale input limits)
+            custom_prompts: User-customizable prompts (uses defaults if not provided)
         """
         self.model = model or get_default_model()
         self.base_url = base_url.rstrip("/")
@@ -64,6 +72,7 @@ class LLMRefiner:
         self.provider = LLMProvider(provider) if isinstance(provider, str) else provider
         self.api_key = api_key
         self.context_length = context_length
+        self.prompts = custom_prompts or DEFAULT_PROMPTS
 
     def _context_chars(self, purpose: str) -> int:
         """
@@ -337,91 +346,6 @@ class LLMRefiner:
                 spans.append((start, len(text), para))
         return spans
 
-    def fallback_chapters_from_structure(
-        self,
-        structure: list[StructuralElement],
-        text: str,
-        words_per_minute: int = 150,
-        max_chunk_chars: int = 120000,
-        overlap_chars: int = 1500,
-    ) -> list[StructuralElement]:
-        """
-        Fallback chapter-like chunking when hard chapters can't be detected.
-
-        Strategy:
-        - Prefer existing higher-level markers (SECTION/JOURNAL_ENTRY/LETTER).
-        - Else fall back to SCENE_BREAK markers.
-        - If resulting chunks are too large, split further by size (with small overlap).
-        """
-        if not text:
-            return []
-
-        # Choose boundary markers in priority order
-        priority_types = [
-            StructureType.SECTION,
-            StructureType.JOURNAL_ENTRY,
-            StructureType.LETTER,
-        ]
-        boundary_positions: list[int] = []
-
-        for t in priority_types:
-            boundary_positions = sorted({e.start_position for e in structure if e.type == t and e.start_position is not None})
-            if boundary_positions:
-                break
-
-        if not boundary_positions:
-            boundary_positions = sorted({e.start_position for e in structure if e.type == StructureType.SCENE_BREAK and e.start_position is not None})
-
-        # Always include start and end
-        boundary_positions = [0] + [p for p in boundary_positions if 0 < p < len(text)] + [len(text)]
-        boundary_positions = sorted(set(boundary_positions))
-
-        # Build initial chunks
-        raw_chunks: list[tuple[int, int]] = []
-        for i in range(len(boundary_positions) - 1):
-            start = boundary_positions[i]
-            end = boundary_positions[i + 1]
-            if end - start < 2000:
-                continue
-            raw_chunks.append((start, end))
-
-        if not raw_chunks:
-            raw_chunks = [(0, len(text))]
-
-        # Split large chunks by size (scene-break-aware is already captured above)
-        final_chunks: list[tuple[int, int]] = []
-        for start, end in raw_chunks:
-            if max_chunk_chars > 0 and (end - start) > max_chunk_chars:
-                cursor = start
-                while cursor < end:
-                    sub_end = min(end, cursor + max_chunk_chars)
-                    final_chunks.append((cursor, sub_end))
-                    if sub_end >= end:
-                        break
-                    cursor = max(cursor + 1, sub_end - max(0, overlap_chars))
-            else:
-                final_chunks.append((start, end))
-
-        # Convert to StructuralElement "chapters"
-        chapters: list[StructuralElement] = []
-        for idx, (start, end) in enumerate(final_chunks, 1):
-            chunk_text = text[start:end]
-            word_count = len(chunk_text.split())
-            if word_count < 100:
-                continue
-            chapters.append(StructuralElement(
-                type=StructureType.CHAPTER,
-                title=f"Chunk {idx}",
-                index=idx,
-                start_position=start,
-                end_position=end,
-                confidence=ConfidenceLevel.LOW,
-                word_count=word_count,
-                estimated_duration_minutes=word_count / words_per_minute if words_per_minute else 0.0,
-            ))
-
-        return chapters
-
     def extract_chunk_character_facts(
         self,
         chunk_text: str,
@@ -439,16 +363,7 @@ class LLMRefiner:
         if not chunk_text.strip() or not character_names:
             return []
 
-        system = """You are a literary analyst extracting STRICT, CITED character facts for audiobook narration.
-
-Return JSON ONLY. No markdown. No commentary.
-
-Rules:
-- Only include facts explicitly supported by the provided text chunk
-- Every fact must include 1+ exact quote strings copied verbatim from the chunk
-- Do not infer (no guessing age/ethnicity/occupation unless explicitly stated)
-- If you cannot find explicit physical description/voice/relationships for a character in this chunk, omit those facts
-"""
+        system = self.prompts.character_extraction
 
         prompt = f"""Extract character facts from this text chunk.
 
@@ -665,21 +580,7 @@ JSON:"""
         Returns:
             Set of words that should be kept (need attention)
         """
-        system = """You are a linguistic assistant helping audiobook narrators identify words that need pronunciation attention.
-
-Your task: Given a list of words, identify which ones actually require special attention from a narrator.
-
-KEEP words that:
-- Are rare, unusual, or archaic
-- Could be mispronounced by an average reader
-- Are proper nouns with non-obvious pronunciation
-- Are technical, scientific, or domain-specific terms
-
-REMOVE words that:
-- Are common English words (even if not in a pronunciation dictionary)
-- Are contraction fragments (like "hadn" from "hadn't", "wouldn" from "wouldn't")
-- Are standard verb forms, adverbs, or adjectives
-- Are words any fluent English speaker would pronounce correctly"""
+        system = self.prompts.pronunciation_filter
 
         prompt = f"""Here are words flagged as potentially needing pronunciation attention:
 
@@ -722,8 +623,7 @@ JSON array of words to keep:"""
         # Get top characters by mention count
         char_names = [c.canonical_name for c in characters[:30]]
 
-        system = """You are a literary analyst helping identify character aliases in novels.
-Your task is to determine which character names refer to the same person."""
+        system = self.prompts.character_aliases
 
         def _build_prompt(sample_chars: int) -> str:
             return f"""Analyze these character names from a novel and identify which ones refer to the same person.
@@ -827,12 +727,7 @@ JSON output:"""
 
         char_names = [c.canonical_name for c in characters[:20]]
 
-        system = """You are a literary analyst extracting character relationships from novels.
-Identify relationships like: spouse, sibling, parent, child, friend, enemy, employer, employee, lover, cousin, neighbor, etc.
-
-IMPORTANT: Only report relationships that are EXPLICITLY stated or clearly demonstrated in the text.
-Do NOT infer or guess relationships. If a relationship is not clearly established in the text, omit it.
-Be conservative - it's better to miss a relationship than to report an incorrect one."""
+        system = self.prompts.character_relationships
 
         def _build_prompt(sample_chars: int) -> str:
             return f"""Identify relationships between these characters based ONLY on what is explicitly stated in the text.
@@ -883,8 +778,7 @@ JSON output:"""
         if not homographs:
             return pronunciations
 
-        system = """You are a pronunciation expert helping audiobook narrators.
-For each homograph (word with multiple pronunciations), determine the correct pronunciation based on context."""
+        system = self.prompts.homograph_disambiguation
 
         for entry in homographs:
             if not entry.context_examples or not entry.notes:
@@ -919,127 +813,173 @@ Reply with just the correct option (copy it exactly from the options above)."""
         words_per_minute: int = 150,
     ) -> list[StructuralElement]:
         """
-        Use LLM to detect chapter boundaries in text.
+        Multi-pass LLM-based chapter detection. Scans full book in overlapping chunks.
 
-        This is more reliable than regex patterns because:
-        - Different books use wildly different chapter formatting
-        - TOC entries vs actual chapters are hard to distinguish with patterns
-        - The LLM can understand context and document structure
+        This approach:
+        1. Scans the entire book in overlapping chunks
+        2. Asks LLM to identify chapters and their exact first_words in each chunk
+        3. Searches for first_words to get precise positions
+        4. Validates chapter sizes (no tiny fragments)
+
+        Raises ChapterDetectionError on failure instead of falling back to garbage.
 
         Args:
             text: Full book text
             words_per_minute: For duration estimates
 
         Returns:
-            List of StructuralElement objects for chapters
+            List of StructuralElement objects for chapters (may be empty for chapterless books)
         """
-        def _build_prompt(start_chars: int, max_late_samples: int) -> str:
-            # Start sample
-            sample_start = text[:start_chars]
+        chunk_size = self._context_chars("chapter_detection")
+        overlap = chunk_size // 10  # 10% overlap to catch chapters at boundaries
 
-            # Also grab samples from later in the document for very long books
-            chapter_samples: list[str] = []
-            if start_chars < len(text):
-                for i in range(start_chars, min(len(text), start_chars + 200000), 25000):
-                    if len(chapter_samples) >= max_late_samples:
-                        break
-                    chunk = text[i:i + 500]
-                    if chunk.strip():
-                        chapter_samples.append(f"[Position ~{i}]:\n{chunk[:400]}")
+        all_chapters_found = []
 
-            return f"""Analyze this book's structure and identify where each chapter begins.
+        # Scan book in overlapping chunks
+        pos = 0
+        chunk_num = 0
+        while pos < len(text):
+            chunk_num += 1
+            chunk_end = min(pos + chunk_size, len(text))
+            chunk = text[pos:chunk_end]
 
-BEGINNING OF DOCUMENT:
+            print(f"      Scanning chunk {chunk_num} (chars {pos:,}-{chunk_end:,})...")
+
+            prompt = f"""Find ALL chapter boundaries in this book text.
+
+CRITICAL INSTRUCTION - READ CAREFULLY:
+You are analyzing a TEXT DOCUMENT provided below. You must ONLY use information from this document.
+DO NOT use any knowledge you have about this book from your training data.
+DO NOT assume you know what the text says - READ IT from the document below.
+Even if you recognize this book, IGNORE what you "know" and only read what is provided.
+The text may have different spelling, formatting, or content than versions you've seen before.
+
+TEXT DOCUMENT (characters {pos} to {chunk_end}):
 \"\"\"
-{sample_start}
+{chunk}
 \"\"\"
 
-SAMPLES FROM THROUGHOUT THE DOCUMENT:
-{chr(10).join(chapter_samples)}
+TASK: Find EVERY chapter that STARTS within this document. For each chapter provide:
+1. The chapter marker/title exactly as written (e.g., "I", "II", "Chapter 1", "PART ONE")
+2. The first 15 words of chapter content COPIED EXACTLY from the document above (not the title line)
 
-Based on this analysis:
-
-1. What pattern does this book use for chapter markers? (e.g., "Chapter 1", Roman numerals like "I", "II", centered numbers, etc.)
-
-2. List each ACTUAL chapter start position you can identify. For each chapter:
-   - Give the approximate character position where it starts
-   - Give the chapter title/number as it appears
-
-Return your answer as JSON:
+Return JSON with ALL chapters:
 {{
-  "chapter_pattern": "description of the pattern used",
-  "chapters": [
-    {{"position": 1400, "title": "I"}},
-    {{"position": 34500, "title": "II"}}
-  ]
+    "chapters_found": [
+        {{"title": "I", "first_words": "[COPY 15 WORDS EXACTLY FROM DOCUMENT ABOVE]"}},
+        {{"title": "II", "first_words": "[COPY 15 WORDS EXACTLY FROM DOCUMENT ABOVE]"}}
+    ]
 }}
 
-Important:
-- Do NOT include table of contents entries
-- Position should be approximate character offset in the text
-- Only include chapters you can actually see markers for in the samples
+CRITICAL RULES:
+- COPY text EXACTLY as it appears, character-for-character, including unusual spellings
+- Find ALL chapters (if document has I through IX, list all 9)
+- Only real chapters, not Table of Contents entries or scene breaks (*** or ----)
+- We will search for your first_words string - if you paraphrase, the search WILL FAIL"""
 
-JSON response:"""
+            system = self.prompts.chapter_detection
 
-        system = """You are a document structure analyst. Your task is to identify chapter boundaries in books.
+            response = self._query(prompt, system=system, max_tokens=2000, temperature=0.1)
+            result = self._parse_json_response(response)
 
-You must distinguish between:
-1. ACTUAL chapter markers (the start of real chapters in the book content)
-2. TABLE OF CONTENTS entries (lists of chapter names/numbers that appear at the start)
-3. Other structural elements (title pages, dedication, etc.)
+            if isinstance(result, dict) and result.get("chapters_found"):
+                for ch in result["chapters_found"]:
+                    ch["chunk_start"] = pos  # Track which chunk found this
+                    all_chapters_found.append(ch)
 
-Only identify ACTUAL chapter starts, not TOC entries."""
+            # Move to next chunk (with overlap)
+            if chunk_end >= len(text):
+                break
+            pos = chunk_end - overlap
 
-        # Use percentage-based context limits with backoff (100%, 50%, 25%, 12.5%)
-        max_chars = self._context_chars("chapter_detection")
-        prompt_variants = [
-            _build_prompt(int(max_chars * 1.0), 6),
-            _build_prompt(int(max_chars * 0.5), 4),
-            _build_prompt(int(max_chars * 0.25), 2),
-            _build_prompt(int(max_chars * 0.125), 1),
-        ]
-        response = self._query_with_backoff(prompt_variants, system=system, max_tokens=2000, temperature=0.1)
-        result = self._parse_json_response(response)
+        if not all_chapters_found:
+            # This is valid - some books don't have chapters (continuous prose, short stories, etc.)
+            print("      No chapters found - book may be continuous prose")
+            return []  # Empty list, not an error
 
-        if not isinstance(result, dict) or "chapters" not in result:
-            return []
+        # Deduplicate chapters found in overlapping regions (same title)
+        unique_chapters = []
+        seen_titles = set()
+        for ch in all_chapters_found:
+            title = ch.get("title", "").strip()
+            if title and title not in seen_titles:
+                seen_titles.add(title)
+                unique_chapters.append(ch)
 
-        chapters_data = result.get("chapters", [])
-        if not isinstance(chapters_data, list):
-            return []
+        print(f"      Found {len(unique_chapters)} unique chapters across {chunk_num} chunk(s)")
 
-        # Convert to StructuralElement objects
+        # Log what the LLM returned for debugging
+        for ch in unique_chapters:
+            fw = ch.get("first_words", "")[:60]
+            print(f"        - {ch.get('title')}: \"{fw}...\"")
+
+        # Find exact positions by searching for first_words
+        # Helper: normalize whitespace for comparison (collapse multiple whitespace to single space)
+        def normalize_ws(s: str) -> str:
+            return ' '.join(s.split())
+
         elements = []
-        for i, ch in enumerate(chapters_data):
-            if not isinstance(ch, dict):
-                continue
+        for i, ch in enumerate(unique_chapters):
+            first_words = ch.get("first_words", "")
+            if not first_words or len(first_words) < 20:
+                raise ChapterDetectionError(
+                    f"Chapter '{ch.get('title', i+1)}' has insufficient first_words: '{first_words}'\n"
+                    f"The LLM should return 10-15 words copied verbatim from the text."
+                )
 
-            position = ch.get("position", 0)
-            title = ch.get("title", f"Chapter {i+1}")
+            # Find this text in the full book
+            found_pos = text.find(first_words)
+            if found_pos == -1:
+                # Try case-insensitive
+                found_pos = text.lower().find(first_words.lower())
 
-            # Validate position is reasonable
-            if not isinstance(position, (int, float)) or position < 0 or position > len(text):
-                continue
+            if found_pos == -1:
+                # Try with normalized whitespace (text files often have line breaks mid-sentence)
+                normalized_query = normalize_ws(first_words)
+                # Search through text in chunks, normalizing each chunk
+                for start_idx in range(0, len(text) - len(first_words), 1000):
+                    chunk = text[start_idx:start_idx + len(first_words) + 200]
+                    normalized_chunk = normalize_ws(chunk)
+                    pos_in_chunk = normalized_chunk.find(normalized_query)
+                    if pos_in_chunk != -1:
+                        # Found it - but we need the actual position in original text
+                        # Search for the first few words at this approximate location
+                        search_start = max(0, start_idx - 100)
+                        search_end = min(len(text), start_idx + 500)
+                        first_few = normalize_ws(first_words[:30])
+                        local_text = text[search_start:search_end]
+                        local_normalized = normalize_ws(local_text)
+                        local_pos = local_normalized.find(first_few)
+                        if local_pos != -1:
+                            # Map back to original position approximately
+                            found_pos = search_start + local_text.find(first_words.split()[0])
+                            break
 
-            position = int(position)
+            if found_pos == -1:
+                raise ChapterDetectionError(
+                    f"Could not find chapter '{ch.get('title')}' starting with:\n"
+                    f"  '{first_words[:80]}...'\n\n"
+                    f"This may indicate the LLM hallucinated or paraphrased the text.\n"
+                    f"The first_words must be copied EXACTLY from the book."
+                )
 
             elements.append(StructuralElement(
                 type=StructureType.CHAPTER,
-                title=str(title).strip(),
+                title=ch.get("title", f"Chapter {i+1}"),
                 index=i + 1,
-                start_position=position,
-                end_position=0,  # Will be calculated below
+                start_position=found_pos,
+                end_position=0,  # Set below
                 confidence=ConfidenceLevel.LLM_REFINED,
             ))
 
-        # Sort by position and calculate end positions
+        # Sort by position and set end positions
         elements.sort(key=lambda e: e.start_position)
-
-        for i in range(len(elements)):
+        for i, elem in enumerate(elements):
+            elem.index = i + 1  # Re-index after sorting
             if i < len(elements) - 1:
-                elements[i].end_position = elements[i + 1].start_position
+                elem.end_position = elements[i + 1].start_position
             else:
-                elements[i].end_position = len(text)
+                elem.end_position = len(text)
 
         # Calculate word counts and durations
         for elem in elements:
@@ -1047,15 +987,25 @@ Only identify ACTUAL chapter starts, not TOC entries."""
             elem.word_count = len(chapter_text.split())
             elem.estimated_duration_minutes = elem.word_count / words_per_minute
 
-        # Validate: chapters should have substantial content (> 500 words typically)
-        # Filter out any that are too small (likely false positives)
-        valid_elements = [e for e in elements if e.word_count >= 100]
+        # VALIDATION: Chapters should be substantial (no tiny fragments)
+        for elem in elements:
+            if elem.word_count < 500:
+                raise ChapterDetectionError(
+                    f"Chapter '{elem.title}' has only {elem.word_count} words at position {elem.start_position}.\n"
+                    f"This is likely a detection error, not a real chapter.\n"
+                    f"Real chapters typically have 1000+ words."
+                )
 
-        # Re-index after filtering
-        for i, elem in enumerate(valid_elements):
-            elem.index = i + 1
+        # VALIDATION: Not too many chapters (sanity check)
+        if len(elements) > 100:
+            raise ChapterDetectionError(
+                f"Detected {len(elements)} chapters, which is unreasonably high.\n"
+                f"This indicates a detection failure - the LLM may be identifying\n"
+                f"scene breaks or paragraphs instead of actual chapters."
+            )
 
-        return valid_elements
+        print(f"      ✓ Validated {len(elements)} chapters with substantial word counts")
+        return elements
 
     def generate_chapter_summaries(
         self,
@@ -1078,15 +1028,7 @@ Only identify ACTUAL chapter starts, not TOC entries."""
         Returns:
             Chapters with summary field populated
         """
-        system = """You are a literary analyst creating chapter summaries for audiobook narrators.
-Write a detailed paragraph (4-6 sentences) covering:
-- Key plot events and scenes
-- Characters who appear and their actions
-- Emotional beats and tone shifts
-- Important dialogue moments or revelations
-
-Focus on details useful for a narrator preparing to perform the chapter.
-Do not include spoiler warnings or meta-commentary - just summarize the content."""
+        system = self.prompts.chapter_summary
 
         # Calculate max chars based on context length
         max_summary_chars = self._context_chars("chapter_summary")
@@ -1101,12 +1043,12 @@ Do not include spoiler warnings or meta-commentary - just summarize the content.
             truncated = chapter_text[:max_summary_chars]
             truncation_note = "" if len(chapter_text) <= max_summary_chars else " (truncated)"
 
-            prompt = f"""Summarize Chapter {chapter.index} ({chapter.title or 'Untitled'}){truncation_note} for an audiobook narrator.
+            prompt = f"""Write a narrative summary of Chapter {chapter.index} ({chapter.title or 'Untitled'}){truncation_note}.
 
 Chapter text:
 {truncated}
 
-Write a detailed paragraph summary (4-6 sentences) covering the key events, characters involved, and emotional tone. Focus on what a narrator needs to know to perform this chapter well."""
+Summarize WHAT HAPPENS in this chapter in 4-6 sentences. Describe the key events, which characters appear, and the emotional tone. Write in third person, past tense (e.g., "Nick visited the Buchanans..."). Do NOT write performance instructions."""
 
             print(f"      Generating summary for Chapter {chapter.index}...")
             response = self._query(prompt, system=system, max_tokens=500)
@@ -1139,25 +1081,7 @@ Write a detailed paragraph summary (4-6 sentences) covering the key events, char
         Returns:
             Characters with comprehensive LLM-generated profiles
         """
-        system = """You are a literary analyst creating character profiles for audiobook narrators.
-
-IMPORTANT: Do NOT use <think> tags or any internal reasoning tags. Write your response directly.
-
-CRITICAL: Only include information that is EXPLICITLY stated in the provided passages.
-- Do NOT invent, assume, or infer details not directly supported by the text
-- Do NOT guess at occupation, age, or background unless explicitly stated
-- When information is not available, simply omit that section entirely
-- Quote or closely paraphrase the actual text to support each point
-- If someone addresses the character by a first name in dialogue, note that as their first name
-
-For each character, extract ONLY what the text tells us:
-- Physical description (ONLY if the text describes their appearance)
-- Personality/behavior (based on their actions and dialogue in the passages)
-- Speech patterns (based on their actual dialogue)
-- Role and relationships (ONLY what's explicitly shown)
-
-Write factually. If the passages don't describe something, don't mention it.
-Respond directly with the profile content - no thinking or reasoning tags."""
+        system = self.prompts.character_profile
 
         from ..models import CharacterDescription
 
@@ -1367,39 +1291,67 @@ Structure your response with these sections (skip any section where the text pro
 - **Role & Relationships**: [only what's explicitly shown]"""
 
             print(f"      Generating profile for {char.canonical_name}...")
-            # If we have evidence, prefer generating from that, as it is more debuggable and less likely to miss details.
+
+            # Prefer evidence-based generation (more structured and debuggable)
             if char.evidence:
                 evidence_payload = json.dumps(char.evidence[:80], indent=2)
-                ev_prompt = f"""Create a narrator's character profile for "{char.canonical_name}" using ONLY the evidence JSON below.
+                ev_prompt = f"""Write a narrator's character profile for "{char.canonical_name}" using ONLY the evidence JSON below.
 
-EVIDENCE JSON (each entry contains quotes copied from the book; do not invent anything beyond these quotes):
+EVIDENCE JSON (each entry contains quotes from the book):
 {evidence_payload}
 
-Rules:
-- Only include facts supported by the evidence quotes
-- If appearance/voice is not supported by evidence, omit that section
+{length_instruction}
 
-Write the profile with sections:
-- **Appearance**
-- **Personality & Behavior**
-- **Speech & Voice**
-- **Role & Relationships**
-"""
+REQUIREMENTS - CRITICAL:
+1. Write in FLOWING PROSE PARAGRAPHS - absolutely NO bullet points or lists
+2. Synthesize the evidence into cohesive paragraphs
+3. Use phrases like "is described as", "speaks with", "characterized by"
+4. Include direct quotes naturally within sentences
+
+FORBIDDEN - DO NOT USE:
+- Lines starting with "- " or "• " or "* "
+- Bullet points of any kind
+- Lists or enumeration
+- Quote dumps without synthesis
+
+Write flowing prose paragraphs describing the character:"""
                 response = self._query(ev_prompt, system=system, max_tokens=max_tokens)
             else:
+                # Fallback to excerpt-based if no evidence (minor characters)
                 response = self._query(prompt, system=system, max_tokens=max_tokens)
 
-            if response and response.strip():
-                # Clean any thinking tags (e.g., from Qwen3 models)
-                cleaned_response = self._clean_thinking_tags(response)
+            if not response or not response.strip():
+                print(f"      ⚠️  Empty profile returned for {char.canonical_name}")
+                continue
 
-                if cleaned_response:
-                    # Replace poor regex descriptions with LLM-generated profile
-                    char.descriptions = [CharacterDescription(
-                        text=cleaned_response,
-                        source_position=0,
-                        confidence=ConfidenceLevel.LLM_REFINED,
-                    )]
+            # Clean any thinking tags (e.g., from Qwen3 models)
+            cleaned_response = self._clean_thinking_tags(response)
+
+            if not cleaned_response:
+                print(f"      ⚠️  Profile was only thinking tags for {char.canonical_name}")
+                continue
+
+            # VALIDATION: Check for bullet lists (indicates failed synthesis)
+            lines = cleaned_response.split('\n')
+            bullet_lines = sum(1 for line in lines if line.strip().startswith(('-', '•', '*')) and len(line.strip()) > 2)
+
+            if bullet_lines > 3:
+                # For now, warn but continue - we may want to make this an error in strict mode
+                print(f"      ⚠️  Profile for {char.canonical_name} has {bullet_lines} bullet lines (expected prose)")
+                # Raise error for major characters
+                if char_rank < 3:
+                    raise CharacterProfileError(
+                        f"Profile for major character '{char.canonical_name}' contains {bullet_lines} bullet points.\n"
+                        f"Expected synthesized prose paragraphs.\n"
+                        f"First 500 chars of response:\n{cleaned_response[:500]}"
+                    )
+
+            # Replace with LLM-generated profile
+            char.descriptions = [CharacterDescription(
+                text=cleaned_response,
+                source_position=0,
+                confidence=ConfidenceLevel.LLM_REFINED,
+            )]
 
         return characters
 
@@ -1504,7 +1456,8 @@ Write the profile with sections:
             selected.append((idx, cleaned))
             total_chars += len(cleaned)
 
-        # Fall back: if ranking produced nothing (e.g., very strict caps), take earliest in order.
+        # If ranked selection produced nothing, use earliest passages in order
+        # (This can happen with very strict context caps)
         if not selected:
             for idx in ordered_indices:
                 if len(selected) >= max_passages:
@@ -1582,20 +1535,13 @@ def refine_analysis(
     if verbose:
         print(f"   Running LLM refinement with {refiner.model}...")
 
-    # 0. LLM-based chapter detection (replaces regex-based detection)
+    # 0. LLM-based chapter detection
+    # Note: detect_chapters() raises ChapterDetectionError on failure (no fallbacks)
+    # An empty list means the book has no chapters (valid for continuous prose)
     if not skip_chapter_detection:
         if verbose:
             print("   Detecting chapters with LLM...")
         chapters = refiner.detect_chapters(text, words_per_minute=words_per_minute)
-        if not chapters:
-            if verbose:
-                print("   No chapters detected via LLM; using fallback chunking...")
-            chapters = refiner.fallback_chapters_from_structure(
-                result.structure,
-                text,
-                words_per_minute=words_per_minute,
-                max_chunk_chars=refiner._context_chars("chapter_detection"),
-            )
 
         if chapters:
             # Replace regex-detected structure with LLM-detected chapters

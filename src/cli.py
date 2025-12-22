@@ -79,7 +79,17 @@ Examples:
         action='store_true',
         help='Open interactive TUI after analysis'
     )
-    
+    analyze_parser.add_argument(
+        '--write-canonical-md',
+        action='store_true',
+        help='Write canonical markdown artifact alongside analysis output'
+    )
+    analyze_parser.add_argument(
+        '--pdf-ocr',
+        action='store_true',
+        help='Enable OCR fallback for scanned/image-heavy PDFs (requires ocrmypdf or pytesseract)'
+    )
+
     # Summary command (quick view without full analysis)
     summary_parser = subparsers.add_parser(
         'summary',
@@ -117,6 +127,8 @@ def run_analyze(args):
         min_character_mentions=args.min_mentions,
         llm_refine=not args.no_llm,
         llm_model=args.llm_model,
+        ocr_fallback=args.pdf_ocr,
+        write_canonical_md=args.write_canonical_md,
     )
 
     try:

@@ -35,9 +35,12 @@ try:
         detect_context_length,
         test_connection,
     )
+    from ..llm.prompts import PromptConfig, DEFAULT_PROMPTS
     HAS_LLM_CONFIG = True
 except ImportError:
     HAS_LLM_CONFIG = False
+    PromptConfig = None  # type: ignore
+    DEFAULT_PROMPTS = None  # type: ignore
 
 try:
     from .tui import run_tui
@@ -106,6 +109,170 @@ class ProgressWindow:
         self.window.destroy()
 
 
+class PromptEditorDialog:
+    """Dialog for editing LLM prompts."""
+
+    def __init__(self, parent, current_prompts: "PromptConfig"):
+        if not HAS_TKINTER or not HAS_LLM_CONFIG:
+            raise ImportError("tkinter and LLM config are required")
+
+        self.window = tk.Toplevel(parent)
+        self.window.title("Edit LLM Prompts")
+        self.window.geometry("800x600")
+        self.window.transient(parent)
+        self.window.grab_set()
+
+        # Center on parent
+        self.window.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 400
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 300
+        self.window.geometry(f"+{x}+{y}")
+
+        self.current_prompts = current_prompts
+        self.result_prompts: Optional["PromptConfig"] = None
+        self.prompt_vars: dict[str, tk.StringVar] = {}
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        """Create dialog widgets."""
+        # Main container with scrollbar
+        main_frame = ttk.Frame(self.window, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Description
+        ttk.Label(
+            main_frame,
+            text="Customize the system prompts used by the LLM for each analysis task.",
+            wraplength=750
+        ).pack(anchor=tk.W, pady=(0, 10))
+
+        # Create notebook (tabs) for each prompt
+        notebook = ttk.Notebook(main_frame)
+        notebook.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        # Get prompt descriptions
+        descriptions = PromptConfig.get_prompt_descriptions()
+
+        # Create a tab for each prompt
+        for field_name, display_name in descriptions.items():
+            current_value = getattr(self.current_prompts, field_name, "")
+            default_value = getattr(DEFAULT_PROMPTS, field_name, "")
+
+            # Create frame for this prompt
+            frame = ttk.Frame(notebook, padding="10")
+            notebook.add(frame, text=display_name[:20])  # Truncate long names
+
+            # Reset button at top
+            btn_frame = ttk.Frame(frame)
+            btn_frame.pack(fill=tk.X, pady=(0, 5))
+
+            ttk.Label(btn_frame, text=display_name, font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+
+            def make_reset_callback(fn, dv):
+                def reset():
+                    self.prompt_vars[fn].set(dv)
+                return reset
+
+            reset_btn = ttk.Button(
+                btn_frame,
+                text="Reset to Default",
+                command=make_reset_callback(field_name, default_value)
+            )
+            reset_btn.pack(side=tk.RIGHT)
+
+            # Text area with scrollbar
+            text_frame = ttk.Frame(frame)
+            text_frame.pack(fill=tk.BOTH, expand=True)
+
+            scrollbar = ttk.Scrollbar(text_frame)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            text_widget = tk.Text(
+                text_frame,
+                wrap=tk.WORD,
+                yscrollcommand=scrollbar.set,
+                font=("Consolas", 10),
+                height=15
+            )
+            text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.config(command=text_widget.yview)
+
+            # Insert current value
+            text_widget.insert("1.0", current_value)
+
+            # Store reference (using a StringVar wrapper for tracking)
+            var = tk.StringVar(value=current_value)
+            self.prompt_vars[field_name] = var
+
+            # Bind text changes to variable
+            def make_update_callback(var_ref, text_ref):
+                def update(*args):
+                    var_ref.set(text_ref.get("1.0", "end-1c"))
+                return update
+
+            text_widget.bind("<KeyRelease>", make_update_callback(var, text_widget))
+
+            # Store text widget for later update
+            var._text_widget = text_widget  # type: ignore
+
+        # Button row
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=10)
+
+        ttk.Button(
+            button_frame,
+            text="Reset All to Defaults",
+            command=self._reset_all
+        ).pack(side=tk.LEFT)
+
+        ttk.Button(
+            button_frame,
+            text="Cancel",
+            command=self._cancel
+        ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Save",
+            command=self._save
+        ).pack(side=tk.RIGHT)
+
+    def _reset_all(self):
+        """Reset all prompts to defaults."""
+        for field_name, var in self.prompt_vars.items():
+            default_value = getattr(DEFAULT_PROMPTS, field_name, "")
+            var.set(default_value)
+            if hasattr(var, "_text_widget"):
+                var._text_widget.delete("1.0", tk.END)  # type: ignore
+                var._text_widget.insert("1.0", default_value)  # type: ignore
+
+    def _save(self):
+        """Save prompts and close dialog."""
+        # Build new PromptConfig from edited values
+        kwargs = {}
+        for field_name, var in self.prompt_vars.items():
+            # Get value from text widget
+            if hasattr(var, "_text_widget"):
+                value = var._text_widget.get("1.0", "end-1c")  # type: ignore
+            else:
+                value = var.get()
+            kwargs[field_name] = value
+
+        self.result_prompts = PromptConfig(**kwargs)
+        self.window.destroy()
+
+    def _cancel(self):
+        """Cancel without saving."""
+        self.result_prompts = None
+        self.window.destroy()
+
+    def show(self) -> Optional["PromptConfig"]:
+        """Show dialog and return result."""
+        self.window.wait_window()
+        return self.result_prompts
+
+
 class LLMSettingsPanel:
     """Expandable/collapsible LLM configuration panel."""
 
@@ -131,6 +298,7 @@ class LLMSettingsPanel:
         self.api_key = tk.StringVar()
         self.context_length = tk.IntVar(value=32768)
         self.detected_models: list[str] = []
+        self.custom_prompts: Optional["PromptConfig"] = None  # User-customized prompts
 
         self._create_widgets()
         self._update_for_provider()
@@ -260,6 +428,20 @@ class LLMSettingsPanel:
 
         self.status_label = ttk.Label(button_row, text="")
         self.status_label.pack(side=tk.LEFT, padx=10)
+
+        # Row 7: Edit Prompts button
+        prompts_row = ttk.Frame(self.content_frame)
+        prompts_row.pack(fill=tk.X, pady=5)
+
+        self.edit_prompts_button = ttk.Button(
+            prompts_row,
+            text="Edit Prompts...",
+            command=self._edit_prompts
+        )
+        self.edit_prompts_button.pack(side=tk.LEFT)
+
+        self.prompts_status_label = ttk.Label(prompts_row, text="Using default prompts")
+        self.prompts_status_label.pack(side=tk.LEFT, padx=10)
 
     def _toggle_expanded(self):
         """Toggle panel expansion."""
@@ -403,6 +585,24 @@ class LLMSettingsPanel:
         prefix = "✓ " if success else "✗ "
         self.status_label.config(text=prefix + message[:40])
 
+    def _edit_prompts(self):
+        """Open the prompts editor dialog."""
+        if not HAS_LLM_CONFIG or PromptConfig is None:
+            self.prompts_status_label.config(text="Prompt editing not available")
+            return
+
+        # Use current prompts or defaults
+        current = self.custom_prompts or DEFAULT_PROMPTS
+
+        # Open dialog
+        dialog = PromptEditorDialog(self.parent, current)
+        result = dialog.show()
+
+        if result is not None:
+            self.custom_prompts = result
+            self.prompts_status_label.config(text="Using custom prompts")
+        # If cancelled, keep existing prompts
+
     def get_settings(self) -> dict:
         """Get current settings as a dict."""
         provider = self.provider.get()
@@ -412,6 +612,7 @@ class LLMSettingsPanel:
             "base_url": self.base_url.get(),
             "api_key": self.api_key.get() if provider in ("openai", "anthropic") else None,
             "context_length": self.context_length.get(),
+            "prompts": self.custom_prompts,
         }
 
     def pack(self, **kwargs):
@@ -435,6 +636,7 @@ class AudiobookPrepGUI:
         self.output_dir = tk.StringVar(value=str(Path.cwd() / "output"))
         self.output_file = tk.StringVar()
         self.html_output = tk.StringVar()
+        self.generate_html = tk.BooleanVar(value=True)
         self.wpm = tk.IntVar(value=150)
         self.use_llm = tk.BooleanVar(value=True)
         
@@ -480,9 +682,22 @@ class AudiobookPrepGUI:
         
         ttk.Label(output_frame, text="JSON filename (optional, auto-generated if empty):").pack(anchor=tk.W, pady=(10, 0))
         ttk.Entry(output_frame, textvariable=self.output_file, width=50).pack(anchor=tk.W, pady=5)
-        
-        ttk.Label(output_frame, text="HTML filename (optional):").pack(anchor=tk.W, pady=(10, 0))
-        ttk.Entry(output_frame, textvariable=self.html_output, width=50).pack(anchor=tk.W, pady=5)
+
+        # HTML export option
+        html_row = ttk.Frame(output_frame)
+        html_row.pack(fill=tk.X, pady=(10, 0))
+
+        ttk.Checkbutton(
+            html_row,
+            text="Generate HTML report",
+            variable=self.generate_html,
+            command=self._toggle_html_entry
+        ).pack(side=tk.LEFT)
+
+        self.html_entry_frame = ttk.Frame(output_frame)
+        self.html_entry_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(self.html_entry_frame, text="HTML filename:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Entry(self.html_entry_frame, textvariable=self.html_output, width=40).pack(side=tk.LEFT, fill=tk.X, expand=True)
         
         # Options section
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
@@ -571,7 +786,18 @@ class AudiobookPrepGUI:
         )
         if dirname:
             self.output_dir.set(dirname)
-    
+
+    def _toggle_html_entry(self):
+        """Show/hide HTML filename entry based on checkbox."""
+        if self.generate_html.get():
+            self.html_entry_frame.pack(fill=tk.X, pady=5)
+            # Auto-generate filename if empty and input file is set
+            if not self.html_output.get() and self.input_file.get():
+                input_path = Path(self.input_file.get())
+                self.html_output.set(f"{input_path.stem}.html")
+        else:
+            self.html_entry_frame.pack_forget()
+
     def _analyze(self):
         """Start analysis in background thread."""
         if not self.input_file.get():
@@ -619,6 +845,7 @@ class AudiobookPrepGUI:
                 llm_provider=llm_settings.get("provider", "lm_studio"),
                 llm_api_key=llm_settings.get("api_key"),
                 llm_context_length=llm_settings.get("context_length", 32768),
+                llm_prompts=llm_settings.get("prompts"),
             )
             
             # Capture print statements for progress updates
@@ -669,13 +896,16 @@ class AudiobookPrepGUI:
             json_filename = self.output_file.get() or f"{input_path.stem}.analysis.json"
             json_path = output_dir / json_filename
             
-            html_filename = self.html_output.get()
-            html_path = output_dir / html_filename if html_filename else None
-            
+            # Determine HTML path if generation is enabled
+            html_path = None
+            if self.generate_html.get():
+                html_filename = self.html_output.get() or f"{input_path.stem}.html"
+                html_path = output_dir / html_filename
+
             # Save JSON
             analyzer.analyze_to_json(input_path, json_path)
             progress.update("Saving JSON...")
-            
+
             # Save HTML if requested
             if html_path:
                 try:
@@ -706,7 +936,7 @@ class AudiobookPrepGUI:
         """Called when analysis completes."""
         self.analyze_button.config(state=tk.NORMAL)
         self.view_results_button.config(state=tk.NORMAL)
-        if self.html_output.get():
+        if self.generate_html.get():
             self.open_html_button.config(state=tk.NORMAL)
         self.status_var.set("Analysis complete!")
     
@@ -726,11 +956,20 @@ class AudiobookPrepGUI:
     
     def _open_html(self):
         """Open HTML report in browser."""
-        if not self.html_output.get():
+        if not self.generate_html.get():
+            messagebox.showwarning("No HTML", "HTML generation was not enabled.")
+            return
+
+        # Get HTML filename (use auto-generated name if empty)
+        html_filename = self.html_output.get()
+        if not html_filename and self.input_file.get():
+            html_filename = f"{Path(self.input_file.get()).stem}.html"
+
+        if not html_filename:
             messagebox.showwarning("No HTML", "No HTML file was generated.")
             return
-        
-        html_path = Path(self.output_dir.get()) / self.html_output.get()
+
+        html_path = Path(self.output_dir.get()) / html_filename
         if not html_path.exists():
             messagebox.showerror("Error", f"HTML file not found: {html_path}")
             return

@@ -95,17 +95,29 @@ class DocumentIngester(ABC):
         return title if title else None
 
 
-def get_ingester(path: Path) -> DocumentIngester:
-    """Factory function to get the appropriate ingester for a file."""
+def get_ingester(path: Path, ocr_fallback: bool = False) -> DocumentIngester:
+    """
+    Factory function to get the appropriate ingester for a file.
+
+    Args:
+        path: Path to the file to ingest
+        ocr_fallback: Enable OCR fallback for PDFs with low text extraction
+
+    Returns:
+        Appropriate DocumentIngester instance for the file type
+    """
     from .pdf import PDFIngester
     from .docx import DOCXIngester
     from .epub import EPUBIngester
     from .txt import TXTIngester
-    
+
     ingesters = [PDFIngester, DOCXIngester, EPUBIngester, TXTIngester]
-    
+
     for ingester_class in ingesters:
         if ingester_class.can_handle(path):
+            # Pass ocr_fallback to PDFIngester
+            if ingester_class == PDFIngester:
+                return ingester_class(ocr_fallback=ocr_fallback)
             return ingester_class()
-    
+
     raise ValueError(f"No ingester available for file type: {path.suffix}")

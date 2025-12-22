@@ -13,6 +13,7 @@ from .models import (
     BookMetadata,
 )
 from .ingestion import get_ingester, ExtractedDocument
+from .ingestion.refine import refine_extracted_document, to_canonical_markdown
 from .analysis import (
     analyze_structure,
     extract_characters,
@@ -22,9 +23,11 @@ from .analysis import (
 # LLM refinement is optional - gracefully handle if not available
 try:
     from .llm import LLMRefiner, refine_analysis
+    from .llm.prompts import PromptConfig
     HAS_LLM = True
 except ImportError:
     HAS_LLM = False
+    PromptConfig = None  # type: ignore
 
 
 class AudiobookAnalyzer:
@@ -42,6 +45,10 @@ class AudiobookAnalyzer:
         llm_provider: str = "lm_studio",
         llm_api_key: Optional[str] = None,
         llm_context_length: int = 32768,
+        llm_prompts: Optional["PromptConfig"] = None,
+        ocr_fallback: bool = False,
+        write_canonical_md: bool = False,
+        output_dir: Optional[Path] = None,
     ):
         self.words_per_minute = words_per_minute
         self.min_character_mentions = min_character_mentions
@@ -51,6 +58,10 @@ class AudiobookAnalyzer:
         self.llm_provider = llm_provider
         self.llm_api_key = llm_api_key
         self.llm_context_length = llm_context_length
+        self.llm_prompts = llm_prompts
+        self.ocr_fallback = ocr_fallback
+        self.write_canonical_md = write_canonical_md
+        self.output_dir = Path(output_dir) if output_dir else None
     
     def analyze(self, file_path: str | Path) -> AnalysisResult:
         """
@@ -63,17 +74,31 @@ class AudiobookAnalyzer:
             AnalysisResult with all extracted information
         """
         file_path = Path(file_path)
-        
+
         # Step 1: Ingest document
         print(f"📖 Ingesting: {file_path.name}")
-        ingester = get_ingester(file_path)
+        ingester = get_ingester(file_path, ocr_fallback=self.ocr_fallback)
         doc = ingester.extract(file_path)
-        
+
         print(f"   Extracted {doc.word_count:,} words")
+
+        # Step 1.5: Refine extracted text (deterministic)
+        print("🔧 Refining text...")
+        doc = refine_extracted_document(doc)
+
         if doc.extraction_warnings:
             for warning in doc.extraction_warnings:
                 print(f"   ⚠️  {warning}")
-        
+
+        # Optionally write canonical markdown artifact
+        if self.write_canonical_md:
+            output_dir = self.output_dir or Path('output')
+            output_dir.mkdir(exist_ok=True)
+            md_path = output_dir / f"{file_path.stem}.canonical.md"
+            canonical_md = to_canonical_markdown(doc)
+            md_path.write_text(canonical_md, encoding='utf-8')
+            print(f"   📝 Wrote canonical markdown: {md_path}")
+
         # Step 2: Analyze structure
         print("📑 Analyzing structure...")
         structure = analyze_structure(doc, words_per_minute=self.words_per_minute)
@@ -141,6 +166,7 @@ class AudiobookAnalyzer:
                     provider=self.llm_provider,
                     api_key=self.llm_api_key,
                     context_length=self.llm_context_length,
+                    custom_prompts=self.llm_prompts,
                 )
                 stats = refine_analysis(
                     result, doc.text,

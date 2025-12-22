@@ -35,3 +35,6 @@ shift  # Remove first argument, pass rest to audiobook-prep
 # Run analysis with TUI
 ./venv/bin/audiobook-prep analyze "$BOOK_FILE" --tui "$@"
 
+
+
+

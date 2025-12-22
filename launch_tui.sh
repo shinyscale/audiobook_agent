@@ -31,3 +31,6 @@ fi
 # Launch TUI
 python -m src.gui.tui "$JSON_FILE"
 
+
+
+
