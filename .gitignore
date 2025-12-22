@@ -27,6 +27,7 @@ output/
 report.html
 
 # Test data
+Test_Texts/
 *.pdf
 *.epub
 gatsby.txt
