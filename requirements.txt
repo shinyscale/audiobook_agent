@@ -18,7 +18,12 @@ pyspellchecker>=0.8.0       # Dictionary-based validation for de-hyphenation
 # Local LLM Integration
 llama-cpp-python>=0.2.0     # For running GGUF models locally (optional)
 requests>=2.31.0            # For Ollama HTTP API (primary LLM backend)
+httpx>=0.27.0               # HTTP client for Ollama API (pipeline)
 # Or use: transformers + accelerate + bitsandbytes for HF models
+
+# Cloud LLM Providers (optional)
+openai>=1.0.0               # OpenAI SDK (also used for LM Studio)
+anthropic>=0.39.0           # Anthropic SDK
 
 # Utilities
 pyyaml>=6.0                 # Configuration
