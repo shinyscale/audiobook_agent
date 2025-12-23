@@ -1,38 +1,68 @@
 """
 Main analyzer orchestrator.
-Coordinates ingestion and analysis steps.
+Coordinates ingestion and analysis pipeline.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 import json
 from datetime import datetime
+import logging
 
 from .models import (
     AnalysisResult,
     BookMetadata,
+    StructuralElement,
+    StructureType,
+    Character,
+    CharacterDescription,
+    PronunciationEntry,
+    PronunciationFlag as ModelPronunciationFlag,
+    ConfidenceLevel,
 )
 from .ingestion import get_ingester, ExtractedDocument
 from .ingestion.refine import refine_extracted_document, to_canonical_markdown
-from .analysis import (
-    analyze_structure,
-    extract_characters,
-    flag_pronunciations,
-)
 
-# LLM refinement is optional - gracefully handle if not available
+# Import new pipeline
+from .pipeline import (
+    ChapterDetectionPipeline,
+    ChapterMap,
+)
+from .pipeline.character_extraction import (
+    CharacterExtractionPipeline,
+    CharacterMap as PipelineCharacterMap,
+)
+from .pipeline.chapter_summary import (
+    ChapterSummaryPipeline,
+    ChapterSummaryMap,
+)
+from .pipeline.pronunciation_guide import (
+    PronunciationGuidePipeline,
+    PronunciationMap,
+    PronunciationFlag as PipelinePronunciationFlag,
+)
+from .pipeline.llm import LLMClient, LLMConfig
+
+# LLM prompts config (keep for compatibility)
 try:
-    from .llm import LLMRefiner, refine_analysis
     from .llm.prompts import PromptConfig
-    HAS_LLM = True
+    HAS_PROMPTS = True
 except ImportError:
-    HAS_LLM = False
+    HAS_PROMPTS = False
     PromptConfig = None  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 class AudiobookAnalyzer:
     """
     Main analyzer class that orchestrates the full analysis pipeline.
+
+    Uses the new multi-agent pipeline for:
+    - Chapter detection
+    - Character extraction
+    - Chapter summaries
+    - Pronunciation guide
     """
 
     def __init__(
@@ -42,19 +72,20 @@ class AudiobookAnalyzer:
         llm_refine: bool = True,
         llm_model: Optional[str] = None,
         llm_base_url: Optional[str] = None,
-        llm_provider: str = "lm_studio",
+        llm_provider: str = "ollama",
         llm_api_key: Optional[str] = None,
         llm_context_length: int = 32768,
         llm_prompts: Optional["PromptConfig"] = None,
         ocr_fallback: bool = False,
         write_canonical_md: bool = False,
         output_dir: Optional[Path] = None,
+        progress_callback: Optional[Callable[[str, int, int], None]] = None,
     ):
         self.words_per_minute = words_per_minute
         self.min_character_mentions = min_character_mentions
-        self.llm_refine = llm_refine and HAS_LLM
+        self.llm_refine = llm_refine
         self.llm_model = llm_model
-        self.llm_base_url = llm_base_url or "http://localhost:1234/v1"
+        self.llm_base_url = llm_base_url or "http://localhost:11434"
         self.llm_provider = llm_provider
         self.llm_api_key = llm_api_key
         self.llm_context_length = llm_context_length
@@ -62,18 +93,75 @@ class AudiobookAnalyzer:
         self.ocr_fallback = ocr_fallback
         self.write_canonical_md = write_canonical_md
         self.output_dir = Path(output_dir) if output_dir else None
-    
+        self.progress_callback = progress_callback
+
+        # LLM client (created on first use)
+        self._llm_client: Optional[LLMClient] = None
+
+    def _get_llm_client(self) -> Optional[LLMClient]:
+        """Get or create LLM client."""
+        if not self.llm_refine:
+            return None
+
+        if self._llm_client is not None:
+            return self._llm_client
+
+        try:
+            if self.llm_provider == "ollama":
+                config = LLMConfig.ollama(
+                    model=self.llm_model or "llama3.2",
+                    base_url=self.llm_base_url,
+                )
+            elif self.llm_provider == "openai":
+                config = LLMConfig.openai(
+                    model=self.llm_model or "gpt-4o-mini",
+                    api_key=self.llm_api_key,
+                )
+            elif self.llm_provider == "anthropic":
+                config = LLMConfig.anthropic(
+                    model=self.llm_model or "claude-3-5-sonnet-20241022",
+                    api_key=self.llm_api_key,
+                )
+            elif self.llm_provider == "lm_studio":
+                # LM Studio uses OpenAI-compatible API
+                config = LLMConfig(
+                    provider="openai",
+                    model=self.llm_model or "local-model",
+                    base_url=self.llm_base_url,
+                    api_key="not-needed",
+                )
+            else:
+                logger.warning(f"Unknown LLM provider: {self.llm_provider}")
+                return None
+
+            self._llm_client = LLMClient(config)
+
+            # Test connection
+            ok, msg = self._llm_client.test_connection()
+            if ok:
+                logger.info(f"LLM connected: {msg}")
+            else:
+                logger.warning(f"LLM connection failed: {msg}")
+                self._llm_client = None
+
+        except Exception as e:
+            logger.error(f"Failed to create LLM client: {e}")
+            self._llm_client = None
+
+        return self._llm_client
+
     def analyze(self, file_path: str | Path) -> AnalysisResult:
         """
         Analyze a book file and return structured results.
-        
+
         Args:
             file_path: Path to PDF, DOCX, EPUB, or TXT file
-            
+
         Returns:
             AnalysisResult with all extracted information
         """
         file_path = Path(file_path)
+        warnings = []
 
         # Step 1: Ingest document
         print(f"📖 Ingesting: {file_path.name}")
@@ -89,6 +177,7 @@ class AudiobookAnalyzer:
         if doc.extraction_warnings:
             for warning in doc.extraction_warnings:
                 print(f"   ⚠️  {warning}")
+            warnings.extend(doc.extraction_warnings)
 
         # Optionally write canonical markdown artifact
         if self.write_canonical_md:
@@ -99,30 +188,70 @@ class AudiobookAnalyzer:
             md_path.write_text(canonical_md, encoding='utf-8')
             print(f"   📝 Wrote canonical markdown: {md_path}")
 
-        # Step 2: Analyze structure
-        print("📑 Analyzing structure...")
-        structure = analyze_structure(doc, words_per_minute=self.words_per_minute)
-        
-        chapter_count = sum(1 for s in structure if s.type.value == 'chapter')
-        print(f"   Found {chapter_count} chapters, {len(structure)} total structural elements")
-        
-        # Step 3: Extract characters
-        print("👥 Extracting characters...")
-        characters = extract_characters(
-            doc.text,
-            structure=structure,
-            min_mentions=self.min_character_mentions,
+        # Get LLM client
+        llm = self._get_llm_client()
+
+        # Step 2: Chapter Detection
+        print("📑 Detecting chapters...")
+        chapter_pipeline = ChapterDetectionPipeline(
+            llm_client=llm,
+            progress_callback=self._wrap_progress("chapters"),
         )
-        print(f"   Found {len(characters)} characters")
-        
-        # Step 4: Flag pronunciations
-        print("🗣️  Flagging pronunciations...")
-        pronunciations = flag_pronunciations(doc.text, characters=characters)
-        print(f"   Flagged {len(pronunciations)} words for pronunciation review")
-        
-        # Step 5: Build result
-        total_duration = sum(s.estimated_duration_minutes for s in structure if s.type.value == 'chapter')
-        
+        chapter_map = chapter_pipeline.run(doc.text, source_file=str(file_path))
+        print(f"   Found {len(chapter_map.chapters)} chapters")
+
+        # Step 3: Character Extraction
+        print("👥 Extracting characters...")
+        character_pipeline = CharacterExtractionPipeline(
+            llm_client=llm,
+            progress_callback=self._wrap_progress("characters"),
+        )
+        pipeline_char_map, _ = character_pipeline.run(
+            doc.text, chapter_map, source_file=str(file_path)
+        )
+        print(f"   Found {len(pipeline_char_map.characters)} characters")
+
+        # Step 4: Chapter Summaries
+        print("📝 Generating chapter summaries...")
+        if llm:
+            summary_pipeline = ChapterSummaryPipeline(
+                llm_client=llm,
+                progress_callback=self._wrap_progress("summaries"),
+            )
+            summary_map, _ = summary_pipeline.run(
+                doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
+            )
+            print(f"   Generated {len(summary_map.summaries)} summaries")
+        else:
+            summary_map = None
+            print("   ⚠️  Skipped (no LLM)")
+
+        # Step 5: Pronunciation Guide
+        print("🗣️  Generating pronunciation guide...")
+        pronunciation_pipeline = PronunciationGuidePipeline(
+            llm_client=llm,
+            progress_callback=self._wrap_progress("pronunciation"),
+        )
+        pron_map, _ = pronunciation_pipeline.run(
+            doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
+        )
+        print(f"   Flagged {len(pron_map.entries)} words")
+
+        # Step 6: Convert to AnalysisResult
+        print("📦 Building analysis result...")
+
+        # Convert chapters to StructuralElements
+        structure = self._convert_chapters(chapter_map, summary_map, self.words_per_minute)
+
+        # Convert characters
+        characters = self._convert_characters(pipeline_char_map)
+
+        # Convert pronunciations
+        pronunciations = self._convert_pronunciations(pron_map)
+
+        # Calculate totals
+        total_duration = sum(s.estimated_duration_minutes for s in structure)
+
         metadata = BookMetadata(
             title=doc.title,
             author=doc.author,
@@ -133,19 +262,16 @@ class AudiobookAnalyzer:
             estimated_total_duration_minutes=total_duration,
             words_per_minute=self.words_per_minute,
         )
-        
-        # Collect warnings
-        warnings = list(doc.extraction_warnings) if doc.extraction_warnings else []
-        
+
         # Identify low-confidence items
         low_confidence = []
         for elem in structure:
-            if elem.confidence.value == 'low':
+            if elem.confidence == ConfidenceLevel.LOW:
                 low_confidence.append(f"Structure: {elem.type.value} at position {elem.start_position}")
         for char in characters:
-            if char.confidence.value == 'low':
+            if char.confidence == ConfidenceLevel.LOW:
                 low_confidence.append(f"Character: {char.canonical_name}")
-        
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -156,30 +282,167 @@ class AudiobookAnalyzer:
             low_confidence_items=low_confidence,
         )
 
-        # Step 6: LLM refinement (optional)
-        if self.llm_refine:
-            print("🤖 Running LLM refinement...")
-            try:
-                refiner = LLMRefiner(
-                    model=self.llm_model,
-                    base_url=self.llm_base_url,
-                    provider=self.llm_provider,
-                    api_key=self.llm_api_key,
-                    context_length=self.llm_context_length,
-                    custom_prompts=self.llm_prompts,
-                )
-                stats = refine_analysis(
-                    result, doc.text,
-                    refiner=refiner,
-                    words_per_minute=self.words_per_minute,
-                    verbose=True
-                )
-            except Exception as e:
-                print(f"   ⚠️  LLM refinement failed: {e}")
-                warnings.append(f"LLM refinement failed: {e}")
-
+        print("✅ Analysis complete!")
         return result
-    
+
+    def _wrap_progress(self, stage: str) -> Optional[Callable[[str, int, int], None]]:
+        """Wrap progress callback with stage prefix."""
+        if not self.progress_callback:
+            return None
+
+        def wrapped(substage: str, current: int, total: int):
+            self.progress_callback(f"{stage}:{substage}", current, total)
+
+        return wrapped
+
+    def _convert_chapters(
+        self,
+        chapter_map: ChapterMap,
+        summary_map: Optional[ChapterSummaryMap],
+        wpm: int,
+    ) -> list[StructuralElement]:
+        """Convert pipeline ChapterMap to list of StructuralElements."""
+        elements = []
+
+        # Build summary lookup
+        summaries = {}
+        if summary_map:
+            for s in summary_map.summaries:
+                summaries[s.chapter_index] = s
+
+        for chapter in chapter_map.chapters:
+            # Calculate duration
+            duration = chapter.word_count / wpm
+
+            # Get summary if available
+            summary_text = None
+            characters_present = []
+            if chapter.index in summaries:
+                summary_obj = summaries[chapter.index]
+                summary_text = summary_obj.summary
+                characters_present = summary_obj.characters_present
+
+            # Map confidence
+            if chapter.confidence >= 0.8:
+                confidence = ConfidenceLevel.HIGH
+            elif chapter.confidence >= 0.5:
+                confidence = ConfidenceLevel.MEDIUM
+            else:
+                confidence = ConfidenceLevel.LOW
+
+            elements.append(StructuralElement(
+                type=StructureType.CHAPTER,
+                title=chapter.title,
+                index=chapter.index,
+                start_position=chapter.start_position,
+                end_position=chapter.end_position,
+                word_count=chapter.word_count,
+                estimated_duration_minutes=duration,
+                confidence=confidence,
+                summary=summary_text,
+                characters_present=characters_present,
+            ))
+
+        return elements
+
+    def _convert_characters(
+        self,
+        char_map: PipelineCharacterMap,
+    ) -> list[Character]:
+        """Convert pipeline CharacterMap to list of Character models."""
+        characters = []
+
+        for pc in char_map.characters:
+            # Map confidence
+            if pc.confidence >= 0.8:
+                confidence = ConfidenceLevel.HIGH
+            elif pc.confidence >= 0.5:
+                confidence = ConfidenceLevel.MEDIUM
+            else:
+                confidence = ConfidenceLevel.LOW
+
+            characters.append(Character(
+                id=pc.id,
+                canonical_name=pc.canonical_name,
+                aliases=pc.aliases,
+                first_appearance_chapter=pc.first_appearance_chapter,
+                mention_count=pc.mention_count,
+                confidence=confidence,
+            ))
+
+        # Also add low confidence characters
+        for pc in char_map.low_confidence_characters:
+            characters.append(Character(
+                id=pc.id,
+                canonical_name=pc.canonical_name,
+                aliases=pc.aliases,
+                first_appearance_chapter=pc.first_appearance_chapter,
+                mention_count=pc.mention_count,
+                confidence=ConfidenceLevel.LOW,
+            ))
+
+        return characters
+
+    def _convert_pronunciations(
+        self,
+        pron_map: PronunciationMap,
+    ) -> list[PronunciationEntry]:
+        """Convert pipeline PronunciationMap to list of PronunciationEntry models."""
+        entries = []
+
+        # Map flag reasons
+        flag_mapping = {
+            PipelinePronunciationFlag.PROPER_NOUN: ModelPronunciationFlag.PROPER_NOUN,
+            PipelinePronunciationFlag.FOREIGN: ModelPronunciationFlag.FOREIGN,
+            PipelinePronunciationFlag.HOMOGRAPH: ModelPronunciationFlag.HOMOGRAPH,
+            PipelinePronunciationFlag.UNKNOWN: ModelPronunciationFlag.UNKNOWN,
+            PipelinePronunciationFlag.CHARACTER: ModelPronunciationFlag.PROPER_NOUN,  # Map CHARACTER to PROPER_NOUN
+        }
+
+        for pe in pron_map.entries:
+            # Map confidence
+            if pe.confidence >= 0.8:
+                confidence = ConfidenceLevel.HIGH
+            elif pe.confidence >= 0.5:
+                confidence = ConfidenceLevel.MEDIUM
+            else:
+                confidence = ConfidenceLevel.LOW
+
+            # Map flag reason
+            flag = flag_mapping.get(pe.flag_reason, ModelPronunciationFlag.UNKNOWN)
+
+            entries.append(PronunciationEntry(
+                word=pe.word,
+                flag_reason=flag,
+                occurrences=pe.occurrence_count,
+                first_position=pe.first_position,
+                chapter_indices=pe.chapters_present,
+                context_examples=pe.context_examples[:3],
+                confidence=confidence,
+                ipa=pe.ipa,
+                phonetic_spelling=pe.phonetic_spelling,
+                notes=pe.notes,
+            ))
+
+        # Also add low confidence entries
+        for pe in pron_map.low_confidence_entries:
+            flag = flag_mapping.get(pe.flag_reason, ModelPronunciationFlag.UNKNOWN)
+
+            entries.append(PronunciationEntry(
+                word=pe.word,
+                flag_reason=flag,
+                occurrences=pe.occurrence_count,
+                first_position=pe.first_position,
+                chapter_indices=pe.chapters_present,
+                context_examples=pe.context_examples[:3],
+                confidence=ConfidenceLevel.LOW,
+                ipa=pe.ipa,
+                phonetic_spelling=pe.phonetic_spelling,
+                notes=pe.notes,
+            ))
+
+        return entries
+
     def analyze_to_json(
         self,
         file_path: str | Path,
@@ -187,34 +450,35 @@ class AudiobookAnalyzer:
     ) -> str:
         """
         Analyze a book and save results as JSON.
-        
+
         Args:
             file_path: Path to book file
             output_path: Optional output path (defaults to same name with .json)
-            
+
         Returns:
             Path to output JSON file
         """
         result = self.analyze(file_path)
-        
+
         if output_path is None:
             file_path = Path(file_path)
             output_path = file_path.with_suffix('.analysis.json')
-        
+
         output_path = Path(output_path)
-        
+
         # Convert to dict, excluding raw_text to save space
         result_dict = result.model_dump(exclude={'raw_text'})
-        
+
         # Add analysis metadata
         result_dict['_analysis_metadata'] = {
             'analyzed_at': datetime.now().isoformat(),
-            'analyzer_version': '0.1.0',
+            'analyzer_version': '0.2.0',  # Updated version
+            'pipeline': 'multi-agent',
         }
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result_dict, f, indent=2, ensure_ascii=False)
-        
+
         print(f"\n✅ Analysis saved to: {output_path}")
         return str(output_path)
 
@@ -222,10 +486,10 @@ class AudiobookAnalyzer:
 def analyze_book(file_path: str | Path) -> AnalysisResult:
     """
     Convenience function to analyze a book.
-    
+
     Args:
         file_path: Path to PDF, DOCX, EPUB, or TXT file
-        
+
     Returns:
         AnalysisResult with all extracted information
     """
