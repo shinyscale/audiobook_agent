@@ -213,6 +213,23 @@ class AudiobookAnalyzer:
         )
         print(f"   Found {len(pipeline_char_map.characters)} characters")
 
+        # Step 3.5: Generate Character Profiles
+        if llm:
+            print("📋 Generating character profiles...")
+            # Sort by mention count to prioritize main characters
+            sorted_chars = sorted(
+                pipeline_char_map.characters,
+                key=lambda c: c.mention_count,
+                reverse=True
+            )
+            profile_count = 0
+            for char in sorted_chars[:20]:  # Top 20 characters
+                profile = self._generate_character_profile(llm, char, doc.text)
+                if profile:
+                    char.description = profile
+                    profile_count += 1
+            print(f"   Generated {profile_count} profiles")
+
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
         if llm:
@@ -297,6 +314,50 @@ class AudiobookAnalyzer:
 
         return wrapped
 
+    def _generate_character_profile(
+        self,
+        llm: "LLMClient",
+        character,
+        full_text: str,
+    ) -> str:
+        """Generate prose profile for a character using LLM."""
+        # Gather context snippets from character mentions
+        contexts = []
+        for mention in character.mentions[:5]:  # First 5 mentions for context
+            start = max(0, mention.position - 100)
+            end = min(len(full_text), mention.position + 100)
+            snippet = full_text[start:end].strip()
+            # Clean up partial words at boundaries
+            if start > 0:
+                snippet = "..." + snippet.split(" ", 1)[-1] if " " in snippet else snippet
+            if end < len(full_text):
+                snippet = snippet.rsplit(" ", 1)[0] + "..." if " " in snippet else snippet
+            contexts.append(f"- {snippet}")
+
+        context_text = "\n".join(contexts[:5]) if contexts else "No context available."
+
+        prompt = f"""Write a brief character profile (2-3 sentences) for "{character.canonical_name}".
+
+Context where this character appears:
+{context_text}
+
+Focus on: their role in the story, notable traits, and key relationships.
+Return ONLY the prose description, no headers, labels, or formatting."""
+
+        try:
+            response = llm.query(prompt)
+            if response.success:
+                # Clean up any thinking tags or extra formatting
+                text = response.content.strip()
+                # Remove common LLM artifacts
+                if text.startswith('"') and text.endswith('"'):
+                    text = text[1:-1]
+                return text
+        except Exception as e:
+            logger.warning(f"Failed to generate profile for {character.canonical_name}: {e}")
+
+        return ""
+
     def _convert_chapters(
         self,
         chapter_map: ChapterMap,
@@ -363,16 +424,26 @@ class AudiobookAnalyzer:
             else:
                 confidence = ConfidenceLevel.LOW
 
+            # Build descriptions list if profile was generated
+            descriptions = []
+            if pc.description:
+                descriptions.append(CharacterDescription(
+                    text=pc.description,
+                    source_position=pc.mentions[0].position if pc.mentions else 0,
+                    confidence=ConfidenceLevel.LLM_REFINED,
+                ))
+
             characters.append(Character(
                 id=pc.id,
                 canonical_name=pc.canonical_name,
                 aliases=pc.aliases,
+                descriptions=descriptions,
                 first_appearance_chapter=pc.first_appearance_chapter,
                 mention_count=pc.mention_count,
                 confidence=confidence,
             ))
 
-        # Also add low confidence characters
+        # Also add low confidence characters (no profiles generated for these)
         for pc in char_map.low_confidence_characters:
             characters.append(Character(
                 id=pc.id,

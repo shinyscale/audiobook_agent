@@ -119,6 +119,7 @@ class Character:
     chapters_present: list[int]     # List of chapter indices where character appears
     confidence: float               # Overall confidence score
     supporting_strategies: list[str]  # Which extraction strategies found this character
+    description: str = ""           # LLM-generated prose profile
 
     def to_dict(self) -> dict:
         return {
@@ -131,6 +132,7 @@ class Character:
             "chapters_present": self.chapters_present,
             "confidence": self.confidence,
             "supporting_strategies": self.supporting_strategies,
+            "description": self.description,
         }
 
     @classmethod
@@ -145,6 +147,7 @@ class Character:
             chapters_present=data["chapters_present"],
             confidence=data["confidence"],
             supporting_strategies=data["supporting_strategies"],
+            description=data.get("description", ""),
         )
 
 
