@@ -11,6 +11,11 @@ from .character_extraction import (
     CharacterMap as CharacterMapResult,
     extract_characters,
 )
+from .chapter_summary import (
+    ChapterSummaryPipeline,
+    ChapterSummaryMap,
+    summarize_chapters,
+)
 
 __all__ = [
     "ChapterDetectionPipeline",
@@ -18,4 +23,7 @@ __all__ = [
     "CharacterExtractionPipeline",
     "CharacterMapResult",
     "extract_characters",
+    "ChapterSummaryPipeline",
+    "ChapterSummaryMap",
+    "summarize_chapters",
 ]
