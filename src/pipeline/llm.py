@@ -77,7 +77,10 @@ class LLMClient:
 
         elif self.config.provider == "openai":
             from openai import OpenAI
-            self._client = OpenAI(api_key=self.config.api_key)
+            self._client = OpenAI(
+                api_key=self.config.api_key,
+                base_url=self.config.base_url,  # Needed for LM Studio compatibility
+            )
 
         elif self.config.provider == "anthropic":
             from anthropic import Anthropic

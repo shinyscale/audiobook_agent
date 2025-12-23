@@ -765,11 +765,11 @@ class AudiobookPrepGUI:
         filename = filedialog.askopenfilename(
             title="Select Book File",
             filetypes=[
-                ("All Supported", "*.pdf;*.epub;*.docx;*.txt;*.md"),
+                ("All Supported", ("*.pdf", "*.epub", "*.docx", "*.txt", "*.md")),
                 ("PDF", "*.pdf"),
                 ("EPUB", "*.epub"),
                 ("Word", "*.docx"),
-                ("Text", "*.txt;*.md"),
+                ("Text", ("*.txt", "*.md")),
                 ("All Files", "*.*")
             ]
         )
