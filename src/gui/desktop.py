@@ -457,6 +457,10 @@ class LLMSettingsPanel:
     def _on_provider_change(self, event=None):
         """Handle provider selection change."""
         self._update_for_provider()
+        # Auto-detect models for local providers
+        provider = self.provider.get()
+        if provider in ("ollama", "lm_studio"):
+            self._detect_models()
 
     def _update_for_provider(self):
         """Update UI based on selected provider."""
@@ -808,7 +812,19 @@ class AudiobookPrepGUI:
         if not input_path.exists():
             messagebox.showerror("Error", f"File not found: {input_path}")
             return
-        
+
+        # Validate LLM settings if enabled
+        if self.use_llm.get():
+            llm_settings = self.llm_panel.get_settings()
+            if not llm_settings.get("model"):
+                messagebox.showerror(
+                    "LLM Configuration Error",
+                    "No model selected.\n\n"
+                    "Please expand 'LLM Settings', select a provider, "
+                    "and click 'Detect' to find available models."
+                )
+                return
+
         # Disable analyze button
         self.analyze_button.config(state=tk.DISABLED)
         self.status_var.set("Starting analysis...")

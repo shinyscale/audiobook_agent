@@ -141,12 +141,14 @@ class AudiobookAnalyzer:
             if ok:
                 logger.info(f"LLM connected: {msg}")
             else:
-                logger.warning(f"LLM connection failed: {msg}")
-                self._llm_client = None
+                # Raise exception so caller knows LLM is unavailable
+                raise RuntimeError(f"LLM connection failed: {msg}")
 
+        except RuntimeError:
+            # Re-raise connection failures
+            raise
         except Exception as e:
-            logger.error(f"Failed to create LLM client: {e}")
-            self._llm_client = None
+            raise RuntimeError(f"Failed to create LLM client: {e}")
 
         return self._llm_client
 
