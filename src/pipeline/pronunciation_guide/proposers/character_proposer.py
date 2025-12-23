@@ -1,0 +1,87 @@
+"""
+Character name proposer.
+
+Flags character names from the character extraction pipeline for pronunciation attention.
+"""
+
+import re
+from typing import Optional
+import logging
+
+from .base import BasePronunciationProposer
+from .cmu_proposer import COMMON_WORDS_WHITELIST
+from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
+
+logger = logging.getLogger(__name__)
+
+
+class CharacterProposer(BasePronunciationProposer):
+    """Proposes character names for pronunciation attention."""
+
+    name = "character"
+
+    def __init__(self, additional_whitelist: Optional[set[str]] = None):
+        """
+        Args:
+            additional_whitelist: Additional words to never flag
+        """
+        self.whitelist = COMMON_WORDS_WHITELIST.copy()
+        if additional_whitelist:
+            self.whitelist.update(additional_whitelist)
+
+    def propose(
+        self,
+        full_text: str,
+        chapter_boundaries: list[tuple[int, int, int]],
+        character_names: Optional[list[str]] = None,
+    ) -> list[PronunciationProposal]:
+        """Flag character names for pronunciation attention."""
+        if not character_names:
+            logger.debug("No character names provided to CharacterProposer")
+            return []
+
+        proposals = []
+        seen_words = set()
+
+        for name in character_names:
+            # Split multi-word names and process each word
+            words = name.split()
+
+            for word in words:
+                word_lower = word.lower()
+
+                # Skip if already processed
+                if word_lower in seen_words:
+                    continue
+
+                # Skip whitelist
+                if word_lower in self.whitelist:
+                    continue
+
+                # Skip very short words
+                if len(word) < 2:
+                    continue
+
+                # Skip common titles
+                if word_lower.rstrip('.') in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
+                    continue
+
+                seen_words.add(word_lower)
+
+                # Find all occurrences
+                mentions = self._find_all_occurrences(
+                    full_text, word, chapter_boundaries, case_sensitive=False
+                )
+
+                if mentions:
+                    proposals.append(PronunciationProposal(
+                        strategy=self.name,
+                        word=word,  # Preserve original capitalization
+                        flag_reason=PronunciationFlag.CHARACTER,
+                        mentions=mentions,
+                        confidence=0.85,  # High confidence - these are known characters
+                        reasoning=f"Character name from extraction pipeline",
+                    ))
+
+        logger.info(f"Character proposer found {len(proposals)} character name words")
+        return proposals

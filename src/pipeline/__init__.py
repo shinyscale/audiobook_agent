@@ -16,6 +16,11 @@ from .chapter_summary import (
     ChapterSummaryMap,
     summarize_chapters,
 )
+from .pronunciation_guide import (
+    PronunciationGuidePipeline,
+    PronunciationMap,
+    generate_pronunciation_guide,
+)
 
 __all__ = [
     "ChapterDetectionPipeline",
@@ -26,4 +31,7 @@ __all__ = [
     "ChapterSummaryPipeline",
     "ChapterSummaryMap",
     "summarize_chapters",
+    "PronunciationGuidePipeline",
+    "PronunciationMap",
+    "generate_pronunciation_guide",
 ]
