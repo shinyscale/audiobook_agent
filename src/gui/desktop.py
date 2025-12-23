@@ -477,7 +477,7 @@ class LLMSettingsPanel:
         else:
             # Fallback defaults
             default_urls = {
-                "ollama": "http://localhost:11434/v1",
+                "ollama": "http://localhost:11434",
                 "lm_studio": "http://localhost:1234/v1",
                 "openai": "https://api.openai.com/v1",
                 "anthropic": "https://api.anthropic.com/v1",

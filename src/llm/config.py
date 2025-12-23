@@ -19,7 +19,7 @@ class LLMProvider(str, Enum):
 
 # Default base URLs for each provider
 DEFAULT_URLS = {
-    LLMProvider.OLLAMA: "http://localhost:11434/v1",
+    LLMProvider.OLLAMA: "http://localhost:11434",
     LLMProvider.LM_STUDIO: "http://localhost:1234/v1",
     LLMProvider.OPENAI: "https://api.openai.com/v1",
     LLMProvider.ANTHROPIC: "https://api.anthropic.com/v1",
