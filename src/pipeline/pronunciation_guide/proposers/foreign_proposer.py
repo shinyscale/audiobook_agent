@@ -19,7 +19,7 @@ FOREIGN_PATTERNS = {
     'French': [
         r'\b\w*(?:eau|eux|aux|ois|oir|eur|ienne|ette|ique)\b',
         r'\b(?:le|la|les|du|des|un|une|mon|ma|mes|notre|votre)\s+\w+',
-        r'\b\w*(?:tion|sion)(?:s)?\b',  # Also common in English but often French origin
+        # Note: -tion/-sion pattern removed - too noisy, flags common English words
     ],
     'German': [
         r'\b\w*(?:burg|berg|stein|mann|schaft|keit|heit|chen|lein)\b',
@@ -42,13 +42,9 @@ FOREIGN_PATTERNS = {
 
 # Words that match patterns but are common English
 ENGLISH_EXCEPTIONS = {
-    'station', 'nation', 'motion', 'action', 'section', 'mention',
-    'question', 'attention', 'position', 'condition', 'addition',
-    'education', 'situation', 'information', 'direction', 'election',
-    'tradition', 'solution', 'revolution', 'decision', 'television',
+    # Common articles/conjunctions that might match patterns
     'the', 'a', 'an', 'and', 'or', 'but', 'for', 'to', 'of',
-    'mansion', 'passion', 'mission', 'session', 'profession',
-    'permission', 'expression', 'impression', 'discussion',
+    # -ique words that are standard English
     'unique', 'technique', 'antique', 'boutique', 'critique',
 }
 
