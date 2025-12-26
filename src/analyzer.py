@@ -214,21 +214,23 @@ class AudiobookAnalyzer:
         print(f"   Found {len(pipeline_char_map.characters)} characters")
 
         # Step 3.5: Generate Character Profiles
+        MIN_MENTIONS_FOR_PROFILE = 5
         if llm:
             print("📋 Generating character profiles...")
-            # Sort by mention count to prioritize main characters
-            sorted_chars = sorted(
-                pipeline_char_map.characters,
-                key=lambda c: c.mention_count,
-                reverse=True
-            )
+            # Generate profiles for all characters with sufficient mentions
+            eligible_chars = [
+                c for c in pipeline_char_map.characters
+                if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
+            ]
+            logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
             profile_count = 0
-            for char in sorted_chars[:20]:  # Top 20 characters
+            for i, char in enumerate(eligible_chars):
+                logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
                 profile = self._generate_character_profile(llm, char, doc.text)
                 if profile:
                     char.description = profile
                     profile_count += 1
-            print(f"   Generated {profile_count} profiles")
+            print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")

@@ -28,16 +28,22 @@ ALIAS_RESOLUTION_SYSTEM = """You are a literary analyst identifying character al
 
 Your task is to determine which character names refer to the SAME PERSON.
 
+IMPORTANT: Titles, ranks, and honorifics should be IGNORED when matching names.
+The underlying PERSON is what matters, not how they're addressed. Examples:
+- Military: "SSgt Otto" = "Staff Sergeant Mark Otto" = "Mark Otto" = "Otto"
+- Civilian: "Mr. Smith" = "John Smith" = "Smith"
+- Religious: "Father O'Brien" = "Patrick O'Brien" = "O'Brien"
+- Foreign: "Señor García" = "Miguel García" = "García"
+- Academic: "Professor Williams" = "Dr. Williams" = "Jane Williams"
+- Nobility: "Lord Pemberton" = "Charles Pemberton" = "Pemberton"
+
 CRITICAL RULES:
 1. Only merge names if they CLEARLY refer to the same individual
 2. Different people with similar names should NEVER be merged
 3. Pay attention to chapter appearances and context clues
 4. When in doubt, keep names SEPARATE
 
-Valid alias patterns:
-- Full name ↔ First name only: "Nick Carraway" = "Nick"
-- Full name ↔ Titled name: "Elizabeth Bennet" = "Miss Bennet"
-- Full name ↔ Nickname: "Elizabeth" = "Lizzy"
+For the canonical name, prefer the FULL CIVILIAN NAME (first + last) over titled versions.
 
 NEVER merge:
 - Different characters who happen to share a first name
@@ -477,47 +483,43 @@ class CharacterConsensusBuilder:
         name_groups: dict[str, list[CharacterValidationResult]],
     ) -> tuple[bool, float]:
         """
-        Validate if two names should be merged.
+        Validate LLM merge decision with lightweight sanity checks.
+
+        We trust the LLM's judgment about character identity. Only reject
+        merges that are clearly wrong (no shared words AND no chapter overlap).
 
         Returns:
             (is_valid, confidence) tuple
         """
-        # Check 1: Name similarity
-        similarity = self._name_similarity(canonical, alias)
-        if similarity < 0.3:
-            # Very different names - definitely not aliases
-            logger.debug(f"Merge rejected: {canonical} <-> {alias} (similarity={similarity:.2f} < 0.3)")
-            return False, 0.0
+        # Extract significant words (3+ chars, lowercased, no punctuation)
+        words1 = set(re.sub(r'[^\w\s]', '', canonical.lower()).split())
+        words2 = set(re.sub(r'[^\w\s]', '', alias.lower()).split())
+        significant1 = {w for w in words1 if len(w) >= 3}
+        significant2 = {w for w in words2 if len(w) >= 3}
+        shared_words = significant1 & significant2
 
-        # Check 2: Chapter overlap
+        # Get chapter info
         canonical_results = name_groups.get(canonical, [])
         alias_results = name_groups.get(alias, [])
-
         canonical_chapters = set(r.proposal.chapter_index for r in canonical_results)
         alias_chapters = set(r.proposal.chapter_index for r in alias_results)
+        has_chapter_overlap = bool(canonical_chapters & alias_chapters)
 
-        # If both appear in 3+ chapters with zero overlap, they're probably different people
+        # If names share a significant word, trust the LLM
+        if shared_words:
+            logger.debug(f"Merge accepted: {canonical} <- {alias} (shared words: {shared_words})")
+            return True, 0.85
+
+        # No shared words - be more cautious
+        # Only reject if BOTH have 3+ mentions AND zero chapter overlap
         if len(canonical_chapters) >= 3 and len(alias_chapters) >= 3:
-            overlap = canonical_chapters & alias_chapters
-            if not overlap:
-                logger.debug(f"Merge rejected: {canonical} <-> {alias} (no chapter overlap)")
+            if not has_chapter_overlap:
+                logger.debug(f"Merge rejected: {canonical} <-> {alias} (no shared words, no chapter overlap)")
                 return False, 0.1
 
-        # Check 3: Name structure compatibility
-        # Names like "Daisy" and "Catherine" have no structural relationship
-        if not self._names_structurally_compatible(canonical, alias):
-            logger.debug(f"Merge rejected: {canonical} <-> {alias} (structurally incompatible)")
-            return False, 0.2
-
-        # Calculate final confidence based on similarity and patterns
-        confidence = similarity
-
-        # Boost for known patterns
-        if self._is_known_alias_pattern(canonical, alias):
-            confidence = min(1.0, confidence + 0.2)
-
-        # Require minimum confidence
-        return confidence >= 0.5, confidence
+        # Otherwise trust the LLM - it understands titles/ranks/context
+        logger.debug(f"Merge accepted: {canonical} <- {alias} (trusting LLM judgment)")
+        return True, 0.7
 
     def _name_similarity(self, name1: str, name2: str) -> float:
         """Calculate similarity between two names (0.0 to 1.0)."""
@@ -539,74 +541,6 @@ class CharacterConsensusBuilder:
 
         # Use SequenceMatcher for general similarity
         return SequenceMatcher(None, n1, n2).ratio()
-
-    def _names_structurally_compatible(self, name1: str, name2: str) -> bool:
-        """
-        Check if two names have a structural relationship that suggests they could be aliases.
-
-        Returns True if:
-        - One is a first name of the other
-        - One is a titled version of the other (Mr. Smith vs Smith)
-        - They share significant components
-        """
-        norm1 = self._normalize_name(name1)
-        norm2 = self._normalize_name(name2)
-
-        parts1 = norm1.split()
-        parts2 = norm2.split()
-
-        # Single name matching part of multi-name
-        if len(parts1) == 1 and len(parts2) > 1:
-            if parts1[0] in parts2:
-                return True
-
-        if len(parts2) == 1 and len(parts1) > 1:
-            if parts2[0] in parts1:
-                return True
-
-        # Multi-name sharing components
-        if len(parts1) > 1 and len(parts2) > 1:
-            # Must share at least one full name component
-            if set(parts1) & set(parts2):
-                return True
-
-        # Single names must have high similarity to be compatible
-        if len(parts1) == 1 and len(parts2) == 1:
-            # "Daisy" and "Catherine" are NOT compatible (different base names)
-            # "Lizzy" and "Elizabeth" might be (similarity-based)
-            return SequenceMatcher(None, parts1[0], parts2[0]).ratio() > 0.6
-
-        return False
-
-    def _is_known_alias_pattern(self, name1: str, name2: str) -> bool:
-        """Check if names follow a known alias pattern."""
-        norm1 = self._normalize_name(name1)
-        norm2 = self._normalize_name(name2)
-
-        # Title + Name vs Name (Mr. Gatsby vs Gatsby)
-        parts1 = name1.lower().split()
-        parts2 = name2.lower().split()
-
-        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
-
-        if len(parts1) == 2 and parts1[0].rstrip('.') in titles:
-            if len(parts2) == 1 and parts2[0] == parts1[1]:
-                return True
-
-        if len(parts2) == 2 and parts2[0].rstrip('.') in titles:
-            if len(parts1) == 1 and parts1[0] == parts2[1]:
-                return True
-
-        # First name vs Full name (Nick vs Nick Carraway)
-        if len(parts1) == 1 and len(parts2) > 1:
-            if parts1[0] == parts2[0]:  # First name match
-                return True
-
-        if len(parts2) == 1 and len(parts1) > 1:
-            if parts2[0] == parts1[0]:  # First name match
-                return True
-
-        return False
 
     def _generate_id(self, name: str) -> str:
         """Generate a unique ID for a character."""
