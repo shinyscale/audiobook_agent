@@ -50,19 +50,35 @@ class BasePronunciationProposer(ABC):
         text: str,
         position: int,
         word_length: int,
-        window: int = 50,
+        window: int = 150,
     ) -> str:
-        """Extract context around a word position."""
-        start = max(0, position - window)
-        end = min(len(text), position + word_length + window)
+        """Extract the sentence containing the word."""
+        # Define search boundaries
+        search_start = max(0, position - window)
+        search_end = min(len(text), position + word_length + window)
 
-        context = text[start:end].strip()
-        # Clean up whitespace
-        context = ' '.join(context.split())
+        # Find sentence start (look for . ! ? " before position)
+        sentence_start = search_start
+        for punct in '.!?"':
+            idx = text.rfind(punct, search_start, position)
+            if idx != -1 and idx + 2 > sentence_start:
+                sentence_start = idx + 2  # Skip punctuation and space
 
-        if start > 0:
+        # Find sentence end (look for . ! ? " after word)
+        sentence_end = search_end
+        for punct in '.!?"':
+            idx = text.find(punct, position + word_length, search_end)
+            if idx != -1 and idx + 1 < sentence_end:
+                sentence_end = idx + 1  # Include punctuation
+
+        # Extract and clean
+        context = text[sentence_start:sentence_end].strip()
+        context = ' '.join(context.split())  # Normalize whitespace
+
+        # Add ellipsis if we're not at actual sentence boundaries
+        if sentence_start > 0 and text[sentence_start - 1] not in '.!?"':
             context = "..." + context
-        if end < len(text):
+        if sentence_end < len(text) and text[sentence_end - 1] not in '.!?"':
             context = context + "..."
 
         return context

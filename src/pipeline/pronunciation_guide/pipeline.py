@@ -65,7 +65,7 @@ class PronunciationGuidePipeline:
         if proposers is None:
             self.proposers = [
                 CMUProposer(),
-                ForeignProposer(),
+                ForeignProposer(llm_client=llm_client),  # Pass LLM for validation
                 HomographProposer(),
                 CharacterProposer(),
             ]

@@ -46,6 +46,18 @@ ENGLISH_EXCEPTIONS = {
     'the', 'a', 'an', 'and', 'or', 'but', 'for', 'to', 'of',
     # -ique words that are standard English
     'unique', 'technique', 'antique', 'boutique', 'critique',
+    # Common Latin-origin -ium/-ius words
+    'stadium', 'radius', 'genius', 'podium', 'tedium', 'medium', 'premium',
+    'aquarium', 'auditorium', 'gymnasium', 'millennium', 'symposium',
+    'calcium', 'sodium', 'potassium', 'uranium', 'helium', 'titanium',
+    'bacteria', 'criteria', 'media', 'data', 'agenda', 'phenomena',
+    # Common -ious/-eous words
+    'obvious', 'previous', 'serious', 'curious', 'various', 'anxious',
+    'gorgeous', 'religious', 'precious', 'conscious', 'delicious',
+    'mysterious', 'suspicious', 'ambitious', 'cautious', 'spacious',
+    # Words that match German article patterns but are English
+    'die', 'dying', 'died', 'dies',  # English verb "to die"
+    'an', 'one', 'a',  # English articles that match German "ein/eine"
 }
 
 
@@ -54,8 +66,9 @@ class ForeignProposer(BasePronunciationProposer):
 
     name = "foreign"
 
-    def __init__(self, min_word_length: int = 4):
+    def __init__(self, min_word_length: int = 4, llm_client=None):
         self.min_word_length = min_word_length
+        self.llm_client = llm_client
         self.compiled_patterns = self._compile_patterns()
 
     def _compile_patterns(self) -> dict[str, list[re.Pattern]]:
@@ -140,5 +153,70 @@ class ForeignProposer(BasePronunciationProposer):
                     reasoning=f"Matches {language} language pattern",
                 ))
 
-        logger.info(f"Foreign proposer found {len(proposals)} foreign words")
+        logger.info(f"Foreign proposer found {len(proposals)} candidate words")
+
+        # Validate with LLM if available
+        if self.llm_client and proposals:
+            proposals = self._validate_with_llm(proposals)
+            logger.info(f"After LLM validation: {len(proposals)} confirmed foreign words")
+
         return proposals
+
+    def _validate_with_llm(
+        self,
+        proposals: list[PronunciationProposal],
+        batch_size: int = 20,
+    ) -> list[PronunciationProposal]:
+        """Use LLM to validate if flagged words are truly foreign in context."""
+        validated = []
+
+        # Process in batches
+        for i in range(0, len(proposals), batch_size):
+            batch = proposals[i:i + batch_size]
+
+            # Build prompt with words and context
+            candidates_text = []
+            for p in batch:
+                context = p.mentions[0].context if p.mentions else "No context"
+                candidates_text.append(
+                    f"- Word: \"{p.word}\" (flagged as {p.language_hint})\n"
+                    f"  Context: \"{context}\""
+                )
+
+            prompt = f"""Review these words that were flagged as potentially foreign based on spelling patterns.
+For each, determine if it's ACTUALLY being used as a foreign word/phrase, or if it's just a common English word that happens to match a foreign pattern.
+
+{chr(10).join(candidates_text)}
+
+Return a JSON array with your assessment for each word:
+[
+  {{"word": "example", "is_foreign": true/false, "reason": "brief explanation"}}
+]
+
+Only mark as foreign if the word is genuinely from another language and would need special pronunciation guidance for an English narrator."""
+
+            try:
+                result, response = self.llm_client.query_json(prompt)
+                if result and isinstance(result, list):
+                    # Create lookup of LLM decisions
+                    decisions = {item.get("word", "").lower(): item for item in result}
+
+                    for p in batch:
+                        decision = decisions.get(p.word.lower(), {})
+                        if decision.get("is_foreign", True):  # Default to keeping if not found
+                            # Update reasoning with LLM's explanation
+                            if decision.get("reason"):
+                                p.reasoning = decision["reason"]
+                            validated.append(p)
+                        else:
+                            logger.debug(f"LLM rejected '{p.word}': {decision.get('reason', 'no reason')}")
+                else:
+                    # If LLM fails, keep all candidates from this batch
+                    logger.warning("LLM validation failed, keeping batch candidates")
+                    validated.extend(batch)
+
+            except Exception as e:
+                logger.warning(f"LLM validation error: {e}, keeping batch candidates")
+                validated.extend(batch)
+
+        return validated
