@@ -6,6 +6,7 @@ Stage 4: Reconcile proposals from multiple strategies into a final chapter map.
 
 from dataclasses import dataclass
 from typing import Optional
+import re
 import logging
 
 from .models import (
@@ -16,8 +17,45 @@ from .models import (
     ChapterMap,
     DocumentProfile,
 )
+from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+
+SEQUENCE_VALIDATION_SYSTEM = """You are a document structure analyst validating chapter sequences.
+
+Your task is to identify chapters that don't belong in the sequence - usually because they are:
+1. References to chapters in the text (not actual chapter headings)
+2. Out-of-order numbering that breaks the logical sequence
+3. Back matter (glossary, bibliography) that mentions chapter numbers
+
+A valid chapter sequence typically:
+- Starts with Chapter 1 (or Prologue) and increments logically
+- May restart numbering if there are Book/Part divisions
+- Has consistent spacing and formatting"""
+
+
+SEQUENCE_VALIDATION_PROMPT = """Validate this proposed chapter sequence for a book.
+
+Proposed chapter markers in order:
+{chapter_list}
+
+Analyze the sequence and identify any chapters that should be REMOVED because:
+1. They break the logical numbering (e.g., "Chapter 1" appearing after "Chapter 9" without a Part/Book division)
+2. They appear to be textual references, not structural markers
+3. They appear to be back matter (glossary, appendix, bibliography) disguised as chapters
+
+Return JSON with:
+{{
+  "analysis": "Brief explanation of the sequence pattern you see",
+  "invalid_indices": [list of 0-based indices that should be removed],
+  "reasoning": {{"<index>": "why this should be removed"}}
+}}
+
+IMPORTANT: Books with "Part 1, Part 2" divisions may legitimately restart chapter numbering.
+Only mark chapters as invalid if they clearly don't fit the pattern.
+
+Return ONLY valid JSON."""
 
 
 @dataclass
@@ -44,6 +82,7 @@ class ConsensusBuilder:
 
     def __init__(
         self,
+        llm_client: Optional[LLMClient] = None,
         position_threshold: int = 200,
         high_confidence_threshold: float = 0.7,
         low_confidence_threshold: float = 0.4,
@@ -51,11 +90,13 @@ class ConsensusBuilder:
     ):
         """
         Args:
+            llm_client: LLM client for sequence validation
             position_threshold: Max distance (chars) to consider proposals as same boundary
             high_confidence_threshold: Score above this = auto-accept
             low_confidence_threshold: Score below this = reject
             min_chapter_words: Minimum words per chapter
         """
+        self.llm = llm_client
         self.position_threshold = position_threshold
         self.high_confidence_threshold = high_confidence_threshold
         self.low_confidence_threshold = low_confidence_threshold
@@ -99,13 +140,17 @@ class ConsensusBuilder:
         # 3. Score clusters
         scored_clusters = self._score_clusters(clusters, profile)
 
-        # 4. Select boundaries
+        # 4. Validate chapter sequence with LLM (removes out-of-order chapters)
+        if self.llm:
+            scored_clusters = self._validate_chapter_sequence(scored_clusters)
+
+        # 5. Select boundaries
         high_confidence, low_confidence, rejected = self._select_boundaries(scored_clusters)
 
-        # 5. Validate chapter sizes
+        # 6. Validate chapter sizes
         high_confidence = self._validate_chapter_sizes(high_confidence, text)
 
-        # 6. Build chapter map
+        # 7. Build chapter map
         return self._build_chapter_map(
             high_confidence, low_confidence, text, profile
         )
@@ -290,9 +335,12 @@ class ConsensusBuilder:
             # Check TOC validation
             toc_validated = any(v.toc_match_score > 0.8 for v in cluster.proposals)
 
+            # Clean the title to remove redundant "Chapter X:" prefixes
+            cleaned_title = self._clean_title(cluster.best_title)
+
             chapters.append(Chapter(
                 index=i + 1,
-                title=cluster.best_title,
+                title=cleaned_title,
                 start_position=start,
                 end_position=end,
                 word_count=word_count,
@@ -371,6 +419,91 @@ class ConsensusBuilder:
         # Agreement score
         max_possible = max(len(toc_entries), len(chapters))
         return matches / max_possible if max_possible > 0 else 0.0
+
+    def _validate_chapter_sequence(
+        self,
+        clusters: list[ProposalCluster],
+    ) -> list[ProposalCluster]:
+        """
+        Use LLM to validate the chapter sequence and remove out-of-order chapters.
+
+        This catches issues like "Chapter 1" appearing after "Chapter 9".
+        """
+        if not clusters or len(clusters) < 3:
+            return clusters
+
+        # Sort by position
+        sorted_clusters = sorted(clusters, key=lambda c: c.center_position)
+
+        # Build chapter list for LLM
+        chapter_list = []
+        for i, cluster in enumerate(sorted_clusters):
+            title = cluster.best_title or "(no title)"
+            conf = "high" if cluster.combined_score >= self.high_confidence_threshold else "medium"
+            chapter_list.append(f"{i}. {title} (confidence: {conf})")
+
+        chapter_list_str = "\n".join(chapter_list)
+
+        prompt = SEQUENCE_VALIDATION_PROMPT.format(chapter_list=chapter_list_str)
+
+        try:
+            result, response = self.llm.query_json(prompt, system=SEQUENCE_VALIDATION_SYSTEM)
+
+            if result is None:
+                logger.warning("LLM sequence validation failed to return JSON, keeping all chapters")
+                return clusters
+
+            invalid_indices = result.get("invalid_indices", [])
+
+            if invalid_indices:
+                analysis = result.get("analysis", "")
+                reasoning = result.get("reasoning", {})
+                logger.info(f"LLM sequence validation: {analysis}")
+
+                for idx in invalid_indices:
+                    reason = reasoning.get(str(idx), "no reason given")
+                    if 0 <= idx < len(sorted_clusters):
+                        title = sorted_clusters[idx].best_title
+                        logger.info(f"Removing invalid chapter at index {idx}: '{title}' - {reason}")
+
+                # Filter out invalid clusters
+                valid_clusters = [
+                    c for i, c in enumerate(sorted_clusters)
+                    if i not in invalid_indices
+                ]
+                return valid_clusters
+
+        except Exception as e:
+            logger.warning(f"LLM sequence validation error: {e}")
+
+        return clusters
+
+    def _clean_title(self, title: Optional[str]) -> Optional[str]:
+        """
+        Clean chapter title by removing redundant 'Chapter X:' prefixes.
+
+        The detected title might already include "Chapter 12: Cooking with Explosives"
+        but we assign our own index, so we'd get "Chapter 13: Chapter 12: Cooking with Explosives".
+        This extracts just the subtitle part.
+        """
+        if not title:
+            return None
+
+        # If title starts with "Chapter N:" or similar, extract just the subtitle
+        # Handles: "Chapter 12: Title", "Chapter XII - Title", "CHAPTER 5: Title"
+        match = re.match(
+            r'^(?:Chapter|CHAPTER)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*[:\-—–]\s*(.+)$',
+            title,
+            re.IGNORECASE
+        )
+        if match:
+            return match.group(1).strip()
+
+        # If title is JUST "Chapter N" with no subtitle, return None (we'll use our index)
+        if re.match(r'^(?:Chapter|CHAPTER)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$', title, re.IGNORECASE):
+            return None
+
+        return title
 
     def _single_chapter_map(self, text: str, profile: DocumentProfile) -> ChapterMap:
         """Create a single-chapter map when no boundaries are found."""

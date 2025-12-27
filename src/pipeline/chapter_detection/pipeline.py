@@ -69,7 +69,7 @@ class ChapterDetectionPipeline:
         self.profiler = DocumentProfiler(llm_client=llm_client)
         self.regex_proposer = RegexProposer()
         self.validator = ProposalValidator(llm_client=llm_client)
-        self.consensus_builder = ConsensusBuilder()
+        self.consensus_builder = ConsensusBuilder(llm_client=llm_client)
 
         # LLM proposers (only if LLM available)
         if llm_client:
