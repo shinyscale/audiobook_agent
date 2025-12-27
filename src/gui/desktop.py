@@ -926,7 +926,12 @@ class AudiobookPrepGUI:
             if html_path:
                 try:
                     from ..export.html_report import export_html_report
-                    export_html_report(result, html_path)
+                    export_html_report(
+                        result,
+                        html_path,
+                        llm_model=analyzer.llm_model,
+                        analysis_duration_seconds=analyzer._last_analysis_duration,
+                    )
                     progress.update("Saving HTML...")
                 except Exception as e:
                     print(f"Warning: HTML export failed: {e}")

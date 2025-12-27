@@ -6,6 +6,7 @@ Coordinates ingestion and analysis pipeline.
 from pathlib import Path
 from typing import Optional, Callable
 import json
+import time
 from datetime import datetime
 import logging
 
@@ -98,6 +99,9 @@ class AudiobookAnalyzer:
         # LLM client (created on first use)
         self._llm_client: Optional[LLMClient] = None
 
+        # Analysis timing (set after each analyze() call)
+        self._last_analysis_duration: Optional[float] = None
+
     def _get_llm_client(self) -> Optional[LLMClient]:
         """Get or create LLM client."""
         if not self.llm_refine:
@@ -164,6 +168,7 @@ class AudiobookAnalyzer:
         """
         file_path = Path(file_path)
         warnings = []
+        start_time = time.time()
 
         # Step 1: Ingest document
         print(f"📖 Ingesting: {file_path.name}")
@@ -303,8 +308,19 @@ class AudiobookAnalyzer:
             low_confidence_items=low_confidence,
         )
 
-        print("✅ Analysis complete!")
+        # Track analysis duration
+        self._last_analysis_duration = time.time() - start_time
+        duration_str = self._format_duration(self._last_analysis_duration)
+        print(f"✅ Analysis complete in {duration_str}!")
         return result
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in human-readable form (e.g., '2m 34s')."""
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        if mins > 0:
+            return f"{mins}m {secs}s"
+        return f"{secs}s"
 
     def _wrap_progress(self, stage: str) -> Optional[Callable[[str, int, int], None]]:
         """Wrap progress callback with stage prefix."""
@@ -547,8 +563,11 @@ Return ONLY the prose description, no headers, labels, or formatting."""
         # Add analysis metadata
         result_dict['_analysis_metadata'] = {
             'analyzed_at': datetime.now().isoformat(),
-            'analyzer_version': '0.2.0',  # Updated version
+            'analyzer_version': '0.2.0',
             'pipeline': 'multi-agent',
+            'llm_model': self.llm_model or 'none',
+            'llm_provider': self.llm_provider if self.llm_refine else 'none',
+            'analysis_duration_seconds': round(self._last_analysis_duration, 1) if self._last_analysis_duration else None,
         }
 
         with open(output_path, 'w', encoding='utf-8') as f:

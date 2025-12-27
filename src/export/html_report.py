@@ -375,6 +375,13 @@ HTML_TEMPLATE = '''
                 {% if author %}by {{ author }} &middot; {% endif %}
                 Narrator's Guide &middot; Generated {{ analyzed_at }}
             </p>
+            {% if llm_model or analysis_duration %}
+            <p class="meta" style="margin-top: 0.5rem; font-size: 0.9rem;">
+                {% if llm_model and llm_model != 'none' %}Analyzed with {{ llm_model }}{% endif %}
+                {% if llm_model and llm_model != 'none' and analysis_duration %} in {% elif analysis_duration %}Analyzed in {% endif %}
+                {% if analysis_duration %}{{ analysis_duration }}{% endif %}
+            </p>
+            {% endif %}
         </header>
 
         <div class="stats">
@@ -770,13 +777,29 @@ def _classify_chapter(title: str) -> str:
     return 'main'
 
 
-def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
+def _format_duration(seconds: float) -> str:
+    """Format duration in human-readable form (e.g., '2m 34s')."""
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    if mins > 0:
+        return f"{mins}m {secs}s"
+    return f"{secs}s"
+
+
+def export_html_report(
+    result: AnalysisResult,
+    output_path: str | Path,
+    llm_model: str | None = None,
+    analysis_duration_seconds: float | None = None,
+) -> None:
     """
     Export analysis results as an HTML report.
 
     Args:
         result: AnalysisResult to export
         output_path: Path to write HTML file
+        llm_model: Name of the LLM model used (optional)
+        analysis_duration_seconds: Total analysis time in seconds (optional)
     """
     # Calculate duration string
     total_mins = result.metadata.estimated_total_duration_minutes
@@ -848,6 +871,11 @@ def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
     # Prepare template
     template = Template(HTML_TEMPLATE)
 
+    # Format analysis duration if provided
+    analysis_duration_str = None
+    if analysis_duration_seconds is not None:
+        analysis_duration_str = _format_duration(analysis_duration_seconds)
+
     html = template.render(
         title=result.metadata.title or "Untitled",
         author=result.metadata.author,
@@ -868,6 +896,8 @@ def export_html_report(result: AnalysisResult, output_path: str | Path) -> None:
         foreign_words=foreign_words,
         other_pronunciations=other_pronunciations,
         warnings=result.warnings,
+        llm_model=llm_model,
+        analysis_duration=analysis_duration_str,
     )
 
     output_path = Path(output_path)

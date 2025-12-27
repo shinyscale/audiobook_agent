@@ -158,7 +158,12 @@ def run_analyze(args):
                     if html_path.is_dir() or (not html_path.suffix and not html_path.exists()):
                         html_path = Path(html_path) / file_path.with_suffix('.html').name
                 
-                export_html_report(result, html_path)
+                export_html_report(
+                    result,
+                    html_path,
+                    llm_model=analyzer.llm_model,
+                    analysis_duration_seconds=analyzer._last_analysis_duration,
+                )
             except ImportError:
                 print("Warning: HTML export not available (missing src/export module)")
             except Exception as e:
