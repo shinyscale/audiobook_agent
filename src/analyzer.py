@@ -45,6 +45,9 @@ from .pipeline.pronunciation_guide import (
 from .pipeline.llm import LLMClient, LLMConfig
 from .pipeline.metrics import MetricsCollector, ProfilingReport
 
+# Agent imports
+from .agents import StructureAgent, AgentContext, AgentConfig
+
 # LLM prompts config (keep for compatibility)
 try:
     from .llm.prompts import PromptConfig
@@ -206,20 +209,35 @@ class AudiobookAnalyzer:
         # Get LLM client
         llm = self._get_llm_client()
 
-        # Step 2: Chapter Detection
+        # Step 2: Chapter Detection (using StructureAgent)
         print("📑 Detecting chapters...")
         with self._metrics.stage("Chapter Detection") as ctx:
-            chapter_pipeline = ChapterDetectionPipeline(
+            # Create agent and context
+            structure_agent = StructureAgent(
                 llm_client=llm,
-                progress_callback=self._wrap_progress("chapters"),
+                config=AgentConfig(enable_verification=True),
             )
-            chapter_map = chapter_pipeline.run(doc.text, source_file=str(file_path))
+            agent_context = AgentContext(
+                text=doc.text,
+                source_file=str(file_path),
+            )
 
-            # Record confidence metrics
-            high = sum(1 for c in chapter_map.chapters if c.confidence >= 0.7)
-            medium = sum(1 for c in chapter_map.chapters if 0.4 <= c.confidence < 0.7)
-            low = sum(1 for c in chapter_map.chapters if c.confidence < 0.4)
-            ctx.record_items(total=len(chapter_map.chapters), high_confidence=high, medium_confidence=medium, low_confidence=low)
+            # Run with self-verification
+            structure_result = structure_agent.run_with_refinement(agent_context)
+            chapter_map = structure_result.data
+
+            # Record metrics from agent result
+            ctx.record_items(
+                total=structure_result.total_items,
+                high_confidence=structure_result.high_confidence_count,
+                medium_confidence=structure_result.medium_confidence_count,
+                low_confidence=structure_result.low_confidence_count,
+            )
+
+            # Log any issues found during verification
+            if structure_result.issues:
+                for issue in structure_result.issues:
+                    logger.info(f"Structure issue: {issue}")
 
         print(f"   Found {len(chapter_map.chapters)} chapters")
 
