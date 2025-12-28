@@ -38,6 +38,10 @@ class AgentContext:
     text: str
     source_file: str = ""
 
+    # Common upstream results (convenience fields)
+    chapter_map: Optional[Any] = None  # From StructureAgent
+    character_map: Optional[Any] = None  # From CharacterAgent
+
     # Results from upstream agents (keyed by agent name)
     previous_results: dict[str, Any] = field(default_factory=dict)
 

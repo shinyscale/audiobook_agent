@@ -44,6 +44,7 @@ from .config import (
 )
 
 from .structure import StructureAgent, create_structure_agent
+from .characters import CharacterAgent
 
 __all__ = [
     # Base classes and types
@@ -62,4 +63,5 @@ __all__ = [
     # Specialized agents
     "StructureAgent",
     "create_structure_agent",
+    "CharacterAgent",
 ]

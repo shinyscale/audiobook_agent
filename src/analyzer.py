@@ -46,7 +46,7 @@ from .pipeline.llm import LLMClient, LLMConfig
 from .pipeline.metrics import MetricsCollector, ProfilingReport
 
 # Agent imports
-from .agents import StructureAgent, AgentContext, AgentConfig
+from .agents import StructureAgent, CharacterAgent, AgentContext, AgentConfig
 
 # LLM prompts config (keep for compatibility)
 try:
@@ -241,22 +241,36 @@ class AudiobookAnalyzer:
 
         print(f"   Found {len(chapter_map.chapters)} chapters")
 
-        # Step 3: Character Extraction
+        # Step 3: Character Extraction (using CharacterAgent)
         print("👥 Extracting characters...")
         with self._metrics.stage("Character Extraction") as ctx:
-            character_pipeline = CharacterExtractionPipeline(
+            # Create agent and context
+            character_agent = CharacterAgent(
                 llm_client=llm,
-                progress_callback=self._wrap_progress("characters"),
+                config=AgentConfig(enable_verification=True),
             )
-            pipeline_char_map, _ = character_pipeline.run(
-                doc.text, chapter_map, source_file=str(file_path)
+            char_agent_context = AgentContext(
+                text=doc.text,
+                source_file=str(file_path),
+                chapter_map=chapter_map,
             )
 
-            # Record confidence metrics
-            high = sum(1 for c in pipeline_char_map.characters if c.confidence >= 0.7)
-            medium = sum(1 for c in pipeline_char_map.characters if 0.4 <= c.confidence < 0.7)
-            low = sum(1 for c in pipeline_char_map.characters if c.confidence < 0.4) + len(pipeline_char_map.low_confidence_characters)
-            ctx.record_items(total=len(pipeline_char_map.characters), high_confidence=high, medium_confidence=medium, low_confidence=low)
+            # Run with self-verification
+            character_result = character_agent.run_with_refinement(char_agent_context)
+            pipeline_char_map = character_result.data
+
+            # Record metrics from agent result
+            ctx.record_items(
+                total=character_result.total_items,
+                high_confidence=character_result.high_confidence_count,
+                medium_confidence=character_result.medium_confidence_count,
+                low_confidence=character_result.low_confidence_count,
+            )
+
+            # Log any issues found during verification
+            if character_result.issues:
+                for issue in character_result.issues:
+                    logger.info(f"Character issue: {issue}")
 
         print(f"   Found {len(pipeline_char_map.characters)} characters")
 
