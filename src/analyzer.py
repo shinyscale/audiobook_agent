@@ -43,6 +43,7 @@ from .pipeline.pronunciation_guide import (
     PronunciationFlag as PipelinePronunciationFlag,
 )
 from .pipeline.llm import LLMClient, LLMConfig
+from .pipeline.metrics import MetricsCollector, ProfilingReport
 
 # LLM prompts config (keep for compatibility)
 try:
@@ -101,6 +102,10 @@ class AudiobookAnalyzer:
 
         # Analysis timing (set after each analyze() call)
         self._last_analysis_duration: Optional[float] = None
+
+        # Metrics collector for profiling
+        self._metrics = MetricsCollector()
+        self._last_profiling_report: Optional[ProfilingReport] = None
 
     def _get_llm_client(self) -> Optional[LLMClient]:
         """Get or create LLM client."""
@@ -170,6 +175,9 @@ class AudiobookAnalyzer:
         warnings = []
         start_time = time.time()
 
+        # Start metrics collection
+        self._metrics.start_analysis()
+
         # Step 1: Ingest document
         print(f"📖 Ingesting: {file_path.name}")
         ingester = get_ingester(file_path, ocr_fallback=self.ocr_fallback)
@@ -200,53 +208,79 @@ class AudiobookAnalyzer:
 
         # Step 2: Chapter Detection
         print("📑 Detecting chapters...")
-        chapter_pipeline = ChapterDetectionPipeline(
-            llm_client=llm,
-            progress_callback=self._wrap_progress("chapters"),
-        )
-        chapter_map = chapter_pipeline.run(doc.text, source_file=str(file_path))
+        with self._metrics.stage("Chapter Detection") as ctx:
+            chapter_pipeline = ChapterDetectionPipeline(
+                llm_client=llm,
+                progress_callback=self._wrap_progress("chapters"),
+            )
+            chapter_map = chapter_pipeline.run(doc.text, source_file=str(file_path))
+
+            # Record confidence metrics
+            high = sum(1 for c in chapter_map.chapters if c.confidence >= 0.7)
+            medium = sum(1 for c in chapter_map.chapters if 0.4 <= c.confidence < 0.7)
+            low = sum(1 for c in chapter_map.chapters if c.confidence < 0.4)
+            ctx.record_items(total=len(chapter_map.chapters), high_confidence=high, medium_confidence=medium, low_confidence=low)
+
         print(f"   Found {len(chapter_map.chapters)} chapters")
 
         # Step 3: Character Extraction
         print("👥 Extracting characters...")
-        character_pipeline = CharacterExtractionPipeline(
-            llm_client=llm,
-            progress_callback=self._wrap_progress("characters"),
-        )
-        pipeline_char_map, _ = character_pipeline.run(
-            doc.text, chapter_map, source_file=str(file_path)
-        )
+        with self._metrics.stage("Character Extraction") as ctx:
+            character_pipeline = CharacterExtractionPipeline(
+                llm_client=llm,
+                progress_callback=self._wrap_progress("characters"),
+            )
+            pipeline_char_map, _ = character_pipeline.run(
+                doc.text, chapter_map, source_file=str(file_path)
+            )
+
+            # Record confidence metrics
+            high = sum(1 for c in pipeline_char_map.characters if c.confidence >= 0.7)
+            medium = sum(1 for c in pipeline_char_map.characters if 0.4 <= c.confidence < 0.7)
+            low = sum(1 for c in pipeline_char_map.characters if c.confidence < 0.4) + len(pipeline_char_map.low_confidence_characters)
+            ctx.record_items(total=len(pipeline_char_map.characters), high_confidence=high, medium_confidence=medium, low_confidence=low)
+
         print(f"   Found {len(pipeline_char_map.characters)} characters")
 
         # Step 3.5: Generate Character Profiles
         MIN_MENTIONS_FOR_PROFILE = 5
         if llm:
             print("📋 Generating character profiles...")
-            # Generate profiles for all characters with sufficient mentions
-            eligible_chars = [
-                c for c in pipeline_char_map.characters
-                if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
-            ]
-            logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
-            profile_count = 0
-            for i, char in enumerate(eligible_chars):
-                logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
-                profile = self._generate_character_profile(llm, char, doc.text)
-                if profile:
-                    char.description = profile
-                    profile_count += 1
+            with self._metrics.stage("Character Profiles") as ctx:
+                # Generate profiles for all characters with sufficient mentions
+                eligible_chars = [
+                    c for c in pipeline_char_map.characters
+                    if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
+                ]
+                logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
+                profile_count = 0
+                for i, char in enumerate(eligible_chars):
+                    logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
+                    profile = self._generate_character_profile(llm, char, doc.text)
+                    if profile:
+                        char.description = profile
+                        profile_count += 1
+
+                # Record metrics - all generated profiles are high confidence
+                ctx.record_items(total=len(eligible_chars), high_confidence=profile_count, medium_confidence=0, low_confidence=len(eligible_chars) - profile_count)
+
             print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
         if llm:
-            summary_pipeline = ChapterSummaryPipeline(
-                llm_client=llm,
-                progress_callback=self._wrap_progress("summaries"),
-            )
-            summary_map, _ = summary_pipeline.run(
-                doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
-            )
+            with self._metrics.stage("Chapter Summaries") as ctx:
+                summary_pipeline = ChapterSummaryPipeline(
+                    llm_client=llm,
+                    progress_callback=self._wrap_progress("summaries"),
+                )
+                summary_map, _ = summary_pipeline.run(
+                    doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
+                )
+
+                # Record metrics - summaries don't have confidence scores, so count all as high
+                ctx.record_items(total=len(summary_map.summaries), high_confidence=len(summary_map.summaries), medium_confidence=0, low_confidence=0)
+
             print(f"   Generated {len(summary_map.summaries)} summaries")
         else:
             summary_map = None
@@ -254,13 +288,21 @@ class AudiobookAnalyzer:
 
         # Step 5: Pronunciation Guide
         print("🗣️  Generating pronunciation guide...")
-        pronunciation_pipeline = PronunciationGuidePipeline(
-            llm_client=llm,
-            progress_callback=self._wrap_progress("pronunciation"),
-        )
-        pron_map, _ = pronunciation_pipeline.run(
-            doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
-        )
+        with self._metrics.stage("Pronunciation Guide") as ctx:
+            pronunciation_pipeline = PronunciationGuidePipeline(
+                llm_client=llm,
+                progress_callback=self._wrap_progress("pronunciation"),
+            )
+            pron_map, _ = pronunciation_pipeline.run(
+                doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
+            )
+
+            # Record confidence metrics
+            high = sum(1 for p in pron_map.entries if p.confidence >= 0.7)
+            medium = sum(1 for p in pron_map.entries if 0.4 <= p.confidence < 0.7)
+            low = sum(1 for p in pron_map.entries if p.confidence < 0.4) + len(pron_map.low_confidence_entries)
+            ctx.record_items(total=len(pron_map.entries), high_confidence=high, medium_confidence=medium, low_confidence=low)
+
         print(f"   Flagged {len(pron_map.entries)} words")
 
         # Step 6: Convert to AnalysisResult
@@ -311,7 +353,16 @@ class AudiobookAnalyzer:
         # Track analysis duration
         self._last_analysis_duration = time.time() - start_time
         duration_str = self._format_duration(self._last_analysis_duration)
+
+        # Generate and store profiling report
+        self._last_profiling_report = self._metrics.get_report()
+
         print(f"✅ Analysis complete in {duration_str}!")
+
+        # Display profiling report
+        print("")
+        print(self._last_profiling_report.format_table())
+
         return result
 
     def _format_duration(self, seconds: float) -> str:
@@ -569,6 +620,10 @@ Return ONLY the prose description, no headers, labels, or formatting."""
             'llm_provider': self.llm_provider if self.llm_refine else 'none',
             'analysis_duration_seconds': round(self._last_analysis_duration, 1) if self._last_analysis_duration else None,
         }
+
+        # Add profiling data if available
+        if self._last_profiling_report:
+            result_dict['_profiling'] = self._last_profiling_report.to_dict()
 
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result_dict, f, indent=2, ensure_ascii=False)
