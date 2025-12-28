@@ -8,6 +8,7 @@ of the original refiner.py. Supports Ollama, OpenAI, and Anthropic.
 import json
 import re
 import os
+import time
 from dataclasses import dataclass
 from typing import Optional, Literal
 import logging
@@ -53,10 +54,18 @@ class LLMResponse:
     model: str
     usage: Optional[dict] = None  # Token usage if available
     error: Optional[str] = None
+    latency_ms: Optional[float] = None  # Time to complete the call in milliseconds
 
     @property
     def success(self) -> bool:
         return self.error is None
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens used (prompt + completion)."""
+        if not self.usage:
+            return 0
+        return self.usage.get("prompt_tokens", 0) + self.usage.get("completion_tokens", 0)
 
 
 class LLMClient:
@@ -90,18 +99,25 @@ class LLMClient:
 
     def query(self, prompt: str, system: Optional[str] = None) -> LLMResponse:
         """Send a query to the LLM and get a response."""
+        start_time = time.perf_counter()
         try:
             if self.config.provider == "ollama":
-                return self._query_ollama(prompt, system)
+                response = self._query_ollama(prompt, system)
             elif self.config.provider == "openai":
-                return self._query_openai(prompt, system)
+                response = self._query_openai(prompt, system)
             elif self.config.provider == "anthropic":
-                return self._query_anthropic(prompt, system)
+                response = self._query_anthropic(prompt, system)
             else:
-                return LLMResponse(content="", model=self.config.model, error=f"Unknown provider: {self.config.provider}")
+                response = LLMResponse(content="", model=self.config.model, error=f"Unknown provider: {self.config.provider}")
+
+            # Add timing to response
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            response.latency_ms = round(elapsed_ms, 2)
+            return response
         except Exception as e:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
             logger.error(f"LLM query failed: {e}")
-            return LLMResponse(content="", model=self.config.model, error=str(e))
+            return LLMResponse(content="", model=self.config.model, error=str(e), latency_ms=round(elapsed_ms, 2))
 
     def _query_ollama(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query Ollama API."""
