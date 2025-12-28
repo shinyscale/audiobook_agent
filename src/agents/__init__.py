@@ -43,6 +43,8 @@ from .config import (
     create_optimized_config,
 )
 
+from .structure import StructureAgent, create_structure_agent
+
 __all__ = [
     # Base classes and types
     "Agent",
@@ -57,4 +59,7 @@ __all__ = [
     "OrchestratorConfig",
     "RECOMMENDED_AGENT_MODELS",
     "create_optimized_config",
+    # Specialized agents
+    "StructureAgent",
+    "create_structure_agent",
 ]
