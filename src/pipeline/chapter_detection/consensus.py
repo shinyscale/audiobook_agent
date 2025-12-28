@@ -387,6 +387,13 @@ class ConsensusBuilder:
         # Calculate TOC agreement
         toc_agreement = self._calculate_toc_agreement(chapters, profile)
 
+        # Fallback: if no chapters were created (no high-confidence boundaries),
+        # return a single-chapter map. This handles short stories and documents
+        # without explicit chapter structure.
+        if not chapters:
+            logger.warning("No high-confidence chapter boundaries found - treating as single chapter")
+            return self._single_chapter_map(text, profile)
+
         return ChapterMap(
             chapters=chapters,
             low_confidence_boundaries=low_conf_boundaries,
