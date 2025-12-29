@@ -47,6 +47,10 @@ For the canonical name, prefer the FULL CIVILIAN NAME (first + last) over titled
 
 NEVER merge:
 - Different characters who happen to share a first name
+- Different characters who share a LAST name (family members, spouses)
+  - Example: "Tom Buchanan" and "Daisy Buchanan" are DIFFERENT people (husband and wife)
+  - Example: "Mr. Bennet" and "Mrs. Bennet" are DIFFERENT people
+  - A bare last name like "Buchanan" should only merge with ONE full name
 - Characters who appear in completely different parts of the book
 - Names that are clearly different people based on context"""
 
@@ -277,7 +281,12 @@ class CharacterConsensusBuilder:
         return {k: list(v) for k, v in alias_map.items()}
 
     def _names_match(self, name1: str, name2: str) -> bool:
-        """Check if two names likely refer to the same person."""
+        """
+        Check if two names likely refer to the same person.
+
+        Note: This is a simple heuristic check. For last-name-only matches,
+        the caller should verify there aren't multiple people with that last name.
+        """
         # Exact match (case insensitive)
         if name1.lower() == name2.lower():
             return True
@@ -289,30 +298,38 @@ class CharacterConsensusBuilder:
         if norm1 == norm2:
             return True
 
-        # Check if one is first name of the other
         parts1 = norm1.split()
         parts2 = norm2.split()
 
+        # Check if one is FIRST name of the other (safe to match)
         if len(parts1) == 1 and len(parts2) > 1:
             # name1 might be first name of name2
-            if parts1[0] == parts2[0] or parts1[0] == parts2[-1]:
+            if parts1[0] == parts2[0]:
                 return True
+            # Note: We NO LONGER match last names here - too risky for family members
+            # The LLM alias resolution with _validate_merge handles this case
 
         if len(parts2) == 1 and len(parts1) > 1:
             # name2 might be first name of name1
-            if parts2[0] == parts1[0] or parts2[0] == parts1[-1]:
+            if parts2[0] == parts1[0]:
                 return True
 
-        # Check for titled version (Mr. Smith == Smith)
+        # Check for titled version (Mr. Smith == Smith) - but be careful
+        # Only match if the title suggests same gender/role
         if len(parts1) == 1 and len(parts2) == 2:
-            if parts2[0].rstrip('.').lower() in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
+            title = parts2[0].rstrip('.').lower()
+            if title in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
                 if parts1[0] == parts2[1]:
-                    return True
+                    # This is a last-name match - risky, don't auto-merge
+                    # Let LLM handle it with proper validation
+                    return False
 
         if len(parts2) == 1 and len(parts1) == 2:
-            if parts1[0].rstrip('.').lower() in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
+            title = parts1[0].rstrip('.').lower()
+            if title in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
                 if parts2[0] == parts1[1]:
-                    return True
+                    # This is a last-name match - risky, don't auto-merge
+                    return False
 
         return False
 
@@ -483,17 +500,18 @@ class CharacterConsensusBuilder:
         name_groups: dict[str, list[CharacterValidationResult]],
     ) -> tuple[bool, float]:
         """
-        Validate LLM merge decision with lightweight sanity checks.
+        Validate LLM merge decision with sanity checks.
 
-        We trust the LLM's judgment about character identity. Only reject
-        merges that are clearly wrong (no shared words AND no chapter overlap).
+        Key checks:
+        1. Reject merges that only share a last name when multiple people have that last name
+        2. Reject merges with no shared words and no chapter overlap
 
         Returns:
             (is_valid, confidence) tuple
         """
-        # Extract significant words (3+ chars, lowercased, no punctuation)
-        words1 = set(re.sub(r'[^\w\s]', '', canonical.lower()).split())
-        words2 = set(re.sub(r'[^\w\s]', '', alias.lower()).split())
+        # Extract words from names
+        words1 = re.sub(r'[^\w\s]', '', canonical.lower()).split()
+        words2 = re.sub(r'[^\w\s]', '', alias.lower()).split()
         significant1 = {w for w in words1 if len(w) >= 3}
         significant2 = {w for w in words2 if len(w) >= 3}
         shared_words = significant1 & significant2
@@ -505,8 +523,60 @@ class CharacterConsensusBuilder:
         alias_chapters = set(r.proposal.chapter_index for r in alias_results)
         has_chapter_overlap = bool(canonical_chapters & alias_chapters)
 
-        # If names share a significant word, trust the LLM
+        # Check for family member conflict:
+        # If names share ONLY a last name, check if multiple people have that last name
         if shared_words:
+            # Check if shared word is likely a last name (appears at end of full names)
+            shared_might_be_lastname = False
+            for shared in shared_words:
+                # Is this word at the end of either multi-word name?
+                if len(words1) > 1 and words1[-1] == shared:
+                    shared_might_be_lastname = True
+                if len(words2) > 1 and words2[-1] == shared:
+                    shared_might_be_lastname = True
+
+            if shared_might_be_lastname:
+                # Count how many distinct full names share this last name
+                names_with_lastname = []
+                for shared in shared_words:
+                    for name in name_groups.keys():
+                        name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
+                        if len(name_words) > 1 and name_words[-1] == shared:
+                            # This is a full name with this last name
+                            first_name = name_words[0]
+                            if first_name not in ['mr', 'mrs', 'ms', 'miss', 'dr']:
+                                names_with_lastname.append(name)
+
+                # If multiple DIFFERENT full names share this last name, reject merge
+                if len(names_with_lastname) > 1:
+                    # Check if canonical and alias have DIFFERENT first names
+                    first1 = words1[0] if words1 else ""
+                    first2 = words2[0] if words2 else ""
+
+                    # Skip titles when comparing first names
+                    titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+                    if first1 in titles and len(words1) > 1:
+                        first1 = words1[1]
+                    if first2 in titles and len(words2) > 1:
+                        first2 = words2[1]
+
+                    # If one is just a last name, it's ambiguous - reject
+                    if len(words1) == 1 or len(words2) == 1:
+                        logger.debug(
+                            f"Merge rejected: {canonical} <-> {alias} "
+                            f"(ambiguous last name with multiple family members: {names_with_lastname})"
+                        )
+                        return False, 0.2
+
+                    # If they have different first names, reject
+                    if first1 != first2 and first1 and first2:
+                        logger.debug(
+                            f"Merge rejected: {canonical} <-> {alias} "
+                            f"(different first names, same last name - likely family members)"
+                        )
+                        return False, 0.1
+
+            # Shared words and passed family check - accept
             logger.debug(f"Merge accepted: {canonical} <- {alias} (shared words: {shared_words})")
             return True, 0.85
 
