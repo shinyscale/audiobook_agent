@@ -46,7 +46,15 @@ from .pipeline.llm import LLMClient, LLMConfig
 from .pipeline.metrics import MetricsCollector, ProfilingReport
 
 # Agent imports
-from .agents import StructureAgent, CharacterAgent, AgentContext, AgentConfig
+from .agents import (
+    StructureAgent,
+    CharacterAgent,
+    SummaryAgent,
+    PronunciationAgent,
+    AgentContext,
+    AgentConfig,
+    OrchestratorConfig,
+)
 
 # LLM prompts config (keep for compatibility)
 try:
@@ -85,6 +93,7 @@ class AudiobookAnalyzer:
         write_canonical_md: bool = False,
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        orchestrator_config: Optional[OrchestratorConfig] = None,
     ):
         self.words_per_minute = words_per_minute
         self.min_character_mentions = min_character_mentions
@@ -99,9 +108,12 @@ class AudiobookAnalyzer:
         self.write_canonical_md = write_canonical_md
         self.output_dir = Path(output_dir) if output_dir else None
         self.progress_callback = progress_callback
+        self.orchestrator_config = orchestrator_config
 
         # LLM client (created on first use)
         self._llm_client: Optional[LLMClient] = None
+        # Agent-specific LLM clients cache
+        self._agent_llm_clients: dict[str, LLMClient] = {}
 
         # Analysis timing (set after each analyze() call)
         self._last_analysis_duration: Optional[float] = None
@@ -164,6 +176,68 @@ class AudiobookAnalyzer:
 
         return self._llm_client
 
+    def _get_agent_llm_client(self, agent_name: str) -> Optional[LLMClient]:
+        """
+        Get LLM client configured for a specific agent.
+
+        If orchestrator_config specifies a model for this agent, creates
+        an agent-specific client. Otherwise falls back to default client.
+        """
+        if not self.llm_refine:
+            return None
+
+        # Check if we have an orchestrator config with agent-specific settings
+        if self.orchestrator_config:
+            agent_config = self.orchestrator_config.get_agent_config(agent_name)
+            if agent_config.model and agent_config.model != self.llm_model:
+                # Need agent-specific client
+                if agent_name in self._agent_llm_clients:
+                    return self._agent_llm_clients[agent_name]
+
+                try:
+                    # Create client based on agent config
+                    provider = agent_config.provider or self.llm_provider
+                    base_url = agent_config.base_url or self.llm_base_url
+
+                    if provider == "ollama":
+                        config = LLMConfig.ollama(
+                            model=agent_config.model,
+                            base_url=base_url,
+                        )
+                    elif provider == "openai":
+                        config = LLMConfig.openai(
+                            model=agent_config.model,
+                            api_key=agent_config.get_api_key() or self.llm_api_key,
+                        )
+                    elif provider in ("lm_studio", "openai_compatible"):
+                        config = LLMConfig(
+                            provider="openai",
+                            model=agent_config.model,
+                            base_url=base_url,
+                            api_key="not-needed",
+                        )
+                    else:
+                        # Fall back to default
+                        return self._get_llm_client()
+
+                    client = LLMClient(config)
+                    self._agent_llm_clients[agent_name] = client
+                    logger.info(f"Created agent-specific LLM client for {agent_name}: {agent_config.model}")
+                    return client
+
+                except Exception as e:
+                    logger.warning(f"Failed to create agent-specific client for {agent_name}: {e}")
+                    # Fall back to default
+
+        # Fall back to default client
+        return self._get_llm_client()
+
+    def _get_agent_config(self, agent_name: str) -> Optional[AgentConfig]:
+        """Get configuration for a specific agent."""
+        if self.orchestrator_config:
+            return self.orchestrator_config.get_agent_config(agent_name)
+        return AgentConfig()
+
     def analyze(self, file_path: str | Path) -> AnalysisResult:
         """
         Analyze a book file and return structured results.
@@ -206,16 +280,20 @@ class AudiobookAnalyzer:
             md_path.write_text(canonical_md, encoding='utf-8')
             print(f"   📝 Wrote canonical markdown: {md_path}")
 
-        # Get LLM client
+        # Get default LLM client (for pipelines that don't have agents yet)
         llm = self._get_llm_client()
 
         # Step 2: Chapter Detection (using StructureAgent)
         print("📑 Detecting chapters...")
         with self._metrics.stage("Chapter Detection") as ctx:
-            # Create agent and context
+            # Create agent with agent-specific LLM client
+            structure_llm = self._get_agent_llm_client("structure")
+            structure_config = self._get_agent_config("structure")
+            structure_config.enable_verification = True
+
             structure_agent = StructureAgent(
-                llm_client=llm,
-                config=AgentConfig(enable_verification=True),
+                llm_client=structure_llm,
+                config=structure_config,
             )
             agent_context = AgentContext(
                 text=doc.text,
@@ -244,10 +322,15 @@ class AudiobookAnalyzer:
         # Step 3: Character Extraction (using CharacterAgent)
         print("👥 Extracting characters...")
         with self._metrics.stage("Character Extraction") as ctx:
-            # Create agent and context
+            # Create agent with agent-specific LLM client
+            # Note: CharacterAgent uses "characters" config key for backwards compat
+            char_llm = self._get_agent_llm_client("characters")
+            char_config = self._get_agent_config("characters")
+            char_config.enable_verification = True
+
             character_agent = CharacterAgent(
-                llm_client=llm,
-                config=AgentConfig(enable_verification=True),
+                llm_client=char_llm,
+                config=char_config,
             )
             char_agent_context = AgentContext(
                 text=doc.text,
@@ -300,10 +383,12 @@ class AudiobookAnalyzer:
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
-        if llm:
+        # Use agent-specific LLM client for summaries
+        summary_llm = self._get_agent_llm_client("summaries")
+        if summary_llm:
             with self._metrics.stage("Chapter Summaries") as ctx:
                 summary_pipeline = ChapterSummaryPipeline(
-                    llm_client=llm,
+                    llm_client=summary_llm,
                     progress_callback=self._wrap_progress("summaries"),
                 )
                 summary_map, _ = summary_pipeline.run(
@@ -320,9 +405,11 @@ class AudiobookAnalyzer:
 
         # Step 5: Pronunciation Guide
         print("🗣️  Generating pronunciation guide...")
+        # Use agent-specific LLM client for pronunciation
+        pron_llm = self._get_agent_llm_client("pronunciation")
         with self._metrics.stage("Pronunciation Guide") as ctx:
             pronunciation_pipeline = PronunciationGuidePipeline(
-                llm_client=llm,
+                llm_client=pron_llm,
                 progress_callback=self._wrap_progress("pronunciation"),
             )
             pron_map, _ = pronunciation_pipeline.run(

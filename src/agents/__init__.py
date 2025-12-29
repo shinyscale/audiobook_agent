@@ -45,6 +45,8 @@ from .config import (
 
 from .structure import StructureAgent, create_structure_agent
 from .characters import CharacterAgent
+from .summaries import SummaryAgent, create_summary_agent
+from .pronunciation import PronunciationAgent, create_pronunciation_agent
 
 __all__ = [
     # Base classes and types
@@ -64,4 +66,8 @@ __all__ = [
     "StructureAgent",
     "create_structure_agent",
     "CharacterAgent",
+    "SummaryAgent",
+    "create_summary_agent",
+    "PronunciationAgent",
+    "create_pronunciation_agent",
 ]

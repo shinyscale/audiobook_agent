@@ -1,8 +1,8 @@
 # Specialized Agent Architecture for Audiobook Prep
 
-**Status:** Planning
+**Status:** Phase 3 Complete
 **Created:** 2025-12-27
-**Last Updated:** 2025-12-27
+**Last Updated:** 2025-12-29
 
 ## Executive Summary
 
@@ -346,10 +346,105 @@ Wrap existing pipelines as agents with self-verification capabilities.
 
 ### Acceptance Criteria
 
-- [ ] Each agent wraps its corresponding pipeline
-- [ ] Each agent implements self-verification
-- [ ] Output identical to current pipeline (agents are wrappers)
-- [ ] Can swap models per-agent via configuration
+- [x] Each agent wraps its corresponding pipeline
+- [x] Each agent implements self-verification
+- [x] Output identical to current pipeline (agents are wrappers)
+- [x] Can swap models per-agent via configuration
+
+---
+
+## Multi-Model Configuration
+
+### Overview
+
+The agent architecture supports assigning different LLM models to different agents, allowing optimization for each task type. This enables using faster/smaller models for simple tasks and larger/more capable models for complex tasks.
+
+### Configuration Classes
+
+**AgentConfig** (`src/agents/config.py`):
+```python
+@dataclass
+class AgentConfig:
+    model: Optional[str] = None      # None = use orchestrator default
+    provider: str = "ollama"
+    base_url: str = "http://localhost:11434"
+    temperature: float = 0.3
+    enable_verification: bool = True
+    max_refinement_passes: int = 3
+```
+
+**OrchestratorConfig** (`src/agents/config.py`):
+```python
+@dataclass
+class OrchestratorConfig:
+    default_model: str = "llama3.2"
+    default_provider: str = "ollama"
+    agent_configs: dict[str, AgentConfig] = field(default_factory=dict)
+
+    def get_agent_config(self, agent_name: str) -> AgentConfig:
+        """Get config for agent, falling back to defaults."""
+```
+
+### RECOMMENDED_AGENT_MODELS
+
+Pre-defined model preferences for each agent type:
+
+| Agent | Preferred Models | Temperature | Rationale |
+|-------|-----------------|-------------|-----------|
+| structure | qwen2.5:7b, llama3.2, mistral | 0.2 | Fast pattern recognition |
+| characters | qwen2.5:72b, llama3.1:70b | 0.3 | Deep narrative understanding |
+| summaries | llama3.1:70b, qwen2.5:72b | 0.4 | Natural language generation |
+| pronunciation | qwen2.5:32b, qwen2.5:14b | 0.2 | Phonetic accuracy |
+
+### Automatic Optimization
+
+The `create_optimized_config()` function automatically assigns the best available model to each agent:
+
+```python
+from src.agents.config import create_optimized_config
+
+available = ["qwen2.5:72b", "qwen2.5:7b", "llama3.2"]
+config = create_optimized_config(available)
+
+# config.agent_configs will have:
+# - structure: qwen2.5:7b (fast)
+# - characters: qwen2.5:72b (deep)
+# - summaries: qwen2.5:72b (narrative)
+# - pronunciation: qwen2.5:7b (fast, accurate)
+```
+
+### GUI Support
+
+The desktop GUI (`src/gui/desktop.py`) includes an "Agent Model Config" panel:
+
+1. **Auto-optimize checkbox**: Automatically assign best models on detection
+2. **Per-agent dropdowns**: Select specific model for each agent
+3. **Auto buttons**: Quick-select recommended model per agent
+4. **Optimize All**: Apply `create_optimized_config()` to all agents
+
+### Integration with AudiobookAnalyzer
+
+The analyzer accepts an optional `orchestrator_config` parameter:
+
+```python
+from src.agents.config import OrchestratorConfig, AgentConfig, create_optimized_config
+
+# Automatic optimization
+config = create_optimized_config(["qwen2.5:72b", "qwen2.5:7b", "llama3.2"])
+
+# Or manual configuration
+config = OrchestratorConfig()
+config.set_agent_config("structure", AgentConfig(model="qwen2.5:7b"))
+config.set_agent_config("characters", AgentConfig(model="qwen2.5:72b"))
+
+# Pass to analyzer
+analyzer = AudiobookAnalyzer(
+    llm_refine=True,
+    orchestrator_config=config,
+)
+```
+
+The analyzer's `_get_agent_llm_client(agent_name)` method creates agent-specific LLM clients based on the orchestrator configuration.
 
 ---
 
@@ -440,3 +535,5 @@ src/
 | Date | Change |
 |------|--------|
 | 2025-12-27 | Initial draft |
+| 2025-12-29 | Phase 3 complete: SummaryAgent, PronunciationAgent implemented |
+| 2025-12-29 | Added Multi-Model Configuration section with GUI support |

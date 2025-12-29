@@ -48,6 +48,18 @@ try:
 except ImportError:
     HAS_TUI = False
 
+try:
+    from ..agents.config import (
+        AgentConfig,
+        OrchestratorConfig,
+        RECOMMENDED_AGENT_MODELS,
+        create_optimized_config,
+    )
+    HAS_AGENT_CONFIG = True
+except ImportError:
+    HAS_AGENT_CONFIG = False
+    OrchestratorConfig = None  # type: ignore
+
 
 class ProgressWindow:
     """Window showing analysis progress."""
@@ -624,6 +636,270 @@ class LLMSettingsPanel:
         self.outer_frame.pack(**kwargs)
 
 
+class AgentModelConfigPanel:
+    """Expandable/collapsible panel for per-agent model configuration."""
+
+    # Agent display names
+    AGENT_NAMES = {
+        "structure": "Structure Detection",
+        "characters": "Character Extraction",
+        "summaries": "Chapter Summaries",
+        "pronunciation": "Pronunciation Guide",
+    }
+
+    def __init__(self, parent, llm_panel: LLMSettingsPanel):
+        if not HAS_TKINTER:
+            raise ImportError("tkinter is required")
+
+        self.parent = parent
+        self.llm_panel = llm_panel  # Reference for model detection
+
+        # State variables
+        self.expanded = tk.BooleanVar(value=False)
+        self.auto_optimize = tk.BooleanVar(value=True)
+        self.agent_models: dict[str, tk.StringVar] = {}
+
+        # Initialize model variables for each agent
+        for agent_name in self.AGENT_NAMES:
+            self.agent_models[agent_name] = tk.StringVar(value="Default")
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        """Create the panel widgets."""
+        # Outer frame
+        self.outer_frame = ttk.Frame(self.parent)
+
+        # Header row (always visible)
+        header_frame = ttk.Frame(self.outer_frame)
+        header_frame.pack(fill=tk.X)
+
+        self.toggle_button = ttk.Button(
+            header_frame,
+            text="▶ Agent Model Config",
+            command=self._toggle_expanded,
+            width=20
+        )
+        self.toggle_button.pack(side=tk.LEFT)
+
+        # Status label shown when collapsed
+        self.status_label = ttk.Label(header_frame, text="Using default models")
+        self.status_label.pack(side=tk.LEFT, padx=10)
+
+        # Expandable content frame (hidden by default)
+        self.content_frame = ttk.LabelFrame(
+            self.outer_frame,
+            text="Per-Agent Model Selection",
+            padding="10"
+        )
+
+        self._create_content_widgets()
+
+    def _create_content_widgets(self):
+        """Create widgets inside the expandable panel."""
+        # Description
+        ttk.Label(
+            self.content_frame,
+            text="Assign different models to each analysis task for optimal results.",
+            wraplength=500
+        ).pack(anchor=tk.W, pady=(0, 10))
+
+        # Auto-optimize checkbox
+        auto_row = ttk.Frame(self.content_frame)
+        auto_row.pack(fill=tk.X, pady=5)
+
+        ttk.Checkbutton(
+            auto_row,
+            text="Auto-optimize model assignment",
+            variable=self.auto_optimize,
+            command=self._on_auto_optimize_change
+        ).pack(side=tk.LEFT)
+
+        # Agent model grid
+        grid_frame = ttk.Frame(self.content_frame)
+        grid_frame.pack(fill=tk.X, pady=10)
+
+        for i, (agent_name, display_name) in enumerate(self.AGENT_NAMES.items()):
+            # Row for this agent
+            row_frame = ttk.Frame(grid_frame)
+            row_frame.pack(fill=tk.X, pady=3)
+
+            # Agent name label
+            ttk.Label(
+                row_frame,
+                text=f"{display_name}:",
+                width=20,
+                anchor=tk.W
+            ).pack(side=tk.LEFT)
+
+            # Model combobox
+            combo = ttk.Combobox(
+                row_frame,
+                textvariable=self.agent_models[agent_name],
+                width=25,
+                state="readonly"
+            )
+            combo.pack(side=tk.LEFT, padx=5)
+            # Store reference for updating values
+            setattr(self, f"combo_{agent_name}", combo)
+
+            # Auto button for this agent
+            def make_auto_callback(an):
+                return lambda: self._auto_suggest_for_agent(an)
+
+            ttk.Button(
+                row_frame,
+                text="Auto",
+                command=make_auto_callback(agent_name),
+                width=6
+            ).pack(side=tk.LEFT, padx=2)
+
+        # Button row
+        button_row = ttk.Frame(self.content_frame)
+        button_row.pack(fill=tk.X, pady=10)
+
+        ttk.Button(
+            button_row,
+            text="Optimize All",
+            command=self._optimize_all
+        ).pack(side=tk.LEFT)
+
+        ttk.Button(
+            button_row,
+            text="Refresh Models",
+            command=self._refresh_models
+        ).pack(side=tk.LEFT, padx=5)
+
+    def _toggle_expanded(self):
+        """Toggle panel expansion."""
+        if self.expanded.get():
+            self.content_frame.pack_forget()
+            self.toggle_button.config(text="▶ Agent Model Config")
+            self.expanded.set(False)
+        else:
+            self.content_frame.pack(fill=tk.X, pady=5)
+            self.toggle_button.config(text="▼ Agent Model Config")
+            self.expanded.set(True)
+            # Refresh model lists when expanding
+            self._refresh_models()
+
+    def _on_auto_optimize_change(self):
+        """Handle auto-optimize checkbox change."""
+        if self.auto_optimize.get():
+            self._optimize_all()
+
+    def _refresh_models(self):
+        """Refresh available models from LLM panel."""
+        # Get models from LLM panel
+        models = self.llm_panel.detected_models or []
+        model_values = ["Default"] + models
+
+        # Update all comboboxes
+        for agent_name in self.AGENT_NAMES:
+            combo = getattr(self, f"combo_{agent_name}", None)
+            if combo:
+                current = self.agent_models[agent_name].get()
+                combo["values"] = model_values
+                # Restore selection if still valid
+                if current not in model_values:
+                    self.agent_models[agent_name].set("Default")
+
+    def _auto_suggest_for_agent(self, agent_name: str):
+        """Suggest best model for a specific agent."""
+        if not HAS_AGENT_CONFIG:
+            return
+
+        available = set(m.lower() for m in self.llm_panel.detected_models or [])
+        recommendations = RECOMMENDED_AGENT_MODELS.get(agent_name, {})
+
+        for model in recommendations.get("models", []):
+            # Check for exact match or partial match (model:size format)
+            if model.lower() in available:
+                self.agent_models[agent_name].set(model)
+                return
+            # Check for partial matches
+            for avail_model in (self.llm_panel.detected_models or []):
+                if model.lower() in avail_model.lower():
+                    self.agent_models[agent_name].set(avail_model)
+                    return
+
+        # No match found - use default
+        self.agent_models[agent_name].set("Default")
+
+    def _optimize_all(self):
+        """Apply optimal models to all agents."""
+        if not HAS_AGENT_CONFIG:
+            return
+
+        available_models = self.llm_panel.detected_models or []
+        if not available_models:
+            # No models detected - trigger detection
+            self.llm_panel._detect_models()
+            available_models = self.llm_panel.detected_models or []
+
+        if not available_models:
+            return
+
+        # Use create_optimized_config to get recommendations
+        llm_settings = self.llm_panel.get_settings()
+        config = create_optimized_config(
+            available_models=available_models,
+            provider=llm_settings.get("provider", "ollama"),
+            base_url=llm_settings.get("base_url", "http://localhost:11434"),
+        )
+
+        # Apply to UI
+        for agent_name in self.AGENT_NAMES:
+            agent_config = config.agent_configs.get(agent_name)
+            if agent_config and agent_config.model:
+                self.agent_models[agent_name].set(agent_config.model)
+            else:
+                self.agent_models[agent_name].set("Default")
+
+        self._update_status()
+
+    def _update_status(self):
+        """Update the status label."""
+        non_default = sum(
+            1 for v in self.agent_models.values()
+            if v.get() != "Default"
+        )
+        if non_default == 0:
+            self.status_label.config(text="Using default models")
+        elif non_default == len(self.AGENT_NAMES):
+            self.status_label.config(text="All agents configured")
+        else:
+            self.status_label.config(text=f"{non_default} agents configured")
+
+    def get_orchestrator_config(self) -> "OrchestratorConfig":
+        """Build OrchestratorConfig from current settings."""
+        if not HAS_AGENT_CONFIG:
+            return None
+
+        llm_settings = self.llm_panel.get_settings()
+
+        config = OrchestratorConfig(
+            default_model=llm_settings.get("model", "llama3.2"),
+            default_provider=llm_settings.get("provider", "ollama"),
+            default_base_url=llm_settings.get("base_url", "http://localhost:11434"),
+        )
+
+        for agent_name, model_var in self.agent_models.items():
+            model = model_var.get()
+            if model and model != "Default":
+                config.set_agent_config(agent_name, AgentConfig(
+                    model=model,
+                    provider=config.default_provider,
+                    base_url=config.default_base_url,
+                ))
+
+        return config
+
+    def pack(self, **kwargs):
+        """Allow panel to be packed like a regular widget."""
+        self.outer_frame.pack(**kwargs)
+
+
 class AudiobookPrepGUI:
     """Main desktop GUI application."""
     
@@ -721,6 +997,10 @@ class AudiobookPrepGUI:
         # LLM Settings panel (collapsible)
         self.llm_panel = LLMSettingsPanel(main_frame)
         self.llm_panel.pack(fill=tk.X, pady=5)
+
+        # Agent Model Configuration panel (collapsible)
+        self.agent_config_panel = AgentModelConfigPanel(main_frame, self.llm_panel)
+        self.agent_config_panel.pack(fill=tk.X, pady=5)
 
         # Buttons
         button_frame = ttk.Frame(main_frame)
@@ -853,6 +1133,11 @@ class AudiobookPrepGUI:
             # Get LLM settings from panel
             llm_settings = self.llm_panel.get_settings() if self.use_llm.get() else {}
 
+            # Get orchestrator config for per-agent model selection
+            orchestrator_config = None
+            if self.use_llm.get() and HAS_AGENT_CONFIG:
+                orchestrator_config = self.agent_config_panel.get_orchestrator_config()
+
             analyzer = AudiobookAnalyzer(
                 words_per_minute=self.wpm.get(),
                 llm_refine=self.use_llm.get(),
@@ -862,6 +1147,7 @@ class AudiobookPrepGUI:
                 llm_api_key=llm_settings.get("api_key"),
                 llm_context_length=llm_settings.get("context_length", 32768),
                 llm_prompts=llm_settings.get("prompts"),
+                orchestrator_config=orchestrator_config,
             )
             
             # Capture print statements for progress updates
