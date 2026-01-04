@@ -110,6 +110,10 @@ class LLMClient:
             else:
                 response = LLMResponse(content="", model=self.config.model, error=f"Unknown provider: {self.config.provider}")
 
+            # Clean thinking tags from response (for reasoning models like DeepSeek-R1, QwQ)
+            if response.content:
+                response.content = self._clean_thinking_tags(response.content)
+
             # Add timing to response
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             response.latency_ms = round(elapsed_ms, 2)
@@ -199,6 +203,20 @@ class LLMClient:
                 "completion_tokens": response.usage.output_tokens,
             },
         )
+
+    def _clean_thinking_tags(self, text: str) -> str:
+        """
+        Remove <think>...</think> tags from LLM responses.
+
+        Reasoning models like DeepSeek-R1, QwQ, and some Qwen variants output
+        their chain-of-thought reasoning in <think> tags. This strips them
+        to return only the final answer.
+        """
+        # Remove complete thinking blocks
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Handle unclosed tags (output may be truncated)
+        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+        return cleaned.strip()
 
     def query_json(self, prompt: str, system: Optional[str] = None) -> tuple[Optional[dict], LLMResponse]:
         """Query LLM and parse response as JSON."""
