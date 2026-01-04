@@ -34,6 +34,8 @@ try:
         detect_available_models,
         detect_context_length,
         test_connection,
+        pull_ollama_model,
+        delete_ollama_model,
     )
     from ..llm.prompts import PromptConfig, DEFAULT_PROMPTS
     HAS_LLM_CONFIG = True
@@ -390,6 +392,45 @@ class LLMSettingsPanel:
         )
         self.detect_models_button.pack(side=tk.LEFT, padx=2)
 
+        # Row 3b: Ollama Management (shown only for Ollama provider)
+        self.ollama_mgmt_frame = ttk.Frame(self.content_frame)
+
+        ttk.Label(self.ollama_mgmt_frame, text="Pull Model:").pack(side=tk.LEFT)
+        self.pull_model_entry = ttk.Entry(self.ollama_mgmt_frame, width=20)
+        self.pull_model_entry.pack(side=tk.LEFT, padx=5)
+        self.pull_model_entry.insert(0, "qwen2.5:7b")  # Default suggestion
+
+        self.pull_button = ttk.Button(
+            self.ollama_mgmt_frame,
+            text="Pull",
+            command=self._pull_model,
+            width=6
+        )
+        self.pull_button.pack(side=tk.LEFT, padx=2)
+
+        self.delete_button = ttk.Button(
+            self.ollama_mgmt_frame,
+            text="Delete Selected",
+            command=self._delete_model
+        )
+        self.delete_button.pack(side=tk.LEFT, padx=10)
+
+        # Row 3c: Pull progress (shown during pull operations)
+        self.pull_progress_frame = ttk.Frame(self.content_frame)
+        self.pull_progress_var = tk.StringVar(value="")
+        self.pull_progress_label = ttk.Label(
+            self.pull_progress_frame,
+            textvariable=self.pull_progress_var,
+            width=40
+        )
+        self.pull_progress_label.pack(side=tk.LEFT)
+        self.pull_progress_bar = ttk.Progressbar(
+            self.pull_progress_frame,
+            length=200,
+            mode='determinate'
+        )
+        self.pull_progress_bar.pack(side=tk.LEFT, padx=5)
+
         # Row 4: Context length
         context_row = ttk.Frame(self.content_frame)
         context_row.pack(fill=tk.X, pady=5)
@@ -512,6 +553,13 @@ class LLMSettingsPanel:
         self.detect_models_button.config(state=state)
         self.detect_context_button.config(state=state)
 
+        # Show/hide Ollama management section
+        if provider == "ollama":
+            self.ollama_mgmt_frame.pack(fill=tk.X, pady=5)
+        else:
+            self.ollama_mgmt_frame.pack_forget()
+            self.pull_progress_frame.pack_forget()
+
         # Clear status
         self.status_label.config(text="")
 
@@ -540,6 +588,78 @@ class LLMSettingsPanel:
                 self.status_label.config(text="No models found")
         except Exception as e:
             self.status_label.config(text=f"Error: {str(e)[:30]}")
+
+    def _pull_model(self):
+        """Pull a model from the Ollama library."""
+        if not HAS_LLM_CONFIG:
+            self.status_label.config(text="LLM config not available")
+            return
+
+        model_name = self.pull_model_entry.get().strip()
+        if not model_name:
+            self.status_label.config(text="Enter a model name to pull")
+            return
+
+        base_url = self.base_url.get()
+
+        # Show progress frame
+        self.pull_progress_frame.pack(fill=tk.X, pady=5)
+        self.pull_button.config(state=tk.DISABLED)
+        self.pull_progress_bar["value"] = 0
+        self.pull_progress_var.set(f"Pulling {model_name}...")
+        self.parent.update_idletasks()
+
+        def progress_callback(status, completed, total):
+            if total > 0:
+                percent = (completed / total) * 100
+                self.parent.after(0, lambda p=percent: self.pull_progress_bar.configure(value=p))
+            # Truncate status message
+            status_short = status[:35] + "..." if len(status) > 35 else status
+            self.parent.after(0, lambda s=status_short: self.pull_progress_var.set(s))
+
+        def pull_thread():
+            try:
+                success, message = pull_ollama_model(model_name, base_url, progress_callback)
+                if success:
+                    self.parent.after(0, lambda: self.pull_progress_var.set(f"✓ {model_name} ready"))
+                    # Refresh model list
+                    self.parent.after(500, self._detect_models)
+                else:
+                    self.parent.after(0, lambda m=message: self.pull_progress_var.set(f"✗ {m[:40]}"))
+            except Exception as e:
+                self.parent.after(0, lambda: self.pull_progress_var.set(f"✗ Error: {str(e)[:30]}"))
+            finally:
+                self.parent.after(0, lambda: self.pull_button.config(state=tk.NORMAL))
+
+        thread = threading.Thread(target=pull_thread, daemon=True)
+        thread.start()
+
+    def _delete_model(self):
+        """Delete the currently selected model from Ollama."""
+        if not HAS_LLM_CONFIG:
+            self.status_label.config(text="LLM config not available")
+            return
+
+        model_name = self.model.get()
+        if not model_name:
+            self.status_label.config(text="Select a model first")
+            return
+
+        # Confirm deletion
+        if not messagebox.askyesno(
+            "Confirm Delete",
+            f"Delete model '{model_name}'?\n\nThis will free disk space but you'll need to pull it again to use it."
+        ):
+            return
+
+        base_url = self.base_url.get()
+        success, message = delete_ollama_model(model_name, base_url)
+
+        if success:
+            self.status_label.config(text=f"✓ Deleted {model_name}")
+            self._detect_models()  # Refresh list
+        else:
+            self.status_label.config(text=f"✗ {message[:30]}")
 
     def _detect_context_length(self):
         """Auto-detect context length from model metadata."""
@@ -909,7 +1029,8 @@ class AudiobookPrepGUI:
         
         self.root = tk.Tk()
         self.root.title("Audiobook Prep")
-        self.root.geometry("800x600")
+        self.root.geometry("800x700")
+        self.root.minsize(600, 400)
         
         # Variables
         self.input_file = tk.StringVar()
@@ -926,10 +1047,44 @@ class AudiobookPrepGUI:
         
     def _create_widgets(self):
         """Create GUI widgets."""
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
+        # Create canvas with scrollbar for scrollable content
+        self.canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
+
+        # Scrollable frame inside canvas
+        main_frame = ttk.Frame(self.canvas, padding="10")
+
+        # Configure scrolling
+        main_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        self.canvas_window = self.canvas.create_window((0, 0), window=main_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Pack scrollbar and canvas
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Make canvas window expand to canvas width
+        def _configure_canvas_width(event):
+            self.canvas.itemconfig(self.canvas_window, width=event.width)
+        self.canvas.bind("<Configure>", _configure_canvas_width)
+
+        # Enable mousewheel scrolling
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Linux mousewheel support (Button-4/5)
+        def _on_mousewheel_linux(event):
+            if event.num == 4:
+                self.canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.canvas.yview_scroll(1, "units")
+        self.canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+        self.canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+
         # Title
         title_label = tk.Label(
             main_frame,
