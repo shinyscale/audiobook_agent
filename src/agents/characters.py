@@ -92,6 +92,10 @@ class CharacterAgent(Agent):
 
         # We need chapter_map from context
         if not context.chapter_map:
+            # Get model info for error case
+            model_used = self.config.model if self.config else None
+            provider_used = self.config.provider if self.config else None
+
             return AgentResult(
                 data=CharacterMap(
                     characters=[],
@@ -104,6 +108,8 @@ class CharacterAgent(Agent):
                 medium_confidence_count=0,
                 low_confidence_count=0,
                 issues=["No chapter map provided - cannot extract characters"],
+                model_used=model_used,
+                provider_used=provider_used,
             )
 
         pipeline = self._get_pipeline()
@@ -128,6 +134,16 @@ class CharacterAgent(Agent):
 
         elapsed = time.perf_counter() - start_time
 
+        # Get model info from config or client
+        model_used = None
+        provider_used = None
+        if self.config and self.config.model:
+            model_used = self.config.model
+            provider_used = self.config.provider
+        elif self.llm and self.llm.config:
+            model_used = self.llm.config.model
+            provider_used = self.llm.config.provider
+
         return AgentResult(
             data=character_map,
             confidence_scores=[c.confidence for c in character_map.characters],
@@ -136,6 +152,8 @@ class CharacterAgent(Agent):
             low_confidence_count=low,
             issues=issues,
             processing_time_seconds=elapsed,
+            model_used=model_used,
+            provider_used=provider_used,
         )
 
     def verify(self, result: AgentResult[CharacterMap]) -> VerificationResult:
@@ -227,6 +245,8 @@ class CharacterAgent(Agent):
             low_confidence_count=result.low_confidence_count,
             issues=issue_descriptions,
             processing_time_seconds=result.processing_time_seconds,
+            model_used=result.model_used,
+            provider_used=result.provider_used,
         )
 
     def _get_pipeline(self) -> CharacterExtractionPipeline:

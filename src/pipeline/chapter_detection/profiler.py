@@ -90,23 +90,57 @@ class DocumentProfiler:
         Returns:
             DocumentProfile with structural information
         """
+        logger.info(f"DocumentProfiler: profiling document ({len(text):,} chars)")
+
         # 1. Try to extract TOC (deterministic)
         toc = self._extract_toc(text)
+        if toc:
+            logger.info(
+                f"DocumentProfiler: found TOC with {len(toc.entries)} entries "
+                f"(pos {toc.toc_start_position}-{toc.toc_end_position})"
+            )
+            for entry in toc.entries[:10]:
+                logger.debug(f"  TOC entry: '{entry.title}' (page {entry.page_number})")
+            if len(toc.entries) > 10:
+                logger.debug(f"  ... and {len(toc.entries) - 10} more entries")
+        else:
+            logger.info("DocumentProfiler: no TOC detected")
 
         # 2. Find where front matter ends
         front_matter_end = self._find_front_matter_end(text, toc)
+        logger.info(f"DocumentProfiler: front_matter_end={front_matter_end}")
+
+        # Log what's at that position
+        context_start = max(0, front_matter_end - 50)
+        context_end = min(len(text), front_matter_end + 100)
+        logger.debug(
+            f"DocumentProfiler: text at front_matter_end: "
+            f"...{repr(text[context_start:front_matter_end])} | "
+            f"{repr(text[front_matter_end:context_end])}..."
+        )
 
         # 3. Detect structural conventions (deterministic first)
         conventions = self._detect_conventions(text, front_matter_end)
+        logger.info(f"DocumentProfiler: detected conventions: {conventions}")
 
         # 4. Use LLM to enhance understanding if available
         if self.llm:
             llm_profile = self._llm_profile(text[:8000])
+            if llm_profile:
+                logger.info(f"DocumentProfiler: LLM profile: {llm_profile}")
         else:
             llm_profile = None
 
         # 5. Combine deterministic and LLM analysis
-        return self._build_profile(text, toc, front_matter_end, conventions, llm_profile)
+        profile = self._build_profile(text, toc, front_matter_end, conventions, llm_profile)
+
+        logger.info(
+            f"DocumentProfiler: final profile - type={profile.document_type}, "
+            f"explicit_markers={profile.has_explicit_markers}, "
+            f"estimated_chapters={profile.estimated_chapter_count}"
+        )
+
+        return profile
 
     def _extract_toc(self, text: str) -> Optional[TableOfContents]:
         """Extract Table of Contents if present."""
@@ -269,8 +303,15 @@ class DocumentProfiler:
 
         result, response = self.llm.query_json(prompt, system=PROFILER_SYSTEM_PROMPT)
 
-        if result is None:
-            logger.warning(f"LLM profiler failed: {response.content[:200]}")
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM profiler failed: {response.error}")
+            return None
+
+        if result is None or not isinstance(result, dict):
+            # JSON parsing failure or wrong type
+            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            logger.warning(f"LLM profiler failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}")
             return None
 
         return result

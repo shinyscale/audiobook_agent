@@ -6,6 +6,7 @@ and quality metrics for each stage of the analysis pipeline.
 """
 
 from __future__ import annotations
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -31,6 +32,10 @@ class StageMetrics:
     high_confidence_count: int = 0
     medium_confidence_count: int = 0
     low_confidence_count: int = 0
+
+    # Model tracking (for per-stage model logging)
+    model_used: Optional[str] = None
+    provider_used: Optional[str] = None
 
     @property
     def items_per_second(self) -> float:
@@ -145,6 +150,8 @@ class ProfilingReport:
                     "high_confidence": s.high_confidence_count,
                     "medium_confidence": s.medium_confidence_count,
                     "low_confidence": s.low_confidence_count,
+                    "model_used": s.model_used,
+                    "provider_used": s.provider_used,
                 }
                 for s in self.stages
             ],
@@ -202,6 +209,11 @@ class StageContext:
         self._metrics.medium_confidence_count = medium_confidence
         self._metrics.low_confidence_count = low_confidence
 
+    def set_model(self, model: Optional[str], provider: Optional[str] = None) -> None:
+        """Set the model used for this stage."""
+        self._metrics.model_used = model
+        self._metrics.provider_used = provider
+
     def finalize(self) -> StageMetrics:
         """Finalize and return the metrics."""
         if self.start_time:
@@ -230,6 +242,7 @@ class MetricsCollector:
         self._stages: list[StageMetrics] = []
         self._current_context: Optional[StageContext] = None
         self._analysis_start: Optional[float] = None
+        self._lock = threading.Lock()  # Thread safety for parallel execution
 
     def start_analysis(self) -> None:
         """Mark the start of the analysis."""
@@ -255,7 +268,8 @@ class MetricsCollector:
             yield context
         finally:
             metrics = context.finalize()
-            self._stages.append(metrics)
+            with self._lock:  # Thread-safe append for parallel stages
+                self._stages.append(metrics)
             self._current_context = None
             logger.debug(
                 f"Stage '{name}' completed: {metrics.duration_seconds:.2f}s, "

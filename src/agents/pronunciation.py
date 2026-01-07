@@ -113,6 +113,10 @@ class PronunciationAgent(Agent):
 
         # Validate required context
         if not context.chapter_map:
+            # Get model info for error case
+            model_used = self._config.model if self._config else None
+            provider_used = self._config.provider if self._config else None
+
             return AgentResult(
                 data=PronunciationMap(
                     entries=[],
@@ -127,6 +131,8 @@ class PronunciationAgent(Agent):
                 medium_confidence_count=0,
                 low_confidence_count=0,
                 issues=["No chapter map provided - cannot generate pronunciation guide"],
+                model_used=model_used,
+                provider_used=provider_used,
             )
 
         pipeline = self._get_pipeline()
@@ -152,6 +158,16 @@ class PronunciationAgent(Agent):
 
         elapsed = time.perf_counter() - start_time
 
+        # Get model info from config or client
+        model_used = None
+        provider_used = None
+        if self._config and self._config.model:
+            model_used = self._config.model
+            provider_used = self._config.provider
+        elif self._llm_client and self._llm_client.config:
+            model_used = self._llm_client.config.model
+            provider_used = self._llm_client.config.provider
+
         return AgentResult(
             data=pronunciation_map,
             confidence_scores=[e.confidence for e in all_entries],
@@ -160,6 +176,8 @@ class PronunciationAgent(Agent):
             low_confidence_count=low,
             issues=issues,
             processing_time_seconds=elapsed,
+            model_used=model_used,
+            provider_used=provider_used,
         )
 
     def verify(self, result: AgentResult[PronunciationMap]) -> VerificationResult:
@@ -416,6 +434,8 @@ class PronunciationAgent(Agent):
             low_confidence_count=result.low_confidence_count,
             issues=issue_descriptions,
             processing_time_seconds=result.processing_time_seconds,
+            model_used=result.model_used,
+            provider_used=result.provider_used,
         )
 
 

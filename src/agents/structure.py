@@ -139,6 +139,16 @@ class StructureAgent(Agent):
 
         elapsed = time.perf_counter() - start_time
 
+        # Get model info from config or client
+        model_used = None
+        provider_used = None
+        if self._config and self._config.model:
+            model_used = self._config.model
+            provider_used = self._config.provider
+        elif self._llm_client and self._llm_client.config:
+            model_used = self._llm_client.config.model
+            provider_used = self._llm_client.config.provider
+
         return AgentResult(
             data=chapter_map,
             confidence_scores=[c.confidence for c in chapter_map.chapters],
@@ -147,6 +157,8 @@ class StructureAgent(Agent):
             low_confidence_count=low,
             issues=issues,
             processing_time_seconds=elapsed,
+            model_used=model_used,
+            provider_used=provider_used,
         )
 
     def verify(self, result: AgentResult[ChapterMap]) -> VerificationResult:

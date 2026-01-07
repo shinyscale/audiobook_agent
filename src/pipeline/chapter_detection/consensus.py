@@ -127,28 +127,74 @@ class ConsensusBuilder:
         Returns:
             Final ChapterMap
         """
+        logger.info(f"ConsensusBuilder: received {len(validations)} validations")
+
         # 1. Filter to valid proposals
         valid_proposals = [v for v in validations if v.is_valid]
+        invalid_count = len(validations) - len(valid_proposals)
+        if invalid_count > 0:
+            logger.info(f"ConsensusBuilder: filtered {invalid_count} invalid proposals")
 
         if not valid_proposals:
             logger.warning("No valid proposals - returning single chapter")
             return self._single_chapter_map(text, profile)
 
+        logger.info(f"ConsensusBuilder: {len(valid_proposals)} valid proposals")
+        for v in sorted(valid_proposals, key=lambda x: x.proposal.position):
+            logger.debug(
+                f"  [{v.proposal.position}] '{v.proposal.title}' "
+                f"(strategy={v.proposal.strategy}, score={v.overall_score:.2f})"
+            )
+
         # 2. Cluster by position
         clusters = self._cluster_proposals(valid_proposals)
+        logger.info(f"ConsensusBuilder: formed {len(clusters)} clusters")
+        for i, c in enumerate(sorted(clusters, key=lambda x: x.center_position)):
+            logger.debug(
+                f"  Cluster {i}: pos={c.center_position}, title='{c.best_title}', "
+                f"score={c.combined_score:.2f}, strategies={c.strategies}"
+            )
 
         # 3. Score clusters
         scored_clusters = self._score_clusters(clusters, profile)
+        logger.debug("ConsensusBuilder: scored clusters")
+        for c in sorted(scored_clusters, key=lambda x: x.center_position):
+            logger.debug(
+                f"  [{c.center_position}] '{c.best_title}' -> score={c.combined_score:.2f}"
+            )
 
         # 4. Validate chapter sequence with LLM (removes out-of-order chapters)
         if self.llm:
+            pre_validation_count = len(scored_clusters)
             scored_clusters = self._validate_chapter_sequence(scored_clusters)
+            if len(scored_clusters) != pre_validation_count:
+                logger.info(
+                    f"ConsensusBuilder: LLM validation removed "
+                    f"{pre_validation_count - len(scored_clusters)} clusters"
+                )
 
         # 5. Select boundaries
         high_confidence, low_confidence, rejected = self._select_boundaries(scored_clusters)
 
+        logger.info(
+            f"ConsensusBuilder: selected {len(high_confidence)} high-confidence, "
+            f"{len(low_confidence)} low-confidence, {len(rejected)} rejected"
+        )
+        for c in sorted(high_confidence, key=lambda x: x.center_position):
+            logger.info(f"  HIGH: [{c.center_position}] '{c.best_title}' (score={c.combined_score:.2f})")
+        for c in sorted(low_confidence, key=lambda x: x.center_position):
+            logger.debug(f"  LOW: [{c.center_position}] '{c.best_title}' (score={c.combined_score:.2f})")
+        for c in sorted(rejected, key=lambda x: x.center_position):
+            logger.debug(f"  REJECTED: [{c.center_position}] '{c.best_title}' (score={c.combined_score:.2f})")
+
         # 6. Validate chapter sizes
+        pre_size_count = len(high_confidence)
         high_confidence = self._validate_chapter_sizes(high_confidence, text)
+        if len(high_confidence) != pre_size_count:
+            logger.info(
+                f"ConsensusBuilder: size validation removed "
+                f"{pre_size_count - len(high_confidence)} boundaries"
+            )
 
         # 7. Build chapter map
         return self._build_chapter_map(
@@ -435,12 +481,19 @@ class ConsensusBuilder:
         Use LLM to validate the chapter sequence and remove out-of-order chapters.
 
         This catches issues like "Chapter 1" appearing after "Chapter 9".
+        For simple sequential patterns (I, II, III or 1, 2, 3), skips LLM validation.
         """
         if not clusters or len(clusters) < 3:
             return clusters
 
         # Sort by position
         sorted_clusters = sorted(clusters, key=lambda c: c.center_position)
+
+        # Check if sequence is already valid (simple pattern)
+        # Skip LLM for sequential Roman numerals (I, II, III...) or Arabic (1, 2, 3...)
+        if self._is_simple_sequence(sorted_clusters):
+            logger.debug("Skipping LLM validation - simple sequential pattern detected")
+            return clusters
 
         # Build chapter list for LLM
         chapter_list = []
@@ -484,6 +537,90 @@ class ConsensusBuilder:
             logger.warning(f"LLM sequence validation error: {e}")
 
         return clusters
+
+    def _is_simple_sequence(self, clusters: list[ProposalCluster]) -> bool:
+        """
+        Check if chapters form a simple sequential pattern.
+
+        Returns True for:
+        - Sequential Roman numerals: I, II, III, IV, V...
+        - Sequential Arabic numerals: 1, 2, 3, 4, 5...
+        - Chapter N format in order: Chapter 1, Chapter 2...
+
+        These don't need LLM validation - the pattern is self-validating.
+        """
+        if len(clusters) < 2:
+            return True
+
+        # Roman numeral values for conversion
+        roman_values = {
+            'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000
+        }
+
+        def roman_to_int(s: str) -> int:
+            """Convert Roman numeral to integer."""
+            s = s.upper()
+            result = 0
+            prev = 0
+            for c in reversed(s):
+                curr = roman_values.get(c, 0)
+                if curr < prev:
+                    result -= curr
+                else:
+                    result += curr
+                prev = curr
+            return result
+
+        def extract_number(title: str) -> Optional[int]:
+            """Extract chapter number from title."""
+            if not title:
+                return None
+
+            # Try "Chapter N" format
+            match = re.match(r'^Chapter\s+(\d+)', title, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+
+            # Try "Chapter ROMAN" format
+            match = re.match(r'^Chapter\s+([IVXLC]+)$', title, re.IGNORECASE)
+            if match:
+                return roman_to_int(match.group(1))
+
+            # Try pure Roman numeral (e.g., just "III")
+            if re.match(r'^[IVXLC]+$', title):
+                return roman_to_int(title)
+
+            # Try pure Arabic numeral
+            if title.isdigit():
+                return int(title)
+
+            return None
+
+        # Extract numbers from all titles
+        numbers = []
+        for cluster in clusters:
+            num = extract_number(cluster.best_title)
+            if num is None:
+                # Can't determine pattern - need LLM
+                return False
+            numbers.append(num)
+
+        # Check if strictly increasing (allows gaps)
+        for i in range(1, len(numbers)):
+            if numbers[i] <= numbers[i-1]:
+                # Out of order - need LLM to decide
+                return False
+
+        # Check for reasonable sequence (no huge gaps)
+        # e.g., 1, 2, 15, 16 is suspicious
+        max_gap = 5  # Allow gaps up to 5 for books with Part divisions
+        for i in range(1, len(numbers)):
+            if numbers[i] - numbers[i-1] > max_gap:
+                # Large gap - need LLM to validate
+                return False
+
+        logger.debug(f"Detected simple sequence: {numbers}")
+        return True
 
     def _clean_title(self, title: Optional[str]) -> Optional[str]:
         """

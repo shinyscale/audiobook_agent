@@ -10,8 +10,11 @@ This module provides the foundation for creating task-specific agents that can:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Generic, TypeVar
+from typing import Any, Optional, Generic, TypeVar, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from .validation import UpstreamValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,10 @@ class AgentResult(Generic[T]):
     processing_time_seconds: float = 0.0
     llm_calls: int = 0
     tokens_used: int = 0
+
+    # Model tracking (for per-agent model logging)
+    model_used: Optional[str] = None
+    provider_used: Optional[str] = None
 
     @property
     def total_items(self) -> int:
@@ -207,6 +214,60 @@ class Agent(ABC):
         will be used if no specific model is configured.
         """
         return []
+
+    def validate_upstream(self, context: AgentContext) -> "UpstreamValidationResult":
+        """
+        Validate that upstream agent results are suitable for this agent.
+
+        Override in subclasses to add agent-specific validation. For example,
+        SummaryAgent should validate that chapter_map has reasonable chapters
+        before attempting to generate summaries.
+
+        The default implementation checks that all declared dependencies
+        are present in the context.
+
+        Args:
+            context: Input context with previous results
+
+        Returns:
+            UpstreamValidationResult indicating if agent can proceed
+        """
+        from .validation import (
+            UpstreamValidationResult,
+            UpstreamValidationIssue,
+            ValidationSeverity,
+        )
+
+        issues = []
+
+        # Check declared dependencies are present
+        for dep_name in self.depends_on:
+            if not context.has_result(dep_name):
+                # Check convenience fields as fallback
+                has_fallback = False
+                if dep_name == "structure" and context.chapter_map is not None:
+                    has_fallback = True
+                elif dep_name == "characters" and context.character_map is not None:
+                    has_fallback = True
+
+                if not has_fallback:
+                    issues.append(UpstreamValidationIssue(
+                        agent_name=dep_name,
+                        issue_type="missing_result",
+                        description=f"Required upstream result '{dep_name}' not found",
+                        severity=ValidationSeverity.CRITICAL,
+                    ))
+
+        has_blocking = any(
+            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR)
+            for i in issues
+        )
+
+        return UpstreamValidationResult(
+            valid=len(issues) == 0,
+            can_proceed=not has_blocking,
+            issues=issues,
+        )
 
     @abstractmethod
     def run(self, context: AgentContext) -> AgentResult:

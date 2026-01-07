@@ -18,6 +18,7 @@ from .models import (
     Character,
     CharacterMap,
     CharacterMention,
+    CharacterType,
 )
 from ..llm import LLMClient
 
@@ -46,11 +47,11 @@ CRITICAL RULES:
 For the canonical name, prefer the FULL CIVILIAN NAME (first + last) over titled versions.
 
 NEVER merge:
-- Different characters who happen to share a first name
-- Different characters who share a LAST name (family members, spouses)
-  - Example: "Tom Buchanan" and "Daisy Buchanan" are DIFFERENT people (husband and wife)
-  - Example: "Mr. Bennet" and "Mrs. Bennet" are DIFFERENT people
-  - A bare last name like "Buchanan" should only merge with ONE full name
+- Different characters who happen to share a first name (e.g., two Michaels in the same story)
+- Different characters who share a LAST name but have different first names (family members, spouses)
+  - A married couple sharing a last name are two separate people
+  - Siblings sharing a last name are separate people
+  - A bare last name should only merge with ONE full-name character
 - Characters who appear in completely different parts of the book
 - Names that are clearly different people based on context"""
 
@@ -115,8 +116,13 @@ class CharacterConsensusBuilder:
         Returns:
             Final CharacterMap with merged characters
         """
+        logger.info(f"CharacterConsensusBuilder: received {len(validations)} validations")
+
         # Filter to valid proposals
         valid_results = [v for v in validations if v.is_valid]
+        invalid_count = len(validations) - len(valid_results)
+        if invalid_count > 0:
+            logger.info(f"CharacterConsensusBuilder: filtered {invalid_count} invalid proposals")
 
         if not valid_results:
             return CharacterMap(
@@ -129,12 +135,36 @@ class CharacterConsensusBuilder:
 
         # Group by name (exact match first)
         name_groups = self._group_by_name(valid_results)
+        logger.info(f"CharacterConsensusBuilder: grouped into {len(name_groups)} unique names")
+
+        # Log the top names by mention count
+        sorted_names = sorted(
+            name_groups.items(),
+            key=lambda x: sum(r.proposal.mention_count for r in x[1]),
+            reverse=True
+        )
+        for name, results in sorted_names[:20]:
+            mentions = sum(r.proposal.mention_count for r in results)
+            chapters = sorted(set(r.proposal.chapter_index for r in results))
+            logger.debug(f"  '{name}': {mentions} mentions, chapters {chapters}")
+        if len(sorted_names) > 20:
+            logger.debug(f"  ... and {len(sorted_names) - 20} more names")
 
         # Resolve aliases
         if self.use_llm_alias_resolution and len(name_groups) > 1:
+            logger.info("CharacterConsensusBuilder: using LLM alias resolution")
             alias_groups = self._llm_alias_resolution(name_groups)
         else:
+            logger.info("CharacterConsensusBuilder: using heuristic alias resolution")
             alias_groups = self._heuristic_alias_resolution(name_groups, valid_results)
+
+        # Log alias groups
+        logger.info(f"CharacterConsensusBuilder: resolved to {len(alias_groups)} characters")
+        for canonical, aliases in sorted(alias_groups.items(), key=lambda x: -len(x[1])):
+            if aliases:
+                logger.info(f"  '{canonical}' <- aliases: {aliases}")
+            else:
+                logger.debug(f"  '{canonical}' (no aliases)")
 
         # Build final characters
         characters = []
@@ -146,6 +176,7 @@ class CharacterConsensusBuilder:
             all_strategies = set()
             all_confidences = []
             chapters_present = set()
+            all_types = []  # Track character types from all proposals
 
             # Get mentions from canonical name
             if canonical_name in name_groups:
@@ -154,6 +185,9 @@ class CharacterConsensusBuilder:
                     all_strategies.add(result.proposal.strategy)
                     all_confidences.append(result.overall_score)
                     chapters_present.add(result.proposal.chapter_index)
+                    # Collect character type if available
+                    if hasattr(result.proposal, 'character_type'):
+                        all_types.append(result.proposal.character_type)
 
             # Get mentions from aliases
             for alias in aliases:
@@ -163,9 +197,22 @@ class CharacterConsensusBuilder:
                         all_strategies.add(result.proposal.strategy)
                         all_confidences.append(result.overall_score)
                         chapters_present.add(result.proposal.chapter_index)
+                        # Collect character type if available
+                        if hasattr(result.proposal, 'character_type'):
+                            all_types.append(result.proposal.character_type)
 
             if not all_mentions:
                 continue
+
+            # Deduplicate mentions by position (same position = same mention)
+            # This handles cases where NER and LLM both find the same mention
+            seen_positions = set()
+            unique_mentions = []
+            for mention in all_mentions:
+                if mention.position not in seen_positions:
+                    seen_positions.add(mention.position)
+                    unique_mentions.append(mention)
+            all_mentions = unique_mentions
 
             # Sort mentions by position
             all_mentions.sort(key=lambda m: m.position)
@@ -178,6 +225,16 @@ class CharacterConsensusBuilder:
                 avg_confidence = min(1.0, avg_confidence + 0.1)
             if len(chapters_present) > 3:
                 avg_confidence = min(1.0, avg_confidence + 0.05)
+
+            # Determine final character type by majority vote (prefer non-UNCERTAIN)
+            final_type = CharacterType.UNCERTAIN
+            if all_types:
+                type_counts = {}
+                for t in all_types:
+                    if t != CharacterType.UNCERTAIN:
+                        type_counts[t] = type_counts.get(t, 0) + 1
+                if type_counts:
+                    final_type = max(type_counts.keys(), key=lambda t: type_counts[t])
 
             # Create character
             char_id = self._generate_id(canonical_name)
@@ -193,6 +250,7 @@ class CharacterConsensusBuilder:
                 chapters_present=sorted(chapters_present),
                 confidence=avg_confidence,
                 supporting_strategies=list(all_strategies),
+                character_type=final_type,
             )
 
             if avg_confidence >= self.confidence_threshold:
@@ -455,6 +513,55 @@ class CharacterConsensusBuilder:
             if name not in seen_names:
                 alias_map[name] = []
 
+        # Post-LLM validation: Check for obvious merges the LLM missed
+        # e.g., "Nick" should merge with "Nick Carraway" even if LLM didn't suggest it
+        alias_map = self._post_llm_merge_check(alias_map, name_groups)
+
+        return alias_map
+
+    def _post_llm_merge_check(
+        self,
+        alias_map: dict[str, list[str]],
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> dict[str, list[str]]:
+        """
+        Check for obvious merges the LLM missed.
+
+        Handles cases like "Nick" + "Nick Carraway" where the first name
+        clearly matches the full name.
+        """
+        canonicals = list(alias_map.keys())
+        merged = set()  # Track names that get merged
+
+        for i, name1 in enumerate(canonicals):
+            if name1 in merged:
+                continue
+
+            for name2 in canonicals[i + 1:]:
+                if name2 in merged:
+                    continue
+
+                # Check if these should be merged
+                is_valid, confidence = self._validate_merge(name1, name2, name_groups)
+
+                if is_valid and confidence >= 0.7:
+                    # Merge: pick the more complete name as canonical
+                    canonical, alias = self._pick_canonical(name1, name2)
+
+                    # If canonical was name2, we need to swap in alias_map
+                    if canonical == name2:
+                        canonical, alias = name2, name1
+
+                    if canonical in alias_map and alias in alias_map:
+                        logger.info(
+                            f"Post-LLM merge: '{canonical}' <- '{alias}' "
+                            f"(LLM missed this merge)"
+                        )
+                        alias_map[canonical].append(alias)
+                        alias_map[canonical].extend(alias_map.get(alias, []))
+                        del alias_map[alias]
+                        merged.add(alias)
+
         return alias_map
 
     def _find_closest_name(
@@ -576,20 +683,76 @@ class CharacterConsensusBuilder:
                         )
                         return False, 0.1
 
+            # Check for first-name-only conflict when BOTH names are multi-word:
+            # "Martin Sharpe" and "Martin Luther King" share first name but different last names
+            if len(words1) > 1 and len(words2) > 1:
+                titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+
+                # Get first name (skip title if present)
+                first1 = words1[0]
+                if first1 in titles and len(words1) > 1:
+                    first1 = words1[1]
+
+                first2 = words2[0]
+                if first2 in titles and len(words2) > 1:
+                    first2 = words2[1]
+
+                last1 = words1[-1]
+                last2 = words2[-1]
+
+                # Same first name but different last names = different people
+                if first1 == first2 and last1 != last2:
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"(same first name '{first1}', different last names '{last1}' vs '{last2}')"
+                    )
+                    return False, 0.1
+
             # Shared words and passed family check - accept
             logger.debug(f"Merge accepted: {canonical} <- {alias} (shared words: {shared_words})")
             return True, 0.85
 
-        # No shared words - be more cautious
-        # Only reject if BOTH have 3+ mentions AND zero chapter overlap
+        # No shared words - be much more cautious
+        # First, reject if BOTH have 3+ chapters AND zero chapter overlap
         if len(canonical_chapters) >= 3 and len(alias_chapters) >= 3:
             if not has_chapter_overlap:
-                logger.debug(f"Merge rejected: {canonical} <-> {alias} (no shared words, no chapter overlap)")
+                logger.debug(f"Merge rejected: {canonical} <-> {alias} (no shared words, no chapter overlap, both multi-chapter)")
                 return False, 0.1
 
-        # Otherwise trust the LLM - it understands titles/ranks/context
-        logger.debug(f"Merge accepted: {canonical} <- {alias} (trusting LLM judgment)")
-        return True, 0.7
+        # Additional safety: if one is single-word and other is multi-word,
+        # single word must match first or last name of multi-word
+        if len(words1) == 1 or len(words2) == 1:
+            if len(words1) == 1:
+                single_word = words1[0]
+                multi_words = words2
+            else:
+                single_word = words2[0]
+                multi_words = words1
+
+            if len(multi_words) > 1:
+                # Skip titles in multi-word name
+                titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+                first_word = multi_words[0]
+                if first_word in titles and len(multi_words) > 1:
+                    first_word = multi_words[1]
+
+                last_word = multi_words[-1]
+
+                # Single word must match first name or last name
+                if single_word != first_word and single_word != last_word:
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"(no shared words, '{single_word}' doesn't match first '{first_word}' or last '{last_word}')"
+                    )
+                    return False, 0.1
+
+        # Only trust LLM if we have chapter overlap
+        if has_chapter_overlap:
+            logger.debug(f"Merge accepted: {canonical} <- {alias} (trusting LLM, has chapter overlap)")
+            return True, 0.6
+        else:
+            logger.debug(f"Merge rejected: {canonical} <-> {alias} (no shared words, no chapter overlap)")
+            return False, 0.3
 
     def _name_similarity(self, name1: str, name2: str) -> float:
         """Calculate similarity between two names (0.0 to 1.0)."""

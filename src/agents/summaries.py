@@ -13,6 +13,11 @@ import time
 
 from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue
 from .config import AgentConfig
+from .validation import (
+    UpstreamValidationResult,
+    UpstreamValidationIssue,
+    ValidationSeverity,
+)
 from ..pipeline.chapter_summary import (
     ChapterSummaryPipeline,
     ChapterSummaryMap,
@@ -99,6 +104,132 @@ class SummaryAgent(Agent):
     def recommended_models(self) -> list[str]:
         return ["llama3.1:70b", "qwen2.5:72b", "llama3.2"]
 
+    def validate_upstream(self, context: AgentContext) -> UpstreamValidationResult:
+        """
+        Validate that chapter_map from StructureAgent is suitable for summarization.
+
+        Checks:
+        1. chapter_map exists (CRITICAL)
+        2. chapters list is not empty (CRITICAL)
+        3. Not a single giant chapter likely indicating missed breaks (ERROR)
+        4. Not too many low-confidence chapters (WARNING)
+        5. No unusual chapter size distribution (WARNING)
+        """
+        issues = []
+
+        # Check 1: chapter_map exists
+        if not context.chapter_map:
+            issues.append(UpstreamValidationIssue(
+                agent_name="structure",
+                issue_type="no_chapters",
+                description="No chapter map provided - StructureAgent may have failed",
+                severity=ValidationSeverity.CRITICAL,
+            ))
+            return UpstreamValidationResult(
+                valid=False,
+                can_proceed=False,
+                issues=issues,
+            )
+
+        chapter_map = context.chapter_map
+        chapters = getattr(chapter_map, 'chapters', []) or []
+
+        # Check 2: Empty chapters list
+        if len(chapters) == 0:
+            issues.append(UpstreamValidationIssue(
+                agent_name="structure",
+                issue_type="empty_chapters",
+                description="Chapter map is empty - no chapters detected",
+                severity=ValidationSeverity.CRITICAL,
+            ))
+            return UpstreamValidationResult(
+                valid=False,
+                can_proceed=False,
+                issues=issues,
+            )
+
+        # Get word counts for analysis
+        word_counts = []
+        for ch in chapters:
+            wc = getattr(ch, 'word_count', 0) or 0
+            word_counts.append(wc)
+
+        total_words = sum(word_counts)
+
+        # Check 3: Single giant chapter (likely missed chapter breaks)
+        if len(chapters) == 1 and word_counts[0] > 50000:
+            issues.append(UpstreamValidationIssue(
+                agent_name="structure",
+                issue_type="single_giant_chapter",
+                description=(
+                    f"Single chapter with {word_counts[0]:,} words detected - "
+                    f"likely missed chapter breaks"
+                ),
+                severity=ValidationSeverity.ERROR,
+                details={
+                    "word_count": word_counts[0],
+                    "expected_chapters": max(2, word_counts[0] // 5000),
+                },
+            ))
+
+        # Check 4: Low-confidence chapters
+        low_conf_count = 0
+        for ch in chapters:
+            conf = getattr(ch, 'confidence', 1.0)
+            if conf < 0.4:
+                low_conf_count += 1
+
+        if len(chapters) > 1 and low_conf_count > len(chapters) * 0.5:
+            issues.append(UpstreamValidationIssue(
+                agent_name="structure",
+                issue_type="low_confidence_chapters",
+                description=(
+                    f"{low_conf_count}/{len(chapters)} chapters have low confidence - "
+                    f"chapter detection may be unreliable"
+                ),
+                severity=ValidationSeverity.WARNING,
+                details={
+                    "low_confidence_count": low_conf_count,
+                    "total_chapters": len(chapters),
+                    "ratio": low_conf_count / len(chapters),
+                },
+            ))
+
+        # Check 5: Unusual size distribution (possible detection errors)
+        if len(word_counts) >= 3 and total_words > 0:
+            avg = total_words / len(word_counts)
+            # Count outliers: chapters >5x average or <10% of average
+            outliers = sum(1 for wc in word_counts if wc > avg * 5 or (wc < avg * 0.1 and wc < 500))
+
+            if outliers > len(chapters) * 0.3:
+                issues.append(UpstreamValidationIssue(
+                    agent_name="structure",
+                    issue_type="size_distribution_anomaly",
+                    description=(
+                        f"{outliers}/{len(chapters)} chapters have unusual sizes "
+                        f"(>5x or <10% of average {avg:,.0f} words) - "
+                        f"may indicate detection errors"
+                    ),
+                    severity=ValidationSeverity.WARNING,
+                    details={
+                        "outlier_count": outliers,
+                        "total_chapters": len(chapters),
+                        "average_words": avg,
+                    },
+                ))
+
+        # Determine if can proceed
+        has_blocking = any(
+            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR)
+            for i in issues
+        )
+
+        return UpstreamValidationResult(
+            valid=len(issues) == 0,
+            can_proceed=not has_blocking,
+            issues=issues,
+        )
+
     def _get_pipeline(self) -> ChapterSummaryPipeline:
         """Get or create the chapter summary pipeline."""
         if self._pipeline is None:
@@ -121,6 +252,10 @@ class SummaryAgent(Agent):
 
         # Validate required context
         if not context.chapter_map:
+            # Get model info for error case
+            model_used = self._config.model if self._config else None
+            provider_used = self._config.provider if self._config else None
+
             return AgentResult(
                 data=ChapterSummaryMap(
                     summaries=[],
@@ -135,6 +270,8 @@ class SummaryAgent(Agent):
                 medium_confidence_count=0,
                 low_confidence_count=0,
                 issues=["No chapter map provided - cannot summarize chapters"],
+                model_used=model_used,
+                provider_used=provider_used,
             )
 
         pipeline = self._get_pipeline()
@@ -157,6 +294,16 @@ class SummaryAgent(Agent):
 
         elapsed = time.perf_counter() - start_time
 
+        # Get model info from config or client
+        model_used = None
+        provider_used = None
+        if self._config and self._config.model:
+            model_used = self._config.model
+            provider_used = self._config.provider
+        elif self._llm_client and self._llm_client.config:
+            model_used = self._llm_client.config.model
+            provider_used = self._llm_client.config.provider
+
         return AgentResult(
             data=summary_map,
             confidence_scores=[s.confidence for s in summary_map.summaries],
@@ -165,6 +312,8 @@ class SummaryAgent(Agent):
             low_confidence_count=low,
             issues=issues,
             processing_time_seconds=elapsed,
+            model_used=model_used,
+            provider_used=provider_used,
         )
 
     def verify(self, result: AgentResult[ChapterSummaryMap]) -> VerificationResult:
@@ -390,6 +539,8 @@ class SummaryAgent(Agent):
             low_confidence_count=result.low_confidence_count,
             issues=issue_descriptions,
             processing_time_seconds=result.processing_time_seconds,
+            model_used=result.model_used,
+            provider_used=result.provider_used,
         )
 
 

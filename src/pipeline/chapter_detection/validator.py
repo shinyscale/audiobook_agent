@@ -92,11 +92,33 @@ class ProposalValidator:
         Returns:
             List of validation results
         """
+        logger.info(f"ProposalValidator: validating {len(proposals)} proposals")
+
         results = []
+        valid_count = 0
+        invalid_count = 0
 
         for proposal in proposals:
             result = self._validate_single(proposal, text, profile)
             results.append(result)
+
+            if result.is_valid:
+                valid_count += 1
+                logger.debug(
+                    f"  VALID: [{proposal.position}] '{proposal.title}' "
+                    f"(score={result.overall_score:.2f})"
+                )
+            else:
+                invalid_count += 1
+                logger.debug(
+                    f"  INVALID: [{proposal.position}] '{proposal.title}' "
+                    f"(score={result.overall_score:.2f}) - {result.reasoning[:50]}"
+                )
+
+        logger.info(
+            f"ProposalValidator: {valid_count} valid, {invalid_count} invalid "
+            f"(threshold=0.5)"
+        )
 
         return results
 
@@ -169,8 +191,15 @@ class ProposalValidator:
 
         result, response = self.llm.query_json(prompt, system=VALIDATION_SYSTEM_PROMPT)
 
-        if result is None:
-            logger.warning(f"LLM validation failed: {response.content[:200]}")
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM validation failed: {response.error}")
+            return self._heuristic_validate(text_before, text_after, title)
+
+        if result is None or not isinstance(result, dict):
+            # JSON parsing failure or wrong type
+            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            logger.warning(f"LLM validation failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}")
             return self._heuristic_validate(text_before, text_after, title)
 
         return {
