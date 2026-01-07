@@ -6,7 +6,7 @@ orchestrator-level settings (quality gates, parallel execution).
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 import os
 
 
@@ -37,6 +37,10 @@ class AgentConfig:
     min_acceptable_confidence: float = 0.4
     target_high_confidence_ratio: float = 0.8  # Target 80% high confidence
 
+    # Reasoning control (for Qwen3, GPT-OSS, Nemotron)
+    think_mode: Optional[Union[bool, str]] = False  # False, True, "low", "medium", "high"
+    system_prompt: Optional[str] = None  # Agent-specific system prompt override
+
     def get_api_key(self) -> Optional[str]:
         """Get API key from config or environment."""
         if self.api_key:
@@ -65,7 +69,9 @@ class OrchestratorConfig:
     agent_configs: dict[str, AgentConfig] = field(default_factory=dict)
 
     # Execution settings
-    parallel_execution: bool = False  # Start with sequential for simplicity
+    parallel_execution: bool = False  # Enable parallel agent execution
+    max_parallel_workers: int = 4  # Max threads for parallel execution
+    parallel_chapter_summaries: bool = True  # Parallelize per-chapter summaries
     checkpoint_between_agents: bool = True
 
     # Quality gates
@@ -114,32 +120,48 @@ class OrchestratorConfig:
             default_provider=os.environ.get("AUDIOBOOK_LLM_PROVIDER", "ollama"),
             default_base_url=os.environ.get("AUDIOBOOK_LLM_BASE_URL", "http://localhost:11434"),
             parallel_execution=os.environ.get("AUDIOBOOK_PARALLEL", "").lower() == "true",
+            max_parallel_workers=int(os.environ.get("AUDIOBOOK_PARALLEL_WORKERS", "4")),
+            parallel_chapter_summaries=os.environ.get("AUDIOBOOK_PARALLEL_SUMMARIES", "true").lower() != "false",
             verbose=os.environ.get("AUDIOBOOK_VERBOSE", "").lower() == "true",
         )
 
 
 # Recommended model configurations for different agents
 # These are suggestions based on model characteristics
+# Models are listed in preference order - first available will be used
+#
+# NOTE: We favor qwen2.5 and llama3 over qwen3 because:
+# - qwen3 variants may use "reasoning mode" which outputs <think> tags
+# - Reasoning models may use training knowledge instead of analyzing provided text
+# - This causes unreliable results, especially for famous novels
 RECOMMENDED_AGENT_MODELS = {
     "structure": {
         "description": "Fast model for pattern recognition and chapter detection",
-        "models": ["qwen2.5:7b", "llama3.2", "mistral"],
+        "models": ["qwen2.5:14b", "qwen2.5:7b", "llama3.2", "mistral", "gpt-oss:20b"],
         "temperature": 0.2,  # Low for consistency
+        "think_mode": False,  # Disable reasoning for speed
+        "system_prompt": "You are a document structure analyzer. Extract chapter boundaries and titles from text. Return ONLY valid JSON. No commentary or explanation.",
     },
     "characters": {
         "description": "Deep narrative model for character understanding",
-        "models": ["qwen2.5:72b", "llama3.1:70b", "qwen2.5:32b"],
+        "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "gpt-oss:120b"],
         "temperature": 0.3,
+        "think_mode": False,  # JSON extraction doesn't benefit from reasoning chains
+        "system_prompt": "You are a literary analyst extracting character information for audiobook narration. Identify characters, aliases, and relationships. Return ONLY valid JSON with no additional text.",
     },
     "summaries": {
         "description": "Narrative-focused model for story comprehension",
-        "models": ["llama3.1:70b", "qwen2.5:72b", "llama3.2"],
+        "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "llama3.2"],
         "temperature": 0.4,  # Slightly higher for natural language
+        "think_mode": False,  # Summaries should be direct
+        "system_prompt": "You are a literary analyst creating chapter summaries for audiobook narration preparation. Your summaries should help a narrator understand plot, tone, and character presence. Return ONLY valid JSON.",
     },
     "pronunciation": {
         "description": "Phonetically-aware model for pronunciation",
-        "models": ["qwen2.5:32b", "qwen2.5:14b", "llama3.2"],
+        "models": ["qwen2.5:14b", "qwen2.5:32b", "llama3.2", "llama3.1:8b"],
         "temperature": 0.2,  # Low for accuracy
+        "think_mode": False,  # Phonetic analysis is pattern-based
+        "system_prompt": "You are a pronunciation expert for audiobook narration. Identify words requiring special pronunciation guidance (names, places, foreign words). Return ONLY valid JSON.",
     },
 }
 
@@ -185,6 +207,8 @@ def create_optimized_config(
                 provider=provider,
                 base_url=base_url,
                 temperature=recommendations.get("temperature", 0.3),
+                think_mode=recommendations.get("think_mode", False),
+                system_prompt=recommendations.get("system_prompt"),
             ))
 
     # Set default model (first available from any recommendation, or first available)

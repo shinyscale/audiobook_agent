@@ -14,11 +14,34 @@ logger = logging.getLogger(__name__)
 # Try to import wordsegment for word boundary detection
 try:
     import wordsegment
-    wordsegment.load()
     _HAS_WORDSEGMENT = True
+    _wordsegment_loaded = False
 except ImportError:
     _HAS_WORDSEGMENT = False
+    _wordsegment_loaded = False
+    wordsegment = None  # type: ignore
     logger.warning("wordsegment not installed. PDF spacing correction will be limited.")
+
+
+def _ensure_wordsegment_loaded() -> None:
+    """
+    Lazy-load wordsegment data with user feedback.
+
+    This downloads word frequency data (~25MB) on first use,
+    which can take 10-30 seconds.
+    """
+    global _wordsegment_loaded
+    if _wordsegment_loaded or not _HAS_WORDSEGMENT:
+        return
+
+    logger.info("Loading word segmentation data (first-time only, may take 10-30s)...")
+    import sys
+    print("🔤 Loading word segmentation data (first run only)...", file=sys.stderr, flush=True)
+
+    wordsegment.load()
+    _wordsegment_loaded = True
+
+    logger.info("Word segmentation data loaded.")
 
 
 # Common English words for quick checks
@@ -133,6 +156,9 @@ def fix_spacing(text: str) -> tuple[str, int]:
         logger.warning("wordsegment not available, using basic spacing fix")
         return _basic_spacing_fix(text)
 
+    # Lazy-load wordsegment data (may take 10-30s on first use)
+    _ensure_wordsegment_loaded()
+
     spaces_added = 0
     result_parts = []
 
@@ -226,6 +252,8 @@ def _is_valid_word(word: str) -> bool:
 
     # Check against wordsegment's unigrams
     if _HAS_WORDSEGMENT:
+        # Lazy-load wordsegment data if needed
+        _ensure_wordsegment_loaded()
         # If the word is in the dictionary, it's valid
         if word_lower in wordsegment.UNIGRAMS:
             return True

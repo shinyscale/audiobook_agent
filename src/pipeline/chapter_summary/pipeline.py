@@ -2,14 +2,17 @@
 Chapter summary pipeline orchestrator.
 
 Coordinates the full chapter summarization workflow with checkpointing.
+Supports parallel chapter summarization for faster processing.
 """
 
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Callable
 from collections import defaultdict
 import logging
+import threading
 
 from .models import (
     ChapterSummary,
@@ -40,16 +43,26 @@ class ChapterSummaryPipeline:
         llm_client: LLMClient,
         checkpoint_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        parallel_chapters: bool = False,
+        max_workers: int = 4,
+        llm_client_factory: Optional[Callable[[], LLMClient]] = None,
     ):
         """
         Args:
             llm_client: LLM client for summarization
             checkpoint_dir: Directory for saving checkpoints
             progress_callback: Callback(stage, current, total) for progress updates
+            parallel_chapters: Whether to summarize chapters in parallel
+            max_workers: Max threads for parallel summarization
+            llm_client_factory: Factory function to create new LLM clients for parallel execution
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
         self.progress_callback = progress_callback
+        self.parallel_chapters = parallel_chapters
+        self.max_workers = max_workers
+        self.llm_client_factory = llm_client_factory
+        self._progress_lock = threading.Lock()  # Thread-safe progress reporting
 
     def run(
         self,
@@ -99,10 +112,16 @@ class ChapterSummaryPipeline:
 
         # Stage 1: Summarization
         if checkpoint.stage == "summarization":
-            logger.info("Stage 1: Generating chapter summaries")
-            checkpoint = self._run_summarization(
-                full_text, chapter_map, summarizer, checkpoint
-            )
+            if self.parallel_chapters and len(chapter_map.chapters) > 1:
+                logger.info(f"Stage 1: Generating chapter summaries in parallel ({self.max_workers} workers)")
+                checkpoint = self._run_summarization_parallel(
+                    full_text, chapter_map, summarizer, checkpoint, known_characters
+                )
+            else:
+                logger.info("Stage 1: Generating chapter summaries")
+                checkpoint = self._run_summarization(
+                    full_text, chapter_map, summarizer, checkpoint
+                )
             self._save_checkpoint(checkpoint)
 
         # Stage 2: Consolidation
@@ -170,6 +189,117 @@ class ChapterSummaryPipeline:
         checkpoint.completed_chapters = list(completed)
         checkpoint.stage = "consolidation"
         checkpoint.timestamp = datetime.now().isoformat()
+
+        return checkpoint
+
+    def _run_summarization_parallel(
+        self,
+        full_text: str,
+        chapter_map: ChapterDetectionMap,
+        summarizer: ChapterSummarizer,
+        checkpoint: SummaryPipelineCheckpoint,
+        known_characters: list[str],
+    ) -> SummaryPipelineCheckpoint:
+        """Generate summaries for all chapters in parallel using ThreadPoolExecutor."""
+        completed = set(checkpoint.completed_chapters)
+        total_chapters = len(chapter_map.chapters)
+
+        # Prepare chapters that need processing
+        chapters_to_process = [
+            ch for ch in chapter_map.chapters
+            if ch.index not in completed
+        ]
+
+        if not chapters_to_process:
+            logger.info("All chapters already completed, skipping summarization")
+            checkpoint.stage = "consolidation"
+            return checkpoint
+
+        logger.info(f"Processing {len(chapters_to_process)} chapters with {self.max_workers} workers")
+
+        # Thread-safe collections for results
+        summaries: list[ChapterSummary] = list(checkpoint.chapter_summaries or [])
+        summaries_lock = threading.Lock()
+        errors: list[str] = []
+        errors_lock = threading.Lock()
+        progress_counter = [len(completed)]  # Mutable for closure
+
+        def summarize_chapter(chapter) -> Optional[ChapterSummary]:
+            """Worker function to summarize a single chapter."""
+            chapter_idx = chapter.index
+
+            # Extract chapter text
+            start = chapter.start_position
+            end = chapter.end_position
+            chapter_text = full_text[start:end]
+
+            try:
+                # Create a fresh LLM client for this thread if factory provided
+                if self.llm_client_factory:
+                    thread_llm = self.llm_client_factory()
+                    thread_summarizer = ChapterSummarizer(
+                        llm_client=thread_llm,
+                        known_characters=known_characters,
+                    )
+                else:
+                    thread_summarizer = summarizer
+
+                summary = thread_summarizer.summarize_chapter(
+                    chapter_text=chapter_text,
+                    chapter_index=chapter_idx,
+                    chapter_title=chapter.title,
+                )
+
+                logger.info(
+                    f"Chapter {chapter_idx}: {summary.word_count} words, "
+                    f"tone={summary.primary_tone}, "
+                    f"{len(summary.characters_present)} characters"
+                )
+
+                return summary
+
+            except Exception as e:
+                error_msg = f"Summarization failed for chapter {chapter_idx}: {str(e)}"
+                logger.error(error_msg)
+                with errors_lock:
+                    errors.append(error_msg)
+                return None
+
+        # Execute summarization in parallel
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_chapter = {
+                executor.submit(summarize_chapter, ch): ch
+                for ch in chapters_to_process
+            }
+
+            for future in as_completed(future_to_chapter):
+                chapter = future_to_chapter[future]
+                try:
+                    summary = future.result()
+                    if summary:
+                        with summaries_lock:
+                            summaries.append(summary)
+                            completed.add(chapter.index)
+
+                        # Thread-safe progress update
+                        with self._progress_lock:
+                            progress_counter[0] += 1
+                            self._report_progress("summarization", progress_counter[0], total_chapters)
+
+                except Exception as e:
+                    error_msg = f"Unexpected error for chapter {chapter.index}: {str(e)}"
+                    logger.error(error_msg)
+                    with errors_lock:
+                        errors.append(error_msg)
+
+        # Update checkpoint
+        checkpoint.chapter_summaries = summaries
+        checkpoint.completed_chapters = list(completed)
+        checkpoint.errors.extend(errors)
+        checkpoint.stage = "consolidation"
+        checkpoint.timestamp = datetime.now().isoformat()
+
+        logger.info(f"Parallel summarization complete: {len(summaries)} chapters, {len(errors)} errors")
 
         return checkpoint
 

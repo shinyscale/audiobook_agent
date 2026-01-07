@@ -62,6 +62,18 @@ except ImportError:
     HAS_AGENT_CONFIG = False
     OrchestratorConfig = None  # type: ignore
 
+try:
+    from ..system import (
+        detect_system_specs,
+        detect_optimal_profile,
+        format_specs_display,
+        HARDWARE_PROFILES,
+        apply_profile_to_config,
+    )
+    HAS_SYSTEM_DETECTION = True
+except ImportError:
+    HAS_SYSTEM_DETECTION = False
+
 
 class ProgressWindow:
     """Window showing analysis progress."""
@@ -756,6 +768,249 @@ class LLMSettingsPanel:
         self.outer_frame.pack(**kwargs)
 
 
+class SystemProfilePanel:
+    """Panel showing detected system hardware and profile."""
+
+    def __init__(self, parent, llm_panel: LLMSettingsPanel, agent_config_panel=None):
+        if not HAS_TKINTER:
+            raise ImportError("tkinter is required")
+
+        self.parent = parent
+        self.llm_panel = llm_panel
+        self.agent_config_panel = agent_config_panel  # Set after init
+
+        # State variables
+        self.expanded = tk.BooleanVar(value=False)
+        self.detected_specs = None
+        self.detected_profile = None
+
+        self._create_widgets()
+
+        # Auto-detect on startup (in background to avoid blocking)
+        if HAS_SYSTEM_DETECTION:
+            self.parent.after(100, self._detect_hardware)
+
+    def set_agent_config_panel(self, panel):
+        """Set the agent config panel reference (for auto-optimization)."""
+        self.agent_config_panel = panel
+
+    def _create_widgets(self):
+        """Create the panel widgets."""
+        # Outer frame
+        self.outer_frame = ttk.Frame(self.parent)
+
+        # Header row (always visible)
+        header_frame = ttk.Frame(self.outer_frame)
+        header_frame.pack(fill=tk.X)
+
+        self.toggle_button = ttk.Button(
+            header_frame,
+            text="▶ System Profile",
+            command=self._toggle_expanded,
+            width=18
+        )
+        self.toggle_button.pack(side=tk.LEFT)
+
+        # Status label shown when collapsed
+        self.status_label = ttk.Label(header_frame, text="Detecting hardware...")
+        self.status_label.pack(side=tk.LEFT, padx=10)
+
+        # Expandable content frame (hidden by default)
+        self.content_frame = ttk.LabelFrame(
+            self.outer_frame,
+            text="System Hardware Profile",
+            padding="10"
+        )
+
+        self._create_content_widgets()
+
+    def _create_content_widgets(self):
+        """Create widgets inside the expandable panel."""
+        if not HAS_SYSTEM_DETECTION:
+            ttk.Label(
+                self.content_frame,
+                text="System detection not available (missing psutil)",
+                foreground="gray"
+            ).pack(anchor=tk.W)
+            return
+
+        # Hardware info display
+        self.hw_info_frame = ttk.Frame(self.content_frame)
+        self.hw_info_frame.pack(fill=tk.X, pady=5)
+
+        # Platform row
+        self.platform_label = ttk.Label(self.hw_info_frame, text="Platform: Detecting...")
+        self.platform_label.pack(anchor=tk.W)
+
+        # CPU row
+        self.cpu_label = ttk.Label(self.hw_info_frame, text="CPU: Detecting...")
+        self.cpu_label.pack(anchor=tk.W)
+
+        # RAM row
+        self.ram_label = ttk.Label(self.hw_info_frame, text="RAM: Detecting...")
+        self.ram_label.pack(anchor=tk.W)
+
+        # GPU row
+        self.gpu_label = ttk.Label(self.hw_info_frame, text="GPU: Detecting...")
+        self.gpu_label.pack(anchor=tk.W)
+
+        # Separator
+        ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        # Profile info
+        self.profile_frame = ttk.Frame(self.content_frame)
+        self.profile_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(self.profile_frame, text="Detected Profile:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        self.profile_name_label = ttk.Label(self.profile_frame, text="Detecting...")
+        self.profile_name_label.pack(anchor=tk.W, padx=(10, 0))
+
+        self.profile_desc_label = ttk.Label(self.profile_frame, text="", foreground="gray")
+        self.profile_desc_label.pack(anchor=tk.W, padx=(10, 0))
+
+        # Recommendations
+        self.rec_frame = ttk.Frame(self.content_frame)
+        self.rec_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(self.rec_frame, text="Recommendations:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        self.rec_model_label = ttk.Label(self.rec_frame, text="Max model size: --")
+        self.rec_model_label.pack(anchor=tk.W, padx=(10, 0))
+        self.rec_workers_label = ttk.Label(self.rec_frame, text="Parallel workers: --")
+        self.rec_workers_label.pack(anchor=tk.W, padx=(10, 0))
+        self.rec_context_label = ttk.Label(self.rec_frame, text="Context length: --")
+        self.rec_context_label.pack(anchor=tk.W, padx=(10, 0))
+
+        # Button row
+        button_row = ttk.Frame(self.content_frame)
+        button_row.pack(fill=tk.X, pady=10)
+
+        self.optimize_button = ttk.Button(
+            button_row,
+            text="Auto-Optimize Settings",
+            command=self._apply_profile
+        )
+        self.optimize_button.pack(side=tk.LEFT)
+
+        self.rescan_button = ttk.Button(
+            button_row,
+            text="Re-scan Hardware",
+            command=self._detect_hardware
+        )
+        self.rescan_button.pack(side=tk.LEFT, padx=5)
+
+    def _toggle_expanded(self):
+        """Toggle panel expansion."""
+        if self.expanded.get():
+            self.content_frame.pack_forget()
+            self.toggle_button.config(text="▶ System Profile")
+            self.expanded.set(False)
+        else:
+            self.content_frame.pack(fill=tk.X, pady=5)
+            self.toggle_button.config(text="▼ System Profile")
+            self.expanded.set(True)
+
+    def _detect_hardware(self):
+        """Detect hardware in background thread."""
+        if not HAS_SYSTEM_DETECTION:
+            self.status_label.config(text="Detection unavailable")
+            return
+
+        def detect():
+            try:
+                specs = detect_system_specs()
+                profile = detect_optimal_profile(specs)
+                # Update UI on main thread
+                self.parent.after(0, lambda: self._update_display(specs, profile))
+            except Exception as e:
+                self.parent.after(0, lambda: self._show_error(str(e)))
+
+        import threading
+        thread = threading.Thread(target=detect, daemon=True)
+        thread.start()
+
+    def _update_display(self, specs, profile):
+        """Update the display with detected specs."""
+        self.detected_specs = specs
+        self.detected_profile = profile
+
+        # Update collapsed status
+        profile_display = profile.name.replace('_', ' ').title()
+        self.status_label.config(text=f"{profile_display} ({specs.ram_gb:.0f}GB RAM)")
+
+        # Update expanded info
+        self.platform_label.config(text=f"Platform: {specs.platform.title()} ({specs.architecture})")
+        self.cpu_label.config(text=f"CPU Cores: {specs.cpu_cores}")
+        self.ram_label.config(text=f"RAM: {specs.ram_gb:.0f} GB")
+
+        if specs.gpu_type != "none":
+            vram_str = f"{specs.gpu_vram_gb:.0f} GB"
+            if specs.is_apple_silicon:
+                vram_str += " unified"
+            self.gpu_label.config(text=f"GPU: {specs.gpu_name} ({vram_str})")
+        else:
+            self.gpu_label.config(text="GPU: None detected")
+
+        # Update profile info
+        self.profile_name_label.config(text=profile_display)
+        self.profile_desc_label.config(text=profile.description)
+
+        # Update recommendations
+        self.rec_model_label.config(text=f"Max model size: {profile.max_model_size_b}B")
+        self.rec_workers_label.config(text=f"Parallel workers: {profile.max_parallel_workers}")
+        self.rec_context_label.config(text=f"Context length: {profile.context_length:,}")
+
+    def _show_error(self, error: str):
+        """Show error in display."""
+        self.status_label.config(text="Detection failed")
+        self.platform_label.config(text=f"Error: {error}")
+
+    def _apply_profile(self):
+        """Apply detected profile to settings."""
+        if not self.detected_profile or not HAS_AGENT_CONFIG:
+            return
+
+        profile = self.detected_profile
+
+        # Apply context length to LLM settings
+        self.llm_panel.context_length.set(profile.context_length)
+
+        # Apply models to agent config if available
+        if self.agent_config_panel and HAS_AGENT_CONFIG:
+            available_models = self.llm_panel.detected_models or []
+
+            # Create a temporary config and apply profile
+            llm_settings = self.llm_panel.get_settings()
+            config = create_optimized_config(
+                available_models=available_models,
+                provider=llm_settings.get("provider", "ollama"),
+                base_url=llm_settings.get("base_url", "http://localhost:11434"),
+            )
+            apply_profile_to_config(profile, config, available_models)
+
+            # Apply to UI
+            for agent_name in self.agent_config_panel.AGENT_NAMES:
+                agent_config = config.agent_configs.get(agent_name)
+                if agent_config and agent_config.model:
+                    self.agent_config_panel.agent_models[agent_name].set(agent_config.model)
+
+            self.agent_config_panel._update_status()
+
+        # Show confirmation
+        self.status_label.config(text=f"Applied {self.detected_profile.name} profile")
+
+    def get_profile(self):
+        """Get the detected profile."""
+        return self.detected_profile
+
+    def pack(self, **kwargs):
+        """Pack the panel."""
+        self.outer_frame.pack(**kwargs)
+
+    def grid(self, **kwargs):
+        """Grid the panel."""
+        self.outer_frame.grid(**kwargs)
+
+
 class AgentModelConfigPanel:
     """Expandable/collapsible panel for per-agent model configuration."""
 
@@ -835,14 +1090,35 @@ class AgentModelConfigPanel:
             command=self._on_auto_optimize_change
         ).pack(side=tk.LEFT)
 
+        # Model suitability thresholds (in billions of parameters)
+        # "overkill" = model is too large for simple task
+        # "underpowered" = model is too small for complex task
+        self._model_suitability = {
+            "structure": {"type": "overkill", "threshold": 30,
+                          "warning": "Large models may over-think simple pattern matching. Consider 7B-20B."},
+            "pronunciation": {"type": "overkill", "threshold": 30,
+                              "warning": "Large models may over-think pronunciation flagging. Consider 7B-20B."},
+            "characters": {"type": "underpowered", "threshold": 30,
+                           "warning": "Character analysis benefits from larger models. Consider 30B+."},
+            "summaries": {"type": "underpowered", "threshold": 14,
+                          "warning": "Summary generation benefits from larger models. Consider 14B+."},
+        }
+
+        # Warning labels for each agent
+        self._warning_labels: dict[str, ttk.Label] = {}
+
         # Agent model grid
         grid_frame = ttk.Frame(self.content_frame)
         grid_frame.pack(fill=tk.X, pady=10)
 
         for i, (agent_name, display_name) in enumerate(self.AGENT_NAMES.items()):
+            # Container for this agent (row + warning)
+            agent_frame = ttk.Frame(grid_frame)
+            agent_frame.pack(fill=tk.X, pady=3)
+
             # Row for this agent
-            row_frame = ttk.Frame(grid_frame)
-            row_frame.pack(fill=tk.X, pady=3)
+            row_frame = ttk.Frame(agent_frame)
+            row_frame.pack(fill=tk.X)
 
             # Agent name label
             ttk.Label(
@@ -873,6 +1149,22 @@ class AgentModelConfigPanel:
                 command=make_auto_callback(agent_name),
                 width=6
             ).pack(side=tk.LEFT, padx=2)
+
+            # Warning label (hidden by default)
+            warning_label = ttk.Label(
+                agent_frame,
+                text="",
+                foreground="orange",
+                wraplength=400
+            )
+            warning_label.pack(anchor=tk.W, padx=(150, 0))
+            self._warning_labels[agent_name] = warning_label
+
+            # Add trace to show warnings when model changes
+            def make_trace_callback(an):
+                return lambda *args: self._check_model_suitability(an)
+
+            self.agent_models[agent_name].trace_add("write", make_trace_callback(agent_name))
 
         # Button row
         button_row = ttk.Frame(self.content_frame)
@@ -991,19 +1283,121 @@ class AgentModelConfigPanel:
         else:
             self.status_label.config(text=f"{non_default} agents configured")
 
+    def _estimate_model_size(self, model_name: str) -> int:
+        """
+        Estimate model size in billions from model name.
+
+        Parses patterns like "qwen3:14b", "gpt-oss:120b", "llama3.2", etc.
+        Returns 0 if size cannot be determined.
+        """
+        import re
+
+        if not model_name or model_name == "Default":
+            return 0
+
+        # Common patterns: "model:Nb", "model-Nb", "modelNb"
+        patterns = [
+            r':(\d+)b',           # qwen3:14b, gpt-oss:120b
+            r'-(\d+)b',           # llama-7b
+            r'(\d+)b$',           # llama7b
+            r':(\d+\.?\d*)b',     # qwen3:3.8b
+            r'(\d+)x(\d+)b',      # mixtral8x7b -> 56b effective
+        ]
+
+        model_lower = model_name.lower()
+
+        for pattern in patterns:
+            match = re.search(pattern, model_lower)
+            if match:
+                if len(match.groups()) == 2:
+                    # Mixture of experts (e.g., 8x7b)
+                    return int(match.group(1)) * int(match.group(2))
+                try:
+                    return int(float(match.group(1)))
+                except ValueError:
+                    continue
+
+        # Known model sizes for common models without size in name
+        known_sizes = {
+            "llama3.2": 3,
+            "llama3.1": 8,
+            "mistral": 7,
+            "gemma": 7,
+            "phi-3": 3,
+            "phi-4": 14,
+        }
+
+        for name, size in known_sizes.items():
+            if name in model_lower:
+                return size
+
+        return 0  # Unknown
+
+    def _check_model_suitability(self, agent_name: str):
+        """Check if selected model is suitable for agent and show warning if not."""
+        if agent_name not in self._model_suitability:
+            return
+
+        model = self.agent_models[agent_name].get()
+        if not model or model == "Default":
+            # Clear warning for default selection
+            self._warning_labels[agent_name].config(text="")
+            return
+
+        size = self._estimate_model_size(model)
+        if size == 0:
+            # Couldn't determine size - no warning
+            self._warning_labels[agent_name].config(text="")
+            return
+
+        suitability = self._model_suitability[agent_name]
+        threshold = suitability["threshold"]
+        warn_type = suitability["type"]
+
+        show_warning = False
+        if warn_type == "overkill" and size > threshold:
+            show_warning = True
+        elif warn_type == "underpowered" and size < threshold:
+            show_warning = True
+
+        if show_warning:
+            self._warning_labels[agent_name].config(text=f"⚠️ {suitability['warning']}")
+        else:
+            self._warning_labels[agent_name].config(text="")
+
     def get_orchestrator_config(self) -> "OrchestratorConfig":
-        """Build OrchestratorConfig from current settings."""
+        """Build OrchestratorConfig from current settings.
+
+        Starts with RECOMMENDED_AGENT_MODELS as baseline, then applies
+        any user-specified overrides.
+        """
         if not HAS_AGENT_CONFIG:
             return None
 
         llm_settings = self.llm_panel.get_settings()
+        provider = llm_settings.get("provider", "ollama")
+        base_url = llm_settings.get("base_url", "http://localhost:11434")
 
-        config = OrchestratorConfig(
-            default_model=llm_settings.get("model", "llama3.2"),
-            default_provider=llm_settings.get("provider", "ollama"),
-            default_base_url=llm_settings.get("base_url", "http://localhost:11434"),
-        )
+        # Start with optimized config based on available models
+        # This applies RECOMMENDED_AGENT_MODELS automatically
+        available_models = self.llm_panel.detected_models or []
+        if available_models:
+            config = create_optimized_config(
+                available_models=available_models,
+                provider=provider,
+                base_url=base_url,
+            )
+            # Update default model to user's selection
+            config.default_model = llm_settings.get("model", "llama3.2")
+        else:
+            # No models detected - fall back to simple config
+            config = OrchestratorConfig(
+                default_model=llm_settings.get("model", "llama3.2"),
+                default_provider=provider,
+                default_base_url=base_url,
+            )
 
+        # Apply user-specified per-agent overrides
         for agent_name, model_var in self.agent_models.items():
             model = model_var.get()
             if model and model != "Default":
@@ -1040,9 +1434,12 @@ class AudiobookPrepGUI:
         self.generate_html = tk.BooleanVar(value=True)
         self.wpm = tk.IntVar(value=150)
         self.use_llm = tk.BooleanVar(value=True)
-        
+        self.debug_logging = tk.BooleanVar(value=False)
+        self.verbose_logging = tk.BooleanVar(value=False)
+
         self.analysis_result: Optional[AnalysisResult] = None
-        
+        self._last_run_dir: Optional[Path] = None  # Per-run output directory
+
         self._create_widgets()
         
     def _create_widgets(self):
@@ -1114,25 +1511,16 @@ class AudiobookPrepGUI:
         
         ttk.Entry(output_dir_row, textvariable=self.output_dir, width=50).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ttk.Button(output_dir_row, text="Browse...", command=self._browse_output_dir).pack(side=tk.LEFT)
-        
-        ttk.Label(output_frame, text="JSON filename (optional, auto-generated if empty):").pack(anchor=tk.W, pady=(10, 0))
-        ttk.Entry(output_frame, textvariable=self.output_file, width=50).pack(anchor=tk.W, pady=5)
+
+        # Note: Per-run directories are created automatically (e.g., output/book_20260107_143200/)
+        ttk.Label(output_frame, text="Auto-increments when you select a new input file", font=("TkDefaultFont", 9, "italic")).pack(anchor=tk.W, pady=(5, 0))
 
         # HTML export option
-        html_row = ttk.Frame(output_frame)
-        html_row.pack(fill=tk.X, pady=(10, 0))
-
         ttk.Checkbutton(
-            html_row,
+            output_frame,
             text="Generate HTML report",
             variable=self.generate_html,
-            command=self._toggle_html_entry
-        ).pack(side=tk.LEFT)
-
-        self.html_entry_frame = ttk.Frame(output_frame)
-        self.html_entry_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(self.html_entry_frame, text="HTML filename:").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Entry(self.html_entry_frame, textvariable=self.html_output, width=40).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ).pack(anchor=tk.W, pady=(10, 0))
         
         # Options section
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
@@ -1149,13 +1537,34 @@ class AudiobookPrepGUI:
             variable=self.use_llm
         ).pack(anchor=tk.W, pady=5)
 
+        ttk.Checkbutton(
+            options_frame,
+            text="Enable LLM debug logging",
+            variable=self.debug_logging,
+            command=self._toggle_debug_logging
+        ).pack(anchor=tk.W, pady=5)
+
+        ttk.Checkbutton(
+            options_frame,
+            text="Show pipeline logs (chapter detection, character merging)",
+            variable=self.verbose_logging,
+            command=self._toggle_verbose_logging
+        ).pack(anchor=tk.W, pady=5)
+
         # LLM Settings panel (collapsible)
         self.llm_panel = LLMSettingsPanel(main_frame)
         self.llm_panel.pack(fill=tk.X, pady=5)
 
+        # System Profile panel (collapsible) - shows detected hardware and profile
+        self.system_profile_panel = SystemProfilePanel(main_frame, self.llm_panel)
+        self.system_profile_panel.pack(fill=tk.X, pady=5)
+
         # Agent Model Configuration panel (collapsible)
         self.agent_config_panel = AgentModelConfigPanel(main_frame, self.llm_panel)
         self.agent_config_panel.pack(fill=tk.X, pady=5)
+
+        # Link system profile to agent config for auto-optimization
+        self.system_profile_panel.set_agent_config_panel(self.agent_config_panel)
 
         # Buttons
         button_frame = ttk.Frame(main_frame)
@@ -1194,7 +1603,40 @@ class AudiobookPrepGUI:
             anchor=tk.W
         )
         status_bar.pack(fill=tk.X, pady=(10, 0))
-        
+
+    def _toggle_debug_logging(self):
+        """Toggle LLM debug logging on/off."""
+        from ..logging_config import set_llm_debug_enabled
+        set_llm_debug_enabled(self.debug_logging.get())
+
+    def _toggle_verbose_logging(self):
+        """Toggle pipeline verbose logging on/off."""
+        from ..logging_config import set_pipeline_logging_enabled
+        set_pipeline_logging_enabled(self.verbose_logging.get())
+
+    def _get_next_run_number(self, base_dir: Path, book_name: str) -> int:
+        """Find the next available run number for a book.
+
+        Scans existing directories matching pattern: bookname_NNN
+        and returns the next available number.
+        """
+        if not base_dir.exists():
+            return 1
+
+        # Find all existing directories matching pattern: bookname_NNN
+        import re
+        pattern = re.compile(rf"^{re.escape(book_name)}_(\d+)$")
+
+        max_num = 0
+        for item in base_dir.iterdir():
+            if item.is_dir():
+                match = pattern.match(item.name)
+                if match:
+                    num = int(match.group(1))
+                    max_num = max(max_num, num)
+
+        return max_num + 1
+
     def _browse_input(self):
         """Browse for input file."""
         filename = filedialog.askopenfilename(
@@ -1210,12 +1652,14 @@ class AudiobookPrepGUI:
         )
         if filename:
             self.input_file.set(filename)
-            # Auto-suggest output filename
-            if not self.output_file.get():
-                input_path = Path(filename)
-                self.output_file.set(f"{input_path.stem}.analysis.json")
-                if not self.html_output.get():
-                    self.html_output.set(f"{input_path.stem}.html")
+
+            # Auto-suggest output directory with incrementing number
+            input_path = Path(filename)
+            book_name = input_path.stem
+            base_output = Path("output")
+            next_num = self._get_next_run_number(base_output, book_name)
+            suggested_path = base_output / f"{book_name}_{next_num:03d}"
+            self.output_dir.set(str(suggested_path))
     
     def _browse_output_dir(self):
         """Browse for output directory."""
@@ -1225,17 +1669,6 @@ class AudiobookPrepGUI:
         )
         if dirname:
             self.output_dir.set(dirname)
-
-    def _toggle_html_entry(self):
-        """Show/hide HTML filename entry based on checkbox."""
-        if self.generate_html.get():
-            self.html_entry_frame.pack(fill=tk.X, pady=5)
-            # Auto-generate filename if empty and input file is set
-            if not self.html_output.get() and self.input_file.get():
-                input_path = Path(self.input_file.get())
-                self.html_output.set(f"{input_path.stem}.html")
-        else:
-            self.html_entry_frame.pack_forget()
 
     def _analyze(self):
         """Start analysis in background thread."""
@@ -1303,6 +1736,7 @@ class AudiobookPrepGUI:
                 llm_context_length=llm_settings.get("context_length", 32768),
                 llm_prompts=llm_settings.get("prompts"),
                 orchestrator_config=orchestrator_config,
+                output_dir=Path(self.output_dir.get()),
             )
             
             # Capture print statements for progress updates
@@ -1319,10 +1753,18 @@ class AudiobookPrepGUI:
                     # Update progress on key messages
                     if "📖 Ingesting" in text:
                         self.progress.update("Ingesting document...")
+                    elif "🔧 Refining" in text:
+                        self.progress.update("Refining text (may load word data)...")
+                    elif "🔤 Loading word" in text:
+                        self.progress.update("Loading word segmentation data...")
+                    elif "📑 Detecting chapters" in text:
+                        self.progress.update("Detecting chapters...")
                     elif "📑 Analyzing structure" in text:
                         self.progress.update("Analyzing structure...")
                     elif "👥 Extracting characters" in text:
                         self.progress.update("Extracting characters...")
+                    elif "📝 Generating summaries" in text:
+                        self.progress.update("Generating chapter summaries...")
                     elif "🗣️  Flagging pronunciations" in text:
                         self.progress.update("Flagging pronunciations...")
                     elif "🤖 Running LLM refinement" in text:
@@ -1346,21 +1788,21 @@ class AudiobookPrepGUI:
             finally:
                 sys.stdout = old_stdout
             
-            # Determine output paths
-            output_dir = Path(self.output_dir.get())
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            json_filename = self.output_file.get() or f"{input_path.stem}.analysis.json"
-            json_path = output_dir / json_filename
-            
-            # Determine HTML path if generation is enabled
-            html_path = None
-            if self.generate_html.get():
-                html_filename = self.html_output.get() or f"{input_path.stem}.html"
-                html_path = output_dir / html_filename
+            # Use per-run directory created by analyzer
+            if analyzer._last_run_dir:
+                self._last_run_dir = analyzer._last_run_dir  # Store for later use
+                json_path = analyzer._last_run_dir / "analysis.json"
+                html_path = analyzer._last_run_dir / "report.html" if self.generate_html.get() else None
+                progress.update(f"Output: {analyzer._last_run_dir}")
+            else:
+                # Fallback (shouldn't happen if output_dir was passed)
+                output_dir = Path(self.output_dir.get())
+                output_dir.mkdir(parents=True, exist_ok=True)
+                json_path = output_dir / f"{input_path.stem}.analysis.json"
+                html_path = output_dir / f"{input_path.stem}.html" if self.generate_html.get() else None
 
             # Save JSON
-            analyzer.analyze_to_json(input_path, json_path)
+            analyzer.save_to_json(result, json_path)
             progress.update("Saving JSON...")
 
             # Save HTML if requested
@@ -1422,22 +1864,17 @@ class AudiobookPrepGUI:
             messagebox.showwarning("No HTML", "HTML generation was not enabled.")
             return
 
-        # Get HTML filename (use auto-generated name if empty)
-        html_filename = self.html_output.get()
-        if not html_filename and self.input_file.get():
-            html_filename = f"{Path(self.input_file.get()).stem}.html"
-
-        if not html_filename:
-            messagebox.showwarning("No HTML", "No HTML file was generated.")
+        # Use per-run directory
+        if not self._last_run_dir:
+            messagebox.showwarning("No HTML", "Please run analysis first.")
             return
 
-        html_path = Path(self.output_dir.get()) / html_filename
+        html_path = self._last_run_dir / "report.html"
         if not html_path.exists():
             messagebox.showerror("Error", f"HTML file not found: {html_path}")
             return
-        
+
         import webbrowser
-        import urllib.parse
         file_url = f"file://{html_path.absolute()}"
         webbrowser.open(file_url)
     

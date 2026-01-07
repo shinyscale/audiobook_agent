@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 MARKER_SYSTEM_PROMPT = """You are a document structure analyst. Your job is to find EXPLICIT chapter or section markers in text.
 
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or its structure.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
 You are looking for STRUCTURAL MARKERS that divide the book:
 - "Chapter 1", "Chapter One", "CHAPTER I"
 - "Part One", "Part 1", "PART I"
@@ -71,6 +76,11 @@ Respond with ONLY the JSON array, no other text."""
 
 
 NARRATIVE_SYSTEM_PROMPT = """You are a literary analyst identifying major structural breaks in narratives.
+
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or its structure.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
 
 You are looking for MAJOR transitions that would typically separate chapters:
 - Significant time jumps (days, weeks, years passing)
@@ -192,8 +202,14 @@ class LLMMarkerProposer(BaseProposer):
 
         result, response = self.llm.query_json(prompt, system=MARKER_SYSTEM_PROMPT)
 
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM marker proposer failed: {response.error}")
+            return []
+        
         if result is None:
-            logger.warning(f"LLM marker proposer failed to parse response: {response.content[:200]}")
+            # JSON parsing failure
+            logger.warning(f"LLM marker proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
             return []
 
         if not isinstance(result, list):
@@ -357,8 +373,14 @@ class LLMNarrativeProposer(BaseProposer):
 
         result, response = self.llm.query_json(prompt, system=NARRATIVE_SYSTEM_PROMPT)
 
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM narrative proposer failed: {response.error}")
+            return []
+        
         if result is None:
-            logger.warning(f"LLM narrative proposer failed: {response.content[:200]}")
+            # JSON parsing failure
+            logger.warning(f"LLM narrative proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
             return []
 
         if not isinstance(result, list):

@@ -620,7 +620,8 @@ class AudiobookAnalyzer:
         print(f"   Extracted {doc.word_count:,} words")
 
         # Step 1.5: Refine extracted text (deterministic)
-        print("🔧 Refining text...")
+        # Note: On first run, this may download word segmentation data (~25MB, takes 10-30s)
+        print("🔧 Refining text (may download word data on first run)...")
         doc = refine_extracted_document(doc)
 
         if doc.extraction_warnings:
@@ -968,19 +969,42 @@ class AudiobookAnalyzer:
                 halted=False,
             )
 
-            # Create per-run output directory
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            run_dir = self.output_dir / f"{file_path.stem}_{timestamp}"
+            # Determine run directory
+            # If output_dir looks like a per-run path (ends with _NNN pattern), use it directly
+            # Otherwise, create a timestamped subdirectory (backward compat with CLI)
+            import re
+            if re.search(r'_\d{3}$', self.output_dir.name):
+                # GUI-style: output/gatsby_001 - use directly
+                run_dir = self.output_dir
+            else:
+                # CLI-style: output/ - create timestamped subdirectory
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                run_dir = self.output_dir / f"{file_path.stem}_{timestamp}"
             run_dir.mkdir(parents=True, exist_ok=True)
 
             # Save quality report
             quality_path = run_dir / "quality.md"
             quality_path.write_text(self._last_quality_report.to_markdown(), encoding='utf-8')
 
+            # Copy log files to per-run directory for debugging
+            import shutil
+            log_dir = Path.home() / '.audiobook-prep'
+
+            # Copy pipeline log if it exists
+            pipeline_log = log_dir / 'pipeline.log'
+            if pipeline_log.exists():
+                shutil.copy(pipeline_log, run_dir / 'pipeline.log')
+
+            # Copy LLM log if it exists
+            llm_log = log_dir / 'llm.log'
+            if llm_log.exists():
+                shutil.copy(llm_log, run_dir / 'llm.log')
+
             # Store run_dir for save_to_json to use
             self._last_run_dir = run_dir
 
             print(f"\n📊 Quality report: {quality_path}")
+            print(f"📁 Output directory: {run_dir}")
 
         return result
 

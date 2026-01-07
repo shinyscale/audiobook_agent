@@ -5,9 +5,12 @@ All format-specific parsers inherit from this.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, TYPE_CHECKING
 import re
+
+if TYPE_CHECKING:
+    from .regions import DocumentRegion
 
 
 @dataclass
@@ -16,30 +19,63 @@ class ExtractedDocument:
     text: str
     source_path: Path
     source_format: str
-    
+
     # Optional structured info if the format provides it
     title: Optional[str] = None
     author: Optional[str] = None
     chapters: Optional[list[dict]] = None  # [{title, start_pos, end_pos}, ...]
-    
+
     # Metadata
     page_count: Optional[int] = None
     has_images: bool = False
     extraction_warnings: list[str] = None
-    
+
+    # Document regions (front/back matter detection)
+    regions: Optional[list["DocumentRegion"]] = None
+
     def __post_init__(self):
         if self.extraction_warnings is None:
             self.extraction_warnings = []
-    
+        if self.regions is None:
+            self.regions = []
+
     @property
     def word_count(self) -> int:
         """Approximate word count."""
         return len(self.text.split())
-    
+
     @property
     def character_count(self) -> int:
         """Character count."""
         return len(self.text)
+
+    def is_in_body(self, position: int) -> bool:
+        """
+        Check if a text position is within the main body (not front/back matter).
+
+        Args:
+            position: Character position to check
+
+        Returns:
+            True if position is in body, False if in front/back matter.
+            Returns True if no regions detected (assume all is body).
+        """
+        if not self.regions:
+            return True  # No regions = assume all body
+
+        from .regions import RegionType
+
+        for region in self.regions:
+            if region.region_type == RegionType.BODY and region.contains(position):
+                return True
+
+        # Check if position is before body start or after body end
+        body_regions = [r for r in self.regions if r.region_type == RegionType.BODY]
+        if not body_regions:
+            return True  # No body region defined = assume all body
+
+        # If we have body regions but position doesn't fall in any, it's front/back matter
+        return False
 
 
 class DocumentIngester(ABC):

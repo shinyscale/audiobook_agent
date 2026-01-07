@@ -178,19 +178,48 @@ def detect_available_models(provider: LLMProvider, base_url: str) -> list[str]:
     Returns:
         List of model identifiers
     """
+    from ..logging_config import get_llm_logger
+    llm_logger = get_llm_logger()
+
     if provider not in (LLMProvider.OLLAMA, LLMProvider.LM_STUDIO):
         return []  # Cloud providers don't support model listing this way
 
+    import time
     try:
-        # Both Ollama and LM Studio support OpenAI-compatible /v1/models
-        url = f"{base_url.rstrip('/')}/models"
-        response = requests.get(url, timeout=5)
-        if response.ok:
-            data = response.json()
-            models = data.get("data", [])
-            return [m.get("id", "") for m in models if m.get("id")]
-    except Exception:
-        pass
+        if provider == LLMProvider.OLLAMA:
+            # Ollama uses /api/tags for listing models
+            url = f"{base_url.rstrip('/')}/api/tags"
+            llm_logger.log_request(url=url, method="GET", provider=provider.value)
+            start_time = time.perf_counter()
+            response = requests.get(url, timeout=5)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            llm_logger.log_response(
+                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                body=response.json() if response.ok else response.text[:200],
+                error=None if response.ok else f"HTTP {response.status_code}",
+            )
+            if response.ok:
+                data = response.json()
+                models = data.get("models", [])
+                return [m.get("name", "") for m in models if m.get("name")]
+        else:
+            # LM Studio uses OpenAI-compatible /v1/models
+            url = f"{base_url.rstrip('/')}/models"
+            llm_logger.log_request(url=url, method="GET", provider=provider.value)
+            start_time = time.perf_counter()
+            response = requests.get(url, timeout=5)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            llm_logger.log_response(
+                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                body=response.json() if response.ok else response.text[:200],
+                error=None if response.ok else f"HTTP {response.status_code}",
+            )
+            if response.ok:
+                data = response.json()
+                models = data.get("data", [])
+                return [m.get("id", "") for m in models if m.get("id")]
+    except Exception as e:
+        llm_logger.log_response(url=url, status_code=0, latency_ms=0, error=str(e))
 
     return []
 
@@ -276,21 +305,28 @@ def test_connection(
     Returns:
         Tuple of (success, message)
     """
+    from ..logging_config import get_llm_logger
+    llm_logger = get_llm_logger()
+    import time
+
     try:
         if provider == LLMProvider.ANTHROPIC:
             # Anthropic uses /v1/messages endpoint
+            url = f"{base_url.rstrip('/')}/messages"
             headers = {
                 "Content-Type": "application/json",
                 "x-api-key": api_key or "",
                 "anthropic-version": "2023-06-01",
             }
-            # Just check if we can reach the API with a minimal request
-            # We'll get an error but it should be a structured API error
-            response = requests.post(
-                f"{base_url.rstrip('/')}/messages",
-                json={"model": model or "claude-3-haiku-20240307", "max_tokens": 1, "messages": []},
-                headers=headers,
-                timeout=10
+            body = {"model": model or "claude-3-haiku-20240307", "max_tokens": 1, "messages": []}
+            llm_logger.log_request(url=url, method="POST", headers=headers, body=body, provider=provider.value)
+            start_time = time.perf_counter()
+            response = requests.post(url, json=body, headers=headers, timeout=10)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            llm_logger.log_response(
+                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                body=response.text[:200],
+                error=None if response.ok or response.status_code == 400 else f"HTTP {response.status_code}",
             )
             if response.status_code == 401:
                 return False, "Invalid API key"
@@ -302,17 +338,41 @@ def test_connection(
             else:
                 return False, f"HTTP {response.status_code}: {response.text[:100]}"
 
+        elif provider == LLMProvider.OLLAMA:
+            # Ollama uses /api/tags for listing models
+            url = f"{base_url.rstrip('/')}/api/tags"
+            llm_logger.log_request(url=url, method="GET", provider=provider.value)
+            start_time = time.perf_counter()
+            response = requests.get(url, timeout=10)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            llm_logger.log_response(
+                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                body=response.json() if response.ok else response.text[:200],
+                error=None if response.ok else f"HTTP {response.status_code}",
+            )
+
+            if response.ok:
+                data = response.json()
+                model_count = len(data.get("models", []))
+                return True, f"Connected - {model_count} model(s) available"
+            else:
+                return False, f"HTTP {response.status_code}: {response.text[:100]}"
+
         else:
-            # OpenAI-compatible providers (Ollama, LM Studio, OpenAI)
+            # OpenAI-compatible providers (LM Studio, OpenAI)
+            url = f"{base_url.rstrip('/')}/models"
             headers = {"Content-Type": "application/json"}
             if api_key and provider == LLMProvider.OPENAI:
                 headers["Authorization"] = f"Bearer {api_key}"
 
-            # Try to list models as a connectivity test
-            response = requests.get(
-                f"{base_url.rstrip('/')}/models",
-                headers=headers,
-                timeout=10
+            llm_logger.log_request(url=url, method="GET", headers=headers, provider=provider.value)
+            start_time = time.perf_counter()
+            response = requests.get(url, headers=headers, timeout=10)
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            llm_logger.log_response(
+                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                body=response.json() if response.ok else response.text[:200],
+                error=None if response.ok else f"HTTP {response.status_code}",
             )
 
             if response.status_code == 401:

@@ -9,7 +9,7 @@ from typing import Optional
 import logging
 
 from .base import BaseCharacterProposer
-from ..models import CharacterProposal, CharacterMention
+from ..models import CharacterProposal, CharacterMention, CharacterType
 from ...llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -17,10 +17,17 @@ logger = logging.getLogger(__name__)
 
 CHARACTER_SYSTEM_PROMPT = """You are a literary analyst identifying characters in fiction.
 
-Your task is to find all CHARACTER NAMES mentioned in the text. A character is a person who:
-- Has a name (first name, last name, title+name, or nickname)
-- Appears in the narrative as a person (not a place, object, or concept)
-- May be referred to by different names/titles
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
+Your task is to find all CHARACTER NAMES mentioned in the text and classify them.
+
+CHARACTER TYPES:
+- "story": Active participants in the narrative - they appear in scenes, speak, act, or have things happen to them in the story
+- "historical": Real historical figures mentioned in passing (e.g., Martin Luther King, Napoleon, Einstein) - not active in the story
+- "referenced": Fictional characters from OTHER works mentioned (e.g., Hamlet, Sherlock Holmes, Macduff) - not active in this story
 
 Focus on finding:
 - Full names: "Jay Gatsby", "Elizabeth Bennet"
@@ -35,13 +42,14 @@ Do NOT include:
 - Non-person entities (companies, newspapers)"""
 
 
-CHARACTER_PROMPT_TEMPLATE = """Find all CHARACTER NAMES mentioned in this text excerpt.
+CHARACTER_PROMPT_TEMPLATE = """Find all CHARACTER NAMES mentioned in this text excerpt and classify each one.
 
 TEXT:
 {text}
 
 Return a JSON array of character names found. For each character:
 - "name": The character's name as it appears in the text
+- "type": Classification - "story" (active in narrative), "historical" (real historical figure), or "referenced" (from other fiction)
 - "mentions": Number of times this name appears in this excerpt
 - "in_dialogue": Whether this character speaks or is mentioned in dialogue (true/false)
 - "confidence": Your confidence this is a real character name (0.0-1.0)
@@ -49,8 +57,9 @@ Return a JSON array of character names found. For each character:
 Example response:
 ```json
 [
-  {{"name": "Jay Gatsby", "mentions": 5, "in_dialogue": true, "confidence": 0.95}},
-  {{"name": "Nick", "mentions": 3, "in_dialogue": false, "confidence": 0.90}}
+  {{"name": "Mike Mitchell", "type": "story", "mentions": 5, "in_dialogue": true, "confidence": 0.95}},
+  {{"name": "Martin Luther King", "type": "historical", "mentions": 1, "in_dialogue": false, "confidence": 0.95}},
+  {{"name": "Macduff", "type": "referenced", "mentions": 1, "in_dialogue": false, "confidence": 0.90}}
 ]
 ```
 
@@ -132,13 +141,31 @@ class LLMCharacterProposer(BaseCharacterProposer):
 
         result, response = self.llm.query_json(prompt, system=CHARACTER_SYSTEM_PROMPT)
 
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM character proposer failed: {response.error}")
+            return []
+        
         if result is None:
-            logger.warning(f"LLM character proposer failed to parse response")
+            # JSON parsing failure
+            logger.warning(f"LLM character proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
             return []
 
         if not isinstance(result, list):
-            logger.warning(f"LLM character proposer returned non-list: {type(result)}")
-            return []
+            # Try to extract list from dict response (some models wrap in {"characters": [...]})
+            if isinstance(result, dict):
+                # Check common keys that might contain the list
+                for key in ["characters", "items", "results", "data"]:
+                    if key in result and isinstance(result[key], list):
+                        logger.debug(f"LLM character proposer: extracted list from dict key '{key}'")
+                        result = result[key]
+                        break
+                else:
+                    logger.warning(f"LLM character proposer returned dict without list: {list(result.keys()) if result else 'empty'}")
+                    return []
+            else:
+                logger.warning(f"LLM character proposer returned non-list: {type(result)}")
+                return []
 
         proposals = []
         for item in result:
@@ -159,13 +186,21 @@ class LLMCharacterProposer(BaseCharacterProposer):
 
             confidence = float(item.get("confidence", 0.7))
 
+            # Extract character type
+            char_type_str = item.get("type", "uncertain")
+            try:
+                char_type = CharacterType(char_type_str)
+            except ValueError:
+                char_type = CharacterType.UNCERTAIN
+
             proposals.append(CharacterProposal(
                 strategy=self.name,
                 name=name,
                 mentions=mentions,
                 confidence=confidence,
                 chapter_index=chapter_index,
-                reasoning=f"LLM identified as character with {len(mentions)} mentions",
+                reasoning=f"LLM identified as {char_type.value} character with {len(mentions)} mentions",
+                character_type=char_type,
             ))
 
         return proposals
@@ -215,6 +250,9 @@ class LLMCharacterProposer(BaseCharacterProposer):
                 existing.mentions.extend(prop.mentions)
                 # Keep higher confidence
                 existing.confidence = max(existing.confidence, prop.confidence)
+                # Keep first non-UNCERTAIN character type
+                if existing.character_type == CharacterType.UNCERTAIN and prop.character_type != CharacterType.UNCERTAIN:
+                    existing.character_type = prop.character_type
             else:
                 by_name[name_lower] = CharacterProposal(
                     strategy=prop.strategy,
@@ -223,6 +261,7 @@ class LLMCharacterProposer(BaseCharacterProposer):
                     confidence=prop.confidence,
                     chapter_index=prop.chapter_index,
                     reasoning=prop.reasoning,
+                    character_type=prop.character_type,
                 )
 
         return list(by_name.values())

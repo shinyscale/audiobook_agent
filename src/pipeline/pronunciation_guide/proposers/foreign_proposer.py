@@ -197,9 +197,14 @@ Only mark as foreign if the word is genuinely from another language and would ne
 
             try:
                 result, response = self.llm_client.query_json(prompt)
-                if result and isinstance(result, list):
+                
+                if not response.success:
+                    # HTTP error or connection failure
+                    logger.debug(f"LLM validation failed: {response.error}, keeping batch candidates")
+                    validated.extend(batch)
+                elif result and isinstance(result, list):
                     # Create lookup of LLM decisions
-                    decisions = {item.get("word", "").lower(): item for item in result}
+                    decisions = {item.get("word", "").lower(): item for item in result if isinstance(item, dict)}
 
                     for p in batch:
                         decision = decisions.get(p.word.lower(), {})
@@ -212,7 +217,8 @@ Only mark as foreign if the word is genuinely from another language and would ne
                             logger.debug(f"LLM rejected '{p.word}': {decision.get('reason', 'no reason')}")
                 else:
                     # If LLM fails, keep all candidates from this batch
-                    logger.warning("LLM validation failed, keeping batch candidates")
+                    error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+                    logger.warning(f"LLM validation failed ({error_detail}), keeping batch candidates")
                     validated.extend(batch)
 
             except Exception as e:

@@ -6,6 +6,7 @@ Analyzes manuscripts for audiobook narration preparation.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -20,7 +21,19 @@ Examples:
   %(prog)s analyze manuscript.docx --wpm 160
         """
     )
-    
+
+    # Global options (before subcommands)
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable verbose LLM request/response logging to console and ~/.audiobook-prep/llm.log'
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Show pipeline diagnostic logging (chapter detection, character merging) to console and ~/.audiobook-prep/pipeline.log'
+    )
+
     subparsers = parser.add_subparsers(dest='command', help='Commands')
     
     # Analyze command
@@ -89,6 +102,23 @@ Examples:
         action='store_true',
         help='Enable OCR fallback for scanned/image-heavy PDFs (requires ocrmypdf or pytesseract)'
     )
+    analyze_parser.add_argument(
+        '--auto-optimize',
+        action='store_true',
+        help='Auto-detect hardware and use optimal settings for this machine'
+    )
+    analyze_parser.add_argument(
+        '--profile',
+        type=str,
+        choices=['dgx', 'workstation', 'laptop', 'macbook_pro', 'macbook_air', 'cpu_only'],
+        help='Use specific hardware profile (dgx, workstation, laptop, macbook_pro, macbook_air, cpu_only)'
+    )
+
+    # Specs command (show system specs)
+    specs_parser = subparsers.add_parser(
+        'specs',
+        help='Display detected system specs and recommended settings'
+    )
 
     # Summary command (quick view without full analysis)
     summary_parser = subparsers.add_parser(
@@ -102,15 +132,41 @@ Examples:
     )
     
     args = parser.parse_args()
-    
+
+    # Set up debug logging if requested via flag or environment variable
+    debug_enabled = args.debug or os.environ.get('AUDIOBOOK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    if debug_enabled:
+        from .logging_config import setup_llm_logging
+        setup_llm_logging(enabled=True)
+
+    # Set up verbose pipeline logging if requested
+    verbose_enabled = args.verbose or os.environ.get('AUDIOBOOK_VERBOSE', '').lower() in ('1', 'true', 'yes')
+    if verbose_enabled:
+        from .logging_config import setup_pipeline_logging
+        setup_pipeline_logging(level="INFO")
+
     if args.command is None:
         parser.print_help()
         sys.exit(0)
-    
+
     if args.command == 'analyze':
         run_analyze(args)
     elif args.command == 'summary':
         run_summary(args)
+    elif args.command == 'specs':
+        run_specs()
+
+
+def run_specs():
+    """Display detected system specs and recommended settings."""
+    from .system import detect_system_specs, detect_optimal_profile, format_specs_display
+
+    print("\nDetecting system hardware...")
+    specs = detect_system_specs()
+    profile = detect_optimal_profile(specs)
+
+    print("\n" + format_specs_display(specs, profile))
+    print()
 
 
 def run_analyze(args):
@@ -122,6 +178,55 @@ def run_analyze(args):
         print(f"Error: File not found: {file_path}")
         sys.exit(1)
 
+    # Handle auto-optimize and profile flags
+    orchestrator_config = None
+    if args.auto_optimize or args.profile:
+        try:
+            from .system import detect_system_specs, detect_optimal_profile, HARDWARE_PROFILES, format_specs_display
+            from .agents.config import OrchestratorConfig, create_optimized_config
+
+            if args.profile:
+                # Use specified profile
+                profile = HARDWARE_PROFILES.get(args.profile)
+                if not profile:
+                    print(f"Error: Unknown profile '{args.profile}'")
+                    sys.exit(1)
+                print(f"\n📊 Using hardware profile: {profile.name}")
+                print(f"   {profile.description}")
+            else:
+                # Auto-detect and use optimal profile
+                print("\n🔍 Detecting system hardware...")
+                specs = detect_system_specs()
+                profile = detect_optimal_profile(specs)
+                print(format_specs_display(specs, profile))
+
+            # Create config from profile
+            orchestrator_config = create_optimized_config(
+                available_models=[],  # Will be populated by analyzer
+                provider="ollama",
+                base_url="http://localhost:11434",
+            )
+
+            # Apply profile settings
+            from .system.profiles import apply_profile_to_config
+            apply_profile_to_config(profile, orchestrator_config)
+
+            # Set context length from profile
+            orchestrator_config.context_length = profile.context_length
+
+            print(f"\n   Max model size: {profile.max_model_size_b}B")
+            print(f"   Parallel workers: {profile.max_parallel_workers}")
+            print(f"   Context length: {profile.context_length:,}")
+            print()
+
+        except ImportError as e:
+            print(f"Warning: System detection not available ({e}), using defaults")
+        except Exception as e:
+            print(f"Warning: Failed to apply profile ({e}), using defaults")
+
+    # Enable per-run output directories by default
+    output_dir = Path('output')
+
     analyzer = AudiobookAnalyzer(
         words_per_minute=args.wpm,
         min_character_mentions=args.min_mentions,
@@ -129,6 +234,8 @@ def run_analyze(args):
         llm_model=args.llm_model,
         ocr_fallback=args.pdf_ocr,
         write_canonical_md=args.write_canonical_md,
+        orchestrator_config=orchestrator_config,
+        output_dir=output_dir,
     )
 
     try:
@@ -137,9 +244,17 @@ def run_analyze(args):
         # Print summary
         print_analysis_summary(result)
 
-        # Save JSON
-        output_path = args.output or file_path.with_suffix('.analysis.json')
-        analyzer.analyze_to_json(file_path, output_path)
+        # Save JSON - use per-run directory if available, otherwise fallback to default
+        if args.output:
+            # User explicitly specified output path
+            output_path = Path(args.output)
+        elif analyzer._last_run_dir:
+            # Per-run directory was created, save there
+            output_path = analyzer._last_run_dir / "analysis.json"
+        else:
+            # Fallback to default behavior
+            output_path = file_path.with_suffix('.analysis.json')
+        analyzer.save_to_json(result, output_path)
 
         # Export HTML if requested
         if args.html:
@@ -147,17 +262,20 @@ def run_analyze(args):
                 from .export.html_report import export_html_report
                 # Determine HTML output path
                 if args.html is True:
-                    # Default to output folder with name based on input file
-                    output_dir = Path('output')
-                    output_dir.mkdir(exist_ok=True)
-                    html_path = output_dir / file_path.with_suffix('.html').name
+                    # Use per-run directory if available, otherwise default to output folder
+                    if analyzer._last_run_dir:
+                        html_path = analyzer._last_run_dir / "report.html"
+                    else:
+                        html_output_dir = Path('output')
+                        html_output_dir.mkdir(exist_ok=True)
+                        html_path = html_output_dir / file_path.with_suffix('.html').name
                 else:
                     # Use provided path
                     html_path = Path(args.html)
                     # If it's a directory, create filename based on input
                     if html_path.is_dir() or (not html_path.suffix and not html_path.exists()):
                         html_path = Path(html_path) / file_path.with_suffix('.html').name
-                
+
                 export_html_report(
                     result,
                     html_path,

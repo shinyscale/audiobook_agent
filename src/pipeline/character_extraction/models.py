@@ -8,9 +8,18 @@ validation, and cross-chapter consensus stages.
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 from datetime import datetime
+from enum import Enum
 import json
 from pathlib import Path
 import hashlib
+
+
+class CharacterType(str, Enum):
+    """Classification of character's role in the narrative."""
+    STORY = "story"           # Active participant - appears in scenes, speaks, acts
+    HISTORICAL = "historical" # Real historical figure mentioned in passing
+    REFERENCED = "referenced" # Fictional character from other works mentioned
+    UNCERTAIN = "uncertain"   # Could not determine
 
 
 @dataclass
@@ -45,6 +54,7 @@ class CharacterProposal:
     confidence: float       # Strategy's confidence (0.0 - 1.0)
     chapter_index: int      # Which chapter this was extracted from
     reasoning: Optional[str] = None
+    character_type: CharacterType = CharacterType.UNCERTAIN  # story, historical, or referenced
 
     @property
     def mention_count(self) -> int:
@@ -58,10 +68,17 @@ class CharacterProposal:
             "confidence": self.confidence,
             "chapter_index": self.chapter_index,
             "reasoning": self.reasoning,
+            "character_type": self.character_type.value,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CharacterProposal":
+        char_type = CharacterType.UNCERTAIN
+        if "character_type" in data:
+            try:
+                char_type = CharacterType(data["character_type"])
+            except ValueError:
+                pass
         return cls(
             strategy=data["strategy"],
             name=data["name"],
@@ -69,6 +86,7 @@ class CharacterProposal:
             confidence=data["confidence"],
             chapter_index=data["chapter_index"],
             reasoning=data.get("reasoning"),
+            character_type=char_type,
         )
 
 
@@ -120,6 +138,7 @@ class Character:
     confidence: float               # Overall confidence score
     supporting_strategies: list[str]  # Which extraction strategies found this character
     description: str = ""           # LLM-generated prose profile
+    character_type: CharacterType = CharacterType.UNCERTAIN  # story, historical, or referenced
 
     def to_dict(self) -> dict:
         return {
@@ -133,10 +152,17 @@ class Character:
             "confidence": self.confidence,
             "supporting_strategies": self.supporting_strategies,
             "description": self.description,
+            "character_type": self.character_type.value,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Character":
+        char_type = CharacterType.UNCERTAIN
+        if "character_type" in data:
+            try:
+                char_type = CharacterType(data["character_type"])
+            except ValueError:
+                pass
         return cls(
             id=data["id"],
             canonical_name=data["canonical_name"],
@@ -148,6 +174,7 @@ class Character:
             confidence=data["confidence"],
             supporting_strategies=data["supporting_strategies"],
             description=data.get("description", ""),
+            character_type=char_type,
         )
 
 

@@ -21,6 +21,11 @@ CHUNK_OVERLAP = 200  # Words of overlap between chunks for context continuity
 
 CHUNK_SUMMARY_SYSTEM = """You are a literary analyst creating summaries for audiobook narration preparation.
 
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
 Your summaries should help a narrator understand:
 - What happens in this section
 - The emotional tone and pacing
@@ -47,6 +52,11 @@ Return ONLY valid JSON."""
 
 CONSOLIDATE_SYSTEM = """You are a literary analyst creating chapter summaries for audiobook narration.
 
+CRITICAL: Base your analysis ONLY on the section summaries provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided summaries.
+
 Combine section summaries into a cohesive chapter summary that captures the full arc."""
 
 
@@ -71,6 +81,11 @@ Return ONLY valid JSON."""
 
 
 SINGLE_CHAPTER_SYSTEM = """You are a literary analyst creating chapter summaries for audiobook narration.
+
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
 
 Your summaries help narrators understand plot, tone, and character presence before recording."""
 
@@ -307,10 +322,17 @@ class ChapterSummarizer:
             chunk_summaries="\n\n".join(chunks_text),
         )
 
-        result, _ = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
+        result, response = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
 
-        if result is None:
-            logger.warning(f"Consolidation failed for chapter {chapter_index}")
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"Consolidation failed for chapter {chapter_index}: {response.error}")
+            return self._merge_chunk_summaries(chunk_summaries, chapter_index, title, word_count)
+
+        if result is None or not isinstance(result, dict):
+            # JSON parsing failure or wrong type
+            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            logger.warning(f"Consolidation failed for chapter {chapter_index} ({error_detail})")
             # Fallback: merge chunk summaries manually
             return self._merge_chunk_summaries(chunk_summaries, chapter_index, title, word_count)
 

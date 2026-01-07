@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 VALIDATION_SYSTEM_PROMPT = """You are validating whether a proposed location is actually a chapter boundary.
 
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or its structure.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
 You will see:
 1. Text ENDING before the proposed boundary
 2. Text BEGINNING after the proposed boundary

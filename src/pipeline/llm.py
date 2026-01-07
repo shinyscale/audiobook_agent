@@ -10,7 +10,7 @@ import re
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ class LLMConfig:
     api_key: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4096
+    think: Optional[Union[bool, str]] = None  # Reasoning control: False, True, "low", "medium", "high"
 
     @classmethod
     def ollama(cls, model: str = "llama3.2", base_url: str = "http://localhost:11434") -> "LLMConfig":
@@ -82,7 +83,8 @@ class LLMClient:
 
         if self.config.provider == "ollama":
             import httpx
-            self._client = httpx.Client(base_url=self.config.base_url, timeout=120.0)
+            self._client = httpx.Client(base_url=self.config.base_url, timeout=600.0)
+            self._httpx = httpx  # Store for error handling
 
         elif self.config.provider == "openai":
             from openai import OpenAI
@@ -120,11 +122,29 @@ class LLMClient:
             return response
         except Exception as e:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(f"LLM query failed: {e}")
-            return LLMResponse(content="", model=self.config.model, error=str(e), latency_ms=round(elapsed_ms, 2))
+            # Extract more detailed error information for HTTP errors
+            error_msg = str(e)
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                # httpx.HTTPStatusError
+                status_code = e.response.status_code
+                try:
+                    error_detail = e.response.text[:200] if hasattr(e.response, 'text') else ""
+                    if error_detail:
+                        error_msg = f"Server error '{status_code}' for url '{getattr(e.response, 'url', 'unknown')}': {error_detail}"
+                    else:
+                        error_msg = f"Server error '{status_code}' for url '{getattr(e.response, 'url', 'unknown')}'"
+                except Exception:
+                    error_msg = f"Server error '{status_code}' for url '{getattr(e.response, 'url', 'unknown')}'"
+            
+            # Only log at warning level to reduce noise - individual components will handle their own error messages
+            logger.debug(f"LLM query failed: {error_msg}")
+            return LLMResponse(content="", model=self.config.model, error=error_msg, latency_ms=round(elapsed_ms, 2))
 
     def _query_ollama(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query Ollama API."""
+        from ..logging_config import get_llm_logger
+        llm_logger = get_llm_logger()
+
         client = self._get_client()
 
         messages = []
@@ -132,32 +152,92 @@ class LLMClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        response = client.post(
-            "/api/chat",
-            json={
-                "model": self.config.model,
-                "messages": messages,
-                "stream": False,
-                "options": {
-                    "temperature": self.config.temperature,
-                    "num_predict": self.config.max_tokens,
-                },
+        url = f"{self.config.base_url}/api/chat"
+        body = {
+            "model": self.config.model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self.config.max_tokens,
             },
+        }
+
+        # Add think parameter if specified (Ollama API expects it at top level)
+        if self.config.think is not None:
+            body["think"] = self.config.think
+
+        llm_logger.log_request(
+            url=url,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=body,
+            provider="ollama",
+            model=self.config.model,
         )
-        response.raise_for_status()
+
+        start_time = time.perf_counter()
+        response = client.post("/api/chat", json=body)
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        # Check for HTTP errors and provide detailed error information
+        if response.is_error:
+            error_body = ""
+            try:
+                error_body = response.text[:500]  # Limit error body size
+            except Exception:
+                pass
+            
+            error_msg = f"Server error '{response.status_code} {response.reason_phrase}' for url '{url}'"
+            if error_body:
+                error_msg += f": {error_body}"
+            
+            # Log error response
+            llm_logger.log_response(
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
+                headers=dict(response.headers),
+                body={"error": error_body} if error_body else {},
+                token_usage=None,
+                error=error_msg,
+            )
+            
+            import httpx
+            raise httpx.HTTPStatusError(
+                error_msg,
+                request=response.request,
+                response=response,
+            )
+
         data = response.json()
+
+        usage = {
+            "prompt_tokens": data.get("prompt_eval_count", 0),
+            "completion_tokens": data.get("eval_count", 0),
+        }
+
+        llm_logger.log_response(
+            url=url,
+            status_code=response.status_code,
+            latency_ms=latency_ms,
+            headers=dict(response.headers),
+            body=data,
+            token_usage=usage,
+            error=None,
+        )
 
         return LLMResponse(
             content=data["message"]["content"],
             model=self.config.model,
-            usage={
-                "prompt_tokens": data.get("prompt_eval_count", 0),
-                "completion_tokens": data.get("eval_count", 0),
-            },
+            usage=usage,
         )
 
     def _query_openai(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query OpenAI API."""
+        from ..logging_config import get_llm_logger
+        llm_logger = get_llm_logger()
+
         client = self._get_client()
 
         messages = []
@@ -165,57 +245,136 @@ class LLMClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
+        # Determine URL for logging (default OpenAI or custom base_url for LM Studio)
+        base_url = self.config.base_url or "https://api.openai.com/v1"
+        url = f"{base_url}/chat/completions"
+
+        body = {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+        }
+
+        llm_logger.log_request(
+            url=url,
+            method="POST",
+            headers={"Authorization": f"Bearer {self.config.api_key}"},
+            body=body,
+            provider="openai",
+            model=self.config.model,
+        )
+
+        start_time = time.perf_counter()
         response = client.chat.completions.create(
             model=self.config.model,
             messages=messages,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
         )
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        usage = {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+        }
+
+        llm_logger.log_response(
+            url=url,
+            status_code=200,  # SDK throws on non-200
+            latency_ms=latency_ms,
+            headers={},
+            body={"content": response.choices[0].message.content},
+            token_usage=usage,
+            error=None,
+        )
 
         return LLMResponse(
             content=response.choices[0].message.content,
             model=self.config.model,
-            usage={
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-            },
+            usage=usage,
         )
 
     def _query_anthropic(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query Anthropic API."""
+        from ..logging_config import get_llm_logger
+        llm_logger = get_llm_logger()
+
         client = self._get_client()
 
-        kwargs = {
+        url = "https://api.anthropic.com/v1/messages"
+        body = {
             "model": self.config.model,
             "max_tokens": self.config.max_tokens,
             "messages": [{"role": "user", "content": prompt}],
         }
         if system:
-            kwargs["system"] = system
+            body["system"] = system
 
-        response = client.messages.create(**kwargs)
+        llm_logger.log_request(
+            url=url,
+            method="POST",
+            headers={"x-api-key": self.config.api_key or ""},
+            body=body,
+            provider="anthropic",
+            model=self.config.model,
+        )
+
+        start_time = time.perf_counter()
+        response = client.messages.create(**body)
+        latency_ms = (time.perf_counter() - start_time) * 1000
+
+        usage = {
+            "prompt_tokens": response.usage.input_tokens,
+            "completion_tokens": response.usage.output_tokens,
+        }
+
+        llm_logger.log_response(
+            url=url,
+            status_code=200,  # SDK throws on non-200
+            latency_ms=latency_ms,
+            headers={},
+            body={"content": response.content[0].text},
+            token_usage=usage,
+            error=None,
+        )
 
         return LLMResponse(
             content=response.content[0].text,
             model=self.config.model,
-            usage={
-                "prompt_tokens": response.usage.input_tokens,
-                "completion_tokens": response.usage.output_tokens,
-            },
+            usage=usage,
         )
 
     def _clean_thinking_tags(self, text: str) -> str:
         """
-        Remove <think>...</think> tags from LLM responses.
+        Remove thinking/reasoning tags from LLM responses.
 
-        Reasoning models like DeepSeek-R1, QwQ, and some Qwen variants output
-        their chain-of-thought reasoning in <think> tags. This strips them
-        to return only the final answer.
+        Handles multiple formats used by different reasoning models:
+        - <think>...</think> (DeepSeek-R1, Qwen3)
+        - <thinking>...</thinking> (some models)
+        - <reasoning>...</reasoning> (some models)
+        - <|think|>...<|/think|> (some Qwen variants)
         """
-        # Remove complete thinking blocks
-        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        # Handle unclosed tags (output may be truncated)
-        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+        # Patterns for complete blocks (closed tags)
+        closed_patterns = [
+            r"<think>.*?</think>",
+            r"<thinking>.*?</thinking>",
+            r"<reasoning>.*?</reasoning>",
+            r"<\|think\|>.*?<\|/think\|>",
+        ]
+
+        # Patterns for unclosed tags (truncated output)
+        unclosed_patterns = [
+            r"<think>.*$",
+            r"<thinking>.*$",
+            r"<reasoning>.*$",
+            r"<\|think\|>.*$",
+        ]
+
+        cleaned = text
+        for pattern in closed_patterns + unclosed_patterns:
+            cleaned = re.sub(pattern, "", cleaned, flags=re.DOTALL)
+
         return cleaned.strip()
 
     def query_json(self, prompt: str, system: Optional[str] = None) -> tuple[Optional[dict], LLMResponse]:
@@ -230,8 +389,8 @@ class LLMClient:
 
     def _extract_json(self, text: str) -> Optional[dict]:
         """Extract JSON from LLM response, handling common formats."""
-        # Remove thinking tags (Qwen models)
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Remove thinking tags (various reasoning models)
+        text = self._clean_thinking_tags(text)
 
         # Try to find JSON in code blocks
         json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)

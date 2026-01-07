@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 ENRICHER_SYSTEM_PROMPT = """You are an expert phonetician helping audiobook narrators with pronunciation.
 
+CRITICAL: Base your pronunciation guidance ONLY on standard phonetic rules.
+Do NOT use any prior knowledge about how specific characters in famous novels are pronounced.
+If you recognize a character name from a famous work, provide standard phonetic guidance based on spelling alone.
+
 For each word, provide:
 1. IPA transcription using International Phonetic Alphabet notation
 2. A phonetic spelling using common English syllables that a narrator can easily read
@@ -122,8 +126,20 @@ class PronunciationEnricher:
 
         enrichments = {}
 
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM batch enrichment failed: {response.error}")
+            # Return empty enrichments for all words
+            for p in proposals:
+                enrichments[p.word.lower()] = PronunciationEnrichment(
+                    word=p.word,
+                    confidence=0.0,
+                )
+            return enrichments
+
         if result is None:
-            logger.warning("LLM batch enrichment failed")
+            # JSON parsing failure
+            logger.warning("LLM batch enrichment failed: failed to parse JSON")
             # Return empty enrichments for all words
             for p in proposals:
                 enrichments[p.word.lower()] = PronunciationEnrichment(

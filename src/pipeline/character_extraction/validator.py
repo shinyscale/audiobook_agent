@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Known non-person entities that might be detected as characters
 PLACE_NAMES = {
     'london', 'paris', 'new york', 'england', 'america', 'france', 'germany',
-    'east egg', 'west egg', 'broadway', 'manhattan', 'geneva', 'ingolstadt',
+    'broadway', 'manhattan',
 }
 
 TITLE_ONLY_PATTERN = re.compile(
@@ -236,8 +236,23 @@ class CharacterValidator:
 
         result, response = self.llm.query_json(prompt, system=VALIDATION_SYSTEM_PROMPT)
 
-        if result is None:
-            logger.warning(f"LLM validation failed for '{proposal.name}', using defaults")
+        if not response.success:
+            # HTTP error or connection failure
+            logger.debug(f"LLM validation failed for '{proposal.name}': {response.error}")
+            return CharacterValidationResult(
+                proposal=proposal,
+                is_person_score=0.5,
+                context_score=0.5,
+                alias_candidates=[],
+                overall_score=0.5,
+                is_valid=True,  # Accept with low confidence
+                reasoning="LLM validation failed, accepting with low confidence",
+            )
+
+        if result is None or not isinstance(result, dict):
+            # JSON parsing failure or wrong type
+            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            logger.warning(f"LLM validation failed for '{proposal.name}' ({error_detail}), using defaults")
             return CharacterValidationResult(
                 proposal=proposal,
                 is_person_score=0.5,

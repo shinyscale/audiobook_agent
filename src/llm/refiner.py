@@ -639,7 +639,7 @@ Only include characters that have aliases (names that refer to the same person).
 Use the most complete name as the key.
 
 Example format:
-{{"Tom Buchanan": ["Tom", "Buchanan", "her husband"], "Jay Gatsby": ["Gatsby", "Mr. Gatsby"]}}
+{{"John Smith": ["John", "Smith", "her husband"], "Mary Johnson": ["Mary", "Mrs. Johnson"]}}
 
 JSON output:"""
 
@@ -744,7 +744,7 @@ Do NOT guess or infer relationships that aren't clear from the text.
 Format: {{"Character A": {{"Character B": "relationship"}}}}
 
 Example:
-{{"Tom Buchanan": {{"Daisy Buchanan": "spouse", "Nick Carraway": "acquaintance"}}}}
+{{"John Smith": {{"Jane Smith": "spouse", "Robert Brown": "colleague"}}}}
 
 JSON output:"""
 
@@ -1048,7 +1048,7 @@ CRITICAL RULES:
 Chapter text:
 {truncated}
 
-Summarize WHAT HAPPENS in this chapter in 4-6 sentences. Describe the key events, which characters appear, and the emotional tone. Write in third person, past tense (e.g., "Nick visited the Buchanans..."). Do NOT write performance instructions."""
+Summarize WHAT HAPPENS in this chapter in 4-6 sentences. Describe the key events, which characters appear, and the emotional tone. Write in third person, past tense (e.g., "John visited the Smiths..."). Do NOT write performance instructions."""
 
             print(f"      Generating summary for Chapter {chapter.index}...")
             response = self._query(prompt, system=system, max_tokens=500)

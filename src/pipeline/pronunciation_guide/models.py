@@ -318,6 +318,60 @@ class PronunciationMap:
 
         return "\n".join(lines)
 
+    def filter_by_body_region(
+        self,
+        body_start: int,
+        body_end: int,
+    ) -> "PronunciationMap":
+        """
+        Filter entries to only include those within the body region.
+
+        Removes entries from front/back matter based on their first_position.
+
+        Args:
+            body_start: Start position of body region
+            body_end: End position of body region
+
+        Returns:
+            New PronunciationMap with filtered entries
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        def is_in_body(entry: PronunciationEntry) -> bool:
+            return body_start <= entry.first_position < body_end
+
+        # Filter entries
+        filtered_entries = [e for e in self.entries if is_in_body(e)]
+        filtered_low_conf = [e for e in self.low_confidence_entries if is_in_body(e)]
+
+        # Count filtered
+        removed_count = (len(self.entries) - len(filtered_entries)) + \
+                        (len(self.low_confidence_entries) - len(filtered_low_conf))
+
+        if removed_count > 0:
+            logger.info(f"Filtered {removed_count} pronunciation entries from front/back matter")
+
+        # Rebuild category counts
+        by_category = {}
+        for entry in filtered_entries:
+            cat = entry.flag_reason.value
+            by_category[cat] = by_category.get(cat, 0) + 1
+
+        return PronunciationMap(
+            entries=filtered_entries,
+            low_confidence_entries=filtered_low_conf,
+            total_flagged_words=len(filtered_entries),
+            total_occurrences=sum(e.occurrence_count for e in filtered_entries),
+            by_category=by_category,
+            character_names=self.character_names,
+            pipeline_metadata={
+                **self.pipeline_metadata,
+                "filtered_for_body_region": True,
+                "entries_removed_from_front_back_matter": removed_count,
+            },
+        )
+
 
 @dataclass
 class PronunciationPipelineCheckpoint:

@@ -13,6 +13,7 @@ from dataclasses import replace
 
 from .base import ExtractedDocument
 from .pdf_spacing import correct_pdf_spacing, needs_spacing_correction
+from .regions import detect_document_regions
 
 # Try to import spellchecker for dictionary-based de-hyphenation
 try:
@@ -97,11 +98,21 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
     if abs(refined_len - original_len) > original_len * 0.05:
         warnings.append(f"Text size changed by {((refined_len - original_len) / original_len * 100):.1f}% during refinement")
 
-    # Create new document with refined text
+    # === Detect document regions (front/back matter) ===
+    regions = detect_document_regions(text, doc.chapters)
+    if regions:
+        from .regions import RegionType
+        front_count = sum(1 for r in regions if r.region_type == RegionType.FRONT_MATTER)
+        back_count = sum(1 for r in regions if r.region_type == RegionType.BACK_MATTER)
+        if front_count or back_count:
+            warnings.append(f"Detected {front_count} front matter and {back_count} back matter regions")
+
+    # Create new document with refined text and regions
     return replace(
         doc,
         text=text,
-        extraction_warnings=warnings
+        extraction_warnings=warnings,
+        regions=regions,
     )
 
 

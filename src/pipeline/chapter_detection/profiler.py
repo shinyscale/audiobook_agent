@@ -36,6 +36,11 @@ CONTENT_START_PATTERNS = [
 
 PROFILER_SYSTEM_PROMPT = """You are a document structure analyst. Analyze the opening of a book to understand its structure.
 
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or its structure.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
 Consider:
 1. Document type: novel (single narrative), anthology (short stories), memoir, epistolary (letters/diary), technical
 2. Whether it has explicit chapter markers or uses more subtle divisions
