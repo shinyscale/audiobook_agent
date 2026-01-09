@@ -11,7 +11,7 @@ from typing import Optional
 import logging
 import time
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue
+from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
 from .config import AgentConfig
 from ..pipeline.pronunciation_guide import (
     PronunciationGuidePipeline,
@@ -180,7 +180,12 @@ class PronunciationAgent(Agent):
             provider_used=provider_used,
         )
 
-    def verify(self, result: AgentResult[PronunciationMap]) -> VerificationResult:
+    def verify(
+        self,
+        result: AgentResult[PronunciationMap],
+        level: VerificationLevel = VerificationLevel.SELF_CHECK,
+        context: Optional[AgentContext] = None,
+    ) -> VerificationResult:
         """
         Verify pronunciation guide for quality issues.
 

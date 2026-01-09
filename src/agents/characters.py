@@ -12,7 +12,7 @@ import logging
 import re
 import time
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue
+from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
 from .config import AgentConfig
 from ..pipeline.character_extraction.pipeline import CharacterExtractionPipeline
 from ..pipeline.character_extraction.models import CharacterMap, Character
@@ -156,7 +156,12 @@ class CharacterAgent(Agent):
             provider_used=provider_used,
         )
 
-    def verify(self, result: AgentResult[CharacterMap]) -> VerificationResult:
+    def verify(
+        self,
+        result: AgentResult[CharacterMap],
+        level: VerificationLevel = VerificationLevel.SELF_CHECK,
+        context: Optional[AgentContext] = None,
+    ) -> VerificationResult:
         """
         Verify character extraction quality.
 

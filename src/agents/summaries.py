@@ -11,7 +11,7 @@ from typing import Optional
 import logging
 import time
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue
+from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
 from .config import AgentConfig
 from .validation import (
     UpstreamValidationResult,
@@ -316,7 +316,12 @@ class SummaryAgent(Agent):
             provider_used=provider_used,
         )
 
-    def verify(self, result: AgentResult[ChapterSummaryMap]) -> VerificationResult:
+    def verify(
+        self,
+        result: AgentResult[ChapterSummaryMap],
+        level: VerificationLevel = VerificationLevel.SELF_CHECK,
+        context: Optional[AgentContext] = None,
+    ) -> VerificationResult:
         """
         Verify chapter summaries for quality issues.
 

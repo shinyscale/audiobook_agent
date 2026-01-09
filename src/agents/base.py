@@ -29,6 +29,33 @@ class ConfidenceLevel(Enum):
     LOW = "low"        # < 0.4
 
 
+class VerificationLevel(Enum):
+    """
+    Verification levels for agent self-assessment.
+
+    Used in the graduation path from Claude-assisted development to
+    fully local self-evaluation.
+
+    STRUCTURAL: Fast heuristic checks, no LLM needed
+        - Chapter count reasonable for word count
+        - No duplicate character names
+        - Summary length within bounds
+
+    SELF_CHECK: Book-agnostic LLM verification
+        - Asks local LLM to assess internal consistency
+        - Does NOT rely on knowledge of specific books
+        - Example: "Do these character aliases make sense?"
+
+    ORACLE: Claude-assisted evaluation (development only)
+        - Uses Claude Code's literary knowledge
+        - Validates against known works (Gatsby, Frankenstein)
+        - Removed in production runtime
+    """
+    STRUCTURAL = "structural"  # Heuristics, no LLM needed
+    SELF_CHECK = "self_check"  # Local LLM, book-agnostic prompts
+    ORACLE = "oracle"          # Claude, used only in development
+
+
 @dataclass
 class AgentContext:
     """
@@ -282,37 +309,109 @@ class Agent(ABC):
         """
         ...
 
-    def verify(self, result: AgentResult) -> VerificationResult:
+    def verify(
+        self,
+        result: AgentResult,
+        level: VerificationLevel = VerificationLevel.SELF_CHECK,
+        context: Optional[AgentContext] = None,
+    ) -> VerificationResult:
         """
         Self-verify the result for quality issues.
 
-        Override to add task-specific verification logic. The default
-        implementation passes if there are no low-confidence items.
+        Implements three-tier verification for graduation path:
+        - STRUCTURAL: Fast heuristic checks (always run)
+        - SELF_CHECK: Book-agnostic LLM verification
+        - ORACLE: Claude-assisted evaluation (development only)
+
+        Override _structural_checks() and _llm_self_check() in subclasses
+        to add task-specific verification logic.
 
         Args:
             result: The result from run() to verify
+            level: Verification level to run up to
+            context: Optional context for self-check (provides text for validation)
 
         Returns:
             VerificationResult indicating if the result is acceptable
         """
         issues = []
 
+        # Always run structural checks (fast, no LLM)
+        issues.extend(self._structural_checks(result))
+
+        # Run LLM self-check if requested
+        if level in (VerificationLevel.SELF_CHECK, VerificationLevel.ORACLE):
+            issues.extend(self._llm_self_check(result, context))
+
+        # ORACLE level: placeholder for Claude Code evaluation
+        # In practice, ORACLE evaluation is done by Claude Code reading
+        # the output and applying eval_prompts.md criteria
+        if level == VerificationLevel.ORACLE:
+            # This is a marker - actual oracle evaluation happens externally
+            pass
+
+        return VerificationResult(
+            passed=len([i for i in issues if i.severity == "error"]) == 0,
+            issues=issues,
+        )
+
+    def _structural_checks(self, result: AgentResult) -> list[VerificationIssue]:
+        """
+        Fast heuristic checks that don't require LLM.
+
+        Override in subclasses to add agent-specific structural validation.
+        Examples:
+        - Chapter count reasonable for word count
+        - No duplicate canonical names
+        - Confidence scores within expected ranges
+
+        Args:
+            result: The result to check
+
+        Returns:
+            List of verification issues found
+        """
+        issues = []
+
+        # Default: flag low confidence items
         if result.low_confidence_count > 0:
             issues.append(VerificationIssue(
                 description=f"{result.low_confidence_count} items have low confidence",
                 severity="warning",
             ))
 
+        # Default: propagate any issues from the result
         for issue in result.issues:
             issues.append(VerificationIssue(
                 description=issue,
                 severity="warning",
             ))
 
-        return VerificationResult(
-            passed=len([i for i in issues if i.severity == "error"]) == 0,
-            issues=issues,
-        )
+        return issues
+
+    def _llm_self_check(
+        self,
+        result: AgentResult,
+        context: Optional[AgentContext] = None,
+    ) -> list[VerificationIssue]:
+        """
+        Book-agnostic LLM verification using local model.
+
+        Override in subclasses to add agent-specific LLM self-checks.
+        IMPORTANT: Prompts must NOT rely on knowledge of specific books.
+
+        Good prompt: "Do these character aliases make sense given the names?"
+        Bad prompt: "Are all Gatsby characters found?"
+
+        Args:
+            result: The result to check
+            context: Optional context with original text
+
+        Returns:
+            List of verification issues found
+        """
+        # Default: no LLM self-check (subclasses override)
+        return []
 
     def refine(self, result: AgentResult, issues: list[VerificationIssue]) -> AgentResult:
         """
@@ -335,6 +434,7 @@ class Agent(ABC):
         self,
         context: AgentContext,
         max_passes: int = 3,
+        verification_level: VerificationLevel = VerificationLevel.SELF_CHECK,
     ) -> AgentResult:
         """
         Run with automatic refinement for quality issues.
@@ -345,6 +445,7 @@ class Agent(ABC):
         Args:
             context: Input context
             max_passes: Maximum number of run/verify/refine cycles
+            verification_level: Level of verification to apply
 
         Returns:
             Final AgentResult after refinement
@@ -352,7 +453,7 @@ class Agent(ABC):
         result = self.run(context)
 
         for pass_num in range(max_passes - 1):
-            verification = self.verify(result)
+            verification = self.verify(result, level=verification_level, context=context)
 
             if verification.all_passed:
                 logger.debug(f"{self.name}: Verification passed on pass {pass_num + 1}")

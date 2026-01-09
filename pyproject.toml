@@ -80,3 +80,6 @@ ignore = ["E501"]  # Line too long (handled by black)
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "slow: marks tests as slow (require LLM, deselect with '-m \"not slow\"')",
+]

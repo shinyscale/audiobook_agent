@@ -15,6 +15,7 @@ from .base import (
     AgentResult,
     VerificationResult,
     VerificationIssue,
+    VerificationLevel,
 )
 from .config import AgentConfig
 from ..pipeline.chapter_detection import ChapterDetectionPipeline, ChapterMap
@@ -161,7 +162,12 @@ class StructureAgent(Agent):
             provider_used=provider_used,
         )
 
-    def verify(self, result: AgentResult[ChapterMap]) -> VerificationResult:
+    def verify(
+        self,
+        result: AgentResult[ChapterMap],
+        level: VerificationLevel = VerificationLevel.SELF_CHECK,
+        context: Optional[AgentContext] = None,
+    ) -> VerificationResult:
         """
         Verify the chapter structure for quality issues.
 
