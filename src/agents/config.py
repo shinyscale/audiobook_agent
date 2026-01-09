@@ -27,6 +27,7 @@ class AgentConfig:
     # Model parameters
     temperature: float = 0.3
     max_tokens: int = 4096
+    context_length: int = 32768  # Context window size (num_ctx for Ollama)
 
     # Behavior
     enable_verification: bool = True
@@ -64,6 +65,7 @@ class OrchestratorConfig:
     default_model: str = "llama3.2"
     default_provider: str = "ollama"
     default_base_url: str = "http://localhost:11434"
+    context_length: int = 32768  # Default context window size
 
     # Per-agent configs (keyed by agent name)
     agent_configs: dict[str, AgentConfig] = field(default_factory=dict)

@@ -25,6 +25,7 @@ class LLMConfig:
     api_key: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4096
+    context_length: int = 32768  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = None  # Reasoning control: False, True, "low", "medium", "high"
 
     @classmethod
@@ -160,6 +161,7 @@ class LLMClient:
             "options": {
                 "temperature": self.config.temperature,
                 "num_predict": self.config.max_tokens,
+                "num_ctx": self.config.context_length,
             },
         }
 

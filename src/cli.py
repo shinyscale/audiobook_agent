@@ -80,6 +80,37 @@ Examples:
         help='Ollama model for LLM refinement (default: gpt-oss:120b)'
     )
     analyze_parser.add_argument(
+        '--context-length',
+        type=int,
+        default=32768,
+        help='Context window size for LLM calls (default: 32768)'
+    )
+    # Per-agent model configuration
+    analyze_parser.add_argument(
+        '--structure-model',
+        type=str,
+        default=None,
+        help='Model for structure/chapter detection agent'
+    )
+    analyze_parser.add_argument(
+        '--character-model',
+        type=str,
+        default=None,
+        help='Model for character extraction agent'
+    )
+    analyze_parser.add_argument(
+        '--summary-model',
+        type=str,
+        default=None,
+        help='Model for chapter summary agent'
+    )
+    analyze_parser.add_argument(
+        '--pronunciation-model',
+        type=str,
+        default=None,
+        help='Model for pronunciation guide agent'
+    )
+    analyze_parser.add_argument(
         '--html',
         type=str,
         nargs='?',
@@ -224,6 +255,43 @@ def run_analyze(args):
         except Exception as e:
             print(f"Warning: Failed to apply profile ({e}), using defaults")
 
+    # Handle per-agent model configuration
+    per_agent_models = {
+        'structure': args.structure_model,
+        'characters': args.character_model,
+        'summaries': args.summary_model,
+        'pronunciation': args.pronunciation_model,
+    }
+    has_per_agent_models = any(m is not None for m in per_agent_models.values())
+
+    if has_per_agent_models:
+        from .agents.config import OrchestratorConfig, AgentConfig
+
+        # Create orchestrator_config if not already created by --auto-optimize or --profile
+        if orchestrator_config is None:
+            orchestrator_config = OrchestratorConfig(
+                default_model=args.llm_model or "llama3.2",
+                default_provider="ollama",
+                context_length=args.context_length,
+            )
+
+        # Set per-agent models
+        for agent_name, model in per_agent_models.items():
+            if model:
+                orchestrator_config.set_agent_config(
+                    agent_name,
+                    AgentConfig(
+                        model=model,
+                        provider="ollama",
+                        context_length=args.context_length,
+                    )
+                )
+                print(f"   {agent_name} agent: {model}")
+
+    # Apply context_length to orchestrator config if it exists
+    if orchestrator_config:
+        orchestrator_config.context_length = args.context_length
+
     # Enable per-run output directories by default
     output_dir = Path('output')
 
@@ -232,6 +300,7 @@ def run_analyze(args):
         min_character_mentions=args.min_mentions,
         llm_refine=not args.no_llm,
         llm_model=args.llm_model,
+        llm_context_length=args.context_length,
         ocr_fallback=args.pdf_ocr,
         write_canonical_md=args.write_canonical_md,
         orchestrator_config=orchestrator_config,

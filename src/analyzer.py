@@ -238,6 +238,7 @@ class AudiobookAnalyzer:
                     # Apply agent-specific settings
                     config.temperature = agent_config.temperature
                     config.think = agent_config.think_mode
+                    config.context_length = agent_config.context_length or self.orchestrator_config.context_length
 
                     client = LLMClient(config)
                     self._agent_llm_clients[agent_name] = client
@@ -276,12 +277,14 @@ class AudiobookAnalyzer:
             model = agent_config.model or self.llm_model
             temperature = agent_config.temperature
             think_mode = agent_config.think_mode
+            context_length = agent_config.context_length or self.orchestrator_config.context_length
         else:
             provider = self.llm_provider
             base_url = self.llm_base_url
             model = self.llm_model
             temperature = 0.3
             think_mode = False
+            context_length = self.llm_context_length
 
         try:
             if provider == "ollama":
@@ -301,6 +304,7 @@ class AudiobookAnalyzer:
             # Apply agent-specific settings
             config.temperature = temperature
             config.think = think_mode
+            config.context_length = context_length
 
             return LLMClient(config)
         except Exception as e:
