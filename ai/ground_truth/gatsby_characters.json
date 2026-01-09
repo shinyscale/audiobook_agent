@@ -1,0 +1,103 @@
+{
+  "book": "The Great Gatsby",
+  "author": "F. Scott Fitzgerald",
+  "main_characters": [
+    {
+      "canonical_name": "Nick Carraway",
+      "aliases": ["Nick"],
+      "role": "narrator",
+      "importance": 1,
+      "min_mentions": 100,
+      "notes": "First-person narrator, bond salesman, Gatsby's neighbor"
+    },
+    {
+      "canonical_name": "Jay Gatsby",
+      "aliases": ["Gatsby", "Mr. Gatsby", "James Gatz", "Jimmy Gatz"],
+      "role": "protagonist",
+      "importance": 1,
+      "min_mentions": 200,
+      "notes": "Mysterious millionaire, real name James Gatz"
+    },
+    {
+      "canonical_name": "Daisy Buchanan",
+      "aliases": ["Daisy", "Daisy Fay"],
+      "role": "main",
+      "importance": 2,
+      "min_mentions": 100,
+      "notes": "Nick's cousin, Tom's wife, Gatsby's love interest"
+    },
+    {
+      "canonical_name": "Tom Buchanan",
+      "aliases": ["Tom"],
+      "role": "antagonist",
+      "importance": 2,
+      "min_mentions": 80,
+      "notes": "Daisy's husband, old money, having affair with Myrtle"
+    },
+    {
+      "canonical_name": "Jordan Baker",
+      "aliases": ["Jordan", "Miss Baker"],
+      "role": "main",
+      "importance": 3,
+      "min_mentions": 50,
+      "notes": "Professional golfer, Daisy's friend, Nick's love interest"
+    }
+  ],
+  "supporting_characters": [
+    {
+      "canonical_name": "Myrtle Wilson",
+      "aliases": ["Myrtle", "Mrs. Wilson"],
+      "role": "supporting",
+      "importance": 4,
+      "min_mentions": 20,
+      "notes": "George's wife, Tom's mistress, killed by Gatsby's car"
+    },
+    {
+      "canonical_name": "George Wilson",
+      "aliases": ["Wilson"],
+      "role": "supporting",
+      "importance": 4,
+      "min_mentions": 15,
+      "notes": "Garage owner, Myrtle's husband, kills Gatsby"
+    },
+    {
+      "canonical_name": "Meyer Wolfsheim",
+      "aliases": ["Wolfsheim", "Mr. Wolfsheim"],
+      "role": "supporting",
+      "importance": 5,
+      "min_mentions": 10,
+      "notes": "Gatsby's business associate, gambler, fixed 1919 World Series"
+    },
+    {
+      "canonical_name": "Owl Eyes",
+      "aliases": [],
+      "role": "minor",
+      "importance": 6,
+      "min_mentions": 3,
+      "notes": "Man with enormous spectacles at Gatsby's party and funeral"
+    }
+  ],
+  "distinct_pairs": [
+    {
+      "char1": "Tom Buchanan",
+      "char2": "Daisy Buchanan",
+      "relationship": "married",
+      "must_not_merge": true,
+      "reason": "Married couple with same surname but different characters"
+    },
+    {
+      "char1": "George Wilson",
+      "char2": "Myrtle Wilson",
+      "relationship": "married",
+      "must_not_merge": true,
+      "reason": "Married couple with same surname but different characters"
+    }
+  ],
+  "validation_rules": [
+    "Tom and Daisy Buchanan must be separate entries",
+    "George and Myrtle Wilson must be separate entries",
+    "Jay Gatsby should merge with James Gatz",
+    "No character named 'Buchanan' alone (always Tom or Daisy)",
+    "Narrator is Nick Carraway, not unnamed"
+  ]
+}

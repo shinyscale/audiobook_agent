@@ -1,0 +1,185 @@
+{
+  "project_goal": "Build a fully local, self-evaluating audiobook analysis system that works on any book without external dependencies",
+  "current_phase": "development",
+  "phases": {
+    "development": "Claude-assisted iteration on known works (Gatsby, Frankenstein)",
+    "graduation": "Transferring evaluation from Claude to local LLM",
+    "runtime": "Fully local self-evaluation on any book"
+  },
+  "test_corpus": {
+    "gatsby": "Test_Texts/gatsby.txt",
+    "frankenstein": "Test_Texts/frankenstein.txt"
+  },
+  "features": [
+    {
+      "id": "structure.chapter_detection",
+      "name": "Bulletproof Chapter Detection",
+      "status": "failing",
+      "priority": 1,
+      "acceptance_criteria": [
+        "Gatsby: Exactly 9 chapters detected with correct boundaries",
+        "Frankenstein: Detects frame narrative structure (4 letters + 24 chapters = 28 sections)",
+        "No spurious chapters from section breaks, letters, or epigraphs",
+        "Confidence score >= 0.8 for all detected chapters",
+        "TOC agreement >= 0.9 when TOC present"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_structure_agent.py -v"
+    },
+    {
+      "id": "characters.extraction",
+      "name": "Complete Character Extraction",
+      "status": "failing",
+      "priority": 2,
+      "depends_on": ["structure.chapter_detection"],
+      "acceptance_criteria": [
+        "Gatsby: All 9 named characters identified (Nick, Gatsby, Daisy, Tom, Jordan, Myrtle, George, Meyer, Owl Eyes)",
+        "Gatsby: No false merges (Tom Buchanan != Daisy Buchanan)",
+        "Gatsby: Correct alias resolution (Jay Gatsby = Mr. Gatsby = Gatsby)",
+        "Frankenstein: Victor, Monster, Elizabeth, Henry, Alphonse, William, Justine, Walton all identified",
+        "Frankenstein: 'The Creature' / 'the monster' / 'the fiend' correctly aliased",
+        "No hallucinated characters",
+        "Confidence >= 0.7 for main characters (>10 mentions)"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_character_agent.py -v"
+    },
+    {
+      "id": "characters.profiles",
+      "name": "Accurate Character Profiles",
+      "status": "failing",
+      "priority": 3,
+      "depends_on": ["characters.extraction"],
+      "acceptance_criteria": [
+        "Physical descriptions extracted where present in text",
+        "Key relationships identified (married to, friend of, etc.)",
+        "No invented details not supported by text",
+        "Profile confidence >= 0.6 for all main characters"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_character_profiles.py -v"
+    },
+    {
+      "id": "summaries.chapter_summaries",
+      "name": "Comprehensive Chapter Summaries",
+      "status": "failing",
+      "priority": 4,
+      "depends_on": ["structure.chapter_detection", "characters.extraction"],
+      "acceptance_criteria": [
+        "Each summary captures 3-5 key events from the chapter",
+        "Main characters appearing in chapter are mentioned",
+        "No hallucinated events or characters",
+        "Summaries are narrator-useful (focus on what happens, not interpretation)",
+        "Length: 100-300 words per chapter"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_summary_agent.py -v"
+    },
+    {
+      "id": "pronunciation.foreign_words",
+      "name": "Foreign Word Detection",
+      "status": "failing",
+      "priority": 5,
+      "depends_on": ["structure.chapter_detection"],
+      "acceptance_criteria": [
+        "Gatsby: 'old sport' flagged as recurring phrase",
+        "All character names flagged with pronunciation guidance",
+        "Foreign phrases identified with language tag",
+        "No common English words incorrectly flagged"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_pronunciation_agent.py -v"
+    },
+    {
+      "id": "pronunciation.homographs",
+      "name": "Homograph Disambiguation",
+      "status": "failing",
+      "priority": 6,
+      "depends_on": ["pronunciation.foreign_words"],
+      "acceptance_criteria": [
+        "read (past) vs read (present) correctly disambiguated by context",
+        "lead (metal) vs lead (verb) correctly disambiguated",
+        "Context examples provided for each homograph instance",
+        "False positive rate < 5%"
+      ],
+      "graduation": {
+        "status": "not_started",
+        "structural_checks": false,
+        "self_check_prompts": false,
+        "tested_unknown_works": false,
+        "local_matches_claude": false,
+        "notes": ""
+      },
+      "test_command": "python -m pytest tests/test_homographs.py -v"
+    },
+    {
+      "id": "pipeline.performance",
+      "name": "Pipeline Performance",
+      "status": "failing",
+      "priority": 7,
+      "acceptance_criteria": [
+        "Gatsby full analysis completes in < 60 minutes on DGX Spark",
+        "Memory usage stays under 32GB during analysis",
+        "No redundant LLM calls (caching works)",
+        "Checkpointing enables resume from any agent boundary"
+      ],
+      "graduation": {
+        "status": "n/a",
+        "notes": "Performance is not graduated - same metrics apply in runtime"
+      },
+      "test_command": "python ai/benchmark.py --book gatsby --timeout 3600"
+    },
+    {
+      "id": "pipeline.reliability",
+      "name": "Pipeline Reliability",
+      "status": "failing",
+      "priority": 8,
+      "acceptance_criteria": [
+        "3 consecutive runs on same book produce identical output",
+        "Agent orchestration respects dependency graph",
+        "Graceful degradation when LLM calls fail",
+        "All verification issues logged with actionable detail"
+      ],
+      "graduation": {
+        "status": "n/a",
+        "notes": "Reliability is not graduated - same requirements apply in runtime"
+      },
+      "test_command": "python ai/reliability_test.py --book gatsby --runs 3"
+    }
+  ]
+}

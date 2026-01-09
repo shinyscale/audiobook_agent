@@ -1,0 +1,48 @@
+=== Session: 2026-01-08T08:45:00Z ===
+Branch: feature/agent-infrastructure
+Commit: c61b15b
+
+## Status Check
+- All features: failing (initial state)
+
+## Work Completed
+1. Created harness directory structure (ai/)
+2. Extracted Frankenstein PDF to clean txt (4 letters + 24 chapters = 28 sections)
+3. Set up feature_list.json with graduation tracking
+4. Created init.sh bootstrap script
+5. Created ai/run_analysis.py pipeline runner
+6. Created ai/eval_prompts.md evaluation criteria
+7. Created ground truth files:
+   - ai/ground_truth/gatsby_chapters.json
+   - ai/ground_truth/gatsby_characters.json
+   - ai/ground_truth/frankenstein_chapters.json
+   - ai/ground_truth/frankenstein_characters.json
+8. Added VerificationLevel enum (STRUCTURAL, SELF_CHECK, ORACLE) to src/agents/base.py
+9. Updated Agent.verify() for three-tier verification
+10. Created pytest test suite (61 tests):
+    - tests/test_structure_agent.py
+    - tests/test_character_agent.py
+    - tests/test_summary_agent.py
+    - tests/test_pronunciation_agent.py
+
+## Issues Found
+- Frankenstein PDF has OCR artifacts (words run together, page headers embedded)
+- Chapter detection was finding 80 chapters before cleanup (fixed by removing front/back matter)
+
+## Test Corpus
+- gatsby.txt: Ready (9 chapters, ~51k words)
+- frankenstein.txt: Ready (28 sections, ~47k words) - cleaned from PDF
+
+## Test Results
+- 53 tests passed, 8 skipped (integration tests require LLM)
+
+## Next Steps
+1. Run: python ai/run_analysis.py gatsby
+2. Evaluate chapter detection output
+3. Iterate on failing features
+4. Begin graduation process once features pass
+
+## Handoff Notes
+The harness is FULLY SET UP. All ground truth files, verification levels, and tests are in place.
+Ready to run first evaluation cycle on Gatsby. See ai/eval_prompts.md for evaluation criteria.
+The Frankenstein text has some OCR quality issues but the chapter structure is correct (28 sections).

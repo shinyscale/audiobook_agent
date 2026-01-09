@@ -1,0 +1,146 @@
+{
+  "book": "Frankenstein; or, The Modern Prometheus",
+  "author": "Mary Shelley",
+  "main_characters": [
+    {
+      "canonical_name": "Victor Frankenstein",
+      "aliases": ["Victor", "Frankenstein"],
+      "role": "protagonist",
+      "importance": 1,
+      "min_mentions": 200,
+      "notes": "Creator of the creature, narrator of main story"
+    },
+    {
+      "canonical_name": "The Creature",
+      "aliases": ["Monster", "Creature", "Fiend", "Daemon", "Wretch", "Devil", "Being"],
+      "role": "antagonist",
+      "importance": 1,
+      "min_mentions": 100,
+      "notes": "Victor's creation, NOT named Frankenstein (common misconception)"
+    },
+    {
+      "canonical_name": "Robert Walton",
+      "aliases": ["Walton", "Captain Walton"],
+      "role": "frame_narrator",
+      "importance": 2,
+      "min_mentions": 30,
+      "notes": "Arctic explorer, frame narrator, writes letters to sister"
+    },
+    {
+      "canonical_name": "Elizabeth Lavenza",
+      "aliases": ["Elizabeth"],
+      "role": "main",
+      "importance": 2,
+      "min_mentions": 50,
+      "notes": "Victor's adopted sister and wife, killed on wedding night"
+    },
+    {
+      "canonical_name": "Henry Clerval",
+      "aliases": ["Henry", "Clerval"],
+      "role": "main",
+      "importance": 3,
+      "min_mentions": 40,
+      "notes": "Victor's best friend, killed by creature"
+    }
+  ],
+  "supporting_characters": [
+    {
+      "canonical_name": "Alphonse Frankenstein",
+      "aliases": ["Alphonse"],
+      "role": "supporting",
+      "importance": 4,
+      "min_mentions": 20,
+      "notes": "Victor's father"
+    },
+    {
+      "canonical_name": "William Frankenstein",
+      "aliases": ["William"],
+      "role": "supporting",
+      "importance": 4,
+      "min_mentions": 15,
+      "notes": "Victor's youngest brother, first murder victim"
+    },
+    {
+      "canonical_name": "Justine Moritz",
+      "aliases": ["Justine"],
+      "role": "supporting",
+      "importance": 5,
+      "min_mentions": 10,
+      "notes": "Wrongly executed for William's murder"
+    },
+    {
+      "canonical_name": "Margaret Saville",
+      "aliases": ["Margaret", "Mrs. Saville"],
+      "role": "minor",
+      "importance": 6,
+      "min_mentions": 5,
+      "notes": "Walton's sister, recipient of letters"
+    },
+    {
+      "canonical_name": "De Lacey",
+      "aliases": ["Old De Lacey", "the old man"],
+      "role": "supporting",
+      "importance": 5,
+      "min_mentions": 10,
+      "notes": "Blind old man, father of Felix and Agatha"
+    },
+    {
+      "canonical_name": "Felix De Lacey",
+      "aliases": ["Felix"],
+      "role": "minor",
+      "importance": 6,
+      "min_mentions": 15,
+      "notes": "De Lacey's son"
+    },
+    {
+      "canonical_name": "Agatha De Lacey",
+      "aliases": ["Agatha"],
+      "role": "minor",
+      "importance": 6,
+      "min_mentions": 10,
+      "notes": "De Lacey's daughter"
+    },
+    {
+      "canonical_name": "Safie",
+      "aliases": [],
+      "role": "minor",
+      "importance": 6,
+      "min_mentions": 10,
+      "notes": "Felix's love, Turkish/Arabian background"
+    }
+  ],
+  "distinct_pairs": [
+    {
+      "char1": "Victor Frankenstein",
+      "char2": "The Creature",
+      "relationship": "creator-creation",
+      "must_not_merge": true,
+      "reason": "Common misconception that Frankenstein IS the monster"
+    },
+    {
+      "char1": "Victor Frankenstein",
+      "char2": "Alphonse Frankenstein",
+      "relationship": "father-son",
+      "must_not_merge": true,
+      "reason": "Same surname, different characters"
+    },
+    {
+      "char1": "Victor Frankenstein",
+      "char2": "William Frankenstein",
+      "relationship": "brothers",
+      "must_not_merge": true,
+      "reason": "Same surname, different characters"
+    }
+  ],
+  "alias_merge_rules": [
+    "All creature references should merge: Monster, Creature, Fiend, Daemon, Wretch, Devil, Being",
+    "'Frankenstein' alone refers to Victor, NOT the creature",
+    "The creature has no proper name"
+  ],
+  "validation_rules": [
+    "Victor and the Creature must be separate entries",
+    "All Frankenstein family members must be separate",
+    "Creature aliases (Monster, Fiend, etc.) should be merged",
+    "'Frankenstein' should map to Victor, not Creature"
+  ]
+}

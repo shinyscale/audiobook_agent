@@ -1,0 +1,28 @@
+{
+  "book": "The Great Gatsby",
+  "author": "F. Scott Fitzgerald",
+  "chapter_count": 9,
+  "structure_type": "simple_numbered",
+  "chapters": [
+    {"index": 1, "title": null, "has_title": false, "numbering": "I"},
+    {"index": 2, "title": null, "has_title": false, "numbering": "II"},
+    {"index": 3, "title": null, "has_title": false, "numbering": "III"},
+    {"index": 4, "title": null, "has_title": false, "numbering": "IV"},
+    {"index": 5, "title": null, "has_title": false, "numbering": "V"},
+    {"index": 6, "title": null, "has_title": false, "numbering": "VI"},
+    {"index": 7, "title": null, "has_title": false, "numbering": "VII"},
+    {"index": 8, "title": null, "has_title": false, "numbering": "VIII"},
+    {"index": 9, "title": null, "has_title": false, "numbering": "IX"}
+  ],
+  "expected_word_counts": {
+    "total": 47000,
+    "tolerance_percent": 10,
+    "per_chapter_avg": 5200
+  },
+  "notes": [
+    "Chapters are numbered with Roman numerals",
+    "No prologue or epilogue",
+    "No titled chapters - just numbered",
+    "First-person narration throughout (Nick)"
+  ]
+}
