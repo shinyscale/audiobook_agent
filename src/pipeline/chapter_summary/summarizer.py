@@ -48,7 +48,7 @@ IMPORTANT GUIDELINES:
 - Include specific setting details (location, transportation method, time of day)
 - If events or objects are referenced, provide brief context
 - Be precise about character actions and dialogue topics
-- Aim for 3-5 detailed sentences in your summary
+{length_guidance}
 
 Return a JSON response matching this example format exactly:
 
@@ -97,7 +97,7 @@ IMPORTANT GUIDELINES:
 - Include setting details (location, transportation, time) when mentioned
 - If events or objects are referenced, include brief context from the sections
 - Be precise about character actions and locations
-- Aim for 4-6 detailed sentences in your summary
+{length_guidance}
 
 Return a JSON response matching this example format exactly:
 
@@ -153,7 +153,7 @@ IMPORTANT GUIDELINES:
 - Include specific setting details (location, transportation method, time of day)
 - If events or objects are referenced, provide brief context
 - Be precise about character actions and dialogue topics
-- Aim for 4-6 detailed sentences in your summary
+{length_guidance}
 
 Return a JSON response matching this example format exactly:
 
@@ -198,6 +198,7 @@ class ChapterSummarizer:
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         chunk_overlap: int = CHUNK_OVERLAP,
         known_characters: Optional[list[str]] = None,
+        summary_length: str = "standard",
     ):
         """
         Args:
@@ -205,11 +206,22 @@ class ChapterSummarizer:
             chunk_size: Target words per chunk
             chunk_overlap: Words of overlap between chunks
             known_characters: List of known character names for reference
+            summary_length: Length preference - "brief" (2-3 sentences), "standard" (4-6 sentences), "detailed" (6-8 sentences)
         """
         self.llm = llm_client
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.known_characters = known_characters or []
+        self.summary_length = summary_length
+
+    def _get_length_guidance(self) -> str:
+        """Get length guidance text based on summary_length setting."""
+        if self.summary_length == "brief":
+            return "- Aim for 2-3 concise sentences in your summary"
+        elif self.summary_length == "detailed":
+            return "- Aim for 6-8 detailed sentences in your summary"
+        else:  # standard
+            return "- Aim for 4-6 detailed sentences in your summary"
 
     def summarize_chapter(
         self,
@@ -256,6 +268,7 @@ class ChapterSummarizer:
             chapter_title=title,
             word_count=word_count,
             text=text,
+            length_guidance=self._get_length_guidance(),
         )
 
         result, _ = self.llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
@@ -341,6 +354,7 @@ class ChapterSummarizer:
             chunk_num=chunk_index + 1,
             total_chunks=total_chunks,
             text=text,
+            length_guidance=self._get_length_guidance(),
         )
 
         result, _ = self.llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
@@ -394,6 +408,7 @@ class ChapterSummarizer:
             chapter_title=title,
             word_count=word_count,
             chunk_summaries="\n\n".join(chunks_text),
+            length_guidance=self._get_length_guidance(),
         )
 
         result, response = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
