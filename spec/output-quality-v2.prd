@@ -568,7 +568,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that model is excluded from available model list",
     "Confirm warning message is logged about the broken model"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

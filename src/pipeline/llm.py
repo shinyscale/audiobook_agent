@@ -424,6 +424,42 @@ class LLMClient:
             return True, f"Connected to {self.config.provider}/{self.config.model}"
         return False, f"Connection failed: {response.error}"
 
+    def health_check(self) -> tuple[bool, str]:
+        """
+        Comprehensive health check for the model.
+
+        Tests for common failure modes:
+        - Connection failures
+        - Empty responses
+        - Invalid/garbled responses
+
+        Returns:
+            Tuple of (is_healthy, message)
+        """
+        # Test 1: Basic connection
+        response = self.query("Reply with exactly: OK")
+        if not response.success:
+            return False, f"Connection failed: {response.error}"
+
+        # Test 2: Check for empty response (common failure mode)
+        if not response.content or len(response.content.strip()) == 0:
+            return False, f"Model returns empty responses"
+
+        # Test 3: Check for garbled/invalid response
+        if len(response.content.strip()) < 1:
+            return False, f"Model returns invalid responses (too short)"
+
+        # Test 4: Verify model can generate coherent text
+        test_response = self.query("Count to three.")
+        if not test_response.success:
+            return False, f"Model failed generation test: {test_response.error}"
+
+        if not test_response.content or len(test_response.content.strip()) == 0:
+            return False, f"Model returns empty responses on generation test"
+
+        # All checks passed
+        return True, f"Model {self.config.model} is healthy"
+
 
 def create_client(
     provider: str = "ollama",

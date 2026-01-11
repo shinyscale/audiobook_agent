@@ -192,13 +192,14 @@ class AudiobookAnalyzer:
 
             self._llm_client = LLMClient(config)
 
-            # Test connection
-            ok, msg = self._llm_client.test_connection()
+            # Run health check to detect broken models (empty responses, etc.)
+            ok, msg = self._llm_client.health_check()
             if ok:
-                logger.info(f"LLM connected: {msg}")
+                logger.info(f"LLM health check passed: {msg}")
             else:
-                # Raise exception so caller knows LLM is unavailable
-                raise RuntimeError(f"LLM connection failed: {msg}")
+                # Raise exception so caller knows LLM is unavailable/broken
+                logger.warning(f"LLM health check failed: {msg}")
+                raise RuntimeError(f"LLM health check failed: {msg}")
 
         except RuntimeError:
             # Re-raise connection failures
