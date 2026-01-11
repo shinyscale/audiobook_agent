@@ -216,7 +216,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check confidence score is above threshold (e.g., >0.7)",
     "Verify mention count is a factor in confidence calculation"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -231,7 +231,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check no major character is incorrectly marked LOW",
     "Verify confidence scoring considers mention frequency"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
