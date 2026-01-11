@@ -167,7 +167,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Verify canonical name includes both first and last name",
     "Confirm aliases include both the single first name and the title+last name forms"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -182,7 +182,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check character list shows only one entry for narrator",
     "Verify mention count combines all references"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
