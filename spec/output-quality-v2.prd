@@ -598,7 +598,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check message includes model name/identifier",
     "Confirm user is informed which models passed and which failed"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
