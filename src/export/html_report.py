@@ -704,6 +704,9 @@ HTML_TEMPLATE = '''
                 <div class="character-profile character-item" data-confidence="{{ char.confidence.value }}">
                     <h4>
                         {{ char.canonical_name }}
+                        {% if char.is_narrator %}
+                        <span class="tag" style="background: var(--accent); color: var(--text); font-size: 0.75rem; margin-left: 0.5rem;" title="Narrator">📖 {{ char.narrative_role or "Narrator" }}</span>
+                        {% endif %}
                         <span class="confidence-badge {{ char.confidence.value }}" title="Confidence: {{ char.confidence.value }}">
                             {% if char.confidence.value == 'high' %}✓
                             {% elif char.confidence.value == 'medium' %}!
@@ -786,6 +789,9 @@ HTML_TEMPLATE = '''
                         <tr>
                             <td>
                                 <strong>{{ char.canonical_name }}</strong>
+                                {% if char.is_narrator %}
+                                <span class="tag" style="background: var(--accent); color: var(--text); font-size: 0.7rem; margin-left: 0.25rem;">📖 {{ char.narrative_role or "Narrator" }}</span>
+                                {% endif %}
                                 {% if char.descriptions and char.descriptions[0].text|length > 0 %}
                                 <div class="description">{{ char.descriptions[0].text[:200] }}{% if char.descriptions[0].text|length > 200 %}...{% endif %}</div>
                                 {% endif %}

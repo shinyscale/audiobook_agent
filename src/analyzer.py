@@ -843,6 +843,12 @@ class AudiobookAnalyzer:
 
             print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
 
+        # Step 3.6: Detect Narrator
+        # Check if this is a first-person narrative and identify the narrator
+        narrator_detected = self._detect_narrator(doc.text, pipeline_char_map.characters)
+        if narrator_detected:
+            print(f"   📖 Detected narrator: {narrator_detected}")
+
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
 
@@ -1275,6 +1281,40 @@ Return ONLY valid JSON matching the above structure. No other text."""
             logger.warning(f"Failed to generate profile for {character.canonical_name}: {e}")
 
         return "", [], 0.0
+
+    def _detect_narrator(self, full_text: str, characters: list) -> Optional[str]:
+        """
+        Detect if this is a first-person narrative and identify the narrator.
+
+        Returns:
+            Name of narrator character if detected, None otherwise
+        """
+        # Sample text from beginning (first 5000 chars)
+        sample_text = full_text[:5000]
+
+        # Count first-person pronouns
+        first_person_count = 0
+        pronouns = ["I ", " I ", "I'm", "I've", "my ", " my ", "me ", " me "]
+        for pronoun in pronouns:
+            first_person_count += sample_text.count(pronoun)
+
+        # If high first-person usage, this is likely a first-person narrative
+        if first_person_count > 15:  # Threshold for first-person narrative
+            # Try to find the narrator among characters
+            # The narrator is usually the character with the most mentions
+            if characters:
+                # Sort by mention count
+                sorted_chars = sorted(characters, key=lambda c: c.mention_count, reverse=True)
+                narrator = sorted_chars[0]
+
+                # Mark as narrator
+                narrator.is_narrator = True
+                narrator.narrative_role = "First-person narrator"
+
+                logger.info(f"Detected first-person narrator: {narrator.canonical_name} ({narrator.mention_count} mentions)")
+                return narrator.canonical_name
+
+        return None
 
     def _convert_chapters(
         self,

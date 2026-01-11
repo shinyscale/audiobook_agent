@@ -74,6 +74,9 @@ class Character(BaseModel):
     # { "type": "...", "statement": "...", "quotes": [{"quote": "...", "position": 12345}], "chunk": "Chapter 3" }
     evidence: list[dict] = Field(default_factory=list)
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+    # Narrator role detection
+    is_narrator: bool = False
+    narrative_role: Optional[str] = None  # e.g., "First-person narrator", "POV character"
 
 
 class PronunciationEntry(BaseModel):
