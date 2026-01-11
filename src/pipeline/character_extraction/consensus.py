@@ -319,7 +319,10 @@ class CharacterConsensusBuilder:
             for name2 in names[i + 1:]:
                 if self._names_match(name1, name2):
                     # Merge: keep longer/more complete name as canonical
-                    canonical, alias = self._pick_canonical(name1, name2)
+                    # Calculate mention counts for both names
+                    count1 = sum(r.proposal.mention_count for r in name_groups[name1])
+                    count2 = sum(r.proposal.mention_count for r in name_groups[name2])
+                    canonical, alias = self._pick_canonical(name1, name2, count1, count2)
                     if canonical in alias_map:
                         alias_map[canonical].add(alias)
                         # Merge alias's aliases
@@ -334,7 +337,10 @@ class CharacterConsensusBuilder:
                     # Check if candidate matches any actual name
                     for actual_name in name_groups.keys():
                         if actual_name != name and self._names_match(candidate, actual_name):
-                            canonical, alias = self._pick_canonical(name, actual_name)
+                            # Calculate mention counts for both names
+                            count_name = sum(r.proposal.mention_count for r in name_groups[name])
+                            count_actual = sum(r.proposal.mention_count for r in name_groups[actual_name])
+                            canonical, alias = self._pick_canonical(name, actual_name, count_name, count_actual)
                             if canonical in alias_map and alias in alias_map:
                                 alias_map[canonical].add(alias)
                                 alias_map[canonical].update(alias_map[alias])
@@ -406,8 +412,16 @@ class CharacterConsensusBuilder:
         )
         return ' '.join(name.lower().split())
 
-    def _pick_canonical(self, name1: str, name2: str) -> tuple[str, str]:
-        """Pick which name should be canonical vs alias."""
+    def _pick_canonical(self, name1: str, name2: str, count1: int = 0, count2: int = 0) -> tuple[str, str]:
+        """
+        Pick which name should be canonical vs alias.
+
+        Priority:
+        1. Longer names (more complete)
+        2. Untitled over titled
+        3. Higher mention count (NEW!)
+        4. Alphabetically first
+        """
         # Prefer full names over first names
         parts1 = name1.split()
         parts2 = name2.split()
@@ -425,6 +439,10 @@ class CharacterConsensusBuilder:
             return name2, name1
         elif has_title2 and not has_title1:
             return name1, name2
+
+        # Prefer higher mention count (most frequently used name)
+        if count1 != count2:
+            return (name1, name2) if count1 > count2 else (name2, name1)
 
         # Default: alphabetically first is canonical
         return (name1, name2) if name1 < name2 else (name2, name1)
@@ -552,7 +570,10 @@ class CharacterConsensusBuilder:
 
                 if is_valid and confidence >= 0.7:
                     # Merge: pick the more complete name as canonical
-                    canonical, alias = self._pick_canonical(name1, name2)
+                    # Calculate mention counts for both names
+                    count1 = sum(r.proposal.mention_count for r in name_groups[name1])
+                    count2 = sum(r.proposal.mention_count for r in name_groups[name2])
+                    canonical, alias = self._pick_canonical(name1, name2, count1, count2)
 
                     # If canonical was name2, we need to swap in alias_map
                     if canonical == name2:
