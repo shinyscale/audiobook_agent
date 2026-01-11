@@ -434,7 +434,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check chapter numbers/locations of proof facts span the entire narrative",
     "Confirm no bias toward early chapters in fact selection"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -449,7 +449,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that proof facts are not disproportionately from first chapters",
     "Confirm character development throughout narrative is captured"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -464,7 +464,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that character changes/development are reflected if significant",
     "Confirm descriptions are not solely based on first appearance"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

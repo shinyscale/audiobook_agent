@@ -1143,10 +1143,35 @@ class AudiobookAnalyzer:
         """
         import json
 
-        # Gather more context snippets from character mentions (up to 10 for better evidence)
+        # Sample mentions from throughout the book (early, middle, late)
+        # to ensure character proof reflects the entire narrative
+        all_mentions = character.mentions
+        total_mentions = len(all_mentions)
+
+        # Sample up to 10 mentions, distributed across the narrative
+        if total_mentions <= 10:
+            sampled_mentions = all_mentions
+        else:
+            # Divide mentions into thirds (early, middle, late) and sample from each
+            third = total_mentions // 3
+            early = all_mentions[:third]
+            middle = all_mentions[third:2*third]
+            late = all_mentions[2*third:]
+
+            # Sample 3-4 from each third
+            import random
+            sampled_mentions = []
+            sampled_mentions.extend(random.sample(early, min(3, len(early))))
+            sampled_mentions.extend(random.sample(middle, min(3, len(middle))))
+            sampled_mentions.extend(random.sample(late, min(4, len(late))))
+
+            # Sort by position to maintain chronological order in context
+            sampled_mentions.sort(key=lambda m: m.position)
+
+        # Gather context snippets from sampled mentions
         contexts = []
         mention_positions = []
-        for mention in character.mentions[:10]:
+        for mention in sampled_mentions:
             start = max(0, mention.position - 200)  # Increased context window
             end = min(len(full_text), mention.position + 200)
             snippet = full_text[start:end].strip()
@@ -1173,14 +1198,18 @@ class AudiobookAnalyzer:
 
         prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
 
+The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
+Your analysis should reflect the character's full arc, not just their initial appearance.
+
 Text Evidence:
 {context_text}
 
 CRITICAL REQUIREMENTS:
 1. Make ONLY claims that are directly supported by the provided text
 2. For each claim, provide the exact quote that supports it
-3. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
-4. Distinguish between what the text explicitly states vs. what might be inferred
+3. Consider how the character develops or changes throughout the narrative (if evident from the samples)
+4. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
+5. Distinguish between what the text explicitly states vs. what might be inferred
 
 Return a JSON response matching this example format exactly:
 
