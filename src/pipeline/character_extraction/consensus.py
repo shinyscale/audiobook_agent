@@ -218,7 +218,11 @@ class CharacterConsensusBuilder:
             all_mentions.sort(key=lambda m: m.position)
 
             # Calculate final confidence
-            avg_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.5
+            if not all_confidences:
+                error_msg = f"No confidences available for character '{canonical_name}' - cannot continue"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            avg_confidence = sum(all_confidences) / len(all_confidences)
 
             # Boost confidence for multiple strategies or many chapters
             if len(all_strategies) > 1:
@@ -459,12 +463,14 @@ class CharacterConsensusBuilder:
         result, response = self.llm.query_json(prompt, system=ALIAS_RESOLUTION_SYSTEM)
 
         if result is None:
-            logger.warning("LLM alias resolution failed, falling back to heuristics")
-            return self._heuristic_alias_resolution(name_groups, [r for results in name_groups.values() for r in results])
+            error_msg = "LLM alias resolution failed - cannot continue with heuristics"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         if not isinstance(result, list):
-            logger.warning("LLM alias resolution returned non-list")
-            return self._heuristic_alias_resolution(name_groups, [r for results in name_groups.values() for r in results])
+            error_msg = f"LLM alias resolution returned non-list: {type(result)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # Parse LLM response WITH VALIDATION
         alias_map = {}

@@ -99,16 +99,10 @@ class CharacterValidator:
         if self.use_llm_validation:
             return self._llm_validation(proposal)
 
-        # Fallback: accept with moderate confidence
-        return CharacterValidationResult(
-            proposal=proposal,
-            is_person_score=0.7,
-            context_score=0.7,
-            alias_candidates=[],
-            overall_score=0.7,
-            is_valid=True,
-            reasoning="Passed heuristic checks, no LLM validation available",
-        )
+        # No LLM validation available - fail fast instead of using fallback confidence
+        error_msg = f"LLM validation is required but not enabled for proposal '{proposal.name}'"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     def validate_batch(
         self,
@@ -237,31 +231,17 @@ class CharacterValidator:
         result, response = self.llm.query_json(prompt, system=VALIDATION_SYSTEM_PROMPT)
 
         if not response.success:
-            # HTTP error or connection failure
-            logger.debug(f"LLM validation failed for '{proposal.name}': {response.error}")
-            return CharacterValidationResult(
-                proposal=proposal,
-                is_person_score=0.5,
-                context_score=0.5,
-                alias_candidates=[],
-                overall_score=0.5,
-                is_valid=True,  # Accept with low confidence
-                reasoning="LLM validation failed, accepting with low confidence",
-            )
+            # HTTP error or connection failure - fail fast instead of masking with fallback
+            error_msg = f"LLM validation failed for '{proposal.name}': {response.error}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         if result is None or not isinstance(result, dict):
-            # JSON parsing failure or wrong type
+            # JSON parsing failure or wrong type - fail fast instead of masking with fallback
             error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
-            logger.warning(f"LLM validation failed for '{proposal.name}' ({error_detail}), using defaults")
-            return CharacterValidationResult(
-                proposal=proposal,
-                is_person_score=0.5,
-                context_score=0.5,
-                alias_candidates=[],
-                overall_score=0.5,
-                is_valid=True,  # Accept with low confidence
-                reasoning="LLM validation failed, accepting with low confidence",
-            )
+            error_msg = f"LLM validation returned invalid JSON for '{proposal.name}': {error_detail}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # Parse LLM response
         is_person = result.get("is_person", True)

@@ -75,6 +75,22 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# Character profile system prompt for evidence-based generation
+CHARACTER_PROFILE_SYSTEM = """You are a literary analyst creating evidence-based character profiles for audiobook narration.
+
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
+Your profiles help narrators understand:
+- Character traits supported by textual evidence
+- Relationships between characters
+- What we confidently know vs. what is uncertain
+
+Always respond with valid JSON. No other text."""
+
+
 class AudiobookAnalyzer:
     """
     Main analyzer class that orchestrates the full analysis pipeline.
@@ -616,6 +632,15 @@ class AudiobookAnalyzer:
         # Start metrics collection
         self._metrics.start_analysis()
 
+        # Clear debug logs for this run (avoid cumulative logs across runs)
+        log_dir = Path.home() / '.audiobook-prep'
+        llm_log = log_dir / 'llm.log'
+        pipeline_log = log_dir / 'pipeline.log'
+        if llm_log.exists():
+            llm_log.unlink()  # Delete the file, logger will recreate it on first write
+        if pipeline_log.exists():
+            pipeline_log.unlink()  # Delete the file, logger will recreate it on first write
+
         # Step 1: Ingest document
         print(f"📖 Ingesting: {file_path.name}")
         ingester = get_ingester(file_path, ocr_fallback=self.ocr_fallback)
@@ -769,15 +794,45 @@ class AudiobookAnalyzer:
                 ]
                 logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
                 profile_count = 0
+                high_conf_count = 0
+                medium_conf_count = 0
+                low_conf_count = 0
+
                 for i, char in enumerate(eligible_chars):
                     logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
-                    profile = self._generate_character_profile(llm, char, doc.text)
+                    profile, evidence, confidence = self._generate_character_profile(llm, char, doc.text)
                     if profile:
                         char.description = profile
                         profile_count += 1
 
-                # Record metrics - all generated profiles are high confidence
-                ctx.record_items(total=len(eligible_chars), high_confidence=profile_count, medium_confidence=0, low_confidence=len(eligible_chars) - profile_count)
+                        # Store evidence in character (will need to add evidence field to pipeline Character model)
+                        if not hasattr(char, 'profile_evidence'):
+                            char.profile_evidence = []
+                        char.profile_evidence = evidence
+
+                        # Store profile confidence
+                        if not hasattr(char, 'profile_confidence'):
+                            char.profile_confidence = 0.5
+                        char.profile_confidence = confidence
+
+                        # Track confidence distribution
+                        if confidence >= 0.7:
+                            high_conf_count += 1
+                        elif confidence >= 0.4:
+                            medium_conf_count += 1
+                        else:
+                            low_conf_count += 1
+                            logger.warning(f"Low confidence profile for {char.canonical_name}: {confidence:.2f}")
+                    else:
+                        low_conf_count += 1
+
+                # Record metrics with confidence breakdown
+                ctx.record_items(
+                    total=len(eligible_chars),
+                    high_confidence=high_conf_count,
+                    medium_confidence=medium_conf_count,
+                    low_confidence=low_conf_count
+                )
 
                 # Record model info from LLM client
                 if llm and llm.config:
@@ -1035,44 +1090,118 @@ class AudiobookAnalyzer:
         llm: "LLMClient",
         character,
         full_text: str,
-    ) -> str:
-        """Generate prose profile for a character using LLM."""
-        # Gather context snippets from character mentions
+    ) -> tuple[str, list[dict], float]:
+        """Generate prose profile for a character using LLM with evidence grounding.
+
+        Returns:
+            tuple: (profile_text, evidence_list, confidence_score)
+                evidence_list: List of dicts with 'statement', 'quote', 'position'
+                confidence_score: 0.0-1.0 based on evidence quality
+        """
+        import json
+
+        # Gather more context snippets from character mentions (up to 10 for better evidence)
         contexts = []
-        for mention in character.mentions[:5]:  # First 5 mentions for context
-            start = max(0, mention.position - 100)
-            end = min(len(full_text), mention.position + 100)
+        mention_positions = []
+        for mention in character.mentions[:10]:
+            start = max(0, mention.position - 200)  # Increased context window
+            end = min(len(full_text), mention.position + 200)
             snippet = full_text[start:end].strip()
             # Clean up partial words at boundaries
             if start > 0:
                 snippet = "..." + snippet.split(" ", 1)[-1] if " " in snippet else snippet
             if end < len(full_text):
                 snippet = snippet.rsplit(" ", 1)[0] + "..." if " " in snippet else snippet
-            contexts.append(f"- {snippet}")
+            contexts.append({
+                "text": snippet,
+                "position": mention.position,
+                "chapter": mention.chapter_index
+            })
+            mention_positions.append(mention.position)
 
-        context_text = "\n".join(contexts[:5]) if contexts else "No context available."
+        if not contexts:
+            logger.warning(f"No context available for {character.canonical_name}")
+            return "", [], 0.0
 
-        prompt = f"""Write a brief character profile (2-3 sentences) for "{character.canonical_name}".
+        context_text = "\n\n".join([
+            f"[Context {i+1}, Chapter {c['chapter']}, Position {c['position']}]:\n{c['text']}"
+            for i, c in enumerate(contexts)
+        ])
 
-Context where this character appears:
+        prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
+
+Text Evidence:
 {context_text}
 
-Focus on: their role in the story, notable traits, and key relationships.
-Return ONLY the prose description, no headers, labels, or formatting."""
+CRITICAL REQUIREMENTS:
+1. Make ONLY claims that are directly supported by the provided text
+2. For each claim, provide the exact quote that supports it
+3. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
+4. Distinguish between what the text explicitly states vs. what might be inferred
+
+Return a JSON response matching this example format exactly:
+
+```json
+{{
+  "profile": "A brief 2-3 sentence description of the character based on provided evidence. The character is introduced as a young professional who recently moved to the area. They maintain close family connections and serve as an observer of unfolding events.",
+  "evidence": [
+    {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
+    {{"statement": "Has family in the area", "quote": "My cousin lived just across the bay", "position": 2456}},
+    {{"statement": "Observes others closely", "quote": "I found myself fascinated by their gatherings", "position": 3789}}
+  ],
+  "confidence": 0.85,
+  "limitations": "The provided context doesn't reveal the character's occupation, age, or long-term intentions in the area."
+}}
+```
+
+Return ONLY valid JSON matching the above structure. No other text."""
 
         try:
-            response = llm.query(prompt)
+            response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM)
             if response.success:
                 # Clean up any thinking tags or extra formatting
-                text = response.content.strip()
-                # Remove common LLM artifacts
-                if text.startswith('"') and text.endswith('"'):
-                    text = text[1:-1]
-                return text
+                content = response.content.strip()
+
+                # Try to extract JSON if wrapped in markdown code blocks
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+
+                # Parse JSON response
+                try:
+                    result = json.loads(content)
+                    profile = result.get("profile", "")
+                    evidence = result.get("evidence", [])
+                    confidence = float(result.get("confidence", 0.5))
+
+                    # Validate evidence structure
+                    validated_evidence = []
+                    for ev in evidence:
+                        if isinstance(ev, dict) and "statement" in ev and "quote" in ev:
+                            validated_evidence.append({
+                                "statement": ev["statement"],
+                                "quote": ev["quote"],
+                                "position": ev.get("position", 0),
+                                "confidence": "high" if confidence >= 0.7 else "medium" if confidence >= 0.4 else "low"
+                            })
+
+                    # If no valid evidence but we got a profile, mark as low confidence
+                    if profile and not validated_evidence:
+                        logger.warning(f"Profile for {character.canonical_name} lacks evidence")
+                        confidence = min(confidence, 0.3)
+
+                    return profile, validated_evidence, confidence
+
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse JSON response for {character.canonical_name}: {e}")
+                    # Fallback: treat as plain text profile with low confidence
+                    return content[:500], [], 0.3
+
         except Exception as e:
             logger.warning(f"Failed to generate profile for {character.canonical_name}: {e}")
 
-        return ""
+        return "", [], 0.0
 
     def _convert_chapters(
         self,
@@ -1132,13 +1261,24 @@ Return ONLY the prose description, no headers, labels, or formatting."""
         characters = []
 
         for pc in char_map.characters:
-            # Map confidence
-            if pc.confidence >= 0.8:
-                confidence = ConfidenceLevel.HIGH
-            elif pc.confidence >= 0.5:
-                confidence = ConfidenceLevel.MEDIUM
+            # Map confidence - use profile confidence if available
+            profile_conf = getattr(pc, 'profile_confidence', None)
+            if profile_conf is not None:
+                # Use profile confidence if it exists
+                if profile_conf >= 0.7:
+                    confidence = ConfidenceLevel.HIGH
+                elif profile_conf >= 0.4:
+                    confidence = ConfidenceLevel.MEDIUM
+                else:
+                    confidence = ConfidenceLevel.LOW
             else:
-                confidence = ConfidenceLevel.LOW
+                # Fall back to extraction confidence
+                if pc.confidence >= 0.8:
+                    confidence = ConfidenceLevel.HIGH
+                elif pc.confidence >= 0.5:
+                    confidence = ConfidenceLevel.MEDIUM
+                else:
+                    confidence = ConfidenceLevel.LOW
 
             # Build descriptions list if profile was generated
             descriptions = []
@@ -1149,6 +1289,9 @@ Return ONLY the prose description, no headers, labels, or formatting."""
                     confidence=ConfidenceLevel.LLM_REFINED,
                 ))
 
+            # Extract evidence from pipeline character
+            evidence = getattr(pc, 'profile_evidence', [])
+
             characters.append(Character(
                 id=pc.id,
                 canonical_name=pc.canonical_name,
@@ -1157,6 +1300,7 @@ Return ONLY the prose description, no headers, labels, or formatting."""
                 first_appearance_chapter=pc.first_appearance_chapter,
                 mention_count=pc.mention_count,
                 confidence=confidence,
+                evidence=evidence,
             ))
 
         # Also add low confidence characters (no profiles generated for these)

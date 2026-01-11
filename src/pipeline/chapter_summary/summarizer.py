@@ -30,7 +30,9 @@ Your summaries should help a narrator understand:
 - What happens in this section
 - The emotional tone and pacing
 - Which characters appear and speak
-- Key moments that require vocal emphasis or character voices"""
+- Key moments that require vocal emphasis or character voices
+
+Always respond with valid JSON. No other text."""
 
 
 CHUNK_SUMMARY_PROMPT = """Summarize this section of a chapter for audiobook narration preparation.
@@ -41,13 +43,25 @@ SECTION: {chunk_num} of {total_chunks}
 TEXT:
 {text}
 
-Provide a JSON response with:
-- "summary": 2-3 sentence summary of what happens
-- "key_events": List of 2-4 main events/moments
-- "characters_mentioned": List of character names that appear
-- "tone": Primary emotional tone (one of: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark)
+Return a JSON response matching this example format exactly:
 
-Return ONLY valid JSON."""
+```json
+{{
+  "summary": "The protagonist arrives at an unfamiliar location and encounters a mysterious stranger. They engage in tense conversation that reveals hidden motivations. The section ends with an unexpected revelation.",
+  "key_events": [
+    "Protagonist enters the building",
+    "Confrontation with the stranger",
+    "Discovery of a hidden letter",
+    "Decision to investigate further"
+  ],
+  "characters_mentioned": ["Michael", "Sarah", "Dr. Patterson"],
+  "tone": "suspenseful"
+}}
+```
+
+Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
+
+Return ONLY valid JSON matching the above structure. No other text."""
 
 
 CONSOLIDATE_SYSTEM = """You are a literary analyst creating chapter summaries for audiobook narration.
@@ -57,7 +71,9 @@ Do NOT use any prior knowledge about this book, author, or characters.
 If you recognize this as a famous work, IGNORE what you know about it.
 Analyze only what is explicitly written in the provided summaries.
 
-Combine section summaries into a cohesive chapter summary that captures the full arc."""
+Combine section summaries into a cohesive chapter summary that captures the full arc.
+
+Always respond with valid JSON. No other text."""
 
 
 CONSOLIDATE_PROMPT = """Combine these section summaries into a single chapter summary.
@@ -68,16 +84,32 @@ WORD COUNT: {word_count}
 SECTION SUMMARIES:
 {chunk_summaries}
 
-Create a unified chapter summary as JSON with:
-- "summary": 3-5 sentences capturing the full chapter arc
-- "key_events": 3-6 most important events across the chapter
-- "characters_present": All characters mentioned (deduplicated)
-- "primary_tone": The dominant emotional tone for the chapter
-- "secondary_tones": Other notable tones (list of 0-2)
-- "dialogue_density": "high" (lots of conversation), "medium" (balanced), or "low" (mostly narrative)
-- "pov_character": Point-of-view character if identifiable, or null
+Return a JSON response matching this example format exactly:
 
-Return ONLY valid JSON."""
+```json
+{{
+  "summary": "The chapter begins with a quiet morning that quickly escalates into conflict. Characters confront long-buried tensions as past events resurface. A series of revelations shifts relationships and alliances. The chapter concludes with an uncertain truce that sets up future complications.",
+  "key_events": [
+    "Morning conversation reveals underlying tension",
+    "Discovery of the missing item",
+    "Heated argument between main characters",
+    "Unexpected ally provides crucial information",
+    "Temporary resolution with conditions",
+    "Hint at future complications"
+  ],
+  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "primary_tone": "tense",
+  "secondary_tones": ["hopeful", "mysterious"],
+  "dialogue_density": "high",
+  "pov_character": "Michael"
+}}
+```
+
+Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
+Valid dialogue_density values: "high", "medium", "low"
+Set pov_character to null if not identifiable from the summaries
+
+Return ONLY valid JSON matching the above structure. No other text."""
 
 
 SINGLE_CHAPTER_SYSTEM = """You are a literary analyst creating chapter summaries for audiobook narration.
@@ -87,7 +119,9 @@ Do NOT use any prior knowledge about this book, author, or characters.
 If you recognize this as a famous work, IGNORE what you know about it.
 Analyze only what is explicitly written in the provided text.
 
-Your summaries help narrators understand plot, tone, and character presence before recording."""
+Your summaries help narrators understand plot, tone, and character presence before recording.
+
+Always respond with valid JSON. No other text."""
 
 
 SINGLE_CHAPTER_PROMPT = """Summarize this chapter for audiobook narration preparation.
@@ -98,16 +132,32 @@ WORD COUNT: {word_count}
 TEXT:
 {text}
 
-Provide a JSON response with:
-- "summary": 3-5 sentences summarizing the chapter
-- "key_events": List of 3-6 main events
-- "characters_present": List of character names that appear
-- "primary_tone": Dominant emotional tone (one of: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark)
-- "secondary_tones": Other notable tones (list of 0-2)
-- "dialogue_density": "high" (lots of conversation), "medium" (balanced), or "low" (mostly narrative)
-- "pov_character": Point-of-view character if identifiable, or null
+Return a JSON response matching this example format exactly:
 
-Return ONLY valid JSON."""
+```json
+{{
+  "summary": "The chapter begins with a quiet morning that quickly escalates into conflict. Characters confront long-buried tensions as past events resurface. A series of revelations shifts relationships and alliances. The chapter concludes with an uncertain truce that sets up future complications.",
+  "key_events": [
+    "Morning conversation reveals underlying tension",
+    "Discovery of the missing item",
+    "Heated argument between main characters",
+    "Unexpected ally provides crucial information",
+    "Temporary resolution with conditions",
+    "Hint at future complications"
+  ],
+  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "primary_tone": "tense",
+  "secondary_tones": ["hopeful", "mysterious"],
+  "dialogue_density": "high",
+  "pov_character": "Michael"
+}}
+```
+
+Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
+Valid dialogue_density values: "high", "medium", "low"
+Set pov_character to null if not identifiable from the text
+
+Return ONLY valid JSON matching the above structure. No other text."""
 
 
 class ChapterSummarizer:

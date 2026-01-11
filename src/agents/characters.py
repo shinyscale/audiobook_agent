@@ -407,6 +407,8 @@ class CharacterAgent(Agent):
                             suggested_fix="Consider merging these characters",
                         ))
         except Exception as e:
-            logger.warning(f"LLM duplicate check failed: {e}")
+            logger.error(f"LLM duplicate check failed: {e}")
+            # Re-raise to fail fast instead of silently continuing
+            raise
 
         return issues

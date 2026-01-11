@@ -142,14 +142,16 @@ class LLMCharacterProposer(BaseCharacterProposer):
         result, response = self.llm.query_json(prompt, system=CHARACTER_SYSTEM_PROMPT)
 
         if not response.success:
-            # HTTP error or connection failure
-            logger.debug(f"LLM character proposer failed: {response.error}")
-            return []
+            # HTTP error or connection failure - fail fast instead of returning empty list
+            error_msg = f"LLM character proposer failed: {response.error}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         if result is None:
-            # JSON parsing failure
-            logger.warning(f"LLM character proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
-            return []
+            # JSON parsing failure - fail fast instead of returning empty list
+            error_msg = f"LLM character proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         if not isinstance(result, list):
             # Try to extract list from dict response (some models wrap in {"characters": [...]})
@@ -161,11 +163,13 @@ class LLMCharacterProposer(BaseCharacterProposer):
                         result = result[key]
                         break
                 else:
-                    logger.warning(f"LLM character proposer returned dict without list: {list(result.keys()) if result else 'empty'}")
-                    return []
+                    error_msg = f"LLM character proposer returned dict without list: {list(result.keys()) if result else 'empty'}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
             else:
-                logger.warning(f"LLM character proposer returned non-list: {type(result)}")
-                return []
+                error_msg = f"LLM character proposer returned non-list: {type(result)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
         proposals = []
         for item in result:

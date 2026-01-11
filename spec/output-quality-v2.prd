@@ -1,0 +1,770 @@
+# PRD: Analysis Quality and Completeness Improvements
+
+**Version:** 2.0
+**Status:** Draft
+**Priority:** Critical
+**Target:** Analysis quality, error transparency, and comprehensive output
+
+## Problem Statement
+
+Recent analysis runs have revealed multiple quality issues that undermine the tool's usefulness for literary analysis:
+
+1. **Silent error masking**: Validation errors are caught and masked with hardcoded fallback confidence values (0.5, 0.7), hiding bugs instead of reporting them
+2. **Wrong canonical names**: The system uses alphabetical order to break ties, causing characters to be listed by less-frequently-used names
+3. **Failed character merges**: First name + title+last name patterns (e.g., "Nick" + "Mr. Carraway") fail to merge
+4. **Inadequate chapter summaries**: Summaries are too brief, causing inaccuracies (e.g., stating characters are walking when they're in a car, or referencing unexplained incidents)
+5. **Missing overview information**: No high-level book structure, plot summary, or analysis metadata (models used, timing per phase)
+6. **Incomplete character proof**: Character proof facts appear to come only from the beginning of the book, not the entire narrative
+7. **Poor confidence scoring**: High-mention characters incorrectly marked as low confidence
+8. **Performance issues**: Analysis takes too long due to broken models and redundant processing
+9. **Broken model usage**: Models that return empty responses continue to be used
+
+The root problem is an overly complex error handling system that masks failures instead of reporting them.
+
+## Key Principle
+
+**Fail-fast is better than fail-silent.**
+
+The system should report errors immediately so they can be fixed, not mask them with fallback values and continue processing.
+
+## Features and User Stories
+
+### Feature 1: Fail-Fast Error Handling
+
+**Priority:** CRITICAL
+**Rationale:** Errors should be reported so they can be fixed, not skipped over with fallbacks.
+
+**Current behavior:** When LLM validation fails (JSON parsing, model errors), the system returns 0.5 confidence and continues. This masks real bugs.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "When character validation fails due to JSON parsing error, analysis stops with clear error message",
+  "steps": [
+    "Run analysis on a book with character extraction enabled",
+    "Trigger a JSON parsing failure in character validation (e.g., malformed LLM response)",
+    "Verify analysis stops immediately with ValueError exception",
+    "Check error message includes character name and specific parse error",
+    "Verify no fallback confidence value (0.5) is assigned"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "When LLM proposer fails, analysis stops with clear error message instead of returning empty list",
+  "steps": [
+    "Run analysis with LLM proposer enabled",
+    "Trigger an LLM proposer failure (e.g., model returns invalid format)",
+    "Verify analysis stops with ValueError exception",
+    "Check error message describes the proposer failure",
+    "Verify no empty character list is silently returned"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "When consensus alias resolution fails, analysis stops instead of falling back to heuristics",
+  "steps": [
+    "Run analysis with LLM alias resolution enabled",
+    "Trigger an alias resolution failure",
+    "Verify analysis stops with clear error message",
+    "Check that heuristic fallback is NOT silently used",
+    "Verify error is actionable (describes what failed)"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Remove all hardcoded confidence fallbacks (0.5, 0.7)
+- Replace `return CharacterValidationResult(..., overall_score=0.5)` with `raise ValueError(...)`
+- Replace `return []` with `raise ValueError(...)`
+- Remove try/except blocks that swallow errors, or re-raise after logging
+
+**Affected files:**
+- `src/pipeline/character_extraction/validator.py` (lines 102, 239-264)
+- `src/pipeline/character_extraction/proposers/llm.py` (lines 144-168)
+- `src/pipeline/character_extraction/consensus.py` (lines 459-467, 221)
+- `src/pipeline/character_extraction/pipeline.py` (lines 157-172, 209-214, 244-263)
+- `src/agents/characters.py` (lines 395-410)
+
+---
+
+### Feature 2: Frequency-Based Canonical Names
+
+**Priority:** HIGH
+**Rationale:** Characters should be listed by their most commonly used names, matching how readers know them.
+
+**Current behavior:** Alphabetical order used as tiebreaker, causing less-frequently-used names to become canonical.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Character with multiple name variants uses most frequently mentioned name as canonical",
+  "steps": [
+    "Run analysis on a book where a character has multiple names (e.g., birth name vs. adopted name)",
+    "Identify the name mentioned most frequently in the text",
+    "Verify that name is listed as canonical in analysis output",
+    "Check that less-frequently-used names appear as aliases",
+    "Verify mention count is displayed for the canonical entry"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Canonical name selection prioritizes frequency over alphabetical order",
+  "steps": [
+    "Run analysis on a book with character having two equally-long name variants",
+    "Note which name appears more frequently (e.g., 523 mentions vs 8 mentions)",
+    "Verify the more frequently mentioned name becomes canonical",
+    "Check that alphabetical order is NOT the deciding factor",
+    "Verify both names are preserved (one as canonical, one as alias)"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Update `_pick_canonical()` in `consensus.py` (lines 405-426)
+- Add `count1` and `count2` parameters for mention counts
+- Priority: (1) longer names, (2) untitled over titled, (3) higher mention count, (4) alphabetical
+
+**Affected files:**
+- `src/pipeline/character_extraction/consensus.py` (_pick_canonical and all callers)
+
+---
+
+### Feature 3: Improved Character Merge Validation
+
+**Priority:** HIGH
+**Rationale:** First name + title+last name is a common referential pattern in literature.
+
+**Current behavior:** "Nick" and "Mr. Carraway" fail to merge because they share no significant words (3+ chars).
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "First name and title+last name merge when they co-occur in chapters",
+  "steps": [
+    "Run analysis on a book where a character is referred to by first name and formal title+last name",
+    "Verify both references are detected during extraction",
+    "Check that they merge into a single character entry",
+    "Verify canonical name includes both first and last name",
+    "Confirm aliases include both the single first name and the title+last name forms"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Narrator referenced by first name and formal name is identified as single character",
+  "steps": [
+    "Run analysis on a first-person narrative",
+    "Identify narrator references (e.g., by first name, by title+last name)",
+    "Verify all narrator references merge into single character",
+    "Check character list shows only one entry for narrator",
+    "Verify mention count combines all references"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Update `_validate_merge()` in `consensus.py` (lines 724-747)
+- Add logic to detect single-word + (title + last-name) patterns
+- Accept merge if: single word is first name, multi-word is title + last name, and chapter overlap exists
+
+**Affected files:**
+- `src/pipeline/character_extraction/consensus.py` (_validate_merge method)
+
+---
+
+### Feature 4: Confidence Scoring Improvements
+
+**Priority:** HIGH
+**Rationale:** High-mention characters should have high confidence scores.
+
+**Current behavior:** Characters with many mentions can have low confidence due to averaged fallback values.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Character with high mention count receives high confidence score",
+  "steps": [
+    "Run analysis on a book",
+    "Identify character with highest mention count (e.g., 300+ mentions)",
+    "Verify character is marked as HIGH confidence",
+    "Check confidence score is above threshold (e.g., >0.7)",
+    "Verify mention count is a factor in confidence calculation"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Major characters (protagonists, antagonists) receive high confidence scores",
+  "steps": [
+    "Run analysis on a book with clear major characters",
+    "Identify the 3-5 most frequently mentioned characters",
+    "Verify all are marked as HIGH confidence",
+    "Check no major character is incorrectly marked LOW",
+    "Verify confidence scoring considers mention frequency"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Adjust confidence thresholds based on mention count
+- Ensure mention count is weighted in final confidence calculation
+- Remove hardcoded 0.5 fallbacks that ignore mention count
+
+**Affected files:**
+- `src/pipeline/character_extraction/validator.py`
+- `src/pipeline/character_extraction/consensus.py`
+
+---
+
+### Feature 5: Longer and More Accurate Chapter Summaries
+
+**Priority:** HIGH
+**Rationale:** Brief summaries cause factual inaccuracies and omit important context.
+
+**Current behavior:** Chapter summaries are too brief, causing errors (e.g., stating characters are walking when in a car, referencing unexplained incidents like "pearls").
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Chapter summaries include sufficient detail to be factually accurate",
+  "steps": [
+    "Run analysis on a book with detailed scenes",
+    "Review generated chapter summaries for factual accuracy",
+    "Verify setting details are correct (e.g., location, transportation)",
+    "Check that character actions match the actual narrative",
+    "Confirm no incorrect details due to enforced brevity"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Chapter summaries provide context for referenced events",
+  "steps": [
+    "Run analysis on a chapter that references a specific incident or object",
+    "Review the generated summary",
+    "Verify referenced incidents include brief explanation if mentioned",
+    "Check that context is provided for items that would seem odd without explanation",
+    "Confirm summary is understandable without reading the full chapter"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Chapter summaries are configurable in length",
+  "steps": [
+    "Run analysis with default summary length",
+    "Run analysis with longer summary length configuration",
+    "Verify longer summaries include more detail",
+    "Check that both versions maintain factual accuracy",
+    "Confirm configuration option is documented and accessible"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Increase target length for chapter summaries (e.g., from 1-2 sentences to 3-5 sentences)
+- Update prompts to prioritize factual accuracy over brevity
+- Add configuration option for summary length preference
+- Update prompts to include brief context for referenced incidents
+
+**Affected files:**
+- `src/pipeline/chapter_summary/` (prompts and summarizer)
+- Configuration files for length settings
+
+---
+
+### Feature 6: Analysis Overview Page
+
+**Priority:** HIGH
+**Rationale:** Users need high-level understanding of the book and analysis metadata.
+
+**Current behavior:** No overview page exists. Users must piece together information from various outputs.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Analysis output includes overview page with book structure explanation",
+  "steps": [
+    "Run analysis on a book",
+    "Open the generated overview page",
+    "Verify page includes explanation of book structure (e.g., chapter count, narrative style, parts/sections)",
+    "Check structure explanation is derived from the actual detected structure",
+    "Confirm structure explanation is clear and informative"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Overview page includes 3-5 paragraph plot summary",
+  "steps": [
+    "Run analysis on a book",
+    "Open the overview page",
+    "Verify page includes a plot summary that is 3-5 paragraphs long",
+    "Check summary covers main plot points and character arcs",
+    "Verify summary is coherent and provides useful overview",
+    "Confirm summary is suitable for narrator preparation"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Overview page shows which models were used for each analysis phase",
+  "steps": [
+    "Run analysis with per-agent model configuration",
+    "Open the overview page",
+    "Verify page lists each analysis phase (structure, characters, summaries, pronunciation)",
+    "Check that model name/identifier is shown for each phase",
+    "Confirm model information is accurate and matches what was actually used"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Overview page shows duration for each analysis phase",
+  "steps": [
+    "Run analysis on a book",
+    "Open the overview page",
+    "Verify page shows timing for each phase (structure, characters, summaries, etc.)",
+    "Check that durations are in human-readable format (e.g., '15m 23s')",
+    "Verify total analysis duration is displayed",
+    "Confirm timing information matches the quality report"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Overview page is included in HTML report output",
+  "steps": [
+    "Run analysis with HTML report generation",
+    "Open the HTML report",
+    "Verify overview page is the first/prominent section",
+    "Check that overview integrates well with rest of report",
+    "Confirm overview is styled consistently with report theme"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Create new overview generator that produces:
+  - Book structure analysis (chapters, parts, narrative style)
+  - 3-5 paragraph plot summary (synthesized from chapter summaries)
+  - Model usage table (agent → model mapping)
+  - Timing breakdown table (agent → duration)
+- Integrate overview into HTML report as first section
+- Add overview to JSON output and TUI display
+
+**Affected files:**
+- New: `src/pipeline/overview/generator.py`
+- `src/export/html_report.py` (integrate overview section)
+- `src/analyzer.py` (call overview generator, include in results)
+
+---
+
+### Feature 7: Character Proof from Entire Narrative
+
+**Priority:** MEDIUM
+**Rationale:** Character understanding should be based on complete narrative, not just first appearance.
+
+**Current behavior:** Character "proof" facts appear to come only from the beginning of the book.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Character proof facts are collected from throughout the entire book",
+  "steps": [
+    "Run analysis on a book",
+    "Review character entries and their proof facts",
+    "Verify proof facts include references from beginning, middle, and end of book",
+    "Check chapter numbers/locations of proof facts span the entire narrative",
+    "Confirm no bias toward early chapters in fact selection"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Character proof facts are weighted equally across all chapters",
+  "steps": [
+    "Run analysis on a book",
+    "Examine the character extraction logic for bias",
+    "Verify extraction considers all chapters with equal weight",
+    "Check that proof facts are not disproportionately from first chapters",
+    "Confirm character development throughout narrative is captured"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Character descriptions reflect narrative arc, not just introduction",
+  "steps": [
+    "Run analysis on a book with character development/arcs",
+    "Review character descriptions",
+    "Verify descriptions capture character traits from entire story",
+    "Check that character changes/development are reflected if significant",
+    "Confirm descriptions are not solely based on first appearance"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Investigate current character proof collection mechanism
+- Ensure sampling/selection is uniform across all chapters
+- Update prompts to explicitly request proof from throughout narrative
+- Consider weighting: distribute proof facts evenly by chapter position (early/mid/late)
+
+**Affected files:**
+- `src/pipeline/character_extraction/` (proposers, consensus)
+- `src/agents/characters.py` (character profile generation)
+
+---
+
+### Feature 8: Performance Optimization
+
+**Priority:** MEDIUM
+**Rationale:** Analysis should complete in reasonable time to be practical for users.
+
+**Current behavior:** Analysis can take 2+ hours for a novel due to redundant processing and broken models.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "Full book analysis completes in under 60 minutes for typical novel",
+  "steps": [
+    "Run analysis on a typical-length novel (70,000-100,000 words)",
+    "Measure total analysis duration",
+    "Verify analysis completes in under 60 minutes",
+    "Check no phase takes disproportionately long",
+    "Confirm quality is not sacrificed for speed"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Character extraction does not take more than 20 minutes for typical novel",
+  "steps": [
+    "Run analysis on a typical novel",
+    "Measure character extraction phase duration",
+    "Verify phase completes in under 20 minutes",
+    "Check that all major characters are still extracted",
+    "Confirm quality metrics remain high"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "System avoids redundant LLM calls through caching and deduplication",
+  "steps": [
+    "Run analysis on a book",
+    "Review LLM call logs for redundancy",
+    "Verify duplicate character proposals are validated only once",
+    "Check that similar requests are not repeated unnecessarily",
+    "Confirm total LLM call count is reasonable (e.g., <500 for typical novel)"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Profile and optimize slow phases (especially character extraction)
+- Implement proposal deduplication before validation
+- Cache validation results for identical normalized names
+- Consider reducing number of proposers or running them in parallel
+- Remove redundant agent verification when pipeline already validated
+
+**Affected files:**
+- `src/pipeline/character_extraction/validator.py`
+- `src/pipeline/character_extraction/pipeline.py`
+- `src/agents/characters.py`
+
+---
+
+### Feature 9: Model Health Checks
+
+**Priority:** MEDIUM
+**Rationale:** Broken models waste time and produce empty/invalid results.
+
+**Current behavior:** Models that return empty responses continue to be used, wasting time and causing failures.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "System detects and excludes models that return empty responses",
+  "steps": [
+    "Configure analysis to use a model that returns empty responses",
+    "Run analysis startup/initialization",
+    "Verify system detects the broken model during health check",
+    "Check that model is excluded from available model list",
+    "Confirm warning message is logged about the broken model"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Model health check validates response generation before analysis",
+  "steps": [
+    "Start analysis with multiple models configured",
+    "Verify health check sends test prompt to each model",
+    "Check that models generating valid responses pass health check",
+    "Verify models generating empty/invalid responses fail health check",
+    "Confirm only healthy models are used for actual analysis"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Health check failures are reported clearly to user",
+  "steps": [
+    "Configure analysis with a broken model",
+    "Run analysis",
+    "Verify user receives clear message about model health check failure",
+    "Check message includes model name/identifier",
+    "Confirm user is informed which models passed and which failed"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Add health check function that tests each model with simple prompt
+- Filter out models that return empty responses or fail health check
+- Run health checks during system initialization or model detection
+- Log warnings for failed models
+- Update model selection UI/logic to exclude unhealthy models
+
+**Affected files:**
+- `src/pipeline/llm.py` or `src/llm/config.py` (health check logic)
+- `src/agents/config.py` (model selection/filtering)
+- `src/gui/desktop.py` (display health status in model selection)
+
+---
+
+### Feature 10: Narrator Role Detection
+
+**Priority:** LOW
+**Rationale:** Identifying the narrator helps users understand narrative perspective.
+
+**Current behavior:** Narrator is not explicitly identified in character descriptions or metadata.
+
+**User Stories:**
+
+```json
+{
+  "category": "functional",
+  "description": "First-person narrator is identified in character list",
+  "steps": [
+    "Run analysis on a first-person narrative book",
+    "Review character list",
+    "Verify narrator character has role indicator (e.g., 'Narrator' or 'POV Character')",
+    "Check that narrator designation is accurate",
+    "Confirm designation appears in HTML report and JSON output"
+  ],
+  "passes": false
+}
+```
+
+```json
+{
+  "category": "functional",
+  "description": "Narrator character description mentions narrative role",
+  "steps": [
+    "Run analysis on a book with clear narrator",
+    "Review narrator's character description",
+    "Verify description mentions their role as narrator or POV character",
+    "Check that description notes narrative perspective (e.g., 'tells the story')",
+    "Confirm narrative role is distinct from plot role"
+  ],
+  "passes": false
+}
+```
+
+**Implementation:**
+- Add narrator detection logic (e.g., first-person pronouns, narrative voice analysis)
+- Update character profiles to include narrative role metadata
+- Display narrator designation in HTML report and character summaries
+- Consider adding to character metadata in JSON output
+
+**Affected files:**
+- `src/pipeline/character_extraction/` (add narrator detection)
+- `src/agents/characters.py` (include narrator role in profiles)
+- `src/export/html_report.py` (display narrator designation)
+
+---
+
+## Implementation Phases
+
+### Phase 1: Error Handling and Core Fixes (CRITICAL)
+**Features:** 1 (Fail-Fast), 2 (Canonical Names), 3 (Merge Validation), 4 (Confidence)
+**Estimate:** 1-2 days
+**Risk:** High - will likely reveal underlying bugs
+**Benefit:** System becomes simpler, bugs become visible and fixable
+
+### Phase 2: Content Quality (HIGH)
+**Features:** 5 (Chapter Summaries), 6 (Overview Page), 7 (Character Proof)
+**Estimate:** 2-3 days
+**Risk:** Medium - requires prompt engineering and new generators
+**Benefit:** Major quality improvement for narrator preparation
+
+### Phase 3: Performance and Robustness (MEDIUM)
+**Features:** 8 (Performance), 9 (Model Health)
+**Estimate:** 1-2 days
+**Risk:** Low - optimizations are additive
+**Benefit:** Faster analysis, more reliable model usage
+
+### Phase 4: Polish (LOW)
+**Features:** 10 (Narrator Detection)
+**Estimate:** 0.5-1 day
+**Risk:** Low - nice-to-have feature
+**Benefit:** Enhanced user experience
+
+---
+
+## Validation Strategy
+
+### Test Data
+- Primary: `tests/data/gatsby.txt` and other classic novels
+- Variety: Books with different structures, narrative styles, character complexities
+- Regression: Ensure existing functionality is not broken
+
+### Universal Success Metrics
+
+1. **Error Transparency**: Analysis fails fast with clear, actionable error messages when validation errors occur
+2. **Canonical Naming**: Characters listed by most frequently used names (not alphabetically determined)
+3. **Character Merging**: First name + formal name variants merge correctly
+4. **Confidence Accuracy**: High-mention characters receive high confidence scores
+5. **Summary Quality**: Chapter summaries are factually accurate with adequate detail
+6. **Overview Completeness**: Overview includes structure, plot, models, and timing
+7. **Character Proof Coverage**: Proof facts distributed across entire narrative
+8. **Performance**: Analysis completes in reasonable time (<60 min for typical novel)
+9. **Model Reliability**: Broken models detected and excluded before use
+10. **Narrator Identification**: First-person narrators identified in character metadata
+
+### Automated Tests
+- Unit tests for each feature's core logic
+- Integration tests for end-to-end analysis workflows
+- Regression tests using known-good analysis outputs as baselines
+
+---
+
+## Technical Notes
+
+### Critical Files by Feature
+
+**Feature 1 (Error Handling):**
+- `src/pipeline/character_extraction/validator.py`
+- `src/pipeline/character_extraction/proposers/llm.py`
+- `src/pipeline/character_extraction/consensus.py`
+- `src/pipeline/character_extraction/pipeline.py`
+- `src/agents/characters.py`
+
+**Feature 2 (Canonical Names):**
+- `src/pipeline/character_extraction/consensus.py` (_pick_canonical)
+
+**Feature 3 (Merge Validation):**
+- `src/pipeline/character_extraction/consensus.py` (_validate_merge)
+
+**Feature 4 (Confidence):**
+- `src/pipeline/character_extraction/validator.py`
+- `src/pipeline/character_extraction/consensus.py`
+
+**Feature 5 (Summaries):**
+- `src/pipeline/chapter_summary/summarizer.py`
+- `src/pipeline/chapter_summary/prompts.py`
+
+**Feature 6 (Overview):**
+- New: `src/pipeline/overview/`
+- `src/export/html_report.py`
+- `src/analyzer.py`
+
+**Feature 7 (Character Proof):**
+- `src/pipeline/character_extraction/proposers/`
+- `src/agents/characters.py`
+
+**Feature 8 (Performance):**
+- `src/pipeline/character_extraction/validator.py`
+- `src/pipeline/character_extraction/pipeline.py`
+
+**Feature 9 (Model Health):**
+- `src/pipeline/llm.py`
+- `src/agents/config.py`
+
+**Feature 10 (Narrator):**
+- `src/pipeline/character_extraction/`
+- `src/export/html_report.py`

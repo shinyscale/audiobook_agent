@@ -19,6 +19,7 @@ from pathlib import Path
 import threading
 import json
 from typing import Optional
+import os
 
 try:
     from ..analyzer import AudiobookAnalyzer
@@ -73,6 +74,32 @@ try:
     HAS_SYSTEM_DETECTION = True
 except ImportError:
     HAS_SYSTEM_DETECTION = False
+
+
+def make_combobox_auto_expand(combobox: "ttk.Combobox"):
+    """Make combobox dropdown expand to fit longest value.
+
+    This fixes the issue where long model names are truncated in dropdowns.
+    """
+    def adjust_dropdown_width():
+        # Get all values
+        values = combobox.cget('values')
+        if not values:
+            return
+
+        # Find longest value
+        max_length = max(len(str(v)) for v in values)
+
+        # Set dropdown width (convert chars to pixels, roughly 7px per char)
+        # The combobox widget width controls the dropdown listbox width
+        try:
+            # Set the listbox width to accommodate longest item
+            combobox.configure(width=max(max_length, 30))
+        except:
+            pass  # Ignore errors
+
+    # Set postcommand to adjust width before showing dropdown
+    combobox.configure(postcommand=adjust_dropdown_width)
 
 
 class ProgressWindow:
@@ -395,6 +422,7 @@ class LLMSettingsPanel:
             width=35
         )
         self.model_combo.pack(side=tk.LEFT, padx=5)
+        make_combobox_auto_expand(self.model_combo)  # Auto-expand for long model names
 
         self.detect_models_button = ttk.Button(
             model_row,
@@ -1136,6 +1164,7 @@ class AgentModelConfigPanel:
                 state="readonly"
             )
             combo.pack(side=tk.LEFT, padx=5)
+            make_combobox_auto_expand(combo)  # Auto-expand for long model names
             # Store reference for updating values
             setattr(self, f"combo_{agent_name}", combo)
 
@@ -1441,6 +1470,8 @@ class AudiobookPrepGUI:
         self._last_run_dir: Optional[Path] = None  # Per-run output directory
 
         self._create_widgets()
+        self._load_settings()  # Load persisted settings
+        self._setup_auto_save()  # Setup automatic settings saving
         
     def _create_widgets(self):
         """Create GUI widgets."""
@@ -1877,7 +1908,108 @@ class AudiobookPrepGUI:
         import webbrowser
         file_url = f"file://{html_path.absolute()}"
         webbrowser.open(file_url)
-    
+
+    def _get_settings_file(self) -> Path:
+        """Get path to settings file."""
+        # Use XDG_CONFIG_HOME if available, otherwise ~/.config
+        config_dir = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+        settings_dir = config_dir / 'audiobook_prep'
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        return settings_dir / 'gui_settings.json'
+
+    def _save_settings(self):
+        """Save current settings to file."""
+        try:
+            settings = {
+                'output_dir': self.output_dir.get(),
+                'generate_html': self.generate_html.get(),
+                'wpm': self.wpm.get(),
+                'use_llm': self.use_llm.get(),
+                'llm_settings': self.llm_panel.get_settings(),
+                'agent_models': {
+                    agent_name: model_var.get()
+                    for agent_name, model_var in self.agent_config_panel.agent_models.items()
+                },
+            }
+
+            settings_file = self._get_settings_file()
+            with open(settings_file, 'w') as f:
+                json.dump(settings, f, indent=2, default=str)
+        except Exception as e:
+            # Don't crash GUI if settings save fails
+            print(f"Warning: Failed to save settings: {e}")
+
+    def _load_settings(self):
+        """Load settings from file."""
+        try:
+            settings_file = self._get_settings_file()
+            if not settings_file.exists():
+                return  # No settings file yet
+
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+
+            # Restore basic settings
+            if 'output_dir' in settings:
+                self.output_dir.set(settings['output_dir'])
+            if 'generate_html' in settings:
+                self.generate_html.set(settings['generate_html'])
+            if 'wpm' in settings:
+                self.wpm.set(settings['wpm'])
+            if 'use_llm' in settings:
+                self.use_llm.set(settings['use_llm'])
+
+            # Restore LLM settings
+            if 'llm_settings' in settings:
+                llm = settings['llm_settings']
+                if 'provider' in llm:
+                    self.llm_panel.provider.set(llm['provider'])
+                    self.llm_panel._update_for_provider()
+                if 'model' in llm:
+                    self.llm_panel.model.set(llm['model'])
+                if 'base_url' in llm:
+                    self.llm_panel.base_url.set(llm['base_url'])
+                if 'context_length' in llm:
+                    self.llm_panel.context_length.set(llm['context_length'])
+                if 'api_key' in llm and llm['api_key']:
+                    self.llm_panel.api_key.set(llm['api_key'])
+
+                # Detect models after loading settings
+                if llm.get('provider') in ('ollama', 'lm_studio'):
+                    self.root.after(500, self.llm_panel._detect_models)
+
+            # Restore agent model selections
+            if 'agent_models' in settings:
+                for agent_name, model in settings['agent_models'].items():
+                    if agent_name in self.agent_config_panel.agent_models:
+                        self.agent_config_panel.agent_models[agent_name].set(model)
+
+        except Exception as e:
+            # Don't crash GUI if settings load fails
+            print(f"Warning: Failed to load settings: {e}")
+
+    def _on_setting_change(self, *args):
+        """Called when any setting changes to save automatically."""
+        self._save_settings()
+
+    def _setup_auto_save(self):
+        """Setup automatic saving when settings change."""
+        # Add traces to main settings variables
+        self.output_dir.trace_add('write', self._on_setting_change)
+        self.generate_html.trace_add('write', self._on_setting_change)
+        self.wpm.trace_add('write', self._on_setting_change)
+        self.use_llm.trace_add('write', self._on_setting_change)
+
+        # Add traces to LLM panel settings
+        self.llm_panel.provider.trace_add('write', self._on_setting_change)
+        self.llm_panel.model.trace_add('write', self._on_setting_change)
+        self.llm_panel.base_url.trace_add('write', self._on_setting_change)
+        self.llm_panel.context_length.trace_add('write', self._on_setting_change)
+
+        # Add traces to agent model selections
+        for model_var in self.agent_config_panel.agent_models.values():
+            model_var.trace_add('write', self._on_setting_change)
+
     def run(self):
         """Start GUI main loop."""
         self.root.mainloop()

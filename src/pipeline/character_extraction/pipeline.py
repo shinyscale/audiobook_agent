@@ -170,6 +170,8 @@ class CharacterExtractionPipeline:
                     checkpoint.errors.append(
                         f"Proposer {proposer.name} failed on chapter {chapter_idx}: {str(e)}"
                     )
+                    # Re-raise to fail fast instead of continuing with errors
+                    raise
 
             chapter_proposals[chapter_idx] = proposals
             logger.info(
@@ -212,6 +214,8 @@ class CharacterExtractionPipeline:
             except Exception as e:
                 logger.error(f"Validation failed for '{proposal.name}': {e}")
                 checkpoint.errors.append(f"Validation failed for '{proposal.name}': {str(e)}")
+                # Re-raise to fail fast instead of continuing with errors
+                raise
 
         valid_count = sum(1 for v in validations if v.is_valid)
         logger.info(f"Validation complete: {valid_count}/{total_proposals} valid")
@@ -254,13 +258,8 @@ class CharacterExtractionPipeline:
         except Exception as e:
             logger.error(f"Consensus building failed: {e}")
             checkpoint.errors.append(f"Consensus building failed: {str(e)}")
-            checkpoint.character_map = CharacterMap(
-                characters=[],
-                low_confidence_characters=[],
-                total_mentions=0,
-                total_chapters=total_chapters,
-                pipeline_metadata={"error": str(e)},
-            )
+            # Re-raise to fail fast instead of returning empty character map
+            raise
 
         checkpoint.stage = "complete"
         checkpoint.timestamp = datetime.now().isoformat()

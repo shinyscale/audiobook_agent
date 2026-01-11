@@ -44,28 +44,105 @@ HTML_TEMPLATE = '''
 
         .container { max-width: 1400px; margin: 0 auto; }
 
-        /* Navigation */
+        /* Tab Navigation */
         nav {
             position: sticky;
             top: 0;
             background: var(--surface);
-            padding: 1rem;
+            padding: 0;
             border-radius: 8px;
             margin-bottom: 2rem;
             z-index: 100;
             display: flex;
-            gap: 1rem;
+            gap: 0;
             flex-wrap: wrap;
             justify-content: center;
+            overflow: hidden;
         }
         nav a {
             color: var(--text);
             text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            transition: background 0.2s;
+            padding: 1rem 1.5rem;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            position: relative;
         }
-        nav a:hover { background: var(--primary); }
+        nav a:hover {
+            background: var(--primary);
+        }
+        nav a.active {
+            background: var(--surface-alt);
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Hide all tab content by default, show only active tab */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* View toggle buttons */
+        .view-toggle {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .view-toggle:hover {
+            background: var(--primary);
+        }
+        .view-toggle.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Pronunciation views */
+        .pron-view {
+            display: none;
+        }
+        .pron-view.active {
+            display: block;
+        }
+
+        /* Print view: show all tabs and all pronunciation views */
+        @media print {
+            nav {
+                display: none;
+            }
+            .tab-content {
+                display: block !important;
+                page-break-before: always;
+            }
+            .tab-content:first-of-type {
+                page-break-before: auto;
+            }
+            .view-toggle {
+                display: none !important;
+            }
+            .pron-view {
+                display: block !important;
+                page-break-before: always;
+            }
+        }
+
+        /* Mobile responsive tabs */
+        @media (max-width: 768px) {
+            nav {
+                flex-direction: column;
+            }
+            nav a {
+                text-align: center;
+            }
+        }
 
         header {
             text-align: center;
@@ -153,6 +230,29 @@ HTML_TEMPLATE = '''
         .tag.high { background: var(--success); }
         .tag.medium { background: var(--warning); }
         .tag.low { background: #5a2727; }
+
+        /* Confidence badges */
+        .confidence-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 0.5rem;
+        }
+        .confidence-badge.high {
+            background: var(--success);
+            color: #fff;
+        }
+        .confidence-badge.medium {
+            background: var(--warning);
+            color: #333;
+        }
+        .confidence-badge.low {
+            background: #5a2727;
+            color: #fff;
+        }
 
         .context {
             font-style: italic;
@@ -362,58 +462,92 @@ HTML_TEMPLATE = '''
 <body>
     <div class="container">
         <nav>
-            <a href="#overview">Overview</a>
-            <a href="#chapters">Chapters</a>
-            <a href="#relationships">Relationships</a>
-            <a href="#characters">Characters</a>
-            <a href="#pronunciations">Pronunciations</a>
+            <a href="#overview" class="tab-link" data-tab="overview">Overview</a>
+            <a href="#chapters" class="tab-link" data-tab="chapters">Chapters</a>
+            <a href="#characters" class="tab-link" data-tab="characters">Characters</a>
+            <a href="#pronunciations" class="tab-link" data-tab="pronunciations">Pronunciations</a>
         </nav>
 
-        <header id="overview">
-            <h1>{{ title }}</h1>
-            <p class="meta">
-                {% if author %}by {{ author }} &middot; {% endif %}
-                Narrator's Guide &middot; Generated {{ analyzed_at }}
-            </p>
-            {% if llm_model or analysis_duration %}
-            <p class="meta" style="margin-top: 0.5rem; font-size: 0.9rem;">
-                {% if llm_model and llm_model != 'none' %}Analyzed with {{ llm_model }}{% endif %}
-                {% if llm_model and llm_model != 'none' and analysis_duration %} in {% elif analysis_duration %}Analyzed in {% endif %}
-                {% if analysis_duration %}{{ analysis_duration }}{% endif %}
-            </p>
-            {% endif %}
-        </header>
+        <div id="overview" class="tab-content active">
+            <header>
+                <h1>{{ title }}</h1>
+                <p class="meta">
+                    {% if author %}by {{ author }} &middot; {% endif %}
+                    Narrator's Guide &middot; Generated {{ analyzed_at }}
+                </p>
+                {% if llm_model or analysis_duration %}
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    {% if llm_model and llm_model != 'none' %}Analyzed with {{ llm_model }}{% endif %}
+                    {% if llm_model and llm_model != 'none' and analysis_duration %} in {% elif analysis_duration %}Analyzed in {% endif %}
+                    {% if analysis_duration %}{{ analysis_duration }}{% endif %}
+                </p>
+                {% endif %}
+            </header>
 
-        <div class="stats">
-            <div class="stat-card">
-                <div class="value">{{ word_count }}</div>
-                <div class="label">Words</div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="value">{{ word_count }}</div>
+                    <div class="label">Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">{{ duration }}</div>
+                    <div class="label">Est. Duration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">{{ chapter_count }}</div>
+                    <div class="label">Chapters</div>
+                </div>
+                {% if prologue_count > 0 %}
+                <div class="stat-card">
+                    <div class="value">{{ prologue_count }}</div>
+                    <div class="label">Prologue Materials</div>
+                </div>
+                {% endif %}
+                <div class="stat-card">
+                    <div class="value">{{ main_character_count }}</div>
+                    <div class="label">Main Characters</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">{{ pronunciation_count }}</div>
+                    <div class="label">Pronunciation Notes</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="value">{{ duration }}</div>
-                <div class="label">Est. Duration</div>
-            </div>
-            <div class="stat-card">
-                <div class="value">{{ chapter_count }}</div>
-                <div class="label">Chapters</div>
-            </div>
-            {% if prologue_count > 0 %}
-            <div class="stat-card">
-                <div class="value">{{ prologue_count }}</div>
-                <div class="label">Prologue Materials</div>
-            </div>
+
+            <section id="relationships">
+                <h2>🔗 Key Relationships</h2>
+                {% if relationships %}
+                <div class="relationship-grid">
+                    {% for char_name, rels in relationships.items() %}
+                    <div class="relationship-card">
+                        <h4>{{ char_name }}</h4>
+                        <ul>
+                            {% for rel_name, rel_type in rels.items() %}
+                            <li>
+                                <strong>{{ rel_name }}</strong>
+                                <span class="rel-type">{{ rel_type }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="color: var(--muted);">No explicit relationships detected.</p>
+                {% endif %}
+            </section>
+
+            {% if warnings %}
+            <section>
+                <h2>⚠️ Warnings</h2>
+                {% for warning in warnings %}
+                <div class="warning">{{ warning }}</div>
+                {% endfor %}
+            </section>
             {% endif %}
-            <div class="stat-card">
-                <div class="value">{{ main_character_count }}</div>
-                <div class="label">Main Characters</div>
-            </div>
-            <div class="stat-card">
-                <div class="value">{{ pronunciation_count }}</div>
-                <div class="label">Pronunciation Notes</div>
-            </div>
         </div>
 
-        <section id="chapters">
+        <div id="chapters" class="tab-content">
+        <section>
             <h2>📑 Chapter Guide</h2>
 
             {% if prologue_chapters %}
@@ -466,38 +600,39 @@ HTML_TEMPLATE = '''
             </div>
             {% endfor %}
         </section>
+        </div>
 
-        {% if relationships %}
-        <section id="relationships">
-            <h2>🔗 Character Relationships</h2>
-            <div class="relationship-grid">
-                {% for char_name, rels in relationships.items() %}
-                <div class="relationship-card">
-                    <h4>{{ char_name }}</h4>
-                    <ul>
-                        {% for other, rel_type in rels.items() %}
-                        <li>{{ other }} <span class="rel-type">({{ rel_type }})</span></li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-        {% endif %}
-
-        <section id="characters">
+        <div id="characters" class="tab-content">
+        <section>
             <h2>👥 Character Guide</h2>
+
+            <!-- Confidence Filter -->
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: var(--muted); margin-right: 0.5rem;">
+                    <input type="checkbox" id="show-low-confidence-only" onchange="filterByConfidence(this.checked)">
+                    Show only low-confidence items
+                </label>
+            </div>
 
             {% if main_characters %}
             <div class="character-group">
                 <h3>Main Characters <span class="count">{{ main_characters|length }}</span></h3>
 
                 {% for char in main_characters %}
-                <div class="character-profile">
-                    <h4>{{ char.canonical_name }}</h4>
+                <div class="character-profile character-item" data-confidence="{{ char.confidence.value }}">
+                    <h4>
+                        {{ char.canonical_name }}
+                        <span class="confidence-badge {{ char.confidence.value }}" title="Confidence: {{ char.confidence.value }}">
+                            {% if char.confidence.value == 'high' %}✓
+                            {% elif char.confidence.value == 'medium' %}!
+                            {% else %}⚠
+                            {% endif %}
+                        </span>
+                    </h4>
                     <div class="profile-meta">
                         <span>{{ char.mention_count }} mentions</span>
                         <span>First appears: Ch. {{ char.first_appearance_chapter or "?" }}</span>
+                        <span class="tag {{ char.confidence.value }}">{{ char.confidence.value }} confidence</span>
                         {% if char.relationships %}
                         <span>Relationships:
                             {% for other, rel in char.relationships.items() %}
@@ -583,10 +718,34 @@ HTML_TEMPLATE = '''
             </div>
             {% endif %}
         </section>
+        </div>
 
-        <section id="pronunciations">
+        <div id="pronunciations" class="tab-content">
+        <section>
             <h2>🗣️ Pronunciation Guide</h2>
 
+            <!-- View Toggle and Search -->
+            <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="color: var(--muted); margin-right: 0.5rem;">View:</span>
+                    <button id="view-by-type" class="view-toggle active" onclick="switchPronView('by-type')">By Type</button>
+                    <button id="view-by-chapter" class="view-toggle" onclick="switchPronView('by-chapter')">By Chapter</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 250px;">
+                    <span style="color: var(--muted);">Search:</span>
+                    <input type="text" id="pron-search" placeholder="Filter pronunciations..."
+                           style="flex: 1; padding: 0.5rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px;"
+                           oninput="searchPronunciations(this.value)">
+                    <button onclick="clearPronSearch()"
+                            style="padding: 0.5rem 1rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px; cursor: pointer;">
+                        Clear
+                    </button>
+                </div>
+                <div id="pron-count" style="color: var(--muted); font-size: 0.9rem;"></div>
+            </div>
+
+            <!-- By Type View (default) -->
+            <div id="pron-by-type" class="pron-view active">
             {% if homographs %}
             <div class="pron-group">
                 <h3>Homographs <span class="tag homograph">{{ homographs|length }}</span></h3>
@@ -595,6 +754,7 @@ HTML_TEMPLATE = '''
                     <thead>
                         <tr>
                             <th>Word</th>
+                            <th>Confidence</th>
                             <th>Occurrences</th>
                             <th>Options/Notes</th>
                             <th>Example Context</th>
@@ -602,8 +762,16 @@ HTML_TEMPLATE = '''
                     </thead>
                     <tbody>
                         {% for pron in homographs %}
-                        <tr>
+                        <tr class="pron-item" data-confidence="{{ pron.confidence.value }}">
                             <td><strong>{{ pron.word }}</strong></td>
+                            <td>
+                                <span class="confidence-badge {{ pron.confidence.value }}" title="Confidence: {{ pron.confidence.value }}">
+                                    {% if pron.confidence.value == 'high' %}✓
+                                    {% elif pron.confidence.value == 'medium' %}!
+                                    {% else %}⚠
+                                    {% endif %}
+                                </span>
+                            </td>
                             <td>{{ pron.occurrences }}</td>
                             <td>{{ pron.notes or "—" }}</td>
                             <td class="context">
@@ -711,21 +879,188 @@ HTML_TEMPLATE = '''
                 </table>
             </div>
             {% endif %}
-        </section>
+            </div>
+            <!-- End By Type View -->
 
-        {% if warnings %}
-        <section>
-            <h2>⚠️ Warnings</h2>
-            {% for warning in warnings %}
-            <div class="warning">{{ warning }}</div>
+            <!-- By Chapter View -->
+            <div id="pron-by-chapter" class="pron-view">
+            {% if chapter_pronunciation_list %}
+            {% for chapter in chapter_pronunciation_list %}
+            <div class="pron-group">
+                <h3>{{ chapter.title }} <span class="tag">{{ chapter.word_count }} words</span></h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pron in chapter.pronunciations %}
+                        <tr>
+                            <td><strong>{{ pron.word }}</strong></td>
+                            <td><span class="tag {{ pron.flag_reason.value }}">{{ pron.flag_reason.value }}</span></td>
+                            <td>{{ pron.occurrences }}</td>
+                            <td class="context">
+                                {% if pron.context_examples %}
+                                "...{{ pron.context_examples[0][:60] }}..."
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% endfor %}
+            {% else %}
+            <p style="color: var(--muted);">No pronunciations found by chapter.</p>
+            {% endif %}
+            </div>
+            <!-- End By Chapter View -->
+
         </section>
-        {% endif %}
+        </div>
 
         <footer style="text-align: center; color: var(--muted); padding: 2rem;">
             Generated by Audiobook Prep
         </footer>
     </div>
+
+    <script>
+        // Pronunciation search
+        function searchPronunciations(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const pronItems = document.querySelectorAll('.pron-item');
+            let visibleCount = 0;
+            let totalCount = pronItems.length;
+
+            pronItems.forEach(item => {
+                const row = item;
+                const cells = row.querySelectorAll('td');
+                let textContent = '';
+
+                // Get text from all cells
+                cells.forEach(cell => {
+                    textContent += cell.textContent.toLowerCase() + ' ';
+                });
+
+                // Show/hide based on search match
+                if (searchTerm === '' || textContent.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update count display
+            const countDiv = document.getElementById('pron-count');
+            if (searchTerm) {
+                countDiv.textContent = `Showing ${visibleCount} of ${totalCount} items`;
+            } else {
+                countDiv.textContent = '';
+            }
+        }
+
+        function clearPronSearch() {
+            document.getElementById('pron-search').value = '';
+            searchPronunciations('');
+        }
+
+        // Confidence filtering
+        function filterByConfidence(showLowOnly) {
+            const items = document.querySelectorAll('.character-item, .pron-item');
+            items.forEach(item => {
+                const confidence = item.getAttribute('data-confidence');
+                if (showLowOnly) {
+                    // Show only low confidence items
+                    if (confidence === 'low') {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                } else {
+                    // Show all items
+                    item.style.display = '';
+                }
+            });
+        }
+
+        // Pronunciation view switching
+        function switchPronView(view) {
+            // Remove active class from all view toggles and views
+            document.querySelectorAll('.view-toggle').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.pron-view').forEach(div => {
+                div.classList.remove('active');
+            });
+
+            // Add active class to selected view
+            if (view === 'by-type') {
+                document.getElementById('view-by-type').classList.add('active');
+                document.getElementById('pron-by-type').classList.add('active');
+            } else if (view === 'by-chapter') {
+                document.getElementById('view-by-chapter').classList.add('active');
+                document.getElementById('pron-by-chapter').classList.add('active');
+            }
+        }
+
+        // Tab switching functionality
+        function switchTab(tabId) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Add active class to selected tab and content
+            const selectedLink = document.querySelector(`.tab-link[data-tab="${tabId}"]`);
+            const selectedContent = document.getElementById(tabId);
+
+            if (selectedLink) selectedLink.classList.add('active');
+            if (selectedContent) selectedContent.classList.add('active');
+
+            // Update URL hash without scrolling
+            if (history.pushState) {
+                history.pushState(null, null, `#${tabId}`);
+            } else {
+                window.location.hash = tabId;
+            }
+        }
+
+        // Handle tab clicks
+        document.querySelectorAll('.tab-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tabId = link.getAttribute('data-tab');
+                switchTab(tabId);
+            });
+        });
+
+        // Handle deep linking (URL hash on page load)
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1); // Remove the '#'
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            } else {
+                // Default to overview tab
+                switchTab('overview');
+            }
+        });
+
+        // Handle browser back/forward buttons
+        window.addEventListener('hashchange', () => {
+            const hash = window.location.hash.substring(1);
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            }
+        });
+    </script>
 </body>
 </html>
 '''
@@ -868,6 +1203,25 @@ def export_html_report(
         if p.flag_reason not in (PronunciationFlag.HOMOGRAPH, PronunciationFlag.PROPER_NOUN, PronunciationFlag.FOREIGN)
     ]
 
+    # Group pronunciations by chapter for the "By Chapter" view
+    pronunciations_by_chapter = defaultdict(list)
+    for pron in result.pronunciations:
+        for chapter_idx in pron.chapter_indices:
+            pronunciations_by_chapter[chapter_idx].append(pron)
+
+    # Build chapter pronunciation list with counts
+    chapter_pronunciation_list = []
+    for chapter in result.structure:
+        if chapter.type == StructureType.CHAPTER:
+            chapter_prons = pronunciations_by_chapter.get(chapter.index, [])
+            if chapter_prons:
+                chapter_pronunciation_list.append({
+                    'index': chapter.index,
+                    'title': chapter.title or f"Chapter {chapter.index}",
+                    'word_count': len(chapter_prons),
+                    'pronunciations': sorted(chapter_prons, key=lambda p: p.word.lower())
+                })
+
     # Prepare template
     template = Template(HTML_TEMPLATE)
 
@@ -895,6 +1249,7 @@ def export_html_report(
         proper_nouns=proper_nouns,
         foreign_words=foreign_words,
         other_pronunciations=other_pronunciations,
+        chapter_pronunciation_list=chapter_pronunciation_list,
         warnings=result.warnings,
         llm_model=llm_model,
         analysis_duration=analysis_duration_str,
