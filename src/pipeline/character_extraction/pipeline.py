@@ -201,15 +201,40 @@ class CharacterExtractionPipeline:
         for chapter_idx, proposals in checkpoint.chapter_proposals.items():
             all_proposals.extend(proposals)
 
-        total_proposals = len(all_proposals)
-        logger.info(f"Validating {total_proposals} proposals")
+        # Deduplicate proposals by normalized name before validation
+        # This significantly reduces redundant LLM calls when multiple proposers
+        # suggest the same character or when a character appears in multiple chapters
+        unique_proposals = {}
+        for proposal in all_proposals:
+            # Normalize name for deduplication (lowercase, strip whitespace)
+            norm_name = proposal.name.lower().strip()
+            if norm_name not in unique_proposals:
+                unique_proposals[norm_name] = proposal
+            # Keep the first occurrence of each unique normalized name
 
+        deduplicated_proposals = list(unique_proposals.values())
+        total_proposals = len(deduplicated_proposals)
+        original_count = len(all_proposals)
+        logger.info(f"Deduplicated {original_count} proposals to {total_proposals} unique names (saved {original_count - total_proposals} validations)")
+
+        # Validate unique proposals with caching
+        validation_cache = {}
         validations = []
-        for i, proposal in enumerate(all_proposals):
+
+        for i, proposal in enumerate(deduplicated_proposals):
             self._report_progress("validation", i + 1, total_proposals)
+
+            norm_name = proposal.name.lower().strip()
+
+            # Check cache first
+            if norm_name in validation_cache:
+                # Reuse cached validation result
+                validations.append(validation_cache[norm_name])
+                continue
 
             try:
                 result = self.validator.validate(proposal)
+                validation_cache[norm_name] = result
                 validations.append(result)
             except Exception as e:
                 logger.error(f"Validation failed for '{proposal.name}': {e}")
