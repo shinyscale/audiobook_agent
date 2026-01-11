@@ -49,7 +49,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check error message includes character name and specific parse error",
     "Verify no fallback confidence value (0.5) is assigned"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -64,7 +64,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check error message describes the proposer failure",
     "Verify no empty character list is silently returned"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -79,7 +79,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that heuristic fallback is NOT silently used",
     "Verify error is actionable (describes what failed)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
