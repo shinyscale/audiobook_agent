@@ -230,6 +230,16 @@ class CharacterConsensusBuilder:
             if len(chapters_present) > 3:
                 avg_confidence = min(1.0, avg_confidence + 0.05)
 
+            # Boost confidence based on mention count
+            # High-mention characters should have high confidence (major characters)
+            mention_count = len(all_mentions)
+            if mention_count >= 100:
+                avg_confidence = min(1.0, avg_confidence + 0.15)
+            elif mention_count >= 50:
+                avg_confidence = min(1.0, avg_confidence + 0.10)
+            elif mention_count >= 20:
+                avg_confidence = min(1.0, avg_confidence + 0.05)
+
             # Determine final character type by majority vote (prefer non-UNCERTAIN)
             final_type = CharacterType.UNCERTAIN
             if all_types:
