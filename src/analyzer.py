@@ -785,7 +785,13 @@ class AudiobookAnalyzer:
             # pron_map will be set in Step 5 below (sequential mode)
             pron_map = None
 
-        # Step 3.5: Generate Character Profiles
+        # Step 3.5: Detect Narrator (before profile generation)
+        # Check if this is a first-person narrative and identify the narrator
+        narrator_detected = self._detect_narrator(doc.text, pipeline_char_map.characters)
+        if narrator_detected:
+            print(f"📖 Detected narrator: {narrator_detected}")
+
+        # Step 3.6: Generate Character Profiles
         MIN_MENTIONS_FOR_PROFILE = 5
         if llm:
             print("📋 Generating character profiles...")
@@ -842,12 +848,6 @@ class AudiobookAnalyzer:
                     ctx.set_model(llm.config.model, llm.config.provider)
 
             print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
-
-        # Step 3.6: Detect Narrator
-        # Check if this is a first-person narrative and identify the narrator
-        narrator_detected = self._detect_narrator(doc.text, pipeline_char_map.characters)
-        if narrator_detected:
-            print(f"   📖 Detected narrator: {narrator_detected}")
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
@@ -1203,10 +1203,15 @@ class AudiobookAnalyzer:
             for i, c in enumerate(contexts)
         ])
 
+        # Check if this character is the narrator
+        narrator_note = ""
+        if hasattr(character, 'is_narrator') and character.is_narrator:
+            narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
+
         prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
 
 The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
-Your analysis should reflect the character's full arc, not just their initial appearance.
+Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}
 
 Text Evidence:
 {context_text}

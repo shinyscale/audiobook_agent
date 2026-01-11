@@ -651,7 +651,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that description notes narrative perspective (e.g., 'tells the story')",
     "Confirm narrative role is distinct from plot role"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
