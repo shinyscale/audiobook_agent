@@ -43,16 +43,24 @@ SECTION: {chunk_num} of {total_chunks}
 TEXT:
 {text}
 
+IMPORTANT GUIDELINES:
+- Prioritize FACTUAL ACCURACY over brevity
+- Include specific setting details (location, transportation method, time of day)
+- If events or objects are referenced, provide brief context
+- Be precise about character actions and dialogue topics
+- Aim for 3-5 detailed sentences in your summary
+
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The protagonist arrives at an unfamiliar location and encounters a mysterious stranger. They engage in tense conversation that reveals hidden motivations. The section ends with an unexpected revelation.",
+  "summary": "The protagonist arrives by car at an unfamiliar mansion and encounters a mysterious stranger on the front steps. They engage in tense conversation that reveals the stranger knows about the protagonist's past investigation. The stranger mentions a hidden letter but doesn't explain its significance. The section ends with an unexpected revelation about the mansion's previous owner.",
   "key_events": [
-    "Protagonist enters the building",
-    "Confrontation with the stranger",
-    "Discovery of a hidden letter",
-    "Decision to investigate further"
+    "Protagonist drives to the mansion",
+    "Meeting with the stranger on the steps",
+    "Confrontation about the investigation",
+    "Mention of a hidden letter (contents unknown)",
+    "Revelation about previous owner"
   ],
   "characters_mentioned": ["Michael", "Sarah", "Dr. Patterson"],
   "tone": "suspenseful"
@@ -84,17 +92,25 @@ WORD COUNT: {word_count}
 SECTION SUMMARIES:
 {chunk_summaries}
 
+IMPORTANT GUIDELINES:
+- Prioritize FACTUAL ACCURACY - preserve specific details from section summaries
+- Include setting details (location, transportation, time) when mentioned
+- If events or objects are referenced, include brief context from the sections
+- Be precise about character actions and locations
+- Aim for 4-6 detailed sentences in your summary
+
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The chapter begins with a quiet morning that quickly escalates into conflict. Characters confront long-buried tensions as past events resurface. A series of revelations shifts relationships and alliances. The chapter concludes with an uncertain truce that sets up future complications.",
+  "summary": "The chapter begins with a quiet morning at the estate that quickly escalates into conflict when an unexpected visitor arrives by car. Characters confront long-buried tensions as past events resurface during a heated conversation in the library. A series of revelations about a hidden letter shifts relationships and alliances. The chapter concludes with an uncertain truce in the garden that sets up future complications.",
   "key_events": [
     "Morning conversation reveals underlying tension",
-    "Discovery of the missing item",
+    "Unexpected visitor arrives by car",
+    "Discovery of the missing letter in the library",
     "Heated argument between main characters",
     "Unexpected ally provides crucial information",
-    "Temporary resolution with conditions",
+    "Temporary resolution in the garden",
     "Hint at future complications"
   ],
   "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
@@ -132,17 +148,25 @@ WORD COUNT: {word_count}
 TEXT:
 {text}
 
+IMPORTANT GUIDELINES:
+- Prioritize FACTUAL ACCURACY over brevity
+- Include specific setting details (location, transportation method, time of day)
+- If events or objects are referenced, provide brief context
+- Be precise about character actions and dialogue topics
+- Aim for 4-6 detailed sentences in your summary
+
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The chapter begins with a quiet morning that quickly escalates into conflict. Characters confront long-buried tensions as past events resurface. A series of revelations shifts relationships and alliances. The chapter concludes with an uncertain truce that sets up future complications.",
+  "summary": "The chapter begins with a quiet morning at the estate that quickly escalates into conflict when an unexpected visitor arrives by car. Characters confront long-buried tensions during a conversation in the library as past events resurface. A series of revelations about a hidden letter shifts relationships and alliances. The chapter concludes with an uncertain truce in the garden that sets up future complications.",
   "key_events": [
     "Morning conversation reveals underlying tension",
-    "Discovery of the missing item",
+    "Unexpected visitor arrives by car",
+    "Discovery of the missing letter in the library",
     "Heated argument between main characters",
     "Unexpected ally provides crucial information",
-    "Temporary resolution with conditions",
+    "Temporary resolution in the garden",
     "Hint at future complications"
   ],
   "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
