@@ -118,7 +118,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that less-frequently-used names appear as aliases",
     "Verify mention count is displayed for the canonical entry"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -133,7 +133,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that alphabetical order is NOT the deciding factor",
     "Verify both names are preserved (one as canonical, one as alias)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
