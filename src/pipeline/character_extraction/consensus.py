@@ -759,6 +759,23 @@ class CharacterConsensusBuilder:
             if len(multi_words) > 1:
                 # Skip titles in multi-word name
                 titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+
+                # Check if multi-word is just "Title LastName" (e.g., "Mr. Carraway")
+                # In this case, single word could be first name (e.g., "Nick")
+                is_title_lastname = (
+                    len(multi_words) == 2 and
+                    multi_words[0].rstrip('.').lower() in titles
+                )
+
+                # If multi-word is title+lastname and they co-occur, likely same person
+                # Example: "Nick" (first name) + "Mr. Carraway" (title + last name) = "Nick Carraway"
+                if is_title_lastname and has_chapter_overlap:
+                    logger.debug(
+                        f"Merge accepted: {canonical} <- {alias} "
+                        f"(single first name + title+lastname with chapter overlap)"
+                    )
+                    return True, 0.75
+
                 first_word = multi_words[0]
                 if first_word in titles and len(multi_words) > 1:
                     first_word = multi_words[1]
