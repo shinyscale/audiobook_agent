@@ -9,7 +9,7 @@ from typing import Optional
 import logging
 
 from ..llm import LLMClient
-from ...models import AnalysisResult, Chapter
+from ...models import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +190,38 @@ class OverviewGenerator:
         """Extract timing information from profiling data."""
         timing = {}
 
-        # Extract phase durations if available
-        # This depends on the structure of profiling_data
-        # For now, return empty dict - needs integration with actual profiling format
+        # Extract phase durations from profiling report
+        if "stages" in profiling_data:
+            for stage in profiling_data["stages"]:
+                stage_name = stage["name"]
+                duration_seconds = stage["duration_seconds"]
+
+                # Format duration as human-readable string
+                if duration_seconds < 60:
+                    duration_str = f"{duration_seconds:.1f}s"
+                else:
+                    minutes = int(duration_seconds // 60)
+                    secs = duration_seconds % 60
+                    duration_str = f"{minutes}m {secs:.0f}s"
+
+                timing[stage_name] = {
+                    "duration_seconds": duration_seconds,
+                    "duration_formatted": duration_str,
+                }
+
+        # Add total duration if available
+        if "totals" in profiling_data:
+            total_seconds = profiling_data["totals"]["duration_seconds"]
+            if total_seconds < 60:
+                total_str = f"{total_seconds:.1f}s"
+            else:
+                minutes = int(total_seconds // 60)
+                secs = total_seconds % 60
+                total_str = f"{minutes}m {secs:.0f}s"
+
+            timing["total"] = {
+                "duration_seconds": total_seconds,
+                "duration_formatted": total_str,
+            }
 
         return timing

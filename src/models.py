@@ -135,10 +135,13 @@ class AnalysisResult(BaseModel):
     structure: list[StructuralElement] = Field(default_factory=list)
     characters: list[Character] = Field(default_factory=list)
     pronunciations: list[PronunciationEntry] = Field(default_factory=list)
-    
+
+    # Overview summary (book structure, plot, models, timing)
+    overview: Optional[dict] = None
+
     # Raw text preserved for reference
     raw_text: Optional[str] = None
-    
+
     # Analysis notes and warnings
     warnings: list[str] = Field(default_factory=list)
     low_confidence_items: list[str] = Field(default_factory=list)

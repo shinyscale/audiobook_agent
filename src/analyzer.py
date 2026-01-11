@@ -45,6 +45,7 @@ from .pipeline.pronunciation_guide import (
 )
 from .pipeline.llm import LLMClient, LLMConfig
 from .pipeline.metrics import MetricsCollector, ProfilingReport
+from .pipeline.overview import OverviewGenerator
 
 # Agent imports
 from .agents import (
@@ -490,6 +491,7 @@ class AudiobookAnalyzer:
             structure=structure,
             characters=characters,
             pronunciations=pronunciations,
+            overview=None,  # No overview for partial results
             raw_text=doc.text,
             warnings=warnings,
             low_confidence_items=low_confidence,
@@ -959,7 +961,47 @@ class AudiobookAnalyzer:
 
             print(f"   Flagged {len(pron_map.entries)} words")
 
-        # Step 6: Convert to AnalysisResult
+        # Step 6: Generate Overview
+        print("📊 Generating overview...")
+        overview = None
+        if llm:
+            # Build a partial AnalysisResult for overview generation
+            temp_structure = self._convert_chapters(chapter_map, summary_map, self.words_per_minute)
+            temp_metadata = BookMetadata(
+                title=doc.title,
+                author=doc.author,
+                source_file=str(file_path),
+                source_format=doc.source_format,
+                total_word_count=doc.word_count,
+                words_per_minute=self.words_per_minute,
+            )
+            temp_result = AnalysisResult(
+                metadata=temp_metadata,
+                structure=temp_structure,
+            )
+
+            # Generate profiling report for timing
+            profiling_report = self._metrics.get_report()
+
+            # Extract model usage from profiling stages
+            model_usage = {}
+            for stage in profiling_report.stages:
+                if stage.model_used:
+                    model_usage[stage.stage_name] = {
+                        "model": stage.model_used,
+                        "provider": stage.provider_used or "unknown",
+                    }
+
+            # Generate overview
+            overview_gen = OverviewGenerator(llm_client=llm)
+            overview = overview_gen.generate_overview(
+                analysis_result=temp_result,
+                profiling_data=profiling_report.to_dict(),
+                model_usage=model_usage,
+            )
+            print(f"   Overview generated successfully")
+
+        # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
 
         # Convert chapters to StructuralElements
@@ -999,6 +1041,7 @@ class AudiobookAnalyzer:
             structure=structure,
             characters=characters,
             pronunciations=pronunciations,
+            overview=overview,
             raw_text=doc.text,
             warnings=warnings,
             low_confidence_items=low_confidence,

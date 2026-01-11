@@ -332,7 +332,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check structure explanation is derived from the actual detected structure",
     "Confirm structure explanation is clear and informative"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -348,7 +348,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Verify summary is coherent and provides useful overview",
     "Confirm summary is suitable for narrator preparation"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -363,7 +363,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that model name/identifier is shown for each phase",
     "Confirm model information is accurate and matches what was actually used"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -379,7 +379,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Verify total analysis duration is displayed",
     "Confirm timing information matches the quality report"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -394,7 +394,7 @@ The system should report errors immediately so they can be fixed, not mask them 
     "Check that overview integrates well with rest of report",
     "Confirm overview is styled consistently with report theme"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

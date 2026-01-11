@@ -513,6 +513,88 @@ HTML_TEMPLATE = '''
                 </div>
             </div>
 
+            {% if overview %}
+            <section>
+                <h2>📚 Book Structure</h2>
+                {% if overview.structure and overview.structure.description %}
+                <p style="margin-top: 1rem; line-height: 1.8;">{{ overview.structure.description }}</p>
+                {% if overview.structure.narrative_style and overview.structure.narrative_style != 'unknown' %}
+                <p style="margin-top: 0.5rem; color: var(--muted); font-style: italic;">
+                    Narrative style: {{ overview.structure.narrative_style }}
+                </p>
+                {% endif %}
+                {% else %}
+                <p style="color: var(--muted);">No structure information available.</p>
+                {% endif %}
+            </section>
+
+            {% if overview.plot_summary and overview.plot_summary.plot_summary %}
+            <section>
+                <h2>📖 Plot Summary</h2>
+                <div style="margin-top: 1rem; line-height: 1.8; white-space: pre-wrap;">{{ overview.plot_summary.plot_summary }}</div>
+                {% if overview.plot_summary.themes %}
+                <p style="margin-top: 1rem; color: var(--muted);">
+                    <strong>Themes:</strong> {{ overview.plot_summary.themes | join(', ') }}
+                </p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if overview.model_usage %}
+            <section>
+                <h2>🤖 Analysis Models</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Model</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for phase, info in overview.model_usage.items() %}
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">{{ phase }}</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">{{ info.model }}</td>
+                            <td style="padding: 0.75rem;">{{ info.provider }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+            {% endif %}
+
+            {% if overview.timing %}
+            <section>
+                <h2>⏱️ Performance Timing</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--muted);">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for phase, info in overview.timing.items() %}
+                        {% if phase != 'total' %}
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">{{ phase }}</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">{{ info.duration_formatted }}</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% if overview.timing.total %}
+                        <tr style="border-top: 2px solid var(--primary); font-weight: bold;">
+                            <td style="padding: 0.75rem;">Total</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">{{ overview.timing.total.duration_formatted }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </section>
+            {% endif %}
+            {% endif %}
+
             <section id="relationships">
                 <h2>🔗 Key Relationships</h2>
                 {% if relationships %}
@@ -1253,6 +1335,7 @@ def export_html_report(
         warnings=result.warnings,
         llm_model=llm_model,
         analysis_duration=analysis_duration_str,
+        overview=result.overview,
     )
 
     output_path = Path(output_path)
