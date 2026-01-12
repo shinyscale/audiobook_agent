@@ -10,6 +10,9 @@ from unittest.mock import Mock, MagicMock
 from src.pipeline.character_profiling import (
     SummaryDrivenCharacterIdentifier,
     CharacterProfilingPipeline,
+    CharacterProfileGenerator,
+    CharacterPassageGatherer,
+    CharacterPassage,
     IdentifiedCharacter,
     CharacterProfile,
 )
@@ -20,6 +23,7 @@ from src.pipeline.character_profiling.models import (
     CharacterProfileMap,
 )
 from src.pipeline.chapter_summary.models import ChapterSummary, ChapterSummaryMap
+from src.pipeline.chapter_detection.models import ChapterMap, Chapter
 from src.pipeline.llm import LLMResponse
 
 
@@ -380,6 +384,346 @@ class TestCharacterProfilingPipeline:
         assert isinstance(result, CharacterProfileMap)
         assert len(result.profiles) == 1
         assert result.profiles[0].canonical_name == "Test Character"
+
+
+# Sample text for testing passage gathering
+SAMPLE_TEXT = """Chapter 1
+
+Nick Carraway moved to West Egg in the summer of 1922. He was a young man from
+the Midwest, tall and thin with an earnest expression. His cousin Daisy Buchanan
+lived across the bay in East Egg with her husband Tom.
+
+Tom Buchanan was a hulking man with a cruel body. His eyes were arrogant and he
+spoke with a commanding voice. "I've got a nice place here," Tom said, gesturing
+at his mansion.
+
+Daisy Buchanan was beautiful with a voice full of money. She had bright eyes and
+a passionate mouth. "I'm paralyzed with happiness," Daisy whispered dramatically.
+
+Chapter 2
+
+In the Valley of Ashes, George Wilson ran a garage. He was a spiritless man,
+anemic and faintly handsome. His wife Myrtle Wilson was thickish but had vitality.
+
+Tom's mistress Myrtle Wilson changed her costume three times that afternoon.
+"I married him because I thought he was a gentleman," Myrtle said about George.
+
+Chapter 3
+
+Jay Gatsby threw magnificent parties at his mansion. He was an elegant young man
+with a rare smile. "I'm Gatsby," he said with an extraordinary smile.
+"Old sport, I understand you're looking for me."
+
+Nick noticed that Gatsby chose his words with care. He spoke formally, almost
+rehearsed. "Old sport" was his constant phrase, used with everyone he met.
+"""
+
+
+class TestCharacterPassageGatherer:
+    """Tests for the passage gatherer."""
+
+    def test_gather_passages_finds_mentions(self):
+        """Test that gatherer finds passages containing character name."""
+        chapters = [
+            Chapter(index=1, title="Chapter 1", start_position=0, end_position=500, word_count=100, confidence=0.9),
+            Chapter(index=2, title="Chapter 2", start_position=500, end_position=900, word_count=80, confidence=0.9),
+            Chapter(index=3, title="Chapter 3", start_position=900, end_position=1400, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        character = IdentifiedCharacter(
+            canonical_name="Tom Buchanan",
+            aliases=["Tom"],
+            role="antagonist",
+        )
+
+        gatherer = CharacterPassageGatherer(context_window=200)
+        passages = gatherer.gather_passages(character, SAMPLE_TEXT, chapter_map)
+
+        assert len(passages) > 0
+        # Should find passages mentioning Tom or Tom Buchanan
+        assert any("Tom" in p.text for p in passages)
+
+    def test_gather_passages_includes_aliases(self):
+        """Test that gatherer finds passages for all name variants."""
+        chapters = [
+            Chapter(index=1, title="Chapter 1", start_position=0, end_position=500, word_count=100, confidence=0.9),
+            Chapter(index=2, title="Chapter 2", start_position=500, end_position=900, word_count=80, confidence=0.9),
+            Chapter(index=3, title="Chapter 3", start_position=900, end_position=1400, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        character = IdentifiedCharacter(
+            canonical_name="Jay Gatsby",
+            aliases=["Gatsby"],
+            role="protagonist",
+        )
+
+        gatherer = CharacterPassageGatherer(context_window=200)
+        passages = gatherer.gather_passages(character, SAMPLE_TEXT, chapter_map)
+
+        assert len(passages) > 0
+        # Should find passages mentioning Gatsby
+        assert any("Gatsby" in p.text for p in passages)
+
+    def test_passage_scoring_prefers_descriptions(self):
+        """Test that passages with descriptions score higher."""
+        chapters = [
+            Chapter(index=1, title="Chapter 1", start_position=0, end_position=500, word_count=100, confidence=0.9),
+            Chapter(index=2, title="Chapter 2", start_position=500, end_position=900, word_count=80, confidence=0.9),
+            Chapter(index=3, title="Chapter 3", start_position=900, end_position=1400, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        character = IdentifiedCharacter(
+            canonical_name="Tom Buchanan",
+            aliases=["Tom"],
+            role="antagonist",
+        )
+
+        gatherer = CharacterPassageGatherer(context_window=300)
+        passages = gatherer.gather_passages(character, SAMPLE_TEXT, chapter_map)
+
+        # Passages with "hulking", "cruel", "arrogant", "eyes" should score higher
+        description_passages = [p for p in passages if p.context_type == "description"]
+        assert len(description_passages) > 0
+
+    def test_classify_dialogue_context(self):
+        """Test that dialogue passages are classified correctly."""
+        gatherer = CharacterPassageGatherer()
+
+        dialogue_text = 'Tom said, "I have got a nice place here."'
+        context_type = gatherer._classify_context(dialogue_text, "Tom")
+        assert context_type == "dialogue"
+
+        description_text = "Tom was tall with blue eyes and a commanding presence."
+        context_type = gatherer._classify_context(description_text, "Tom")
+        assert context_type == "description"
+
+
+class TestCharacterProfileGenerator:
+    """Tests for the profile generator."""
+
+    def test_generate_profile_parses_llm_response(self):
+        """Test that generator correctly parses LLM response into profile."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "appearance": {
+                    "summary": "A hulking man with arrogant eyes",
+                    "details": {"build": "hulking", "eyes": "arrogant"},
+                    "age_indication": "middle-aged",
+                    "distinguishing_features": ["cruel body"],
+                    "evidence": ["His eyes were arrogant"],
+                },
+                "personality": {
+                    "summary": "Arrogant and commanding",
+                    "traits": ["arrogant", "cruel", "domineering"],
+                    "temperament": "volatile",
+                    "speech_patterns": ["commanding", "dismissive"],
+                    "evidence": ["spoke with a commanding voice"],
+                },
+                "voice_guidance": {
+                    "suggested_tone": "Deep, commanding, dismissive",
+                    "dialect_notes": "Upper-class East Coast",
+                    "verbal_tics": [],
+                    "formality_level": "formal",
+                    "emotional_range": "controlled aggression",
+                    "example_quotes": ["I've got a nice place here"],
+                },
+                "relationships": [
+                    {
+                        "character": "Daisy Buchanan",
+                        "type": "spouse",
+                        "description": "Unhappy marriage",
+                    },
+                    {
+                        "character": "Myrtle Wilson",
+                        "type": "mistress",
+                        "description": "Affair",
+                    },
+                ],
+                "confidence": 0.85,
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        chapters = [
+            Chapter(index=1, title="Chapter 1", start_position=0, end_position=500, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        character = IdentifiedCharacter(
+            canonical_name="Tom Buchanan",
+            aliases=["Tom"],
+            role="antagonist",
+        )
+
+        generator = CharacterProfileGenerator(mock_llm)
+        profile = generator.generate_profile(
+            character=character,
+            full_text=SAMPLE_TEXT,
+            chapter_map=chapter_map,
+        )
+
+        assert profile.canonical_name == "Tom Buchanan"
+        assert profile.appearance.summary == "A hulking man with arrogant eyes"
+        assert "arrogant" in profile.personality.traits
+        assert profile.voice_guidance.suggested_tone == "Deep, commanding, dismissive"
+        assert len(profile.relationships) == 2
+        assert profile.confidence == 0.85
+
+    def test_generate_profile_handles_empty_passages(self):
+        """Test that generator handles characters with no passages gracefully."""
+        mock_llm = Mock()
+
+        chapters = [
+            Chapter(index=1, title="Chapter 1", start_position=0, end_position=500, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        # Character not in text
+        character = IdentifiedCharacter(
+            canonical_name="Unknown Character",
+            aliases=[],
+            role="minor",
+        )
+
+        generator = CharacterProfileGenerator(mock_llm)
+        profile = generator.generate_profile(
+            character=character,
+            full_text=SAMPLE_TEXT,
+            chapter_map=chapter_map,
+        )
+
+        # Should return basic profile without LLM call
+        assert profile.canonical_name == "Unknown Character"
+        # LLM should not have been called since no passages
+        mock_llm.query_json.assert_not_called()
+
+    def test_profile_includes_voice_guidance(self):
+        """Test that profiles include actionable voice guidance."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "appearance": {"summary": "An elegant young man"},
+                "personality": {"summary": "Mysterious and romantic"},
+                "voice_guidance": {
+                    "suggested_tone": "Measured, almost rehearsed formality",
+                    "dialect_notes": "Affected upper-class",
+                    "verbal_tics": ["old sport"],
+                    "formality_level": "very formal",
+                    "emotional_range": "controlled with occasional intensity",
+                    "example_quotes": [
+                        '"Old sport, I understand you\'re looking for me."',
+                        '"I\'m Gatsby."',
+                    ],
+                },
+                "relationships": [],
+                "confidence": 0.9,
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        chapters = [
+            Chapter(index=3, title="Chapter 3", start_position=900, end_position=1400, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        character = IdentifiedCharacter(
+            canonical_name="Jay Gatsby",
+            aliases=["Gatsby"],
+            role="protagonist",
+        )
+
+        generator = CharacterProfileGenerator(mock_llm)
+        profile = generator.generate_profile(
+            character=character,
+            full_text=SAMPLE_TEXT,
+            chapter_map=chapter_map,
+        )
+
+        assert "old sport" in profile.voice_guidance.verbal_tics
+        assert profile.voice_guidance.formality_level == "very formal"
+        assert len(profile.voice_guidance.example_quotes) > 0
+
+
+class TestRichProfilingPipeline:
+    """Tests for the full pipeline with rich profiling enabled."""
+
+    def test_pipeline_generates_rich_profiles(self):
+        """Test that pipeline generates rich profiles with LLM."""
+        mock_llm = Mock()
+        # First call: identification
+        mock_llm.query_json.side_effect = [
+            (
+                {
+                    "characters": [
+                        {
+                            "canonical_name": "Jay Gatsby",
+                            "aliases": ["Gatsby"],
+                            "role": "protagonist",
+                            "chapters_present": [3],
+                            "brief_description": "Mysterious millionaire",
+                        },
+                    ],
+                    "narrator": None,
+                },
+                LLMResponse(content="...", model="test", error=None),
+            ),
+            # Second call: profile generation
+            (
+                {
+                    "appearance": {"summary": "Elegant young man with rare smile"},
+                    "personality": {"summary": "Mysterious romantic"},
+                    "voice_guidance": {
+                        "suggested_tone": "Measured formality",
+                        "verbal_tics": ["old sport"],
+                    },
+                    "relationships": [],
+                    "confidence": 0.9,
+                },
+                LLMResponse(content="...", model="test", error=None),
+            ),
+        ]
+
+        summary_map = ChapterSummaryMap(
+            summaries=GATSBY_SUMMARIES[2:3],  # Just chapter 3
+            total_chapters=1,
+            total_word_count=5500,
+            total_duration_minutes=37,
+            overall_tones={"mysterious": 1},
+            character_appearances={"Jay Gatsby": [3]},
+        )
+
+        chapters = [
+            Chapter(index=3, title="Chapter 3", start_position=900, end_position=1400, word_count=100, confidence=0.9),
+        ]
+        chapter_map = Mock()
+        chapter_map.chapters = chapters
+
+        pipeline = CharacterProfilingPipeline(
+            llm_client=mock_llm,
+            generate_rich_profiles=True,
+        )
+        result = pipeline.run(
+            full_text=SAMPLE_TEXT,
+            chapter_map=chapter_map,
+            summary_map=summary_map,
+            plot_summary="Sample plot",
+        )
+
+        assert len(result.profiles) == 1
+        profile = result.profiles[0]
+        assert profile.canonical_name == "Jay Gatsby"
+        # Rich profile should have appearance populated
+        assert profile.appearance.summary == "Elegant young man with rare smile"
 
 
 # Integration test marker - requires actual LLM

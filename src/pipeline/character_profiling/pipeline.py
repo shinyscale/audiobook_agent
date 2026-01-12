@@ -14,6 +14,8 @@ from .models import (
     CharacterProfileMap,
 )
 from .identifier import SummaryDrivenCharacterIdentifier
+from .generator import CharacterProfileGenerator
+from .passage_gatherer import CharacterPassageGatherer
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from ..chapter_detection.models import ChapterMap
 from ..llm import LLMClient
@@ -35,14 +37,17 @@ class CharacterProfilingPipeline:
         self,
         llm_client: LLMClient,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        generate_rich_profiles: bool = True,
     ):
         """
         Args:
             llm_client: LLM client for character identification and profiling
             progress_callback: Callback(stage, current, total) for progress updates
+            generate_rich_profiles: Whether to generate rich profiles (requires LLM calls per character)
         """
         self.llm = llm_client
         self.progress_callback = progress_callback
+        self.generate_rich_profiles = generate_rich_profiles
 
     def run(
         self,
@@ -82,15 +87,37 @@ class CharacterProfilingPipeline:
         if narrator_name:
             logger.info(f"Narrator: {narrator_name}")
 
-        # Stage 2: Profile Generation (basic for now, will be enhanced)
+        # Stage 2: Profile Generation
         logger.info("Stage 2: Generating character profiles")
         self._report_progress("profiling", 0, len(characters))
 
         profiles = []
-        for i, char in enumerate(characters):
-            profile = CharacterProfile.from_identified(char)
-            profiles.append(profile)
-            self._report_progress("profiling", i + 1, len(characters))
+        if self.generate_rich_profiles:
+            # Generate rich profiles with appearance, personality, voice guidance
+            generator = CharacterProfileGenerator(self.llm)
+            passage_gatherer = CharacterPassageGatherer()
+
+            for i, char in enumerate(characters):
+                logger.info(f"Profiling character {i + 1}/{len(characters)}: {char.canonical_name}")
+
+                # Gather passages for this character
+                passages = passage_gatherer.gather_passages(char, full_text, chapter_map)
+
+                # Generate rich profile
+                profile = generator.generate_profile(
+                    character=char,
+                    full_text=full_text,
+                    chapter_map=chapter_map,
+                    passages=passages,
+                )
+                profiles.append(profile)
+                self._report_progress("profiling", i + 1, len(characters))
+        else:
+            # Basic profile without LLM generation
+            for i, char in enumerate(characters):
+                profile = CharacterProfile.from_identified(char)
+                profiles.append(profile)
+                self._report_progress("profiling", i + 1, len(characters))
 
         # Stage 3: Build result
         logger.info("Stage 3: Building profile map")
