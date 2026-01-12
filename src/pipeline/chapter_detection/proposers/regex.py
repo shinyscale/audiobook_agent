@@ -73,11 +73,26 @@ CHAPTER_PATTERNS = [
         description="all_caps_title",
     ),
 
-    # Prologue/Epilogue
+    # Prologue/Epilogue and other special sections
     ChapterPattern(
-        re.compile(r"^\s*(Prologue|PROLOGUE|Epilogue|EPILOGUE|Introduction|INTRODUCTION|Preface|PREFACE)\s*$", re.MULTILINE),
+        re.compile(
+            r"^\s*(Prologue|PROLOGUE|Epilogue|EPILOGUE|Introduction|INTRODUCTION|Preface|PREFACE|"
+            r"Foreword|FOREWORD|Afterword|AFTERWORD|Appendix|APPENDIX|Acknowledgments|ACKNOWLEDGMENTS|"
+            r"Dedication|DEDICATION|Notes|NOTES|Glossary|GLOSSARY|Interlude|INTERLUDE|Intermezzo|INTERMEZZO)\s*$",
+            re.MULTILINE
+        ),
         confidence=0.95,
         description="special_section",
+    ),
+
+    # Letters in epistolary novels (Letter 1, Letter I, etc.)
+    ChapterPattern(
+        re.compile(
+            r"^\s*(Letter|LETTER)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$",
+            re.MULTILINE | re.IGNORECASE
+        ),
+        confidence=0.95,
+        description="letter_section",
     ),
 
     # "Book One", "Book Two" etc.
