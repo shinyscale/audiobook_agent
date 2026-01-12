@@ -11,6 +11,15 @@ from jinja2 import Template
 from ..models import AnalysisResult, StructureType, PronunciationFlag
 
 
+def format_timestamp(timestamp_str: str) -> str:
+    """Format ISO timestamp to readable format: 'Jan 11, 2026 at 3:23 PM'"""
+    try:
+        dt = datetime.fromisoformat(timestamp_str)
+        return dt.strftime("%b %d, %Y at %-I:%M %p")  # Jan 11, 2026 at 3:23 PM
+    except (ValueError, AttributeError, TypeError):
+        return timestamp_str if timestamp_str else ""  # Fallback to original if parsing fails
+
+
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -480,6 +489,13 @@ HTML_TEMPLATE = '''
                     {% if llm_model and llm_model != 'none' %}Analyzed with {{ llm_model }}{% endif %}
                     {% if llm_model and llm_model != 'none' and analysis_duration %} in {% elif analysis_duration %}Analyzed in {% endif %}
                     {% if analysis_duration %}{{ analysis_duration }}{% endif %}
+                </p>
+                {% endif %}
+
+                {% if analysis_started %}
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                    <strong>Started:</strong> {{ analysis_started }} &middot;
+                    <strong>Ended:</strong> {{ analysis_ended }}
                 </p>
                 {% endif %}
             </header>
@@ -1318,6 +1334,15 @@ def export_html_report(
     if analysis_duration_seconds is not None:
         analysis_duration_str = _format_duration(analysis_duration_seconds)
 
+    # Extract and format timestamps if available
+    started_at = None
+    ended_at = None
+    if result.overview and result.overview.get("timing"):
+        if result.overview["timing"].get("started_at"):
+            started_at = format_timestamp(result.overview["timing"]["started_at"])
+        if result.overview["timing"].get("ended_at"):
+            ended_at = format_timestamp(result.overview["timing"]["ended_at"])
+
     html = template.render(
         title=result.metadata.title or "Untitled",
         author=result.metadata.author,
@@ -1341,6 +1366,8 @@ def export_html_report(
         warnings=result.warnings,
         llm_model=llm_model,
         analysis_duration=analysis_duration_str,
+        analysis_started=started_at,
+        analysis_ended=ended_at,
         overview=result.overview,
     )
 

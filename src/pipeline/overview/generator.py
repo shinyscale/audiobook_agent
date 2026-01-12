@@ -224,4 +224,9 @@ class OverviewGenerator:
                 "duration_formatted": total_str,
             }
 
+        # Add timestamps if available
+        if "timestamps" in profiling_data:
+            timing["started_at"] = profiling_data["timestamps"]["started"]
+            timing["ended_at"] = profiling_data["timestamps"]["ended"]
+
         return timing

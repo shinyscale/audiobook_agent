@@ -10,6 +10,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional, Generator
 import logging
 
@@ -64,6 +65,8 @@ class ProfilingReport:
     total_duration_seconds: float = 0.0
     total_llm_calls: int = 0
     total_tokens: int = 0
+    start_timestamp: Optional[datetime] = None
+    end_timestamp: Optional[datetime] = None
 
     def add_stage(self, metrics: StageMetrics) -> None:
         """Add stage metrics to the report."""
@@ -162,6 +165,10 @@ class ProfilingReport:
             },
             "bottleneck": self.get_bottleneck(),
             "quality_concerns": self.get_quality_concerns(),
+            "timestamps": {
+                "started": self.start_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.start_timestamp else None,
+                "ended": self.end_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.end_timestamp else None,
+            },
         }
 
     @staticmethod
@@ -242,11 +249,13 @@ class MetricsCollector:
         self._stages: list[StageMetrics] = []
         self._current_context: Optional[StageContext] = None
         self._analysis_start: Optional[float] = None
+        self._analysis_start_dt: Optional[datetime] = None
         self._lock = threading.Lock()  # Thread safety for parallel execution
 
     def start_analysis(self) -> None:
         """Mark the start of the analysis."""
         self._analysis_start = time.perf_counter()
+        self._analysis_start_dt = datetime.now()
         self._stages = []
 
     @contextmanager
@@ -294,6 +303,11 @@ class MetricsCollector:
         # Use actual total time if we tracked it
         if self._analysis_start:
             report.total_duration_seconds = time.perf_counter() - self._analysis_start
+
+        # Add datetime timestamps
+        if self._analysis_start_dt:
+            report.start_timestamp = self._analysis_start_dt
+            report.end_timestamp = datetime.now()
 
         return report
 
