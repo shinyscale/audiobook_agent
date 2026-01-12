@@ -19,6 +19,7 @@ from .identifier import SummaryDrivenCharacterIdentifier
 from .passage_gatherer import CharacterPassageGatherer, CharacterPassage
 from .generator import CharacterProfileGenerator
 from .narrator import NarratorDetector, NarratorInfo, detect_narrator_from_summary
+from .reconciler import CharacterReconciler, reconcile_characters
 from .pipeline import CharacterProfilingPipeline, profile_characters
 
 __all__ = [
@@ -39,6 +40,8 @@ __all__ = [
     "NarratorDetector",
     "NarratorInfo",
     "detect_narrator_from_summary",
+    "CharacterReconciler",
+    "reconcile_characters",
     # Pipeline
     "CharacterProfilingPipeline",
     "profile_characters",

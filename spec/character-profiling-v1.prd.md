@@ -531,7 +531,7 @@ Return JSON:
     "Check that merging preserves all profile information",
     "Confirm final character list has no duplicates"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -546,7 +546,7 @@ Return JSON:
     "Confirm characters with same first name but different last names stay separate",
     "Verify high-confidence separations are preserved"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

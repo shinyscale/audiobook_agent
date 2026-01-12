@@ -15,6 +15,7 @@ from src.pipeline.character_profiling import (
     CharacterPassage,
     NarratorDetector,
     NarratorInfo,
+    CharacterReconciler,
     IdentifiedCharacter,
     CharacterProfile,
 )
@@ -901,6 +902,190 @@ class TestNarratorDetector:
         result = detector.detect_narrator(summary, [])
 
         assert result.narrative_style == "third-person"
+
+
+class TestCharacterReconciler:
+    """Tests for character reconciliation."""
+
+    def test_reconciliation_merges_duplicates(self):
+        """Test that reconciliation catches and merges duplicate characters."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "duplicates": [
+                    {
+                        "name1": "James Gatz",
+                        "name2": "Jay Gatsby",
+                        "reason": "Birth name and assumed name - same person",
+                        "confidence": 0.95,
+                    }
+                ],
+                "analysis": "James Gatz and Jay Gatsby are the same person",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        profiles = [
+            CharacterProfile(
+                id="char_1",
+                canonical_name="James Gatz",
+                aliases=["Mr. Gatz"],
+                appearance=AppearanceProfile(summary="", age_indication="young"),  # Less complete
+            ),
+            CharacterProfile(
+                id="char_2",
+                canonical_name="Jay Gatsby",
+                aliases=["Mr. Gatsby", "old sport"],
+                appearance=AppearanceProfile(summary="Elegant millionaire with rare smile"),
+                personality=PersonalityProfile(summary="Romantic dreamer"),
+                voice_guidance=VoiceGuidance(suggested_tone="Formal and rehearsed"),
+            ),
+            CharacterProfile(
+                id="char_3",
+                canonical_name="Nick Carraway",
+            ),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm)
+        result = reconciler.reconcile(profiles)
+
+        # Should merge to 2 characters
+        assert len(result) == 2
+
+        # Jay Gatsby should be primary (more complete) - check by looking for his profile
+        gatsby = next((p for p in result if p.canonical_name == "Jay Gatsby"), None)
+        assert gatsby is not None
+        # James Gatz should now be an alias
+        assert "James Gatz" in gatsby.aliases
+
+    def test_reconciliation_keeps_distinct_characters_separate(self):
+        """Test that reconciliation does not incorrectly merge distinct characters."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "duplicates": [],
+                "analysis": "All characters are distinct individuals",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        profiles = [
+            CharacterProfile(
+                id="char_1",
+                canonical_name="George Wilson",
+                aliases=["Mr. Wilson"],
+            ),
+            CharacterProfile(
+                id="char_2",
+                canonical_name="Myrtle Wilson",
+                aliases=["Mrs. Wilson"],
+            ),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm)
+        result = reconciler.reconcile(profiles)
+
+        # Should remain as 2 separate characters
+        assert len(result) == 2
+        names = [p.canonical_name for p in result]
+        assert "George Wilson" in names
+        assert "Myrtle Wilson" in names
+
+    def test_reconciliation_respects_confidence_threshold(self):
+        """Test that low-confidence duplicates are not merged."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "duplicates": [
+                    {
+                        "name1": "Tom",
+                        "name2": "Mr. Buchanan",
+                        "reason": "Might be same person",
+                        "confidence": 0.6,  # Below threshold
+                    }
+                ],
+                "analysis": "Possible duplicate but not confident",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        profiles = [
+            CharacterProfile(id="char_1", canonical_name="Tom"),
+            CharacterProfile(id="char_2", canonical_name="Mr. Buchanan"),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm, confidence_threshold=0.85)
+        result = reconciler.reconcile(profiles)
+
+        # Should NOT merge (confidence below threshold)
+        assert len(result) == 2
+
+    def test_reconciliation_preserves_profile_information(self):
+        """Test that merging preserves information from both profiles."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "duplicates": [
+                    {
+                        "name1": "Myrtle",
+                        "name2": "Mrs. Wilson",
+                        "reason": "First name and formal name for same person",
+                        "confidence": 0.9,
+                    }
+                ],
+                "analysis": "Myrtle and Mrs. Wilson are the same person",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        profiles = [
+            CharacterProfile(
+                id="char_1",
+                canonical_name="Myrtle",
+                aliases=[],
+                appearance=AppearanceProfile(summary="Thickish figure with vitality"),
+                chapters_present=[2],
+            ),
+            CharacterProfile(
+                id="char_2",
+                canonical_name="Mrs. Wilson",
+                aliases=["Wilson"],
+                personality=PersonalityProfile(summary="Ambitious and desperate"),
+                chapters_present=[2, 7],
+            ),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm)
+        result = reconciler.reconcile(profiles)
+
+        assert len(result) == 1
+        merged = result[0]
+
+        # Should have merged chapters
+        assert 2 in merged.chapters_present
+        assert 7 in merged.chapters_present
+
+        # Should have both appearance and personality (from different originals)
+        # One profile had appearance, one had personality
+
+    def test_reconciliation_handles_llm_failure(self):
+        """Test that reconciliation handles LLM failure gracefully."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            None,
+            LLMResponse(content="", model="test", error="LLM failed"),
+        )
+
+        profiles = [
+            CharacterProfile(id="char_1", canonical_name="Character A"),
+            CharacterProfile(id="char_2", canonical_name="Character B"),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm)
+        result = reconciler.reconcile(profiles)
+
+        # Should return original profiles unchanged
+        assert len(result) == 2
 
 
 # Integration test marker - requires actual LLM
