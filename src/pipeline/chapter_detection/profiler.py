@@ -297,8 +297,10 @@ class DocumentProfiler:
         if re.search(r"^Chapter\s+\d+\s*[:\-—]\s*.+$", sample, re.MULTILINE | re.IGNORECASE):
             conventions.append("named_chapters")
 
-        if re.search(r"\*\s*\*\s*\*|\-\s*\-\s*\-|~\s*~\s*~", sample):
-            conventions.append("scene_breaks")
+        # REMOVED: Scene breaks should NOT be treated as structural chapter markers
+        # They are scene transitions WITHIN chapters
+        # if re.search(r"\*\s*\*\s*\*|\-\s*\-\s*\-|~\s*~\s*~", sample):
+        #     conventions.append("scene_breaks")
 
         return conventions
 

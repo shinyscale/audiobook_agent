@@ -33,21 +33,24 @@ You are looking for STRUCTURAL MARKERS that divide the book:
 - Book divisions ("Book One", "Book Two")
 
 You are NOT looking for:
-- Scene breaks (*** or --- or === or ~~~)
+- Scene breaks: *** or --- or -------- or === or ~~~ or ... (any repeated punctuation)
+- These are transitions WITHIN chapters, not chapter boundaries
 - Paragraph breaks or whitespace
 - Minor section divisions within chapters
 - Section headers that are part of the narrative flow
 
 IMPORTANT - Do NOT mark these as chapter markers:
+- Scene breaks: lines of dashes (--------), asterisks (***), equals (===), tildes (~~~), or dots (...)
 - References to chapters in dialogue or narrative (e.g., "In Chapter 1, we saw...")
 - Glossary entries or definitions that mention chapter numbers
 - Bibliography citations or index references
 - Back matter that references chapters (appendix, notes, etc.)
 - Text that MENTIONS a chapter number but isn't a STRUCTURAL HEADING
 
-CRITICAL DISTINCTION:
+CRITICAL DISTINCTIONS:
 - STRUCTURAL MARKER: "Chapter 5" appearing as a HEADING that divides the book into sections
 - NOT A MARKER: "...as explained in Chapter 5, the character..." (just a textual reference)
+- SCENE BREAK: "--------" or "***" marking a transition WITHIN a chapter (NOT a chapter boundary)
 
 CRITICAL: You must return the EXACT TEXT as it appears. We will search for your text - if you paraphrase, the search will fail."""
 
@@ -401,7 +404,8 @@ class LLMNarrativeProposer(BaseProposer):
                 continue
 
             # Narrative breaks have lower base confidence than explicit markers
-            confidence = float(item.get("confidence", 0.5)) * 0.8
+            # Reduced from 0.8 to 0.7 to be more conservative and avoid false positives
+            confidence = float(item.get("confidence", 0.5)) * 0.7
 
             proposals.append(ChapterProposal(
                 strategy=self.name,

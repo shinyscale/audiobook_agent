@@ -187,9 +187,21 @@ class ConsensusBuilder:
         for c in sorted(rejected, key=lambda x: x.center_position):
             logger.debug(f"  REJECTED: [{c.center_position}] '{c.best_title}' (score={c.combined_score:.2f})")
 
+        # 5.5. STRICT TOC enforcement (if TOC exists)
+        if profile.table_of_contents and profile.table_of_contents.entries:
+            expected_count = len(profile.table_of_contents.entries)
+            pre_toc_count = len(high_confidence)
+            logger.info(f"ConsensusBuilder: TOC specifies {expected_count} chapters - enforcing strict count")
+            high_confidence = self._enforce_toc_count(high_confidence, expected_count)
+            if len(high_confidence) != pre_toc_count:
+                logger.info(
+                    f"ConsensusBuilder: TOC enforcement reduced {pre_toc_count} boundaries to "
+                    f"{len(high_confidence)}"
+                )
+
         # 6. Validate chapter sizes
         pre_size_count = len(high_confidence)
-        high_confidence = self._validate_chapter_sizes(high_confidence, text)
+        high_confidence = self._validate_chapter_sizes(high_confidence, text, profile)
         if len(high_confidence) != pre_size_count:
             logger.info(
                 f"ConsensusBuilder: size validation removed "
@@ -319,35 +331,125 @@ class ConsensusBuilder:
         self,
         clusters: list[ProposalCluster],
         text: str,
+        profile: DocumentProfile,
     ) -> list[ProposalCluster]:
-        """Remove boundaries that would create too-small chapters."""
+        """Remove boundaries that create too-small chapters or fragment existing structure."""
         if len(clusters) < 2:
             return clusters
 
-        # Sort by position
         sorted_clusters = sorted(clusters, key=lambda c: c.center_position)
 
-        valid = []
+        # Phase 1: Calculate all chapter sizes
+        chapter_sizes = []
         for i, cluster in enumerate(sorted_clusters):
-            # Calculate chapter size this would create
             start = cluster.center_position
-            if i + 1 < len(sorted_clusters):
-                end = sorted_clusters[i + 1].center_position
-            else:
-                end = len(text)
-
+            end = sorted_clusters[i + 1].center_position if i + 1 < len(sorted_clusters) else len(text)
             chapter_text = text[start:end]
             word_count = len(chapter_text.split())
+            chapter_sizes.append((cluster, word_count, i))
 
-            if word_count >= self.min_chapter_words:
-                valid.append(cluster)
-            else:
-                logger.debug(
-                    f"Removing boundary at {cluster.center_position}: "
-                    f"would create {word_count} word chapter"
+        # Phase 2: Determine size threshold (TOC-aware if available)
+        if profile.table_of_contents and profile.table_of_contents.entries:
+            # TOC-based threshold: use expected average chapter size
+            expected_count = len(profile.table_of_contents.entries)
+            total_text_length = len(text) - profile.front_matter_end
+            total_words = len(text[profile.front_matter_end:].split())
+            expected_avg_size = total_words / expected_count
+
+            # Small chapter = less than 30% of expected average
+            small_threshold = int(expected_avg_size * 0.3)
+            logger.info(
+                f"Size validation: TOC-based threshold = {small_threshold} words "
+                f"(30% of expected avg {expected_avg_size:.0f} words)"
+            )
+        elif len(chapter_sizes) >= 3:
+            # Fallback: median-based threshold
+            word_counts = [size for _, size, _ in chapter_sizes]
+            median_size = sorted(word_counts)[len(word_counts) // 2]
+
+            # A chapter is suspiciously small if it's <40% of median AND <2000 words
+            # This catches fragmentation without being too aggressive
+            small_threshold = min(median_size * 0.4, 2000)
+            logger.info(
+                f"Size validation: median-based threshold = {small_threshold} words "
+                f"(40% of median {median_size} words, capped at 2000)"
+            )
+        else:
+            # Very few chapters - use absolute minimum
+            small_threshold = self.min_chapter_words
+            logger.info(f"Size validation: using absolute minimum = {small_threshold} words")
+
+        # Phase 3: Remove small chapters with confidence weighting
+        valid = []
+        removed_count = 0
+
+        if len(chapter_sizes) >= 2:
+
+            for cluster, word_count, idx in chapter_sizes:
+                # Check 0: Always preserve special sections (Foreword, Epilogue, Letters, etc.)
+                # These are explicitly marked structural elements that narrators need
+                is_special_section = any(
+                    p.description in ["special_section", "letter_section"]
+                    for p in cluster.proposals
+                    if hasattr(p, 'description')
                 )
 
-        return valid
+                if is_special_section:
+                    logger.debug(
+                        f"Preserving special section at {cluster.center_position}: "
+                        f"{word_count} words (special sections always kept)"
+                    )
+                    valid.append(cluster)
+                    continue
+
+                # Check 1: Absolute minimum (300 words)
+                if word_count < self.min_chapter_words:
+                    logger.debug(
+                        f"Removing boundary at {cluster.center_position}: "
+                        f"{word_count} words < {self.min_chapter_words} minimum"
+                    )
+                    removed_count += 1
+                    continue
+
+                # Check 2: Relative to median (detect fragmentation)
+                if word_count < small_threshold:
+                    # Check if it's a high-confidence explicit marker
+                    has_explicit_marker = any(
+                        s in ["regex", "llm_marker", "toc_match"]
+                        for s in cluster.strategies
+                    )
+
+                    if has_explicit_marker and cluster.combined_score >= 0.85:
+                        # High confidence explicit marker - probably legitimate (e.g., short epilogue)
+                        valid.append(cluster)
+                    elif cluster.combined_score < 0.75:
+                        # Low-ish confidence and small - likely false positive
+                        logger.info(
+                            f"Removing small chapter boundary at {cluster.center_position}: "
+                            f"{word_count} words (median: {median_size:.0f}), "
+                            f"confidence: {cluster.combined_score:.2f}, "
+                            f"strategies: {cluster.strategies}"
+                        )
+                        removed_count += 1
+                        continue
+                    else:
+                        # Medium confidence - keep but warn
+                        logger.warning(
+                            f"Keeping small chapter at {cluster.center_position}: "
+                            f"{word_count} words, confidence: {cluster.combined_score:.2f}"
+                        )
+                        valid.append(cluster)
+                else:
+                    # Normal size
+                    valid.append(cluster)
+
+            if removed_count > 0:
+                logger.info(f"Size validation removed {removed_count} boundaries")
+
+            return valid
+
+        # Fallback for <3 chapters: use simple threshold check
+        return [c for c, wc, _ in chapter_sizes if wc >= self.min_chapter_words]
 
     def _build_chapter_map(
         self,
@@ -622,6 +724,73 @@ class ConsensusBuilder:
         logger.debug(f"Detected simple sequence: {numbers}")
         return True
 
+    def _enforce_toc_count(
+        self,
+        clusters: list[ProposalCluster],
+        expected_count: int
+    ) -> list[ProposalCluster]:
+        """
+        STRICTLY enforce TOC count by selecting top N clusters.
+
+        User requirement: If TOC says 9, result must be exactly 9.
+        No tolerance - this is a hard constraint.
+        """
+        if len(clusters) == expected_count:
+            logger.debug(f"TOC enforcement: cluster count already matches expected ({expected_count})")
+            return clusters  # Perfect match
+
+        if len(clusters) < expected_count:
+            logger.warning(
+                f"TOC enforcement: Only {len(clusters)} boundaries found but TOC expects {expected_count}. "
+                f"This may indicate missed chapter markers. Returning all {len(clusters)} clusters."
+            )
+            return clusters  # Can't create chapters that don't exist
+
+        # Too many boundaries - need to select top N
+        logger.info(
+            f"TOC enforcement: {len(clusters)} boundaries found but TOC expects {expected_count}. "
+            f"Selecting top {expected_count} by confidence and TOC match."
+        )
+
+        # Sort by combined score (descending)
+        sorted_clusters = sorted(clusters, key=lambda c: c.combined_score, reverse=True)
+
+        # Prioritize TOC-validated boundaries (these should definitely be included)
+        toc_validated = [c for c in sorted_clusters if any(
+            v.toc_match_score > 0.8 for v in c.proposals
+        )]
+        non_toc = [c for c in sorted_clusters if c not in toc_validated]
+
+        logger.debug(
+            f"TOC enforcement: {len(toc_validated)} TOC-validated, "
+            f"{len(non_toc)} non-TOC clusters"
+        )
+
+        # Take TOC-validated first, then fill with highest-scoring non-TOC
+        selected = toc_validated[:expected_count]
+        remaining_slots = expected_count - len(selected)
+        if remaining_slots > 0:
+            selected.extend(non_toc[:remaining_slots])
+            logger.debug(
+                f"TOC enforcement: took {len(toc_validated)} TOC-validated + "
+                f"{remaining_slots} highest-scoring non-TOC"
+            )
+
+        # Re-sort by position for output
+        selected_sorted = sorted(selected, key=lambda c: c.center_position)
+
+        # Log what we kept vs dropped
+        dropped = [c for c in clusters if c not in selected]
+        if dropped:
+            logger.info(f"TOC enforcement: dropped {len(dropped)} boundaries:")
+            for c in sorted(dropped, key=lambda x: x.center_position):
+                logger.info(
+                    f"  DROPPED: [{c.center_position}] '{c.best_title}' "
+                    f"(score={c.combined_score:.2f})"
+                )
+
+        return selected_sorted
+
     def _clean_title(self, title: Optional[str]) -> Optional[str]:
         """
         Clean chapter title by removing redundant 'Chapter X:' prefixes.
@@ -629,9 +798,23 @@ class ConsensusBuilder:
         The detected title might already include "Chapter 12: Cooking with Explosives"
         but we assign our own index, so we'd get "Chapter 13: Chapter 12: Cooking with Explosives".
         This extracts just the subtitle part.
+
+        Special case: Preserve standalone Roman numerals (I, II, III, etc.) as they are
+        meaningful chapter identifiers in classic literature.
         """
         if not title:
             return None
+
+        # Check if title is "Chapter" followed by standalone Roman numeral
+        # Extract just the Roman numeral part
+        match = re.match(
+            r'^(?:Chapter|CHAPTER)\s+([IVXLC]+)\s*$',
+            title,
+            re.IGNORECASE
+        )
+        if match:
+            # Preserve standalone Roman numerals
+            return match.group(1)
 
         # If title starts with "Chapter N:" or similar, extract just the subtitle
         # Handles: "Chapter 12: Title", "Chapter XII - Title", "CHAPTER 5: Title"
@@ -643,9 +826,13 @@ class ConsensusBuilder:
         if match:
             return match.group(1).strip()
 
-        # If title is JUST "Chapter N" with no subtitle, return None (we'll use our index)
-        if re.match(r'^(?:Chapter|CHAPTER)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$', title, re.IGNORECASE):
+        # If title is JUST "Chapter N" (Arabic numeral or word) with no subtitle, return None (we'll use our index)
+        if re.match(r'^(?:Chapter|CHAPTER)\s+(?:\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$', title, re.IGNORECASE):
             return None
+
+        # Preserve any other title as-is (including standalone Roman numerals)
+        if re.match(r'^[IVXLC]+$', title.strip()):
+            return title.strip()
 
         return title
 
