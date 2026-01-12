@@ -18,13 +18,19 @@ from src.pipeline.character_profiling import (
     CharacterReconciler,
     IdentifiedCharacter,
     CharacterProfile,
+    profile_to_character,
+    profile_map_to_characters,
+    character_to_rich_dict,
 )
 from src.pipeline.character_profiling.models import (
     AppearanceProfile,
     PersonalityProfile,
     VoiceGuidance,
     CharacterProfileMap,
+    CharacterRelationship,
+    ProfileEvidence,
 )
+from src.models import Character, ConfidenceLevel
 from src.pipeline.chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from src.pipeline.chapter_detection.models import ChapterMap, Chapter
 from src.pipeline.llm import LLMResponse
@@ -1086,6 +1092,240 @@ class TestCharacterReconciler:
 
         # Should return original profiles unchanged
         assert len(result) == 2
+
+
+class TestProfileToCharacterConverter:
+    """Tests for converting CharacterProfile to Character model."""
+
+    def test_profile_to_character_basic(self):
+        """Test basic conversion from profile to character."""
+        profile = CharacterProfile(
+            id="char_gatsby_123",
+            canonical_name="Jay Gatsby",
+            aliases=["Mr. Gatsby", "James Gatz"],
+            role="protagonist",
+            is_narrator=False,
+            confidence=0.9,
+            first_appearance_chapter=3,
+            chapters_present=[3, 4, 5, 6, 7, 8, 9],
+            mention_frequency="frequent",
+        )
+
+        char = profile_to_character(profile)
+
+        assert char.id == "char_gatsby_123"
+        assert char.canonical_name == "Jay Gatsby"
+        assert "Mr. Gatsby" in char.aliases
+        assert char.is_narrator is False
+        assert char.confidence == ConfidenceLevel.HIGH  # 0.9 >= 0.7
+
+    def test_profile_to_character_with_rich_data(self):
+        """Test conversion preserves appearance, personality, voice guidance."""
+        profile = CharacterProfile(
+            id="char_tom_456",
+            canonical_name="Tom Buchanan",
+            aliases=["Tom"],
+            role="antagonist",
+            appearance=AppearanceProfile(
+                summary="A hulking man with arrogant eyes",
+                age_indication="middle-aged",
+                distinguishing_features=["cruel body", "hard mouth"],
+            ),
+            personality=PersonalityProfile(
+                summary="Arrogant and domineering",
+                traits=["arrogant", "brutal", "racist"],
+                temperament="volatile",
+            ),
+            voice_guidance=VoiceGuidance(
+                suggested_tone="Deep, commanding, dismissive",
+                dialect_notes="Upper-class East Coast",
+                verbal_tics=[],
+                formality_level="formal",
+                emotional_range="controlled aggression",
+                example_quotes=["I've got a nice place here"],
+            ),
+            confidence=0.85,
+        )
+
+        char = profile_to_character(profile)
+
+        # Should have description with appearance and personality
+        assert len(char.descriptions) > 0
+        desc_text = char.descriptions[0].text
+        assert "Appearance" in desc_text or "hulking" in desc_text.lower()
+
+        # Should have voice notes
+        assert char.voice_notes is not None
+        assert "Deep" in char.voice_notes or "commanding" in char.voice_notes
+
+    def test_profile_to_character_with_relationships(self):
+        """Test conversion preserves relationships."""
+        profile = CharacterProfile(
+            id="char_daisy_789",
+            canonical_name="Daisy Buchanan",
+            aliases=["Daisy"],
+            relationships=[
+                CharacterRelationship(
+                    character="Tom Buchanan",
+                    relationship_type="spouse",
+                    description="Unhappy marriage",
+                ),
+                CharacterRelationship(
+                    character="Jay Gatsby",
+                    relationship_type="love interest",
+                    description="Former romance, rekindled",
+                ),
+            ],
+            confidence=0.8,
+        )
+
+        char = profile_to_character(profile)
+
+        assert "Tom Buchanan" in char.relationships
+        assert char.relationships["Tom Buchanan"] == "spouse"
+        assert "Jay Gatsby" in char.relationships
+
+    def test_profile_to_character_confidence_mapping(self):
+        """Test that confidence is correctly mapped to enum."""
+        # High confidence
+        high_profile = CharacterProfile(id="c1", canonical_name="A", confidence=0.85)
+        assert profile_to_character(high_profile).confidence == ConfidenceLevel.HIGH
+
+        # Medium confidence
+        med_profile = CharacterProfile(id="c2", canonical_name="B", confidence=0.5)
+        assert profile_to_character(med_profile).confidence == ConfidenceLevel.MEDIUM
+
+        # Low confidence
+        low_profile = CharacterProfile(id="c3", canonical_name="C", confidence=0.3)
+        assert profile_to_character(low_profile).confidence == ConfidenceLevel.LOW
+
+    def test_profile_map_to_characters(self):
+        """Test converting entire profile map."""
+        profile_map = CharacterProfileMap(
+            profiles=[
+                CharacterProfile(id="c1", canonical_name="Character A"),
+                CharacterProfile(id="c2", canonical_name="Character B"),
+                CharacterProfile(id="c3", canonical_name="Character C"),
+            ],
+            narrator_name="Character A",
+            narrative_style="first-person",
+            total_characters=3,
+        )
+
+        characters = profile_map_to_characters(profile_map)
+
+        assert len(characters) == 3
+        assert all(isinstance(c, Character) for c in characters)
+
+
+class TestCharacterToRichDict:
+    """Tests for character_to_rich_dict function."""
+
+    def test_character_to_rich_dict_structure(self):
+        """Test that rich dict has correct structure prioritizing narrator info."""
+        profile = CharacterProfile(
+            id="char_gatsby",
+            canonical_name="Jay Gatsby",
+            aliases=["Mr. Gatsby", "James Gatz"],
+            role="protagonist",
+            is_narrator=False,
+            appearance=AppearanceProfile(
+                summary="Elegant young man with rare smile",
+                age_indication="early thirties",
+            ),
+            personality=PersonalityProfile(
+                summary="Romantic dreamer",
+                traits=["mysterious", "romantic", "obsessive"],
+            ),
+            voice_guidance=VoiceGuidance(
+                suggested_tone="Measured formality",
+                verbal_tics=["old sport"],
+                formality_level="very formal",
+            ),
+            relationships=[
+                CharacterRelationship(
+                    character="Daisy Buchanan",
+                    relationship_type="love interest",
+                    description="Obsessive love",
+                ),
+            ],
+            first_appearance_chapter=3,
+            mention_frequency="frequent",
+            confidence=0.9,
+        )
+
+        char = profile_to_character(profile)
+        rich_dict = character_to_rich_dict(char)
+
+        # Check top-level structure
+        assert "id" in rich_dict
+        assert "canonical_name" in rich_dict
+        assert "aliases" in rich_dict
+        assert "role" in rich_dict
+        assert "is_narrator" in rich_dict
+
+        # Check primary profile data (narrator-useful)
+        assert "appearance" in rich_dict
+        assert "personality" in rich_dict
+        assert "voice_guidance" in rich_dict
+        assert "relationships" in rich_dict
+
+        # Check metadata is secondary (nested)
+        assert "metadata" in rich_dict
+        assert "first_appearance_chapter" in rich_dict["metadata"]
+        assert "mention_count" in rich_dict["metadata"]
+        assert "confidence" in rich_dict["metadata"]
+
+    def test_character_to_rich_dict_voice_guidance(self):
+        """Test that voice guidance is properly structured."""
+        profile = CharacterProfile(
+            id="char_gatsby",
+            canonical_name="Jay Gatsby",
+            voice_guidance=VoiceGuidance(
+                suggested_tone="Measured formality",
+                dialect_notes="Affected upper-class",
+                verbal_tics=["old sport"],
+                formality_level="very formal",
+                emotional_range="controlled",
+                example_quotes=['"Old sport"', '"I\'m Gatsby"'],
+            ),
+            confidence=0.8,
+        )
+
+        char = profile_to_character(profile)
+        rich_dict = character_to_rich_dict(char)
+
+        vg = rich_dict["voice_guidance"]
+        assert "suggested_tone" in vg
+        assert "verbal_tics" in vg
+        assert "formality_level" in vg
+
+    def test_json_output_includes_rich_profile_data(self):
+        """Test that JSON output structure supports rich profiles."""
+        profile = CharacterProfile(
+            id="char_nick",
+            canonical_name="Nick Carraway",
+            aliases=["Mr. Carraway"],
+            role="protagonist",
+            is_narrator=True,
+            narrative_role="First-person narrator",
+            appearance=AppearanceProfile(summary="Young Midwesterner"),
+            personality=PersonalityProfile(summary="Honest and observant"),
+            voice_guidance=VoiceGuidance(suggested_tone="Reflective, measured"),
+            confidence=0.95,
+        )
+
+        char = profile_to_character(profile)
+        rich_dict = character_to_rich_dict(char)
+
+        # Verify narrator info is captured
+        assert rich_dict["is_narrator"] is True
+        assert rich_dict["narrative_role"] == "First-person narrator"
+
+        # Verify all profile sections are present
+        assert rich_dict["appearance"]["summary"] is not None
+        assert rich_dict["personality"]["summary"] is not None
+        assert rich_dict["voice_guidance"]["suggested_tone"] is not None
 
 
 # Integration test marker - requires actual LLM

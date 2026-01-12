@@ -21,6 +21,11 @@ from .generator import CharacterProfileGenerator
 from .narrator import NarratorDetector, NarratorInfo, detect_narrator_from_summary
 from .reconciler import CharacterReconciler, reconcile_characters
 from .pipeline import CharacterProfilingPipeline, profile_characters
+from .converter import (
+    profile_to_character,
+    profile_map_to_characters,
+    character_to_rich_dict,
+)
 
 __all__ = [
     # Models
@@ -45,4 +50,8 @@ __all__ = [
     # Pipeline
     "CharacterProfilingPipeline",
     "profile_characters",
+    # Converter
+    "profile_to_character",
+    "profile_map_to_characters",
+    "character_to_rich_dict",
 ]

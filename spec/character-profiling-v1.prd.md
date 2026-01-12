@@ -627,7 +627,7 @@ Return JSON:
     "Check that mention counts are de-emphasized or moved to metadata",
     "Confirm layout supports narrator preparation workflow"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -642,7 +642,7 @@ Return JSON:
     "Confirm relationships are captured",
     "Verify structure supports programmatic access to profile components"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
