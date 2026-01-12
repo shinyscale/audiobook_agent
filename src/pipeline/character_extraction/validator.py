@@ -313,11 +313,10 @@ class CharacterValidator:
             if first_name:
                 aliases.append(first_name)
 
-            # Add titled versions
-            if last_name and last_name[0].isupper():
-                aliases.append(f"Mr. {last_name}")
-                aliases.append(f"Mrs. {last_name}")
-                aliases.append(f"Miss {last_name}")
+            # NOTE: We do NOT generate phantom titled versions here (e.g., "Mr. LastName")
+            # because they may not exist in the text. The consensus stage, which has access
+            # to all character names, will handle alias detection with the LLM's help.
+            # Generating phantom aliases pollutes the system and wastes LLM tokens.
 
         # Common nickname patterns
         nickname_map = {
