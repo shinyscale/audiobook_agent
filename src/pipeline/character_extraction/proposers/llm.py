@@ -30,13 +30,13 @@ CHARACTER TYPES:
 - "referenced": Fictional characters from OTHER works mentioned (e.g., Hamlet, Sherlock Holmes, Macduff) - not active in this story
 
 Focus on finding:
-- Full names: "Jay Gatsby", "Elizabeth Bennet"
-- First names only: "Nick", "Daisy"
-- Titled names: "Mr. Buchanan", "Lady Catherine"
-- Nicknames: "Lizzy", "Old Sport"
+- Full names: "Sarah Miller", "Robert Chen"
+- First names only: "Michael", "Emma"
+- Titled names: "Mr. Anderson", "Dr. Williams"
+- Nicknames: "Mike", "Liz"
 
 Do NOT include:
-- Places (East Egg, London)
+- Places (Riverside, London)
 - Days/months (Monday, January)
 - Generic titles without names (the doctor, a woman)
 - Non-person entities (companies, newspapers)"""

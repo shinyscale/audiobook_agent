@@ -44,14 +44,17 @@ CHAPTER_PATTERNS = [
         description="part_marker",
     ),
 
-    # Roman numeral only (like Gatsby)
+    # Roman numeral only (common in classic literature)
+    # STRICT: Must be centered (10+ spaces) - works for all Roman numerals including "I"
     ChapterPattern(
         re.compile(r"^\s{10,}([IVXLC]+)\s*$", re.MULTILINE),
         confidence=0.85,
         description="roman_numeral_centered",
     ),
+    # RELAXED but safer: Requires 2+ characters to avoid matching "I" pronoun in dialogue
+    # This won't match Chapter I, but the centered pattern above should catch it
     ChapterPattern(
-        re.compile(r"^\s*([IVXLC]{1,7})\s*$", re.MULTILINE),
+        re.compile(r"^\s*([IVXLC]{2,7})\s*$", re.MULTILINE),
         confidence=0.70,
         description="roman_numeral_line",
     ),

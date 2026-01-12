@@ -31,29 +31,33 @@ Your task is to determine which character names refer to the SAME PERSON.
 
 IMPORTANT: Titles, ranks, and honorifics should be IGNORED when matching names.
 The underlying PERSON is what matters, not how they're addressed. Examples:
-- Military: "SSgt Otto" = "Staff Sergeant Mark Otto" = "Mark Otto" = "Otto"
-- Civilian: "Mr. Smith" = "John Smith" = "Smith"
-- Religious: "Father O'Brien" = "Patrick O'Brien" = "O'Brien"
-- Foreign: "Señor García" = "Miguel García" = "García"
+- Military: "SSgt Otto" = "Staff Sergeant Mark Otto" = "Mark Otto" (but NOT just "Otto" alone)
+- Civilian: "Mr. Smith" = "John Smith" (but NOT just "Smith" alone - could be family member)
+- Religious: "Father O'Brien" = "Patrick O'Brien" (but NOT just "O'Brien" alone)
 - Academic: "Professor Williams" = "Dr. Williams" = "Jane Williams"
-- Nobility: "Lord Pemberton" = "Charles Pemberton" = "Pemberton"
 
-CRITICAL RULES:
-1. Only merge names if they CLEARLY refer to the same individual
+CRITICAL RULES - BE CONSERVATIVE:
+1. Only merge names if they CLEARLY refer to the same individual with HIGH CONFIDENCE
 2. Different people with similar names should NEVER be merged
-3. Pay attention to chapter appearances and context clues
-4. When in doubt, keep names SEPARATE
+3. Pay close attention to chapter appearances and context clues
+4. When in doubt, keep names SEPARATE - false negatives are better than false positives
+5. A bare FIRST name can merge with a full name (e.g., "Mike" → "Michael Anderson")
+6. A bare LAST name is RISKY - only merge if you're absolutely certain (could be family member)
 
 For the canonical name, prefer the FULL CIVILIAN NAME (first + last) over titled versions.
 
 NEVER merge:
-- Different characters who happen to share a first name (e.g., two Michaels in the same story)
-- Different characters who share a LAST name but have different first names (family members, spouses)
-  - A married couple sharing a last name are two separate people
-  - Siblings sharing a last name are separate people
-  - A bare last name should only merge with ONE full-name character
-- Characters who appear in completely different parts of the book
-- Names that are clearly different people based on context"""
+- Different characters who happen to share only a first name (e.g., two characters named Michael)
+- Different characters who share ONLY a last name (family members, spouses, siblings)
+  - "Mr. Anderson" (father) ≠ "Michael" (son) even if both are Andersons
+  - "Robert Wilson" ≠ "Mrs. Wilson" (his wife Emma)
+- Characters who appear in completely different parts of the book with no overlap
+- Names that are clearly different major characters (check mention counts - if both have 50+ mentions, they're probably separate people!)
+
+BE EXTREMELY CAUTIOUS WITH:
+- Bare last names (could be family members)
+- Gendered titles (Mr. vs Mrs. vs Miss suggests different people)
+- Characters with similar but different names (e.g., "Michael" vs "Michelle")"""
 
 
 ALIAS_RESOLUTION_PROMPT = """Identify which character names refer to the SAME PERSON in this novel.
@@ -61,20 +65,37 @@ ALIAS_RESOLUTION_PROMPT = """Identify which character names refer to the SAME PE
 CHARACTER NAMES (with chapter info and sample contexts):
 {characters}
 
-IMPORTANT: Only merge names if you are CERTAIN they refer to the same person.
-- Check if they appear in similar chapters
-- Check if the contexts suggest the same person
-- When uncertain, keep names SEPARATE
+ANALYZE CAREFULLY:
+1. Check if names appear in similar chapters (overlapping chapters = might be same person)
+2. Check if contexts suggest the same person
+3. Look at mention counts - if both names have many mentions (50+), they're likely different major characters
+4. Check for gendered title conflicts (Mr. vs Mrs. suggests different people)
+5. When uncertain, keep names SEPARATE - it's better to have duplicates than to merge different people
+
+EXAMPLES OF CORRECT MERGES:
+- "Sarah Miller" + "Sarah" → SAME (first name matches full name)
+- "Robert Chen" + "Chen" + "Mr. Chen" → SAME (last name and titled version)
+- "Michael Anderson" + "Mike" → SAME (nickname matches full name)
+- "Emma Wilson" + "Wilson" + "Miss Wilson" → SAME (last name and titled version)
+- "Dr. Williams" + "James Williams" → SAME (titled version of full name)
+- "Elizabeth Harper" + "Liz" → SAME (nickname matches full name)
+
+EXAMPLES OF INCORRECT MERGES (DO NOT DO THIS!):
+- "Mr. Anderson" + "Chen" → WRONG! (completely different people, no name overlap)
+- "Mr. Anderson" + "Emma" → WRONG! (completely different people)
+- "Mr. Roberts" + "Mrs. Roberts" → WRONG! (likely spouses, different people)
+- "Michael Brown" + "Sarah Brown" → WRONG! (different people with same last name)
+- "Sarah" + "Emma" → WRONG! (different first names = different people)
 
 Return JSON array:
 ```json
 [
-  {{"canonical": "Full Name", "aliases": ["Nickname"]}},
+  {{"canonical": "Full Name", "aliases": ["Nickname", "Title LastName"]}},
   {{"canonical": "Another Character", "aliases": []}}
 ]
 ```
 
-Return ONLY the JSON array. Every character must appear exactly once (either as canonical or as an alias)."""
+Return ONLY the JSON array. Include only names you're confident about - omit uncertain names entirely rather than making bad merges."""
 
 
 class CharacterConsensusBuilder:
@@ -660,6 +681,22 @@ class CharacterConsensusBuilder:
         significant2 = {w for w in words2 if len(w) >= 3}
         shared_words = significant1 & significant2
 
+        # Check for gendered title conflicts
+        # Mr. vs Mrs./Miss suggests different people (likely spouses/family)
+        male_titles = {'mr', 'sir', 'lord'}
+        female_titles = {'mrs', 'ms', 'miss', 'lady'}
+        title1 = words1[0] if words1 and words1[0] in (male_titles | female_titles) else None
+        title2 = words2[0] if words2 and words2[0] in (male_titles | female_titles) else None
+
+        if title1 and title2:
+            if (title1 in male_titles and title2 in female_titles) or \
+               (title1 in female_titles and title2 in male_titles):
+                logger.debug(
+                    f"Merge rejected: {canonical} <-> {alias} "
+                    f"(gendered title conflict: {title1} vs {title2})"
+                )
+                return False, 0.05
+
         # Get chapter info
         canonical_results = name_groups.get(canonical, [])
         alias_results = name_groups.get(alias, [])
@@ -800,13 +837,17 @@ class CharacterConsensusBuilder:
                     )
                     return False, 0.1
 
-        # Only trust LLM if we have chapter overlap
-        if has_chapter_overlap:
-            logger.debug(f"Merge accepted: {canonical} <- {alias} (trusting LLM, has chapter overlap)")
-            return True, 0.6
-        else:
-            logger.debug(f"Merge rejected: {canonical} <-> {alias} (no shared words, no chapter overlap)")
-            return False, 0.3
+        # CRITICAL: We should NEVER merge names with zero shared words
+        # The only exceptions are specific patterns we've already handled above:
+        # - title+lastname pattern (already returned True if applicable)
+        # - single-word matching first/last (already returned False if not matched)
+        #
+        # If we reach here with no shared words, something is wrong - likely LLM hallucination
+        logger.debug(
+            f"Merge rejected: {canonical} <-> {alias} "
+            f"(no shared words - LLM likely hallucinating or confused)"
+        )
+        return False, 0.2
 
     def _name_similarity(self, name1: str, name2: str) -> float:
         """Calculate similarity between two names (0.0 to 1.0)."""

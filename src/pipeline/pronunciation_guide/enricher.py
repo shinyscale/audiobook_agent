@@ -25,9 +25,9 @@ For each word, provide:
 3. Any helpful notes about the pronunciation
 
 Be precise with IPA. For phonetic spelling, use intuitive uppercase representations like:
-- "GAT-sbee" for Gatsby
-- "KWAH-zee-MOH-doh" for Quasimodo
-- "ZHAHN" for Jean (French)
+- "MILL-er" for Miller (simple surname)
+- "AN-der-son" for Anderson (compound surname)
+- "ZHAHN" for Jean (French pronunciation)
 
 Use hyphens to separate syllables and CAPS to indicate stressed syllables."""
 
