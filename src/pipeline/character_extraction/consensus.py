@@ -8,7 +8,7 @@ and produces the final CharacterMap.
 import re
 import hashlib
 import time
-from typing import Optional
+from typing import Optional, Iterable
 from collections import defaultdict
 from difflib import SequenceMatcher
 import logging
@@ -28,6 +28,43 @@ logger = logging.getLogger(__name__)
 # Common titles that should be ignored when comparing character names
 # These are not part of the actual name but indicate social status or role
 TITLES = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain', 'major'}
+
+PAIRWISE_ALIAS_SYSTEM = """You are a literary analyst identifying whether two character names refer to the SAME PERSON.
+
+CRITICAL:
+- Use ONLY the evidence provided below (chapter appearances and context snippets).
+- Be conservative: false negatives (missing an alias) are better than false positives (merging different people).
+- Titles (Mr/Mrs/Miss/Dr/etc.) are not part of the name; treat them as address forms.
+
+Return ONLY valid JSON. No other text."""
+
+PAIRWISE_ALIAS_PROMPT = """Decide whether these two names refer to the SAME PERSON in this novel.
+
+NAME A: {name_a}
+MENTIONS A: {mentions_a}
+CHAPTERS A: {chapters_a}
+CONTEXT A:
+{contexts_a}
+
+NAME B: {name_b}
+MENTIONS B: {mentions_b}
+CHAPTERS B: {chapters_b}
+CONTEXT B:
+{contexts_b}
+
+Rules:
+- Only say same_person=true if there is strong evidence they are the same character (name overlap, title variants, obvious nickname/full-name relationship, or clear contextual cues).
+- If the only overlap is a last name, be VERY cautious (family members/spouses share last names).
+- If they never appear in overlapping chapters, be cautious unless it's clearly a full-name/short-name relationship.
+
+Return JSON:
+{{
+  "same_person": true/false,
+  "confidence": 0.0-1.0,
+  "canonical": "Which of the two names should be canonical if same_person=true (must be exactly one of the provided names)",
+  "alias": "The other name if same_person=true (must be exactly one of the provided names)",
+  "reason": "brief justification"
+}}"""
 
 
 ALIAS_RESOLUTION_SYSTEM = """You are a literary analyst identifying character aliases.
@@ -516,36 +553,352 @@ class CharacterConsensusBuilder:
         # Default: alphabetically first is canonical
         return (name1, name2) if name1 < name2 else (name2, name1)
 
+    def _is_ambiguous_name(self, name: str) -> bool:
+        """
+        Heuristic for names that require more evidence during alias resolution.
+
+        Ambiguous examples:
+        - Single-word names (often last-name-only)
+        - Titled names (Mr./Mrs./Dr. X)
+        """
+        words = re.sub(r"[^\w\s]", "", name.lower()).split()
+        if not words:
+            return True
+        if words[0] in TITLES:
+            return True
+        significant = self._filter_title_words(words)
+        return len(significant) <= 1
+
+    def _iter_all_mentions(self, results: list[CharacterValidationResult]) -> list[CharacterMention]:
+        """Collect all mentions from a list of validation results (can be many)."""
+        mentions: list[CharacterMention] = []
+        for r in results:
+            if r.proposal and r.proposal.mentions:
+                mentions.extend(r.proposal.mentions)
+        return mentions
+
+    def _format_contexts(
+        self,
+        results: list[CharacterValidationResult],
+        *,
+        max_contexts: int,
+        max_chars: int,
+    ) -> str:
+        """
+        Format diverse context snippets sampled across early/mid/late mentions.
+
+        Notes:
+        - Mention contexts are already short (~100 chars) upstream; we avoid over-truncating further.
+        - We prefer chapter diversity and narrative spread over "first 2 mentions".
+        """
+        mentions = self._iter_all_mentions(results)
+        if not mentions:
+            return "(no context)"
+
+        # Sort for deterministic sampling across the narrative
+        mentions_sorted = sorted(mentions, key=lambda m: (m.chapter_index, m.position))
+
+        # Seed picks: early / middle / late
+        picks: list[CharacterMention] = []
+        for idx in {0, len(mentions_sorted) // 2, len(mentions_sorted) - 1}:
+            if 0 <= idx < len(mentions_sorted):
+                picks.append(mentions_sorted[idx])
+
+        # Fill with additional mentions from new chapters if needed
+        seen_chapters = {m.chapter_index for m in picks}
+        seen_contexts = {m.context for m in picks if m.context}
+
+        for m in mentions_sorted:
+            if len(picks) >= max_contexts:
+                break
+            if not m.context:
+                continue
+            if m.chapter_index in seen_chapters and m.context in seen_contexts:
+                continue
+            # Prefer new chapters
+            if m.chapter_index not in seen_chapters:
+                picks.append(m)
+                seen_chapters.add(m.chapter_index)
+                seen_contexts.add(m.context)
+
+        # Still short? Add any remaining distinct contexts (even same chapter)
+        if len(picks) < max_contexts:
+            for m in mentions_sorted:
+                if len(picks) >= max_contexts:
+                    break
+                if not m.context or m.context in seen_contexts:
+                    continue
+                picks.append(m)
+                seen_contexts.add(m.context)
+
+        # Render
+        lines = []
+        for i, m in enumerate(picks[:max_contexts], 1):
+            ctx = (m.context or "").replace("\n", " ").strip()
+            if max_chars > 0 and len(ctx) > max_chars:
+                ctx = ctx[:max_chars].rstrip() + "..."
+            dlg = "dialogue" if getattr(m, "in_dialogue", False) else "narrative"
+            lines.append(f"{i}. [ch {m.chapter_index}, {dlg}] \"{ctx}\"")
+        return "\n".join(lines) if lines else "(no context)"
+
+    def _total_mentions_for_name(
+        self,
+        name: str,
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> int:
+        results = name_groups.get(name, [])
+        return sum(r.proposal.mention_count for r in results)
+
+    def _chapters_for_name(
+        self,
+        name: str,
+        name_groups: dict[str, list[CharacterValidationResult]],
+        *,
+        max_chapters: int = 12,
+    ) -> str:
+        results = name_groups.get(name, [])
+        chapters = sorted(set(r.proposal.chapter_index for r in results))
+        if not chapters:
+            return "(none)"
+        if len(chapters) <= max_chapters:
+            return ", ".join(str(c) for c in chapters)
+        return ", ".join(str(c) for c in chapters[:max_chapters]) + f"... ({len(chapters)} total)"
+
+    def _build_alias_prompt_global(
+        self,
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> str:
+        """Build the global alias-resolution prompt with richer contexts."""
+        char_lines: list[str] = []
+
+        # Sort by total mention count (desc) for more salient characters first.
+        sorted_items = sorted(
+            name_groups.items(),
+            key=lambda x: -sum(r.proposal.mention_count for r in x[1]),
+        )
+
+        for name, results in sorted_items:
+            total_mentions = sum(r.proposal.mention_count for r in results)
+            chapters_str = self._chapters_for_name(name, name_groups, max_chapters=12)
+
+            # More evidence for ambiguous names (last-name-only, titled forms)
+            ambiguous = self._is_ambiguous_name(name)
+            max_ctx = 6 if ambiguous else 4
+            max_chars = 180 if ambiguous else 140
+            context_str = self._format_contexts(results, max_contexts=max_ctx, max_chars=max_chars)
+
+            char_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
+            char_lines.append(f"  Context:\n{context_str}")
+
+        characters_str = "\n".join(char_lines)
+        return ALIAS_RESOLUTION_PROMPT.format(characters=characters_str)
+
+    def _candidate_pairs_for_merge(
+        self,
+        name_groups: dict[str, list[CharacterValidationResult]],
+        *,
+        max_pairs: int = 250,
+    ) -> list[tuple[str, str]]:
+        """
+        Generate plausible alias candidate pairs using cheap heuristics.
+
+        Goal: avoid O(n^2) on large casts while still capturing obvious merges.
+        """
+        names = list(name_groups.keys())
+        if len(names) < 2:
+            return []
+
+        # Token index for significant words (excluding titles)
+        token_to_names: dict[str, list[str]] = defaultdict(list)
+        for name in names:
+            words = re.sub(r"[^\w\s]", "", name.lower()).split()
+            sig = self._filter_title_words(words)
+            for w in sig:
+                token_to_names[w].append(name)
+
+        # Rank names by mention count for throttling big token buckets
+        mention_rank = {n: self._total_mentions_for_name(n, name_groups) for n in names}
+
+        pairs_set: set[tuple[str, str]] = set()
+
+        def add_pair(a: str, b: str):
+            if a == b:
+                return
+            x, y = (a, b) if a < b else (b, a)
+            pairs_set.add((x, y))
+
+        # Generate within token buckets
+        for token, bucket in token_to_names.items():
+            if len(bucket) < 2:
+                continue
+            # For very common tokens, only consider the top-N by mentions to avoid blowup
+            bucket_sorted = sorted(bucket, key=lambda n: -mention_rank.get(n, 0))
+            cap = 20 if len(bucket_sorted) > 20 else len(bucket_sorted)
+            bucket_sorted = bucket_sorted[:cap]
+
+            for i in range(len(bucket_sorted)):
+                for j in range(i + 1, len(bucket_sorted)):
+                    add_pair(bucket_sorted[i], bucket_sorted[j])
+                    if len(pairs_set) >= max_pairs:
+                        break
+                if len(pairs_set) >= max_pairs:
+                    break
+            if len(pairs_set) >= max_pairs:
+                break
+
+        # Add substring-based candidates (e.g., "Gatsby" in "Jay Gatsby")
+        if len(pairs_set) < max_pairs:
+            # Only compare top-N by mentions to keep it bounded
+            top = sorted(names, key=lambda n: -mention_rank.get(n, 0))[:80]
+            norm = {n: self._normalize_name(n) for n in top}
+            for i in range(len(top)):
+                for j in range(i + 1, len(top)):
+                    n1, n2 = top[i], top[j]
+                    a, b = norm[n1], norm[n2]
+                    if a and b and (a in b or b in a):
+                        add_pair(n1, n2)
+                        if len(pairs_set) >= max_pairs:
+                            break
+                if len(pairs_set) >= max_pairs:
+                    break
+
+        return list(pairs_set)
+
+    def _llm_pairwise_merge_decision(
+        self,
+        name_a: str,
+        name_b: str,
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> tuple[bool, float, Optional[str], Optional[str]]:
+        """
+        Ask the LLM whether two names should be merged.
+
+        Returns:
+          (same_person, confidence, canonical, alias)
+        """
+        results_a = name_groups.get(name_a, [])
+        results_b = name_groups.get(name_b, [])
+
+        # More evidence when ambiguous
+        amb = self._is_ambiguous_name(name_a) or self._is_ambiguous_name(name_b)
+        ctx_a = self._format_contexts(results_a, max_contexts=6 if amb else 4, max_chars=200 if amb else 160)
+        ctx_b = self._format_contexts(results_b, max_contexts=6 if amb else 4, max_chars=200 if amb else 160)
+
+        prompt = PAIRWISE_ALIAS_PROMPT.format(
+            name_a=name_a,
+            mentions_a=self._total_mentions_for_name(name_a, name_groups),
+            chapters_a=self._chapters_for_name(name_a, name_groups, max_chapters=16),
+            contexts_a=ctx_a,
+            name_b=name_b,
+            mentions_b=self._total_mentions_for_name(name_b, name_groups),
+            chapters_b=self._chapters_for_name(name_b, name_groups, max_chapters=16),
+            contexts_b=ctx_b,
+        )
+
+        result, response = self.llm.query_json(prompt, system=PAIRWISE_ALIAS_SYSTEM)
+        if not response.success or result is None or not isinstance(result, dict):
+            raise ValueError(f"Pairwise alias LLM failed for '{name_a}' vs '{name_b}'")
+
+        same = bool(result.get("same_person", False))
+        conf = float(result.get("confidence", 0.0) or 0.0)
+        canonical = result.get("canonical")
+        alias = result.get("alias")
+
+        # Enforce canonical/alias must be exactly one of the provided names
+        if same:
+            if canonical not in (name_a, name_b) or alias not in (name_a, name_b) or canonical == alias:
+                # Fall back to deterministic canonical choice
+                count_a = self._total_mentions_for_name(name_a, name_groups)
+                count_b = self._total_mentions_for_name(name_b, name_groups)
+                canonical, alias = self._pick_canonical(name_a, name_b, count_a, count_b)
+        return same, conf, canonical, alias
+
+    def _llm_alias_resolution_pairwise(
+        self,
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> dict[str, list[str]]:
+        """
+        Two-stage alias resolution:
+        1) Cheap heuristics propose candidate merges
+        2) LLM evaluates candidates pairwise with richer evidence
+        """
+        names = list(name_groups.keys())
+        if len(names) < 2:
+            return {n: [] for n in names}
+
+        candidates = self._candidate_pairs_for_merge(name_groups, max_pairs=250)
+        logger.info(f"Pairwise alias resolution: evaluating {len(candidates)} candidate pairs")
+
+        # Union-Find to build clusters
+        parent: dict[str, str] = {n: n for n in names}
+
+        def find(x: str) -> str:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: str, b: str):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[rb] = ra
+
+        # Evaluate candidates
+        accepted = 0
+        for a, b in candidates:
+            same, conf, canonical, alias = self._llm_pairwise_merge_decision(a, b, name_groups)
+            if not same or conf < 0.7:
+                continue
+
+            # Validate with our strict sanity checks before merging
+            is_valid, _vconf = self._validate_merge(canonical or a, alias or b, name_groups)
+            if not is_valid:
+                continue
+
+            union(a, b)
+            accepted += 1
+
+        logger.info(f"Pairwise alias resolution: accepted {accepted}/{len(candidates)} merges")
+
+        # Build components
+        components: dict[str, list[str]] = defaultdict(list)
+        for n in names:
+            components[find(n)].append(n)
+
+        # Choose canonical for each component deterministically using mention counts + name completeness
+        alias_map: dict[str, list[str]] = {}
+        for _root, members in components.items():
+            if len(members) == 1:
+                alias_map[members[0]] = []
+                continue
+
+            def score(name: str) -> tuple[int, int, int, str]:
+                parts = name.split()
+                has_title = 1 if parts and parts[0].rstrip('.').lower() in TITLES else 0
+                mention_count = self._total_mentions_for_name(name, name_groups)
+                # higher is better for first/third; lower is better for has_title
+                return (len(parts), -has_title, mention_count, name)
+
+            canonical = max(members, key=score)
+            aliases = [m for m in members if m != canonical]
+            alias_map[canonical] = aliases
+
+        # Post-check obvious merges the LLM missed (still useful)
+        alias_map = self._post_llm_merge_check(alias_map, name_groups)
+        return alias_map
+
     def _llm_alias_resolution(
         self,
         name_groups: dict[str, list[CharacterValidationResult]],
     ) -> dict[str, list[str]]:
         """Use LLM to resolve aliases with rich context."""
-        # Build rich context for each character
-        char_lines = []
-        for name, results in sorted(name_groups.items(), key=lambda x: -sum(r.proposal.mention_count for r in x[1]), reverse=False):
-            total_mentions = sum(r.proposal.mention_count for r in results)
-            chapters = sorted(set(r.proposal.chapter_index for r in results))
-            chapters_str = ", ".join(str(c) for c in chapters[:5])
-            if len(chapters) > 5:
-                chapters_str += f"... ({len(chapters)} total)"
+        # If there are many unique names, a single giant "merge everyone" prompt becomes
+        # both expensive and error-prone. Switch to pairwise mode automatically.
+        if len(name_groups) > 60:
+            logger.info(f"CharacterConsensusBuilder: large cast ({len(name_groups)} names) - using pairwise LLM alias resolution")
+            return self._llm_alias_resolution_pairwise(name_groups)
 
-            # Get sample contexts (first 2)
-            sample_contexts = []
-            for r in results[:2]:
-                if r.proposal.mentions:
-                    ctx = r.proposal.mentions[0].context[:60].replace("\n", " ").strip()
-                    if ctx:
-                        sample_contexts.append(f'"{ctx}..."')
-
-            context_str = " | ".join(sample_contexts) if sample_contexts else "no context"
-
-            char_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
-            char_lines.append(f"  Context: {context_str}")
-
-        characters_str = "\n".join(char_lines)
-
-        prompt = ALIAS_RESOLUTION_PROMPT.format(characters=characters_str)
+        prompt = self._build_alias_prompt_global(name_groups)
 
         # Retry logic: LLM is essential for character merging
         max_retries = 2
