@@ -113,7 +113,7 @@ Chapter Summaries → Character Identification → Passage Gathering → Profile
     "Verify characters mentioned in summaries appear in final character list",
     "Confirm no characters are listed that don't appear in any summary"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -128,7 +128,7 @@ Chapter Summaries → Character Identification → Passage Gathering → Profile
     "Check that both names appear as aliases",
     "Confirm the canonical name is the most commonly used form"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -143,7 +143,7 @@ Chapter Summaries → Character Identification → Passage Gathering → Profile
     "Check both name forms appear (canonical + alias)",
     "Confirm profile describes the unified character"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -158,7 +158,7 @@ Chapter Summaries → Character Identification → Passage Gathering → Profile
     "Check that last-name-only references are attributed correctly or flagged",
     "Confirm no incorrect merging of family members"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
