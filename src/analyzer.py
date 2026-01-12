@@ -190,7 +190,7 @@ class AudiobookAnalyzer:
                 logger.warning(f"Unknown LLM provider: {self.llm_provider}")
                 return None
 
-            self._llm_client = LLMClient(config)
+            self._llm_client = LLMClient(config, metrics=self._metrics)
 
             # Run health check to detect broken models (empty responses, etc.)
             ok, msg = self._llm_client.health_check()
@@ -258,7 +258,7 @@ class AudiobookAnalyzer:
                     config.think = agent_config.think_mode
                     config.context_length = agent_config.context_length or self.orchestrator_config.context_length
 
-                    client = LLMClient(config)
+                    client = LLMClient(config, metrics=self._metrics)
                     self._agent_llm_clients[agent_name] = client
                     logger.info(f"Created agent-specific LLM client for {agent_name}: {agent_config.model}")
                     return client
@@ -324,7 +324,7 @@ class AudiobookAnalyzer:
             config.think = think_mode
             config.context_length = context_length
 
-            return LLMClient(config)
+            return LLMClient(config, metrics=self._metrics)
         except Exception as e:
             logger.warning(f"Failed to create LLM client for {agent_name}: {e}")
             return None
@@ -540,6 +540,10 @@ class AudiobookAnalyzer:
                     char_config = self._get_agent_config("characters")
                     char_config.enable_verification = True
 
+                    # Set model info from LLM client config (before running agent)
+                    if char_llm and char_llm.config:
+                        ctx.set_model(char_llm.config.model, char_llm.config.provider)
+
                     character_agent = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
@@ -558,9 +562,6 @@ class AudiobookAnalyzer:
                         medium_confidence=result.medium_confidence_count,
                         low_confidence=result.low_confidence_count,
                     )
-
-                    # Record model info from agent result
-                    ctx.set_model(result.model_used, result.provider_used)
 
                     if result.issues:
                         for issue in result.issues:
@@ -581,6 +582,10 @@ class AudiobookAnalyzer:
                     pron_llm = self._create_llm_client_for_agent("pronunciation")
                     pron_config = self._get_agent_config("pronunciation")
 
+                    # Set model info from LLM client config (before running pipeline)
+                    if pron_llm and pron_llm.config:
+                        ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
+
                     pronunciation_pipeline = PronunciationGuidePipeline(
                         llm_client=pron_llm,
                         progress_callback=self._wrap_progress("pronunciation"),
@@ -594,10 +599,6 @@ class AudiobookAnalyzer:
                     medium = sum(1 for p in pron_map.entries if 0.4 <= p.confidence < 0.7)
                     low = sum(1 for p in pron_map.entries if p.confidence < 0.4) + len(pron_map.low_confidence_entries)
                     ctx.record_items(total=len(pron_map.entries), high_confidence=high, medium_confidence=medium, low_confidence=low)
-
-                    # Record model info from LLM client
-                    if pron_llm and pron_llm.config:
-                        ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
 
                     return pron_map
             except Exception as e:
@@ -681,6 +682,10 @@ class AudiobookAnalyzer:
             structure_config = self._get_agent_config("structure")
             structure_config.enable_verification = True
 
+            # Set model info from LLM client config (before running agent)
+            if structure_llm and structure_llm.config:
+                ctx.set_model(structure_llm.config.model, structure_llm.config.provider)
+
             structure_agent = StructureAgent(
                 llm_client=structure_llm,
                 config=structure_config,
@@ -701,9 +706,6 @@ class AudiobookAnalyzer:
                 medium_confidence=structure_result.medium_confidence_count,
                 low_confidence=structure_result.low_confidence_count,
             )
-
-            # Record model info from agent result
-            ctx.set_model(structure_result.model_used, structure_result.provider_used)
 
             # Log any issues found during verification
             if structure_result.issues:
@@ -750,6 +752,10 @@ class AudiobookAnalyzer:
                 char_config = self._get_agent_config("characters")
                 char_config.enable_verification = True
 
+                # Set model info from LLM client config (before running agent)
+                if char_llm and char_llm.config:
+                    ctx.set_model(char_llm.config.model, char_llm.config.provider)
+
                 character_agent = CharacterAgent(
                     llm_client=char_llm,
                     config=char_config,
@@ -772,9 +778,6 @@ class AudiobookAnalyzer:
                     low_confidence=character_result.low_confidence_count,
                 )
 
-                # Record model info from agent result
-                ctx.set_model(character_result.model_used, character_result.provider_used)
-
                 # Log any issues found during verification
                 if character_result.issues:
                     for issue in character_result.issues:
@@ -791,11 +794,27 @@ class AudiobookAnalyzer:
         if narrator_detected:
             print(f"📖 Detected narrator: {narrator_detected}")
 
+            # Boost confidence for detected narrator
+            # Narrator should have at least "high" confidence (≥ 0.8)
+            for char in pipeline_char_map.characters:
+                if char.canonical_name == narrator_detected:
+                    if char.confidence < 0.8:
+                        logger.info(
+                            f"Boosting narrator confidence: {char.canonical_name} "
+                            f"{char.confidence:.2f} → 0.85"
+                        )
+                        char.confidence = 0.85
+                    break
+
         # Step 3.6: Generate Character Profiles
         MIN_MENTIONS_FOR_PROFILE = 5
         if llm:
             print("📋 Generating character profiles...")
             with self._metrics.stage("Character Profiles") as ctx:
+                # Set model info from LLM client config (before running)
+                if llm and llm.config:
+                    ctx.set_model(llm.config.model, llm.config.provider)
+
                 # Generate profiles for all characters with sufficient mentions
                 eligible_chars = [
                     c for c in pipeline_char_map.characters
@@ -835,6 +854,14 @@ class AudiobookAnalyzer:
                     else:
                         low_conf_count += 1
 
+                    # Update real-time progress
+                    self._metrics.update_stage_progress(
+                        items_processed=i+1,
+                        high=high_conf_count,
+                        medium=medium_conf_count,
+                        low=low_conf_count
+                    )
+
                 # Record metrics with confidence breakdown
                 ctx.record_items(
                     total=len(eligible_chars),
@@ -842,10 +869,6 @@ class AudiobookAnalyzer:
                     medium_confidence=medium_conf_count,
                     low_confidence=low_conf_count
                 )
-
-                # Record model info from LLM client
-                if llm and llm.config:
-                    ctx.set_model(llm.config.model, llm.config.provider)
 
             print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
 
@@ -900,6 +923,10 @@ class AudiobookAnalyzer:
         summary_llm = self._get_agent_llm_client("summaries")
         if summary_llm:
             with self._metrics.stage("Chapter Summaries") as ctx:
+                # Set model info from LLM client config (before running)
+                if summary_llm and summary_llm.config:
+                    ctx.set_model(summary_llm.config.model, summary_llm.config.provider)
+
                 # Check if parallel chapter summaries are enabled
                 parallel_summaries = (
                     use_parallel
@@ -930,10 +957,6 @@ class AudiobookAnalyzer:
                 # Record metrics - summaries don't have confidence scores, so count all as high
                 ctx.record_items(total=len(summary_map.summaries), high_confidence=len(summary_map.summaries), medium_confidence=0, low_confidence=0)
 
-                # Record model info from LLM client
-                if summary_llm and summary_llm.config:
-                    ctx.set_model(summary_llm.config.model, summary_llm.config.provider)
-
             print(f"   Generated {len(summary_map.summaries)} summaries")
         else:
             summary_map = None
@@ -945,6 +968,10 @@ class AudiobookAnalyzer:
             # Use agent-specific LLM client for pronunciation
             pron_llm = self._get_agent_llm_client("pronunciation")
             with self._metrics.stage("Pronunciation Guide") as ctx:
+                # Set model info from LLM client config (before running)
+                if pron_llm and pron_llm.config:
+                    ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
+
                 pronunciation_pipeline = PronunciationGuidePipeline(
                     llm_client=pron_llm,
                     progress_callback=self._wrap_progress("pronunciation"),
@@ -961,10 +988,6 @@ class AudiobookAnalyzer:
                 medium = sum(1 for p in pron_map.entries if 0.4 <= p.confidence < 0.7)
                 low = sum(1 for p in pron_map.entries if p.confidence < 0.4) + len(pron_map.low_confidence_entries)
                 ctx.record_items(total=len(pron_map.entries), high_confidence=high, medium_confidence=medium, low_confidence=low)
-
-                # Record model info from LLM client
-                if pron_llm and pron_llm.config:
-                    ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
 
             print(f"   Flagged {len(pron_map.entries)} words")
 
@@ -1125,13 +1148,15 @@ class AudiobookAnalyzer:
             return f"{mins}m {secs}s"
         return f"{secs}s"
 
-    def _wrap_progress(self, stage: str) -> Optional[Callable[[str, int, int], None]]:
-        """Wrap progress callback with stage prefix."""
-        if not self.progress_callback:
-            return None
-
+    def _wrap_progress(self, stage: str) -> Callable[[str, int, int], None]:
+        """Wrap progress callback with stage prefix and metrics updates."""
         def wrapped(substage: str, current: int, total: int):
-            self.progress_callback(f"{stage}:{substage}", current, total)
+            # Update metrics (always, for real-time progress tracking)
+            self._metrics.update_stage_progress(items_processed=current)
+
+            # Call external progress callback if configured
+            if self.progress_callback:
+                self.progress_callback(f"{stage}:{substage}", current, total)
 
         return wrapped
 
@@ -1227,7 +1252,7 @@ Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "profile": "A brief 2-3 sentence description of the character based on provided evidence. The character is introduced as a young professional who recently moved to the area. They maintain close family connections and serve as an observer of unfolding events.",
+  "profile": "IMPORTANT: This must be PLAIN TEXT, not JSON. A brief 2-3 sentence description of the character based on provided evidence. The character is introduced as a young professional who recently moved to the area. They maintain close family connections and serve as an observer of unfolding events.",
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
     {{"statement": "Has family in the area", "quote": "My cousin lived just across the bay", "position": 2456}},
@@ -1238,6 +1263,7 @@ Return a JSON response matching this example format exactly:
 }}
 ```
 
+CRITICAL: The "profile" field must contain PLAIN TEXT only, not nested JSON structures.
 Return ONLY valid JSON matching the above structure. No other text."""
 
         try:
@@ -1255,7 +1281,24 @@ Return ONLY valid JSON matching the above structure. No other text."""
                 # Parse JSON response
                 try:
                     result = json.loads(content)
+
+                    # NEW: Check if "profile" field itself contains JSON (double-encoded)
                     profile = result.get("profile", "")
+                    if profile and (profile.startswith("{") or profile.startswith("[")):
+                        # LLM returned nested JSON - try to parse it
+                        logger.warning(
+                            f"Character profile for {character.canonical_name} contains nested JSON, attempting to parse"
+                        )
+                        try:
+                            nested = json.loads(profile)
+                            if isinstance(nested, dict) and "profile" in nested:
+                                # Double-encoded JSON
+                                profile = nested["profile"]
+                                logger.info(f"Successfully extracted profile from nested JSON for {character.canonical_name}")
+                        except json.JSONDecodeError:
+                            # Not valid JSON, treat as-is (might be malformed text)
+                            logger.warning(f"Nested JSON parse failed for {character.canonical_name}, using as-is")
+
                     evidence = result.get("evidence", [])
                     confidence = float(result.get("confidence", 0.5))
 
@@ -1278,7 +1321,8 @@ Return ONLY valid JSON matching the above structure. No other text."""
                     return profile, validated_evidence, confidence
 
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse JSON response for {character.canonical_name}: {e}")
+                    logger.error(f"Failed to parse JSON response for {character.canonical_name}: {e}")
+                    logger.error(f"Raw content (first 500 chars): {content[:500]}")
                     # Fallback: treat as plain text profile with low confidence
                     return content[:500], [], 0.3
 
@@ -1291,13 +1335,16 @@ Return ONLY valid JSON matching the above structure. No other text."""
         """
         Detect if this is a first-person narrative and identify the narrator.
 
+        Uses per-character pronoun density scoring to identify which character
+        is actually speaking in first person, not just mention count.
+
         Returns:
             Name of narrator character if detected, None otherwise
         """
         # Sample text from beginning (first 5000 chars)
         sample_text = full_text[:5000]
 
-        # Count first-person pronouns
+        # Count first-person pronouns in opening
         first_person_count = 0
         pronouns = ["I ", " I ", "I'm", "I've", "my ", " my ", "me ", " me "]
         for pronoun in pronouns:
@@ -1305,19 +1352,73 @@ Return ONLY valid JSON matching the above structure. No other text."""
 
         # If high first-person usage, this is likely a first-person narrative
         if first_person_count > 15:  # Threshold for first-person narrative
-            # Try to find the narrator among characters
-            # The narrator is usually the character with the most mentions
-            if characters:
-                # Sort by mention count
-                sorted_chars = sorted(characters, key=lambda c: c.mention_count, reverse=True)
-                narrator = sorted_chars[0]
+            logger.info(f"First-person narrative detected ({first_person_count} pronouns in opening)")
 
-                # Mark as narrator
+            # NEW: Calculate per-character first-person pronoun scores
+            # Check which character's contexts contain first-person pronouns
+            character_scores = []
+
+            for char in characters:
+                if not hasattr(char, 'mentions') or not char.mentions:
+                    continue
+
+                # Sample up to 10 mentions per character
+                sampled_mentions = char.mentions[:10]
+
+                # Count first-person pronouns in context around each mention
+                pronoun_count = 0
+                total_context_length = 0
+
+                for mention in sampled_mentions:
+                    # Get context window around mention (±200 chars)
+                    start = max(0, mention.position - 200)
+                    end = min(len(full_text), mention.position + 200)
+                    context = full_text[start:end]
+
+                    # Count pronouns in this context
+                    for pronoun in pronouns:
+                        pronoun_count += context.count(pronoun)
+
+                    total_context_length += len(context)
+
+                # Calculate pronoun density (pronouns per 1000 chars)
+                if total_context_length > 0:
+                    density = (pronoun_count / total_context_length) * 1000
+                else:
+                    density = 0.0
+
+                character_scores.append({
+                    'character': char,
+                    'pronoun_count': pronoun_count,
+                    'density': density,
+                    'mention_count': char.mention_count
+                })
+
+                logger.debug(
+                    f"Narrator scoring: {char.canonical_name} - "
+                    f"{pronoun_count} pronouns in contexts, density={density:.2f}, "
+                    f"mentions={char.mention_count}"
+                )
+
+            # Sort by pronoun density (primary) and mention count (tiebreaker)
+            character_scores.sort(key=lambda x: (x['density'], x['mention_count']), reverse=True)
+
+            if character_scores and character_scores[0]['density'] > 5.0:
+                # Narrator should have significant first-person pronoun usage in their contexts
+                narrator = character_scores[0]['character']
                 narrator.is_narrator = True
                 narrator.narrative_role = "First-person narrator"
 
-                logger.info(f"Detected first-person narrator: {narrator.canonical_name} ({narrator.mention_count} mentions)")
+                logger.info(
+                    f"Detected first-person narrator: {narrator.canonical_name} "
+                    f"(density={character_scores[0]['density']:.2f}, {narrator.mention_count} mentions)"
+                )
                 return narrator.canonical_name
+            else:
+                logger.warning(
+                    f"First-person narrative detected but no character has strong pronoun association. "
+                    f"Top character: {character_scores[0]['character'].canonical_name if character_scores else 'none'}"
+                )
 
         return None
 

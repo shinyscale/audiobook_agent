@@ -7,6 +7,7 @@ and produces the final CharacterMap.
 
 import re
 import hashlib
+import time
 from typing import Optional
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -23,6 +24,10 @@ from .models import (
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+# Common titles that should be ignored when comparing character names
+# These are not part of the actual name but indicate social status or role
+TITLES = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain', 'major'}
 
 
 ALIAS_RESOLUTION_SYSTEM = """You are a literary analyst identifying character aliases.
@@ -57,7 +62,40 @@ NEVER merge:
 BE EXTREMELY CAUTIOUS WITH:
 - Bare last names (could be family members)
 - Gendered titles (Mr. vs Mrs. vs Miss suggests different people)
-- Characters with similar but different names (e.g., "Michael" vs "Michelle")"""
+- Characters with similar but different names (e.g., "Michael" vs "Michelle")
+
+SPECIFIC ANTI-PATTERNS (DO NOT MERGE):
+- Different first names + same last name (likely family members): spouses, siblings, parents/children
+- Single-word names with no overlap: completely different characters with unrelated names
+- Characters who co-occur but have different identities: appearing together ≠ being the same person
+
+ONLY merge when confident:
+1. Full name + partial name: full name contains the partial name as a component
+2. Title variations: titled form and untitled form of the same name
+3. Obvious nickname patterns: common nickname/full name pairs
+
+CRITICAL MERGE PATTERNS:
+
+MERGE these patterns (HIGH CONFIDENCE):
+- Full name variations: "FirstName LastName" = "LastName" = "Title LastName"
+- Nickname patterns: Shortened forms or diminutives of the same character
+- Birth/married names: Known alternate names for the same person (when contextually clear)
+
+DO NOT MERGE these patterns:
+- Title-only matches: Characters sharing only a title but different last names are DIFFERENT people
+- Family members: Different first names + same last name typically indicates spouses, siblings, or family (separate characters)
+- Similar titles: Same professional title (Professor, Doctor, Captain) doesn't indicate same person
+
+CONTEXTUAL CLUES to consider:
+- Relationship descriptors: "his/her spouse", "his/her parent", "his/her sibling" indicate SEPARATE characters
+- Gendered pronouns: Consistent he/she usage helps distinguish characters with ambiguous names
+- First-person narrative: First-person "I" may indicate narrator (check for self-references)
+
+MENTION COUNT HEURISTIC:
+- Large disparity (e.g., 200+ vs <10 mentions) often indicates full name vs shortened form
+- Similar counts (both >20 mentions) often indicates distinct characters of comparable importance
+
+When in doubt, keep SEPARATE. False negatives (missing an alias) are better than false positives (merging different characters)."""
 
 
 ALIAS_RESOLUTION_PROMPT = """Identify which character names refer to the SAME PERSON in this novel.
@@ -509,17 +547,38 @@ class CharacterConsensusBuilder:
 
         prompt = ALIAS_RESOLUTION_PROMPT.format(characters=characters_str)
 
-        result, response = self.llm.query_json(prompt, system=ALIAS_RESOLUTION_SYSTEM)
+        # Retry logic: LLM is essential for character merging
+        max_retries = 2
+        last_error = None
 
-        if result is None:
-            error_msg = "LLM alias resolution failed - cannot continue with heuristics"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        for attempt in range(max_retries + 1):
+            try:
+                result, response = self.llm.query_json(prompt, system=ALIAS_RESOLUTION_SYSTEM)
 
-        if not isinstance(result, list):
-            error_msg = f"LLM alias resolution returned non-list: {type(result)}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+                if result is None:
+                    raise ValueError("LLM returned None - possibly parsing failure")
+
+                if not isinstance(result, list):
+                    raise ValueError(f"LLM returned non-list: {type(result)}")
+
+                # Success - break out of retry loop
+                break
+
+            except Exception as e:
+                last_error = e
+                logger.warning(f"LLM alias resolution attempt {attempt + 1} failed: {e}")
+
+                if attempt == max_retries:
+                    # All retries exhausted - fail loudly
+                    logger.error("All LLM attempts failed - character alias resolution cannot proceed")
+                    raise RuntimeError(
+                        "LLM alias resolution failed after all retries. "
+                        "LLM is required for accurate character merging. "
+                        f"Last error: {last_error}"
+                    ) from last_error
+
+                # Wait before retry
+                time.sleep(1)
 
         # Parse LLM response WITH VALIDATION
         alias_map = {}
@@ -599,7 +658,8 @@ class CharacterConsensusBuilder:
                 # Check if these should be merged
                 is_valid, confidence = self._validate_merge(name1, name2, name_groups)
 
-                if is_valid and confidence >= 0.7:
+                # Higher threshold for post-LLM merges to avoid introducing false merges
+                if is_valid and confidence >= 0.85:
                     # Merge: pick the more complete name as canonical
                     # Calculate mention counts for both names
                     count1 = sum(r.proposal.mention_count for r in name_groups[name1])
@@ -658,6 +718,22 @@ class CharacterConsensusBuilder:
         # If we can't find a clear match, return None
         return None
 
+    def _filter_title_words(self, words: list[str]) -> set[str]:
+        """
+        Extract significant words from a name, excluding titles.
+
+        Titles like "Mr.", "Miss", "Dr." are social indicators, not part of the actual name.
+        Filtering them prevents spurious merges like "Miss X" with "Miss Y" based solely
+        on the shared title word.
+
+        Args:
+            words: List of words from a character name
+
+        Returns:
+            Set of significant words (length >= 3, not titles)
+        """
+        return {w for w in words if len(w) >= 3 and w.lower() not in TITLES}
+
     def _validate_merge(
         self,
         canonical: str,
@@ -674,12 +750,59 @@ class CharacterConsensusBuilder:
         Returns:
             (is_valid, confidence) tuple
         """
-        # Extract words from names
+        # Extract words from names, filtering out titles
         words1 = re.sub(r'[^\w\s]', '', canonical.lower()).split()
         words2 = re.sub(r'[^\w\s]', '', alias.lower()).split()
-        significant1 = {w for w in words1 if len(w) >= 3}
-        significant2 = {w for w in words2 if len(w) >= 3}
+        # Use helper to filter title words - prevents spurious merges on title alone
+        significant1 = self._filter_title_words(words1)
+        significant2 = self._filter_title_words(words2)
         shared_words = significant1 & significant2
+
+        # SINGLE-WORD NAME HANDLING
+        # When comparing single-word vs multi-word names, assume the single word is the LAST NAME
+        # (most common pattern in literature: "Smith" is the last name in "John Smith")
+        is_single_word1 = len(significant1) == 1
+        is_single_word2 = len(significant2) == 1
+
+        if is_single_word1 and not is_single_word2:
+            # Comparing single-word (e.g., "Smith") vs multi-word (e.g., "John Smith")
+            # Assume single word is the LAST NAME
+            single_word = list(significant1)[0]
+            multi_words = significant2
+
+            # Check if single word appears in multi-word name
+            if single_word in multi_words:
+                # This is likely the same person (full name variant)
+                logger.debug(
+                    f"Merge accepted: {canonical} <- {alias} "
+                    f"(single-word '{single_word}' appears in multi-word name)"
+                )
+                return True, 0.90  # High confidence
+
+        elif is_single_word2 and not is_single_word1:
+            # Reverse case: multi-word vs single-word
+            single_word = list(significant2)[0]
+            multi_words = significant1
+
+            if single_word in multi_words:
+                logger.debug(
+                    f"Merge accepted: {canonical} <- {alias} "
+                    f"(single-word '{single_word}' appears in multi-word name)"
+                )
+                return True, 0.90  # High confidence
+
+        # NEW CHECK: Reject completely different single-word names
+        # If both are single-word names with NO shared words, reject immediately
+        # NOTE: This is intentionally strict. Legitimate nicknames (Tom/Thomas) should be
+        # caught by LLM alias resolution earlier in the pipeline. This prevents the
+        # worst over-merges (Alice + Robert) during validation.
+        if len(significant1) == 1 and len(significant2) == 1:
+            if not shared_words:  # Different single-word names
+                logger.debug(
+                    f"Merge rejected: {canonical} <-> {alias} "
+                    f"(both single-word names with no similarity - likely different characters)"
+                )
+                return False, 0.05
 
         # Check for gendered title conflicts
         # Mr. vs Mrs./Miss suggests different people (likely spouses/family)
@@ -703,6 +826,14 @@ class CharacterConsensusBuilder:
         canonical_chapters = set(r.proposal.chapter_index for r in canonical_results)
         alias_chapters = set(r.proposal.chapter_index for r in alias_results)
         has_chapter_overlap = bool(canonical_chapters & alias_chapters)
+
+        # Calculate overlap ratio for weighted chapter overlap checks
+        if len(canonical_chapters) > 0 and len(alias_chapters) > 0:
+            overlap_count = len(canonical_chapters & alias_chapters)
+            total_chapters = len(canonical_chapters | alias_chapters)
+            overlap_ratio = overlap_count / total_chapters if total_chapters > 0 else 0
+        else:
+            overlap_ratio = 0
 
         # Check for family member conflict:
         # If names share ONLY a last name, check if multiple people have that last name
@@ -749,7 +880,52 @@ class CharacterConsensusBuilder:
                         )
                         return False, 0.2
 
-                    # If they have different first names, reject
+                    # BEFORE rejecting different first names, check for birth name / assumed name patterns
+                    # Look for phrases like "born as", "real name", "formerly known as", etc.
+                    if first1 != first2 and first1 and first2:
+                        birth_name_indicators = [
+                            "born as",
+                            "real name",
+                            "formerly known as",
+                            "changed his name",
+                            "changed her name",
+                            "once called",
+                            "used to be called",
+                            "whose real name",
+                            "originally named",
+                            "birth name",
+                        ]
+
+                        # Get contexts for both names to check for alias indicators
+                        canonical_contexts = []
+                        alias_contexts = []
+                        for result in canonical_results[:5]:  # Check first 5 contexts
+                            if hasattr(result.proposal, 'context') and result.proposal.context:
+                                canonical_contexts.append(result.proposal.context.lower())
+                        for result in alias_results[:5]:
+                            if hasattr(result.proposal, 'context') and result.proposal.context:
+                                alias_contexts.append(result.proposal.context.lower())
+
+                        # Check if any context mentions alias relationship
+                        all_contexts = canonical_contexts + alias_contexts
+                        for context in all_contexts:
+                            # Check for birth name indicators
+                            for indicator in birth_name_indicators:
+                                if indicator in context:
+                                    # Additional validation: both names should appear or be referenced in context
+                                    # This prevents false positives from generic "birth name" mentions
+                                    canonical_lower = canonical.lower()
+                                    alias_lower = alias.lower()
+
+                                    # Check if either name appears in the context
+                                    if canonical_lower in context or alias_lower in context:
+                                        logger.info(
+                                            f"Merge ALLOWED: {canonical} <- {alias} "
+                                            f"(birth name/alias indicator found: '{indicator}')"
+                                        )
+                                        return True, 0.85  # High confidence for explicit alias mentions
+
+                    # If they have different first names and no birth name evidence, reject
                     if first1 != first2 and first1 and first2:
                         logger.debug(
                             f"Merge rejected: {canonical} <-> {alias} "
@@ -783,8 +959,17 @@ class CharacterConsensusBuilder:
                     return False, 0.1
 
             # Shared words and passed family check - accept
+            # But require higher confidence for single-word merges
+            confidence = 0.85
+            if len(words1) == 1 or len(words2) == 1:
+                if confidence < 0.85:
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"(single-word name, confidence {confidence:.2f} < 0.85 threshold)"
+                    )
+                    return False, confidence * 0.5
             logger.debug(f"Merge accepted: {canonical} <- {alias} (shared words: {shared_words})")
-            return True, 0.85
+            return True, confidence
 
         # No shared words - be much more cautious
         # First, reject if BOTH have 3+ chapters AND zero chapter overlap
@@ -814,14 +999,35 @@ class CharacterConsensusBuilder:
                     multi_words[0].rstrip('.').lower() in titles
                 )
 
-                # If multi-word is title+lastname and they co-occur, likely same person
-                # Example: "Nick" (first name) + "Mr. Carraway" (title + last name) = "Nick Carraway"
-                if is_title_lastname and has_chapter_overlap:
-                    logger.debug(
-                        f"Merge accepted: {canonical} <- {alias} "
-                        f"(single first name + title+lastname with chapter overlap)"
-                    )
-                    return True, 0.75
+                # If multi-word is title+lastname, only accept with strong evidence
+                # Chapter overlap alone is not enough (co-occurring characters can be different people)
+                # Require EITHER shared words OR strong chapter overlap (>60%)
+                # Lowered from 0.8 to 0.6 to allow legitimate title variations
+                # (e.g., "Nick" + "Mr. Carraway" where title form appears in subset of chapters)
+                if is_title_lastname:
+                    if shared_words or (has_chapter_overlap and overlap_ratio > 0.6):
+                        # Single-word names need higher confidence to merge
+                        confidence = 0.75
+                        if len(words1) == 1 or len(words2) == 1:
+                            if confidence < 0.85:
+                                logger.debug(
+                                    f"Merge rejected: {canonical} <-> {alias} "
+                                    f"(single-word name, confidence {confidence:.2f} < 0.85 threshold)"
+                                )
+                                return False, confidence * 0.5
+                        logger.debug(
+                            f"Merge accepted: {canonical} <- {alias} "
+                            f"(title+lastname pattern with strong evidence: shared_words={bool(shared_words)}, "
+                            f"overlap_ratio={overlap_ratio:.2f})"
+                        )
+                        return True, confidence
+                    else:
+                        logger.debug(
+                            f"Merge rejected: {canonical} <-> {alias} "
+                            f"(title pattern but insufficient overlap or similarity: "
+                            f"shared_words={bool(shared_words)}, overlap_ratio={overlap_ratio:.2f})"
+                        )
+                        return False, 0.3
 
                 first_word = multi_words[0]
                 if first_word in titles and len(multi_words) > 1:

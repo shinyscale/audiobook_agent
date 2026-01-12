@@ -113,6 +113,32 @@ class NERProposer(BaseCharacterProposer):
                     reasoning=f"Found {len(mentions)} mentions via {'spaCy NER' if self.use_spacy else 'regex patterns'}",
                 ))
 
+        # Extract first names from full names and create additional proposals
+        # This helps with alias resolution (e.g., "Jordan" from "Jordan Baker" or "Miss Jordan Baker")
+        first_name_proposals = []
+        for proposal in proposals:
+            if ' ' in proposal.name:
+                first_names = self._extract_first_names(proposal.name)
+                for fname in first_names:
+                    # Skip if this first name already exists as a standalone proposal
+                    if any(p.name == fname for p in proposals):
+                        continue
+
+                    # Create new proposals for first name using same mentions as full name
+                    # (consensus stage will merge these appropriately)
+                    first_name_proposals.append(CharacterProposal(
+                        strategy=f"{self.name}_firstname",
+                        name=fname,
+                        mentions=proposal.mentions,  # Share mentions with full name
+                        confidence=0.7,  # Lower confidence than full name
+                        chapter_index=chapter_index,
+                        reasoning=f"First name extracted from '{proposal.name}'",
+                    ))
+
+        proposals.extend(first_name_proposals)
+        if first_name_proposals:
+            logger.debug(f"Extracted {len(first_name_proposals)} first-name proposals from full names")
+
         return proposals
 
     def _extract_with_spacy(
@@ -229,3 +255,26 @@ class NERProposer(BaseCharacterProposer):
         name = re.sub(r'^(mr|mrs|ms|miss|dr|sir|lady|lord)\s*\.?\s*', '', name)
         name = ' '.join(name.split())
         return name
+
+    def _extract_first_names(self, full_name: str) -> list[str]:
+        """
+        Extract standalone first name from full name.
+
+        Examples:
+        - "Jordan Baker" → ["Jordan"]
+        - "Miss Jordan Baker" → ["Jordan"]
+        - "Jay Gatsby" → ["Jay"]
+        - "Mr. Nick Carraway" → ["Nick"]
+        """
+        # Remove titles
+        titles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor']
+        words = full_name.lower().split()
+
+        # Filter out title words
+        name_words = [w for w in words if w.rstrip('.') not in titles]
+
+        # If multi-word name, first word is likely first name
+        if len(name_words) >= 2:
+            return [name_words[0].capitalize()]
+
+        return []
