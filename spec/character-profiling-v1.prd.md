@@ -433,7 +433,7 @@ class VoiceGuidance:
     "Confirm narrator identification matches the actual narrator",
     "Check that narrator's profile mentions their narrative role"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -448,7 +448,7 @@ class VoiceGuidance:
     "Check that identification comes from summary understanding, not mention count",
     "Confirm narrator profile is complete despite low explicit mentions"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -463,7 +463,7 @@ class VoiceGuidance:
     "Confirm narrative_style is correctly identified as 'third-person'",
     "Check that no character is incorrectly flagged as narrator"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

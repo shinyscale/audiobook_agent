@@ -13,6 +13,8 @@ from src.pipeline.character_profiling import (
     CharacterProfileGenerator,
     CharacterPassageGatherer,
     CharacterPassage,
+    NarratorDetector,
+    NarratorInfo,
     IdentifiedCharacter,
     CharacterProfile,
 )
@@ -724,6 +726,181 @@ class TestRichProfilingPipeline:
         assert profile.canonical_name == "Jay Gatsby"
         # Rich profile should have appearance populated
         assert profile.appearance.summary == "Elegant young man with rare smile"
+
+
+class TestNarratorDetector:
+    """Tests for narrator detection from summaries."""
+
+    def test_first_person_narrator_detected(self):
+        """Test that first-person narrator is correctly identified."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "narrative_style": "first-person",
+                "narrator_name": "Nick Carraway",
+                "narrator_role": "First-person narrator and participant in events",
+                "confidence": 0.95,
+                "reasoning": "The plot summary states 'through the eyes of Nick Carraway'",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        characters = [
+            IdentifiedCharacter(canonical_name="Nick Carraway", aliases=["Mr. Carraway"]),
+            IdentifiedCharacter(canonical_name="Jay Gatsby", aliases=["Gatsby"]),
+        ]
+
+        detector = NarratorDetector(mock_llm)
+        result = detector.detect_narrator(GATSBY_PLOT_SUMMARY, characters)
+
+        assert result.narrative_style == "first-person"
+        assert result.narrator_name == "Nick Carraway"
+        assert result.confidence >= 0.9
+
+    def test_narrator_detection_uses_plot_summary_intelligence(self):
+        """Test that narrator is detected from summary, not mention count."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "narrative_style": "first-person",
+                "narrator_name": "Nick Carraway",
+                "narrator_role": "Observer and participant",
+                "confidence": 0.9,
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        # Characters with narrator having LOW mention count
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Nick Carraway",
+                aliases=["Mr. Carraway"],
+                chapters_present=[1],  # Appears rarely by name
+            ),
+            IdentifiedCharacter(
+                canonical_name="Jay Gatsby",
+                aliases=["Gatsby"],
+                chapters_present=[1, 2, 3, 4, 5, 6, 7, 8, 9],  # Appears frequently
+            ),
+        ]
+
+        detector = NarratorDetector(mock_llm)
+        result = detector.detect_narrator(GATSBY_PLOT_SUMMARY, characters)
+
+        # Should still identify Nick as narrator despite low mentions
+        assert result.narrator_name == "Nick Carraway"
+
+    def test_third_person_narrative_no_narrator_character(self):
+        """Test that third-person narratives have no narrator character."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "narrative_style": "third-person",
+                "narrator_name": None,
+                "narrator_role": "External omniscient narrator",
+                "confidence": 0.95,
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        third_person_summary = """
+        Elizabeth Bennet navigates the complex social world of Regency England.
+        She encounters Mr. Darcy, a proud and wealthy gentleman, at a local ball.
+        Their initial dislike gradually transforms into mutual respect and love.
+        """
+
+        characters = [
+            IdentifiedCharacter(canonical_name="Elizabeth Bennet"),
+            IdentifiedCharacter(canonical_name="Mr. Darcy"),
+        ]
+
+        detector = NarratorDetector(mock_llm)
+        result = detector.detect_narrator(third_person_summary, characters)
+
+        assert result.narrative_style == "third-person"
+        assert result.narrator_name is None
+
+    def test_mark_narrator_in_characters(self):
+        """Test that narrator flag is set on the correct character."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(canonical_name="Nick Carraway", aliases=["Mr. Carraway"]),
+            IdentifiedCharacter(canonical_name="Jay Gatsby", aliases=["Gatsby"]),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="Nick Carraway",
+            narrator_role="First-person narrator",
+            confidence=0.95,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        # Nick should be marked as narrator
+        nick = next(c for c in characters if c.canonical_name == "Nick Carraway")
+        assert nick.is_narrator is True
+        assert nick.narrative_role == "First-person narrator"
+
+        # Gatsby should NOT be marked as narrator
+        gatsby = next(c for c in characters if c.canonical_name == "Jay Gatsby")
+        assert gatsby.is_narrator is False
+
+    def test_mark_narrator_by_alias(self):
+        """Test that narrator is found even when using alias."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(canonical_name="Nick Carraway", aliases=["Mr. Carraway"]),
+        ]
+
+        # LLM returns alias instead of canonical name
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="Mr. Carraway",  # Alias
+            narrator_role="First-person narrator",
+            confidence=0.9,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        nick = characters[0]
+        assert nick.is_narrator is True
+
+    def test_fallback_detection_first_person(self):
+        """Test fallback detection for first-person narratives."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            None,
+            LLMResponse(content="", model="test", error="LLM failed"),
+        )
+
+        # Plot summary with clear first-person indicator
+        summary = "The story unfolds through the eyes of Nick Carraway, who narrates the events."
+
+        detector = NarratorDetector(mock_llm)
+        result = detector.detect_narrator(summary, [])
+
+        assert result.narrative_style == "first-person"
+
+    def test_fallback_detection_third_person(self):
+        """Test fallback detection defaults to third-person."""
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            None,
+            LLMResponse(content="", model="test", error="LLM failed"),
+        )
+
+        # Plot summary with no clear narrator
+        summary = "Elizabeth meets Darcy at a ball. They fall in love."
+
+        detector = NarratorDetector(mock_llm)
+        result = detector.detect_narrator(summary, [])
+
+        assert result.narrative_style == "third-person"
 
 
 # Integration test marker - requires actual LLM
