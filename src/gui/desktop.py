@@ -24,9 +24,12 @@ import os
 try:
     from ..analyzer import AudiobookAnalyzer
     from ..models import AnalysisResult
+    from ..pipeline.metrics import ProgressSnapshot, MetricsCollector
+    from ..pipeline.pricing import format_cost
     HAS_ANALYZER = True
 except ImportError:
     HAS_ANALYZER = False
+    format_cost = None
 
 try:
     from ..llm.config import (
@@ -103,60 +106,314 @@ def make_combobox_auto_expand(combobox: "ttk.Combobox"):
 
 
 class ProgressWindow:
-    """Window showing analysis progress."""
-    
-    def __init__(self, parent):
+    """Enhanced window showing detailed analysis progress."""
+
+    def __init__(self, parent, metrics_collector: Optional[MetricsCollector] = None):
         self.window = tk.Toplevel(parent)
         self.window.title("Analyzing...")
-        self.window.geometry("600x200")
+        self.window.geometry("650x400")  # Larger to fit new info
         self.window.transient(parent)
         self.window.grab_set()
-        
+
+        self.metrics = metrics_collector
+        self.cancelled = False
+        self.details_expanded = False
+
         # Center on parent
         self.window.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() // 2) - 300
-        y = parent.winfo_y() + (parent.winfo_height() // 2) - 100
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 325
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 200
         self.window.geometry(f"+{x}+{y}")
-        
-        # Progress bar
-        self.progress_var = tk.StringVar(value="Initializing...")
-        self.progress_label = tk.Label(
-            self.window,
-            textvariable=self.progress_var,
-            font=("Arial", 10),
-            wraplength=550
+
+        # Main content frame
+        main_frame = tk.Frame(self.window)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # Stage name (large, prominent)
+        self.stage_label = tk.Label(
+            main_frame,
+            text="Initializing...",
+            font=("Arial", 12, "bold")
         )
-        self.progress_label.pack(pady=20, padx=20)
-        
-        # Progress bar
+        self.stage_label.pack(pady=(0, 10))
+
+        # Progress bar with percentage
+        progress_frame = tk.Frame(main_frame)
+        progress_frame.pack(fill=tk.X, pady=5)
         self.progress_bar = ttk.Progressbar(
-            self.window,
+            progress_frame,
             mode='indeterminate',
             length=550
         )
-        self.progress_bar.pack(pady=10, padx=20)
-        
+        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.percent_label = tk.Label(progress_frame, text="", width=5)
+        self.percent_label.pack(side=tk.LEFT, padx=(5, 0))
+
+        # Start indeterminate animation
+        self.progress_bar.start(10)
+
+        # Timing section
+        timing_frame = tk.Frame(main_frame)
+        timing_frame.pack(fill=tk.X, pady=10)
+        self.stage_time_label = tk.Label(
+            timing_frame,
+            text="⏱️  Stage: 0:00",
+            anchor=tk.W,
+            font=("Arial", 9)
+        )
+        self.stage_time_label.pack(fill=tk.X)
+        self.total_time_label = tk.Label(
+            timing_frame,
+            text="⏱️  Total: 0:00 elapsed",
+            anchor=tk.W,
+            font=("Arial", 9)
+        )
+        self.total_time_label.pack(fill=tk.X)
+
+        # Metrics section (items, confidence, model, tokens)
+        metrics_frame = tk.Frame(main_frame)
+        metrics_frame.pack(fill=tk.X, pady=10)
+        self.items_label = tk.Label(
+            metrics_frame,
+            text="📊 Items: Processing...",
+            anchor=tk.W,
+            font=("Arial", 9)
+        )
+        self.items_label.pack(fill=tk.X)
+        self.model_label = tk.Label(
+            metrics_frame,
+            text="🤖 Model: ...",
+            anchor=tk.W,
+            font=("Arial", 9)
+        )
+        self.model_label.pack(fill=tk.X)
+        self.tokens_label = tk.Label(
+            metrics_frame,
+            text="💰 Tokens: 0 | Cost: $0.00",
+            anchor=tk.W,
+            font=("Arial", 9)
+        )
+        self.tokens_label.pack(fill=tk.X)
+
+        # Expandable details section
+        self.details_frame = tk.Frame(main_frame)
+        self.details_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        self.details_toggle = tk.Button(
+            self.details_frame,
+            text="▼ Stage Details",
+            command=self._toggle_details
+        )
+        self.details_toggle.pack()
+
+        # Details content (initially hidden)
+        self.details_content = tk.Frame(self.details_frame)
+
+        # Text widget for stage table
+        self.details_text = tk.Text(
+            self.details_content,
+            height=6,
+            font=("Courier", 9),
+            wrap=tk.NONE
+        )
+        self.details_text.pack(fill=tk.BOTH, expand=True)
+        self.details_text.config(state=tk.DISABLED)
+
         # Cancel button
         self.cancel_button = tk.Button(
-            self.window,
+            main_frame,
             text="Cancel",
             command=self.cancel,
             state=tk.DISABLED  # For now, don't allow cancel
         )
         self.cancel_button.pack(pady=10)
-        
-        self.cancelled = False
-        
+
+        # Start polling if metrics provided
+        if self.metrics:
+            self._poll_progress()
+
+    def _poll_progress(self):
+        """Poll metrics collector for updates (every 100ms)."""
+        if self.window.winfo_exists():
+            try:
+                snapshot = self.metrics.get_progress_snapshot()
+                self._update_display(snapshot)
+            except Exception as e:
+                # If polling fails, just skip this update
+                pass
+            self.window.after(100, self._poll_progress)
+
+    def _update_display(self, snapshot: ProgressSnapshot):
+        """Update all widgets based on snapshot."""
+        # Stage name
+        if snapshot.current_stage_name:
+            self.stage_label.config(text=f"Analyzing: {snapshot.current_stage_name}")
+
+        # Progress bar
+        if snapshot.progress_percentage:
+            self.progress_bar.stop()
+            self.progress_bar['mode'] = 'determinate'
+            self.progress_bar['value'] = snapshot.progress_percentage
+            self.percent_label.config(text=f"{snapshot.progress_percentage:.0f}%")
+        else:
+            if self.progress_bar['mode'] != 'indeterminate':
+                self.progress_bar['mode'] = 'indeterminate'
+                self.progress_bar.start(10)
+            self.percent_label.config(text="")
+
+        # Timing
+        stage_time = self._format_duration(snapshot.current_stage_elapsed_seconds)
+        self.stage_time_label.config(text=f"⏱️  Stage: {stage_time}")
+
+        if snapshot.estimated_remaining_seconds:
+            total_est = self._format_duration(snapshot.estimated_remaining_seconds)
+            self.total_time_label.config(
+                text=f"⏱️  Total: {self._format_duration(snapshot.total_elapsed_seconds)} elapsed, "
+                     f"~{total_est} remaining"
+            )
+        else:
+            self.total_time_label.config(
+                text=f"⏱️  Total: {self._format_duration(snapshot.total_elapsed_seconds)} elapsed"
+            )
+
+        # Items and confidence (stage-aware labels)
+        stage_labels = {
+            "Chapter Detection": "chapters",
+            "Character Extraction": "characters",
+            "Character Profiles": "profiles",
+            "Chapter Summaries": "summaries",
+            "Pronunciation Guide": "words",
+        }
+
+        if snapshot.current_stage_items_processed > 0:
+            # Get stage-specific item type
+            item_type = stage_labels.get(snapshot.current_stage_name, "items")
+            items_text = f"📊 {snapshot.current_stage_items_processed} {item_type}"
+            if snapshot.current_stage_items_total:
+                items_text += f" / {snapshot.current_stage_items_total}"
+
+            # Confidence breakdown
+            h, m, l = (
+                snapshot.current_stage_high_confidence,
+                snapshot.current_stage_medium_confidence,
+                snapshot.current_stage_low_confidence
+            )
+            if h + m + l > 0:
+                items_text += f" ({h}H/{m}M/{l}L confidence)"
+
+            self.items_label.config(text=items_text)
+        else:
+            # Show stage-specific "starting" message
+            stage_starting = {
+                "Chapter Detection": "📊 Detecting chapters...",
+                "Character Extraction": "📊 Extracting characters...",
+                "Character Profiles": "📊 Profiling characters...",
+                "Chapter Summaries": "📊 Generating summaries...",
+                "Pronunciation Guide": "📊 Building pronunciation guide...",
+            }
+            msg = stage_starting.get(snapshot.current_stage_name, "📊 Processing...")
+            self.items_label.config(text=msg)
+
+        # Model
+        if snapshot.current_stage_model:
+            provider = snapshot.current_stage_provider or "unknown"
+            self.model_label.config(
+                text=f"🤖 Model: {snapshot.current_stage_model} ({provider})"
+            )
+        else:
+            self.model_label.config(text="🤖 Model: ...")
+
+        # Tokens and cost
+        if format_cost:
+            cost_str = format_cost(snapshot.estimated_cost_usd)
+        elif snapshot.estimated_cost_usd is not None:
+            cost_str = f"${snapshot.estimated_cost_usd:.3f}"
+        else:
+            cost_str = "Unknown"
+
+        self.tokens_label.config(
+            text=f"💰 Tokens: {snapshot.total_tokens:,} | Cost: {cost_str}"
+        )
+
+        # Update details if expanded
+        if self.details_expanded:
+            self._update_details_table(snapshot)
+
+    def _toggle_details(self):
+        """Toggle visibility of details section."""
+        if self.details_expanded:
+            self.details_content.pack_forget()
+            self.details_toggle.config(text="▼ Stage Details")
+            self.details_expanded = False
+        else:
+            self.details_content.pack(fill=tk.BOTH, expand=True)
+            self.details_toggle.config(text="▲ Stage Details")
+            self.details_expanded = True
+
+    def _update_details_table(self, snapshot: ProgressSnapshot):
+        """Update the detailed stage table."""
+        self.details_text.config(state=tk.NORMAL)
+        self.details_text.delete(1.0, tk.END)
+
+        # Build table
+        lines = []
+        lines.append("Stage                   Time    Items  Confidence")
+        lines.append("─" * 55)
+
+        # Completed stages
+        for stage in snapshot.completed_stages:
+            time_str = self._format_duration(stage.duration_seconds)
+            lines.append(
+                f"✓ {stage.stage_name:<21} {time_str:>7} {stage.items_processed:>5}  "
+                f"{stage.confidence_summary}"
+            )
+
+        # Current stage
+        if snapshot.current_stage_name:
+            time_str = self._format_duration(snapshot.current_stage_elapsed_seconds)
+            items = snapshot.current_stage_items_processed
+            h, m, l = (
+                snapshot.current_stage_high_confidence,
+                snapshot.current_stage_medium_confidence,
+                snapshot.current_stage_low_confidence
+            )
+            lines.append(
+                f"→ {snapshot.current_stage_name:<21} {time_str:>7} {items:>5}  "
+                f"{h}H/{m}M/{l}L"
+            )
+
+        self.details_text.insert(1.0, "\n".join(lines))
+        self.details_text.config(state=tk.DISABLED)
+
+    def show_completion_summary(self, snapshot: ProgressSnapshot):
+        """Show final summary when analysis completes."""
+        self.stage_label.config(text="✅ Analysis Complete!")
+        self.progress_bar.stop()
+        self.progress_bar['mode'] = 'determinate'
+        self.progress_bar['value'] = 100
+        self.percent_label.config(text="100%")
+
+        # Update to show final summary
+        self.details_toggle.config(text="▼ Final Summary")
+        # Force expand
+        if not self.details_expanded:
+            self._toggle_details()
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format seconds as M:SS."""
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}:{secs:02d}"
+
     def cancel(self):
         """Cancel analysis."""
         self.cancelled = True
         self.window.destroy()
-    
+
     def update(self, message: str):
-        """Update progress message."""
-        self.progress_var.set(message)
+        """Update progress message (legacy compatibility)."""
+        self.stage_label.config(text=message)
         self.window.update_idletasks()
-    
+
     def close(self):
         """Close progress window."""
         self.window.destroy()
@@ -1769,7 +2026,13 @@ class AudiobookPrepGUI:
                 orchestrator_config=orchestrator_config,
                 output_dir=Path(self.output_dir.get()),
             )
-            
+
+            # Assign metrics collector to progress window for enhanced tracking
+            if hasattr(analyzer, '_metrics') and analyzer._metrics:
+                progress.metrics = analyzer._metrics
+                # Start polling now that metrics are available
+                progress._poll_progress()
+
             # Capture print statements for progress updates
             import sys
             from io import StringIO
@@ -1851,7 +2114,15 @@ class AudiobookPrepGUI:
                     print(f"Warning: HTML export failed: {e}")
             
             progress.update("Analysis complete!")
-            
+
+            # Show completion summary with final metrics
+            if hasattr(analyzer, '_metrics') and analyzer._metrics:
+                try:
+                    final_snapshot = analyzer._metrics.get_progress_snapshot()
+                    progress.show_completion_summary(final_snapshot)
+                except Exception:
+                    pass  # If summary fails, analysis still succeeded
+
         except Exception as e:
             progress.update(f"Error: {str(e)}")
             messagebox.showerror("Analysis Error", f"Analysis failed:\n{str(e)}")

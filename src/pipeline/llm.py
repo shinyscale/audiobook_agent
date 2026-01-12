@@ -73,8 +73,9 @@ class LLMResponse:
 class LLMClient:
     """Simple, synchronous LLM client."""
 
-    def __init__(self, config: LLMConfig):
+    def __init__(self, config: LLMConfig, metrics: Optional["MetricsCollector"] = None):
         self.config = config
+        self.metrics = metrics
         self._client = None
 
     def _get_client(self):
@@ -120,6 +121,11 @@ class LLMClient:
             # Add timing to response
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             response.latency_ms = round(elapsed_ms, 2)
+
+            # Auto-record token usage if metrics collector provided
+            if self.metrics:
+                self.metrics.record_llm_call(response)
+
             return response
         except Exception as e:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
