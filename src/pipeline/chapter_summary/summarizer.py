@@ -11,6 +11,7 @@ import logging
 
 from .models import ChapterSummary, ChunkSummary, ToneType, DialogueDensity
 from ..llm import LLMClient
+from ..chapter_detection.scene_breaks import find_scene_breaks
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,55 @@ class ChapterSummarizer:
         )
 
     def _split_into_chunks(self, text: str) -> list[str]:
-        """Split text into overlapping chunks at sentence boundaries."""
+        """Split text into chunks, respecting scene breaks as natural boundaries."""
+        scene_breaks = find_scene_breaks(text)
+
+        if scene_breaks:
+            return self._split_by_scene_breaks(text, scene_breaks)
+        else:
+            return self._split_by_word_count(text)
+
+    def _split_by_scene_breaks(
+        self,
+        text: str,
+        scene_breaks: list[tuple[int, int]]
+    ) -> list[str]:
+        """Split text at scene breaks, then chunk large sections if needed.
+
+        Scene breaks provide natural narrative boundaries that result in
+        better-structured summaries with paragraph breaks at scene transitions.
+        """
+        sections = []
+        prev_end = 0
+
+        for start, end in scene_breaks:
+            section = text[prev_end:start].strip()
+            if section:
+                sections.append(section)
+            prev_end = end
+
+        # Don't forget the last section
+        final = text[prev_end:].strip()
+        if final:
+            sections.append(final)
+
+        # Chunk any sections that are too long
+        chunks = []
+        for section in sections:
+            word_count = len(section.split())
+            if word_count > self.chunk_size * 1.2:  # Allow 20% buffer
+                # Large section - further chunk by word count
+                chunks.extend(self._split_by_word_count(section))
+            else:
+                chunks.append(section)
+
+        logger.debug(
+            f"Split by scene breaks: {len(scene_breaks)} breaks -> {len(sections)} sections -> {len(chunks)} chunks"
+        )
+        return chunks
+
+    def _split_by_word_count(self, text: str) -> list[str]:
+        """Original chunking logic: split by word count at sentence boundaries."""
         # Split into sentences
         sentences = re.split(r'(?<=[.!?])\s+', text)
 

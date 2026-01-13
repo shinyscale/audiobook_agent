@@ -178,7 +178,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm scene break positions are used for chunking",
     "Check that chunks align with scene transitions"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -193,7 +193,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm summary flows naturally with scene structure",
     "Check that each section of the summary covers one scene"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -207,7 +207,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm summary maintains coherence across chunk boundaries",
     "Check that original chunking logic is preserved as fallback"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

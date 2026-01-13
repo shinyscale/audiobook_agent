@@ -403,3 +403,118 @@ class TestGatsbyChapterDetection:
 
         # The PRD mentions 25 scene break lines
         assert len(scene_breaks) == 25, f"Expected 25 scene breaks, found {len(scene_breaks)}"
+
+
+class TestSceneBreakAwareSummarization:
+    """Test scene break-aware chunking in the summarizer."""
+
+    def test_splits_by_scene_breaks(self):
+        """Summarizer splits text at scene breaks."""
+        from src.pipeline.chapter_summary.summarizer import ChapterSummarizer
+        from unittest.mock import MagicMock
+
+        # Create a mock LLM client
+        mock_llm = MagicMock()
+
+        summarizer = ChapterSummarizer(llm_client=mock_llm, chunk_size=100)
+
+        # Create text with scene breaks
+        gatsby_break = "-" * 72
+        text = f"""Scene one content. This is the first scene with some narrative text.
+More content in scene one. Characters are introduced and the story begins.
+
+{gatsby_break}
+
+Scene two content. The story continues after the scene break.
+New events happen and the plot develops further.
+
+{gatsby_break}
+
+Scene three content. The final scene of this chapter.
+Resolution and conclusion of the chapter's events."""
+
+        chunks = summarizer._split_into_chunks(text)
+
+        # Should have 3 chunks (one per scene)
+        assert len(chunks) == 3
+        assert "Scene one content" in chunks[0]
+        assert "Scene two content" in chunks[1]
+        assert "Scene three content" in chunks[2]
+
+        # Scene break markers should not appear in chunks
+        for chunk in chunks:
+            assert "---" not in chunk
+
+    def test_falls_back_to_word_count_without_scene_breaks(self):
+        """Without scene breaks, falls back to word count chunking."""
+        from src.pipeline.chapter_summary.summarizer import ChapterSummarizer
+        from unittest.mock import MagicMock
+
+        mock_llm = MagicMock()
+        summarizer = ChapterSummarizer(llm_client=mock_llm, chunk_size=50)
+
+        # Create text without scene breaks that's long enough to need chunking
+        text = "This is a sentence. " * 100  # 500 words
+
+        chunks = summarizer._split_into_chunks(text)
+
+        # Should have multiple chunks based on word count
+        assert len(chunks) > 1
+        # Each chunk should have approximately chunk_size words
+        # Allow for overlap (200 words default) and sentence boundary alignment
+        for chunk in chunks:
+            word_count = len(chunk.split())
+            # With overlap and sentence boundary, chunks can exceed target size
+            assert word_count <= 300  # chunk_size + overlap + buffer
+
+    def test_long_scenes_are_further_chunked(self):
+        """Very long scenes are further chunked by word count."""
+        from src.pipeline.chapter_summary.summarizer import ChapterSummarizer
+        from unittest.mock import MagicMock
+
+        mock_llm = MagicMock()
+        summarizer = ChapterSummarizer(llm_client=mock_llm, chunk_size=50)
+
+        # Create text with one short scene and one very long scene
+        gatsby_break = "-" * 72
+        short_scene = "Short scene content. Just a few words here."
+        long_scene = "This is a long sentence. " * 100  # 500 words
+
+        text = f"""{short_scene}
+
+{gatsby_break}
+
+{long_scene}"""
+
+        chunks = summarizer._split_into_chunks(text)
+
+        # Should have more than 2 chunks because long scene gets subdivided
+        assert len(chunks) > 2
+
+        # First chunk should be the short scene
+        assert "Short scene" in chunks[0]
+
+    def test_empty_scenes_are_skipped(self):
+        """Empty content between scene breaks is skipped."""
+        from src.pipeline.chapter_summary.summarizer import ChapterSummarizer
+        from unittest.mock import MagicMock
+
+        mock_llm = MagicMock()
+        summarizer = ChapterSummarizer(llm_client=mock_llm, chunk_size=100)
+
+        # Create text with empty section between breaks
+        gatsby_break = "-" * 72
+        text = f"""Scene one content here.
+
+{gatsby_break}
+
+{gatsby_break}
+
+Scene two after empty section."""
+
+        chunks = summarizer._split_into_chunks(text)
+
+        # Should have 2 chunks (empty section skipped)
+        assert len(chunks) == 2
+        assert "Scene one" in chunks[0]
+        assert "Scene two" in chunks[1]
