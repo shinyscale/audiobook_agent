@@ -143,7 +143,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Verify Nick and Mr. Carraway are merged",
     "Verify Tom and Daisy Buchanan remain SEPARATE (different people)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
