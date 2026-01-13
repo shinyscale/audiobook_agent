@@ -25,6 +25,36 @@ from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
+# Character classification prompts
+CHARACTER_TYPE_SYSTEM = """You are a literary analyst classifying character types.
+
+Classify each character as one of:
+- STORY: An active participant in the narrative who appears in scenes, speaks dialogue, or takes actions
+- HISTORICAL: A real historical figure mentioned in passing (e.g., Napoleon, Einstein)
+- REFERENCED: A fictional character from other works mentioned in passing (e.g., Hamlet, Sherlock Holmes)
+
+Return ONLY valid JSON. No other text."""
+
+CHARACTER_TYPE_PROMPT = """Classify this character's role in the narrative.
+
+CHARACTER: {name}
+MENTION COUNT: {mention_count}
+CHAPTERS PRESENT: {chapters}
+SAMPLE CONTEXTS:
+{contexts}
+
+Based on the contexts, determine if this character:
+1. Actively participates (speaks, acts, appears in scenes) → STORY
+2. Is a real historical figure mentioned in passing → HISTORICAL
+3. Is a fictional character from other works → REFERENCED
+
+Return JSON:
+{{
+  "character_type": "story" | "historical" | "referenced",
+  "confidence": 0.0-1.0,
+  "reason": "brief justification"
+}}"""
+
 # Common titles that should be ignored when comparing character names
 # These are not part of the actual name but indicate social status or role
 TITLES = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain', 'major'}
@@ -345,6 +375,12 @@ class CharacterConsensusBuilder:
                         type_counts[t] = type_counts.get(t, 0) + 1
                 if type_counts:
                     final_type = max(type_counts.keys(), key=lambda t: type_counts[t])
+
+            # LLM fallback for uncertain character types
+            if final_type == CharacterType.UNCERTAIN and self.llm:
+                final_type = self._llm_classify_character_type(
+                    canonical_name, all_mentions, chapters_present
+                )
 
             # Create character
             char_id = self._generate_id(canonical_name)
@@ -1167,6 +1203,64 @@ class CharacterConsensusBuilder:
                         return True, 0.85
 
         return False, 0.0
+
+    def _llm_classify_character_type(
+        self,
+        name: str,
+        mentions: list[CharacterMention],
+        chapters_present: set[int],
+    ) -> CharacterType:
+        """
+        Use LLM to classify uncertain character types.
+
+        Called when majority voting fails to determine character type.
+        Returns CharacterType based on LLM analysis of contexts.
+        """
+        if not self.llm:
+            return CharacterType.UNCERTAIN
+
+        # Format contexts for prompt
+        context_lines = []
+        for i, mention in enumerate(mentions[:6]):  # Sample up to 6 contexts
+            if mention.context:
+                dlg = "dialogue" if mention.in_dialogue else "narrative"
+                context_lines.append(
+                    f"{i+1}. [ch {mention.chapter_index}, {dlg}] \"{mention.context[:150]}\""
+                )
+
+        if not context_lines:
+            return CharacterType.UNCERTAIN
+
+        prompt = CHARACTER_TYPE_PROMPT.format(
+            name=name,
+            mention_count=len(mentions),
+            chapters=", ".join(str(c) for c in sorted(chapters_present)),
+            contexts="\n".join(context_lines),
+        )
+
+        try:
+            result, response = self.llm.query_json(prompt, system=CHARACTER_TYPE_SYSTEM)
+
+            if result and isinstance(result, dict):
+                char_type_str = result.get("character_type", "").lower()
+                confidence = float(result.get("confidence", 0.0) or 0.0)
+
+                # Only accept high-confidence classifications
+                if confidence >= 0.7:
+                    if char_type_str == "story":
+                        logger.debug(f"LLM classified '{name}' as STORY (conf={confidence:.2f})")
+                        return CharacterType.STORY
+                    elif char_type_str == "historical":
+                        logger.debug(f"LLM classified '{name}' as HISTORICAL (conf={confidence:.2f})")
+                        return CharacterType.HISTORICAL
+                    elif char_type_str == "referenced":
+                        logger.debug(f"LLM classified '{name}' as REFERENCED (conf={confidence:.2f})")
+                        return CharacterType.REFERENCED
+
+        except Exception as e:
+            logger.warning(f"LLM character type classification failed for '{name}': {e}")
+
+        return CharacterType.UNCERTAIN
 
     def _validate_merge(
         self,

@@ -3,10 +3,12 @@ Tests for character type inference.
 
 Feature 3: Character Type Classification
 - Story 1: NER proposer infers character type from context
+- Story 2: LLM fallback classifies uncertain characters
 """
 
 import pytest
 from src.pipeline.character_extraction.proposers.ner import NERProposer
+from src.pipeline.character_extraction.consensus import CharacterConsensusBuilder
 from src.pipeline.character_extraction.models import CharacterMention, CharacterType
 
 
@@ -130,3 +132,55 @@ class TestNERProposerIntegration:
             for prop in nick_proposals:
                 # Either STORY (detected dialogue/verbs) or UNCERTAIN (spaCy issue)
                 assert prop.character_type in [CharacterType.STORY, CharacterType.UNCERTAIN]
+
+
+class TestLLMCharacterTypeClassification:
+    """Test LLM fallback for character type classification."""
+
+    @pytest.fixture
+    def builder_no_llm(self):
+        """Builder without LLM for unit testing."""
+        return CharacterConsensusBuilder(llm_client=None)
+
+    def _make_mention(
+        self, context: str, in_dialogue: bool = False, chapter: int = 1
+    ) -> CharacterMention:
+        """Helper to create character mentions."""
+        return CharacterMention(
+            text="TestChar",
+            position=0,
+            chapter_index=chapter,
+            context=context,
+            in_dialogue=in_dialogue,
+        )
+
+    def test_llm_classify_returns_uncertain_without_llm(self, builder_no_llm):
+        """Without LLM, classification should return UNCERTAIN."""
+        mentions = [self._make_mention("Some context")]
+        result = builder_no_llm._llm_classify_character_type(
+            "TestChar", mentions, {1}
+        )
+        assert result == CharacterType.UNCERTAIN
+
+    def test_llm_classify_handles_empty_mentions(self, builder_no_llm):
+        """Empty mentions should return UNCERTAIN."""
+        result = builder_no_llm._llm_classify_character_type(
+            "TestChar", [], {1}
+        )
+        assert result == CharacterType.UNCERTAIN
+
+    def test_llm_classify_handles_no_context(self, builder_no_llm):
+        """Mentions without context should return UNCERTAIN."""
+        mentions = [
+            CharacterMention(
+                text="TestChar",
+                position=0,
+                chapter_index=1,
+                context="",  # Empty context
+                in_dialogue=False,
+            )
+        ]
+        result = builder_no_llm._llm_classify_character_type(
+            "TestChar", mentions, {1}
+        )
+        assert result == CharacterType.UNCERTAIN

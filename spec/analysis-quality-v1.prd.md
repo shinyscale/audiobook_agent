@@ -179,7 +179,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Confirm final character_type is non-UNCERTAIN",
     "Check that LLM receives context samples for classification"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
