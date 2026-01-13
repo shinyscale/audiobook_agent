@@ -93,7 +93,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Check chapters have Roman numeral titles (I-IX)",
     "Confirm TOC log shows 'expects 9' not 'expects 91'"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
