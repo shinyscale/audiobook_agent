@@ -193,7 +193,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Verify no major characters have UNCERTAIN type",
     "Check that minor mentioned figures are appropriately typed"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
