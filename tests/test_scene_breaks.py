@@ -344,3 +344,62 @@ Chapter three content here.
 
         # All 3 chapters should be preserved
         assert len(result.chapters) == 3
+
+
+class TestGatsbyChapterDetection:
+    """Test that Gatsby's scene breaks don't interfere with chapter detection."""
+
+    def test_gatsby_chapter_markers_not_near_scene_breaks(self):
+        """Verify Gatsby's 9 chapter markers are not near any scene breaks."""
+        import re
+        from pathlib import Path
+
+        gatsby_path = Path("Test_Texts/gatsby.txt")
+        if not gatsby_path.exists():
+            pytest.skip("gatsby.txt not found in Test_Texts/")
+
+        with open(gatsby_path, "r") as f:
+            text = f.read()
+            lines = text.splitlines()
+
+        # Find the 9 chapter markers (centered Roman numerals)
+        roman_pattern = re.compile(r"^\s+([IVXLC]+)\s*$")
+        chapter_positions = []
+        current_pos = 0
+
+        for i, line in enumerate(lines, 1):
+            if roman_pattern.match(line):
+                chapter_positions.append((current_pos, line.strip()))
+            current_pos += len(line) + 1
+
+        # Should find exactly 9 chapters
+        assert len(chapter_positions) == 9, f"Expected 9 chapters, found {len(chapter_positions)}"
+
+        # Verify expected titles
+        expected_titles = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
+        actual_titles = [title for _, title in chapter_positions]
+        assert actual_titles == expected_titles
+
+        # Check none are near scene breaks
+        scene_breaks = find_scene_breaks(text)
+        assert len(scene_breaks) > 0, "Should find scene breaks in Gatsby"
+
+        for char_pos, title in chapter_positions:
+            is_near = is_near_scene_break(char_pos, scene_breaks, threshold=100)
+            assert not is_near, f"Chapter {title} at {char_pos} should not be near scene break"
+
+    def test_gatsby_scene_breaks_count(self):
+        """Verify we detect the expected number of scene breaks in Gatsby."""
+        from pathlib import Path
+
+        gatsby_path = Path("Test_Texts/gatsby.txt")
+        if not gatsby_path.exists():
+            pytest.skip("gatsby.txt not found in Test_Texts/")
+
+        with open(gatsby_path, "r") as f:
+            text = f.read()
+
+        scene_breaks = find_scene_breaks(text)
+
+        # The PRD mentions 25 scene break lines
+        assert len(scene_breaks) == 25, f"Expected 25 scene breaks, found {len(scene_breaks)}"

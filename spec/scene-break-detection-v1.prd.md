@@ -141,7 +141,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm no 'None' titled chapters from scene breaks",
     "Verify chapter boundaries match expected positions"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
