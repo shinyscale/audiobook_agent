@@ -1087,6 +1087,87 @@ class CharacterConsensusBuilder:
         """
         return {w for w in words if len(w) >= 3 and w.lower() not in TITLES}
 
+    def _check_aggressive_alias_patterns(self, name1: str, name2: str) -> tuple[bool, float]:
+        """
+        Check for common alias patterns that should be merged aggressively.
+
+        Handles hyphenation and spacing variants like:
+        - "Owl Eyes" vs "Owl-eyes"
+        - "Mc Donald" vs "McDonald"
+
+        Returns:
+            (should_merge, confidence) tuple
+        """
+        # Normalize: lowercase, remove hyphens/dots, collapse spaces
+        n1_lower = name1.lower().replace('-', ' ').replace('.', '')
+        n2_lower = name2.lower().replace('-', ' ').replace('.', '')
+
+        n1_normalized = ' '.join(n1_lower.split())
+        n2_normalized = ' '.join(n2_lower.split())
+
+        # Exact match after normalization (handles "Owl-Eyes" vs "Owl Eyes")
+        if n1_normalized == n2_normalized:
+            return True, 0.95
+
+        # Match after removing all spaces (handles "Owl Eyes" vs "Owleyes")
+        if n1_normalized.replace(' ', '') == n2_normalized.replace(' ', ''):
+            return True, 0.90
+
+        return False, 0.0
+
+    def _check_birth_name_pattern(
+        self,
+        canonical: str,
+        alias: str,
+        name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> tuple[bool, float]:
+        """
+        Check if two names represent a birth name / assumed name pattern.
+
+        Looks for context clues like "born as", "real name", "changed his name"
+        in the mentions for either name.
+
+        Returns:
+            (should_merge, confidence) tuple
+        """
+        # Collect all contexts from mentions for both names
+        all_contexts = []
+
+        for result in name_groups.get(canonical, [])[:10]:
+            for mention in result.proposal.mentions[:5]:
+                if mention.context:
+                    all_contexts.append(mention.context.lower())
+
+        for result in name_groups.get(alias, [])[:10]:
+            for mention in result.proposal.mentions[:5]:
+                if mention.context:
+                    all_contexts.append(mention.context.lower())
+
+        birth_name_indicators = [
+            "born as", "real name", "birth name", "whose real name",
+            "formerly known as", "changed his name", "changed her name",
+            "once called", "used to be called", "originally named",
+            "had been", "his name was", "her name was",
+            "actually named", "true name", "given name",
+        ]
+
+        for context in all_contexts:
+            for indicator in birth_name_indicators:
+                if indicator in context:
+                    # Additional validation: check if either name appears near the indicator
+                    canonical_lower = canonical.lower()
+                    alias_lower = alias.lower()
+
+                    # Look for patterns like "born as X" or "real name is Y"
+                    if canonical_lower in context or alias_lower in context:
+                        logger.info(
+                            f"Birth name pattern detected: {canonical} <-> {alias} "
+                            f"(indicator: '{indicator}')"
+                        )
+                        return True, 0.85
+
+        return False, 0.0
+
     def _validate_merge(
         self,
         canonical: str,
@@ -1097,12 +1178,34 @@ class CharacterConsensusBuilder:
         Validate LLM merge decision with sanity checks.
 
         Key checks:
-        1. Reject merges that only share a last name when multiple people have that last name
-        2. Reject merges with no shared words and no chapter overlap
+        1. Check aggressive alias patterns (hyphenation/spacing variants) first
+        2. Check birth name patterns (context clues like "real name", "born as")
+        3. Reject merges that only share a last name when multiple people have that last name
+        4. Reject merges with no shared words and no chapter overlap
 
         Returns:
             (is_valid, confidence) tuple
         """
+        # CHECK 1: Aggressive alias patterns (hyphenation/spacing variants)
+        # These should always merge regardless of other checks
+        is_alias_pattern, alias_conf = self._check_aggressive_alias_patterns(canonical, alias)
+        if is_alias_pattern:
+            logger.debug(
+                f"Merge accepted: {canonical} <- {alias} "
+                f"(aggressive alias pattern, conf={alias_conf:.2f})"
+            )
+            return True, alias_conf
+
+        # CHECK 2: Birth name patterns (context clues)
+        # These can merge names with no shared words if context supports it
+        is_birth_name, birth_conf = self._check_birth_name_pattern(canonical, alias, name_groups)
+        if is_birth_name:
+            logger.debug(
+                f"Merge accepted: {canonical} <- {alias} "
+                f"(birth name pattern, conf={birth_conf:.2f})"
+            )
+            return True, birth_conf
+
         # Extract words from names, filtering out titles
         words1 = re.sub(r'[^\w\s]', '', canonical.lower()).split()
         words2 = re.sub(r'[^\w\s]', '', alias.lower()).split()

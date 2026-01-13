@@ -114,7 +114,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Verify names with no word overlap but birth name context are merged",
     "Confirm canonical name is selected appropriately"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -128,7 +128,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Test 'Mr. McKee' vs 'McKee' merging",
     "Confirm no false positives on different names"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
