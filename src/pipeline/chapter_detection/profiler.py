@@ -185,6 +185,59 @@ class DocumentProfiler:
             confidence=0.9 if len(entries) >= 3 else 0.6,
         )
 
+    def _is_metadata_line(self, line: str) -> bool:
+        """Check if a line is metadata rather than a TOC entry."""
+        line_lower = line.lower()
+        metadata_indicators = [
+            'copyright', 'published', 'edition', 'isbn',
+            'all rights', 'reserved', 'author', 'introduction',
+            'foreword', 'preface', 'acknowledgments', 'dedication',
+            'translator', 'editor', 'illustrated', 'written by',
+        ]
+        for indicator in metadata_indicators:
+            if indicator in line_lower:
+                return True
+        # Check for "by Author" pattern at start
+        if line_lower.startswith('by ') and len(line) > 5:
+            return True
+        # Also reject very long lines (likely prose, not TOC)
+        if len(line) > 80:
+            return True
+        return False
+
+    def _validate_toc_entries(self, entries: list[TOCEntry]) -> list[TOCEntry]:
+        """Validate and filter TOC entries for consistency."""
+        if not entries:
+            return entries
+
+        # Check for Roman numeral sequence
+        roman_pattern = re.compile(r'^[IVXLC]+$')
+        roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
+
+        if len(roman_entries) >= 3 and len(roman_entries) / len(entries) > 0.3:
+            logger.info(f"TOC validation: detected Roman numeral pattern, "
+                        f"keeping {len(roman_entries)} of {len(entries)} entries")
+            return roman_entries
+
+        # Check for "Chapter N" pattern
+        chapter_pattern = re.compile(r'^chapter\s+\d+', re.IGNORECASE)
+        chapter_entries = [e for e in entries if chapter_pattern.match(e.title.strip())]
+
+        if len(chapter_entries) >= 3 and len(chapter_entries) / len(entries) > 0.3:
+            logger.info(f"TOC validation: detected Chapter N pattern, "
+                        f"keeping {len(chapter_entries)} of {len(entries)} entries")
+            return chapter_entries
+
+        # Warn on unreasonable counts
+        if len(entries) > 30:
+            logger.warning(f"TOC validation: {len(entries)} entries seems too many")
+            level1_entries = [e for e in entries if e.level == 1]
+            if len(level1_entries) >= 3:
+                logger.info(f"TOC validation: filtering to {len(level1_entries)} level-1 entries")
+                return level1_entries
+
+        return entries
+
     def _parse_toc_entries(self, toc_text: str, toc_start: int) -> list[TOCEntry]:
         """Parse individual TOC entries."""
         entries = []
@@ -193,12 +246,17 @@ class DocumentProfiler:
         lines = toc_text.split("\n")[1:]
 
         for line in lines:
-            line = line.strip()
-            if not line:
+            line_stripped = line.strip()
+            if not line_stripped:
                 continue
 
             # Skip non-entry lines
-            if line.lower() in ["table of contents", "contents"]:
+            if line_stripped.lower() in ["table of contents", "contents"]:
+                continue
+
+            # Skip metadata lines
+            if self._is_metadata_line(line_stripped):
+                logger.debug(f"TOC: skipping metadata line: {line_stripped[:50]}")
                 continue
 
             # Try to parse as TOC entry
@@ -206,7 +264,8 @@ class DocumentProfiler:
             if entry:
                 entries.append(entry)
 
-        return entries
+        # Validate and filter entries
+        return self._validate_toc_entries(entries)
 
     def _parse_toc_line(self, line: str, base_position: int) -> Optional[TOCEntry]:
         """Parse a single TOC line."""
