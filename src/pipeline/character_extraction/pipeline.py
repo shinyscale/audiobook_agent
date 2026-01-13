@@ -45,6 +45,8 @@ class CharacterExtractionPipeline:
         consensus_builder: Optional[CharacterConsensusBuilder] = None,
         checkpoint_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        llm_chunk_size: int = 8000,
+        mention_context_window: int = 100,
     ):
         """
         Args:
@@ -63,9 +65,13 @@ class CharacterExtractionPipeline:
         if proposers is not None:
             self.proposers = proposers
         else:
-            self.proposers = [NERProposer()]
+            self.proposers = [NERProposer(context_window=mention_context_window)]
             if llm_client:
-                self.proposers.append(LLMCharacterProposer(llm_client))
+                self.proposers.append(LLMCharacterProposer(
+                    llm_client,
+                    chunk_size=llm_chunk_size,
+                    context_window=mention_context_window,
+                ))
 
         # Set up validator
         self.validator = validator or CharacterValidator(

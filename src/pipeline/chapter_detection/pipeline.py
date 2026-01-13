@@ -54,6 +54,10 @@ class ChapterDetectionPipeline:
         llm_client: Optional[LLMClient] = None,
         checkpoint_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, float], None]] = None,
+        llm_marker_chunk_size: int = 15000,
+        llm_marker_chunk_overlap: int = 1000,
+        llm_narrative_chunk_size: int = 20000,
+        llm_narrative_chunk_overlap: int = 2000,
     ):
         """
         Args:
@@ -73,8 +77,16 @@ class ChapterDetectionPipeline:
 
         # LLM proposers (only if LLM available)
         if llm_client:
-            self.llm_marker_proposer = LLMMarkerProposer(llm_client)
-            self.llm_narrative_proposer = LLMNarrativeProposer(llm_client)
+            self.llm_marker_proposer = LLMMarkerProposer(
+                llm_client,
+                chunk_size=llm_marker_chunk_size,
+                chunk_overlap=llm_marker_chunk_overlap,
+            )
+            self.llm_narrative_proposer = LLMNarrativeProposer(
+                llm_client,
+                chunk_size=llm_narrative_chunk_size,
+                chunk_overlap=llm_narrative_chunk_overlap,
+            )
         else:
             self.llm_marker_proposer = None
             self.llm_narrative_proposer = None

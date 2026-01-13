@@ -17,7 +17,7 @@ from .base import (
     VerificationIssue,
     VerificationLevel,
 )
-from .config import AgentConfig
+from .config import AgentConfig, PipelineTuningConfig
 from ..pipeline.chapter_detection import ChapterDetectionPipeline, ChapterMap
 from ..pipeline.llm import LLMClient, LLMConfig
 
@@ -71,6 +71,7 @@ class StructureAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
+        tuning: Optional[PipelineTuningConfig] = None,
     ):
         """
         Initialize the StructureAgent.
@@ -81,6 +82,7 @@ class StructureAgent(Agent):
         """
         self._llm_client = llm_client
         self._config = config or AgentConfig()
+        self._tuning = tuning
         self._pipeline: Optional[ChapterDetectionPipeline] = None
 
     @property
@@ -99,8 +101,13 @@ class StructureAgent(Agent):
     def _get_pipeline(self) -> ChapterDetectionPipeline:
         """Get or create the chapter detection pipeline."""
         if self._pipeline is None:
+            t = self._tuning or PipelineTuningConfig()
             self._pipeline = ChapterDetectionPipeline(
                 llm_client=self._llm_client,
+                llm_marker_chunk_size=t.chapter_marker_chunk_chars,
+                llm_marker_chunk_overlap=t.chapter_marker_chunk_overlap_chars,
+                llm_narrative_chunk_size=t.chapter_narrative_chunk_chars,
+                llm_narrative_chunk_overlap=t.chapter_narrative_chunk_overlap_chars,
             )
         return self._pipeline
 

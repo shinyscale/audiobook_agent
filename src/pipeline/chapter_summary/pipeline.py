@@ -46,6 +46,8 @@ class ChapterSummaryPipeline:
         parallel_chapters: bool = False,
         max_workers: int = 4,
         llm_client_factory: Optional[Callable[[], LLMClient]] = None,
+        summarizer_chunk_size_words: int = 2500,
+        summarizer_chunk_overlap_words: int = 200,
     ):
         """
         Args:
@@ -63,6 +65,8 @@ class ChapterSummaryPipeline:
         self.max_workers = max_workers
         self.llm_client_factory = llm_client_factory
         self._progress_lock = threading.Lock()  # Thread-safe progress reporting
+        self.summarizer_chunk_size_words = summarizer_chunk_size_words
+        self.summarizer_chunk_overlap_words = summarizer_chunk_overlap_words
 
     def run(
         self,
@@ -97,6 +101,8 @@ class ChapterSummaryPipeline:
         summarizer = ChapterSummarizer(
             llm_client=self.llm,
             known_characters=known_characters,
+            chunk_size=self.summarizer_chunk_size_words,
+            chunk_overlap=self.summarizer_chunk_overlap_words,
         )
 
         # Initialize or validate checkpoint
@@ -240,6 +246,8 @@ class ChapterSummaryPipeline:
                     thread_summarizer = ChapterSummarizer(
                         llm_client=thread_llm,
                         known_characters=known_characters,
+                        chunk_size=self.summarizer_chunk_size_words,
+                        chunk_overlap=self.summarizer_chunk_overlap_words,
                     )
                 else:
                     thread_summarizer = summarizer

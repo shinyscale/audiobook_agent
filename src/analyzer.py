@@ -547,6 +547,7 @@ class AudiobookAnalyzer:
                     character_agent = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
+                        tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
                     )
                     char_agent_context = AgentContext(
                         text=doc.text,
@@ -689,6 +690,7 @@ class AudiobookAnalyzer:
             structure_agent = StructureAgent(
                 llm_client=structure_llm,
                 config=structure_config,
+                tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
             )
             agent_context = AgentContext(
                 text=doc.text,
@@ -759,6 +761,7 @@ class AudiobookAnalyzer:
                 character_agent = CharacterAgent(
                     llm_client=char_llm,
                     config=char_config,
+                    tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
                 )
                 char_agent_context = AgentContext(
                     text=doc.text,
@@ -877,7 +880,9 @@ class AudiobookAnalyzer:
 
         # Validate chapter_map before summarization (if quality gates enabled)
         if self._are_quality_gates_enabled():
-            summary_agent_for_validation = SummaryAgent()
+            summary_agent_for_validation = SummaryAgent(
+                tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
+            )
             validation_context = AgentContext(
                 text=doc.text,
                 source_file=str(file_path),
@@ -949,6 +954,16 @@ class AudiobookAnalyzer:
                     parallel_chapters=parallel_summaries,
                     max_workers=max_workers,
                     llm_client_factory=summary_llm_factory if parallel_summaries else None,
+                    summarizer_chunk_size_words=(
+                        self.orchestrator_config.tuning.summary_chunk_words
+                        if self.orchestrator_config
+                        else 2500
+                    ),
+                    summarizer_chunk_overlap_words=(
+                        self.orchestrator_config.tuning.summary_chunk_overlap_words
+                        if self.orchestrator_config
+                        else 200
+                    ),
                 )
                 summary_map, _ = summary_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)

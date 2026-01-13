@@ -54,6 +54,29 @@ class AgentConfig:
 
 
 @dataclass
+class PipelineTuningConfig:
+    """
+    User-tunable knobs for chunking and local context windows.
+
+    These are deliberately independent of model context length: the goal is to let
+    users empirically find a "sweet spot" for speed vs quality on their hardware/model.
+    """
+    # Chapter detection (LLM proposers) - character counts
+    chapter_marker_chunk_chars: int = 15000
+    chapter_marker_chunk_overlap_chars: int = 1000
+    chapter_narrative_chunk_chars: int = 20000
+    chapter_narrative_chunk_overlap_chars: int = 2000
+
+    # Character extraction - LLM chunk size and mention context window (characters)
+    character_llm_chunk_chars: int = 8000
+    character_mention_context_chars: int = 100
+
+    # Chapter summaries - chunk sizes in words
+    summary_chunk_words: int = 2500
+    summary_chunk_overlap_words: int = 200
+
+
+@dataclass
 class OrchestratorConfig:
     """
     Configuration for the agent orchestrator.
@@ -69,6 +92,9 @@ class OrchestratorConfig:
 
     # Per-agent configs (keyed by agent name)
     agent_configs: dict[str, AgentConfig] = field(default_factory=dict)
+
+    # Experimental tuning knobs (chunk sizes, context windows)
+    tuning: PipelineTuningConfig = field(default_factory=PipelineTuningConfig)
 
     # Execution settings
     parallel_execution: bool = False  # Enable parallel agent execution

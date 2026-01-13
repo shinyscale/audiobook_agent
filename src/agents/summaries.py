@@ -12,7 +12,7 @@ import logging
 import time
 
 from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
-from .config import AgentConfig
+from .config import AgentConfig, PipelineTuningConfig
 from .validation import (
     UpstreamValidationResult,
     UpstreamValidationIssue,
@@ -80,6 +80,7 @@ class SummaryAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
+        tuning: Optional[PipelineTuningConfig] = None,
     ):
         """
         Initialize the SummaryAgent.
@@ -90,6 +91,7 @@ class SummaryAgent(Agent):
         """
         self._llm_client = llm_client
         self._config = config or AgentConfig()
+        self._tuning = tuning
         self._pipeline: Optional[ChapterSummaryPipeline] = None
 
     @property
@@ -233,8 +235,11 @@ class SummaryAgent(Agent):
     def _get_pipeline(self) -> ChapterSummaryPipeline:
         """Get or create the chapter summary pipeline."""
         if self._pipeline is None:
+            t = self._tuning or PipelineTuningConfig()
             self._pipeline = ChapterSummaryPipeline(
                 llm_client=self._llm_client,
+                summarizer_chunk_size_words=t.summary_chunk_words,
+                summarizer_chunk_overlap_words=t.summary_chunk_overlap_words,
             )
         return self._pipeline
 

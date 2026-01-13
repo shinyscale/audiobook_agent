@@ -13,7 +13,7 @@ import re
 import time
 
 from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
-from .config import AgentConfig
+from .config import AgentConfig, PipelineTuningConfig
 from ..pipeline.character_extraction.pipeline import CharacterExtractionPipeline
 from ..pipeline.character_extraction.models import CharacterMap, Character
 from ..pipeline.chapter_detection.models import ChapterMap as ChapterDetectionMap
@@ -70,9 +70,11 @@ class CharacterAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
+        tuning: Optional[PipelineTuningConfig] = None,
     ):
         self.llm = llm_client
         self.config = config or AgentConfig()
+        self._tuning = tuning
 
     @property
     def name(self) -> str:
@@ -256,7 +258,12 @@ class CharacterAgent(Agent):
 
     def _get_pipeline(self) -> CharacterExtractionPipeline:
         """Get or create the character extraction pipeline."""
-        return CharacterExtractionPipeline(llm_client=self.llm)
+        t = self._tuning or PipelineTuningConfig()
+        return CharacterExtractionPipeline(
+            llm_client=self.llm,
+            llm_chunk_size=t.character_llm_chunk_chars,
+            mention_context_window=t.character_mention_context_chars,
+        )
 
     def _check_duplicates_heuristic(self, characters: list[Character]) -> list[VerificationIssue]:
         """Check for potential duplicates using name matching heuristics."""
