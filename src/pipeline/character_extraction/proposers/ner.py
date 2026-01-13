@@ -11,7 +11,7 @@ from collections import defaultdict
 import logging
 
 from .base import BaseCharacterProposer
-from ..models import CharacterProposal, CharacterMention
+from ..models import CharacterProposal, CharacterMention, CharacterType
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +104,9 @@ class NERProposer(BaseCharacterProposer):
                 # Calculate confidence based on mention count and consistency
                 confidence = min(0.9, 0.5 + len(mentions) * 0.1)
 
+                # Infer character type from context
+                char_type = self._infer_character_type(name, mentions)
+
                 proposals.append(CharacterProposal(
                     strategy=self.name,
                     name=name,
@@ -111,6 +114,7 @@ class NERProposer(BaseCharacterProposer):
                     confidence=confidence,
                     chapter_index=chapter_index,
                     reasoning=f"Found {len(mentions)} mentions via {'spaCy NER' if self.use_spacy else 'regex patterns'}",
+                    character_type=char_type,
                 ))
 
         # Extract first names from full names and create additional proposals
@@ -278,3 +282,46 @@ class NERProposer(BaseCharacterProposer):
             return [name_words[0].capitalize()]
 
         return []
+
+    def _infer_character_type(
+        self,
+        name: str,
+        mentions: list[CharacterMention],
+    ) -> CharacterType:
+        """
+        Infer character type based on context patterns.
+
+        Characters with dialogue or action verb associations are likely STORY characters.
+        Returns UNCERTAIN when there's insufficient evidence.
+        """
+        story_signals = 0
+        action_verbs = {
+            'said', 'asked', 'replied', 'answered', 'whispered', 'shouted',
+            'looked', 'walked', 'turned', 'smiled', 'laughed', 'nodded',
+            'sat', 'stood', 'ran', 'came', 'went', 'told', 'thought',
+            'felt', 'knew', 'saw', 'heard', 'took', 'put', 'gave',
+        }
+
+        for mention in mentions[:10]:  # Check first 10 mentions for efficiency
+            # Dialogue is strong signal for story character
+            if mention.in_dialogue:
+                story_signals += 2
+
+            # Check for action verbs in context
+            if mention.context:
+                context_lower = mention.context.lower()
+                for verb in action_verbs:
+                    if verb in context_lower:
+                        story_signals += 1
+                        break  # Only count once per mention
+
+        # Strong evidence threshold
+        if story_signals >= 3:
+            return CharacterType.STORY
+
+        # Any dialogue is a good indicator
+        if any(m.in_dialogue for m in mentions):
+            return CharacterType.STORY
+
+        # Not enough evidence
+        return CharacterType.UNCERTAIN

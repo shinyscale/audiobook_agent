@@ -165,7 +165,7 @@ Add type inference to NER proposer based on dialogue/action signals, plus LLM fa
     "Verify character_type is set to HISTORICAL",
     "Check that action verbs in context boost STORY classification"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
