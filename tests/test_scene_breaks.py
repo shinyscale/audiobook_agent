@@ -210,3 +210,137 @@ Scene 2 content.
 Scene 3 content."""
         breaks = find_scene_breaks(text)
         assert len(breaks) == 2
+
+
+class TestConsensusIntegration:
+    """Test integration with ConsensusBuilder filtering."""
+
+    def _make_validation_result(
+        self, position: int, title: str, confidence: float, strategy: str, evidence: str
+    ):
+        """Helper to create ValidationResult with all required fields."""
+        from src.pipeline.chapter_detection.models import (
+            ChapterProposal,
+            ValidationResult,
+        )
+
+        return ValidationResult(
+            proposal=ChapterProposal(
+                position=position,
+                title=title,
+                confidence=confidence,
+                strategy=strategy,
+                evidence=evidence,
+            ),
+            ending_score=0.8,
+            beginning_score=0.8,
+            title_validity=0.9,
+            toc_match_score=0.0,
+            overall_score=confidence,
+            is_valid=True,
+            reasoning="Test proposal",
+        )
+
+    def _make_profile(self, text: str):
+        """Helper to create DocumentProfile with all required fields."""
+        from src.pipeline.chapter_detection.models import DocumentProfile
+
+        return DocumentProfile(
+            document_type="novel",
+            has_explicit_markers=True,
+            table_of_contents=None,
+            estimated_chapter_count=None,
+            structural_conventions=["roman_numerals"],
+            front_matter_end=0,
+            confidence=0.9,
+            reasoning="Test profile",
+        )
+
+    def test_filters_proposals_near_scene_breaks(self):
+        """Proposals near scene breaks are filtered out by consensus builder."""
+        from src.pipeline.chapter_detection.consensus import ConsensusBuilder
+
+        # Create text with a scene break - needs to be long enough to pass size validation
+        gatsby_break = "-" * 72
+        filler = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 50
+
+        text = f"""
+                                I
+
+Chapter one content here. This is the beginning of the novel.
+{filler}
+
+{gatsby_break}
+
+Still chapter one after scene break.
+{filler}
+
+                                II
+
+Chapter two content here. A new chapter begins.
+{filler}
+"""
+
+        # Find the actual positions of markers
+        chapter1_pos = text.find("I\n\nChapter")
+        scene_break_pos = text.find(gatsby_break)
+        chapter2_pos = text.find("II\n\nChapter")
+
+        # Create proposals - one at a real chapter, one at scene break
+        proposals = [
+            self._make_validation_result(chapter1_pos, "I", 0.9, "regex", "Roman numeral I"),
+            self._make_validation_result(scene_break_pos, None, 0.7, "llm_marker", "Dash line"),
+            self._make_validation_result(chapter2_pos, "II", 0.9, "regex", "Roman numeral II"),
+        ]
+
+        profile = self._make_profile(text)
+        builder = ConsensusBuilder(llm_client=None)
+        result = builder.build_consensus(proposals, text, profile)
+
+        # Should have 2 chapters (I and II), not 3 (scene break filtered)
+        assert len(result.chapters) == 2
+        assert result.chapters[0].title == "I"
+        assert result.chapters[1].title == "II"
+
+    def test_no_filtering_without_scene_breaks(self):
+        """Text without scene breaks doesn't filter any proposals."""
+        from src.pipeline.chapter_detection.consensus import ConsensusBuilder
+
+        # Create text without scene breaks - needs to be long enough to pass size validation
+        filler = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 50
+
+        text = f"""
+                                I
+
+Chapter one content here. This is the beginning of the novel.
+{filler}
+
+                                II
+
+Chapter two content here. A new chapter begins.
+{filler}
+
+                                III
+
+Chapter three content here.
+{filler}
+"""
+
+        # Find the actual positions of markers
+        chapter1_pos = text.find("I\n\nChapter one")
+        chapter2_pos = text.find("II\n\nChapter two")
+        chapter3_pos = text.find("III\n\nChapter three")
+
+        # Create proposals for all three chapters
+        proposals = [
+            self._make_validation_result(chapter1_pos, "I", 0.9, "regex", "Roman numeral I"),
+            self._make_validation_result(chapter2_pos, "II", 0.9, "regex", "Roman numeral II"),
+            self._make_validation_result(chapter3_pos, "III", 0.9, "regex", "Roman numeral III"),
+        ]
+
+        profile = self._make_profile(text)
+        builder = ConsensusBuilder(llm_client=None)
+        result = builder.build_consensus(proposals, text, profile)
+
+        # All 3 chapters should be preserved
+        assert len(result.chapters) == 3

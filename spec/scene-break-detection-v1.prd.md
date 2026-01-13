@@ -126,7 +126,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm filtered count is logged for debugging",
     "Test with various scene break patterns (dashes, asterisks)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -155,7 +155,7 @@ Modify the chapter summarizer to use scene breaks as natural chunk boundaries, r
     "Confirm no regression in detection accuracy",
     "Check that normal paragraph breaks are not affected"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

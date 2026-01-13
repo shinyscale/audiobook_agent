@@ -17,6 +17,7 @@ from .models import (
     ChapterMap,
     DocumentProfile,
 )
+from .scene_breaks import find_scene_breaks, is_near_scene_break
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -134,6 +135,18 @@ class ConsensusBuilder:
         invalid_count = len(validations) - len(valid_proposals)
         if invalid_count > 0:
             logger.info(f"ConsensusBuilder: filtered {invalid_count} invalid proposals")
+
+        # 1.5. Filter proposals near scene breaks (false positives from "-----" lines)
+        scene_breaks = find_scene_breaks(text)
+        if scene_breaks:
+            pre_filter_count = len(valid_proposals)
+            valid_proposals = [
+                v for v in valid_proposals
+                if not is_near_scene_break(v.proposal.position, scene_breaks, threshold=100)
+            ]
+            filtered_count = pre_filter_count - len(valid_proposals)
+            if filtered_count > 0:
+                logger.info(f"ConsensusBuilder: filtered {filtered_count} proposals near scene breaks")
 
         if not valid_proposals:
             logger.warning("No valid proposals - returning single chapter")
