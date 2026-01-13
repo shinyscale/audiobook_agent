@@ -1163,44 +1163,65 @@ class CharacterConsensusBuilder:
         Looks for context clues like "born as", "real name", "changed his name"
         in the mentions for either name.
 
+        IMPORTANT: We iterate through each name's contexts separately and check
+        if they mention the OTHER name with an indicator. This catches patterns
+        like "He was born as James Gatz" in Jay Gatsby's context.
+
         Returns:
             (should_merge, confidence) tuple
         """
-        # Collect all contexts from mentions for both names
-        all_contexts = []
-
-        for result in name_groups.get(canonical, [])[:10]:
-            for mention in result.proposal.mentions[:5]:
-                if mention.context:
-                    all_contexts.append(mention.context.lower())
-
-        for result in name_groups.get(alias, [])[:10]:
-            for mention in result.proposal.mentions[:5]:
-                if mention.context:
-                    all_contexts.append(mention.context.lower())
-
         birth_name_indicators = [
             "born as", "real name", "birth name", "whose real name",
             "formerly known as", "changed his name", "changed her name",
             "once called", "used to be called", "originally named",
-            "had been", "his name was", "her name was",
             "actually named", "true name", "given name",
         ]
 
-        for context in all_contexts:
-            for indicator in birth_name_indicators:
-                if indicator in context:
-                    # Additional validation: check if either name appears near the indicator
-                    canonical_lower = canonical.lower()
-                    alias_lower = alias.lower()
+        # Normalize names for matching
+        canonical_lower = canonical.lower()
+        alias_lower = alias.lower()
 
-                    # Look for patterns like "born as X" or "real name is Y"
-                    if canonical_lower in context or alias_lower in context:
-                        logger.info(
-                            f"Birth name pattern detected: {canonical} <-> {alias} "
-                            f"(indicator: '{indicator}')"
-                        )
-                        return True, 0.85
+        # Also check individual name components (first/last names, excluding short words)
+        canonical_parts = {p for p in canonical_lower.split() if len(p) > 2}
+        alias_parts = {p for p in alias_lower.split() if len(p) > 2}
+
+        def name_in_context(name_lower: str, parts: set, context: str) -> bool:
+            """Check if a name (or its significant parts) appears in context."""
+            if name_lower in context:
+                return True
+            return any(part in context for part in parts)
+
+        # Check canonical's contexts for mentions of alias (the OTHER name)
+        for result in name_groups.get(canonical, [])[:10]:
+            for mention in result.proposal.mentions[:5]:
+                if not mention.context:
+                    continue
+                context = mention.context.lower()
+                for indicator in birth_name_indicators:
+                    if indicator in context:
+                        # Check if the OTHER name (alias) appears in canonical's context
+                        if name_in_context(alias_lower, alias_parts, context):
+                            logger.info(
+                                f"Birth name pattern detected: {canonical} <-> {alias} "
+                                f"(indicator: '{indicator}' in {canonical}'s context mentions {alias})"
+                            )
+                            return True, 0.85
+
+        # Check alias's contexts for mentions of canonical (the OTHER name)
+        for result in name_groups.get(alias, [])[:10]:
+            for mention in result.proposal.mentions[:5]:
+                if not mention.context:
+                    continue
+                context = mention.context.lower()
+                for indicator in birth_name_indicators:
+                    if indicator in context:
+                        # Check if the OTHER name (canonical) appears in alias's context
+                        if name_in_context(canonical_lower, canonical_parts, context):
+                            logger.info(
+                                f"Birth name pattern detected: {canonical} <-> {alias} "
+                                f"(indicator: '{indicator}' in {alias}'s context mentions {canonical})"
+                            )
+                            return True, 0.85
 
         return False, 0.0
 
@@ -1446,34 +1467,45 @@ class CharacterConsensusBuilder:
                             "birth name",
                         ]
 
-                        # Get contexts for both names to check for alias indicators
-                        canonical_contexts = []
-                        alias_contexts = []
-                        for result in canonical_results[:5]:  # Check first 5 contexts
-                            if hasattr(result.proposal, 'context') and result.proposal.context:
-                                canonical_contexts.append(result.proposal.context.lower())
+                        canonical_lower = canonical.lower()
+                        alias_lower = alias.lower()
+                        canonical_parts = {p for p in canonical_lower.split() if len(p) > 2}
+                        alias_parts = {p for p in alias_lower.split() if len(p) > 2}
+
+                        def name_in_ctx(name_lower: str, parts: set, ctx: str) -> bool:
+                            return name_lower in ctx or any(p in ctx for p in parts)
+
+                        # Check canonical's contexts for mentions of alias (OTHER name)
+                        for result in canonical_results[:5]:
+                            for mention in result.proposal.mentions[:3]:
+                                if not mention.context:
+                                    continue
+                                context = mention.context.lower()
+                                for indicator in birth_name_indicators:
+                                    if indicator in context:
+                                        # Check if the OTHER name (alias) appears
+                                        if name_in_ctx(alias_lower, alias_parts, context):
+                                            logger.info(
+                                                f"Merge ALLOWED: {canonical} <- {alias} "
+                                                f"(birth name indicator '{indicator}' in {canonical}'s context)"
+                                            )
+                                            return True, 0.85
+
+                        # Check alias's contexts for mentions of canonical (OTHER name)
                         for result in alias_results[:5]:
-                            if hasattr(result.proposal, 'context') and result.proposal.context:
-                                alias_contexts.append(result.proposal.context.lower())
-
-                        # Check if any context mentions alias relationship
-                        all_contexts = canonical_contexts + alias_contexts
-                        for context in all_contexts:
-                            # Check for birth name indicators
-                            for indicator in birth_name_indicators:
-                                if indicator in context:
-                                    # Additional validation: both names should appear or be referenced in context
-                                    # This prevents false positives from generic "birth name" mentions
-                                    canonical_lower = canonical.lower()
-                                    alias_lower = alias.lower()
-
-                                    # Check if either name appears in the context
-                                    if canonical_lower in context or alias_lower in context:
-                                        logger.info(
-                                            f"Merge ALLOWED: {canonical} <- {alias} "
-                                            f"(birth name/alias indicator found: '{indicator}')"
-                                        )
-                                        return True, 0.85  # High confidence for explicit alias mentions
+                            for mention in result.proposal.mentions[:3]:
+                                if not mention.context:
+                                    continue
+                                context = mention.context.lower()
+                                for indicator in birth_name_indicators:
+                                    if indicator in context:
+                                        # Check if the OTHER name (canonical) appears
+                                        if name_in_ctx(canonical_lower, canonical_parts, context):
+                                            logger.info(
+                                                f"Merge ALLOWED: {canonical} <- {alias} "
+                                                f"(birth name indicator '{indicator}' in {alias}'s context)"
+                                            )
+                                            return True, 0.85
 
                     # If they have different first names and no birth name evidence, reject
                     if first1 != first2 and first1 and first2:
