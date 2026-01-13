@@ -58,6 +58,7 @@ try:
     from ..agents.config import (
         AgentConfig,
         OrchestratorConfig,
+        PipelineTuningConfig,
         RECOMMENDED_AGENT_MODELS,
         create_optimized_config,
     )
@@ -65,6 +66,7 @@ try:
 except ImportError:
     HAS_AGENT_CONFIG = False
     OrchestratorConfig = None  # type: ignore
+    PipelineTuningConfig = None  # type: ignore
 
 try:
     from ..system import (
@@ -1319,6 +1321,17 @@ class AgentModelConfigPanel:
         self.auto_optimize = tk.BooleanVar(value=True)
         self.agent_models: dict[str, tk.StringVar] = {}
 
+        # Advanced tuning knobs (defaults match current pipeline behavior)
+        # These are intentionally per-run so you can experimentally find a sweet spot.
+        self.chapter_marker_chunk_chars = tk.IntVar(value=15000)
+        self.chapter_marker_overlap_chars = tk.IntVar(value=1000)
+        self.chapter_narrative_chunk_chars = tk.IntVar(value=20000)
+        self.chapter_narrative_overlap_chars = tk.IntVar(value=2000)
+        self.character_llm_chunk_chars = tk.IntVar(value=8000)
+        self.character_mention_context_chars = tk.IntVar(value=100)
+        self.summary_chunk_words = tk.IntVar(value=2500)
+        self.summary_chunk_overlap_words = tk.IntVar(value=200)
+
         # Initialize model variables for each agent
         for agent_name in self.AGENT_NAMES:
             self.agent_models[agent_name] = tk.StringVar(value="Default")
@@ -1467,6 +1480,56 @@ class AgentModelConfigPanel:
             text="Refresh Models",
             command=self._refresh_models
         ).pack(side=tk.LEFT, padx=5)
+
+        # Advanced tuning (chunking) controls
+        ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        tuning_frame = ttk.LabelFrame(
+            self.content_frame,
+            text="Advanced Chunking (Experimental)",
+            padding="10",
+        )
+        tuning_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(
+            tuning_frame,
+            text="These settings control how much text is sent per LLM call and how much context is stored per character mention. Defaults match current behavior.",
+            wraplength=520,
+            foreground="gray",
+        ).pack(anchor=tk.W, pady=(0, 8))
+
+        def add_row(parent, label: str, var: tk.IntVar, width: int = 10):
+            row = ttk.Frame(parent)
+            row.pack(fill=tk.X, pady=2)
+            ttk.Label(row, text=label, width=34, anchor=tk.W).pack(side=tk.LEFT)
+            ttk.Entry(row, textvariable=var, width=width).pack(side=tk.LEFT, padx=5)
+
+        add_row(tuning_frame, "Chapter marker chunk size (chars):", self.chapter_marker_chunk_chars)
+        add_row(tuning_frame, "Chapter marker overlap (chars):", self.chapter_marker_overlap_chars)
+        add_row(tuning_frame, "Narrative chunk size (chars):", self.chapter_narrative_chunk_chars)
+        add_row(tuning_frame, "Narrative overlap (chars):", self.chapter_narrative_overlap_chars)
+        ttk.Separator(tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+        add_row(tuning_frame, "Character LLM chunk size (chars):", self.character_llm_chunk_chars)
+        add_row(tuning_frame, "Character mention context window (chars):", self.character_mention_context_chars)
+        ttk.Separator(tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+        add_row(tuning_frame, "Summary chunk size (words):", self.summary_chunk_words)
+        add_row(tuning_frame, "Summary chunk overlap (words):", self.summary_chunk_overlap_words)
+
+        def reset_defaults():
+            self.chapter_marker_chunk_chars.set(15000)
+            self.chapter_marker_overlap_chars.set(1000)
+            self.chapter_narrative_chunk_chars.set(20000)
+            self.chapter_narrative_overlap_chars.set(2000)
+            self.character_llm_chunk_chars.set(8000)
+            self.character_mention_context_chars.set(100)
+            self.summary_chunk_words.set(2500)
+            self.summary_chunk_overlap_words.set(200)
+
+        ttk.Button(
+            tuning_frame,
+            text="Reset tuning to defaults",
+            command=reset_defaults,
+        ).pack(anchor=tk.W, pady=(10, 0))
 
     def _toggle_expanded(self):
         """Toggle panel expansion."""
@@ -1692,6 +1755,19 @@ class AgentModelConfigPanel:
                     provider=config.default_provider,
                     base_url=config.default_base_url,
                 ))
+
+        # Apply tuning knobs
+        if PipelineTuningConfig is not None:
+            config.tuning = PipelineTuningConfig(
+                chapter_marker_chunk_chars=int(self.chapter_marker_chunk_chars.get()),
+                chapter_marker_chunk_overlap_chars=int(self.chapter_marker_overlap_chars.get()),
+                chapter_narrative_chunk_chars=int(self.chapter_narrative_chunk_chars.get()),
+                chapter_narrative_chunk_overlap_chars=int(self.chapter_narrative_overlap_chars.get()),
+                character_llm_chunk_chars=int(self.character_llm_chunk_chars.get()),
+                character_mention_context_chars=int(self.character_mention_context_chars.get()),
+                summary_chunk_words=int(self.summary_chunk_words.get()),
+                summary_chunk_overlap_words=int(self.summary_chunk_overlap_words.get()),
+            )
 
         return config
 
