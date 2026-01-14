@@ -36,6 +36,9 @@ FALSE_POSITIVE_NAMES = {
     'january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december',
     'chapter', 'prologue', 'epilogue', 'part', 'the', 'and', 'but',
+    # Pronouns - should never be extracted as characters
+    'he', 'she', 'it', 'they', 'we', 'i', 'you',
+    'him', 'her', 'them', 'us', 'me',
 }
 
 PLACE_SUFFIXES = {

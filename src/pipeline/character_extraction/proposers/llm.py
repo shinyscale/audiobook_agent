@@ -15,6 +15,15 @@ from ...llm import LLMClient
 logger = logging.getLogger(__name__)
 
 
+# Pronoun/determiner stopwords - should never be extracted as characters
+PRONOUN_STOPWORDS = {
+    'he', 'she', 'it', 'they', 'we', 'i', 'you',
+    'him', 'her', 'them', 'us', 'me',
+    'his', 'hers', 'its', 'their', 'our', 'my', 'your',
+    'this', 'that', 'these', 'those', 'the', 'a', 'an',
+}
+
+
 CHARACTER_SYSTEM_PROMPT = """You are a literary analyst identifying characters in fiction.
 
 CRITICAL: Base your analysis ONLY on the text provided below.
@@ -180,6 +189,16 @@ class LLMCharacterProposer(BaseCharacterProposer):
             if not name or len(name) < 2:
                 continue
 
+            # Filter out pronouns/determiners
+            if name.lower() in PRONOUN_STOPWORDS:
+                logger.debug(f"Filtered stopword: '{name}'")
+                continue
+
+            # Minimum length guardrail: single-word names must be > 2 chars
+            if len(name.split()) == 1 and len(name) <= 2:
+                logger.debug(f"Filtered short name: '{name}'")
+                continue
+
             # Find actual mentions in the text
             mentions = self._find_mentions(text, name, chapter_index, chapter_start, chunk_offset)
 
@@ -223,6 +242,8 @@ class LLMCharacterProposer(BaseCharacterProposer):
         # Escape for regex but allow flexible whitespace
         pattern = re.escape(name)
         pattern = pattern.replace(r"\ ", r"\s+")
+        # Add word boundaries to prevent substring matches (e.g., 'he' in 'the')
+        pattern = r'\b' + pattern + r'\b'
 
         for match in re.finditer(pattern, text, re.IGNORECASE):
             local_pos = match.start()
