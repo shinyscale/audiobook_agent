@@ -59,6 +59,38 @@ Return JSON:
 # These are not part of the actual name but indicate social status or role
 TITLES = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain', 'major'}
 
+# Epithet alias resolution prompt
+EPITHET_ALIAS_SYSTEM = """You are a literary analyst identifying whether different descriptive handles (epithets) refer to the SAME unnamed character.
+
+Descriptive handles are phrases like "the creature", "the monster", "the old man", "the detective".
+
+CRITICAL RULES:
+1. Only merge epithets that CLEARLY refer to the same entity with HIGH CONFIDENCE
+2. Use chapter appearances and context clues to verify they're the same character
+3. Different descriptive characters (e.g., "the old man" in cottage vs "the old man" at inn) should NOT be merged
+4. Generic phrases that could refer to anyone should NOT be merged together
+
+Return ONLY valid JSON. No other text."""
+
+EPITHET_ALIAS_PROMPT = """Identify which descriptive handles refer to the SAME unnamed character.
+
+DESCRIPTIVE HANDLES (with chapter info and sample contexts):
+{epithets}
+
+For each group of handles that refer to the SAME entity:
+1. Pick the most specific/unique handle as canonical (e.g., "the creature" over "the monster")
+2. List all other handles as aliases
+
+Return JSON array:
+```json
+[
+  {{"canonical": "the creature", "aliases": ["the monster", "the wretch", "the fiend"]}},
+  {{"canonical": "the old man", "aliases": []}}
+]
+```
+
+Return ONLY the JSON array. Include only handles you're confident about - omit uncertain ones."""
+
 PAIRWISE_ALIAS_SYSTEM = """You are a literary analyst identifying whether two character names refer to the SAME PERSON.
 
 CRITICAL:
@@ -276,13 +308,40 @@ class CharacterConsensusBuilder:
         if len(sorted_names) > 20:
             logger.debug(f"  ... and {len(sorted_names) - 20} more names")
 
-        # Resolve aliases
-        if self.use_llm_alias_resolution and len(name_groups) > 1:
+        # Separate proper names from descriptive handles
+        proper_name_groups = {}
+        epithet_groups = {}
+        for name, results in name_groups.items():
+            if self._is_descriptive_handle(name):
+                epithet_groups[name] = results
+            else:
+                proper_name_groups[name] = results
+
+        if epithet_groups:
+            logger.info(f"CharacterConsensusBuilder: found {len(epithet_groups)} descriptive handles")
+
+        # Resolve aliases for proper names
+        if self.use_llm_alias_resolution and len(proper_name_groups) > 1:
             logger.info("CharacterConsensusBuilder: using LLM alias resolution")
-            alias_groups = self._llm_alias_resolution(name_groups)
+            alias_groups = self._llm_alias_resolution(proper_name_groups)
         else:
             logger.info("CharacterConsensusBuilder: using heuristic alias resolution")
-            alias_groups = self._heuristic_alias_resolution(name_groups, valid_results)
+            alias_groups = self._heuristic_alias_resolution(proper_name_groups, valid_results)
+
+        # Resolve aliases for epithets separately
+        if epithet_groups and self.use_llm_alias_resolution:
+            logger.info("CharacterConsensusBuilder: running epithet alias resolution")
+            epithet_alias_groups = self._llm_epithet_resolution(epithet_groups)
+            # Merge epithet alias groups into main alias groups
+            for canonical, aliases in epithet_alias_groups.items():
+                alias_groups[canonical] = aliases
+        elif epithet_groups:
+            # No LLM - just add epithets as separate characters
+            for name in epithet_groups:
+                alias_groups[name] = []
+
+        # Merge name_groups to include epithets for downstream processing
+        name_groups.update(epithet_groups)
 
         # Log alias groups
         logger.info(f"CharacterConsensusBuilder: resolved to {len(alias_groups)} characters")
@@ -1657,6 +1716,136 @@ class CharacterConsensusBuilder:
 
         # Use SequenceMatcher for general similarity
         return SequenceMatcher(None, n1, n2).ratio()
+
+    def _is_descriptive_handle(self, name: str) -> bool:
+        """
+        Detect if a name is a descriptive handle (epithet) like "the creature".
+
+        Descriptive handles start with "the" followed by a noun/adjective phrase.
+        """
+        name_lower = name.lower().strip()
+        # Must start with "the "
+        if not name_lower.startswith("the "):
+            return False
+        # Should not be a title pattern like "the Mr. Smith"
+        rest = name_lower[4:]
+        if rest.split()[0].rstrip('.') in TITLES:
+            return False
+        return True
+
+    def _llm_epithet_resolution(
+        self,
+        epithet_groups: dict[str, list[CharacterValidationResult]],
+    ) -> dict[str, list[str]]:
+        """
+        Use LLM to resolve aliases among descriptive handles (epithets).
+
+        This handles cases like "the creature" = "the monster" = "the wretch"
+        that share no name components but refer to the same unnamed character.
+        """
+        if not self.llm or len(epithet_groups) < 2:
+            return {name: [] for name in epithet_groups}
+
+        # Build prompt with epithet info
+        epithet_lines = []
+        sorted_epithets = sorted(
+            epithet_groups.items(),
+            key=lambda x: -sum(r.proposal.mention_count for r in x[1]),
+        )
+
+        for name, results in sorted_epithets:
+            total_mentions = sum(r.proposal.mention_count for r in results)
+            chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=12)
+            context_str = self._format_contexts(results, max_contexts=4, max_chars=140)
+
+            epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
+            epithet_lines.append(f"  Context:\n{context_str}")
+
+        epithets_str = "\n".join(epithet_lines)
+        prompt = EPITHET_ALIAS_PROMPT.format(epithets=epithets_str)
+
+        try:
+            result, response = self.llm.query_json(prompt, system=EPITHET_ALIAS_SYSTEM)
+
+            if result is None or not isinstance(result, list):
+                logger.warning("LLM epithet resolution returned invalid response")
+                return {name: [] for name in epithet_groups}
+
+            # Parse response
+            alias_map = {}
+            seen_names = set()
+
+            for group in result:
+                if not isinstance(group, dict):
+                    continue
+
+                canonical = group.get("canonical", "")
+                aliases = group.get("aliases", [])
+
+                if not canonical:
+                    continue
+
+                # Match to actual epithet names
+                matched_canonical = self._find_closest_name(canonical, epithet_groups.keys())
+                if not matched_canonical or matched_canonical in seen_names:
+                    continue
+
+                seen_names.add(matched_canonical)
+                alias_map[matched_canonical] = []
+
+                for alias in aliases:
+                    matched_alias = self._find_closest_name(alias, epithet_groups.keys())
+                    if not matched_alias or matched_alias in seen_names:
+                        continue
+
+                    alias_map[matched_canonical].append(matched_alias)
+                    seen_names.add(matched_alias)
+                    logger.info(f"Epithet merge: '{matched_canonical}' <- '{matched_alias}'")
+
+            # Add unmatched epithets
+            for name in epithet_groups:
+                if name not in seen_names:
+                    alias_map[name] = []
+
+            return alias_map
+
+        except Exception as e:
+            logger.error(f"LLM epithet resolution failed: {e}")
+            return {name: [] for name in epithet_groups}
+
+    def _pick_canonical_epithet(
+        self,
+        epithets: list[str],
+        epithet_groups: dict[str, list[CharacterValidationResult]],
+    ) -> str:
+        """
+        Pick the best canonical name from a group of epithet aliases.
+
+        Priority:
+        1. Specificity: more words = more specific (e.g., "the blind old man" > "the old man")
+        2. Uniqueness: less common phrases are more unique
+        3. Frequency: higher mention count indicates more established usage
+        """
+        if len(epithets) == 1:
+            return epithets[0]
+
+        def score(epithet: str) -> tuple[int, int, int]:
+            # Word count (more = more specific)
+            words = epithet.lower().split()
+            word_count = len(words)
+
+            # Uniqueness: inverse of how common each word is
+            # More unique words = better canonical
+            common_words = {'the', 'a', 'an', 'old', 'young', 'man', 'woman', 'person'}
+            unique_words = sum(1 for w in words if w not in common_words)
+
+            # Mention count
+            results = epithet_groups.get(epithet, [])
+            mention_count = sum(r.proposal.mention_count for r in results)
+
+            return (word_count, unique_words, mention_count)
+
+        return max(epithets, key=score)
 
     def _generate_id(self, name: str) -> str:
         """Generate a unique ID for a character."""
