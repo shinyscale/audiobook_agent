@@ -22,6 +22,23 @@ from ..pipeline.llm import LLMClient
 logger = logging.getLogger(__name__)
 
 
+# Pronoun/determiner stopwords - characters with these names should be flagged/removed
+PRONOUN_STOPWORDS = {
+    'he', 'she', 'it', 'they', 'we', 'i', 'you',
+    'him', 'her', 'them', 'us', 'me',
+    'his', 'hers', 'its', 'their', 'our', 'my', 'your',
+    'this', 'that', 'these', 'those', 'the', 'a', 'an',
+}
+
+# Agentive verb patterns for detecting unnamed characters
+AGENTIVE_VERBS = [
+    r'\b(said|asked|replied|whispered|shouted|called|cried|muttered|exclaimed)\b',
+    r'\b(walked|ran|stood|turned|looked|smiled|laughed|nodded|frowned)\b',
+    r'\b(grabbed|took|held|threw|placed|opened|closed|pushed|pulled)\b',
+    r'\b(sat|came|went|entered|left|arrived|departed|approached|retreated)\b',
+]
+
+
 DUPLICATE_CHECK_SYSTEM = """You are a literary analyst checking for duplicate characters.
 
 Your task is to identify characters that may be the SAME PERSON listed separately.
@@ -191,19 +208,30 @@ class CharacterAgent(Agent):
                 severity="warning",
             ))
 
-        # Check 2: Look for potential duplicates using heuristics
+        # Check 2: Pronoun entries (should be auto-removed)
+        pronoun_issues = self._check_pronoun_entries(character_map.characters)
+        issues.extend(pronoun_issues)
+
+        # Check 3: Look for potential duplicates using heuristics
         duplicate_issues = self._check_duplicates_heuristic(character_map.characters)
         issues.extend(duplicate_issues)
 
-        # Check 3: Verify mention distribution
+        # Check 4: Verify mention distribution
         distribution_issues = self._check_mention_distribution(character_map)
         issues.extend(distribution_issues)
 
-        # Check 4: Verify alias consistency
+        # Check 5: Verify alias consistency
         alias_issues = self._check_alias_consistency(character_map.characters)
         issues.extend(alias_issues)
 
-        # Check 5: LLM duplicate check for high-value verification
+        # Check 6: Missing agentive descriptions (if context available)
+        if context and context.text:
+            agentive_issues = self._check_missing_agentive_descriptions(
+                context.text, character_map.characters
+            )
+            issues.extend(agentive_issues)
+
+        # Check 7: LLM duplicate check for high-value verification
         if self.config.enable_verification and self.llm and len(character_map.characters) > 1:
             llm_issues = self._llm_duplicate_check(character_map.characters)
             issues.extend(llm_issues)
@@ -226,10 +254,37 @@ class CharacterAgent(Agent):
         """
         Refine character map based on verification issues.
 
-        For now, we flag issues but don't automatically fix them.
-        Future: implement automatic duplicate merging.
+        Automatically removes pronoun entries (error severity).
+        Other issues are flagged for manual review.
         """
         character_map = result.data
+
+        # Auto-remove pronoun entries (error severity issues)
+        pronoun_issues = [i for i in issues if "pronoun/determiner" in i.description.lower()]
+        if pronoun_issues:
+            # Get the names to remove from issue descriptions
+            pronoun_names = set()
+            for issue in pronoun_issues:
+                # Extract name from description like "Character 'he' is a pronoun/determiner"
+                match = re.search(r"Character '([^']+)' is a pronoun/determiner", issue.description)
+                if match:
+                    pronoun_names.add(match.group(1).lower())
+
+            # Filter out pronoun characters
+            original_count = len(character_map.characters)
+            character_map.characters = [
+                c for c in character_map.characters
+                if c.canonical_name.lower() not in pronoun_names
+            ]
+            character_map.low_confidence_characters = [
+                c for c in character_map.low_confidence_characters
+                if c.canonical_name.lower() not in pronoun_names
+            ]
+
+            removed_count = original_count - len(character_map.characters)
+            if removed_count > 0:
+                logger.info(f"CharacterAgent: Auto-removed {removed_count} pronoun entries")
+                character_map.pipeline_metadata["pronoun_entries_removed"] = removed_count
 
         # Add issues to pipeline metadata for review
         issue_descriptions = [i.description for i in issues]
@@ -237,11 +292,11 @@ class CharacterAgent(Agent):
             character_map.pipeline_metadata["verification_issues"] = issue_descriptions
             character_map.pipeline_metadata["needs_review"] = True
 
-        # Log errors
-        error_issues = [i for i in issues if i.severity == "error"]
-        if error_issues:
+        # Log remaining errors (non-pronoun)
+        remaining_errors = [i for i in issues if i.severity == "error" and "pronoun/determiner" not in i.description.lower()]
+        if remaining_errors:
             logger.warning(
-                f"CharacterAgent: {len(error_issues)} errors found but refinement not yet implemented"
+                f"CharacterAgent: {len(remaining_errors)} errors remain after refinement"
             )
 
         return AgentResult(
@@ -417,5 +472,78 @@ class CharacterAgent(Agent):
             logger.error(f"LLM duplicate check failed: {e}")
             # Re-raise to fail fast instead of silently continuing
             raise
+
+        return issues
+
+    def _check_pronoun_entries(self, characters: list[Character]) -> list[VerificationIssue]:
+        """
+        Check for pronoun/determiner entries that should not be characters.
+
+        These entries indicate bugs in upstream extraction and should be
+        flagged as errors for auto-removal.
+        """
+        issues = []
+
+        for char in characters:
+            name_lower = char.canonical_name.lower()
+            if name_lower in PRONOUN_STOPWORDS:
+                issues.append(VerificationIssue(
+                    description=f"Character '{char.canonical_name}' is a pronoun/determiner and should not be a character",
+                    severity="error",
+                    suggested_fix="Remove this entry - it is not a character",
+                ))
+
+        return issues
+
+    def _check_missing_agentive_descriptions(
+        self,
+        text: str,
+        characters: list[Character],
+    ) -> list[VerificationIssue]:
+        """
+        Check for high-frequency agentive descriptions missing from character list.
+
+        Scans for patterns like "the creature said", "the monster walked" that
+        appear 10+ times but are not in the character list.
+        """
+        issues = []
+
+        # Build set of existing character names for quick lookup
+        existing_names = set()
+        for char in characters:
+            existing_names.add(char.canonical_name.lower())
+            for alias in char.aliases:
+                existing_names.add(alias.lower())
+
+        # Pattern to find "the X <agentive_verb>" constructions
+        # We look for "the <noun>" followed by an agentive verb
+        descriptive_pattern = r'\bthe\s+([a-z]+(?:\s+[a-z]+)?)\s+'
+
+        # Count occurrences of each descriptive handle followed by agentive verbs
+        descriptive_counts = {}
+
+        for verb_pattern in AGENTIVE_VERBS:
+            # Build combined pattern: "the X <verb>"
+            combined_pattern = descriptive_pattern + verb_pattern[2:]  # Remove leading \b from verb
+            for match in re.finditer(combined_pattern, text, re.IGNORECASE):
+                handle = "the " + match.group(1).lower()
+                # Skip common non-character phrases
+                if handle in {'the man', 'the woman', 'the door', 'the room', 'the house',
+                              'the time', 'the day', 'the way', 'the end', 'the same',
+                              'the first', 'the last', 'the other', 'the next'}:
+                    continue
+                descriptive_counts[handle] = descriptive_counts.get(handle, 0) + 1
+
+        # Flag handles with 10+ agentive occurrences that aren't in character list
+        for handle, count in descriptive_counts.items():
+            if count >= 10 and handle.lower() not in existing_names:
+                issues.append(VerificationIssue(
+                    description=(
+                        f"Potential unnamed character: '{handle}' appears {count} times with "
+                        f"agentive verbs but is not in the character list"
+                    ),
+                    severity="warning",
+                    suggested_fix=f"Consider adding '{handle}' as a character or alias",
+                ))
 
         return issues
