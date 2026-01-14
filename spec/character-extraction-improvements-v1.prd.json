@@ -205,7 +205,7 @@
             "Check that canonical name is the most specific/unique form",
             "Confirm merged character has combined mention count"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -217,7 +217,7 @@
             "Check that context/chapter distribution is used to distinguish",
             "Confirm no incorrect merging of distinct descriptive characters"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -228,7 +228,7 @@
             "Check that less specific forms appear as aliases",
             "Confirm canonical selection follows: specificity > uniqueness > frequency"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
