@@ -4,8 +4,11 @@ Pronunciation enricher using LLM.
 Generates IPA notation and phonetic spellings for flagged words.
 """
 
-from typing import Optional
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional, Callable
 import logging
+import time
 
 from .models import PronunciationProposal, PronunciationEnrichment, PronunciationFlag
 from ..llm import LLMClient
@@ -76,15 +79,24 @@ class PronunciationEnricher:
     def __init__(
         self,
         llm_client: LLMClient,
-        batch_size: int = 10,
+        batch_size: int = 30,
+        max_workers: int = 4,
+        max_retries: int = 3,
+        retry_backoff_base: int = 2,
     ):
         """
         Args:
             llm_client: LLM client for generating pronunciations
-            batch_size: Number of words to process per LLM call
+            batch_size: Number of words to process per LLM call (default 30)
+            max_workers: Maximum concurrent LLM enrichment workers (default 4)
+            max_retries: Maximum retry attempts for failed batches (default 3)
+            retry_backoff_base: Base seconds for exponential backoff (default 2)
         """
         self.llm = llm_client
         self.batch_size = batch_size
+        self.max_workers = max_workers
+        self.max_retries = max_retries
+        self.retry_backoff_base = retry_backoff_base
 
     def enrich_batch(
         self,
@@ -234,3 +246,111 @@ class PronunciationEnricher:
             notes=notes,
             confidence=0.9,
         )
+
+    def enrich_batch_with_retry(
+        self,
+        proposals: list[PronunciationProposal],
+    ) -> dict[str, PronunciationEnrichment]:
+        """
+        Enrich a batch with exponential backoff retry.
+
+        Args:
+            proposals: List of pronunciation proposals
+
+        Returns:
+            Dictionary mapping word (lowercase) to enrichment
+        """
+        for attempt in range(self.max_retries):
+            try:
+                return self.enrich_batch(proposals)
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    wait_time = self.retry_backoff_base ** attempt
+                    logger.warning(
+                        f"Enrichment batch attempt {attempt + 1} failed: {e}, "
+                        f"retrying in {wait_time}s"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Enrichment batch failed after {self.max_retries} attempts: {e}")
+                    # Return empty enrichments for all words
+                    enrichments = {}
+                    for p in proposals:
+                        enrichments[p.word.lower()] = PronunciationEnrichment(
+                            word=p.word,
+                            confidence=0.0,
+                        )
+                    return enrichments
+
+        # Should not reach here, but return empty dict just in case
+        return {}
+
+    def enrich_parallel(
+        self,
+        proposals: list[PronunciationProposal],
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> dict[str, PronunciationEnrichment]:
+        """
+        Process enrichment batches concurrently using ThreadPoolExecutor.
+
+        Args:
+            proposals: List of all pronunciation proposals to enrich
+            progress_callback: Optional callback(completed, total) for progress updates
+
+        Returns:
+            Dictionary mapping word (lowercase) to enrichment
+        """
+        if not proposals:
+            return {}
+
+        # Split into batches
+        batches = [
+            proposals[i:i + self.batch_size]
+            for i in range(0, len(proposals), self.batch_size)
+        ]
+        total_batches = len(batches)
+        completed_batches = 0
+
+        logger.info(
+            f"Starting parallel enrichment: {len(proposals)} words in "
+            f"{total_batches} batches, {self.max_workers} workers"
+        )
+
+        all_enrichments = {}
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all batch jobs
+            future_to_batch = {
+                executor.submit(self.enrich_batch_with_retry, batch): i
+                for i, batch in enumerate(batches)
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_batch):
+                batch_idx = future_to_batch[future]
+                completed_batches += 1
+
+                try:
+                    batch_enrichments = future.result()
+                    all_enrichments.update(batch_enrichments)
+                    logger.debug(
+                        f"Batch {batch_idx + 1}/{total_batches} completed: "
+                        f"{len(batch_enrichments)} enrichments"
+                    )
+                except Exception as e:
+                    logger.error(f"Batch {batch_idx + 1} failed: {e}")
+                    # Fill in empty enrichments for this batch
+                    for p in batches[batch_idx]:
+                        all_enrichments[p.word.lower()] = PronunciationEnrichment(
+                            word=p.word,
+                            confidence=0.0,
+                        )
+
+                if progress_callback:
+                    progress_callback(completed_batches, total_batches)
+
+        logger.info(
+            f"Parallel enrichment complete: {len(all_enrichments)} words enriched"
+        )
+
+        return all_enrichments

@@ -51,6 +51,10 @@ class PronunciationGuidePipeline:
         checkpoint_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
         word_index_enabled: bool = True,
+        enrichment_batch_size: int = 30,
+        enrichment_max_workers: int = 4,
+        enrichment_max_retries: int = 3,
+        parallel_enrichment: bool = True,
     ):
         """
         Args:
@@ -59,11 +63,16 @@ class PronunciationGuidePipeline:
             checkpoint_dir: Directory for saving checkpoints
             progress_callback: Callback(stage, current, total) for progress updates
             word_index_enabled: Enable single-pass word indexing for faster proposals
+            enrichment_batch_size: Words per LLM enrichment batch (default 30)
+            enrichment_max_workers: Concurrent LLM enrichment workers (default 4)
+            enrichment_max_retries: Max retry attempts for failed batches (default 3)
+            parallel_enrichment: Enable parallel LLM enrichment (default True)
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
         self.progress_callback = progress_callback
         self.word_index_enabled = word_index_enabled
+        self.parallel_enrichment = parallel_enrichment
 
         # Default proposers
         if proposers is None:
@@ -77,7 +86,15 @@ class PronunciationGuidePipeline:
             self.proposers = proposers
 
         # Enricher (requires LLM)
-        self.enricher = PronunciationEnricher(llm_client) if llm_client else None
+        if llm_client:
+            self.enricher = PronunciationEnricher(
+                llm_client,
+                batch_size=enrichment_batch_size,
+                max_workers=enrichment_max_workers,
+                max_retries=enrichment_max_retries,
+            )
+        else:
+            self.enricher = None
 
         # Consolidator
         self.consolidator = PronunciationConsolidator()
@@ -233,27 +250,47 @@ class PronunciationGuidePipeline:
 
         # Batch enrichment for non-homographs
         proposals_list = list(unique_proposals.values())
-        total_batches = (len(proposals_list) + self.enricher.batch_size - 1) // self.enricher.batch_size
 
-        for i in range(0, len(proposals_list), self.enricher.batch_size):
-            batch_num = i // self.enricher.batch_size + 1
-            self._report_progress("enrichment", batch_num, total_batches)
+        if self.parallel_enrichment:
+            # Use parallel enrichment for faster processing
+            logger.info(f"Using parallel enrichment for {len(proposals_list)} words")
 
-            batch = proposals_list[i:i + self.enricher.batch_size]
+            def parallel_progress_callback(completed: int, total: int):
+                self._report_progress("enrichment", completed, total)
 
             try:
-                batch_enrichments = self.enricher.enrich_batch(batch)
+                batch_enrichments = self.enricher.enrich_parallel(
+                    proposals_list,
+                    progress_callback=parallel_progress_callback,
+                )
                 enrichments.update(batch_enrichments)
-                checkpoint.enriched_words.extend([p.word.lower() for p in batch])
-
-                # Save progress periodically
-                if batch_num % 5 == 0:
-                    checkpoint.enrichments = enrichments
-                    self._save_checkpoint(checkpoint)
-
+                checkpoint.enriched_words.extend([p.word.lower() for p in proposals_list])
             except Exception as e:
-                logger.error(f"Enrichment batch {batch_num} failed: {e}")
-                checkpoint.warnings.append(f"Enrichment batch {batch_num}: {str(e)}")
+                logger.error(f"Parallel enrichment failed: {e}")
+                checkpoint.warnings.append(f"Parallel enrichment failed: {str(e)}")
+        else:
+            # Sequential batch enrichment (fallback)
+            total_batches = (len(proposals_list) + self.enricher.batch_size - 1) // self.enricher.batch_size
+
+            for i in range(0, len(proposals_list), self.enricher.batch_size):
+                batch_num = i // self.enricher.batch_size + 1
+                self._report_progress("enrichment", batch_num, total_batches)
+
+                batch = proposals_list[i:i + self.enricher.batch_size]
+
+                try:
+                    batch_enrichments = self.enricher.enrich_batch(batch)
+                    enrichments.update(batch_enrichments)
+                    checkpoint.enriched_words.extend([p.word.lower() for p in batch])
+
+                    # Save progress periodically
+                    if batch_num % 5 == 0:
+                        checkpoint.enrichments = enrichments
+                        self._save_checkpoint(checkpoint)
+
+                except Exception as e:
+                    logger.error(f"Enrichment batch {batch_num} failed: {e}")
+                    checkpoint.warnings.append(f"Enrichment batch {batch_num}: {str(e)}")
 
         checkpoint.enrichments = enrichments
         checkpoint.stage = "consolidation"

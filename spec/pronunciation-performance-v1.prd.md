@@ -226,7 +226,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify context is approximately centered on the target word",
     "Test edge cases: word at position 0, word at end of text"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -242,7 +242,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Extract context for word at end of document",
     "Verify context does not have trailing '...'"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -265,7 +265,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify results are correctly merged",
     "Verify no race conditions or duplicate processing"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -302,7 +302,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify batches contain up to 30 words each",
     "Verify LLM can handle larger batches successfully"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -316,7 +316,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify pattern-matched words are proposed without LLM validation",
     "Verify significant time savings"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
