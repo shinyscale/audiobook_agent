@@ -16,7 +16,7 @@ from .models import (
     CharacterMap,
     CharacterPipelineCheckpoint,
 )
-from .proposers import BaseCharacterProposer, NERProposer, LLMCharacterProposer
+from .proposers import BaseCharacterProposer, NERProposer, LLMCharacterProposer, create_coreference_proposer
 from .validator import CharacterValidator
 from .consensus import CharacterConsensusBuilder
 from ..chapter_detection.models import ChapterMap as ChapterDetectionMap
@@ -47,6 +47,7 @@ class CharacterExtractionPipeline:
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
         llm_chunk_size: int = 8000,
         mention_context_window: int = 100,
+        enable_coreference: bool = False,
     ):
         """
         Args:
@@ -56,6 +57,7 @@ class CharacterExtractionPipeline:
             consensus_builder: Consensus builder instance
             checkpoint_dir: Directory for saving checkpoints
             progress_callback: Callback(stage, current, total) for progress updates
+            enable_coreference: Whether to enable coreference resolution (requires coreferee)
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
@@ -72,6 +74,14 @@ class CharacterExtractionPipeline:
                     chunk_size=llm_chunk_size,
                     context_window=mention_context_window,
                 ))
+            # Add coreference proposer if enabled and available
+            if enable_coreference:
+                coref_proposer = create_coreference_proposer(
+                    context_window=mention_context_window
+                )
+                if coref_proposer:
+                    self.proposers.append(coref_proposer)
+                    logger.info("Coreference proposer enabled")
 
         # Set up validator
         self.validator = validator or CharacterValidator(
