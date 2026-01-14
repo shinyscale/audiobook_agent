@@ -1,0 +1,408 @@
+{
+  "prd": {
+    "title": "Character Extraction Improvements: Unnamed and Descriptive Characters",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "Critical",
+    "target": "Improve character extraction for books with unnamed or descriptively-referred characters"
+  },
+  "executive_summary": "The character extraction pipeline is fundamentally designed around proper names, causing it to fail on important unnamed characters. This PRD addresses: (1) substring matching bugs causing pronouns like 'he' to appear as characters, (2) fragmentation of descriptive references like 'the creature'/'the monster'/'the wretch' into separate low-mention entries, and (3) lack of epithet alias resolution. The solution is book-agnostic and will improve extraction for any novel with unnamed antagonists, descriptive character handles, or recurring epithets.",
+  "problem_statement": {
+    "current_failures": [
+      {
+        "issue": "Pronoun as character",
+        "example": "'he' with 478 mentions in Frankenstein output",
+        "root_cause": "No word boundaries in mention matching (llm.py:224-227)",
+        "impact": "Poisons downstream ranking and profiles"
+      },
+      {
+        "issue": "Fragmented descriptive characters",
+        "example": "'the creature' and 'the wretch' as separate 2-mention characters",
+        "root_cause": "LLM prompt explicitly excludes 'Generic titles without names' (line 41)",
+        "impact": "Unnamed antagonist split across many low-quality entries"
+      },
+      {
+        "issue": "No epithet alias resolution",
+        "example": "'the monster', 'the fiend', 'the daemon' not recognized as same entity",
+        "root_cause": "Consensus alias resolution requires shared name components",
+        "impact": "Descriptive handles never merged, no usable profile generated"
+      }
+    ],
+    "generalizes_to": [
+      "Classics with unnamed entities ('the creature', 'the stranger', 'the governess')",
+      "Mysteries ('the detective', 'the inspector')",
+      "Sci-fi ('the android', 'the captain')",
+      "Any book where major character is referenced via role/epithet more than proper name"
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Harden Mention Matching",
+      "priority": "CRITICAL",
+      "rationale": "Substring matching is the root cause of pronoun pollution. This single fix eliminates the worst false 'characters' and stabilizes mention counts.",
+      "current_behavior": "llm.py _find_mentions() uses regex without word boundaries, causing 'he' to match inside 'the', 'whether', 'they'",
+      "proposed_behavior": "Add word boundary markers (\\b) and stopword filter for pronouns/determiners",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Pronouns are not extracted as characters",
+          "steps": [
+            "Run analysis on a book with first-person narration",
+            "Examine character list in analysis.json",
+            "Verify 'he', 'she', 'it', 'they' do not appear as character names",
+            "Check that mention counts are reasonable (no 400+ mention characters that are pronouns)",
+            "Confirm character profiles are for actual characters"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Word boundary matching prevents substring matches",
+          "steps": [
+            "Run analysis on a book containing 'the', 'whether', 'they' words",
+            "Verify 'he' does not match inside 'the' or 'whether'",
+            "Check that legitimate character names still match correctly",
+            "Confirm 'Victor' matches 'Victor' but not 'victory'"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction/proposers/llm.py",
+            "changes": [
+              {
+                "location": "lines 224-227",
+                "description": "Add word boundary markers to regex pattern",
+                "before": "pattern = re.escape(name)\npattern = pattern.replace(r\"\\ \", r\"\\s+\")",
+                "after": "pattern = re.escape(name)\npattern = pattern.replace(r\"\\ \", r\"\\s+\")\npattern = r'\\b' + pattern + r'\\b'"
+              },
+              {
+                "location": "module level (new constant)",
+                "description": "Add pronoun/determiner stopword set",
+                "code": "PRONOUN_STOPWORDS = {\n    'he', 'she', 'it', 'they', 'we', 'i', 'you',\n    'him', 'her', 'them', 'us', 'me',\n    'his', 'hers', 'its', 'their', 'our', 'my', 'your',\n    'this', 'that', 'these', 'those', 'the', 'a', 'an',\n}"
+              },
+              {
+                "location": "_process_chunk (~line 175)",
+                "description": "Filter out stopwords after name extraction",
+                "code": "if name.lower() in PRONOUN_STOPWORDS:\n    continue"
+              },
+              {
+                "location": "_process_chunk (~line 175)",
+                "description": "Add minimum length guardrail",
+                "code": "if len(name.split()) == 1 and len(name) <= 2:\n    continue"
+              }
+            ]
+          },
+          {
+            "path": "src/pipeline/character_extraction/proposers/ner.py",
+            "changes": [
+              {
+                "location": "lines 28-39 (FALSE_POSITIVE_NAMES)",
+                "description": "Extend to include pronouns explicitly",
+                "code": "# Add to FALSE_POSITIVE_NAMES:\n'he', 'she', 'it', 'they', 'we', 'i', 'you',\n'him', 'her', 'them', 'us', 'me'"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Non-Proper-Name Character Handle Path",
+      "priority": "HIGH",
+      "rationale": "Allow extraction of recurring descriptive handles ('the creature', 'the detective') when they are agentive (speak/act) and appear multiple times.",
+      "current_behavior": "LLM prompt explicitly says 'Do NOT include: Generic titles without names (the doctor, a woman)'",
+      "proposed_behavior": "Update prompt to allow 'descriptive' character type for recurring, agentive definite descriptions",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Recurring descriptive handles are extracted as characters",
+          "steps": [
+            "Run analysis on Frankenstein",
+            "Examine character list",
+            "Verify 'the creature' or similar descriptive handle appears as a character",
+            "Check that character has type='descriptive'",
+            "Confirm character has meaningful mention count (not fragmented)"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "One-off generic roles are not extracted",
+          "steps": [
+            "Run analysis on a book with incidental characters ('a waiter', 'some stranger')",
+            "Verify one-off generic roles do not appear as characters",
+            "Check that only recurring (3+) agentive descriptions are included",
+            "Confirm no pollution of character list with generic one-off mentions"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Descriptive handles must be agentive to be included",
+          "steps": [
+            "Run analysis on a book with non-agentive descriptions ('the blue house', 'the old car')",
+            "Verify non-person descriptions are not extracted",
+            "Check that only descriptions that speak/act/are pursued are included",
+            "Confirm agentive detection uses dialogue and action verb patterns"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction/models.py",
+            "changes": [
+              {
+                "location": "CharacterType enum (lines 17-23)",
+                "description": "Add DESCRIPTIVE type",
+                "code": "class CharacterType(str, Enum):\n    STORY = \"story\"\n    HISTORICAL = \"historical\"\n    REFERENCED = \"referenced\"\n    DESCRIPTIVE = \"descriptive\"  # NEW\n    UNCERTAIN = \"uncertain\""
+              },
+              {
+                "location": "CharacterMention dataclass (lines 26-32)",
+                "description": "Add is_agentive field",
+                "code": "@dataclass\nclass CharacterMention:\n    text: str\n    position: int\n    chapter_index: int\n    context: str\n    in_dialogue: bool\n    is_agentive: bool = False  # NEW"
+              }
+            ]
+          },
+          {
+            "path": "src/pipeline/character_extraction/proposers/llm.py",
+            "changes": [
+              {
+                "location": "CHARACTER_SYSTEM_PROMPT (lines 18-42)",
+                "description": "Revise to include descriptive handles",
+                "summary": "Update prompt to: (1) Allow 'descriptive' type for recurring epithets, (2) Require epithets to appear 3+ times AND be agentive, (3) Add 'acts' field to JSON response"
+              },
+              {
+                "location": "new method",
+                "description": "Add _detect_agentive_context() helper",
+                "code": "def _detect_agentive_context(self, context: str) -> bool:\n    agentive_patterns = [\n        r'\\b(said|asked|replied|whispered|shouted)\\b',\n        r'\\b(walked|ran|stood|turned|looked|smiled)\\b',\n        r'\\b(grabbed|took|held|threw|placed)\\b',\n    ]\n    return any(re.search(p, context.lower()) for p in agentive_patterns)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Epithet Alias Resolution",
+      "priority": "HIGH",
+      "rationale": "Current consensus can't merge 'the creature' = 'the monster' = 'the wretch' because they share no name components. Need semantic alias resolution for epithets.",
+      "current_behavior": "Alias resolution requires shared name words; epithets have no overlap",
+      "proposed_behavior": "Add separate epithet alias resolution using LLM to identify semantic equivalence, with canonicalization preference for most specific/unique handle",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Semantically equivalent epithets are merged",
+          "steps": [
+            "Run analysis on Frankenstein",
+            "Examine character list",
+            "Verify 'the creature', 'the monster', 'the wretch', 'the fiend' are aliases of ONE character",
+            "Check that canonical name is the most specific/unique form",
+            "Confirm merged character has combined mention count"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Different descriptive handles remain separate",
+          "steps": [
+            "Run analysis on a book with multiple descriptive characters",
+            "Example: 'the old man' and 'the detective' are different people",
+            "Verify they remain as separate character entries",
+            "Check that context/chapter distribution is used to distinguish",
+            "Confirm no incorrect merging of distinct descriptive characters"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Canonicalization prefers most specific handle",
+          "steps": [
+            "Run analysis on a book with epithet variations",
+            "Verify canonical name is most specific (e.g., 'the blind old man' over 'the old man')",
+            "Check that less specific forms appear as aliases",
+            "Confirm canonical selection follows: specificity > uniqueness > frequency"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction/consensus.py",
+            "changes": [
+              {
+                "location": "new constant",
+                "description": "Add EPITHET_ALIAS_PROMPT for semantic equivalence detection"
+              },
+              {
+                "location": "new method",
+                "description": "Add _is_descriptive_handle() to detect 'the X' style handles"
+              },
+              {
+                "location": "new method",
+                "description": "Add _llm_epithet_resolution() for semantic alias detection"
+              },
+              {
+                "location": "new method",
+                "description": "Add _pick_canonical_epithet() with specificity-based scoring"
+              },
+              {
+                "location": "build_consensus() (~line 280)",
+                "description": "Separate proper names from descriptive handles, run epithet resolution on descriptive group"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Verification Gate",
+      "priority": "MEDIUM",
+      "rationale": "Catch pronoun entries that slipped through and flag missing high-frequency agentive descriptions as a safety net.",
+      "current_behavior": "Verification checks for duplicates but not pronouns or missing agentive descriptions",
+      "proposed_behavior": "Add verification checks that: (1) hard-fail pronoun/determiner entries, (2) scan for high-frequency agentive descriptions missing from character list",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Pronoun entries are flagged and auto-removed",
+          "steps": [
+            "Run analysis (with potential mention matching bugs)",
+            "Check verification output",
+            "Verify pronoun entries are flagged as errors",
+            "Check that refine() auto-removes pronoun entries",
+            "Confirm final character list contains no pronouns"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Missing agentive descriptions are flagged",
+          "steps": [
+            "Run analysis on a book with unnamed agentive character",
+            "Check verification output",
+            "Verify warning if 'the X said/walked/etc' appears 10+ times but not in character list",
+            "Check that suggested fix recommends adding as character or alias",
+            "Confirm scan uses agentive verb patterns (said, walked, grabbed, etc.)"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/agents/characters.py",
+            "changes": [
+              {
+                "location": "new method (after line 203)",
+                "description": "Add _check_pronoun_entries() - hard-fail pure pronouns/determiners"
+              },
+              {
+                "location": "new method",
+                "description": "Add _check_missing_agentive_descriptions() - scan text for high-frequency 'the X said' patterns"
+              },
+              {
+                "location": "verify() (~line 200)",
+                "description": "Call new check methods"
+              },
+              {
+                "location": "refine() (~line 225)",
+                "description": "Auto-remove pronoun entries based on error-severity issues"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "Coreference Resolution",
+      "priority": "LOW",
+      "rationale": "Link pronouns back to specific characters to boost mention counts and provide pronoun-to-character mappings. Enhancement, not critical path.",
+      "current_behavior": "No coreference resolution capability",
+      "proposed_behavior": "Add CoreferenceProposer using spaCy coreference (spacy-experimental or coreferee) that links pronouns to antecedent noun phrases",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Pronoun coreferences boost character mention counts",
+          "steps": [
+            "Run analysis with coreference enabled",
+            "Examine character mention counts",
+            "Verify characters with many pronoun references have boosted counts",
+            "Check that pronoun references are linked to correct character",
+            "Confirm coreference proposer gracefully degrades if not available"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction/proposers/coref.py",
+            "description": "NEW FILE: CoreferenceProposer class using spaCy coreference",
+            "changes": []
+          },
+          {
+            "path": "src/pipeline/character_extraction/pipeline.py",
+            "changes": [
+              {
+                "location": "__init__",
+                "description": "Add CoreferenceProposer to proposer list if available"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Harden Mention Matching", "rationale": "Critical fix with immediate impact"},
+    {"feature": "F4", "name": "Verification Gate", "rationale": "Catches remaining issues after F1"},
+    {"feature": "F2", "name": "Non-Proper-Name Character Handle Path", "rationale": "Enables finding unnamed characters"},
+    {"feature": "F3", "name": "Epithet Alias Resolution", "rationale": "Merges fragmented descriptive references"},
+    {"feature": "F5", "name": "Coreference Resolution", "rationale": "Enhancement for additional accuracy"}
+  ],
+  "verification_plan": {
+    "unit_tests": [
+      "Test word boundary matching: 'he' does NOT match in 'the', 'whether'",
+      "Test word boundary matching: 'Victor' matches correctly",
+      "Test stopword filter rejects all pronouns",
+      "Test _is_descriptive_handle() correctly identifies 'the creature' vs 'The Doctor'",
+      "Test _detect_agentive_context() finds action verbs"
+    ],
+    "integration_tests": [
+      {
+        "name": "Frankenstein re-analysis",
+        "steps": [
+          "Re-run analysis on output/Shelley_1888_Frankenstein_001/",
+          "Verify 'he' no longer appears as character",
+          "Verify 'the creature', 'the monster', 'the wretch' merge into single character",
+          "Verify merged creature character has proper profile"
+        ]
+      }
+    ],
+    "regression_tests": [
+      "Run existing test suite",
+      "Compare character counts before/after on sample books",
+      "Verify no new false positives introduced"
+    ],
+    "manual_verification": [
+      "Review quality.md for improved metrics",
+      "Review HTML report for character accuracy"
+    ]
+  },
+  "affected_files_summary": [
+    "src/pipeline/character_extraction/proposers/llm.py",
+    "src/pipeline/character_extraction/proposers/ner.py",
+    "src/pipeline/character_extraction/models.py",
+    "src/pipeline/character_extraction/consensus.py",
+    "src/agents/characters.py",
+    "src/pipeline/character_extraction/proposers/coref.py (NEW)"
+  ]
+}
