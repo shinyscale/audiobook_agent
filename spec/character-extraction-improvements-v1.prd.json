@@ -338,7 +338,7 @@
             "Check that pronoun references are linked to correct character",
             "Confirm coreference proposer gracefully degrades if not available"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
