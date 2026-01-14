@@ -279,7 +279,7 @@
             "Check that refine() auto-removes pronoun entries",
             "Confirm final character list contains no pronouns"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -291,7 +291,7 @@
             "Check that suggested fix recommends adding as character or alias",
             "Confirm scan uses agentive verb patterns (said, walked, grabbed, etc.)"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
