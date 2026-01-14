@@ -137,6 +137,19 @@ def _looks_concatenated(word: str) -> bool:
     if re.search(r'[a-z][A-Z]', word):
         return True
 
+    # For words 8+ chars, check for very distinctive common words anywhere
+    # Use only words that rarely appear in the middle of valid English words
+    # This catches patterns like "footofman", "dearsisterofmywelfare"
+    if len(word_lower) >= 8:
+        # Very distinctive short words that rarely appear mid-word in valid English
+        # Avoid: 'in', 'or', 'an', 'as' - these appear in many valid words
+        distinctive_common = {'of', 'my'}
+        for common in distinctive_common:
+            # Look for word boundaries: preceded by lowercase, followed by lowercase
+            pattern = rf'[a-z]{common}[a-z]'
+            if re.search(pattern, word_lower):
+                return True
+
     return False
 
 
@@ -184,6 +197,102 @@ def _fix_token(token: str) -> tuple[str, int]:
     Fix spacing in a single token.
 
     Handles punctuation and preserves case.
+    Also handles punctuation in the middle of tokens (e.g., "nerves,andfillsmewith").
+    """
+    # First, try to handle tokens with punctuation in the middle
+    # Split by common punctuation that might join concatenated words
+    if re.search(r'\w[,;:]\w', token):
+        # Has punctuation between word characters - split and process each part
+        parts = re.split(r'([,;:])', token)
+        total_spaces = 0
+        result_parts = []
+        for part in parts:
+            if part in ',;:':
+                result_parts.append(part)
+            else:
+                fixed_part, added = _fix_single_word(part)
+                result_parts.append(fixed_part)
+                total_spaces += added
+        return ''.join(result_parts), total_spaces
+
+    # Simple case: extract leading/trailing punctuation
+    return _fix_single_word(token)
+
+
+# Common short concatenation patterns that are very reliable
+# Format: pattern -> replacement (case-sensitive where needed)
+_COMMON_SHORT_CONCATENATIONS = {
+    # "I" + verb patterns (case sensitive - uppercase I)
+    'Iam': 'I am',
+    'Iwas': 'I was',
+    'Iwill': 'I will',
+    'Ishall': 'I shall',
+    'Ihave': 'I have',
+    'Ihad': 'I had',
+    'Ido': 'I do',
+    'Idid': 'I did',
+    'Ican': 'I can',
+    'Icould': 'I could',
+    'Imay': 'I may',
+    'Imight': 'I might',
+    'Imust': 'I must',
+    'Iknow': 'I know',
+    'Ifelt': 'I felt',
+    'Ifeel': 'I feel',
+    'Ifound': 'I found',
+    'Iwent': 'I went',
+    'Icame': 'I came',
+    'Isaw': 'I saw',
+    'Itook': 'I took',
+    'Itried': 'I tried',
+    # preposition + article patterns
+    'inthe': 'in the',
+    'ofthe': 'of the',
+    'tothe': 'to the',
+    'onthe': 'on the',
+    'atthe': 'at the',
+    'bythe': 'by the',
+    'forthe': 'for the',
+    'fromthe': 'from the',
+    'withthe': 'with the',
+    'ofan': 'of an',
+    'ofmy': 'of my',
+    'tomy': 'to my',
+    'asI': 'as I',
+    'ifI': 'if I',
+    # Do/Did patterns
+    'Doyou': 'Do you',
+    'Didyou': 'Did you',
+}
+
+
+def _fix_common_short_concatenation(word: str) -> str | None:
+    """
+    Fix common short concatenation patterns that are very reliable.
+
+    Returns the fixed string if matched, or None if no match.
+    """
+    # Check exact matches first (case-sensitive)
+    if word in _COMMON_SHORT_CONCATENATIONS:
+        return _COMMON_SHORT_CONCATENATIONS[word]
+
+    # Check lowercase version for preposition patterns
+    word_lower = word.lower()
+    if word_lower in _COMMON_SHORT_CONCATENATIONS:
+        replacement = _COMMON_SHORT_CONCATENATIONS[word_lower]
+        # Try to preserve original case
+        if word[0].isupper():
+            replacement = replacement[0].upper() + replacement[1:]
+        return replacement
+
+    return None
+
+
+def _fix_single_word(token: str) -> tuple[str, int]:
+    """
+    Fix spacing in a single word token.
+
+    Handles leading/trailing punctuation and preserves case.
     """
     # Extract leading/trailing punctuation
     match = re.match(r'^([^\w]*)(\w+)([^\w]*)$', token)
@@ -191,6 +300,12 @@ def _fix_token(token: str) -> tuple[str, int]:
         return token, 0
 
     prefix, word, suffix = match.groups()
+
+    # Handle common short concatenations first (before length check)
+    # These are very reliable patterns that don't need full segmentation
+    short_fix = _fix_common_short_concatenation(word)
+    if short_fix:
+        return prefix + short_fix + suffix, short_fix.count(' ')
 
     # Skip very short words (can't be concatenated)
     if len(word) < 6:
@@ -240,7 +355,14 @@ def _segment_word(word: str) -> str:
         # Find this segment in the original word (case-insensitive)
         seg_len = len(seg)
         original_segment = word[pos:pos + seg_len]
-        result.append(original_segment)
+
+        # Post-process: check if this segment is a known short concatenation
+        # This catches cases where wordsegment produces "asI" instead of "as I"
+        short_fix = _fix_common_short_concatenation(original_segment)
+        if short_fix:
+            result.append(short_fix)
+        else:
+            result.append(original_segment)
         pos += seg_len
 
     return ' '.join(result)
@@ -250,7 +372,7 @@ def _is_valid_word(word: str) -> bool:
     """Check if a long word is actually valid (not concatenated)."""
     word_lower = word.lower()
 
-    # Check against wordsegment's unigrams
+    # Check against wordsegment's unigrams (authoritative dictionary)
     if _HAS_WORDSEGMENT:
         # Lazy-load wordsegment data if needed
         _ensure_wordsegment_loaded()
@@ -270,14 +392,24 @@ def _is_valid_word(word: str) -> bool:
     if word_lower in valid_long_words:
         return True
 
+    # For very long words (>15 chars), verify with wordsegment if available
+    # Don't trust suffix heuristics alone for these
+    if len(word_lower) > 15 and _HAS_WORDSEGMENT:
+        segments = wordsegment.segment(word_lower)
+        # If it segments into 3+ parts, it's likely concatenated
+        if len(segments) >= 3:
+            return False
+
     # Check for common suffixes that make long words valid
-    valid_suffixes = ['tion', 'ness', 'ment', 'able', 'ible', 'ious', 'eous', 'ly', 'ing', 'ed']
-    for suffix in valid_suffixes:
-        if word_lower.endswith(suffix):
-            # Could be a valid word, be conservative
-            base = word_lower[:-len(suffix)]
-            if len(base) >= 4 and not _looks_concatenated(base):
-                return True
+    # Only trust this for moderately long words (not extremely long ones)
+    if len(word_lower) <= 15:
+        valid_suffixes = ['tion', 'ness', 'ment', 'able', 'ible', 'ious', 'eous', 'ly', 'ing', 'ed']
+        for suffix in valid_suffixes:
+            if word_lower.endswith(suffix):
+                # Could be a valid word, be conservative
+                base = word_lower[:-len(suffix)]
+                if len(base) >= 4 and not _looks_concatenated(base):
+                    return True
 
     return False
 
