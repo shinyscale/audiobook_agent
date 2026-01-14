@@ -5,11 +5,14 @@ Identifies known homographs - words spelled the same but with different pronunci
 """
 
 import re
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
 
 from .base import BasePronunciationProposer
 from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
+
+if TYPE_CHECKING:
+    from ..word_index import WordIndex
 
 logger = logging.getLogger(__name__)
 
@@ -67,26 +70,47 @@ class HomographProposer(BasePronunciationProposer):
         full_text: str,
         chapter_boundaries: list[tuple[int, int, int]],
         character_names: Optional[list[str]] = None,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationProposal]:
-        """Find known homographs in text."""
+        """Find known homographs in text.
+
+        Uses WordIndex if available for O(1) lookups, otherwise falls back
+        to full text scanning.
+        """
         proposals = []
 
         for word, pronunciations in HOMOGRAPHS.items():
-            # Find all occurrences
-            pattern = r'\b' + re.escape(word) + r'\b'
-            mentions = []
+            # Use WordIndex if available (O(1) lookup)
+            if word_index is not None:
+                if not word_index.has_word(word):
+                    continue
 
-            for match in re.finditer(pattern, full_text, re.IGNORECASE):
-                position = match.start()
-                chapter_idx = self._get_chapter_for_position(position, chapter_boundaries)
-                context = self._extract_context(full_text, position, len(word))
+                occurrences = word_index.get_occurrences(word)
+                mentions = []
+                for occ in occurrences:
+                    context = self._extract_context(full_text, occ.position, len(occ.original_form))
+                    mentions.append(PronunciationMention(
+                        word_form=occ.original_form,
+                        position=occ.position,
+                        chapter_index=occ.chapter_index,
+                        context=context,
+                    ))
+            else:
+                # Fallback: regex scan
+                pattern = r'\b' + re.escape(word) + r'\b'
+                mentions = []
 
-                mentions.append(PronunciationMention(
-                    word_form=match.group(0),
-                    position=position,
-                    chapter_index=chapter_idx,
-                    context=context,
-                ))
+                for match in re.finditer(pattern, full_text, re.IGNORECASE):
+                    position = match.start()
+                    chapter_idx = self._get_chapter_for_position(position, chapter_boundaries)
+                    context = self._extract_context(full_text, position, len(word))
+
+                    mentions.append(PronunciationMention(
+                        word_form=match.group(0),
+                        position=position,
+                        chapter_index=chapter_idx,
+                        context=context,
+                    ))
 
             if mentions:
                 proposals.append(PronunciationProposal(

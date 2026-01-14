@@ -5,12 +5,15 @@ Flags character names from the character extraction pipeline for pronunciation a
 """
 
 import re
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
 
 from .base import BasePronunciationProposer
 from .cmu_proposer import COMMON_WORDS_WHITELIST
 from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
+
+if TYPE_CHECKING:
+    from ..word_index import WordIndex
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +37,13 @@ class CharacterProposer(BasePronunciationProposer):
         full_text: str,
         chapter_boundaries: list[tuple[int, int, int]],
         character_names: Optional[list[str]] = None,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationProposal]:
-        """Flag character names for pronunciation attention."""
+        """Flag character names for pronunciation attention.
+
+        Uses WordIndex if available for O(1) lookups, otherwise falls back
+        to full text scanning.
+        """
         if not character_names:
             logger.debug("No character names provided to CharacterProposer")
             return []
@@ -68,9 +76,10 @@ class CharacterProposer(BasePronunciationProposer):
 
                 seen_words.add(word_lower)
 
-                # Find all occurrences
+                # Find all occurrences (uses WordIndex if provided)
                 mentions = self._find_all_occurrences(
-                    full_text, word, chapter_boundaries, case_sensitive=False
+                    full_text, word, chapter_boundaries, case_sensitive=False,
+                    word_index=word_index
                 )
 
                 if mentions:

@@ -604,6 +604,7 @@ class LLMSettingsPanel:
 
         # State variables
         self.expanded = tk.BooleanVar(value=False)
+        self.editing_enabled = tk.BooleanVar(value=False)  # Prevent accidental changes
         self.provider = tk.StringVar(value="lm_studio")
         self.model = tk.StringVar()
         self.base_url = tk.StringVar()
@@ -614,6 +615,7 @@ class LLMSettingsPanel:
 
         self._create_widgets()
         self._update_for_provider()
+        self._update_editing_state()  # Apply initial disabled state
 
     def _create_widgets(self):
         """Create the panel widgets."""
@@ -647,6 +649,19 @@ class LLMSettingsPanel:
 
     def _create_content_widgets(self):
         """Create widgets inside the expandable panel."""
+        # Enable editing checkbox
+        enable_row = ttk.Frame(self.content_frame)
+        enable_row.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Checkbutton(
+            enable_row,
+            text="Enable editing (prevents accidental changes)",
+            variable=self.editing_enabled,
+            command=self._update_editing_state
+        ).pack(side=tk.LEFT)
+
+        ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
+
         # Row 1: Provider selection
         provider_row = ttk.Frame(self.content_frame)
         provider_row.pack(fill=tk.X, pady=5)
@@ -805,6 +820,31 @@ class LLMSettingsPanel:
             self.content_frame.pack(fill=tk.X, pady=5)
             self.toggle_button.config(text="▼ LLM Settings")
             self.expanded.set(True)
+
+    def _update_editing_state(self):
+        """Enable or disable all editable widgets based on editing_enabled."""
+        enabled = self.editing_enabled.get()
+        state = "readonly" if enabled else "disabled"
+        entry_state = "normal" if enabled else "disabled"
+        button_state = "normal" if enabled else "disabled"
+
+        # Update comboboxes (use readonly when enabled, disabled when not)
+        self.provider_combo.config(state=state)
+        self.model_combo.config(state=state if enabled else "disabled")
+
+        # Update entry fields
+        self.url_entry.config(state=entry_state)
+        self.api_key_entry.config(state=entry_state)
+        self.context_spinbox.config(state=entry_state)
+        self.pull_model_entry.config(state=entry_state)
+
+        # Update buttons
+        self.detect_models_button.config(state=button_state)
+        self.detect_context_button.config(state=button_state)
+        self.test_button.config(state=button_state)
+        self.pull_button.config(state=button_state)
+        self.delete_button.config(state=button_state)
+        self.edit_prompts_button.config(state=button_state)
 
     def _on_provider_change(self, event=None):
         """Handle provider selection change."""
@@ -1318,6 +1358,8 @@ class AgentModelConfigPanel:
 
         # State variables
         self.expanded = tk.BooleanVar(value=False)
+        self.editing_enabled = tk.BooleanVar(value=False)  # Prevent accidental changes
+        self.experimental_enabled = tk.BooleanVar(value=False)  # Experimental features off by default
         self.auto_optimize = tk.BooleanVar(value=True)
         self.agent_models: dict[str, tk.StringVar] = {}
 
@@ -1337,6 +1379,7 @@ class AgentModelConfigPanel:
             self.agent_models[agent_name] = tk.StringVar(value="Default")
 
         self._create_widgets()
+        self._update_editing_state()  # Apply initial disabled state
 
     def _create_widgets(self):
         """Create the panel widgets."""
@@ -1370,6 +1413,19 @@ class AgentModelConfigPanel:
 
     def _create_content_widgets(self):
         """Create widgets inside the expandable panel."""
+        # Enable editing checkbox
+        enable_row = ttk.Frame(self.content_frame)
+        enable_row.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Checkbutton(
+            enable_row,
+            text="Enable editing (prevents accidental changes)",
+            variable=self.editing_enabled,
+            command=self._update_editing_state
+        ).pack(side=tk.LEFT)
+
+        ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
+
         # Description
         ttk.Label(
             self.content_frame,
@@ -1381,12 +1437,13 @@ class AgentModelConfigPanel:
         auto_row = ttk.Frame(self.content_frame)
         auto_row.pack(fill=tk.X, pady=5)
 
-        ttk.Checkbutton(
+        self.auto_optimize_checkbox = ttk.Checkbutton(
             auto_row,
             text="Auto-optimize model assignment",
             variable=self.auto_optimize,
             command=self._on_auto_optimize_change
-        ).pack(side=tk.LEFT)
+        )
+        self.auto_optimize_checkbox.pack(side=tk.LEFT)
 
         # Model suitability thresholds (in billions of parameters)
         # "overkill" = model is too large for simple task
@@ -1442,12 +1499,15 @@ class AgentModelConfigPanel:
             def make_auto_callback(an):
                 return lambda: self._auto_suggest_for_agent(an)
 
-            ttk.Button(
+            auto_btn = ttk.Button(
                 row_frame,
                 text="Auto",
                 command=make_auto_callback(agent_name),
                 width=6
-            ).pack(side=tk.LEFT, padx=2)
+            )
+            auto_btn.pack(side=tk.LEFT, padx=2)
+            # Store reference for enabling/disabling
+            setattr(self, f"auto_btn_{agent_name}", auto_btn)
 
             # Warning label (hidden by default)
             warning_label = ttk.Label(
@@ -1469,51 +1529,71 @@ class AgentModelConfigPanel:
         button_row = ttk.Frame(self.content_frame)
         button_row.pack(fill=tk.X, pady=10)
 
-        ttk.Button(
+        self.optimize_all_button = ttk.Button(
             button_row,
             text="Optimize All",
             command=self._optimize_all
-        ).pack(side=tk.LEFT)
+        )
+        self.optimize_all_button.pack(side=tk.LEFT)
 
-        ttk.Button(
+        self.refresh_models_button = ttk.Button(
             button_row,
             text="Refresh Models",
             command=self._refresh_models
-        ).pack(side=tk.LEFT, padx=5)
+        )
+        self.refresh_models_button.pack(side=tk.LEFT, padx=5)
 
         # Advanced tuning (chunking) controls
         ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        tuning_frame = ttk.LabelFrame(
+        self.tuning_frame = ttk.LabelFrame(
             self.content_frame,
             text="Advanced Chunking (Experimental)",
             padding="10",
         )
-        tuning_frame.pack(fill=tk.X, pady=5)
+        self.tuning_frame.pack(fill=tk.X, pady=5)
+
+        # Enable experimental features checkbox
+        exp_enable_row = ttk.Frame(self.tuning_frame)
+        exp_enable_row.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Checkbutton(
+            exp_enable_row,
+            text="Enable experimental features editing",
+            variable=self.experimental_enabled,
+            command=self._update_experimental_state
+        ).pack(side=tk.LEFT)
+
+        ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 8))
 
         ttk.Label(
-            tuning_frame,
+            self.tuning_frame,
             text="These settings control how much text is sent per LLM call and how much context is stored per character mention. Defaults match current behavior.",
             wraplength=520,
             foreground="gray",
         ).pack(anchor=tk.W, pady=(0, 8))
 
+        # Store references to tuning entry widgets
+        self._tuning_entries: list[ttk.Entry] = []
+
         def add_row(parent, label: str, var: tk.IntVar, width: int = 10):
             row = ttk.Frame(parent)
             row.pack(fill=tk.X, pady=2)
             ttk.Label(row, text=label, width=34, anchor=tk.W).pack(side=tk.LEFT)
-            ttk.Entry(row, textvariable=var, width=width).pack(side=tk.LEFT, padx=5)
+            entry = ttk.Entry(row, textvariable=var, width=width)
+            entry.pack(side=tk.LEFT, padx=5)
+            self._tuning_entries.append(entry)
 
-        add_row(tuning_frame, "Chapter marker chunk size (chars):", self.chapter_marker_chunk_chars)
-        add_row(tuning_frame, "Chapter marker overlap (chars):", self.chapter_marker_overlap_chars)
-        add_row(tuning_frame, "Narrative chunk size (chars):", self.chapter_narrative_chunk_chars)
-        add_row(tuning_frame, "Narrative overlap (chars):", self.chapter_narrative_overlap_chars)
-        ttk.Separator(tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
-        add_row(tuning_frame, "Character LLM chunk size (chars):", self.character_llm_chunk_chars)
-        add_row(tuning_frame, "Character mention context window (chars):", self.character_mention_context_chars)
-        ttk.Separator(tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
-        add_row(tuning_frame, "Summary chunk size (words):", self.summary_chunk_words)
-        add_row(tuning_frame, "Summary chunk overlap (words):", self.summary_chunk_overlap_words)
+        add_row(self.tuning_frame, "Chapter marker chunk size (chars):", self.chapter_marker_chunk_chars)
+        add_row(self.tuning_frame, "Chapter marker overlap (chars):", self.chapter_marker_overlap_chars)
+        add_row(self.tuning_frame, "Narrative chunk size (chars):", self.chapter_narrative_chunk_chars)
+        add_row(self.tuning_frame, "Narrative overlap (chars):", self.chapter_narrative_overlap_chars)
+        ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+        add_row(self.tuning_frame, "Character LLM chunk size (chars):", self.character_llm_chunk_chars)
+        add_row(self.tuning_frame, "Character mention context window (chars):", self.character_mention_context_chars)
+        ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+        add_row(self.tuning_frame, "Summary chunk size (words):", self.summary_chunk_words)
+        add_row(self.tuning_frame, "Summary chunk overlap (words):", self.summary_chunk_overlap_words)
 
         def reset_defaults():
             self.chapter_marker_chunk_chars.set(15000)
@@ -1525,11 +1605,12 @@ class AgentModelConfigPanel:
             self.summary_chunk_words.set(2500)
             self.summary_chunk_overlap_words.set(200)
 
-        ttk.Button(
-            tuning_frame,
+        self.reset_tuning_button = ttk.Button(
+            self.tuning_frame,
             text="Reset tuning to defaults",
             command=reset_defaults,
-        ).pack(anchor=tk.W, pady=(10, 0))
+        )
+        self.reset_tuning_button.pack(anchor=tk.W, pady=(10, 0))
 
     def _toggle_expanded(self):
         """Toggle panel expansion."""
@@ -1543,6 +1624,45 @@ class AgentModelConfigPanel:
             self.expanded.set(True)
             # Refresh model lists when expanding
             self._refresh_models()
+
+    def _update_editing_state(self):
+        """Enable or disable all editable widgets based on editing_enabled."""
+        enabled = self.editing_enabled.get()
+        state = "readonly" if enabled else "disabled"
+        button_state = "normal" if enabled else "disabled"
+
+        # Update auto-optimize checkbox
+        self.auto_optimize_checkbox.config(state=button_state)
+
+        # Update agent comboboxes and auto buttons
+        for agent_name in self.AGENT_NAMES:
+            combo = getattr(self, f"combo_{agent_name}", None)
+            auto_btn = getattr(self, f"auto_btn_{agent_name}", None)
+            if combo:
+                combo.config(state=state if enabled else "disabled")
+            if auto_btn:
+                auto_btn.config(state=button_state)
+
+        # Update main buttons
+        self.optimize_all_button.config(state=button_state)
+        self.refresh_models_button.config(state=button_state)
+
+        # Also update experimental state (which depends on editing being enabled)
+        self._update_experimental_state()
+
+    def _update_experimental_state(self):
+        """Enable or disable experimental tuning widgets."""
+        # Experimental features require both editing_enabled AND experimental_enabled
+        enabled = self.editing_enabled.get() and self.experimental_enabled.get()
+        entry_state = "normal" if enabled else "disabled"
+        button_state = "normal" if enabled else "disabled"
+
+        # Update all tuning entry widgets
+        for entry in self._tuning_entries:
+            entry.config(state=entry_state)
+
+        # Update reset button
+        self.reset_tuning_button.config(state=button_state)
 
     def _on_auto_optimize_change(self):
         """Handle auto-optimize checkbox change."""

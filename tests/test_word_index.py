@@ -2,6 +2,9 @@
 
 import pytest
 from src.pipeline.pronunciation_guide.word_index import WordIndex, WordOccurrence
+from src.pipeline.pronunciation_guide.proposers import (
+    CMUProposer, HomographProposer, CharacterProposer
+)
 
 
 class TestWordIndexBasics:
@@ -242,3 +245,82 @@ class TestWordIndexStats:
 
         # Total words: 6
         assert index.get_total_word_count() == 6
+
+
+class TestProposersWithWordIndex:
+    """Tests that proposers work correctly with WordIndex."""
+
+    def test_homograph_proposer_with_index(self):
+        """HomographProposer finds homographs using WordIndex."""
+        text = "I read the book yesterday. I will read another book today. The lead singer took the lead."
+        boundaries = [(1, 0, len(text))]
+        word_index = WordIndex(text, boundaries)
+
+        proposer = HomographProposer()
+
+        # With WordIndex
+        proposals_with_index = proposer.propose(
+            text, boundaries, None, word_index=word_index
+        )
+
+        # Without WordIndex
+        proposals_without_index = proposer.propose(
+            text, boundaries, None, word_index=None
+        )
+
+        # Results should be equivalent
+        words_with = {p.word for p in proposals_with_index}
+        words_without = {p.word for p in proposals_without_index}
+        assert words_with == words_without
+        assert "read" in words_with
+        assert "lead" in words_with
+
+    def test_character_proposer_with_index(self):
+        """CharacterProposer finds character names using WordIndex."""
+        text = "Gatsby threw a party. Nick met Gatsby at the party. Daisy was there too."
+        boundaries = [(1, 0, len(text))]
+        word_index = WordIndex(text, boundaries)
+        character_names = ["Gatsby", "Nick", "Daisy"]
+
+        proposer = CharacterProposer()
+
+        # With WordIndex
+        proposals_with_index = proposer.propose(
+            text, boundaries, character_names, word_index=word_index
+        )
+
+        # Without WordIndex
+        proposals_without_index = proposer.propose(
+            text, boundaries, character_names, word_index=None
+        )
+
+        # Results should be equivalent
+        words_with = {p.word for p in proposals_with_index}
+        words_without = {p.word for p in proposals_without_index}
+        assert words_with == words_without
+        assert "Gatsby" in words_with
+        assert "Nick" in words_with
+        assert "Daisy" in words_with
+
+    def test_cmu_proposer_with_index(self):
+        """CMUProposer finds unknown words using WordIndex."""
+        text = "The Frankenstein monster walked through Geneva. Dr. Krempe was there."
+        boundaries = [(1, 0, len(text))]
+        word_index = WordIndex(text, boundaries)
+
+        proposer = CMUProposer()
+
+        # With WordIndex
+        proposals_with_index = proposer.propose(
+            text, boundaries, None, word_index=word_index
+        )
+
+        # Without WordIndex
+        proposals_without_index = proposer.propose(
+            text, boundaries, None, word_index=None
+        )
+
+        # Results should be equivalent (same words found)
+        words_with = {p.word.lower() for p in proposals_with_index}
+        words_without = {p.word.lower() for p in proposals_without_index}
+        assert words_with == words_without

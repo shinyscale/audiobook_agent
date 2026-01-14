@@ -5,12 +5,15 @@ Identifies words not found in the CMU Pronouncing Dictionary.
 """
 
 import re
-from typing import Optional, Set
+from typing import Optional, Set, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
 from .base import BasePronunciationProposer
 from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
+
+if TYPE_CHECKING:
+    from ..word_index import WordIndex
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +79,21 @@ class CMUProposer(BasePronunciationProposer):
         full_text: str,
         chapter_boundaries: list[tuple[int, int, int]],
         character_names: Optional[list[str]] = None,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationProposal]:
-        """Find words not in CMU dictionary."""
+        """Find words not in CMU dictionary.
+
+        Uses WordIndex if available for O(1) filtering, otherwise falls back
+        to full text scanning.
+        """
         if not self.known_words:
             return []
 
-        # Extract all words and their positions
+        # Use WordIndex if available (O(1) filtering)
+        if word_index is not None:
+            return self._propose_from_index(word_index, full_text, chapter_boundaries)
+
+        # Fallback: Extract all words and their positions
         word_data: dict[str, list[tuple[int, str]]] = defaultdict(list)  # word_lower -> [(position, original)]
 
         for match in re.finditer(r'\b([a-zA-Z]+)\b', full_text):
@@ -138,4 +150,58 @@ class CMUProposer(BasePronunciationProposer):
             ))
 
         logger.info(f"CMU proposer found {len(proposals)} unknown words")
+        return proposals
+
+    def _propose_from_index(
+        self,
+        word_index: "WordIndex",
+        full_text: str,
+        chapter_boundaries: list[tuple[int, int, int]],
+    ) -> list[PronunciationProposal]:
+        """Use WordIndex for efficient filtering of unknown words."""
+        def is_unknown(word: str) -> bool:
+            """Check if word is unknown to CMU dictionary."""
+            if len(word) < self.min_word_length:
+                return False
+            if word in COMMON_WORDS_WHITELIST:
+                return False
+            if word in CONTRACTION_FRAGMENTS:
+                return False
+            if word in self.known_words:
+                return False
+            return True
+
+        # Filter all words through predicate - O(n) where n is unique words
+        unknown_words = word_index.filter_by_predicate(is_unknown)
+
+        proposals = []
+        for word_lower, occurrences in unknown_words.items():
+            if len(occurrences) < self.min_occurrences:
+                continue
+
+            # Build mentions from occurrences
+            mentions = []
+            for occ in occurrences:
+                context = self._extract_context(full_text, occ.position, len(occ.original_form))
+                mentions.append(PronunciationMention(
+                    word_form=occ.original_form,
+                    position=occ.position,
+                    chapter_index=occ.chapter_index,
+                    context=context,
+                ))
+
+            # Use most common capitalization as canonical
+            word_forms = [occ.original_form for occ in occurrences]
+            canonical = max(set(word_forms), key=word_forms.count)
+
+            proposals.append(PronunciationProposal(
+                strategy=self.name,
+                word=canonical,
+                flag_reason=PronunciationFlag.UNKNOWN,
+                mentions=mentions,
+                confidence=0.6,
+                reasoning="Not found in CMU pronunciation dictionary",
+            ))
+
+        logger.info(f"CMU proposer found {len(proposals)} unknown words (via WordIndex)")
         return proposals

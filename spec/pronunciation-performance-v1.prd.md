@@ -189,7 +189,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify results match previous full-text-scan approach",
     "Verify significant speedup (>10x for proposal stage)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 

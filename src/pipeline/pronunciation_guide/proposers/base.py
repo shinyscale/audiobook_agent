@@ -3,10 +3,13 @@ Base class for pronunciation proposers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import re
 
 from ..models import PronunciationProposal, PronunciationMention
+
+if TYPE_CHECKING:
+    from ..word_index import WordIndex
 
 
 class BasePronunciationProposer(ABC):
@@ -20,6 +23,7 @@ class BasePronunciationProposer(ABC):
         full_text: str,
         chapter_boundaries: list[tuple[int, int, int]],  # (index, start, end)
         character_names: Optional[list[str]] = None,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationProposal]:
         """
         Identify words needing pronunciation attention.
@@ -28,6 +32,7 @@ class BasePronunciationProposer(ABC):
             full_text: Complete document text
             chapter_boundaries: List of (chapter_index, start_pos, end_pos)
             character_names: Known character names from previous pipeline
+            word_index: Pre-built word index for O(1) lookups (optional)
 
         Returns:
             List of pronunciation proposals
@@ -50,35 +55,32 @@ class BasePronunciationProposer(ABC):
         text: str,
         position: int,
         word_length: int,
-        window: int = 150,
+        window: int = 100,
     ) -> str:
-        """Extract the sentence containing the word."""
-        # Define search boundaries
-        search_start = max(0, position - window)
-        search_end = min(len(text), position + word_length + window)
+        """
+        Extract fixed window around word, guaranteeing word is included.
 
-        # Find sentence start (look for . ! ? " before position)
-        sentence_start = search_start
-        for punct in '.!?"':
-            idx = text.rfind(punct, search_start, position)
-            if idx != -1 and idx + 2 > sentence_start:
-                sentence_start = idx + 2  # Skip punctuation and space
+        This is a reliable fixed-window approach that always centers the
+        target word in the context. Phase 2 will implement paragraph-based
+        context extraction with clickable navigation.
 
-        # Find sentence end (look for . ! ? " after word)
-        sentence_end = search_end
-        for punct in '.!?"':
-            idx = text.find(punct, position + word_length, search_end)
-            if idx != -1 and idx + 1 < sentence_end:
-                sentence_end = idx + 1  # Include punctuation
+        Args:
+            text: Full document text
+            position: Character position of word start
+            word_length: Length of the target word
+            window: Characters of context on each side (default 100)
 
-        # Extract and clean
-        context = text[sentence_start:sentence_end].strip()
+        Returns:
+            Context string with word guaranteed to be included
+        """
+        start = max(0, position - window)
+        end = min(len(text), position + word_length + window)
+        context = text[start:end]
         context = ' '.join(context.split())  # Normalize whitespace
 
-        # Add ellipsis if we're not at actual sentence boundaries
-        if sentence_start > 0 and text[sentence_start - 1] not in '.!?"':
+        if start > 0:
             context = "..." + context
-        if sentence_end < len(text) and text[sentence_end - 1] not in '.!?"':
+        if end < len(text):
             context = context + "..."
 
         return context
@@ -89,9 +91,39 @@ class BasePronunciationProposer(ABC):
         word: str,
         chapter_boundaries: list[tuple[int, int, int]],
         case_sensitive: bool = False,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationMention]:
-        """Find all occurrences of a word in text with chapter info."""
+        """Find all occurrences of a word in text with chapter info.
+
+        Args:
+            text: Full document text
+            word: Word to find
+            chapter_boundaries: Chapter boundary info
+            case_sensitive: Whether to match case (default False)
+            word_index: Pre-built word index for O(1) lookups (optional)
+
+        Returns:
+            List of PronunciationMention with position and context
+        """
         mentions = []
+
+        # Use word index if available (O(1) lookup)
+        if word_index is not None:
+            occurrences = word_index.get_occurrences(word)
+            for occ in occurrences:
+                # Apply case sensitivity filter if needed
+                if case_sensitive and occ.original_form != word:
+                    continue
+                context = self._extract_context(text, occ.position, len(occ.original_form))
+                mentions.append(PronunciationMention(
+                    word_form=occ.original_form,
+                    position=occ.position,
+                    chapter_index=occ.chapter_index,
+                    context=context,
+                ))
+            return mentions
+
+        # Fallback to regex scan
         flags = 0 if case_sensitive else re.IGNORECASE
         pattern = r'\b' + re.escape(word) + r'\b'
 

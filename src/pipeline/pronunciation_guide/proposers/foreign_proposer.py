@@ -5,12 +5,15 @@ Identifies words that appear to be from foreign languages based on patterns.
 """
 
 import re
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
 from .base import BasePronunciationProposer
 from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
+
+if TYPE_CHECKING:
+    from ..word_index import WordIndex
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +69,21 @@ class ForeignProposer(BasePronunciationProposer):
 
     name = "foreign"
 
-    def __init__(self, min_word_length: int = 4, llm_client=None):
+    def __init__(
+        self,
+        min_word_length: int = 4,
+        llm_client=None,
+        skip_llm_validation: bool = False,
+    ):
+        """
+        Args:
+            min_word_length: Minimum word length to consider
+            llm_client: LLM client for validation (optional)
+            skip_llm_validation: Skip LLM validation (faster, less accurate)
+        """
         self.min_word_length = min_word_length
         self.llm_client = llm_client
+        self.skip_llm_validation = skip_llm_validation
         self.compiled_patterns = self._compile_patterns()
 
     def _compile_patterns(self) -> dict[str, list[re.Pattern]]:
@@ -83,8 +98,15 @@ class ForeignProposer(BasePronunciationProposer):
         full_text: str,
         chapter_boundaries: list[tuple[int, int, int]],
         character_names: Optional[list[str]] = None,
+        word_index: Optional["WordIndex"] = None,
     ) -> list[PronunciationProposal]:
-        """Find words matching foreign language patterns."""
+        """Find words matching foreign language patterns.
+
+        Uses WordIndex if available for more efficient filtering, otherwise
+        falls back to pattern scanning. Note: ForeignProposer uses pattern
+        scanning rather than simple word lookups, so the WordIndex benefit
+        is primarily in context extraction.
+        """
         # Track found words by language
         word_matches: dict[str, dict[str, list[tuple[int, str, str]]]] = defaultdict(
             lambda: defaultdict(list)
@@ -155,10 +177,12 @@ class ForeignProposer(BasePronunciationProposer):
 
         logger.info(f"Foreign proposer found {len(proposals)} candidate words")
 
-        # Validate with LLM if available
-        if self.llm_client and proposals:
+        # Validate with LLM if available and not skipped
+        if self.llm_client and proposals and not self.skip_llm_validation:
             proposals = self._validate_with_llm(proposals)
             logger.info(f"After LLM validation: {len(proposals)} confirmed foreign words")
+        elif self.skip_llm_validation:
+            logger.info("LLM validation skipped (skip_llm_validation=True)")
 
         return proposals
 

@@ -15,6 +15,7 @@ from .models import (
     PronunciationPipelineCheckpoint,
     PronunciationFlag,
 )
+from .word_index import WordIndex
 from .proposers import (
     BasePronunciationProposer,
     CMUProposer,
@@ -49,6 +50,7 @@ class PronunciationGuidePipeline:
         proposers: Optional[list[BasePronunciationProposer]] = None,
         checkpoint_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
+        word_index_enabled: bool = True,
     ):
         """
         Args:
@@ -56,10 +58,12 @@ class PronunciationGuidePipeline:
             proposers: List of proposers (default: CMU, Foreign, Homograph, Character)
             checkpoint_dir: Directory for saving checkpoints
             progress_callback: Callback(stage, current, total) for progress updates
+            word_index_enabled: Enable single-pass word indexing for faster proposals
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
         self.progress_callback = progress_callback
+        self.word_index_enabled = word_index_enabled
 
         # Default proposers
         if proposers is None:
@@ -159,12 +163,23 @@ class PronunciationGuidePipeline:
         all_proposals = []
         total_proposers = len(self.proposers)
 
+        # Build word index if enabled (single pass)
+        word_index = None
+        if self.word_index_enabled:
+            logger.info("Building word index (single pass)...")
+            word_index = WordIndex(full_text, chapter_boundaries)
+            logger.info(
+                f"Word index built: {word_index.get_unique_word_count()} unique words, "
+                f"{word_index.get_total_word_count()} total occurrences"
+            )
+
         for i, proposer in enumerate(self.proposers):
             self._report_progress("proposal", i + 1, total_proposers)
 
             try:
                 proposals = proposer.propose(
-                    full_text, chapter_boundaries, character_names
+                    full_text, chapter_boundaries, character_names,
+                    word_index=word_index
                 )
                 all_proposals.extend(proposals)
                 logger.info(f"{proposer.name} proposer: {len(proposals)} proposals")
