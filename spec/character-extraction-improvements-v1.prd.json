@@ -127,7 +127,7 @@
             "Check that character has type='descriptive'",
             "Confirm character has meaningful mention count (not fragmented)"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -138,7 +138,7 @@
             "Check that only recurring (3+) agentive descriptions are included",
             "Confirm no pollution of character list with generic one-off mentions"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -149,7 +149,7 @@
             "Check that only descriptions that speak/act/are pursued are included",
             "Confirm agentive detection uses dialogue and action verb patterns"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
