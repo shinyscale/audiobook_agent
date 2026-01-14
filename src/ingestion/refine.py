@@ -72,9 +72,16 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
 
     # === PDF-specific cleaning ===
     if doc.source_format == 'pdf':
+        # Fix hyphenated words split across lines (e.g., "exam-\nple" -> "example")
         text, dehyphen_count = _dehyphenate(text)
         if dehyphen_count > 0:
             warnings.append(f"De-hyphenated {dehyphen_count} line-break word splits")
+
+        # Rejoin words split at line breaks without hyphens (e.g., "Cler\nval" -> "Clerval")
+        # This handles cases where PDF extraction removed the hyphen
+        text, rejoin_count = _rejoin_split_words(text)
+        if rejoin_count > 0:
+            warnings.append(f"Rejoined {rejoin_count} split words at line breaks")
 
         # Fix missing word spaces (common in old/scanned PDFs)
         text, spacing_metadata = correct_pdf_spacing(text)
@@ -132,9 +139,10 @@ def _dehyphenate(text: str) -> tuple[str, int]:
     Returns:
         Tuple of (dehyphenated text, count of changes made)
     """
-    # Pattern: word fragment ending with hyphen, newline(s), then lowercase continuation
+    # Pattern: word fragment ending with hyphen, newline(s), then continuation
     # Captures: (word_start)(hyphen)(whitespace/newlines)(word_end)
-    pattern = r'(\b[a-zA-Z]+)-\s*\n\s*([a-z]+\b)'
+    # Note: Allow uppercase continuation to handle proper nouns split across lines
+    pattern = r'(\b[a-zA-Z]+)-\s*\n\s*([a-zA-Z]+\b)'
 
     count = 0
 
@@ -166,6 +174,82 @@ def _dehyphenate(text: str) -> tuple[str, int]:
             return match.group(0)
 
     result = re.sub(pattern, replace_hyphen, text)
+    return result, count
+
+
+def _should_merge(word_start: str, word_end: str) -> bool:
+    """
+    Determine if two word fragments should be merged.
+
+    Uses dictionary validation when available, otherwise falls back to heuristics.
+
+    Args:
+        word_start: The first word fragment
+        word_end: The second word fragment
+
+    Returns:
+        True if the fragments should be merged
+    """
+    combined = word_start + word_end
+
+    if _HAS_SPELLCHECKER:
+        # Case 1: Combined word is valid - merge
+        if combined.lower() in _spell:
+            return True
+
+        # Case 2: First fragment is a valid standalone word - don't merge
+        # But only if it's substantial enough (more than 2 chars)
+        if word_start.lower() in _spell and len(word_start) > 2:
+            return False
+
+        # Case 3: Neither fragment is valid alone, combined not recognized
+        # If continuation starts lowercase, likely should merge (e.g., proper nouns)
+        if not word_end[0].isupper():
+            return True
+
+        # Case 4: Uppercase continuation - be more conservative
+        # Only merge if the start fragment is clearly not a word
+        return word_start.lower() not in _spell
+
+    # Fallback: length heuristics
+    return len(word_start) >= 2 and len(word_end) >= 2
+
+
+def _rejoin_split_words(text: str) -> tuple[str, int]:
+    """
+    Rejoin words that were split at line breaks without hyphens.
+
+    This handles cases where PDF extraction removed the hyphen but left
+    the word split, like "Cler\\nval" or "Cler val" instead of "Clerval".
+
+    More conservative than dehyphenation since there's no hyphen signal.
+    Only matches at single line breaks (not paragraph breaks).
+
+    Args:
+        text: The text to process
+
+    Returns:
+        Tuple of (processed text, count of changes made)
+    """
+    # Pattern: word fragment at end of line, followed by lowercase continuation
+    # The continuation must start lowercase - this is our signal that it was split
+    # Require the first fragment to end with lowercase (avoids joining after periods)
+    pattern = r'(\b[A-Z]?[a-z]{2,})\n[ \t]*([a-z]{2,}\b)'
+
+    count = 0
+
+    def replace_split(match):
+        nonlocal count
+        word_start = match.group(1)
+        word_end = match.group(2)
+
+        if _should_merge(word_start, word_end):
+            count += 1
+            return word_start + word_end
+
+        return match.group(0)  # Keep original
+
+    result = re.sub(pattern, replace_split, text)
     return result, count
 
 
