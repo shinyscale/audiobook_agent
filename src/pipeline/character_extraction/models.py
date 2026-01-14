@@ -19,6 +19,7 @@ class CharacterType(str, Enum):
     STORY = "story"           # Active participant - appears in scenes, speaks, acts
     HISTORICAL = "historical" # Real historical figure mentioned in passing
     REFERENCED = "referenced" # Fictional character from other works mentioned
+    DESCRIPTIVE = "descriptive"  # Recurring descriptive handle (e.g., "the creature", "the detective")
     UNCERTAIN = "uncertain"   # Could not determine
 
 
@@ -30,6 +31,7 @@ class CharacterMention:
     chapter_index: int      # Which chapter (1-indexed)
     context: str            # Surrounding text (~100 chars)
     in_dialogue: bool       # Is this within quoted speech?
+    is_agentive: bool = False  # Is this mention in an agentive context (speaks/acts)?
 
     def to_dict(self) -> dict:
         return {
@@ -38,11 +40,19 @@ class CharacterMention:
             "chapter_index": self.chapter_index,
             "context": self.context,
             "in_dialogue": self.in_dialogue,
+            "is_agentive": self.is_agentive,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CharacterMention":
-        return cls(**data)
+        return cls(
+            text=data["text"],
+            position=data["position"],
+            chapter_index=data["chapter_index"],
+            context=data["context"],
+            in_dialogue=data["in_dialogue"],
+            is_agentive=data.get("is_agentive", False),
+        )
 
 
 @dataclass

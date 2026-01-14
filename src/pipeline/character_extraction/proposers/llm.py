@@ -37,18 +37,22 @@ CHARACTER TYPES:
 - "story": Active participants in the narrative - they appear in scenes, speak, act, or have things happen to them in the story
 - "historical": Real historical figures mentioned in passing (e.g., Martin Luther King, Napoleon, Einstein) - not active in the story
 - "referenced": Fictional characters from OTHER works mentioned (e.g., Hamlet, Sherlock Holmes, Macduff) - not active in this story
+- "descriptive": Recurring descriptive handles for unnamed characters who speak or act (e.g., "the creature", "the detective", "the old man")
 
 Focus on finding:
 - Full names: "Sarah Miller", "Robert Chen"
 - First names only: "Michael", "Emma"
 - Titled names: "Mr. Anderson", "Dr. Williams"
 - Nicknames: "Mike", "Liz"
+- Descriptive handles: ONLY if they refer to a person who speaks/acts AND appear 3+ times in the excerpt
+  Examples: "the creature said", "the monster walked", "the old man replied"
 
 Do NOT include:
 - Places (Riverside, London)
 - Days/months (Monday, January)
-- Generic titles without names (the doctor, a woman)
-- Non-person entities (companies, newspapers)"""
+- One-off generic references (a waiter, some stranger, a woman)
+- Non-person entities (companies, newspapers)
+- Objects or locations ("the house", "the door", "the room")"""
 
 
 CHARACTER_PROMPT_TEMPLATE = """Find all CHARACTER NAMES mentioned in this text excerpt and classify each one.
@@ -58,17 +62,22 @@ TEXT:
 
 Return a JSON array of character names found. For each character:
 - "name": The character's name as it appears in the text
-- "type": Classification - "story" (active in narrative), "historical" (real historical figure), or "referenced" (from other fiction)
+- "type": Classification - "story", "historical", "referenced", or "descriptive"
 - "mentions": Number of times this name appears in this excerpt
 - "in_dialogue": Whether this character speaks or is mentioned in dialogue (true/false)
+- "acts": Whether this character performs actions in the text (speaks, walks, grabs, etc.) - true/false
 - "confidence": Your confidence this is a real character name (0.0-1.0)
+
+For "descriptive" type (unnamed characters like "the creature", "the detective"):
+- Only include if the handle appears 3+ times in the excerpt
+- Only include if the handle refers to a person who speaks or acts (acts: true)
 
 Example response:
 ```json
 [
-  {{"name": "Mike Mitchell", "type": "story", "mentions": 5, "in_dialogue": true, "confidence": 0.95}},
-  {{"name": "Martin Luther King", "type": "historical", "mentions": 1, "in_dialogue": false, "confidence": 0.95}},
-  {{"name": "Macduff", "type": "referenced", "mentions": 1, "in_dialogue": false, "confidence": 0.90}}
+  {{"name": "Mike Mitchell", "type": "story", "mentions": 5, "in_dialogue": true, "acts": true, "confidence": 0.95}},
+  {{"name": "Martin Luther King", "type": "historical", "mentions": 1, "in_dialogue": false, "acts": false, "confidence": 0.95}},
+  {{"name": "the creature", "type": "descriptive", "mentions": 4, "in_dialogue": true, "acts": true, "confidence": 0.85}}
 ]
 ```
 
@@ -250,6 +259,7 @@ class LLMCharacterProposer(BaseCharacterProposer):
             global_pos = chapter_start + chunk_offset + local_pos
             context = self._extract_context(text, local_pos, self.context_window)
             in_dialogue = self._is_in_dialogue(text, local_pos)
+            is_agentive = self._detect_agentive_context(context)
 
             mentions.append(CharacterMention(
                 text=match.group(0),  # Keep exact text as found
@@ -257,9 +267,25 @@ class LLMCharacterProposer(BaseCharacterProposer):
                 chapter_index=chapter_index,
                 context=context,
                 in_dialogue=in_dialogue,
+                is_agentive=is_agentive,
             ))
 
         return mentions
+
+    def _detect_agentive_context(self, context: str) -> bool:
+        """
+        Detect if the context indicates agentive behavior (speaking/acting).
+
+        Returns True if the context contains action verbs that suggest the
+        character is performing an action (said, walked, grabbed, etc.).
+        """
+        agentive_patterns = [
+            r'\b(said|asked|replied|whispered|shouted|called|cried|muttered|exclaimed)\b',
+            r'\b(walked|ran|stood|turned|looked|smiled|laughed|nodded|frowned)\b',
+            r'\b(grabbed|took|held|threw|placed|opened|closed|pushed|pulled)\b',
+            r'\b(sat|came|went|entered|left|arrived|departed|approached|retreated)\b',
+        ]
+        return any(re.search(p, context.lower()) for p in agentive_patterns)
 
     def _merge_chunk_proposals(self, proposals: list[CharacterProposal]) -> list[CharacterProposal]:
         """Merge proposals for the same character from different chunks."""
