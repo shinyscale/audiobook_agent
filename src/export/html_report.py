@@ -354,6 +354,45 @@ HTML_TEMPLATE = '''
             font-style: italic;
         }
 
+        /* Collapsible pronunciation chapters */
+        .pron-chapter-details {
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--primary);
+        }
+        .pron-chapter-details summary {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            list-style: none;
+            display: flex;
+            align-items: center;
+        }
+        .pron-chapter-details summary::-webkit-details-marker {
+            display: none;
+        }
+        .pron-chapter-details summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 0.75rem;
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+            color: var(--muted);
+        }
+        .pron-chapter-details[open] summary::before {
+            transform: rotate(90deg);
+        }
+        .pron-chapter-details summary h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+        .pron-chapter-details[open] {
+            border-left-color: var(--accent);
+        }
+        .pron-chapter-details table {
+            margin: 0 1rem 1rem 1rem;
+        }
+
         /* Chapter details */
         .chapter-details {
             margin-top: 0.5rem;
@@ -832,8 +871,8 @@ HTML_TEMPLATE = '''
             <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     <span style="color: var(--muted); margin-right: 0.5rem;">View:</span>
-                    <button id="view-by-type" class="view-toggle active" onclick="switchPronView('by-type')">By Type</button>
-                    <button id="view-by-chapter" class="view-toggle" onclick="switchPronView('by-chapter')">By Chapter</button>
+                    <button id="view-by-type" class="view-toggle" onclick="switchPronView('by-type')">By Type</button>
+                    <button id="view-by-chapter" class="view-toggle active" onclick="switchPronView('by-chapter')">By Chapter</button>
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 250px;">
                     <span style="color: var(--muted);">Search:</span>
@@ -848,8 +887,8 @@ HTML_TEMPLATE = '''
                 <div id="pron-count" style="color: var(--muted); font-size: 0.9rem;"></div>
             </div>
 
-            <!-- By Type View (default) -->
-            <div id="pron-by-type" class="pron-view active">
+            <!-- By Type View -->
+            <div id="pron-by-type" class="pron-view">
             {% if homographs %}
             <div class="pron-group">
                 <h3>Homographs <span class="tag homograph">{{ homographs|length }}</span></h3>
@@ -986,12 +1025,18 @@ HTML_TEMPLATE = '''
             </div>
             <!-- End By Type View -->
 
-            <!-- By Chapter View -->
-            <div id="pron-by-chapter" class="pron-view">
+            <!-- By Chapter View (default) -->
+            <div id="pron-by-chapter" class="pron-view active">
             {% if chapter_pronunciation_list %}
+            <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                <button onclick="expandAllChapters()" class="view-toggle">Expand All</button>
+                <button onclick="collapseAllChapters()" class="view-toggle">Collapse All</button>
+            </div>
             {% for chapter in chapter_pronunciation_list %}
-            <div class="pron-group">
-                <h3>{{ chapter.title }} <span class="tag">{{ chapter.word_count }} words</span></h3>
+            <details class="pron-chapter-details">
+                <summary>
+                    <h3>{{ chapter.title }} <span class="tag">{{ chapter.word_count }} words</span></h3>
+                </summary>
                 <table>
                     <thead>
                         <tr>
@@ -1016,7 +1061,7 @@ HTML_TEMPLATE = '''
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
+            </details>
             {% endfor %}
             {% else %}
             <p style="color: var(--muted);">No pronunciations found by chapter.</p>
@@ -1090,6 +1135,14 @@ HTML_TEMPLATE = '''
                     item.style.display = '';
                 }
             });
+        }
+
+        // Expand/collapse all pronunciation chapters
+        function expandAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = true);
+        }
+        function collapseAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = false);
         }
 
         // Pronunciation view switching
