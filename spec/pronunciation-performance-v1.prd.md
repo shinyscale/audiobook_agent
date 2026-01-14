@@ -203,7 +203,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify proposal stage completes in < 120 seconds",
     "Compare to previous timing (was 30-60 minutes)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
@@ -279,7 +279,7 @@ async def enrich_parallel(self, proposals: list, max_workers: int = 4):
     "Verify enrichment completes in < 15 minutes",
     "Compare to previous timing (was 40-60 minutes)"
   ],
-  "passes": false
+  "passes": true
 }
 ```
 
