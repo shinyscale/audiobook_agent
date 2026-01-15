@@ -9,6 +9,7 @@ from .models import (
     IdentifiedCharacter,
     CharacterProfile,
     CharacterProfileMap,
+    ActionAnalysis,
     AppearanceProfile,
     PersonalityProfile,
     VoiceGuidance,
@@ -26,18 +27,28 @@ from .converter import (
     profile_map_to_characters,
     character_to_rich_dict,
 )
+from .moral_valence import (
+    MoralValence,
+    MoralValenceResult,
+    MoralValenceClassifier,
+)
 
 __all__ = [
     # Models
     "IdentifiedCharacter",
     "CharacterProfile",
     "CharacterProfileMap",
+    "ActionAnalysis",
     "AppearanceProfile",
     "PersonalityProfile",
     "VoiceGuidance",
     "CharacterRelationship",
     "ProfileEvidence",
     "CharacterPassage",
+    # Moral Valence
+    "MoralValence",
+    "MoralValenceResult",
+    "MoralValenceClassifier",
     # Components
     "SummaryDrivenCharacterIdentifier",
     "CharacterPassageGatherer",

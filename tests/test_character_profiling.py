@@ -31,6 +31,11 @@ from src.pipeline.character_profiling.models import (
     CharacterRelationship,
     ProfileEvidence,
 )
+from src.pipeline.character_profiling.moral_valence import (
+    MoralValence,
+    MoralValenceResult,
+    MoralValenceClassifier,
+)
 from src.models import Character, ConfidenceLevel
 from src.pipeline.chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from src.pipeline.chapter_detection.models import ChapterMap, Chapter
@@ -1478,6 +1483,194 @@ class TestActionWeightedProfiling:
         assert parsed_profile.action_analysis.dominant_pattern == "harmful"
         assert "murdered parents" in parsed_profile.action_analysis.harmful_actions
         assert parsed_profile.personality.moral_alignment == "villainous"
+
+
+class TestMoralValenceEnum:
+    """Tests for MoralValence enum (Feature F2)."""
+
+    def test_all_valence_types_exist(self):
+        """Test that all required valence types are defined."""
+        assert MoralValence.PROTAGONIST.value == "protagonist"
+        assert MoralValence.ANTAGONIST.value == "antagonist"
+        assert MoralValence.MORALLY_AMBIGUOUS.value == "morally_ambiguous"
+        assert MoralValence.NEUTRAL.value == "neutral"
+        assert MoralValence.VICTIM.value == "victim"
+        assert MoralValence.UNCERTAIN.value == "uncertain"
+
+    def test_valence_is_string_enum(self):
+        """Test that MoralValence inherits from str and can be compared as string."""
+        # The value can be compared to a string
+        assert MoralValence.ANTAGONIST.value == "antagonist"
+        # It's a string enum (inherits from str)
+        assert isinstance(MoralValence.ANTAGONIST, str)
+
+
+class TestMoralValenceResult:
+    """Tests for MoralValenceResult dataclass (Feature F2)."""
+
+    def test_result_creation(self):
+        """Test creating MoralValenceResult with all fields."""
+        result = MoralValenceResult(
+            character_name="Test Villain",
+            valence=MoralValence.ANTAGONIST,
+            confidence=0.9,
+            key_actions=[
+                {"action": "murdered parents", "category": "harmful", "target": "parents"}
+            ],
+            evidence_quotes=["She set the house on fire"],
+            reasoning="Character commits multiple harmful acts",
+        )
+        assert result.valence == MoralValence.ANTAGONIST
+        assert result.confidence == 0.9
+        assert len(result.key_actions) == 1
+
+    def test_result_to_dict(self):
+        """Test MoralValenceResult serialization."""
+        result = MoralValenceResult(
+            character_name="Test Hero",
+            valence=MoralValence.PROTAGONIST,
+            confidence=0.85,
+            key_actions=[
+                {"action": "saved a child", "category": "beneficial", "target": "child"}
+            ],
+        )
+        data = result.to_dict()
+        assert data["character_name"] == "Test Hero"
+        assert data["valence"] == "protagonist"
+        assert data["confidence"] == 0.85
+
+    def test_result_from_dict(self):
+        """Test MoralValenceResult deserialization."""
+        data = {
+            "character_name": "Test Character",
+            "valence": "morally_ambiguous",
+            "confidence": 0.7,
+            "key_actions": [
+                {"action": "helped friend", "category": "beneficial"},
+                {"action": "betrayed enemy", "category": "harmful"},
+            ],
+            "evidence_quotes": ["quote1"],
+            "reasoning": "Both good and bad actions",
+        }
+        result = MoralValenceResult.from_dict(data)
+        assert result.valence == MoralValence.MORALLY_AMBIGUOUS
+        assert len(result.key_actions) == 2
+
+
+class TestMoralValenceClassifier:
+    """Tests for MoralValenceClassifier (Feature F2)."""
+
+    def test_classify_with_no_passages(self):
+        """Test that classifier returns UNCERTAIN with no passages."""
+        mock_llm = MagicMock()
+        classifier = MoralValenceClassifier(mock_llm)
+
+        result = classifier.classify_character(
+            character_name="Unknown",
+            role="supporting",
+            passages=[],
+        )
+
+        assert result.valence == MoralValence.UNCERTAIN
+        assert result.confidence == 0.0
+        mock_llm.query_json.assert_not_called()
+
+    def test_classify_antagonist(self):
+        """Test classification of an antagonist character."""
+        mock_llm = MagicMock()
+        mock_llm.query_json.return_value = (
+            {
+                "valence": "antagonist",
+                "confidence": 0.95,
+                "key_actions": [
+                    {"action": "murdered parents", "category": "harmful", "target": "parents"},
+                    {"action": "manipulated victims", "category": "harmful", "target": "victims"},
+                ],
+                "evidence_quotes": ["She burned the house down"],
+                "reasoning": "Character commits multiple murders and manipulations",
+            },
+            LLMResponse(content="...", model="test-model"),
+        )
+
+        classifier = MoralValenceClassifier(mock_llm)
+        result = classifier.classify_character(
+            character_name="Evil Character",
+            role="antagonist",
+            passages=["She murdered her parents.", "She manipulated everyone she met."],
+        )
+
+        assert result.valence == MoralValence.ANTAGONIST
+        assert result.confidence == 0.95
+        assert len(result.key_actions) == 2
+
+    def test_classify_protagonist(self):
+        """Test classification of a protagonist character."""
+        mock_llm = MagicMock()
+        mock_llm.query_json.return_value = (
+            {
+                "valence": "protagonist",
+                "confidence": 0.9,
+                "key_actions": [
+                    {"action": "saved the child", "category": "beneficial", "target": "child"},
+                    {"action": "protected the innocent", "category": "beneficial", "target": "villagers"},
+                ],
+                "evidence_quotes": ["He risked his life to save them"],
+                "reasoning": "Character performs selfless heroic acts",
+            },
+            LLMResponse(content="...", model="test-model"),
+        )
+
+        classifier = MoralValenceClassifier(mock_llm)
+        result = classifier.classify_character(
+            character_name="Hero Character",
+            role="protagonist",
+            passages=["He saved the child from the fire.", "He protected the villagers."],
+        )
+
+        assert result.valence == MoralValence.PROTAGONIST
+        assert result.confidence == 0.9
+
+    def test_classify_morally_ambiguous(self):
+        """Test classification of a morally ambiguous character."""
+        mock_llm = MagicMock()
+        mock_llm.query_json.return_value = (
+            {
+                "valence": "morally_ambiguous",
+                "confidence": 0.8,
+                "key_actions": [
+                    {"action": "killed enemies", "category": "harmful", "target": "enemies"},
+                    {"action": "saved friend", "category": "beneficial", "target": "friend"},
+                ],
+                "evidence_quotes": ["He did what was necessary"],
+                "reasoning": "Character does both harmful and beneficial acts",
+            },
+            LLMResponse(content="...", model="test-model"),
+        )
+
+        classifier = MoralValenceClassifier(mock_llm)
+        result = classifier.classify_character(
+            character_name="Anti-Hero",
+            role="protagonist",
+            passages=["He killed them to save his friend."],
+        )
+
+        assert result.valence == MoralValence.MORALLY_AMBIGUOUS
+
+    def test_classification_prompt_structure(self):
+        """Test that the classification prompt contains key elements."""
+        from src.pipeline.character_profiling.moral_valence import (
+            MORAL_VALENCE_SYSTEM,
+            MORAL_VALENCE_PROMPT,
+        )
+        # Verify system prompt emphasizes actions over descriptions
+        assert "ACTIONS" in MORAL_VALENCE_SYSTEM
+        assert "descriptions" in MORAL_VALENCE_SYSTEM.lower()
+        assert "HARMFUL" in MORAL_VALENCE_SYSTEM
+        assert "BENEFICIAL" in MORAL_VALENCE_SYSTEM
+
+        # Verify prompt requests action classification
+        assert "key_actions" in MORAL_VALENCE_PROMPT
+        assert "valence" in MORAL_VALENCE_PROMPT
 
 
 # Integration test marker - requires actual LLM
