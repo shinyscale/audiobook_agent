@@ -97,6 +97,35 @@ class PronunciationEntry(BaseModel):
     notes: Optional[str] = None
 
 
+class GlossaryEntry(BaseModel):
+    """A single glossary entry (term + definition)."""
+    term: str
+    definition: str
+    position: int = 0
+    confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+
+
+class GlossaryMap(BaseModel):
+    """Extracted glossary from the document."""
+    entries: list[GlossaryEntry] = Field(default_factory=list)
+    source_region_start: int = 0
+    source_region_end: int = 0
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self.entries) == 0
+
+    def entries_by_letter(self) -> dict[str, list["GlossaryEntry"]]:
+        """Group entries by first letter for alphabet navigation."""
+        grouped: dict[str, list[GlossaryEntry]] = {}
+        for entry in sorted(self.entries, key=lambda e: e.term.lower()):
+            letter = entry.term[0].upper() if entry.term else '#'
+            if not letter.isalpha():
+                letter = '#'
+            grouped.setdefault(letter, []).append(entry)
+        return grouped
+
+
 class StructuralElement(BaseModel):
     """A structural element in the book (chapter, scene, etc.)."""
     type: StructureType
@@ -138,6 +167,7 @@ class AnalysisResult(BaseModel):
     structure: list[StructuralElement] = Field(default_factory=list)
     characters: list[Character] = Field(default_factory=list)
     pronunciations: list[PronunciationEntry] = Field(default_factory=list)
+    glossary: Optional[GlossaryMap] = None
 
     # Overview summary (book structure, plot, models, timing)
     overview: Optional[dict] = None

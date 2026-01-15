@@ -14,6 +14,7 @@ from dataclasses import replace
 from .base import ExtractedDocument
 from .pdf_spacing import correct_pdf_spacing, needs_spacing_correction
 from .regions import detect_document_regions
+from .glossary import extract_glossary
 
 # Try to import spellchecker for dictionary-based de-hyphenation
 try:
@@ -114,12 +115,20 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
         if front_count or back_count:
             warnings.append(f"Detected {front_count} front matter and {back_count} back matter regions")
 
-    # Create new document with refined text and regions
+    # === Extract glossary if present ===
+    glossary_result = None
+    if regions:
+        glossary_result = extract_glossary(text, regions)
+        if glossary_result:
+            warnings.append(f"Extracted {len(glossary_result.entries)} glossary entries")
+
+    # Create new document with refined text, regions, and glossary
     return replace(
         doc,
         text=text,
         extraction_warnings=warnings,
         regions=regions,
+        glossary=glossary_result,
     )
 
 

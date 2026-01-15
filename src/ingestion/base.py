@@ -11,6 +11,7 @@ import re
 
 if TYPE_CHECKING:
     from .regions import DocumentRegion
+    from .glossary import GlossaryExtractionResult
 
 
 @dataclass
@@ -32,6 +33,9 @@ class ExtractedDocument:
 
     # Document regions (front/back matter detection)
     regions: Optional[list["DocumentRegion"]] = None
+
+    # Extracted glossary (if present)
+    glossary: Optional["GlossaryExtractionResult"] = None
 
     def __post_init__(self):
         if self.extraction_warnings is None:

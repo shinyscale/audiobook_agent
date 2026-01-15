@@ -21,6 +21,8 @@ from .models import (
     PronunciationEntry,
     PronunciationFlag as ModelPronunciationFlag,
     ConfidenceLevel,
+    GlossaryEntry as ModelGlossaryEntry,
+    GlossaryMap,
 )
 from .ingestion import get_ingester, ExtractedDocument
 from .ingestion.refine import refine_extracted_document, to_canonical_markdown
@@ -487,11 +489,15 @@ class AudiobookAnalyzer:
             if char.confidence == ConfidenceLevel.LOW:
                 low_confidence.append(f"Character: {char.canonical_name}")
 
+        # Convert glossary if present
+        glossary_map = self._convert_glossary(doc)
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
             characters=characters,
             pronunciations=pronunciations,
+            glossary=glossary_map,
             overview=None,  # No overview for partial results
             raw_text=doc.text,
             warnings=warnings,
@@ -831,19 +837,17 @@ class AudiobookAnalyzer:
 
                 for i, char in enumerate(eligible_chars):
                     logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
-                    profile, evidence, confidence = self._generate_character_profile(llm, char, doc.text)
+                    profile, evidence, confidence = self._generate_character_profile(
+                        llm, char, doc.text, chapter_map=chapter_map
+                    )
                     if profile:
                         char.description = profile
                         profile_count += 1
 
                         # Store evidence in character (will need to add evidence field to pipeline Character model)
-                        if not hasattr(char, 'profile_evidence'):
-                            char.profile_evidence = []
                         char.profile_evidence = evidence
-
-                        # Store profile confidence
-                        if not hasattr(char, 'profile_confidence'):
-                            char.profile_confidence = 0.5
+                        # Store profile confidence only when we successfully produced a profile.
+                        # (If profile generation fails, leave as None so we fall back to extraction confidence.)
                         char.profile_confidence = confidence
 
                         # Track confidence distribution
@@ -855,6 +859,9 @@ class AudiobookAnalyzer:
                             low_conf_count += 1
                             logger.warning(f"Low confidence profile for {char.canonical_name}: {confidence:.2f}")
                     else:
+                        # Ensure "no profile" doesn't get misclassified as "medium confidence profile"
+                        # via a default profile_confidence value.
+                        char.profile_confidence = None
                         low_conf_count += 1
 
                     # Update real-time progress
@@ -1081,11 +1088,15 @@ class AudiobookAnalyzer:
             if char.confidence == ConfidenceLevel.LOW:
                 low_confidence.append(f"Character: {char.canonical_name}")
 
+        # Convert glossary if present
+        glossary_map = self._convert_glossary(doc)
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
             characters=characters,
             pronunciations=pronunciations,
+            glossary=glossary_map,
             overview=overview,
             raw_text=doc.text,
             warnings=warnings,
@@ -1175,11 +1186,44 @@ class AudiobookAnalyzer:
 
         return wrapped
 
+    def _extract_text_from_malformed_json(self, s: str) -> str:
+        """Extract readable text from a malformed JSON string.
+
+        When LLM returns nested JSON or broken formatting, try to salvage
+        the actual profile text by stripping JSON artifacts.
+
+        Args:
+            s: Raw string that may contain embedded JSON structure
+
+        Returns:
+            Cleaned text string, or empty string if unsalvageable
+        """
+        import re
+
+        # Remove leading JSON structure: {"profile": " or similar
+        s = re.sub(r'^\s*\{?\s*"profile"\s*:\s*"?', '', s)
+
+        # Remove trailing JSON: ", "evidence": [...] etc
+        s = re.sub(r'"?\s*,?\s*"(evidence|confidence|limitations)"\s*:.*$', '', s, flags=re.DOTALL)
+
+        # Unescape JSON string escapes
+        s = s.replace('\\"', '"').replace('\\n', '\n').replace('\\t', ' ')
+
+        # Remove remaining JSON structural characters
+        s = re.sub(r'[{}\[\]]', '', s)
+
+        # Clean up whitespace
+        s = ' '.join(s.split())
+
+        # Only return if we have substantial text
+        return s.strip() if len(s.strip()) > 30 else ""
+
     def _generate_character_profile(
         self,
         llm: "LLMClient",
         character,
         full_text: str,
+        chapter_map: Optional["ChapterMap"] = None,
     ) -> tuple[str, list[dict], float]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
@@ -1189,11 +1233,58 @@ class AudiobookAnalyzer:
                 confidence_score: 0.0-1.0 based on evidence quality
         """
         import json
+        import re
+        from .pipeline.character_extraction.models import CharacterMention
 
         # Sample mentions from throughout the book (early, middle, late)
         # to ensure character proof reflects the entire narrative
-        all_mentions = character.mentions
+        all_mentions = getattr(character, "mentions", []) or []
         total_mentions = len(all_mentions)
+
+        # Fallback: if mention objects are unexpectedly missing (but the character exists),
+        # rebuild a small set of mention positions via regex so we can still generate a profile.
+        #
+        # This prevents "No detailed profile available" for major characters when upstream
+        # mention tracking is incomplete.
+        if total_mentions == 0 and getattr(character, "canonical_name", ""):
+            names = [getattr(character, "canonical_name", "")]
+            names.extend(getattr(character, "aliases", []) or [])
+            names = [n for n in names if isinstance(n, str) and n.strip()]
+
+            positions: set[int] = set()
+            for name in names:
+                # Allow flexible whitespace for multi-word names (e.g., "De Lacey")
+                escaped = re.escape(name).replace(r"\ ", r"\s+")
+                pattern = rf"\b{escaped}\b"
+                for m in re.finditer(pattern, full_text, flags=re.IGNORECASE):
+                    positions.add(m.start())
+
+            pos_list = sorted(positions)
+
+            # Sample up to 10 positions spread across the text
+            if len(pos_list) > 10:
+                idxs = [int(i * (len(pos_list) - 1) / 9) for i in range(10)]
+                pos_list = [pos_list[i] for i in idxs]
+
+            def _chapter_for_pos(pos: int) -> int:
+                if chapter_map is None:
+                    return 0
+                for ch in chapter_map.chapters:
+                    if ch.start_position <= pos < ch.end_position:
+                        return ch.index
+                return 0
+
+            all_mentions = [
+                CharacterMention(
+                    text=getattr(character, "canonical_name", "") or "",
+                    position=pos,
+                    chapter_index=_chapter_for_pos(pos),
+                    context="",
+                    in_dialogue=False,
+                )
+                for pos in pos_list
+            ]
+            total_mentions = len(all_mentions)
 
         # Sample up to 10 mentions, distributed across the narrative
         if total_mentions <= 10:
@@ -1281,68 +1372,117 @@ Return a JSON response matching this example format exactly:
 CRITICAL: The "profile" field must contain PLAIN TEXT only, not nested JSON structures.
 Return ONLY valid JSON matching the above structure. No other text."""
 
-        try:
-            response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM)
-            if response.success:
-                # Clean up any thinking tags or extra formatting
-                content = response.content.strip()
+        # Helper to parse JSON from LLM response
+        def _parse_json_blob(s: str):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                start = s.find("{")
+                end = s.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    try:
+                        return json.loads(s[start:end + 1])
+                    except json.JSONDecodeError:
+                        return None
+                return None
 
-                # Try to extract JSON if wrapped in markdown code blocks
-                if "```json" in content:
-                    content = content.split("```json")[1].split("```")[0].strip()
-                elif "```" in content:
-                    content = content.split("```")[1].split("```")[0].strip()
+        # Retry loop: try up to 2 times on LLM errors
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            try:
+                response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM)
+                if response.success:
+                    # Clean up any thinking tags or extra formatting
+                    content = response.content.strip()
 
-                # Parse JSON response
-                try:
-                    result = json.loads(content)
+                    # Try to extract JSON if wrapped in markdown code blocks
+                    if "```json" in content:
+                        content = content.split("```json")[1].split("```")[0].strip()
+                    elif "```" in content:
+                        content = content.split("```")[1].split("```")[0].strip()
 
-                    # NEW: Check if "profile" field itself contains JSON (double-encoded)
-                    profile = result.get("profile", "")
-                    if profile and (profile.startswith("{") or profile.startswith("[")):
-                        # LLM returned nested JSON - try to parse it
+                    try:
+                        result = _parse_json_blob(content)
+                        if result is None:
+                            raise json.JSONDecodeError("Could not parse JSON", content, 0)
+
+                        # Check if "profile" field itself contains JSON (double-encoded)
+                        profile = result.get("profile", "")
+                        if profile and (profile.startswith("{") or profile.startswith("[")):
+                            # LLM returned nested JSON - try to parse it
+                            logger.warning(
+                                f"Character profile for {character.canonical_name} contains nested JSON, attempting to parse"
+                            )
+                            try:
+                                nested = json.loads(profile)
+                                if isinstance(nested, dict) and "profile" in nested:
+                                    # Double-encoded JSON
+                                    profile = nested["profile"]
+                                    logger.info(f"Successfully extracted profile from nested JSON for {character.canonical_name}")
+                            except json.JSONDecodeError:
+                                # Not valid JSON - try to extract readable text
+                                logger.warning(f"Nested JSON parse failed for {character.canonical_name}, extracting text")
+                                profile = self._extract_text_from_malformed_json(profile)
+                                if not profile:
+                                    logger.warning(f"Could not salvage text from malformed profile for {character.canonical_name}")
+
+                        evidence = result.get("evidence", [])
+                        confidence = float(result.get("confidence", 0.5))
+
+                        # Validate evidence structure
+                        validated_evidence = []
+                        for ev in evidence:
+                            if isinstance(ev, dict) and "statement" in ev and "quote" in ev:
+                                validated_evidence.append({
+                                    "statement": ev["statement"],
+                                    "quote": ev["quote"],
+                                    "position": ev.get("position", 0),
+                                    "confidence": "high" if confidence >= 0.7 else "medium" if confidence >= 0.4 else "low"
+                                })
+
+                        # If no valid evidence but we got a profile, mark as low confidence
+                        if profile and not validated_evidence:
+                            logger.warning(f"Profile for {character.canonical_name} lacks evidence")
+                            confidence = min(confidence, 0.3)
+
+                        return profile, validated_evidence, confidence
+
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse JSON response for {character.canonical_name}: {e}")
+                        logger.debug(f"Raw content (first 500 chars): {content[:500]}")
+                        # Try to extract readable text from malformed response
+                        salvaged = self._extract_text_from_malformed_json(content)
+                        if salvaged:
+                            logger.info(f"Salvaged profile text for {character.canonical_name}")
+                            return salvaged, [], 0.3
+                        return "", [], 0.0
+                else:
+                    # LLM returned error response
+                    error_msg = getattr(response, 'error', None) or 'unknown error'
+                    if attempt < max_attempts - 1:
                         logger.warning(
-                            f"Character profile for {character.canonical_name} contains nested JSON, attempting to parse"
+                            f"LLM error for '{character.canonical_name}' (attempt {attempt + 1}/{max_attempts}): "
+                            f"{error_msg}, retrying..."
                         )
-                        try:
-                            nested = json.loads(profile)
-                            if isinstance(nested, dict) and "profile" in nested:
-                                # Double-encoded JSON
-                                profile = nested["profile"]
-                                logger.info(f"Successfully extracted profile from nested JSON for {character.canonical_name}")
-                        except json.JSONDecodeError:
-                            # Not valid JSON, treat as-is (might be malformed text)
-                            logger.warning(f"Nested JSON parse failed for {character.canonical_name}, using as-is")
+                        continue  # Retry
+                    else:
+                        logger.error(
+                            f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: "
+                            f"{error_msg}"
+                        )
+                        return "", [], 0.0
 
-                    evidence = result.get("evidence", [])
-                    confidence = float(result.get("confidence", 0.5))
-
-                    # Validate evidence structure
-                    validated_evidence = []
-                    for ev in evidence:
-                        if isinstance(ev, dict) and "statement" in ev and "quote" in ev:
-                            validated_evidence.append({
-                                "statement": ev["statement"],
-                                "quote": ev["quote"],
-                                "position": ev.get("position", 0),
-                                "confidence": "high" if confidence >= 0.7 else "medium" if confidence >= 0.4 else "low"
-                            })
-
-                    # If no valid evidence but we got a profile, mark as low confidence
-                    if profile and not validated_evidence:
-                        logger.warning(f"Profile for {character.canonical_name} lacks evidence")
-                        confidence = min(confidence, 0.3)
-
-                    return profile, validated_evidence, confidence
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse JSON response for {character.canonical_name}: {e}")
-                    logger.error(f"Raw content (first 500 chars): {content[:500]}")
-                    # Fallback: treat as plain text profile with low confidence
-                    return content[:500], [], 0.3
-
-        except Exception as e:
-            logger.warning(f"Failed to generate profile for {character.canonical_name}: {e}")
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    logger.warning(
+                        f"Exception generating profile for '{character.canonical_name}' (attempt {attempt + 1}/{max_attempts}): "
+                        f"{e}, retrying..."
+                    )
+                    continue  # Retry
+                else:
+                    logger.error(
+                        f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: {e}"
+                    )
 
         return "", [], 0.0
 
@@ -1609,6 +1749,37 @@ Return ONLY valid JSON matching the above structure. No other text."""
             ))
 
         return entries
+
+    def _convert_glossary(
+        self,
+        doc: ExtractedDocument,
+    ) -> Optional[GlossaryMap]:
+        """Convert ingestion glossary to GlossaryMap model."""
+        if not doc.glossary:
+            return None
+
+        entries = []
+        for ge in doc.glossary.entries:
+            # Map confidence
+            if ge.confidence >= 0.8:
+                confidence = ConfidenceLevel.HIGH
+            elif ge.confidence >= 0.5:
+                confidence = ConfidenceLevel.MEDIUM
+            else:
+                confidence = ConfidenceLevel.LOW
+
+            entries.append(ModelGlossaryEntry(
+                term=ge.term,
+                definition=ge.definition,
+                position=ge.position,
+                confidence=confidence,
+            ))
+
+        return GlossaryMap(
+            entries=entries,
+            source_region_start=doc.glossary.region_start,
+            source_region_end=doc.glossary.region_end,
+        )
 
     def save_to_json(
         self,

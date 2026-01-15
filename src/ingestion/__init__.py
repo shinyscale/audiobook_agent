@@ -9,6 +9,7 @@ from .docx import DOCXIngester
 from .epub import EPUBIngester
 from .txt import TXTIngester
 from .refine import refine_extracted_document, to_canonical_markdown
+from .glossary import extract_glossary, GlossaryExtractionResult, GlossaryEntry
 
 __all__ = [
     'DocumentIngester',
@@ -20,4 +21,7 @@ __all__ = [
     'TXTIngester',
     'refine_extracted_document',
     'to_canonical_markdown',
+    'extract_glossary',
+    'GlossaryExtractionResult',
+    'GlossaryEntry',
 ]
