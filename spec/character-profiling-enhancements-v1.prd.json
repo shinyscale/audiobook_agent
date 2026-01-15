@@ -1,0 +1,388 @@
+{
+  "prd": {
+    "title": "Character Profiling Enhancements: Moral Valence and Narrator Voice",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "High",
+    "target": "Improve character understanding for morally complex characters and name changes"
+  },
+  "executive_summary": "The character profiling pipeline can mischaracterize morally complex characters when surface descriptions override actions, and may miss same-person-different-name patterns when characters change names mid-book. This PRD addresses: (1) detecting potential same-character pairs via disjoint chapter distributions, (2) explicit action-based moral classification, (3) action-weighted profiling that prioritizes deeds over descriptions, and (4) narrator voice detection for authorial commentary. Motivated by East of Eden's Cathy/Kate character who changes names and whose beautiful description contradicts her monstrous actions.",
+  "problem_statement": {
+    "current_failures": [
+      {
+        "issue": "Name changes create duplicate characters",
+        "example": "Cathy (chapters 1-20) and Kate (chapters 21-40) appear as separate characters",
+        "root_cause": "Alias resolution requires shared name components or chapter overlap",
+        "impact": "Major character split into two entries, fragmented profile"
+      },
+      {
+        "issue": "Descriptions override actions in moral assessment",
+        "example": "'Beautiful' and 'moves with lightness' overshadow 'burns parents alive'",
+        "root_cause": "Profile prompt doesn't explicitly prioritize actions over descriptions",
+        "impact": "Morally reprehensible characters may be portrayed neutrally"
+      },
+      {
+        "issue": "No explicit moral classification pass",
+        "example": "moral_alignment derived ad-hoc during profiling",
+        "root_cause": "Classification embedded in larger profile generation prompt",
+        "impact": "Inconsistent moral assessments, action evidence diluted"
+      },
+      {
+        "issue": "Narrator commentary not captured",
+        "example": "Steinbeck's 'I believe there are monsters born in the world' about Cathy is lost",
+        "root_cause": "No mechanism to detect narrator judgments vs regular narration",
+        "impact": "Critical authorial framing missing from character profiles"
+      }
+    ],
+    "generalizes_to": [
+      "Any book with mid-story name changes (marriage, alias adoption, identity reveals)",
+      "Morally complex characters in literary fiction",
+      "Books with strong authorial voice (Steinbeck, Dickens, Austen)",
+      "Unreliable narrator detection",
+      "Anti-heroes and morally ambiguous protagonists"
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Disjoint Chapter Distribution Detection",
+      "priority": "HIGH",
+      "rationale": "Name changes create characters with zero chapter overlap but sequential presence. Current alias resolution can't detect this pattern. Post-extraction verification allows holistic review of all characters.",
+      "current_behavior": "Alias resolution checks chapter overlap as rejection signal (zero overlap = different people)",
+      "proposed_behavior": "Flag high-frequency character pairs with strongly disjoint but sequential chapter distributions for LLM review as potential same-person cases",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Sequential chapter distributions flagged for review",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine verification output",
+            "Verify 'Cathy' (early chapters) and 'Kate' (later chapters) flagged as potential same person",
+            "Check that LLM is prompted: 'Could these be the same character under different names?'",
+            "Confirm flag appears in quality report or verification issues"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Non-sequential disjoint characters not flagged",
+          "steps": [
+            "Run analysis on a book with characters in different storylines",
+            "Verify characters with disjoint but non-sequential chapters are not flagged",
+            "Check that only sequential patterns (max(A) < min(B)) trigger the heuristic",
+            "Confirm no false positives for parallel plot characters"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/agents/characters.py",
+            "changes": [
+              {
+                "location": "new method after line 237",
+                "description": "Add _check_disjoint_distributions() method",
+                "code": "def _check_disjoint_distributions(\n    self,\n    characters: list[Character],\n    total_chapters: int,\n) -> list[VerificationIssue]:\n    issues = []\n    MIN_MENTIONS = 10\n    MAX_JACCARD = 0.15\n    \n    significant = [c for c in characters if c.mention_count >= MIN_MENTIONS]\n    \n    for i, char1 in enumerate(significant):\n        for char2 in significant[i+1:]:\n            if char2.canonical_name in char1.aliases:\n                continue\n            \n            set1, set2 = set(char1.chapters_present), set(char2.chapters_present)\n            if not set1 or not set2:\n                continue\n            \n            jaccard = len(set1 & set2) / len(set1 | set2)\n            \n            if jaccard < MAX_JACCARD:\n                is_sequential = (max(set1) < min(set2) - 1) or (max(set2) < min(set1) - 1)\n                if is_sequential:\n                    issues.append(VerificationIssue(\n                        description=f\"Disjoint chapters: '{char1.canonical_name}' and '{char2.canonical_name}' have {jaccard:.0%} overlap - could be same character under different name\",\n                        severity=\"warning\",\n                        suggested_fix=\"Review if these are the same character with a name change\",\n                    ))\n    return issues"
+              },
+              {
+                "location": "verify() method (~line 200)",
+                "description": "Call _check_disjoint_distributions() and add issues"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Moral Valence Classification Pass",
+      "priority": "HIGH",
+      "rationale": "Dedicated action-focused classification before profiling ensures moral assessment is based on deeds. Profiling then uses this classification as authoritative input rather than deriving it ad-hoc.",
+      "current_behavior": "moral_alignment derived during profile generation, embedded in larger prompt",
+      "proposed_behavior": "New pipeline step extracts and categorizes character ACTIONS (harmful/beneficial/neutral), then classifies moral role based on action balance",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Characters classified by actions not descriptions",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine moral valence classification for Cathy",
+            "Verify classification is ANTAGONIST based on: murder, manipulation, prostitution",
+            "Check that 'beautiful', 'light movements' do not influence classification",
+            "Confirm key_actions field lists specific harmful acts"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Morally ambiguous characters correctly classified",
+          "steps": [
+            "Run analysis on a book with anti-hero protagonist",
+            "Verify classification is MORALLY_AMBIGUOUS when both harmful and beneficial acts present",
+            "Check that action balance determines classification",
+            "Confirm reasoning field explains the ambiguity"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/moral_valence.py",
+            "description": "NEW FILE",
+            "changes": [
+              {
+                "location": "module level",
+                "description": "Define MoralValence enum",
+                "code": "class MoralValence(str, Enum):\n    PROTAGONIST = \"protagonist\"\n    ANTAGONIST = \"antagonist\"\n    MORALLY_AMBIGUOUS = \"morally_ambiguous\"\n    NEUTRAL = \"neutral\"\n    VICTIM = \"victim\"\n    UNCERTAIN = \"uncertain\""
+              },
+              {
+                "location": "module level",
+                "description": "Define MoralValenceResult dataclass",
+                "code": "@dataclass\nclass MoralValenceResult:\n    character_name: str\n    valence: MoralValence\n    confidence: float\n    key_actions: list[dict]  # [{action, category, victim/beneficiary}]\n    evidence_quotes: list[str]\n    reasoning: str"
+              },
+              {
+                "location": "module level",
+                "description": "Define classification prompt",
+                "code": "MORAL_VALENCE_SYSTEM = '''You are a literary analyst classifying characters by MORAL ROLE based on ACTIONS.\n\nCRITICAL: Base classification on what characters DO, not how they are described.\n\nACTION CATEGORIES:\n- HARMFUL: murder, assault, manipulation, deception, cruelty, abuse, betrayal\n- BENEFICIAL: helping others, sacrifice, protection, honesty, kindness\n\nCLASSIFICATION RULES:\n1. Primarily HARMFUL actions -> ANTAGONIST\n2. Primarily BENEFICIAL actions -> PROTAGONIST\n3. Both significant HARMFUL and BENEFICIAL -> MORALLY_AMBIGUOUS\n4. Primarily NEUTRAL actions -> NEUTRAL\n\nIMPORTANT: A beautiful description does NOT make someone good.'''"
+              },
+              {
+                "location": "class",
+                "description": "Define MoralValenceClassifier class with classify_character() method"
+              }
+            ]
+          },
+          {
+            "path": "src/analyzer.py",
+            "changes": [
+              {
+                "location": "after character extraction (~line 818)",
+                "description": "Integrate moral valence classification pass before profile generation"
+              }
+            ]
+          },
+          {
+            "path": "src/pipeline/character_profiling/models.py",
+            "changes": [
+              {
+                "location": "CharacterProfile class",
+                "description": "Add moral_valence_result field to store classification output"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Action-Weighted Character Profiling",
+      "priority": "HIGH",
+      "rationale": "Profile generation prompt must explicitly prioritize actions over descriptions. Three-phase prompt structure ensures actions are extracted first, then personality derived from actions, then surface details added.",
+      "current_behavior": "Prompt mentions actions but doesn't enforce priority; descriptions can dominate",
+      "proposed_behavior": "Updated prompt establishes explicit priority hierarchy (ACTIONS > SPEECH > RELATIONSHIPS > DESCRIPTIONS) and requires personality to be derived from action analysis",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Harmful actions override positive descriptions",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine profile for Cathy",
+            "Verify personality summary leads with harmful actions (murders parents)",
+            "Check that 'beautiful' or physical descriptions do not dominate summary",
+            "Confirm moral_alignment is 'villainous' based on actions"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Action analysis phase captured in profile",
+          "steps": [
+            "Run analysis on any book",
+            "Examine character profile structure",
+            "Verify profile contains action_analysis field with categorized actions",
+            "Check that personality_from_actions derives traits from action analysis",
+            "Confirm surface details (appearance, voice) come after action-based assessment"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/generator.py",
+            "changes": [
+              {
+                "location": "PROFILE_GENERATION_SYSTEM (lines 27-40)",
+                "description": "Update to establish priority hierarchy",
+                "code": "PROFILE_GENERATION_SYSTEM = '''You are a literary analyst creating character profiles.\n\nCRITICAL PRINCIPLE: CHARACTER = ACTIONS\nA character is defined by what they DO, not how they are DESCRIBED.\n\nPRIORITY ORDER:\n1. ACTIONS (highest weight) - What the character DOES\n2. SPEECH (high weight) - What the character SAYS\n3. RELATIONSHIPS (medium weight) - How they interact\n4. DESCRIPTIONS (lowest weight) - How they LOOK\n\nIMPORTANT:\n- If actions contradict descriptions, ACTIONS WIN\n- \"Beautiful\" characters can be villains\n- Backstory explains but does NOT excuse actions'''"
+              },
+              {
+                "location": "PROFILE_GENERATION_PROMPT (lines 43-131)",
+                "description": "Update to three-phase structure requiring action analysis first"
+              },
+              {
+                "location": "generate_profile() method",
+                "description": "Accept moral_valence_result parameter and include in prompt context"
+              },
+              {
+                "location": "_parse_profile_response() method",
+                "description": "Update to handle new action_analysis and personality_from_actions fields"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Narrator Voice Detection",
+      "priority": "MEDIUM",
+      "rationale": "Strong authorial voices (Steinbeck, Dickens) provide explicit character judgments that should inform profiles. Per-character quotes plus dedicated section ensures this framing isn't lost.",
+      "current_behavior": "narrator.py detects first-person vs third-person narration but not narrator commentary content",
+      "proposed_behavior": "New detector scans for narrator commentary patterns, extracts quotes with character associations, stores both per-character and globally",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Narrator judgments captured per character",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine profile for Cathy",
+            "Verify narrator_comments field contains 'I believe there are monsters born in the world'",
+            "Check that comment_type is 'judgment' and sentiment is 'negative'",
+            "Confirm quote is associated with correct character"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Narrator commentary section in output",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine analysis.json and HTML report",
+            "Verify narrator_commentary section exists with all captured quotes",
+            "Check HTML report has dedicated 'Narrator Voice' tab",
+            "Confirm quotes show character association, type, and sentiment"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Regular narration not flagged as commentary",
+          "steps": [
+            "Run analysis on any book",
+            "Verify simple narration ('She walked to the door') is not captured",
+            "Check that only explicit judgments/asides are flagged",
+            "Confirm pre-filter patterns correctly identify candidates"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/narrator_commentary.py",
+            "description": "NEW FILE",
+            "changes": [
+              {
+                "location": "module level",
+                "description": "Define NarratorComment dataclass",
+                "code": "@dataclass\nclass NarratorComment:\n    quote: str\n    character_name: str\n    chapter_index: int\n    position: int\n    comment_type: str  # 'judgment', 'aside', 'foreshadowing'\n    sentiment: str  # 'positive', 'negative', 'neutral'"
+              },
+              {
+                "location": "module level",
+                "description": "Define NarratorCommentaryResult dataclass",
+                "code": "@dataclass\nclass NarratorCommentaryResult:\n    comments: list[NarratorComment]\n    has_significant_commentary: bool\n    narrative_voice_notes: str"
+              },
+              {
+                "location": "module level",
+                "description": "Define pre-filter regex patterns",
+                "code": "NARRATOR_PATTERNS = [\n    r'I believe\\b',\n    r'the reader\\b',\n    r'one must\\b',\n    r'in truth\\b',\n    r'it must be said\\b',\n    r'there are .* born\\b',\n    r'little did .* know\\b',\n    r'what .* did not know\\b',\n]"
+              },
+              {
+                "location": "class",
+                "description": "Define NarratorCommentaryDetector with detect() method"
+              }
+            ]
+          },
+          {
+            "path": "src/pipeline/character_profiling/models.py",
+            "changes": [
+              {
+                "location": "CharacterProfile class",
+                "description": "Add narrator_comments field",
+                "code": "narrator_comments: list[dict] = field(default_factory=list)"
+              }
+            ]
+          },
+          {
+            "path": "src/models.py",
+            "changes": [
+              {
+                "location": "AnalysisResult class",
+                "description": "Add narrator_commentary field",
+                "code": "narrator_commentary: Optional[dict] = None"
+              }
+            ]
+          },
+          {
+            "path": "src/export/html_report.py",
+            "changes": [
+              {
+                "location": "template",
+                "description": "Add Narrator Voice tab showing all captured commentary"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Disjoint Chapter Distribution Detection", "rationale": "Simplest, isolated change to existing verification"},
+    {"feature": "F3", "name": "Action-Weighted Character Profiling", "rationale": "Prompt-only changes, immediate impact on profile quality"},
+    {"feature": "F2", "name": "Moral Valence Classification Pass", "rationale": "New file + integration, provides input for F3"},
+    {"feature": "F4", "name": "Narrator Voice Detection", "rationale": "New file + model updates + HTML, most complex"}
+  ],
+  "verification_plan": {
+    "unit_tests": [
+      "Test Jaccard similarity calculation for chapter sets",
+      "Test sequential detection: max(A) < min(B) - 1",
+      "Test action categorization: murder -> HARMFUL, helping -> BENEFICIAL",
+      "Test narrator pattern regex matching",
+      "Test commentary vs regular narration distinction"
+    ],
+    "integration_tests": [
+      {
+        "name": "East of Eden analysis",
+        "steps": [
+          "Run analysis on East of Eden",
+          "Verify Cathy/Kate flagged as potential same person",
+          "Verify Cathy classified as ANTAGONIST",
+          "Verify profile leads with harmful actions",
+          "Verify 'monsters born in the world' quote captured"
+        ]
+      }
+    ],
+    "regression_tests": [
+      "Run existing test suite: pytest tests/",
+      "Compare profiles before/after on sample books",
+      "Verify no degradation in normal character handling"
+    ],
+    "manual_verification": [
+      "Review HTML report narrator voice tab",
+      "Compare Cathy profile before/after for action prioritization",
+      "Check quality report for verification issues"
+    ]
+  },
+  "affected_files_summary": [
+    "src/agents/characters.py",
+    "src/pipeline/character_profiling/generator.py",
+    "src/pipeline/character_profiling/models.py",
+    "src/models.py",
+    "src/analyzer.py",
+    "src/export/html_report.py",
+    "src/pipeline/character_profiling/moral_valence.py (NEW)",
+    "src/pipeline/character_profiling/narrator_commentary.py (NEW)"
+  ]
+}
