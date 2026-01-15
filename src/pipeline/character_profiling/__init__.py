@@ -32,6 +32,11 @@ from .moral_valence import (
     MoralValenceResult,
     MoralValenceClassifier,
 )
+from .narrator_commentary import (
+    NarratorComment,
+    NarratorCommentaryResult,
+    NarratorCommentaryDetector,
+)
 
 __all__ = [
     # Models
@@ -49,6 +54,10 @@ __all__ = [
     "MoralValence",
     "MoralValenceResult",
     "MoralValenceClassifier",
+    # Narrator Commentary
+    "NarratorComment",
+    "NarratorCommentaryResult",
+    "NarratorCommentaryDetector",
     # Components
     "SummaryDrivenCharacterIdentifier",
     "CharacterPassageGatherer",

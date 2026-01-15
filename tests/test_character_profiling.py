@@ -36,6 +36,11 @@ from src.pipeline.character_profiling.moral_valence import (
     MoralValenceResult,
     MoralValenceClassifier,
 )
+from src.pipeline.character_profiling.narrator_commentary import (
+    NarratorComment,
+    NarratorCommentaryResult,
+    NarratorCommentaryDetector,
+)
 from src.models import Character, ConfidenceLevel
 from src.pipeline.chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from src.pipeline.chapter_detection.models import ChapterMap, Chapter
@@ -1671,6 +1676,230 @@ class TestMoralValenceClassifier:
         # Verify prompt requests action classification
         assert "key_actions" in MORAL_VALENCE_PROMPT
         assert "valence" in MORAL_VALENCE_PROMPT
+
+
+class TestNarratorComment:
+    """Tests for NarratorComment dataclass (Feature F4)."""
+
+    def test_comment_creation(self):
+        """Test creating NarratorComment with all fields."""
+        comment = NarratorComment(
+            quote="I believe there are monsters born in the world.",
+            character_name="Cathy",
+            chapter_index=3,
+            position=15000,
+            comment_type="judgment",
+            sentiment="negative",
+        )
+        assert comment.quote.startswith("I believe")
+        assert comment.character_name == "Cathy"
+        assert comment.comment_type == "judgment"
+
+    def test_comment_to_dict(self):
+        """Test NarratorComment serialization."""
+        comment = NarratorComment(
+            quote="Little did he know what awaited him.",
+            character_name="Adam",
+            chapter_index=5,
+            position=25000,
+            comment_type="foreshadowing",
+            sentiment="neutral",
+        )
+        data = comment.to_dict()
+        assert data["comment_type"] == "foreshadowing"
+        assert data["character_name"] == "Adam"
+
+    def test_comment_from_dict(self):
+        """Test NarratorComment deserialization."""
+        data = {
+            "quote": "She was, in truth, a monster.",
+            "character_name": "Cathy",
+            "chapter_index": 8,
+            "position": 40000,
+            "comment_type": "judgment",
+            "sentiment": "negative",
+        }
+        comment = NarratorComment.from_dict(data)
+        assert comment.comment_type == "judgment"
+        assert comment.sentiment == "negative"
+
+
+class TestNarratorCommentaryResult:
+    """Tests for NarratorCommentaryResult dataclass (Feature F4)."""
+
+    def test_result_creation(self):
+        """Test creating NarratorCommentaryResult."""
+        result = NarratorCommentaryResult(
+            comments=[
+                NarratorComment(
+                    quote="Test quote",
+                    character_name="Test",
+                    chapter_index=1,
+                    position=100,
+                    comment_type="judgment",
+                    sentiment="negative",
+                )
+            ],
+            has_significant_commentary=True,
+            narrative_voice_notes="Strong authorial judgments",
+        )
+        assert len(result.comments) == 1
+        assert result.has_significant_commentary is True
+
+    def test_result_to_dict(self):
+        """Test NarratorCommentaryResult serialization."""
+        result = NarratorCommentaryResult(
+            comments=[],
+            has_significant_commentary=False,
+            narrative_voice_notes="No commentary",
+        )
+        data = result.to_dict()
+        assert data["has_significant_commentary"] is False
+        assert data["narrative_voice_notes"] == "No commentary"
+
+
+class TestNarratorCommentaryDetector:
+    """Tests for NarratorCommentaryDetector (Feature F4)."""
+
+    def test_detect_no_commentary(self):
+        """Test detection with text that has no commentary patterns."""
+        detector = NarratorCommentaryDetector()
+        result = detector.detect(
+            text="She walked to the door. He picked up the book.",
+            character_names=["Alice", "Bob"],
+        )
+        assert result.has_significant_commentary is False
+        assert len(result.comments) == 0
+
+    def test_detect_i_believe_pattern(self):
+        """Test detection of 'I believe' pattern."""
+        detector = NarratorCommentaryDetector()
+        text = "I believe there are monsters born in the world. Cathy was one of them."
+        result = detector.detect(
+            text=text,
+            character_names=["Cathy"],
+        )
+        assert len(result.comments) >= 1
+        # Should find the judgment about Cathy
+        cathy_comments = result.comments_by_character.get("Cathy", [])
+        # May or may not associate - depends on detection
+
+    def test_detect_little_did_pattern(self):
+        """Test detection of 'little did know' foreshadowing pattern."""
+        detector = NarratorCommentaryDetector()
+        text = "Little did Adam know what fate awaited him in the valley."
+        result = detector.detect(
+            text=text,
+            character_names=["Adam"],
+        )
+        assert len(result.comments) >= 1
+        # Should classify as foreshadowing
+        assert any(c.comment_type == "foreshadowing" for c in result.comments)
+
+    def test_detect_in_truth_pattern(self):
+        """Test detection of 'in truth' judgment pattern."""
+        detector = NarratorCommentaryDetector()
+        text = "In truth, she was far more dangerous than anyone suspected."
+        result = detector.detect(
+            text=text,
+            character_names=["Kate"],
+        )
+        assert len(result.comments) >= 1
+
+    def test_detect_with_llm(self):
+        """Test detection with LLM classification."""
+        mock_llm = MagicMock()
+        mock_llm.query_json.return_value = (
+            {
+                "commentary": [
+                    {
+                        "passage_index": 0,
+                        "is_commentary": True,
+                        "character_name": "Cathy",
+                        "comment_type": "judgment",
+                        "sentiment": "negative",
+                        "reasoning": "Narrator explicitly judges character as monster",
+                    }
+                ]
+            },
+            LLMResponse(content="...", model="test-model"),
+        )
+
+        detector = NarratorCommentaryDetector(llm_client=mock_llm)
+        text = "I believe there are monsters born in the world. Cathy was one."
+        result = detector.detect(
+            text=text,
+            character_names=["Cathy", "Adam"],
+        )
+
+        # Should have called LLM
+        mock_llm.query_json.assert_called_once()
+        assert len(result.comments) >= 1
+
+    def test_simple_narration_not_flagged(self):
+        """Test that simple narration is not flagged as commentary."""
+        detector = NarratorCommentaryDetector()
+        text = """
+        She walked to the door. He opened the window.
+        The sun was setting. Birds flew overhead.
+        She had blue eyes. He was tall and thin.
+        """
+        result = detector.detect(
+            text=text,
+            character_names=["Alice", "Bob"],
+        )
+        # Simple descriptions should not match patterns
+        assert len(result.comments) == 0
+
+    def test_narrator_patterns_compiled(self):
+        """Test that narrator patterns are properly compiled."""
+        from src.pipeline.character_profiling.narrator_commentary import (
+            NARRATOR_PATTERNS,
+            COMPILED_PATTERNS,
+        )
+        assert len(NARRATOR_PATTERNS) > 0
+        assert len(COMPILED_PATTERNS) == len(NARRATOR_PATTERNS)
+
+
+class TestCharacterProfileNarratorComments:
+    """Tests for narrator_comments field in CharacterProfile (Feature F4)."""
+
+    def test_profile_includes_narrator_comments_field(self):
+        """Test that CharacterProfile has narrator_comments field."""
+        profile = CharacterProfile(
+            id="char_test",
+            canonical_name="Test",
+            narrator_comments=[
+                {"quote": "Test quote", "sentiment": "negative"}
+            ],
+        )
+        assert len(profile.narrator_comments) == 1
+
+    def test_profile_to_dict_includes_narrator_comments(self):
+        """Test that to_dict includes narrator_comments."""
+        profile = CharacterProfile(
+            id="char_test",
+            canonical_name="Test",
+            narrator_comments=[
+                {"quote": "I believe she was evil", "sentiment": "negative"}
+            ],
+        )
+        data = profile.to_dict()
+        assert "narrator_comments" in data
+        assert len(data["narrator_comments"]) == 1
+
+    def test_profile_from_dict_includes_narrator_comments(self):
+        """Test that from_dict restores narrator_comments."""
+        data = {
+            "id": "char_test",
+            "canonical_name": "Test",
+            "narrator_comments": [
+                {"quote": "In truth, he was noble", "sentiment": "positive"}
+            ],
+        }
+        profile = CharacterProfile.from_dict(data)
+        assert len(profile.narrator_comments) == 1
+        assert profile.narrator_comments[0]["sentiment"] == "positive"
 
 
 # Integration test marker - requires actual LLM

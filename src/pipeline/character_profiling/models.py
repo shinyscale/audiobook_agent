@@ -253,6 +253,9 @@ class CharacterProfile:
     evidence: list[ProfileEvidence] = field(default_factory=list)
     confidence: float = 0.5
 
+    # Narrator Commentary (Feature F4)
+    narrator_comments: list[dict] = field(default_factory=list)  # Narrator judgments about this character
+
     # Metadata (SECONDARY)
     first_appearance_chapter: int = 1
     chapters_present: list[int] = field(default_factory=list)
@@ -273,6 +276,7 @@ class CharacterProfile:
             "relationships": [r.to_dict() for r in self.relationships],
             "evidence": [{"statement": e.statement, "quote": e.quote, "chapter": e.chapter} for e in self.evidence],
             "confidence": self.confidence,
+            "narrator_comments": self.narrator_comments,
             "metadata": {
                 "first_appearance_chapter": self.first_appearance_chapter,
                 "chapters_present": self.chapters_present,
@@ -297,6 +301,7 @@ class CharacterProfile:
             relationships=[CharacterRelationship.from_dict(r) for r in data.get("relationships", [])],
             evidence=[ProfileEvidence(e["statement"], e["quote"], e.get("chapter")) for e in data.get("evidence", [])],
             confidence=data.get("confidence", 0.5),
+            narrator_comments=data.get("narrator_comments", []),
             first_appearance_chapter=metadata.get("first_appearance_chapter", 1),
             chapters_present=metadata.get("chapters_present", []),
             mention_frequency=metadata.get("mention_frequency", "occasional"),
