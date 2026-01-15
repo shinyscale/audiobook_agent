@@ -85,7 +85,7 @@ class LLMClient:
 
         if self.config.provider == "ollama":
             import httpx
-            self._client = httpx.Client(base_url=self.config.base_url, timeout=600.0)
+            self._client = httpx.Client(base_url=self.config.base_url, timeout=1200.0)
             self._httpx = httpx  # Store for error handling
 
         elif self.config.provider == "openai":
