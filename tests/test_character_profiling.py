@@ -23,6 +23,7 @@ from src.pipeline.character_profiling import (
     character_to_rich_dict,
 )
 from src.pipeline.character_profiling.models import (
+    ActionAnalysis,
     AppearanceProfile,
     PersonalityProfile,
     VoiceGuidance,
@@ -1326,6 +1327,157 @@ class TestCharacterToRichDict:
         assert rich_dict["appearance"]["summary"] is not None
         assert rich_dict["personality"]["summary"] is not None
         assert rich_dict["voice_guidance"]["suggested_tone"] is not None
+
+
+class TestActionAnalysisModel:
+    """Tests for the ActionAnalysis model (Feature F3)."""
+
+    def test_action_analysis_creation(self):
+        """Test creating ActionAnalysis with all fields."""
+        aa = ActionAnalysis(
+            harmful_actions=["murdered parents", "manipulated others"],
+            beneficial_actions=[],
+            neutral_actions=["walked to town"],
+            dominant_pattern="harmful",
+            evidence=["She burned the house down"],
+        )
+        assert aa.dominant_pattern == "harmful"
+        assert len(aa.harmful_actions) == 2
+        assert len(aa.beneficial_actions) == 0
+
+    def test_action_analysis_to_dict(self):
+        """Test ActionAnalysis serialization."""
+        aa = ActionAnalysis(
+            harmful_actions=["murder", "manipulation"],
+            beneficial_actions=["helped a friend"],
+            dominant_pattern="mixed",
+        )
+        data = aa.to_dict()
+        assert data["harmful_actions"] == ["murder", "manipulation"]
+        assert data["beneficial_actions"] == ["helped a friend"]
+        assert data["dominant_pattern"] == "mixed"
+
+    def test_action_analysis_from_dict(self):
+        """Test ActionAnalysis deserialization."""
+        data = {
+            "harmful_actions": ["betrayal"],
+            "beneficial_actions": ["sacrifice", "protection"],
+            "neutral_actions": [],
+            "dominant_pattern": "beneficial",
+            "evidence": ["quote 1"],
+        }
+        aa = ActionAnalysis.from_dict(data)
+        assert aa.harmful_actions == ["betrayal"]
+        assert aa.beneficial_actions == ["sacrifice", "protection"]
+        assert aa.dominant_pattern == "beneficial"
+
+    def test_action_analysis_empty_factory(self):
+        """Test empty ActionAnalysis factory method."""
+        aa = ActionAnalysis.empty()
+        assert aa.harmful_actions == []
+        assert aa.beneficial_actions == []
+        assert aa.dominant_pattern == "unknown"
+
+
+class TestActionWeightedProfiling:
+    """Tests for action-weighted profiling (Feature F3)."""
+
+    def test_profile_includes_action_analysis(self):
+        """Test that CharacterProfile includes action_analysis in to_dict."""
+        profile = CharacterProfile(
+            id="char_test",
+            canonical_name="Test Character",
+            action_analysis=ActionAnalysis(
+                harmful_actions=["killed someone"],
+                dominant_pattern="harmful",
+            ),
+        )
+        data = profile.to_dict()
+        assert "action_analysis" in data
+        assert data["action_analysis"]["harmful_actions"] == ["killed someone"]
+        assert data["action_analysis"]["dominant_pattern"] == "harmful"
+
+    def test_profile_from_dict_includes_action_analysis(self):
+        """Test that CharacterProfile.from_dict restores action_analysis."""
+        data = {
+            "id": "char_test",
+            "canonical_name": "Test Character",
+            "action_analysis": {
+                "harmful_actions": ["manipulation", "deception"],
+                "beneficial_actions": [],
+                "neutral_actions": ["walked"],
+                "dominant_pattern": "harmful",
+                "evidence": [],
+            },
+        }
+        profile = CharacterProfile.from_dict(data)
+        assert profile.action_analysis.harmful_actions == ["manipulation", "deception"]
+        assert profile.action_analysis.dominant_pattern == "harmful"
+
+    def test_generator_prompt_prioritizes_actions(self):
+        """Test that the generator prompt emphasizes action-based analysis."""
+        from src.pipeline.character_profiling.generator import (
+            PROFILE_GENERATION_SYSTEM,
+            PROFILE_GENERATION_PROMPT,
+        )
+        # Verify system prompt establishes action priority
+        assert "CHARACTER = ACTIONS" in PROFILE_GENERATION_SYSTEM
+        assert "ACTIONS (highest weight)" in PROFILE_GENERATION_SYSTEM
+        assert "DESCRIPTIONS (lowest weight)" in PROFILE_GENERATION_SYSTEM
+
+        # Verify prompt includes three-phase structure
+        assert "PHASE 1: ACTION ANALYSIS" in PROFILE_GENERATION_PROMPT
+        assert "PHASE 2: PERSONALITY FROM ACTIONS" in PROFILE_GENERATION_PROMPT
+        assert "action_analysis" in PROFILE_GENERATION_PROMPT
+
+    def test_generator_parses_action_analysis(self):
+        """Test that _parse_profile_response correctly parses action_analysis."""
+        from src.pipeline.character_profiling.generator import CharacterProfileGenerator
+
+        # Mock LLM client - we won't actually use it since we're testing parsing
+        mock_llm = MagicMock()
+
+        generator = CharacterProfileGenerator(mock_llm)
+
+        # Create a base profile
+        char = IdentifiedCharacter(canonical_name="Test Villain", role="antagonist")
+        profile = CharacterProfile.from_identified(char)
+
+        # Simulate LLM response
+        result = {
+            "action_analysis": {
+                "harmful_actions": ["murdered parents", "manipulated victims"],
+                "beneficial_actions": [],
+                "neutral_actions": ["arrived at town"],
+                "dominant_pattern": "harmful",
+                "evidence": ["She set fire to the house"],
+            },
+            "personality": {
+                "summary": "A manipulative and dangerous individual",
+                "moral_alignment": "villainous",
+                "traits": ["manipulative", "cold", "calculating"],
+            },
+            "appearance": {
+                "summary": "Beautiful and poised",
+            },
+            "confidence": 0.85,
+        }
+
+        # Test the parsing directly
+        passages = [CharacterPassage(
+            text="She set fire to the house.",
+            chapter_index=1,
+            position=0,
+            name_matched="Test Villain",
+            context_type="action",
+        )]
+
+        parsed_profile = generator._parse_profile_response(profile, result, passages)
+
+        # Verify action_analysis was parsed
+        assert parsed_profile.action_analysis.dominant_pattern == "harmful"
+        assert "murdered parents" in parsed_profile.action_analysis.harmful_actions
+        assert parsed_profile.personality.moral_alignment == "villainous"
 
 
 # Integration test marker - requires actual LLM

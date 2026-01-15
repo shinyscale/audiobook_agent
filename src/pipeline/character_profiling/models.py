@@ -13,6 +13,7 @@ from pathlib import Path
 
 RoleType = Literal["protagonist", "antagonist", "supporting", "minor"]
 MentionFrequency = Literal["frequent", "moderate", "occasional", "rare"]
+DominantPattern = Literal["harmful", "beneficial", "mixed", "neutral", "unknown"]
 
 
 @dataclass
@@ -22,6 +23,39 @@ class ProfileEvidence:
     quote: str  # Supporting quote from text
     chapter: Optional[int] = None  # Chapter where quote appears
     position: Optional[int] = None  # Character position in text
+
+
+@dataclass
+class ActionAnalysis:
+    """Analysis of character actions for action-weighted profiling (Feature F3)."""
+    harmful_actions: list[str] = field(default_factory=list)  # murder, manipulation, cruelty, etc.
+    beneficial_actions: list[str] = field(default_factory=list)  # helping, protecting, kindness, etc.
+    neutral_actions: list[str] = field(default_factory=list)  # daily activities, travel, etc.
+    dominant_pattern: DominantPattern = "unknown"  # Overall action pattern
+    evidence: list[str] = field(default_factory=list)  # Supporting quotes
+
+    def to_dict(self) -> dict:
+        return {
+            "harmful_actions": self.harmful_actions,
+            "beneficial_actions": self.beneficial_actions,
+            "neutral_actions": self.neutral_actions,
+            "dominant_pattern": self.dominant_pattern,
+            "evidence": self.evidence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ActionAnalysis":
+        return cls(
+            harmful_actions=data.get("harmful_actions", []),
+            beneficial_actions=data.get("beneficial_actions", []),
+            neutral_actions=data.get("neutral_actions", []),
+            dominant_pattern=data.get("dominant_pattern", "unknown"),
+            evidence=data.get("evidence", []),
+        )
+
+    @classmethod
+    def empty(cls) -> "ActionAnalysis":
+        return cls()
 
 
 @dataclass
@@ -63,6 +97,8 @@ class PersonalityProfile:
     summary: str  # 1-2 sentence overview
     traits: list[str] = field(default_factory=list)  # "arrogant", "insecure"
     temperament: str = "unknown"  # "volatile", "calm", "anxious"
+    moral_alignment: str = "unknown"  # "heroic", "villainous", "morally ambiguous", "neutral"
+    key_behaviors: str = ""  # Description of significant actions and how they treat others
     speech_patterns: list[str] = field(default_factory=list)  # "formal", "slang"
     evidence: list[str] = field(default_factory=list)
 
@@ -71,6 +107,8 @@ class PersonalityProfile:
             "summary": self.summary,
             "traits": self.traits,
             "temperament": self.temperament,
+            "moral_alignment": self.moral_alignment,
+            "key_behaviors": self.key_behaviors,
             "speech_patterns": self.speech_patterns,
             "evidence": self.evidence,
         }
@@ -81,6 +119,8 @@ class PersonalityProfile:
             summary=data.get("summary", ""),
             traits=data.get("traits", []),
             temperament=data.get("temperament", "unknown"),
+            moral_alignment=data.get("moral_alignment", "unknown"),
+            key_behaviors=data.get("key_behaviors", ""),
             speech_patterns=data.get("speech_patterns", []),
             evidence=data.get("evidence", []),
         )
@@ -198,6 +238,9 @@ class CharacterProfile:
     is_narrator: bool = False
     narrative_role: Optional[str] = None
 
+    # Action Analysis (Feature F3 - PRIMARY for moral assessment)
+    action_analysis: ActionAnalysis = field(default_factory=ActionAnalysis.empty)
+
     # For Narration (PRIMARY PURPOSE)
     appearance: AppearanceProfile = field(default_factory=AppearanceProfile.empty)
     personality: PersonalityProfile = field(default_factory=PersonalityProfile.empty)
@@ -223,6 +266,7 @@ class CharacterProfile:
             "role": self.role,
             "is_narrator": self.is_narrator,
             "narrative_role": self.narrative_role,
+            "action_analysis": self.action_analysis.to_dict(),
             "appearance": self.appearance.to_dict(),
             "personality": self.personality.to_dict(),
             "voice_guidance": self.voice_guidance.to_dict(),
@@ -246,6 +290,7 @@ class CharacterProfile:
             role=data.get("role", "supporting"),
             is_narrator=data.get("is_narrator", False),
             narrative_role=data.get("narrative_role"),
+            action_analysis=ActionAnalysis.from_dict(data.get("action_analysis", {})),
             appearance=AppearanceProfile.from_dict(data.get("appearance", {})),
             personality=PersonalityProfile.from_dict(data.get("personality", {})),
             voice_guidance=VoiceGuidance.from_dict(data.get("voice_guidance", {})),

@@ -11,6 +11,7 @@ from typing import Optional
 from .models import (
     IdentifiedCharacter,
     CharacterProfile,
+    ActionAnalysis,
     AppearanceProfile,
     PersonalityProfile,
     VoiceGuidance,
@@ -26,13 +27,23 @@ logger = logging.getLogger(__name__)
 
 PROFILE_GENERATION_SYSTEM = """You are a literary analyst creating character profiles for audiobook narration.
 
-Your goal is to help narrators understand each character so they can voice them effectively.
+CRITICAL PRINCIPLE: CHARACTER = ACTIONS
+A character is defined by what they DO, not how they are DESCRIBED.
+A beautiful character can be a monster. A physically ugly character can be heroic.
 
-Focus on:
-1. APPEARANCE - What do they look like? (for narrator visualization)
-2. PERSONALITY - What are their core traits? (for voice characterization)
-3. VOICE - How do they speak? (for actual narration)
-4. RELATIONSHIPS - Who are they connected to? (for understanding dynamics)
+EVIDENCE PRIORITY ORDER (highest to lowest):
+1. ACTIONS (highest weight) - What the character DOES (murders, helps, betrays, protects)
+2. SPEECH (high weight) - What the character SAYS and how they say it
+3. RELATIONSHIPS (medium weight) - How they treat and interact with others
+4. DESCRIPTIONS (lowest weight) - How they LOOK or are described physically
+
+IMPORTANT RULES:
+- If actions contradict descriptions, ACTIONS WIN
+- "Beautiful" or "charming" descriptions do NOT indicate moral goodness
+- Harmful actions (murder, manipulation, cruelty, abuse) MUST dominate the profile
+- Backstory explains but does NOT excuse harmful actions
+
+Your goal is to help narrators understand each character for voice work.
 
 CRITICAL: Only include information directly supported by the provided text passages.
 Include specific quotes as evidence for each claim.
@@ -49,37 +60,47 @@ ROLE: {role}
 RELEVANT TEXT PASSAGES:
 {passages}
 
-Generate a profile covering:
+=== THREE-PHASE ANALYSIS ===
 
-1. APPEARANCE: Physical description
-   - Age indication (young adult, middle-aged, elderly, etc.)
-   - Build/stature (tall, short, thin, heavy, etc.)
-   - Distinguishing features (hair, eyes, smile, manner)
-   - General presence/how they carry themselves
+PHASE 1: ACTION ANALYSIS (Most Important)
+First, identify and categorize ALL significant actions this character takes:
+- HARMFUL: murder, assault, manipulation, deception, cruelty, abuse, betrayal, theft
+- BENEFICIAL: helping others, sacrifice, protection, honesty, kindness, healing
+- NEUTRAL: daily activities, travel, work, observation
 
-2. PERSONALITY: Character traits
-   - Core personality traits (2-5 key traits)
-   - Temperament (calm, volatile, nervous, steady)
-   - How they treat others
-   - Speech patterns (formal, casual, verbose, terse)
+PHASE 2: PERSONALITY FROM ACTIONS
+Derive personality traits from the action analysis:
+- If primarily HARMFUL actions → describe the character as villainous/antagonistic
+- If primarily BENEFICIAL actions → describe the character as heroic/protagonistic
+- If mixed significant HARMFUL and BENEFICIAL → describe as morally ambiguous
 
-3. VOICE GUIDANCE: For the narrator
-   - Suggested tone (aristocratic, working-class, nervous, confident)
-   - Dialect or accent clues (if mentioned in text)
-   - Verbal tics or catchphrases (specific words they repeat)
-   - Formality level (very formal, casual, varies)
-   - Emotional range (repressed, explosive, steady)
-   - 2-3 example dialogue quotes that capture their voice
+PHASE 3: SURFACE DETAILS (Lowest Priority)
+Only after analyzing actions, note physical appearance and other surface details.
+These should NEVER override the action-based assessment.
 
-4. RELATIONSHIPS: Key connections
-   - List important relationships (spouse, rival, friend, lover)
-   - Briefly describe the dynamic of each relationship
+=== OUTPUT FORMAT ===
 
 Return JSON in this exact format:
 ```json
 {{
+  "action_analysis": {{
+    "harmful_actions": ["specific harmful action 1", "specific harmful action 2"],
+    "beneficial_actions": ["specific beneficial action 1"],
+    "neutral_actions": ["neutral action"],
+    "dominant_pattern": "harmful/beneficial/mixed/neutral",
+    "evidence": ["quote showing action"]
+  }},
+  "personality": {{
+    "summary": "1-2 sentence overview - LEAD with action-based assessment",
+    "traits": ["trait derived from actions", "another trait from actions"],
+    "temperament": "calm/volatile/nervous/steady/etc",
+    "moral_alignment": "heroic/villainous/morally ambiguous/neutral",
+    "key_behaviors": "Description focusing on WHAT THEY DO and how they treat others",
+    "speech_patterns": ["formal", "uses slang", "interrupts"],
+    "evidence": ["quote supporting personality claim"]
+  }},
   "appearance": {{
-    "summary": "1-2 sentence physical description",
+    "summary": "1-2 sentence physical description (LOW PRIORITY)",
     "details": {{
       "age": "age indication",
       "build": "physical build",
@@ -88,13 +109,6 @@ Return JSON in this exact format:
     "age_indication": "young adult/middle-aged/elderly/unknown",
     "distinguishing_features": ["feature1", "feature2"],
     "evidence": ["quote supporting appearance claim"]
-  }},
-  "personality": {{
-    "summary": "1-2 sentence personality overview",
-    "traits": ["trait1", "trait2", "trait3"],
-    "temperament": "calm/volatile/nervous/steady/etc",
-    "speech_patterns": ["formal", "uses slang", "interrupts"],
-    "evidence": ["quote supporting personality claim"]
   }},
   "voice_guidance": {{
     "suggested_tone": "Description of how to voice this character",
@@ -115,11 +129,13 @@ Return JSON in this exact format:
 }}
 ```
 
-IMPORTANT:
+CRITICAL RULES:
+- The personality summary MUST lead with action-based traits, not physical descriptions
+- If a character murders, manipulates, or harms others, this MUST be prominent
+- "Beautiful" or "charming" descriptions do NOT make someone good
+- Appearance evidence is LOW PRIORITY - actions and behavior are HIGH PRIORITY
 - Only include information from the provided passages
 - Use "unknown" or empty values if information isn't available
-- Include actual quotes from passages as evidence
-- Focus on what helps narrators voice the character
 
 Return ONLY valid JSON. No other text."""
 
@@ -218,6 +234,17 @@ class CharacterProfileGenerator:
     ) -> CharacterProfile:
         """Parse LLM response and populate profile."""
 
+        # Parse action analysis (Feature F3 - primary for moral assessment)
+        if "action_analysis" in result:
+            aa = result["action_analysis"]
+            profile.action_analysis = ActionAnalysis(
+                harmful_actions=aa.get("harmful_actions", []),
+                beneficial_actions=aa.get("beneficial_actions", []),
+                neutral_actions=aa.get("neutral_actions", []),
+                dominant_pattern=aa.get("dominant_pattern", "unknown"),
+                evidence=aa.get("evidence", []),
+            )
+
         # Parse appearance
         if "appearance" in result:
             app = result["appearance"]
@@ -236,6 +263,8 @@ class CharacterProfileGenerator:
                 summary=pers.get("summary", ""),
                 traits=pers.get("traits", []),
                 temperament=pers.get("temperament", "unknown"),
+                moral_alignment=pers.get("moral_alignment", "unknown"),
+                key_behaviors=pers.get("key_behaviors", ""),
                 speech_patterns=pers.get("speech_patterns", []),
                 evidence=pers.get("evidence", []),
             )
