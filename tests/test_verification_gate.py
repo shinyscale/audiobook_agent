@@ -321,3 +321,139 @@ class TestRefineAutoRemoval:
 
         # Should keep both characters
         assert len(refined.data.characters) == 2
+
+
+class TestDisjointChapterDistributionCheck:
+    """Test _check_disjoint_distributions() method (Feature F1)."""
+
+    @pytest.fixture
+    def agent(self):
+        """Create a CharacterAgent for testing."""
+        return CharacterAgent()
+
+    def test_flags_sequential_disjoint_characters(self, agent):
+        """Verify sequential disjoint characters are flagged."""
+        # Cathy appears in chapters 1-10, Kate in chapters 15-25
+        characters = [
+            make_character("Cathy", chapters=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mention_count=50),
+            make_character("Kate", chapters=[15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25], mention_count=45),
+            make_character("Adam", chapters=[1, 5, 10, 15, 20, 25], mention_count=30),
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=25)
+
+        # Should flag Cathy and Kate as potentially same character
+        assert len(issues) == 1
+        assert "Cathy" in issues[0].description
+        assert "Kate" in issues[0].description
+        assert "could be same character" in issues[0].description.lower()
+        assert issues[0].severity == "warning"
+
+    def test_no_flag_for_overlapping_chapters(self, agent):
+        """Verify characters with overlapping chapters are not flagged."""
+        characters = [
+            make_character("Tom", chapters=[1, 2, 3, 4, 5], mention_count=50),
+            make_character("Daisy", chapters=[3, 4, 5, 6, 7], mention_count=40),
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=10)
+
+        # Should not flag - they have significant overlap
+        assert len(issues) == 0
+
+    def test_no_flag_for_non_sequential_disjoint(self, agent):
+        """Verify non-sequential disjoint characters are not flagged."""
+        # Character A in chapters 5-10, Character B in chapters 1-3
+        # Non-sequential because B ends before A begins, but they're interspersed
+        characters = [
+            make_character("PlotlineA", chapters=[1, 3, 5, 7, 9], mention_count=30),  # Odd chapters
+            make_character("PlotlineB", chapters=[2, 4, 6, 8, 10], mention_count=30),  # Even chapters
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=10)
+
+        # Should not flag - these are parallel plots, not sequential
+        assert len(issues) == 0
+
+    def test_no_flag_for_low_mention_count(self, agent):
+        """Verify characters with low mention counts are not checked."""
+        characters = [
+            make_character("MinorA", chapters=[1, 2, 3], mention_count=5),  # Below threshold
+            make_character("MinorB", chapters=[7, 8, 9], mention_count=5),  # Below threshold
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=10)
+
+        # Should not flag - mention counts below MIN_MENTIONS (10)
+        assert len(issues) == 0
+
+    def test_no_flag_when_already_aliases(self, agent):
+        """Verify characters that are already aliases don't get flagged."""
+        characters = [
+            make_character("Cathy", aliases=["Kate", "Catherine"], chapters=[1, 2, 3, 4, 5], mention_count=50),
+            make_character("Kate", chapters=[10, 11, 12, 13, 14, 15], mention_count=45),
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=15)
+
+        # Should not flag - Kate is already an alias of Cathy
+        assert len(issues) == 0
+
+    def test_correct_order_in_description(self, agent):
+        """Verify the earlier character is listed first in the description."""
+        # Kate appears first (chapters 1-5), Cathy later (chapters 10-15)
+        characters = [
+            make_character("Cathy", chapters=[10, 11, 12, 13, 14, 15], mention_count=50),
+            make_character("Kate", chapters=[1, 2, 3, 4, 5], mention_count=45),
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=15)
+
+        assert len(issues) == 1
+        # Kate should be listed first (earlier chapters)
+        desc = issues[0].description
+        kate_pos = desc.find("Kate")
+        cathy_pos = desc.find("Cathy")
+        assert kate_pos < cathy_pos, "Earlier character should appear first in description"
+
+    def test_jaccard_calculation(self, agent):
+        """Verify Jaccard similarity is calculated correctly."""
+        # 10% overlap should still be flagged (below 15% threshold)
+        characters = [
+            make_character("CharA", chapters=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mention_count=50),
+            make_character("CharB", chapters=[10, 20, 21, 22, 23, 24, 25, 26, 27, 28], mention_count=45),
+        ]
+
+        issues = agent._check_disjoint_distributions(characters, total_chapters=28)
+
+        # Jaccard = 1 / 19 ≈ 5% (overlap = {10}, union size = 19)
+        # But not sequential (max(A)=10, min(B)=10, so not < 10-1=9)
+        # This should NOT flag because max(set1)=10 is not < min(set2)-1 = 10-1 = 9
+        assert len(issues) == 0
+
+    def test_integration_with_verify(self, agent):
+        """Verify that verify() includes disjoint distribution check."""
+        character_map = CharacterMap(
+            characters=[
+                make_character("Cathy", chapters=[1, 2, 3, 4, 5], mention_count=50),
+                make_character("Kate", chapters=[10, 11, 12, 13, 14, 15], mention_count=45),
+            ],
+            low_confidence_characters=[],
+            total_mentions=95,
+            total_chapters=15,
+            pipeline_metadata={},
+        )
+
+        result = AgentResult(
+            data=character_map,
+            high_confidence_count=2,
+            medium_confidence_count=0,
+            low_confidence_count=0,
+            issues=[],
+        )
+
+        verification = agent.verify(result)
+
+        # Should find disjoint distribution issue
+        disjoint_issues = [i for i in verification.issues if "disjoint" in i.description.lower()]
+        assert len(disjoint_issues) == 1

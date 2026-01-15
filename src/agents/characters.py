@@ -224,14 +224,20 @@ class CharacterAgent(Agent):
         alias_issues = self._check_alias_consistency(character_map.characters)
         issues.extend(alias_issues)
 
-        # Check 6: Missing agentive descriptions (if context available)
+        # Check 6: Disjoint chapter distributions (potential name changes)
+        disjoint_issues = self._check_disjoint_distributions(
+            character_map.characters, character_map.total_chapters
+        )
+        issues.extend(disjoint_issues)
+
+        # Check 7: Missing agentive descriptions (if context available)
         if context and context.text:
             agentive_issues = self._check_missing_agentive_descriptions(
                 context.text, character_map.characters
             )
             issues.extend(agentive_issues)
 
-        # Check 7: LLM duplicate check for high-value verification
+        # Check 8: LLM duplicate check for high-value verification
         if self.config.enable_verification and self.llm and len(character_map.characters) > 1:
             llm_issues = self._llm_duplicate_check(character_map.characters)
             issues.extend(llm_issues)
@@ -492,6 +498,66 @@ class CharacterAgent(Agent):
                     severity="error",
                     suggested_fix="Remove this entry - it is not a character",
                 ))
+
+        return issues
+
+    def _check_disjoint_distributions(
+        self,
+        characters: list[Character],
+        total_chapters: int,
+    ) -> list[VerificationIssue]:
+        """
+        Check for character pairs with disjoint but sequential chapter distributions.
+
+        This pattern may indicate a character name change mid-book (e.g., marriage,
+        alias adoption, identity reveal). Characters with zero chapter overlap but
+        sequential presence should be flagged for review.
+        """
+        issues = []
+        MIN_MENTIONS = 10
+        MAX_JACCARD = 0.15
+
+        # Only check characters with significant mentions
+        significant = [c for c in characters if c.mention_count >= MIN_MENTIONS]
+
+        for i, char1 in enumerate(significant):
+            for char2 in significant[i + 1:]:
+                # Skip if already aliases of each other
+                if char2.canonical_name in char1.aliases or char1.canonical_name in char2.aliases:
+                    continue
+
+                set1, set2 = set(char1.chapters_present), set(char2.chapters_present)
+                if not set1 or not set2:
+                    continue
+
+                # Calculate Jaccard similarity
+                intersection = len(set1 & set2)
+                union = len(set1 | set2)
+                jaccard = intersection / union if union > 0 else 0
+
+                if jaccard < MAX_JACCARD:
+                    # Check if distributions are sequential (not just random non-overlap)
+                    # Sequential means one character's chapters end before the other's begin
+                    is_sequential = (max(set1) < min(set2) - 1) or (max(set2) < min(set1) - 1)
+
+                    if is_sequential:
+                        # Determine which character comes first
+                        if max(set1) < min(set2):
+                            early_char, late_char = char1.canonical_name, char2.canonical_name
+                            early_chapters, late_chapters = set1, set2
+                        else:
+                            early_char, late_char = char2.canonical_name, char1.canonical_name
+                            early_chapters, late_chapters = set2, set1
+
+                        issues.append(VerificationIssue(
+                            description=(
+                                f"Disjoint sequential chapters: '{early_char}' (chapters {min(early_chapters)}-{max(early_chapters)}) "
+                                f"and '{late_char}' (chapters {min(late_chapters)}-{max(late_chapters)}) have {jaccard:.0%} overlap - "
+                                f"could be same character under different name"
+                            ),
+                            severity="warning",
+                            suggested_fix="Review if these are the same character with a name change",
+                        ))
 
         return issues
 
