@@ -49,6 +49,26 @@ from .pipeline.llm import LLMClient, LLMConfig
 from .pipeline.metrics import MetricsCollector, ProfilingReport
 from .pipeline.overview import OverviewGenerator
 
+# Character profiling pipeline components (F1-F5)
+from .pipeline.character_profiling import (
+    # F1: Summary-driven character merge detection
+    SummaryMerger,
+    SummaryMergeResult,
+    find_summary_merges,
+    apply_summary_merges,
+    # F2: Summary evidence extraction
+    SummaryEvidenceExtractor,
+    CharacterSummaryEvidence,
+    # F3: Moral valence classification
+    MoralValence,
+    MoralValenceClassifier,
+    MoralValenceResult,
+    MORAL_VALENCE_CONSTRAINTS,
+    # F5: Tag identity propagation
+    TagIdentityExtractor,
+    extract_tag_identities,
+)
+
 # Agent imports
 from .agents import (
     StructureAgent,
@@ -815,72 +835,8 @@ class AudiobookAnalyzer:
                         char.confidence = 0.85
                     break
 
-        # Step 3.6: Generate Character Profiles
-        MIN_MENTIONS_FOR_PROFILE = 5
-        if llm:
-            print("📋 Generating character profiles...")
-            with self._metrics.stage("Character Profiles") as ctx:
-                # Set model info from LLM client config (before running)
-                if llm and llm.config:
-                    ctx.set_model(llm.config.model, llm.config.provider)
-
-                # Generate profiles for all characters with sufficient mentions
-                eligible_chars = [
-                    c for c in pipeline_char_map.characters
-                    if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
-                ]
-                logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
-                profile_count = 0
-                high_conf_count = 0
-                medium_conf_count = 0
-                low_conf_count = 0
-
-                for i, char in enumerate(eligible_chars):
-                    logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
-                    profile, evidence, confidence = self._generate_character_profile(
-                        llm, char, doc.text, chapter_map=chapter_map
-                    )
-                    if profile:
-                        char.description = profile
-                        profile_count += 1
-
-                        # Store evidence in character (will need to add evidence field to pipeline Character model)
-                        char.profile_evidence = evidence
-                        # Store profile confidence only when we successfully produced a profile.
-                        # (If profile generation fails, leave as None so we fall back to extraction confidence.)
-                        char.profile_confidence = confidence
-
-                        # Track confidence distribution
-                        if confidence >= 0.7:
-                            high_conf_count += 1
-                        elif confidence >= 0.4:
-                            medium_conf_count += 1
-                        else:
-                            low_conf_count += 1
-                            logger.warning(f"Low confidence profile for {char.canonical_name}: {confidence:.2f}")
-                    else:
-                        # Ensure "no profile" doesn't get misclassified as "medium confidence profile"
-                        # via a default profile_confidence value.
-                        char.profile_confidence = None
-                        low_conf_count += 1
-
-                    # Update real-time progress
-                    self._metrics.update_stage_progress(
-                        items_processed=i+1,
-                        high=high_conf_count,
-                        medium=medium_conf_count,
-                        low=low_conf_count
-                    )
-
-                # Record metrics with confidence breakdown
-                ctx.record_items(
-                    total=len(eligible_chars),
-                    high_confidence=high_conf_count,
-                    medium_confidence=medium_conf_count,
-                    low_confidence=low_conf_count
-                )
-
-            print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
+        # NOTE: Character profiles are now generated AFTER summaries (Step 4.5)
+        # This allows us to use summary-derived features (F1, F2, F3, F5)
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
@@ -983,6 +939,194 @@ class AudiobookAnalyzer:
         else:
             summary_map = None
             print("   ⚠️  Skipped (no LLM)")
+
+        # Step 4.5: Summary-Driven Character Merges and Profile Generation (F1, F2, F3, F5)
+        # Now that summaries are available, we can apply summary-based character merges
+        # and generate enriched profiles with moral valence constraints.
+        if summary_map and llm:
+            # F1: Summary-Driven Character Merge Detection
+            # Detects explicit identity statements like "Cathy Ames—later revealed to be Kate"
+            print("🔗 Applying summary-driven character merges (F1)...")
+            try:
+                summary_merger = SummaryMerger(llm_client=llm)
+                # Combine all chapter summaries into a plot summary
+                combined_summary = "\n\n".join([
+                    f"Chapter {s.chapter_index}: {s.summary}"
+                    for s in summary_map.summaries
+                ])
+                merge_result = summary_merger.find_identity_statements(combined_summary, use_llm=True)
+
+                if merge_result.merge_pairs:
+                    logger.info(f"F1: Found {len(merge_result.merge_pairs)} identity statements from summaries")
+                    for stmt in merge_result.statements:
+                        logger.info(f"  - '{stmt.name_a}' = '{stmt.name_b}' (pattern: {stmt.pattern_matched})")
+
+                    # Apply merges to character list
+                    original_count = len(pipeline_char_map.characters)
+                    pipeline_char_map.characters = apply_summary_merges(
+                        pipeline_char_map.characters,
+                        merge_result,
+                    )
+                    merged_count = original_count - len(pipeline_char_map.characters)
+                    if merged_count > 0:
+                        print(f"   Merged {merged_count} character(s) based on identity statements")
+                else:
+                    logger.info("F1: No explicit identity statements found in summaries")
+            except Exception as e:
+                logger.warning(f"F1 summary merger failed: {e}")
+
+            # F5: Tag Identity Propagation
+            # Detects compound character tags like "Cathy/Kate" in chapter summaries
+            print("🏷️  Extracting tag identities (F5)...")
+            try:
+                tag_extractor = TagIdentityExtractor()
+                tag_result = tag_extractor.extract(summary_map)
+
+                if tag_result.matches:
+                    logger.info(f"F5: Found {len(tag_result.matches)} compound name tags")
+                    for match in tag_result.matches:
+                        logger.info(f"  - '{match.name1}/{match.name2}' in chapter {match.chapter_index}")
+
+                    # Convert tag identity matches to merge format and apply
+                    tag_merge_pairs = [(m.name1, m.name2) for m in tag_result.matches]
+                    tag_merge_result = SummaryMergeResult(
+                        merge_pairs=tag_merge_pairs,
+                        statements=[],  # Not statement-based
+                        raw_summary="",
+                    )
+                    original_count = len(pipeline_char_map.characters)
+                    pipeline_char_map.characters = apply_summary_merges(
+                        pipeline_char_map.characters,
+                        tag_merge_result,
+                    )
+                    merged_count = original_count - len(pipeline_char_map.characters)
+                    if merged_count > 0:
+                        print(f"   Merged {merged_count} character(s) based on compound tags")
+                else:
+                    logger.info("F5: No compound name tags found")
+            except Exception as e:
+                logger.warning(f"F5 tag identity extraction failed: {e}")
+
+        # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
+        MIN_MENTIONS_FOR_PROFILE = 5
+        if llm:
+            print("📋 Generating character profiles...")
+            with self._metrics.stage("Character Profiles") as ctx:
+                # Set model info from LLM client config (before running)
+                if llm and llm.config:
+                    ctx.set_model(llm.config.model, llm.config.provider)
+
+                # F2: Initialize summary evidence extractor (if summaries available)
+                summary_evidence_extractor = None
+                if summary_map:
+                    summary_evidence_extractor = SummaryEvidenceExtractor(llm)
+                    logger.info("F2: Summary evidence extraction enabled")
+
+                # F3: Initialize moral valence classifier
+                moral_valence_classifier = MoralValenceClassifier(llm)
+                logger.info("F3: Moral valence classification enabled")
+
+                # Generate profiles for all characters with sufficient mentions
+                eligible_chars = [
+                    c for c in pipeline_char_map.characters
+                    if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
+                ]
+                logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
+                profile_count = 0
+                high_conf_count = 0
+                medium_conf_count = 0
+                low_conf_count = 0
+
+                for i, char in enumerate(eligible_chars):
+                    logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
+
+                    # F2: Extract summary evidence for this character
+                    summary_evidence = None
+                    if summary_evidence_extractor and summary_map:
+                        try:
+                            summary_evidence = summary_evidence_extractor.extract_evidence(
+                                char.canonical_name,
+                                char.aliases,
+                                summary_map,
+                            )
+                            if summary_evidence.evidence:
+                                logger.debug(
+                                    f"F2: Found {len(summary_evidence.evidence)} summary evidence items "
+                                    f"for {char.canonical_name}"
+                                )
+                        except Exception as e:
+                            logger.warning(f"F2: Summary evidence extraction failed for {char.canonical_name}: {e}")
+
+                    # F3: Classify moral valence to constrain profile generation
+                    moral_valence = None
+                    try:
+                        # Get character role from extraction (if available)
+                        role = "supporting"  # Default
+                        # Gather some context passages for valence classification
+                        char_contexts = []
+                        for mention in char.mentions[:10]:  # Sample up to 10 mentions
+                            start = max(0, mention.position - 200)
+                            end = min(len(doc.text), mention.position + 200)
+                            char_contexts.append(doc.text[start:end])
+
+                        moral_valence = moral_valence_classifier.classify_character(
+                            char.canonical_name,
+                            role,
+                            char_contexts,
+                        )
+                        if moral_valence:
+                            logger.debug(
+                                f"F3: Moral valence for {char.canonical_name}: "
+                                f"{moral_valence.valence.value} (confidence={moral_valence.confidence:.2f})"
+                            )
+                    except Exception as e:
+                        logger.warning(f"F3: Moral valence classification failed for {char.canonical_name}: {e}")
+
+                    # Generate profile with enhanced context
+                    profile, evidence, confidence = self._generate_character_profile(
+                        llm, char, doc.text,
+                        chapter_map=chapter_map,
+                        summary_evidence=summary_evidence,
+                        moral_valence=moral_valence,
+                    )
+
+                    if profile:
+                        char.description = profile
+                        profile_count += 1
+
+                        # Store evidence in character
+                        char.profile_evidence = evidence
+                        char.profile_confidence = confidence
+
+                        # Track confidence distribution
+                        if confidence >= 0.7:
+                            high_conf_count += 1
+                        elif confidence >= 0.4:
+                            medium_conf_count += 1
+                        else:
+                            low_conf_count += 1
+                            logger.warning(f"Low confidence profile for {char.canonical_name}: {confidence:.2f}")
+                    else:
+                        char.profile_confidence = None
+                        low_conf_count += 1
+
+                    # Update real-time progress
+                    self._metrics.update_stage_progress(
+                        items_processed=i+1,
+                        high=high_conf_count,
+                        medium=medium_conf_count,
+                        low=low_conf_count
+                    )
+
+                # Record metrics with confidence breakdown
+                ctx.record_items(
+                    total=len(eligible_chars),
+                    high_confidence=high_conf_count,
+                    medium_confidence=medium_conf_count,
+                    low_confidence=low_conf_count
+                )
+
+            print(f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters")
 
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
@@ -1224,8 +1368,18 @@ class AudiobookAnalyzer:
         character,
         full_text: str,
         chapter_map: Optional["ChapterMap"] = None,
+        summary_evidence: Optional["CharacterSummaryEvidence"] = None,
+        moral_valence: Optional["MoralValenceResult"] = None,
     ) -> tuple[str, list[dict], float]:
         """Generate prose profile for a character using LLM with evidence grounding.
+
+        Args:
+            llm: LLM client for generation
+            character: Character to profile
+            full_text: Full document text
+            chapter_map: Chapter boundaries (optional)
+            summary_evidence: F2 - Evidence extracted from chapter summaries (optional)
+            moral_valence: F3 - Moral valence classification result (optional)
 
         Returns:
             tuple: (profile_text, evidence_list, confidence_score)
@@ -1339,10 +1493,38 @@ class AudiobookAnalyzer:
         if hasattr(character, 'is_narrator') and character.is_narrator:
             narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
 
+        # F2: Build summary evidence section if available
+        summary_evidence_text = ""
+        if summary_evidence and summary_evidence.evidence:
+            evidence_lines = []
+            for ev in summary_evidence.evidence[:5]:  # Limit to top 5 items
+                evidence_lines.append(f"- Chapter {ev.chapter_index}: \"{ev.statement}\"")
+            if evidence_lines:
+                summary_evidence_text = f"""
+
+ADDITIONAL CONTEXT FROM CHAPTER SUMMARIES (Feature F2):
+The following information about this character was extracted from chapter summaries:
+{chr(10).join(evidence_lines)}
+
+Use this summary evidence to enrich your profile, but prioritize direct text quotes as primary evidence."""
+
+        # F3: Build moral valence constraint if available
+        moral_valence_constraint = ""
+        if moral_valence and moral_valence.valence:
+            constraint = MORAL_VALENCE_CONSTRAINTS.get(moral_valence.valence, "")
+            if constraint:
+                moral_valence_constraint = f"""
+
+MORAL VALENCE CONSTRAINT (Feature F3):
+This character has been classified as {moral_valence.valence.value} (confidence: {moral_valence.confidence:.0%}).
+{constraint}
+
+This is a HARD CONSTRAINT - your profile MUST respect this classification."""
+
         prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
 
 The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
-Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}
+Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{summary_evidence_text}{moral_valence_constraint}
 
 Text Evidence:
 {context_text}

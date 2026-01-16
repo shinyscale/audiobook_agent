@@ -1916,8 +1916,8 @@ class AudiobookPrepGUI:
         self.generate_html = tk.BooleanVar(value=True)
         self.wpm = tk.IntVar(value=150)
         self.use_llm = tk.BooleanVar(value=True)
-        self.debug_logging = tk.BooleanVar(value=False)
-        self.verbose_logging = tk.BooleanVar(value=False)
+        self.debug_logging = tk.BooleanVar(value=True)
+        self.verbose_logging = tk.BooleanVar(value=True)
 
         self.analysis_result: Optional[AnalysisResult] = None
         self._last_run_dir: Optional[Path] = None  # Per-run output directory

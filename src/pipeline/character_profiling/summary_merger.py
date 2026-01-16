@@ -16,7 +16,7 @@ Feature F1 from character-profiling-enhancements-v2.prd.json
 import re
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from ..llm import LLMClient, LLMResponse
 
@@ -320,7 +320,7 @@ def apply_summary_merges(
         return characters
 
     # Build a lookup for characters by name (including aliases)
-    name_to_char: dict[str, any] = {}
+    name_to_char: dict[str, Any] = {}
     for char in characters:
         name_to_char[char.canonical_name.lower()] = char
         for alias in getattr(char, 'aliases', []):

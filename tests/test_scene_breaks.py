@@ -256,8 +256,8 @@ class TestConsensusIntegration:
             reasoning="Test profile",
         )
 
-    def test_filters_proposals_near_scene_breaks(self):
-        """Proposals near scene breaks are filtered out by consensus builder."""
+    def test_scene_break_proposals_not_filtered(self):
+        """Proposals near scene breaks are NOT filtered - scene breaks near chapters are decorative."""
         from src.pipeline.chapter_detection.consensus import ConsensusBuilder
 
         # Create text with a scene break - needs to be long enough to pass size validation
@@ -297,10 +297,12 @@ Chapter two content here. A new chapter begins.
         builder = ConsensusBuilder(llm_client=None)
         result = builder.build_consensus(proposals, text, profile)
 
-        # Should have 2 chapters (I and II), not 3 (scene break filtered)
-        assert len(result.chapters) == 2
+        # Scene break proposals are NOT filtered out - we keep all 3 proposals
+        # In real usage, the regex proposer won't create proposals for "-----" lines,
+        # but if an LLM does, we don't filter it based on scene break proximity alone
+        assert len(result.chapters) == 3
         assert result.chapters[0].title == "I"
-        assert result.chapters[1].title == "II"
+        assert result.chapters[2].title == "II"
 
     def test_no_filtering_without_scene_breaks(self):
         """Text without scene breaks doesn't filter any proposals."""

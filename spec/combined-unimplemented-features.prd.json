@@ -410,7 +410,7 @@
         "src/gui/desktop.py",
         "src/gui/tui.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F29",
@@ -423,7 +423,7 @@
       "files": [
         "src/gui/pronunciation_dialog.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F30",
@@ -436,7 +436,7 @@
       "files": [
         "src/export/pronunciation_html.py (NEW)"
       ],
-      "passes": false
+      "passes": true
     }
   ],
   "phases": {

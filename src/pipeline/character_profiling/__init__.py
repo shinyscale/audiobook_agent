@@ -31,6 +31,7 @@ from .moral_valence import (
     MoralValence,
     MoralValenceResult,
     MoralValenceClassifier,
+    MORAL_VALENCE_CONSTRAINTS,
 )
 from .narrator_commentary import (
     NarratorComment,
@@ -75,6 +76,7 @@ __all__ = [
     "MoralValence",
     "MoralValenceResult",
     "MoralValenceClassifier",
+    "MORAL_VALENCE_CONSTRAINTS",
     # Narrator Commentary
     "NarratorComment",
     "NarratorCommentaryResult",

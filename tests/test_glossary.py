@@ -230,3 +230,118 @@ class TestGlossaryMap:
 
         non_empty = GlossaryMap(entries=[ModelEntry(term="Test", definition="Def")])
         assert non_empty.is_empty is False
+
+
+class TestGlossaryRegionDetection:
+    """Test that glossary regions are detected with various title formats."""
+
+    def test_detect_descriptive_glossary_title(self):
+        """Test detection of glossary with descriptive title like 'Glossary of War Lingo...'"""
+        from src.ingestion.regions import RegionDetector
+
+        # Back matter must be > 500 chars for detection to trigger
+        text = """
+Chapter 10
+
+The story ends here.
+
+Glossary of War Lingo, Acronyms, Weapons, and Terminology
+
+AK-47: A Soviet-designed assault rifle, widely used in conflicts around the world since its introduction in 1947.
+AWOL: Absent Without Official Leave, referring to military personnel who leave without permission from their commanding officer.
+Bunker: A fortified underground shelter used for protection during combat operations and bombardment.
+Charlie: Military slang term used during the Vietnam War to refer to enemy combatants in the field.
+Delta: Special forces unit designation, also the fourth letter of the NATO phonetic alphabet used in communications.
+Echo: The fifth letter of the NATO phonetic alphabet, commonly used in military radio communications worldwide.
+"""
+        # Provide chapter info so region detector knows where back matter starts
+        chapter_end = text.index("Glossary of War")
+        chapters = [{"start_pos": 0, "end_pos": chapter_end, "title": "Chapter 10"}]
+
+        detector = RegionDetector()
+        regions = detector.detect_regions(text, chapters=chapters)
+
+        # Find glossary region
+        glossary_regions = [r for r in regions if r.label == "glossary"]
+        assert len(glossary_regions) == 1, "Should detect glossary with descriptive title"
+
+    def test_detect_glossary_with_colon(self):
+        """Test detection of glossary title with colon."""
+        from src.ingestion.regions import RegionDetector
+
+        text = """
+Chapter 5
+
+Story content.
+
+Glossary:
+
+Term1: Definition one that has enough content to be valid and useful for readers who need context.
+Term2: Definition two that has enough content to be valid and provides meaningful explanation for the term.
+Term3: Definition three that has enough content to be valid with additional context and examples.
+Term4: Definition four with comprehensive explanation of the concept and its usage in the narrative.
+Term5: Definition five providing thorough explanation of terminology used throughout the story text.
+Term6: Definition six with detailed description of the term and how it relates to the plot elements.
+"""
+        chapter_end = text.index("Glossary:")
+        chapters = [{"start_pos": 0, "end_pos": chapter_end, "title": "Chapter 5"}]
+
+        detector = RegionDetector()
+        regions = detector.detect_regions(text, chapters=chapters)
+
+        glossary_regions = [r for r in regions if r.label == "glossary"]
+        assert len(glossary_regions) == 1, "Should detect glossary with colon"
+
+    def test_detect_standalone_glossary(self):
+        """Test detection of standalone 'Glossary' title."""
+        from src.ingestion.regions import RegionDetector
+
+        text = """
+Chapter 1
+
+Content here.
+
+Glossary
+
+Alpha: The first letter of the Greek alphabet used in military communication and scientific notation worldwide.
+Bravo: The second letter used in the phonetic alphabet for clarity in radio transmissions and verbal communication.
+Charlie: The third letter in the NATO phonetic alphabet system, also used as military slang for enemy combatants.
+Delta: The fourth letter representing change in mathematics and science, also a special forces designation.
+Echo: The fifth letter of the phonetic alphabet, also referring to sound reflection in acoustic environments.
+Foxtrot: The sixth letter used in communications, also a ballroom dance style originating in the early 1900s.
+"""
+        chapter_end = text.index("\nGlossary\n")
+        chapters = [{"start_pos": 0, "end_pos": chapter_end, "title": "Chapter 1"}]
+
+        detector = RegionDetector()
+        regions = detector.detect_regions(text, chapters=chapters)
+
+        glossary_regions = [r for r in regions if r.label == "glossary"]
+        assert len(glossary_regions) == 1, "Should detect standalone glossary"
+
+    def test_glossary_of_terms_pattern(self):
+        """Test detection of 'Glossary of Terms' pattern."""
+        from src.ingestion.regions import RegionDetector
+
+        text = """
+Epilogue
+
+The end.
+
+Glossary of Terms
+
+Widget: A small mechanical device used in various industrial applications for automated processes and manufacturing.
+Gadget: An electronic tool designed for specific technological purposes in consumer and professional settings.
+Gizmo: A colloquial term for any small or novel device or mechanism with interesting or unusual functionality.
+Doohickey: An informal name for a small object or gadget whose proper name is unknown or forgotten by the speaker.
+Thingamajig: Another informal term used when the actual name of an object escapes the speaker during conversation.
+Whatchamacallit: A placeholder name for items when the correct terminology is not readily available or remembered.
+"""
+        chapter_end = text.index("Glossary of Terms")
+        chapters = [{"start_pos": 0, "end_pos": chapter_end, "title": "Epilogue"}]
+
+        detector = RegionDetector()
+        regions = detector.detect_regions(text, chapters=chapters)
+
+        glossary_regions = [r for r in regions if r.label == "glossary"]
+        assert len(glossary_regions) == 1, "Should detect 'Glossary of Terms'"

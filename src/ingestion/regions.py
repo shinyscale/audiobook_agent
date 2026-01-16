@@ -96,7 +96,7 @@ BACK_MATTER_PATTERNS = [
     (re.compile(r"(?im)^\s*discussion\s+questions", re.MULTILINE), "reading_guide", 0.95),
     (re.compile(r"(?im)^\s*(excerpt|sneak\s+peek|preview)\s+from", re.MULTILINE), "excerpt", 0.95),
     (re.compile(r"(?im)^\s*(appendix|appendices)\s*(:|$)", re.MULTILINE), "appendix", 0.85),
-    (re.compile(r"(?im)^\s*glossary\s*$", re.MULTILINE), "glossary", 0.9),
+    (re.compile(r"(?im)^\s*glossary(\s+of\s+.+|\s*:|\s*)$", re.MULTILINE), "glossary", 0.9),
     (re.compile(r"(?im)^\s*index\s*$", re.MULTILINE), "index", 0.9),
     (re.compile(r"(?im)^\s*(notes|endnotes|references|bibliography)\s*$", re.MULTILINE), "endnotes", 0.85),
 ]

@@ -1,0 +1,338 @@
+{
+  "prd": {
+    "title": "Character Profiling Enhancements v2: Summary-to-Profile Pipeline",
+    "version": "2.0",
+    "status": "Draft",
+    "priority": "Critical",
+    "target": "Ensure summarized character understanding flows into character profiles"
+  },
+  "executive_summary": "After implementing v1 enhancements (disjoint distribution detection, moral valence classification, action-weighted profiling, narrator voice detection), a critical gap remains: the chapter summarization pipeline correctly understands characters (e.g., 'Cathy Ames—later revealed to be the cruel brothel madam Kate'), but this understanding does NOT flow into character profiles. The result is four separate profiles for the same person (Kate, Cathy, Catherine Amesbury, Cathy Trask) with Kate's profile containing zero mention of murder, arson, poisoning, or abandonment. This PRD addresses the missing link between summaries and profiles.",
+  "problem_statement": {
+    "assessment": "Progress Made, Core Problem Persists",
+    "whats_improved": [
+      "Book summary is excellent - correctly identifies 'Cathy Ames—later revealed to be the cruel brothel madam Kate'",
+      "Chapter summaries capture villainy - house fire with bloodstained clues, poisoning Faye with nux vomica",
+      "One chapter tag shows the link - Chapter 24 has 'Cathy/Kate' tag",
+      "Samuel revealing Cathy's identity as 'the cruel brothel owner Kate' in Chapter 24 summary"
+    ],
+    "core_problem": "Character Profiles Didn't Get the Memo",
+    "current_failures": [
+      {
+        "issue": "Same person split into 4 profiles",
+        "example": "Kate (417 mentions), Cathy (191 mentions), Catherine Amesbury (21 mentions), Cathy Trask (in tags)",
+        "root_cause": "Character extraction/profiling runs independently of summarization understanding",
+        "impact": "Critical character fragmented, no unified profile"
+      },
+      {
+        "issue": "Profile contains no crimes",
+        "example": "Kate profile: 'highly effective, composed... manages household affairs with precision'",
+        "root_cause": "Profiler works from raw text extraction, not summarized understanding",
+        "impact": "Serial killer described as efficient household manager"
+      },
+      {
+        "issue": "Disjoint distribution check not triggering",
+        "example": "Cathy appears briefly in later chapters when characters discuss her",
+        "root_cause": "Pattern broken by discussion mentions, not strict chapter separation",
+        "impact": "Merge heuristic fails, characters remain separate"
+      },
+      {
+        "issue": "Moral valence not reaching profiles",
+        "example": "Summaries know Kate poisoned Faye, but evidence list shows 'Kate improves household efficiency'",
+        "root_cause": "No pipeline from summary moral understanding to profile generation",
+        "impact": "Monster described as helpful"
+      },
+      {
+        "issue": "Monster framing buried",
+        "example": "Evidence mentions Cathy 'described as a monster' but doesn't affect profile description",
+        "root_cause": "Moral classification not constraining profile generation",
+        "impact": "Authorial condemnation ignored"
+      }
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Summary-Driven Character Merge",
+      "priority": "CRITICAL",
+      "rationale": "The book summary already correctly identifies character identity relationships. This is the most reliable source of truth for merging.",
+      "current_behavior": "Character merging uses disjoint distribution, shared name components, and LLM pairwise checks - all operating on raw extraction data",
+      "proposed_behavior": "Parse the book summary for explicit identity statements ('A is later known as B', 'A—later revealed to be B', 'A who becomes B') and force-merge those characters regardless of distribution patterns",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Explicit identity statements in book summary trigger forced merge",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine book summary for identity statements",
+            "Verify 'Cathy Ames—later revealed to be the cruel brothel madam Kate' is detected",
+            "Check that Cathy and Kate are merged into single character entry",
+            "Confirm merge happens even though Cathy appears in later chapters"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Summary-driven merge takes precedence over distribution heuristics",
+          "steps": [
+            "Run analysis on book where same character discussed under old name in later chapters",
+            "Verify summary identity statement overrides disjoint distribution rejection",
+            "Check that forced merge is logged with source evidence",
+            "Confirm canonical name selection uses most-mentioned form"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/summary_merger.py",
+            "description": "NEW FILE: SummaryDrivenMerger class",
+            "changes": [
+              {
+                "location": "module level",
+                "description": "Identity extraction patterns",
+                "code": "IDENTITY_PATTERNS = [\n    r'([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)\\s*[—–-]+\\s*(?:later\\s+)?(?:revealed|known)\\s+(?:to\\s+be|as)\\s+(?:the\\s+)?([A-Z][a-z]+)',\n    r'([A-Z][a-z]+)\\s+(?:who|that)\\s+(?:later\\s+)?(?:becomes|is\\s+known\\s+as)\\s+([A-Z][a-z]+)',\n    r'([A-Z][a-z]+),?\\s+(?:also|formerly)\\s+(?:known|called)\\s+as\\s+([A-Z][a-z]+)',\n    r'([A-Z][a-z]+)\\s+\\((?:later|aka|a\\.?k\\.?a\\.?)\\s+([A-Z][a-z]+)\\)',\n]"
+              },
+              {
+                "location": "class",
+                "description": "SummaryDrivenMerger with extract_identity_pairs() and force_merge_characters() methods"
+              }
+            ]
+          },
+          {
+            "path": "src/analyzer.py",
+            "changes": [
+              {
+                "location": "after character extraction, before profile generation",
+                "description": "Integrate summary-driven merge step",
+                "code": "# After generating book summary, before character profiling:\nmerger = SummaryDrivenMerger()\nidentity_pairs = merger.extract_identity_pairs(book_summary)\nif identity_pairs:\n    logger.info(f'Summary-driven merge: found {len(identity_pairs)} identity pairs')\n    characters = merger.force_merge_characters(characters, identity_pairs)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Summary-Derived Profile Evidence",
+      "priority": "CRITICAL",
+      "rationale": "Chapter summaries already contain accurate moral/action information. This must flow into profile evidence, not just raw text mentions.",
+      "current_behavior": "Profile evidence gathered from raw text extraction - finds 'Kate improves household efficiency' instead of 'Kate poisoned Faye'",
+      "proposed_behavior": "Extract character-specific statements from chapter summaries and include them as PRIMARY evidence in profile generation, ranked above raw text mentions",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Chapter summary statements appear in profile evidence",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Examine Kate's profile evidence list",
+            "Verify evidence includes 'poisoning Faye with nux vomica and croton oil' from Ch.19 summary",
+            "Verify evidence includes 'house fire with bloodstained clues' from Ch.7 summary",
+            "Confirm summary-derived evidence is ranked higher than raw mentions"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Summary evidence shapes profile description",
+          "steps": [
+            "Run analysis where summaries capture character crimes",
+            "Verify profile description reflects crimes, not just surface traits",
+            "Check that 'manages household affairs with precision' does NOT dominate",
+            "Confirm profile mentions murder, arson, poisoning when summaries document these"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/summary_evidence.py",
+            "description": "NEW FILE: SummaryEvidenceExtractor class",
+            "changes": [
+              {
+                "location": "class",
+                "description": "Extract character-specific statements from chapter summaries",
+                "code": "class SummaryEvidenceExtractor:\n    def extract_character_evidence(\n        self,\n        character_name: str,\n        aliases: list[str],\n        chapter_summaries: list[ChapterSummary]\n    ) -> list[SummaryEvidence]:\n        '''Extract statements about this character from all chapter summaries.'''\n        evidence = []\n        all_names = [character_name] + aliases\n        \n        for summary in chapter_summaries:\n            for sentence in self._split_sentences(summary.text):\n                if any(name.lower() in sentence.lower() for name in all_names):\n                    evidence.append(SummaryEvidence(\n                        text=sentence,\n                        chapter_index=summary.chapter_index,\n                        source='chapter_summary',\n                        priority=1  # Higher priority than raw mentions\n                    ))\n        return evidence"
+              }
+            ]
+          },
+          {
+            "path": "src/pipeline/character_profiling/generator.py",
+            "changes": [
+              {
+                "location": "generate_profile() method",
+                "description": "Include summary evidence in profile generation prompt",
+                "code": "# Gather summary-derived evidence (priority over raw mentions)\nsummary_evidence = self.evidence_extractor.extract_character_evidence(\n    character.canonical_name,\n    character.aliases,\n    chapter_summaries\n)\n\n# Include in prompt with explicit priority instruction\nprompt += f'''\n\nSUMMARY-DERIVED EVIDENCE (HIGHEST PRIORITY - from chapter summaries):\n{self._format_summary_evidence(summary_evidence)}\n\nRAW TEXT MENTIONS (LOWER PRIORITY):\n{self._format_raw_mentions(raw_mentions)}\n\nIMPORTANT: Summary evidence reflects verified understanding of the narrative.\nPrioritize summary evidence over raw mentions when they conflict.\n'''"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Moral Valence Propagation to Profiles",
+      "priority": "HIGH",
+      "rationale": "The moral valence classification pass (v1 F2) produces accurate classifications, but they don't constrain profile generation. A character classified as ANTAGONIST should not be described as 'helpful'.",
+      "current_behavior": "Moral valence classification runs, but profile generation prompt doesn't receive or enforce the classification result",
+      "proposed_behavior": "Pass moral valence result to profile generator as a HARD CONSTRAINT. Profile must be consistent with classification.",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "ANTAGONIST classification constrains profile description",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Verify Kate/Cathy is classified as ANTAGONIST by moral valence pass",
+            "Examine generated profile",
+            "Verify profile does NOT describe her as 'effective', 'composed', 'helpful'",
+            "Confirm profile reflects antagonist classification with appropriate language"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Moral valence evidence surfaces in profile",
+          "steps": [
+            "Run analysis on morally complex character",
+            "Verify key_actions from moral valence result appear in profile",
+            "Check that 'monster' description from text appears prominently",
+            "Confirm profile includes moral assessment section with evidence"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/generator.py",
+            "changes": [
+              {
+                "location": "PROFILE_GENERATION_SYSTEM prompt",
+                "description": "Add moral valence constraint section",
+                "code": "MORAL_CONSTRAINT_TEMPLATE = '''\nMORAL CLASSIFICATION (HARD CONSTRAINT):\nThis character has been classified as: {valence}\nKey actions supporting this classification:\n{key_actions}\n\nYour profile description MUST be consistent with this classification.\n- If ANTAGONIST: Do NOT use positive descriptors like 'effective', 'helpful', 'composed'\n- If ANTAGONIST: DO emphasize harmful actions, manipulation, cruelty\n- Evidence of being called a 'monster' or similar MUST appear prominently\n'''"
+              },
+              {
+                "location": "generate_profile() method",
+                "description": "Include moral valence result as constraint",
+                "code": "if moral_valence_result and moral_valence_result.valence == MoralValence.ANTAGONIST:\n    prompt += MORAL_CONSTRAINT_TEMPLATE.format(\n        valence=moral_valence_result.valence.value,\n        key_actions='\\n'.join(f\"- {a['action']} ({a['category']})\" for a in moral_valence_result.key_actions)\n    )"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Relaxed Disjoint Distribution Heuristic",
+      "priority": "HIGH",
+      "rationale": "Current disjoint check requires STRICT separation. Characters discussed by name in later chapters break this pattern even though they're the same person.",
+      "current_behavior": "Disjoint detection requires max(chapters_A) < min(chapters_B) - 1, fails when character is mentioned in discussion",
+      "proposed_behavior": "Use DOMINANT chapter ranges instead of strict separation. If 80%+ of Character A's mentions are before 80%+ of Character B's mentions, flag for review.",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Dominant chapter pattern detected despite overlap",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Note that Cathy has mentions in later chapters (when discussed)",
+            "Verify system still flags Cathy/Kate as potential same person",
+            "Check that 80% threshold correctly identifies dominant ranges",
+            "Confirm flag triggers even without strict disjoint separation"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/agents/characters.py",
+            "changes": [
+              {
+                "location": "_check_disjoint_distributions() method",
+                "description": "Replace strict separation with dominant range check",
+                "code": "def _check_disjoint_distributions(self, characters, total_chapters):\n    # ... existing setup ...\n    \n    # NEW: Dominant range check instead of strict separation\n    def get_dominant_range(chapters, threshold=0.8):\n        '''Get chapter range containing threshold% of mentions.'''\n        if not chapters:\n            return None, None\n        sorted_ch = sorted(chapters)\n        n = len(sorted_ch)\n        target = int(n * threshold)\n        # Find smallest window containing target mentions\n        best_start, best_end = sorted_ch[0], sorted_ch[-1]\n        for i in range(n - target + 1):\n            window = sorted_ch[i:i+target]\n            if window[-1] - window[0] < best_end - best_start:\n                best_start, best_end = window[0], window[-1]\n        return best_start, best_end\n    \n    # Check if dominant ranges are sequential\n    start1, end1 = get_dominant_range(chapters1)\n    start2, end2 = get_dominant_range(chapters2)\n    \n    if start1 and start2:\n        # Sequential if dominant ranges don't overlap\n        is_sequential = (end1 < start2 - 1) or (end2 < start1 - 1)\n        if is_sequential:\n            issues.append(VerificationIssue(...))"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "Chapter Tag Identity Propagation",
+      "priority": "MEDIUM",
+      "rationale": "Chapter tags already show 'Cathy/Kate' in some chapters, indicating the system recognized the connection. This should propagate to character merging.",
+      "current_behavior": "Chapter tags are generated but not used for character identity resolution",
+      "proposed_behavior": "Parse chapter tags for compound names (A/B format) and use as merge signals",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Compound chapter tags trigger merge consideration",
+          "steps": [
+            "Run analysis on East of Eden",
+            "Find Chapter 24 tag 'Cathy/Kate'",
+            "Verify this compound tag is detected as identity signal",
+            "Check that Cathy and Kate are flagged for merge based on tag",
+            "Confirm tag evidence appears in merge reasoning"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_profiling/tag_identity.py",
+            "description": "NEW FILE: TagIdentityExtractor class",
+            "changes": [
+              {
+                "location": "class",
+                "description": "Extract identity pairs from compound chapter tags",
+                "code": "class TagIdentityExtractor:\n    COMPOUND_PATTERN = re.compile(r'([A-Z][a-z]+)/([A-Z][a-z]+)')\n    \n    def extract_identity_pairs(self, chapters: list[Chapter]) -> list[tuple[str, str]]:\n        '''Find compound tags like 'Cathy/Kate' indicating same person.'''\n        pairs = []\n        for chapter in chapters:\n            for tag in chapter.tags:\n                match = self.COMPOUND_PATTERN.search(tag)\n                if match:\n                    pairs.append((match.group(1), match.group(2)))\n        return list(set(pairs))"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Summary-Driven Character Merge", "rationale": "Highest impact - directly solves the 4-profile problem"},
+    {"feature": "F2", "name": "Summary-Derived Profile Evidence", "rationale": "Ensures crimes appear in profile evidence"},
+    {"feature": "F3", "name": "Moral Valence Propagation to Profiles", "rationale": "Constrains profile tone to match classification"},
+    {"feature": "F4", "name": "Relaxed Disjoint Distribution Heuristic", "rationale": "Catches more name-change cases"},
+    {"feature": "F5", "name": "Chapter Tag Identity Propagation", "rationale": "Uses existing signals that are being ignored"}
+  ],
+  "verification_plan": {
+    "primary_test": {
+      "name": "East of Eden Cathy/Kate unification",
+      "steps": [
+        "Run analysis on East of Eden",
+        "Verify SINGLE character entry for Cathy/Kate (not 4 separate)",
+        "Verify profile includes: murder, arson, poisoning, shooting Adam, abandoning children",
+        "Verify profile does NOT say 'manages household affairs with precision'",
+        "Verify moral classification is ANTAGONIST",
+        "Verify 'monster' framing appears prominently in profile"
+      ]
+    },
+    "regression_tests": [
+      "Run existing test suite: pytest tests/",
+      "Verify Gatsby characters still correct (no over-merging)",
+      "Verify Frankenstein creature handling unchanged"
+    ],
+    "success_metrics": [
+      "East of Eden: 1 character entry for Cathy/Kate (was 4)",
+      "Kate profile mentions 3+ crimes (was 0)",
+      "Kate profile moral tone: negative (was neutral/positive)",
+      "'Monster' appears in profile or evidence (was buried)"
+    ]
+  },
+  "affected_files_summary": [
+    "src/pipeline/character_profiling/summary_merger.py (NEW)",
+    "src/pipeline/character_profiling/summary_evidence.py (NEW)",
+    "src/pipeline/character_profiling/tag_identity.py (NEW)",
+    "src/pipeline/character_profiling/generator.py",
+    "src/agents/characters.py",
+    "src/analyzer.py"
+  ]
+}

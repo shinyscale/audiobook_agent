@@ -421,7 +421,42 @@ class LLMClient:
                 except json.JSONDecodeError:
                     continue
 
+        # Try to repair common JSON issues
+        repaired = self._repair_json(text)
+        if repaired:
+            return repaired
+
         return None
+
+    def _repair_json(self, text: str) -> Optional[dict]:
+        """Attempt to repair common JSON formatting issues from LLMs."""
+        # Find potential JSON object
+        match = re.search(r"\{[\s\S]*\}", text)
+        if not match:
+            return None
+
+        json_str = match.group()
+
+        # Common repairs:
+        # 1. Remove trailing commas before } or ]
+        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+
+        # 2. Fix unquoted keys (word: value -> "word": value)
+        json_str = re.sub(r'(\{|,)\s*(\w+)\s*:', r'\1"\2":', json_str)
+
+        # 3. Replace single quotes with double quotes (for string values)
+        # Be careful not to replace apostrophes in text
+        json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
+
+        # 4. Fix boolean/null case (True -> true, False -> false, None -> null)
+        json_str = re.sub(r'\bTrue\b', 'true', json_str)
+        json_str = re.sub(r'\bFalse\b', 'false', json_str)
+        json_str = re.sub(r'\bNone\b', 'null', json_str)
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            return None
 
     def test_connection(self) -> tuple[bool, str]:
         """Test if the LLM connection is working."""

@@ -338,6 +338,7 @@ def setup_pipeline_logging(level: str = "INFO", to_file: bool = True) -> None:
 
     # All pipeline loggers we added diagnostic messages to
     pipeline_loggers = [
+        'src.analyzer',
         'src.pipeline.chapter_detection.profiler',
         'src.pipeline.chapter_detection.proposers.regex',
         'src.pipeline.chapter_detection.validator',
@@ -359,6 +360,7 @@ def disable_pipeline_logging() -> None:
     global _pipeline_handlers
 
     pipeline_loggers = [
+        'src.analyzer',
         'src.pipeline.chapter_detection.profiler',
         'src.pipeline.chapter_detection.proposers.regex',
         'src.pipeline.chapter_detection.validator',

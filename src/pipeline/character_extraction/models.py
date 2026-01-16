@@ -150,7 +150,8 @@ class Character:
     description: str = ""           # LLM-generated prose profile
     character_type: CharacterType = CharacterType.UNCERTAIN  # story, historical, or referenced
     profile_evidence: list[dict] = field(default_factory=list)  # Evidence supporting profile claims
-    profile_confidence: float = 0.5  # Confidence in profile quality (0.0-1.0)
+    # Confidence in profile quality (0.0-1.0). None means "no profile was generated/attempted".
+    profile_confidence: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -190,7 +191,7 @@ class Character:
             description=data.get("description", ""),
             character_type=char_type,
             profile_evidence=data.get("profile_evidence", []),
-            profile_confidence=data.get("profile_confidence", 0.5),
+            profile_confidence=data.get("profile_confidence", None),
         )
 
 

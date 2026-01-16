@@ -61,7 +61,7 @@
             "Check that LLM is prompted: 'Could these be the same character under different names?'",
             "Confirm flag appears in quality report or verification issues"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -72,7 +72,7 @@
             "Check that only sequential patterns (max(A) < min(B)) trigger the heuristic",
             "Confirm no false positives for parallel plot characters"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
@@ -112,7 +112,7 @@
             "Check that 'beautiful', 'light movements' do not influence classification",
             "Confirm key_actions field lists specific harmful acts"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -123,7 +123,7 @@
             "Check that action balance determines classification",
             "Confirm reasoning field explains the ambiguity"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
@@ -192,7 +192,7 @@
             "Check that 'beautiful' or physical descriptions do not dominate summary",
             "Confirm moral_alignment is 'villainous' based on actions"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -204,7 +204,7 @@
             "Check that personality_from_actions derives traits from action analysis",
             "Confirm surface details (appearance, voice) come after action-based assessment"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {
@@ -252,7 +252,7 @@
             "Check that comment_type is 'judgment' and sentiment is 'negative'",
             "Confirm quote is associated with correct character"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -264,7 +264,7 @@
             "Check HTML report has dedicated 'Narrator Voice' tab",
             "Confirm quotes show character association, type, and sentiment"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "category": "functional",
@@ -275,7 +275,7 @@
             "Check that only explicit judgments/asides are flagged",
             "Confirm pre-filter patterns correctly identify candidates"
           ],
-          "passes": false
+          "passes": true
         }
       ],
       "implementation": {

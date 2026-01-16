@@ -337,6 +337,7 @@ def generate_quality_report(
 
     # Generate recommendations
     recommendations = []
+    extra_warnings: list[str] = []
 
     if low_conf_chapters:
         recommendations.append(
@@ -371,6 +372,23 @@ def generate_quality_report(
     if not result.characters:
         recommendations.append("No characters extracted - verify document contains narrative content")
 
+    # Detect missing rich character profiles for prominent characters
+    # (these show up in the HTML report as "No detailed profile available.")
+    MIN_MENTIONS_FOR_PROFILE = 5
+    missing_profiles = [
+        c for c in result.characters
+        if c.mention_count >= MIN_MENTIONS_FOR_PROFILE and not c.descriptions
+    ]
+    if missing_profiles:
+        # Keep the warning compact; names can be inspected in the HTML report
+        extra_warnings.append(
+            f"{len(missing_profiles)} characters have no detailed profile despite "
+            f"{MIN_MENTIONS_FOR_PROFILE}+ mentions"
+        )
+        recommendations.append(
+            "Re-run character profiling or inspect LLM/profile-generation logs for missing profiles"
+        )
+
     # Build profiling summary
     profiling_summary = {}
     if profiling_report:
@@ -390,7 +408,7 @@ def generate_quality_report(
         overall_quality_score=overall_quality,
         passed_quality_gates=not halted and overall_quality >= 0.5,
         critical_issues=[],
-        warnings=result.warnings[:10],  # Limit warnings
+        warnings=(result.warnings + extra_warnings)[:10],  # Limit warnings
         recommendations=recommendations[:5],  # Limit recommendations
         low_confidence_chapters=low_conf_chapters,
         low_confidence_characters=low_conf_characters[:20],  # Limit
