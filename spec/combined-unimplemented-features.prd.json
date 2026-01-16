@@ -157,7 +157,7 @@
         "src/pipeline/chapter_detection/validator.py",
         "src/pipeline/chapter_detection/consensus.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F11",

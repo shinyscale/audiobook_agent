@@ -111,6 +111,8 @@ class ChapterProposal:
     confidence: float  # Strategy's self-assessed confidence (0.0 - 1.0)
     reasoning: Optional[str] = None  # Why this was proposed
     toc_match: Optional[str] = None  # If this matches a TOC entry, which one
+    # F10: Explicit hard boundaries dominate over soft signals
+    is_hard_boundary: bool = False  # True for explicit markers (Chapter N, centered Roman numerals)
 
     def to_dict(self) -> dict:
         return {
@@ -121,6 +123,7 @@ class ChapterProposal:
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "toc_match": self.toc_match,
+            "is_hard_boundary": self.is_hard_boundary,
         }
 
     @classmethod

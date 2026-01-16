@@ -17,7 +17,6 @@ from .models import (
     ChapterMap,
     DocumentProfile,
 )
-from .scene_breaks import find_scene_breaks, is_near_scene_break
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -67,6 +66,8 @@ class ProposalCluster:
     best_title: Optional[str]
     combined_score: float
     strategies: list[str]
+    # F10: Hard boundaries dominate over soft signals
+    is_hard_boundary: bool = False  # True if any proposal is a hard boundary
 
 
 class ConsensusBuilder:
@@ -135,18 +136,6 @@ class ConsensusBuilder:
         invalid_count = len(validations) - len(valid_proposals)
         if invalid_count > 0:
             logger.info(f"ConsensusBuilder: filtered {invalid_count} invalid proposals")
-
-        # 1.5. Filter proposals near scene breaks (false positives from "-----" lines)
-        scene_breaks = find_scene_breaks(text)
-        if scene_breaks:
-            pre_filter_count = len(valid_proposals)
-            valid_proposals = [
-                v for v in valid_proposals
-                if not is_near_scene_break(v.proposal.position, scene_breaks, threshold=100)
-            ]
-            filtered_count = pre_filter_count - len(valid_proposals)
-            if filtered_count > 0:
-                logger.info(f"ConsensusBuilder: filtered {filtered_count} proposals near scene breaks")
 
         if not valid_proposals:
             logger.warning("No valid proposals - returning single chapter")
@@ -282,12 +271,19 @@ class ConsensusBuilder:
 
         combined_score = weighted_score / total_weight if total_weight > 0 else 0
 
+        # F10: Check if any proposal is a hard boundary (explicit marker)
+        is_hard = any(
+            getattr(v.proposal, 'is_hard_boundary', False)
+            for v in validations
+        )
+
         return ProposalCluster(
             proposals=validations,
             center_position=center,
             best_title=best_title,
             combined_score=combined_score,
             strategies=strategies,
+            is_hard_boundary=is_hard,
         )
 
     def _score_clusters(
@@ -295,8 +291,21 @@ class ConsensusBuilder:
         clusters: list[ProposalCluster],
         profile: DocumentProfile,
     ) -> list[ProposalCluster]:
-        """Enhance cluster scores with additional signals."""
+        """Enhance cluster scores with additional signals.
+
+        F10: Hard boundaries (explicit markers like 'Chapter N', centered Roman numerals)
+        receive maximum score to dominate over soft signals.
+        """
         for cluster in clusters:
+            # F10: Hard boundaries get maximum score
+            if cluster.is_hard_boundary:
+                cluster.combined_score = 1.0
+                logger.debug(
+                    f"Hard boundary at {cluster.center_position}: '{cluster.best_title}' "
+                    f"- assigned maximum score"
+                )
+                continue  # Skip other scoring adjustments for hard boundaries
+
             # Bonus for multiple agreeing strategies
             agreement_bonus = min(0.2, (len(cluster.strategies) - 1) * 0.1)
             cluster.combined_score = min(1.0, cluster.combined_score + agreement_bonus)

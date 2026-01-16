@@ -21,59 +21,70 @@ class ChapterPattern:
     pattern: re.Pattern
     confidence: float
     description: str
+    # F10: Explicit hard boundaries dominate over soft signals
+    is_hard_boundary: bool = False  # True for explicit markers
 
 
 # Patterns ordered from most to least specific
+# F10: Explicit markers (is_hard_boundary=True) dominate over soft signals
 CHAPTER_PATTERNS = [
-    # Explicit "Chapter" markers
+    # Explicit "Chapter" markers - HARD BOUNDARIES
     ChapterPattern(
         re.compile(r"^\s*(Chapter|CHAPTER)\s+(\d+|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE),
         confidence=0.95,
         description="explicit_chapter_numbered",
+        is_hard_boundary=True,
     ),
     ChapterPattern(
         re.compile(r"^\s*(CHAPTER|Chapter)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)$", re.MULTILINE),
         confidence=0.90,
         description="explicit_chapter_word_number",
+        is_hard_boundary=True,
     ),
 
-    # Part markers
+    # Part markers - HARD BOUNDARIES
     ChapterPattern(
         re.compile(r"^\s*(Part|PART)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE | re.IGNORECASE),
         confidence=0.95,
         description="part_marker",
+        is_hard_boundary=True,
     ),
 
     # Roman numeral only (common in classic literature)
     # STRICT: Must be centered (10+ spaces) - works for all Roman numerals including "I"
+    # HARD BOUNDARY
     ChapterPattern(
         re.compile(r"^\s{10,}([IVXLC]+)\s*$", re.MULTILINE),
         confidence=0.85,
         description="roman_numeral_centered",
+        is_hard_boundary=True,
     ),
     # RELAXED but safer: Requires 2+ characters to avoid matching "I" pronoun in dialogue
-    # This won't match Chapter I, but the centered pattern above should catch it
+    # This is a softer signal, not a hard boundary
     ChapterPattern(
         re.compile(r"^\s*([IVXLC]{2,7})\s*$", re.MULTILINE),
         confidence=0.70,
         description="roman_numeral_line",
+        is_hard_boundary=False,
     ),
 
-    # Arabic numeral only
+    # Arabic numeral only (centered) - HARD BOUNDARY when centered
     ChapterPattern(
         re.compile(r"^\s{10,}(\d{1,3})\s*$", re.MULTILINE),
         confidence=0.75,
         description="arabic_numeral_centered",
+        is_hard_boundary=True,
     ),
 
-    # Named chapters (all caps on own line)
+    # Named chapters (all caps on own line) - softer signal
     ChapterPattern(
         re.compile(r"^\s*([A-Z][A-Z\s]{5,40})\s*$", re.MULTILINE),
         confidence=0.60,
         description="all_caps_title",
+        is_hard_boundary=False,
     ),
 
-    # Prologue/Epilogue and other special sections
+    # Prologue/Epilogue and other special sections - HARD BOUNDARIES
     ChapterPattern(
         re.compile(
             r"^\s*(Prologue|PROLOGUE|Epilogue|EPILOGUE|Introduction|INTRODUCTION|Preface|PREFACE|"
@@ -83,9 +94,10 @@ CHAPTER_PATTERNS = [
         ),
         confidence=0.95,
         description="special_section",
+        is_hard_boundary=True,
     ),
 
-    # Letters in epistolary novels (Letter 1, Letter I, etc.)
+    # Letters in epistolary novels (Letter 1, Letter I, etc.) - HARD BOUNDARIES
     ChapterPattern(
         re.compile(
             r"^\s*(Letter|LETTER)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$",
@@ -93,13 +105,15 @@ CHAPTER_PATTERNS = [
         ),
         confidence=0.95,
         description="letter_section",
+        is_hard_boundary=True,
     ),
 
-    # "Book One", "Book Two" etc.
+    # "Book One", "Book Two" etc. - HARD BOUNDARIES
     ChapterPattern(
         re.compile(r"^\s*(Book|BOOK)\s+(\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE | re.IGNORECASE),
         confidence=0.95,
         description="book_division",
+        is_hard_boundary=True,
     ),
 ]
 
@@ -179,6 +193,7 @@ class RegexProposer(BaseProposer):
                     evidence=evidence,
                     confidence=confidence,
                     reasoning=f"Matched pattern: {pattern_def.description}",
+                    is_hard_boundary=pattern_def.is_hard_boundary,
                 ))
                 seen_positions.add(position)
                 pattern_matches += 1
