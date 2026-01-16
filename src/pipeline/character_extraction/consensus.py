@@ -21,6 +21,7 @@ from .models import (
     CharacterMention,
     CharacterType,
 )
+from .constants import are_potential_nicknames, get_nickname_variants
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -857,6 +858,47 @@ class CharacterConsensusBuilder:
                 if len(pairs_set) >= max_pairs:
                     break
 
+        # Add nickname-based candidates (e.g., "Kate" and "Cathy", "Elizabeth" and "Lizzy")
+        # This catches aliases that share no words but are known nickname variants
+        if len(pairs_set) < max_pairs:
+            # Build index of names by their first significant word (likely the first name)
+            # Only consider top characters by mention count to avoid explosion
+            top = sorted(names, key=lambda n: -mention_rank.get(n, 0))[:100]
+
+            # Extract the likely "first name" from each name for nickname matching
+            def extract_first_name(name: str) -> str:
+                """Extract the first name (excluding titles) for nickname matching."""
+                words = re.sub(r"[^\w\s]", "", name.lower()).split()
+                significant = self._filter_title_words(words)
+                return list(significant)[0] if significant else ""
+
+            first_names = {n: extract_first_name(n) for n in top}
+
+            # Group names by their nickname variant sets
+            # Names with overlapping variant sets should be paired
+            for i in range(len(top)):
+                if len(pairs_set) >= max_pairs:
+                    break
+                n1 = top[i]
+                fn1 = first_names[n1]
+                if not fn1:
+                    continue
+
+                for j in range(i + 1, len(top)):
+                    if len(pairs_set) >= max_pairs:
+                        break
+                    n2 = top[j]
+                    fn2 = first_names[n2]
+                    if not fn2:
+                        continue
+
+                    # Check if the first names are potential nickname variants
+                    if are_potential_nicknames(fn1, fn2):
+                        add_pair(n1, n2)
+                        logger.debug(
+                            f"Nickname match: '{n1}' ({fn1}) <-> '{n2}' ({fn2})"
+                        )
+
         return list(pairs_set)
 
     def _llm_pairwise_merge_decision(
@@ -1422,17 +1464,26 @@ class CharacterConsensusBuilder:
                 return True, 0.90  # High confidence
 
         # NEW CHECK: Reject completely different single-word names
-        # If both are single-word names with NO shared words, reject immediately
-        # NOTE: This is intentionally strict. Legitimate nicknames (Tom/Thomas) should be
-        # caught by LLM alias resolution earlier in the pipeline. This prevents the
-        # worst over-merges (Alice + Robert) during validation.
+        # If both are single-word names with NO shared words, reject UNLESS they are
+        # known nickname variants (e.g., Kate/Cathy, Elizabeth/Lizzy)
+        # NOTE: This prevents the worst over-merges (Alice + Robert) during validation
+        # while allowing legitimate nickname pairs to be merged.
         if len(significant1) == 1 and len(significant2) == 1:
             if not shared_words:  # Different single-word names
-                logger.debug(
-                    f"Merge rejected: {canonical} <-> {alias} "
-                    f"(both single-word names with no similarity - likely different characters)"
-                )
-                return False, 0.05
+                # Check if they're known nickname variants before rejecting
+                word1 = list(significant1)[0].lower()
+                word2 = list(significant2)[0].lower()
+                if not are_potential_nicknames(word1, word2):
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"(both single-word names with no similarity - likely different characters)"
+                    )
+                    return False, 0.05
+                else:
+                    logger.debug(
+                        f"Allowing potential nickname merge: {canonical} <-> {alias} "
+                        f"({word1} and {word2} are known nickname variants)"
+                    )
 
         # Check for gendered title conflicts
         # Mr. vs Mrs./Miss suggests different people (likely spouses/family)
