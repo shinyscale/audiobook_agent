@@ -682,7 +682,8 @@ class TestRichProfilingPipeline:
         mock_llm = Mock()
         # First call: identification
         # Second call: summary evidence extraction (Feature F2)
-        # Third call: profile generation
+        # Third call: moral valence classification (Feature F3)
+        # Fourth call: profile generation
         mock_llm.query_json.side_effect = [
             (
                 {
@@ -715,7 +716,18 @@ class TestRichProfilingPipeline:
                 },
                 LLMResponse(content="...", model="test", error=None),
             ),
-            # Third call: profile generation
+            # Third call: moral valence classification (Feature F3)
+            (
+                {
+                    "valence": "protagonist",
+                    "confidence": 0.85,
+                    "key_actions": [{"action": "throws parties", "category": "neutral", "target": "guests"}],
+                    "evidence_quotes": [],
+                    "reasoning": "Gatsby appears to be the protagonist of the story",
+                },
+                LLMResponse(content="...", model="test", error=None),
+            ),
+            # Fourth call: profile generation
             (
                 {
                     "appearance": {"summary": "Elegant young man with rare smile"},
@@ -1508,6 +1520,64 @@ class TestActionWeightedProfiling:
         assert parsed_profile.action_analysis.dominant_pattern == "harmful"
         assert "murdered parents" in parsed_profile.action_analysis.harmful_actions
         assert parsed_profile.personality.moral_alignment == "villainous"
+
+
+class TestMoralValencePropagation:
+    """Tests for moral valence propagation to profiles (Feature F3)."""
+
+    def test_moral_valence_constraint_formatting_antagonist(self):
+        """Test that ANTAGONIST valence creates hard constraint."""
+        from src.pipeline.character_profiling.generator import _format_moral_valence_constraint
+        from src.pipeline.character_profiling.moral_valence import MoralValence, MoralValenceResult
+
+        valence = MoralValenceResult(
+            character_name="Test Villain",
+            valence=MoralValence.ANTAGONIST,
+            confidence=0.9,
+            key_actions=[{"action": "murdered the victim", "category": "harmful"}],
+            reasoning="Character commits murder",
+        )
+
+        constraint = _format_moral_valence_constraint(valence)
+        assert "HARD CONSTRAINT: ANTAGONIST" in constraint
+        assert "DO NOT USE positive descriptors" in constraint
+        assert "manipulative" in constraint.lower() or "cruel" in constraint.lower()
+        assert "murdered the victim" in constraint
+
+    def test_moral_valence_constraint_formatting_protagonist(self):
+        """Test that PROTAGONIST valence is noted in prompt."""
+        from src.pipeline.character_profiling.generator import _format_moral_valence_constraint
+        from src.pipeline.character_profiling.moral_valence import MoralValence, MoralValenceResult
+
+        valence = MoralValenceResult(
+            character_name="Test Hero",
+            valence=MoralValence.PROTAGONIST,
+            confidence=0.8,
+            key_actions=[{"action": "saved the village", "category": "beneficial"}],
+            reasoning="Character performs heroic actions",
+        )
+
+        constraint = _format_moral_valence_constraint(valence)
+        assert "PROTAGONIST" in constraint
+        assert "heroic" in constraint.lower()
+
+    def test_moral_valence_constraint_none(self):
+        """Test that None valence returns empty string."""
+        from src.pipeline.character_profiling.generator import _format_moral_valence_constraint
+
+        constraint = _format_moral_valence_constraint(None)
+        assert constraint == ""
+
+    def test_generator_includes_valence_in_prompt(self):
+        """Test that generator includes moral valence in prompt when provided."""
+        from src.pipeline.character_profiling.generator import (
+            CharacterProfileGenerator,
+            PROFILE_GENERATION_PROMPT,
+        )
+        from src.pipeline.character_profiling.moral_valence import MoralValence, MoralValenceResult
+
+        # Verify prompt template has placeholder
+        assert "{moral_valence_constraint}" in PROFILE_GENERATION_PROMPT
 
 
 class TestMoralValenceEnum:

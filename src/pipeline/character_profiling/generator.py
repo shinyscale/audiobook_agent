@@ -5,6 +5,10 @@ Generates rich character profiles from gathered passages using LLM.
 
 Feature F2: Summary-Derived Profile Evidence
 Summary evidence is included as PRIMARY evidence, ranked above raw text mentions.
+
+Feature F3: Moral Valence Propagation to Profiles
+Moral valence classification is passed to profile generator as HARD CONSTRAINT.
+ANTAGONIST classification prevents positive descriptors in generated profiles.
 """
 
 import json
@@ -21,6 +25,7 @@ from .models import (
     CharacterRelationship,
     ProfileEvidence,
 )
+from .moral_valence import MoralValence, MoralValenceResult
 from .passage_gatherer import CharacterPassage, CharacterPassageGatherer
 from .summary_evidence import CharacterSummaryEvidence, SummaryEvidenceExtractor
 from ..chapter_detection.models import ChapterMap
@@ -66,7 +71,7 @@ PROFILE_GENERATION_PROMPT = """Create a comprehensive character profile for audi
 CHARACTER: {name}
 ALIASES: {aliases}
 ROLE: {role}
-
+{moral_valence_constraint}
 {summary_evidence}
 RELEVANT TEXT PASSAGES:
 {passages}
@@ -151,6 +156,47 @@ CRITICAL RULES:
 Return ONLY valid JSON. No other text."""
 
 
+# Moral valence constraint templates (Feature F3)
+MORAL_VALENCE_CONSTRAINTS = {
+    MoralValence.ANTAGONIST: """
+=== HARD CONSTRAINT: ANTAGONIST ===
+This character has been classified as an ANTAGONIST based on their actions.
+DO NOT USE positive descriptors like: effective, composed, capable, charming, attractive, pleasant
+DO USE negative/neutral descriptors that reflect harmful behavior: manipulative, dangerous, cruel, calculating, cold
+The profile MUST reflect their harmful nature. Any positive traits should be secondary to their villainous actions.
+""",
+    MoralValence.PROTAGONIST: """
+=== MORAL CLASSIFICATION: PROTAGONIST ===
+This character has been classified as a PROTAGONIST based on their actions.
+The profile should emphasize their positive qualities and heroic actions.
+""",
+    MoralValence.MORALLY_AMBIGUOUS: """
+=== MORAL CLASSIFICATION: MORALLY AMBIGUOUS ===
+This character has been classified as MORALLY AMBIGUOUS - they perform both harmful and beneficial actions.
+The profile should reflect this complexity without favoring either aspect.
+""",
+    MoralValence.VICTIM: """
+=== MORAL CLASSIFICATION: VICTIM ===
+This character has been classified primarily as a VICTIM of others' actions.
+The profile should acknowledge their suffering and any agency they maintain.
+""",
+}
+
+
+def _format_moral_valence_constraint(moral_valence: Optional[MoralValenceResult]) -> str:
+    """Format moral valence as a hard constraint for profile generation (Feature F3)."""
+    if moral_valence is None:
+        return ""
+
+    constraint = MORAL_VALENCE_CONSTRAINTS.get(moral_valence.valence, "")
+
+    if constraint and moral_valence.key_actions:
+        actions_text = "\n".join(f"  - {a.get('action', a)}" for a in moral_valence.key_actions[:5])
+        constraint += f"\nKEY ACTIONS supporting this classification:\n{actions_text}\n"
+
+    return constraint
+
+
 class CharacterProfileGenerator:
     """Generate rich character profiles from full text."""
 
@@ -178,6 +224,7 @@ class CharacterProfileGenerator:
         chapter_map: ChapterMap,
         passages: Optional[list[CharacterPassage]] = None,
         summary_evidence: Optional[CharacterSummaryEvidence] = None,
+        moral_valence: Optional[MoralValenceResult] = None,
     ) -> CharacterProfile:
         """
         Generate comprehensive profile for a character.
@@ -188,6 +235,8 @@ class CharacterProfileGenerator:
             chapter_map: Chapter boundaries
             passages: Optional pre-gathered passages
             summary_evidence: Optional pre-extracted summary evidence (Feature F2)
+            moral_valence: Optional moral valence classification (Feature F3)
+                          When provided, acts as HARD CONSTRAINT on profile generation
 
         Returns:
             Rich CharacterProfile
@@ -222,6 +271,14 @@ class CharacterProfileGenerator:
                 f"for {character.canonical_name}"
             )
 
+        # Format moral valence constraint (Feature F3)
+        moral_valence_text = _format_moral_valence_constraint(moral_valence)
+        if moral_valence and moral_valence.valence != MoralValence.UNCERTAIN:
+            logger.info(
+                f"Applying moral valence constraint {moral_valence.valence.value} "
+                f"for {character.canonical_name}"
+            )
+
         # Format passages for prompt
         passages_text = self._format_passages(passages)
 
@@ -230,6 +287,7 @@ class CharacterProfileGenerator:
             name=character.canonical_name,
             aliases=", ".join(character.aliases) if character.aliases else "None",
             role=character.role,
+            moral_valence_constraint=moral_valence_text,
             summary_evidence=summary_evidence_text,
             passages=passages_text,
         )
@@ -350,6 +408,7 @@ def generate_character_profile(
     chapter_map: ChapterMap,
     llm_client: LLMClient,
     summary_map: Optional[ChapterSummaryMap] = None,
+    moral_valence: Optional[MoralValenceResult] = None,
 ) -> CharacterProfile:
     """
     Convenience function to generate a character profile.
@@ -360,9 +419,12 @@ def generate_character_profile(
         chapter_map: Chapter boundaries
         llm_client: LLM client
         summary_map: Optional chapter summaries for summary evidence (Feature F2)
+        moral_valence: Optional moral valence constraint (Feature F3)
 
     Returns:
         Rich CharacterProfile
     """
     generator = CharacterProfileGenerator(llm_client, summary_map=summary_map)
-    return generator.generate_profile(character, full_text, chapter_map)
+    return generator.generate_profile(
+        character, full_text, chapter_map, moral_valence=moral_valence
+    )

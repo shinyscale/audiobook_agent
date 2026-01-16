@@ -5,6 +5,9 @@ Coordinates the summary-driven character identification and profiling workflow.
 
 Feature F2: Summary-Derived Profile Evidence
 The pipeline now passes summary_map to the generator for evidence extraction.
+
+Feature F3: Moral Valence Propagation to Profiles
+The pipeline now computes moral valence and passes it as a HARD CONSTRAINT.
 """
 
 import logging
@@ -18,6 +21,7 @@ from .models import (
 )
 from .identifier import SummaryDrivenCharacterIdentifier
 from .generator import CharacterProfileGenerator
+from .moral_valence import MoralValenceClassifier
 from .passage_gatherer import CharacterPassageGatherer
 from .summary_evidence import SummaryEvidenceExtractor
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
@@ -102,6 +106,8 @@ class CharacterProfilingPipeline:
             generator = CharacterProfileGenerator(self.llm, summary_map=summary_map)
             passage_gatherer = CharacterPassageGatherer()
             summary_extractor = SummaryEvidenceExtractor(self.llm)
+            # Feature F3: Moral valence classifier for hard constraints
+            valence_classifier = MoralValenceClassifier(self.llm)
 
             for i, char in enumerate(characters):
                 logger.info(f"Profiling character {i + 1}/{len(characters)}: {char.canonical_name}")
@@ -116,13 +122,26 @@ class CharacterProfilingPipeline:
                     summary_map,
                 )
 
-                # Generate rich profile with summary evidence
+                # Classify moral valence (Feature F3)
+                passage_texts = [p.text for p in passages]
+                moral_valence = valence_classifier.classify_character(
+                    char.canonical_name,
+                    char.role,
+                    passage_texts,
+                )
+                logger.info(
+                    f"Moral valence for {char.canonical_name}: {moral_valence.valence.value} "
+                    f"(confidence={moral_valence.confidence:.2f})"
+                )
+
+                # Generate rich profile with summary evidence and moral valence constraint
                 profile = generator.generate_profile(
                     character=char,
                     full_text=full_text,
                     chapter_map=chapter_map,
                     passages=passages,
                     summary_evidence=summary_evidence,
+                    moral_valence=moral_valence,
                 )
                 profiles.append(profile)
                 self._report_progress("profiling", i + 1, len(characters))
