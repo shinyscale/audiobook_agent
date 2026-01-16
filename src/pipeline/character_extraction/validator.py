@@ -276,7 +276,30 @@ class CharacterValidator:
         overall_valid = result.get("overall_valid", is_person)
         reasoning = result.get("is_person_reasoning", "LLM validation")
 
-        overall_score = (is_person_score + context_score) / 2
+        # F16: Include mention count in overall_score calculation
+        # High-mention characters should get higher confidence scores
+        base_score = (is_person_score + context_score) / 2
+
+        # Mention count boost: characters with many mentions are more likely real
+        mention_count = proposal.mention_count
+        if mention_count >= 100:
+            mention_boost = 0.15
+        elif mention_count >= 50:
+            mention_boost = 0.10
+        elif mention_count >= 20:
+            mention_boost = 0.05
+        elif mention_count >= 10:
+            mention_boost = 0.02
+        else:
+            mention_boost = 0.0
+
+        overall_score = min(1.0, base_score + mention_boost)
+
+        logger.debug(
+            f"Validation score for '{proposal.name}': base={base_score:.2f}, "
+            f"mention_boost={mention_boost:.2f} ({mention_count} mentions), "
+            f"final={overall_score:.2f}"
+        )
 
         return CharacterValidationResult(
             proposal=proposal,
