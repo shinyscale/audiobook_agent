@@ -170,7 +170,7 @@
       "files": [
         "src/pipeline/text_hygiene/back_matter.py (NEW)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F12",
