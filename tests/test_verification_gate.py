@@ -417,8 +417,12 @@ class TestDisjointChapterDistributionCheck:
         assert kate_pos < cathy_pos, "Earlier character should appear first in description"
 
     def test_jaccard_calculation(self, agent):
-        """Verify Jaccard similarity is calculated correctly."""
-        # 10% overlap should still be flagged (below 15% threshold)
+        """Verify that dominant range heuristic catches characters with disjoint ranges (Feature F4)."""
+        # Feature F4: Relaxed Disjoint Distribution Heuristic
+        # Uses 80% dominant chapter ranges instead of strict separation
+        # CharA dominant range: chapters 1-8 (80% of 10 chapters = 8 chapters)
+        # CharB dominant range: chapters 20-27 (80% of 10 chapters = 8 chapters)
+        # These are disjoint, so should be flagged
         characters = [
             make_character("CharA", chapters=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], mention_count=50),
             make_character("CharB", chapters=[10, 20, 21, 22, 23, 24, 25, 26, 27, 28], mention_count=45),
@@ -426,10 +430,11 @@ class TestDisjointChapterDistributionCheck:
 
         issues = agent._check_disjoint_distributions(characters, total_chapters=28)
 
-        # Jaccard = 1 / 19 ≈ 5% (overlap = {10}, union size = 19)
-        # But not sequential (max(A)=10, min(B)=10, so not < 10-1=9)
-        # This should NOT flag because max(set1)=10 is not < min(set2)-1 = 10-1 = 9
-        assert len(issues) == 0
+        # Feature F4: Dominant ranges (1-8) and (20-27) are disjoint and sequential
+        # This should flag because the 80% dominant ranges don't overlap
+        assert len(issues) == 1
+        assert "CharA" in issues[0].description
+        assert "CharB" in issues[0].description
 
     def test_integration_with_verify(self, agent):
         """Verify that verify() includes disjoint distribution check."""

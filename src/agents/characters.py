@@ -510,12 +510,20 @@ class CharacterAgent(Agent):
         Check for character pairs with disjoint but sequential chapter distributions.
 
         This pattern may indicate a character name change mid-book (e.g., marriage,
-        alias adoption, identity reveal). Characters with zero chapter overlap but
-        sequential presence should be flagged for review.
+        alias adoption, identity reveal).
+
+        Feature F4: Relaxed Disjoint Distribution Heuristic
+        Uses 80% dominant chapter ranges instead of strict separation. This catches cases
+        where a character is discussed by their old name in later chapters (e.g., flashbacks,
+        other characters reminiscing).
+
+        A dominant range is defined as the contiguous span containing 80%+ of the character's
+        appearances. If the dominant ranges of two characters are disjoint/sequential,
+        they may be the same person.
         """
         issues = []
         MIN_MENTIONS = 10
-        MAX_JACCARD = 0.15
+        DOMINANT_THRESHOLD = 0.80  # 80% of appearances must be in dominant range
 
         # Only check characters with significant mentions
         significant = [c for c in characters if c.mention_count >= MIN_MENTIONS]
@@ -530,29 +538,35 @@ class CharacterAgent(Agent):
                 if not set1 or not set2:
                     continue
 
-                # Calculate Jaccard similarity
-                intersection = len(set1 & set2)
-                union = len(set1 | set2)
-                jaccard = intersection / union if union > 0 else 0
+                # Feature F4: Calculate dominant chapter ranges
+                dominant1 = self._get_dominant_range(set1, DOMINANT_THRESHOLD)
+                dominant2 = self._get_dominant_range(set2, DOMINANT_THRESHOLD)
 
-                if jaccard < MAX_JACCARD:
-                    # Check if distributions are sequential (not just random non-overlap)
-                    # Sequential means one character's chapters end before the other's begin
-                    is_sequential = (max(set1) < min(set2) - 1) or (max(set2) < min(set1) - 1)
+                if not dominant1 or not dominant2:
+                    continue
+
+                # Check if dominant ranges are disjoint/sequential
+                dom_set1 = set(range(dominant1[0], dominant1[1] + 1))
+                dom_set2 = set(range(dominant2[0], dominant2[1] + 1))
+
+                overlap = dom_set1 & dom_set2
+                if not overlap:  # Dominant ranges are disjoint
+                    # Check if sequential
+                    is_sequential = dominant1[1] < dominant2[0] or dominant2[1] < dominant1[0]
 
                     if is_sequential:
                         # Determine which character comes first
-                        if max(set1) < min(set2):
+                        if dominant1[1] < dominant2[0]:
                             early_char, late_char = char1.canonical_name, char2.canonical_name
-                            early_chapters, late_chapters = set1, set2
+                            early_range, late_range = dominant1, dominant2
                         else:
                             early_char, late_char = char2.canonical_name, char1.canonical_name
-                            early_chapters, late_chapters = set2, set1
+                            early_range, late_range = dominant2, dominant1
 
                         issues.append(VerificationIssue(
                             description=(
-                                f"Disjoint sequential chapters: '{early_char}' (chapters {min(early_chapters)}-{max(early_chapters)}) "
-                                f"and '{late_char}' (chapters {min(late_chapters)}-{max(late_chapters)}) have {jaccard:.0%} overlap - "
+                                f"Disjoint dominant ranges: '{early_char}' (dominant chapters {early_range[0]}-{early_range[1]}) "
+                                f"and '{late_char}' (dominant chapters {late_range[0]}-{late_range[1]}) - "
                                 f"could be same character under different name"
                             ),
                             severity="warning",
@@ -560,6 +574,51 @@ class CharacterAgent(Agent):
                         ))
 
         return issues
+
+    def _get_dominant_range(
+        self,
+        chapters: set[int],
+        threshold: float = 0.80,
+    ) -> Optional[tuple[int, int]]:
+        """
+        Find the smallest contiguous range containing at least `threshold` of appearances.
+
+        Feature F4: Relaxed Disjoint Distribution Heuristic
+        Uses a sliding window to find the smallest range that contains 80%+ of
+        the character's chapter appearances.
+
+        Args:
+            chapters: Set of chapter indices where character appears
+            threshold: Minimum fraction of appearances required in range (default 0.80)
+
+        Returns:
+            Tuple of (start, end) chapter indices, or None if insufficient data
+        """
+        if not chapters or len(chapters) < 3:
+            return None
+
+        sorted_chapters = sorted(chapters)
+        n = len(sorted_chapters)
+        required = int(n * threshold)
+
+        if required < 1:
+            required = 1
+
+        # Find smallest window containing 'required' chapters
+        best_range = None
+        best_span = float('inf')
+
+        for start_idx in range(n - required + 1):
+            end_idx = start_idx + required - 1
+            start_ch = sorted_chapters[start_idx]
+            end_ch = sorted_chapters[end_idx]
+            span = end_ch - start_ch
+
+            if span < best_span:
+                best_span = span
+                best_range = (start_ch, end_ch)
+
+        return best_range
 
     def _check_missing_agentive_descriptions(
         self,
