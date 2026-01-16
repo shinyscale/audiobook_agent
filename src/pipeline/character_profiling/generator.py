@@ -63,6 +63,12 @@ Your goal is to help narrators understand each character for voice work.
 
 CRITICAL: Prioritize SUMMARY EVIDENCE when available. Include specific quotes as evidence.
 
+ANTI-HALLUCINATION (Feature F19):
+- NEVER invent backstory, relationships, or traits not in the provided text
+- NEVER conflate character names with places, organizations, or other entities
+- If the passages don't support a claim, don't make it - use "unknown" instead
+- Every evidence quote must be traceable to the provided passages
+
 Always respond with valid JSON. No other text."""
 
 
@@ -152,6 +158,14 @@ CRITICAL RULES:
 - Appearance evidence is LOW PRIORITY - actions and behavior are HIGH PRIORITY
 - Only include information from the provided passages
 - Use "unknown" or empty values if information isn't available
+
+ANTI-HALLUCINATION RULES (Feature F19):
+- NEVER invent information not explicitly stated in the provided passages
+- NEVER conflate character names with location names (e.g., "Mrs. Roosevelt" is not about the White House)
+- Every claim in the profile MUST be traceable to a specific passage
+- If you're uncertain about something, leave it as "unknown" rather than guessing
+- Do NOT assume background or history not explicitly mentioned
+- The "evidence" arrays MUST contain actual quotes from the provided passages
 
 Return ONLY valid JSON. No other text."""
 
@@ -301,7 +315,7 @@ class CharacterProfileGenerator:
             return profile
 
         # Parse and populate profile
-        profile = self._parse_profile_response(profile, result, passages)
+        profile = self._parse_profile_response(profile, result, passages, character.canonical_name)
 
         logger.info(
             f"Generated profile for {character.canonical_name} "
@@ -324,6 +338,7 @@ class CharacterProfileGenerator:
         profile: CharacterProfile,
         result: dict,
         passages: list[CharacterPassage],
+        character_name: str = "Unknown",
     ) -> CharacterProfile:
         """Parse LLM response and populate profile."""
 
@@ -389,7 +404,7 @@ class CharacterProfileGenerator:
         confidence_raw = result.get("confidence")
         if confidence_raw is None:
             logger.warning(
-                f"Profile generation for '{character.canonical_name}' did not return confidence - "
+                f"Profile generation for '{character_name}' did not return confidence - "
                 "using conservative default 0.6"
             )
             profile.confidence = 0.6
@@ -407,7 +422,64 @@ class CharacterProfileGenerator:
         else:
             profile.mention_frequency = "rare"
 
+        # F19: Validate evidence grounding - warn about potential hallucinations
+        self._validate_evidence_grounding(profile, passages, character_name)
+
         return profile
+
+    def _validate_evidence_grounding(
+        self,
+        profile: CharacterProfile,
+        passages: list[CharacterPassage],
+        character_name: str,
+    ) -> None:
+        """
+        F19: Validate that evidence claims are grounded in the source text.
+
+        Logs warnings for potential hallucinations where evidence quotes
+        don't appear in the provided passages.
+        """
+        # Combine all passage text for validation
+        all_passage_text = " ".join(p.text.lower() for p in passages)
+
+        def check_evidence(section_name: str, evidence: list[str]) -> int:
+            """Check evidence quotes against passage text, return ungrounded count."""
+            ungrounded = 0
+            for quote in evidence:
+                # Normalize quote for matching
+                quote_lower = quote.lower().strip().strip('"\'')
+                if len(quote_lower) < 10:
+                    continue  # Skip very short quotes
+
+                # Check if quote appears in passages (allow some flexibility)
+                if quote_lower not in all_passage_text:
+                    # Try partial match (first 30 chars)
+                    partial = quote_lower[:30]
+                    if partial not in all_passage_text:
+                        ungrounded += 1
+                        logger.debug(
+                            f"F19: Potentially ungrounded evidence for {character_name} "
+                            f"in {section_name}: '{quote[:50]}...'"
+                        )
+            return ungrounded
+
+        total_ungrounded = 0
+
+        # Check each profile section's evidence
+        if profile.action_analysis and profile.action_analysis.evidence:
+            total_ungrounded += check_evidence("action_analysis", profile.action_analysis.evidence)
+
+        if profile.appearance and profile.appearance.evidence:
+            total_ungrounded += check_evidence("appearance", profile.appearance.evidence)
+
+        if profile.personality and profile.personality.evidence:
+            total_ungrounded += check_evidence("personality", profile.personality.evidence)
+
+        if total_ungrounded > 0:
+            logger.warning(
+                f"F19: Profile for '{character_name}' has {total_ungrounded} potentially "
+                f"ungrounded evidence quotes - may indicate hallucination"
+            )
 
 
 def generate_character_profile(
