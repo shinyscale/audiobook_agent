@@ -1,0 +1,510 @@
+{
+  "prd": {
+    "title": "Combined Unimplemented Features",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "Critical",
+    "target": "All remaining unimplemented features consolidated into one PRD",
+    "architectural_direction": "Option B: Summary-Driven Character Profiling"
+  },
+  "executive_summary": "This PRD consolidates all unimplemented features from 9 separate PRD files, excluding features that conflict with the summary-driven character profiling approach (Option B). Features from character-profiling-enhancements-v2 (F1-F5) form the core, with compatible features from other PRDs organized into phases.",
+  "excluded_features": {
+    "reason": "Conflict with Option B (summary-driven approach) or already implemented",
+    "list": [
+      {"source": "analysis-quality-v1", "feature": "F2: Birth Name / Alias Merging", "reason": "Conflicts with v2 F1 summary-driven merge"},
+      {"source": "analysis-quality-v1", "feature": "F3: Character Type Classification", "reason": "Targets old NER proposer approach"},
+      {"source": "output-quality-v2", "feature": "F3: Improved Character Merge Validation", "reason": "Old _validate_merge approach"},
+      {"source": "output-quality-v2", "feature": "F7: Character Proof from Entire Narrative", "reason": "Old extraction approach"},
+      {"source": "output-quality-v2", "feature": "F10: Narrator Role Detection", "reason": "Superseded by v1 F3 (implemented)"},
+      {"source": "scene-break-detection-v1", "feature": "F1-F2: Scene Break Detection/Filtering", "reason": "Already implemented"},
+      {"source": "scene-break-detection-v1", "feature": "F6: Scene Break-Aware Summarization", "reason": "Already implemented"},
+      {"source": "character-profiling-v1", "feature": "F3: Narrator Detection from Summaries", "reason": "Implemented in v1 enhancements"}
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Summary-Driven Character Merge",
+      "source": "character-profiling-enhancements-v2",
+      "priority": "CRITICAL",
+      "phase": 1,
+      "description": "Parse book summary for explicit identity statements ('A is later known as B') and force-merge those characters regardless of distribution patterns",
+      "rationale": "Book summary already correctly identifies 'Cathy Ames—later revealed to be the cruel brothel madam Kate'. This is the most reliable merge source.",
+      "files": [
+        "src/pipeline/character_profiling/summary_merger.py (NEW)",
+        "src/analyzer.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F2",
+      "name": "Summary-Derived Profile Evidence",
+      "source": "character-profiling-enhancements-v2",
+      "priority": "CRITICAL",
+      "phase": 1,
+      "description": "Extract character-specific statements from chapter summaries and include as PRIMARY evidence in profile generation, ranked above raw text mentions",
+      "rationale": "Summaries know Kate poisoned Faye, but profile says 'manages household affairs'. Summary evidence must flow to profiles.",
+      "files": [
+        "src/pipeline/character_profiling/summary_evidence.py (NEW)",
+        "src/pipeline/character_profiling/generator.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F3",
+      "name": "Moral Valence Propagation to Profiles",
+      "source": "character-profiling-enhancements-v2",
+      "priority": "HIGH",
+      "phase": 1,
+      "description": "Pass moral valence classification to profile generator as HARD CONSTRAINT. ANTAGONIST classification prevents positive descriptors.",
+      "rationale": "Kate classified as ANTAGONIST but profile describes her as 'effective, composed'. Classification must constrain generation.",
+      "files": [
+        "src/pipeline/character_profiling/generator.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F4",
+      "name": "Relaxed Disjoint Distribution Heuristic",
+      "source": "character-profiling-enhancements-v2",
+      "priority": "HIGH",
+      "phase": 1,
+      "description": "Use 80% dominant chapter ranges instead of strict separation. Catches cases where character is discussed by old name in later chapters.",
+      "rationale": "Cathy appears in later chapters when discussed, breaking strict disjoint check. Dominant range approach handles this.",
+      "files": [
+        "src/agents/characters.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F5",
+      "name": "Chapter Tag Identity Propagation",
+      "source": "character-profiling-enhancements-v2",
+      "priority": "MEDIUM",
+      "phase": 1,
+      "description": "Parse chapter tags for compound names (A/B format like 'Cathy/Kate') and use as merge signals",
+      "rationale": "Chapter 24 already has 'Cathy/Kate' tag but this signal is ignored. Should trigger merge consideration.",
+      "files": [
+        "src/pipeline/character_profiling/tag_identity.py (NEW)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F6",
+      "name": "Passage-Based Profile Generation",
+      "source": "character-profiling-v1",
+      "priority": "HIGH",
+      "phase": 1,
+      "description": "Search full text for character-relevant passages, generate comprehensive profiles with appearance, personality, voice guidance, and relationships",
+      "rationale": "Current profiles from 10 sampled mentions with 200-char windows. Need full passages for rich narrator-useful profiles.",
+      "files": [
+        "src/pipeline/character_profiling/passage_gatherer.py (NEW)",
+        "src/pipeline/character_profiling/generator.py",
+        "src/pipeline/character_profiling/models.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F7",
+      "name": "Character Reconciliation Safety Net",
+      "source": "character-profiling-v1",
+      "priority": "MEDIUM",
+      "phase": 1,
+      "description": "Final LLM-based check after profile generation to catch any remaining duplicate characters",
+      "rationale": "Even with summary-driven identification, edge cases may slip through. Safety net for final cleanup.",
+      "files": [
+        "src/pipeline/character_profiling/reconciler.py (NEW)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F8",
+      "name": "Simplified Character Output",
+      "source": "character-profiling-v1",
+      "priority": "MEDIUM",
+      "phase": 1,
+      "description": "Reorganize character output to prioritize narrator-useful info (appearance, personality, voice) over metrics (mention counts, positions)",
+      "rationale": "Narrators need voice guidance, not mention counts. Output structure should reflect actual needs.",
+      "files": [
+        "src/models.py",
+        "src/export/html_report.py"
+      ],
+      "passes": true
+    },
+    {
+      "id": "F9",
+      "name": "TOC Entry Validation",
+      "source": "analysis-quality-v1",
+      "priority": "HIGH",
+      "phase": 2,
+      "description": "Fix TOC parsing to correctly count entries, filter metadata lines, validate against Roman numeral/Chapter N patterns",
+      "rationale": "Gatsby detected as 16 chapters instead of 9. TOC parser reports 'expects 91' instead of 9.",
+      "files": [
+        "src/pipeline/chapter_detection/profiler.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F10",
+      "name": "Explicit Marker Anchoring",
+      "source": "scene-break-detection-v1",
+      "priority": "HIGH",
+      "phase": 2,
+      "description": "Treat explicit chapter markers (centered Roman numerals, 'CHAPTER N') as hard boundaries that dominate over soft signals",
+      "rationale": "Explicit headings exist but get overridden by narrative-only guesses, causing over-splitting.",
+      "files": [
+        "src/pipeline/chapter_detection/proposers/regex.py",
+        "src/pipeline/chapter_detection/validator.py",
+        "src/pipeline/chapter_detection/consensus.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F11",
+      "name": "Back Matter Detection and Exclusion",
+      "source": "scene-break-detection-v1",
+      "priority": "HIGH",
+      "phase": 2,
+      "description": "Detect boilerplate/license/metadata blocks and exclude from chapter detection, summaries, and character extraction",
+      "rationale": "Project Gutenberg license appeared in chapter summary, produced spurious characters like 'Professor Michael S. Hart'.",
+      "files": [
+        "src/pipeline/text_hygiene/back_matter.py (NEW)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F12",
+      "name": "Longer and More Accurate Chapter Summaries",
+      "source": "output-quality-v2",
+      "priority": "HIGH",
+      "phase": 2,
+      "description": "Increase summary length to 3-5 sentences, prioritize factual accuracy over brevity, include context for referenced incidents",
+      "rationale": "Brief summaries cause errors (characters walking when in a car, unexplained 'pearls' reference). Feeds character profiling pipeline.",
+      "files": [
+        "src/pipeline/chapter_summary/summarizer.py",
+        "src/pipeline/chapter_summary/prompts.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F13",
+      "name": "Name Normalization",
+      "source": "scene-break-detection-v1",
+      "priority": "MEDIUM",
+      "phase": 2,
+      "description": "Normalize character names: remove quotes, trailing punctuation, unicode apostrophe variants, possessive suffixes",
+      "rationale": "Punctuation variants ('Daisy!', 'Daisy?') becoming aliases. Names need cleaning before matching.",
+      "files": [
+        "src/pipeline/text_hygiene/normalization.py (NEW)",
+        "src/pipeline/character_extraction/proposers/ner.py",
+        "src/pipeline/character_extraction/proposers/llm.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F14",
+      "name": "Fail-Fast Error Handling",
+      "source": "output-quality-v2",
+      "priority": "HIGH",
+      "phase": 3,
+      "description": "Replace silent failures with clear error messages. Remove hardcoded fallback confidence values (0.5, 0.7) that mask bugs.",
+      "rationale": "Validation errors caught and masked with fallbacks hide real bugs. Fail-fast is better than fail-silent.",
+      "files": [
+        "src/pipeline/character_extraction/validator.py",
+        "src/pipeline/character_extraction/proposers/llm.py",
+        "src/pipeline/character_extraction/consensus.py",
+        "src/pipeline/character_extraction/pipeline.py",
+        "src/agents/characters.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F15",
+      "name": "Frequency-Based Canonical Names",
+      "source": "output-quality-v2",
+      "priority": "HIGH",
+      "phase": 3,
+      "description": "Use mention counts to select canonical name, not alphabetical order. Most-mentioned form becomes canonical.",
+      "rationale": "Alphabetical tiebreaker causes less-frequently-used names to become canonical.",
+      "files": [
+        "src/pipeline/character_extraction/consensus.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F16",
+      "name": "Confidence Scoring Improvements",
+      "source": "output-quality-v2",
+      "priority": "MEDIUM",
+      "phase": 3,
+      "description": "High-mention characters should get high confidence scores. Remove fallbacks that ignore mention count.",
+      "rationale": "Characters with 300+ mentions incorrectly marked low confidence due to averaged fallback values.",
+      "files": [
+        "src/pipeline/character_extraction/validator.py",
+        "src/pipeline/character_extraction/consensus.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F17",
+      "name": "Model Health Checks",
+      "source": "output-quality-v2",
+      "priority": "MEDIUM",
+      "phase": 3,
+      "description": "Detect and exclude models that return empty responses before analysis begins",
+      "rationale": "Broken models waste time and cause failures. Should be detected during initialization.",
+      "files": [
+        "src/pipeline/llm.py",
+        "src/agents/config.py",
+        "src/gui/desktop.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F18",
+      "name": "Performance Optimization",
+      "source": "output-quality-v2",
+      "priority": "MEDIUM",
+      "phase": 3,
+      "description": "Analysis should complete in under 60 minutes for typical novel. Profile and optimize slow phases.",
+      "rationale": "Analysis currently takes 2+ hours due to redundant processing.",
+      "files": [
+        "src/pipeline/character_extraction/validator.py",
+        "src/pipeline/character_extraction/pipeline.py",
+        "src/agents/characters.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F19",
+      "name": "Character Profile Hallucination Prevention",
+      "source": "output-quality-v1",
+      "priority": "HIGH",
+      "phase": 4,
+      "description": "Profile claims must be grounded in actual text. Each statement links to source evidence. Entity disambiguation prevents name/location conflation.",
+      "rationale": "'Mrs. Claud Roosevelt' conflated casual reference with location, then invented fictional backstory.",
+      "files": [
+        "src/pipeline/character_profiling/generator.py",
+        "src/models.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F20",
+      "name": "Evidence-Linked Character Profiles",
+      "source": "output-quality-v1",
+      "priority": "MEDIUM",
+      "phase": 4,
+      "description": "Profile shows clickable evidence citations [1], [2], [3]. Clicking expands to show source passage.",
+      "rationale": "Character profiles are prose blobs with no source attribution. Evidence builds narrator trust.",
+      "files": [
+        "src/models.py",
+        "src/export/html_report.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F21",
+      "name": "Tabbed HTML Interface",
+      "source": "output-quality-v1",
+      "priority": "HIGH",
+      "phase": 4,
+      "description": "Replace scroll-based navigation with tabs: Overview | Chapters | Characters | Pronunciations. URL hash for deep linking.",
+      "rationale": "HTML report is one long scroller, hard to navigate for narrators.",
+      "files": [
+        "src/export/html_report.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F22",
+      "name": "Per-Chapter Pronunciation Guide",
+      "source": "output-quality-v1",
+      "priority": "HIGH",
+      "phase": 4,
+      "description": "Add 'By Chapter' view alongside 'By Type'. Shows expandable sections per chapter with pronunciation count.",
+      "rationale": "470-item pronunciation list. Narrators need per-chapter lists for preparation.",
+      "files": [
+        "src/export/html_report.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F23",
+      "name": "Confidence Indicators in HTML",
+      "source": "output-quality-v1",
+      "priority": "LOW",
+      "phase": 4,
+      "description": "Visual confidence badges (green/yellow/red). Hover shows percentage. Filter to show only low-confidence items.",
+      "rationale": "Low-confidence items not visually distinguished in HTML report.",
+      "files": [
+        "src/export/html_report.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F24",
+      "name": "Searchable Pronunciation List",
+      "source": "output-quality-v1",
+      "priority": "LOW",
+      "phase": 4,
+      "description": "Search box filters pronunciation list in real-time by word, IPA, or flag reason. Shows 'X of Y items' count.",
+      "rationale": "Large pronunciation lists (400+ items) hard to search.",
+      "files": [
+        "src/export/html_report.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F25",
+      "name": "Analysis Overview Page",
+      "source": "output-quality-v2",
+      "priority": "HIGH",
+      "phase": 4,
+      "description": "High-level book structure explanation, 3-5 paragraph plot summary, model usage table, timing breakdown per phase",
+      "rationale": "No overview exists. Users must piece together information from various outputs.",
+      "files": [
+        "src/pipeline/overview/generator.py (NEW)",
+        "src/export/html_report.py",
+        "src/analyzer.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F26",
+      "name": "Paragraph Indexing",
+      "source": "pronunciation-performance-v2",
+      "priority": "MEDIUM",
+      "phase": 5,
+      "description": "Extend WordIndex to detect and store paragraph boundaries during initial scan",
+      "rationale": "Foundation for paragraph-based context system. Single-pass detection.",
+      "files": [
+        "src/pipeline/pronunciation_guide/word_index.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F27",
+      "name": "Paragraph-Based Context Extraction",
+      "source": "pronunciation-performance-v2",
+      "priority": "MEDIUM",
+      "phase": 5,
+      "description": "Replace fixed-window context (100 chars) with full paragraph extraction",
+      "rationale": "100-character windows truncate mid-sentence. Full paragraphs provide complete context.",
+      "files": [
+        "src/pipeline/pronunciation_guide/proposers/base.py",
+        "src/pipeline/pronunciation_guide/models.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F28",
+      "name": "GUI Clickable Words",
+      "source": "pronunciation-performance-v2",
+      "priority": "MEDIUM",
+      "phase": 5,
+      "description": "Click pronunciation word to see full paragraph with word highlighted. Navigate between occurrences.",
+      "rationale": "Core UX improvement for narrator pronunciation review workflow.",
+      "files": [
+        "src/gui/pronunciation_dialog.py (NEW)",
+        "src/gui/desktop.py",
+        "src/gui/tui.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F29",
+      "name": "Full Text Navigation",
+      "source": "pronunciation-performance-v2",
+      "priority": "LOW",
+      "phase": 5,
+      "description": "Jump to word position in full document from pronunciation dialog",
+      "rationale": "Allows narrators to see broader context beyond paragraph.",
+      "files": [
+        "src/gui/pronunciation_dialog.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F30",
+      "name": "HTML Export with Paragraph Context",
+      "source": "pronunciation-performance-v2",
+      "priority": "LOW",
+      "phase": 5,
+      "description": "Interactive HTML pronunciation export with full paragraphs, highlighted words, position info",
+      "rationale": "Enables offline review and sharing of pronunciation guide.",
+      "files": [
+        "src/export/pronunciation_html.py (NEW)"
+      ],
+      "passes": false
+    }
+  ],
+  "phases": {
+    "phase_1": {
+      "name": "Summary-Driven Character Profiling",
+      "priority": "CRITICAL",
+      "features": ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"],
+      "description": "Core character profiling pipeline improvements. Ensures summarized understanding flows to profiles."
+    },
+    "phase_2": {
+      "name": "Chapter Detection & Content Quality",
+      "priority": "HIGH",
+      "features": ["F9", "F10", "F11", "F12", "F13"],
+      "description": "Fix chapter detection issues and improve summary quality that feeds profiling."
+    },
+    "phase_3": {
+      "name": "Error Handling & Reliability",
+      "priority": "HIGH",
+      "features": ["F14", "F15", "F16", "F17", "F18"],
+      "description": "Fail-fast errors, correct canonical names, model health checks, performance."
+    },
+    "phase_4": {
+      "name": "HTML/Output Quality",
+      "priority": "HIGH",
+      "features": ["F19", "F20", "F21", "F22", "F23", "F24", "F25"],
+      "description": "HTML UX improvements, evidence linking, tabbed interface, overview page."
+    },
+    "phase_5": {
+      "name": "Pronunciation Phase 2",
+      "priority": "MEDIUM",
+      "features": ["F26", "F27", "F28", "F29", "F30"],
+      "description": "Paragraph-based context system for pronunciation guide."
+    }
+  },
+  "feature_count": {
+    "total": 30,
+    "critical": 2,
+    "high": 15,
+    "medium": 10,
+    "low": 3
+  },
+  "new_files": [
+    "src/pipeline/character_profiling/summary_merger.py",
+    "src/pipeline/character_profiling/summary_evidence.py",
+    "src/pipeline/character_profiling/tag_identity.py",
+    "src/pipeline/character_profiling/passage_gatherer.py",
+    "src/pipeline/character_profiling/reconciler.py",
+    "src/pipeline/text_hygiene/back_matter.py",
+    "src/pipeline/text_hygiene/normalization.py",
+    "src/pipeline/overview/generator.py",
+    "src/gui/pronunciation_dialog.py",
+    "src/export/pronunciation_html.py"
+  ],
+  "verification": {
+    "primary_test": {
+      "name": "East of Eden Cathy/Kate unification",
+      "success_criteria": [
+        "1 character entry for Cathy/Kate (was 4)",
+        "Profile mentions 3+ crimes (was 0)",
+        "Profile moral tone: negative (was neutral/positive)",
+        "'Monster' appears prominently in profile"
+      ]
+    },
+    "secondary_tests": [
+      "Gatsby: exactly 9 chapters with Roman numeral titles",
+      "Gatsby: no Project Gutenberg characters in output",
+      "Frankenstein: creature handling unchanged",
+      "All tests pass: pytest tests/"
+    ]
+  }
+}

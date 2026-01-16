@@ -64,10 +64,44 @@ def profile_to_character(profile: CharacterProfile) -> Character:
     # Build voice notes from voice guidance
     voice_notes = _build_voice_notes(profile)
 
+    # Build structured data for F8: Simplified Character Output
+    appearance_dict = None
+    if profile.appearance and profile.appearance.summary:
+        appearance_dict = {
+            "summary": profile.appearance.summary,
+            "age_indication": profile.appearance.age_indication,
+            "distinguishing_features": profile.appearance.distinguishing_features or [],
+        }
+
+    personality_dict = None
+    if profile.personality and profile.personality.summary:
+        personality_dict = {
+            "summary": profile.personality.summary,
+            "traits": profile.personality.traits or [],
+            "temperament": profile.personality.temperament,
+            "moral_alignment": profile.personality.moral_alignment,
+        }
+
+    voice_guidance_dict = None
+    vg = profile.voice_guidance
+    if vg and (vg.suggested_tone or vg.dialect_notes or vg.verbal_tics):
+        voice_guidance_dict = {
+            "suggested_tone": vg.suggested_tone,
+            "dialect_notes": vg.dialect_notes,
+            "verbal_tics": vg.verbal_tics or [],
+            "formality_level": vg.formality_level,
+            "emotional_range": vg.emotional_range,
+            "example_quotes": vg.example_quotes or [],
+        }
+
     return Character(
         id=profile.id,
         canonical_name=profile.canonical_name,
         aliases=profile.aliases,
+        role=profile.role,
+        appearance=appearance_dict,
+        personality=personality_dict,
+        voice_guidance=voice_guidance_dict,
         descriptions=descriptions,
         first_appearance_chapter=profile.first_appearance_chapter,
         mention_count=_estimate_mention_count(profile),

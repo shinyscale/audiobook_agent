@@ -61,19 +61,41 @@ class CharacterDescription(BaseModel):
 
 
 class Character(BaseModel):
-    """A character extracted from the book."""
+    """A character extracted from the book.
+
+    Fields are organized to prioritize narrator-useful information:
+    1. Identity: canonical_name, aliases, role
+    2. Narration guidance: appearance, personality, voice_guidance
+    3. Relationships: relationships dict
+    4. Metadata: mention_count, first_appearance_chapter, confidence
+    """
     id: str  # Unique identifier
     canonical_name: str  # Primary name to use
     aliases: list[str] = Field(default_factory=list)
+
+    # Narrator-useful structured profile data (F8: Simplified Character Output)
+    role: Optional[str] = None  # protagonist, antagonist, supporting, minor
+    appearance: Optional[dict] = None  # {summary, age_indication, distinguishing_features}
+    personality: Optional[dict] = None  # {summary, traits, temperament, emotional_range}
+    voice_guidance: Optional[dict] = None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
+
+    # Legacy description field (still used for backward compatibility)
     descriptions: list[CharacterDescription] = Field(default_factory=list)
+
+    # Relationships (narrator-useful for understanding dynamics)
+    relationships: dict[str, str] = Field(default_factory=dict)  # char_id -> relationship
+
+    # Evidence for profile claims
+    evidence: list[dict] = Field(default_factory=list)
+
+    # User notes (editable by narrator)
+    voice_notes: Optional[str] = None  # User notes for performance
+
+    # Metadata (secondary info - less prominent in output)
     first_appearance_chapter: Optional[int] = None
     mention_count: int = 0
-    relationships: dict[str, str] = Field(default_factory=dict)  # char_id -> relationship
-    voice_notes: Optional[str] = None  # User notes for performance
-    # Optional evidence used to build/refine profiles. Each entry is a dict such as:
-    # { "type": "...", "statement": "...", "quotes": [{"quote": "...", "position": 12345}], "chunk": "Chapter 3" }
-    evidence: list[dict] = Field(default_factory=list)
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+
     # Narrator role detection
     is_narrator: bool = False
     narrative_role: Optional[str] = None  # e.g., "First-person narrator", "POV character"

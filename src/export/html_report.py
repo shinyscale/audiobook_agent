@@ -783,6 +783,9 @@ HTML_TEMPLATE = '''
                 <div class="character-profile character-item" data-confidence="{{ char.confidence.value }}">
                     <h4>
                         {{ char.canonical_name }}
+                        {% if char.role %}
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">{{ char.role }}</span>
+                        {% endif %}
                         {% if char.is_narrator %}
                         <span class="tag" style="background: var(--accent); color: var(--text); font-size: 0.75rem; margin-left: 0.5rem;" title="Narrator">📖 {{ char.narrative_role or "Narrator" }}</span>
                         {% endif %}
@@ -793,23 +796,81 @@ HTML_TEMPLATE = '''
                             {% endif %}
                         </span>
                     </h4>
-                    <div class="profile-meta">
-                        <span>{{ char.mention_count }} mentions</span>
-                        <span>First appears: Ch. {{ char.first_appearance_chapter or "?" }}</span>
-                        <span class="tag {{ char.confidence.value }}">{{ char.confidence.value }} confidence</span>
-                        {% if char.relationships %}
-                        <span>Relationships:
-                            {% for other, rel in char.relationships.items() %}
-                            {{ other }} ({{ rel }}){% if not loop.last %}, {% endif %}
-                            {% endfor %}
-                        </span>
+
+                    {% if char.aliases %}
+                    <div class="aliases-list" style="margin-bottom: 0.75rem;">Also known as: {{ char.aliases|join(", ") }}</div>
+                    {% endif %}
+
+                    {# Narrator-Useful Profile Sections (F8: Prioritize over metrics) #}
+                    {% if char.appearance and char.appearance.get('summary') %}
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">{{ char.appearance.get('summary', '') }}</div>
+                        {% if char.appearance.get('age_indication') and char.appearance.get('age_indication') != 'unknown' %}
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Age: {{ char.appearance.get('age_indication') }}</div>
+                        {% endif %}
+                        {% if char.appearance.get('distinguishing_features') %}
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Features: {{ char.appearance.get('distinguishing_features')|join(', ') }}</div>
                         {% endif %}
                     </div>
-                    {% if char.descriptions %}
+                    {% endif %}
+
+                    {% if char.personality and char.personality.get('summary') %}
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">{{ char.personality.get('summary', '') }}</div>
+                        {% if char.personality.get('traits') %}
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: {{ char.personality.get('traits')|join(', ') }}</div>
+                        {% endif %}
+                        {% if char.personality.get('temperament') and char.personality.get('temperament') != 'unknown' %}
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: {{ char.personality.get('temperament') }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if char.voice_guidance and (char.voice_guidance.get('suggested_tone') or char.voice_guidance.get('dialect_notes') or char.voice_guidance.get('verbal_tics')) %}
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        {% if char.voice_guidance.get('suggested_tone') %}
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> {{ char.voice_guidance.get('suggested_tone') }}</div>
+                        {% endif %}
+                        {% if char.voice_guidance.get('dialect_notes') %}
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> {{ char.voice_guidance.get('dialect_notes') }}</div>
+                        {% endif %}
+                        {% if char.voice_guidance.get('verbal_tics') %}
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> {{ char.voice_guidance.get('verbal_tics')|join(', ') }}</div>
+                        {% endif %}
+                        {% if char.voice_guidance.get('formality_level') and char.voice_guidance.get('formality_level') != 'moderate' %}
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> {{ char.voice_guidance.get('formality_level') }}</div>
+                        {% endif %}
+                        {% if char.voice_guidance.get('example_quotes') %}
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        {% for quote in char.voice_guidance.get('example_quotes')[:3] %}
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"{{ quote }}"</div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {# Relationships #}
+                    {% if char.relationships %}
+                    <div class="profile-section" style="margin-bottom: 0.75rem;">
+                        <strong>🔗 Relationships:</strong>
+                        {% for other, rel in char.relationships.items() %}
+                        <span class="tag" style="margin-left: 0.5rem;">{{ other }} ({{ rel }})</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {# Fallback to legacy descriptions if no structured data #}
+                    {% if char.descriptions and not (char.appearance or char.personality or char.voice_guidance) %}
                     <div class="profile-body">{{ char.descriptions[0].text }}</div>
+                    {% endif %}
+
+                    {# Evidence (collapsible) #}
                     {% if char.evidence %}
                     <details style="margin-top: 0.75rem;">
-                        <summary style="cursor: pointer; color: var(--muted);">Evidence ({{ char.evidence|length }})</summary>
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Evidence ({{ char.evidence|length }})</summary>
                         <div class="chapter-details" style="margin-top: 0.5rem;">
                             <ul style="list-style: none; padding-left: 0;">
                                 {% for ev in char.evidence[:15] %}
@@ -827,7 +888,7 @@ HTML_TEMPLATE = '''
                                     {% if ev.get("quotes") %}
                                     <div class="context" style="margin-top: 0.25rem;">
                                         {% for q in ev.get("quotes")[:2] %}
-                                        <div>“{{ q.get("quote","")[:200] }}{% if q.get("quote","")|length > 200 %}...{% endif %}”</div>
+                                        <div>"{{ q.get("quote","")[:200] }}{% if q.get("quote","")|length > 200 %}...{% endif %}"</div>
                                         {% endfor %}
                                     </div>
                                     {% endif %}
@@ -840,12 +901,16 @@ HTML_TEMPLATE = '''
                         </div>
                     </details>
                     {% endif %}
-                    {% else %}
-                    <div class="profile-body" style="color: var(--muted); font-style: italic;">No detailed profile available.</div>
-                    {% endif %}
-                    {% if char.aliases %}
-                    <div class="aliases-list">Also known as: {{ char.aliases|join(", ") }}</div>
-                    {% endif %}
+
+                    {# Metadata (de-emphasized) #}
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>{{ char.mention_count }} mentions</span> •
+                            <span>First appears: Ch. {{ char.first_appearance_chapter or "?" }}</span> •
+                            <span class="tag {{ char.confidence.value }}">{{ char.confidence.value }} confidence</span>
+                        </div>
+                    </details>
                 </div>
                 {% endfor %}
             </div>
