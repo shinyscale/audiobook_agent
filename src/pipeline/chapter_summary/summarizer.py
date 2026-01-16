@@ -44,18 +44,20 @@ SECTION: {chunk_num} of {total_chunks}
 TEXT:
 {text}
 
-IMPORTANT GUIDELINES:
-- Prioritize FACTUAL ACCURACY over brevity
+IMPORTANT GUIDELINES (F12: Prioritize accuracy):
+- FACTUAL ACCURACY is more important than brevity - include all significant events
 - Include specific setting details (location, transportation method, time of day)
-- If events or objects are referenced, provide brief context
-- Be precise about character actions and dialogue topics
+- When referencing events/objects, ALWAYS provide context (e.g., "the inheritance from his uncle" not just "the money")
+- Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
+- Include character emotions and reactions when they impact the narrative
+- If something is vague or unclear in the text, say so rather than guessing
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The protagonist arrives by car at an unfamiliar mansion and encounters a mysterious stranger on the front steps. They engage in tense conversation that reveals the stranger knows about the protagonist's past investigation. The stranger mentions a hidden letter but doesn't explain its significance. The section ends with an unexpected revelation about the mansion's previous owner.",
+  "summary": "The protagonist arrives by car at an unfamiliar mansion on the outskirts of West Egg and encounters a mysterious stranger smoking on the front steps. They engage in a tense conversation that reveals the stranger knows about the protagonist's past investigation into the Meyer Wolfsheim connection. The stranger mentions a hidden letter from Gatsby but refuses to explain its significance or whereabouts. The section ends with an unexpected revelation: the mansion's previous owner was murdered, not died naturally as claimed.",
   "key_events": [
     "Protagonist drives to the mansion",
     "Meeting with the stranger on the steps",
@@ -93,18 +95,19 @@ WORD COUNT: {word_count}
 SECTION SUMMARIES:
 {chunk_summaries}
 
-IMPORTANT GUIDELINES:
-- Prioritize FACTUAL ACCURACY - preserve specific details from section summaries
-- Include setting details (location, transportation, time) when mentioned
-- If events or objects are referenced, include brief context from the sections
-- Be precise about character actions and locations
+IMPORTANT GUIDELINES (F12: Prioritize accuracy):
+- FACTUAL ACCURACY is more important than brevity - preserve ALL significant details from sections
+- Include setting details (location, transportation method, time) when mentioned
+- When events/objects are referenced, ALWAYS include context from the sections
+- Be precise about HOW characters travel and WHERE specific events occur
+- If something is vague in the section summaries, preserve that vagueness rather than inventing details
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The chapter begins with a quiet morning at the estate that quickly escalates into conflict when an unexpected visitor arrives by car. Characters confront long-buried tensions as past events resurface during a heated conversation in the library. A series of revelations about a hidden letter shifts relationships and alliances. The chapter concludes with an uncertain truce in the garden that sets up future complications.",
+  "summary": "The chapter begins with a quiet morning at the West Egg estate that quickly escalates into conflict when Tom's old friend Chester arrives unexpectedly by automobile from Chicago. Characters confront long-buried tensions as past events from their Yale days resurface during a heated conversation in the oak-paneled library. A series of revelations about a hidden letter from Gatsby shifts the relationship between Nick and Daisy. The chapter concludes with an uncertain truce reached in the rose garden as dusk falls, but Tom's final glare at Chester suggests future complications.",
   "key_events": [
     "Morning conversation reveals underlying tension",
     "Unexpected visitor arrives by car",
@@ -149,18 +152,20 @@ WORD COUNT: {word_count}
 TEXT:
 {text}
 
-IMPORTANT GUIDELINES:
-- Prioritize FACTUAL ACCURACY over brevity
+IMPORTANT GUIDELINES (F12: Prioritize accuracy):
+- FACTUAL ACCURACY is more important than brevity - include all significant events
 - Include specific setting details (location, transportation method, time of day)
-- If events or objects are referenced, provide brief context
-- Be precise about character actions and dialogue topics
+- When referencing events/objects, ALWAYS provide context (e.g., "the inheritance from his uncle" not just "the money")
+- Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
+- Include character emotions and reactions when they impact the narrative
+- If something is vague or unclear in the text, say so rather than guessing
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "summary": "The chapter begins with a quiet morning at the estate that quickly escalates into conflict when an unexpected visitor arrives by car. Characters confront long-buried tensions during a conversation in the library as past events resurface. A series of revelations about a hidden letter shifts relationships and alliances. The chapter concludes with an uncertain truce in the garden that sets up future complications.",
+  "summary": "The chapter begins with a quiet morning at the West Egg estate that quickly escalates into conflict when Tom's old friend Chester arrives unexpectedly by automobile from Chicago. Characters confront long-buried tensions as past events from their Yale days resurface during a heated conversation in the oak-paneled library. A series of revelations about a hidden letter from Gatsby shifts the relationship between Nick and Daisy. The chapter concludes with an uncertain truce reached in the rose garden as dusk falls, but Tom's final glare at Chester suggests future complications.",
   "key_events": [
     "Morning conversation reveals underlying tension",
     "Unexpected visitor arrives by car",
@@ -216,13 +221,21 @@ class ChapterSummarizer:
         self.summary_length = summary_length
 
     def _get_length_guidance(self) -> str:
-        """Get length guidance text based on summary_length setting."""
+        """Get length guidance text based on summary_length setting.
+
+        F12: Increased default summary length to 3-5 sentences for better accuracy.
+        """
         if self.summary_length == "brief":
             return "- Aim for 2-3 concise sentences in your summary"
         elif self.summary_length == "detailed":
-            return "- Aim for 6-8 detailed sentences in your summary"
-        else:  # standard
-            return "- Aim for 4-6 detailed sentences in your summary"
+            return "- Aim for 6-8 detailed sentences in your summary, preserving ALL significant events"
+        else:  # standard (F12: increased from 4-6 to 3-5 with accuracy emphasis)
+            return (
+                "- Aim for 3-5 DETAILED sentences in your summary\n"
+                "- NEVER sacrifice accuracy for brevity - include all significant events\n"
+                "- When referencing events or objects, provide context (e.g., 'the pearl necklace her mother gave her' not just 'pearls')\n"
+                "- Include HOW characters travel (by car, on foot, by train) not just WHERE"
+            )
 
     def summarize_chapter(
         self,

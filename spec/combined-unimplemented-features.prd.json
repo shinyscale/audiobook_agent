@@ -184,7 +184,7 @@
         "src/pipeline/chapter_summary/summarizer.py",
         "src/pipeline/chapter_summary/prompts.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F13",
