@@ -37,6 +37,13 @@ from .narrator_commentary import (
     NarratorCommentaryResult,
     NarratorCommentaryDetector,
 )
+from .summary_merger import (
+    SummaryMerger,
+    SummaryMergeResult,
+    IdentityStatement,
+    find_summary_merges,
+    apply_summary_merges,
+)
 
 __all__ = [
     # Models
@@ -74,4 +81,10 @@ __all__ = [
     "profile_to_character",
     "profile_map_to_characters",
     "character_to_rich_dict",
+    # Summary Merger (Feature F1)
+    "SummaryMerger",
+    "SummaryMergeResult",
+    "IdentityStatement",
+    "find_summary_merges",
+    "apply_summary_merges",
 ]
