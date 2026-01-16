@@ -7,6 +7,10 @@ from .tui import run_tui, AudiobookPrepApp
 
 try:
     from .desktop import AudiobookPrepGUI, main as desktop_main
-    __all__ = ["run_tui", "AudiobookPrepApp", "AudiobookPrepGUI", "desktop_main"]
+    from .pronunciation_dialog import PronunciationDialog, show_pronunciation_dialog
+    __all__ = [
+        "run_tui", "AudiobookPrepApp", "AudiobookPrepGUI", "desktop_main",
+        "PronunciationDialog", "show_pronunciation_dialog",
+    ]
 except ImportError:
     __all__ = ["run_tui", "AudiobookPrepApp"]
