@@ -495,6 +495,59 @@ HTML_TEMPLATE = '''
             color: var(--muted);
         }
 
+        /* F20: Evidence citations */
+        .evidence-citation {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            margin-left: 0.2rem;
+            cursor: pointer;
+            text-decoration: none;
+            vertical-align: super;
+        }
+        .evidence-citation:hover {
+            background: var(--primary);
+        }
+        .evidence-list {
+            list-style: none;
+            padding: 0;
+            counter-reset: evidence;
+        }
+        .evidence-item {
+            counter-increment: evidence;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+        .evidence-item::before {
+            content: "[" counter(evidence) "]";
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        .evidence-quote {
+            font-style: italic;
+            color: var(--muted);
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            border-left: 2px solid var(--muted);
+        }
+        .evidence-chapter {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+
         /* Print styles */
         @media print {
             body {
@@ -867,17 +920,17 @@ HTML_TEMPLATE = '''
                     <div class="profile-body">{{ char.descriptions[0].text }}</div>
                     {% endif %}
 
-                    {# Evidence (collapsible) #}
+                    {# F20: Evidence with numbered citations #}
                     {% if char.evidence %}
-                    <details style="margin-top: 0.75rem;">
-                        <summary style="cursor: pointer; color: var(--muted);">📑 Evidence ({{ char.evidence|length }})</summary>
+                    <details style="margin-top: 0.75rem;" id="evidence-{{ loop.index }}">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence ({{ char.evidence|length }} citations)</summary>
                         <div class="chapter-details" style="margin-top: 0.5rem;">
-                            <ul style="list-style: none; padding-left: 0;">
+                            <ul class="evidence-list">
                                 {% for ev in char.evidence[:15] %}
-                                <li style="margin-bottom: 0.75rem;">
+                                <li class="evidence-item" id="ev-{{ loop.parent.loop.index }}-{{ loop.index }}">
                                     <div>
                                         <span class="tag">{{ ev.get("type","fact") }}</span>
-                                        {% if ev.get("chunk") %}<span class="tag">{{ ev.get("chunk") }}</span>{% endif %}
+                                        {% if ev.get("chunk") %}<span class="tag">Ch. {{ ev.get("chunk") }}</span>{% endif %}
                                     </div>
                                     {% if ev.get("statement") %}
                                     <div style="margin-top: 0.25rem;"><strong>{{ ev.get("statement") }}</strong></div>
@@ -886,16 +939,17 @@ HTML_TEMPLATE = '''
                                     <div style="margin-top: 0.25rem;"><strong>{{ ev.get("other") }}</strong> <span class="rel-type">({{ ev.get("relation") }})</span></div>
                                     {% endif %}
                                     {% if ev.get("quotes") %}
-                                    <div class="context" style="margin-top: 0.25rem;">
+                                    <div class="evidence-quote">
                                         {% for q in ev.get("quotes")[:2] %}
-                                        <div>"{{ q.get("quote","")[:200] }}{% if q.get("quote","")|length > 200 %}...{% endif %}"</div>
+                                        <div>"{{ q.get("quote","")[:300] }}{% if q.get("quote","")|length > 300 %}...{% endif %}"</div>
+                                        {% if q.get("chapter") %}<div class="evidence-chapter">— Chapter {{ q.get("chapter") }}</div>{% endif %}
                                         {% endfor %}
                                     </div>
                                     {% endif %}
                                 </li>
                                 {% endfor %}
                                 {% if char.evidence|length > 15 %}
-                                <li class="pron-note">... and {{ char.evidence|length - 15 }} more evidence items</li>
+                                <li class="pron-note" style="margin-top: 0.5rem; color: var(--muted);">... and {{ char.evidence|length - 15 }} more evidence items</li>
                                 {% endif %}
                             </ul>
                         </div>
