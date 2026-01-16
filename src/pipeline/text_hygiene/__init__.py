@@ -13,9 +13,24 @@ from .back_matter import (
     is_in_back_matter,
 )
 
+from .normalization import (
+    normalize_name,
+    normalize_names_list,
+    names_match,
+    is_possessive,
+    extract_base_name,
+)
+
 __all__ = [
+    # Back matter (F11)
     "BackMatterRegion",
     "BackMatterDetector",
     "detect_back_matter",
     "is_in_back_matter",
+    # Name normalization (F13)
+    "normalize_name",
+    "normalize_names_list",
+    "names_match",
+    "is_possessive",
+    "extract_base_name",
 ]
