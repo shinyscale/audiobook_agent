@@ -186,13 +186,21 @@ class DocumentProfiler:
         )
 
     def _is_metadata_line(self, line: str) -> bool:
-        """Check if a line is metadata rather than a TOC entry."""
-        line_lower = line.lower()
+        """Check if a line is metadata rather than a TOC entry.
+
+        F9: Enhanced metadata detection to filter out non-chapter entries.
+        """
+        line_lower = line.lower().strip()
         metadata_indicators = [
             'copyright', 'published', 'edition', 'isbn',
             'all rights', 'reserved', 'author', 'introduction',
-            'foreword', 'preface', 'acknowledgments', 'dedication',
-            'translator', 'editor', 'illustrated', 'written by',
+            'foreword', 'preface', 'acknowledgments', 'acknowledgements',
+            'dedication', 'translator', 'editor', 'illustrated',
+            'written by', 'project gutenberg', 'ebook', 'e-book',
+            'transcriber', 'produced by', 'cover image', 'frontispiece',
+            'title page', 'half title', 'bibliography', 'index',
+            'appendix', 'glossary', 'notes', 'about the author',
+            'annotation', 'dramatis personae', 'the end',
         ]
         for indicator in metadata_indicators:
             if indicator in line_lower:
@@ -200,39 +208,125 @@ class DocumentProfiler:
         # Check for "by Author" pattern at start
         if line_lower.startswith('by ') and len(line) > 5:
             return True
+        # Check for URLs or email addresses
+        if 'http' in line_lower or '@' in line or 'www.' in line_lower:
+            return True
+        # Check for dates (commonly in metadata)
+        if re.search(r'\b(19|20)\d{2}\b', line):
+            return True
         # Also reject very long lines (likely prose, not TOC)
         if len(line) > 80:
             return True
+        # Reject lines that are mostly numbers (page number lists, etc.)
+        non_digits = re.sub(r'[\d\s\.\-]', '', line)
+        if len(non_digits) == 0 and len(line.strip()) > 0:
+            return True
         return False
 
+    def _roman_to_int(self, s: str) -> int:
+        """Convert a Roman numeral string to an integer."""
+        roman_map = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+        result = 0
+        prev = 0
+        for char in reversed(s.upper()):
+            val = roman_map.get(char, 0)
+            if val < prev:
+                result -= val
+            else:
+                result += val
+            prev = val
+        return result
+
+    def _is_valid_roman_sequence(self, entries: list[TOCEntry]) -> bool:
+        """Check if entries form a valid Roman numeral sequence starting from I.
+
+        F9: Validates that Roman numerals are sequential (I, II, III, IV, V, etc.)
+        """
+        roman_pattern = re.compile(r'^[IVXLCDM]+$')
+        roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
+
+        if len(roman_entries) < 3:
+            return False
+
+        # Check sequence
+        values = [self._roman_to_int(e.title.strip()) for e in roman_entries]
+
+        # Must start from 1 or thereabouts
+        if values[0] > 3:  # Allow starting from I, II, or III
+            return False
+
+        # Check for sequential progression (allowing gaps)
+        prev = 0
+        for val in values:
+            if val <= prev:  # Must be increasing
+                return False
+            prev = val
+
+        return True
+
     def _validate_toc_entries(self, entries: list[TOCEntry]) -> list[TOCEntry]:
-        """Validate and filter TOC entries for consistency."""
+        """Validate and filter TOC entries for consistency.
+
+        F9: Enhanced validation with sequential Roman numeral checking and
+        better filtering of non-chapter entries.
+        """
         if not entries:
             return entries
 
-        # Check for Roman numeral sequence
-        roman_pattern = re.compile(r'^[IVXLC]+$')
+        # Check for Roman numeral sequence (e.g., I, II, III, IV, ..., IX)
+        roman_pattern = re.compile(r'^[IVXLCDM]+$')
         roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
 
-        if len(roman_entries) >= 3 and len(roman_entries) / len(entries) > 0.3:
-            logger.info(f"TOC validation: detected Roman numeral pattern, "
+        if self._is_valid_roman_sequence(roman_entries):
+            logger.info(f"TOC validation: detected valid Roman numeral sequence, "
                         f"keeping {len(roman_entries)} of {len(entries)} entries")
             return roman_entries
 
-        # Check for "Chapter N" pattern
-        chapter_pattern = re.compile(r'^chapter\s+\d+', re.IGNORECASE)
-        chapter_entries = [e for e in entries if chapter_pattern.match(e.title.strip())]
+        # Check for "Chapter N" pattern with sequential numbers
+        chapter_pattern = re.compile(r'^chapter\s+(\d+)', re.IGNORECASE)
+        chapter_entries = []
+        for e in entries:
+            match = chapter_pattern.match(e.title.strip())
+            if match:
+                chapter_entries.append((int(match.group(1)), e))
 
-        if len(chapter_entries) >= 3 and len(chapter_entries) / len(entries) > 0.3:
-            logger.info(f"TOC validation: detected Chapter N pattern, "
-                        f"keeping {len(chapter_entries)} of {len(entries)} entries")
-            return chapter_entries
+        if len(chapter_entries) >= 3:
+            # Check for sequential chapter numbers
+            chapter_entries.sort(key=lambda x: x[0])
+            nums = [x[0] for x in chapter_entries]
+            if nums[0] <= 3 and all(nums[i] <= nums[i-1] + 2 for i in range(1, len(nums))):
+                filtered = [x[1] for x in chapter_entries]
+                logger.info(f"TOC validation: detected sequential Chapter N pattern, "
+                            f"keeping {len(filtered)} of {len(entries)} entries")
+                return filtered
 
-        # Warn on unreasonable counts
+        # Check for standalone Arabic numerals (1, 2, 3, ...)
+        num_pattern = re.compile(r'^(\d+)$')
+        num_entries = []
+        for e in entries:
+            match = num_pattern.match(e.title.strip())
+            if match:
+                num_val = int(match.group(1))
+                # Only consider reasonable chapter numbers (not page numbers)
+                if num_val <= 100:
+                    num_entries.append((num_val, e))
+
+        if len(num_entries) >= 3:
+            num_entries.sort(key=lambda x: x[0])
+            nums = [x[0] for x in num_entries]
+            # Must start from 1-3 and be sequential
+            if nums[0] <= 3 and all(nums[i] <= nums[i-1] + 2 for i in range(1, len(nums))):
+                filtered = [x[1] for x in num_entries]
+                logger.info(f"TOC validation: detected sequential numeric chapters, "
+                            f"keeping {len(filtered)} of {len(entries)} entries")
+                return filtered
+
+        # Warn on unreasonable counts (likely page numbers included)
         if len(entries) > 30:
-            logger.warning(f"TOC validation: {len(entries)} entries seems too many")
+            logger.warning(f"TOC validation: {len(entries)} entries seems too many, "
+                           f"likely includes page numbers or metadata")
             level1_entries = [e for e in entries if e.level == 1]
-            if len(level1_entries) >= 3:
+            if 3 <= len(level1_entries) <= 50:
                 logger.info(f"TOC validation: filtering to {len(level1_entries)} level-1 entries")
                 return level1_entries
 

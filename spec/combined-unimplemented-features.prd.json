@@ -142,7 +142,7 @@
       "files": [
         "src/pipeline/chapter_detection/profiler.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F10",
