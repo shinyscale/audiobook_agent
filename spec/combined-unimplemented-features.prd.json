@@ -381,7 +381,7 @@
       "files": [
         "src/pipeline/pronunciation_guide/word_index.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F27",
@@ -395,7 +395,7 @@
         "src/pipeline/pronunciation_guide/proposers/base.py",
         "src/pipeline/pronunciation_guide/models.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F28",
