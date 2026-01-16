@@ -385,8 +385,16 @@ class CharacterProfileGenerator:
                         description=rel.get("description", ""),
                     ))
 
-        # Set confidence
-        profile.confidence = result.get("confidence", 0.7)
+        # Set confidence (F14: warn when missing)
+        confidence_raw = result.get("confidence")
+        if confidence_raw is None:
+            logger.warning(
+                f"Profile generation for '{character.canonical_name}' did not return confidence - "
+                "using conservative default 0.6"
+            )
+            profile.confidence = 0.6
+        else:
+            profile.confidence = float(confidence_raw)
 
         # Determine mention frequency from passages
         num_passages = len(passages)

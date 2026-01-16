@@ -26,6 +26,40 @@ class MoralValence(str, Enum):
     UNCERTAIN = "uncertain"  # Insufficient evidence
 
 
+# Constraints for profile generation based on moral valence.
+# These are HARD CONSTRAINTS that the profile generator must respect.
+MORAL_VALENCE_CONSTRAINTS: dict[MoralValence, str] = {
+    MoralValence.PROTAGONIST: (
+        "This character performs primarily BENEFICIAL actions. "
+        "Profile should reflect their positive qualities while noting any flaws. "
+        "Avoid overly negative characterization that contradicts their helpful actions."
+    ),
+    MoralValence.ANTAGONIST: (
+        "This character performs primarily HARMFUL actions (murder, manipulation, cruelty, etc.). "
+        "DO NOT use positive descriptors like 'charming', 'attractive', or 'charismatic' without "
+        "explicitly noting these are surface qualities that mask harmful behavior. "
+        "Profile MUST acknowledge their harmful actions and their impact on others."
+    ),
+    MoralValence.MORALLY_AMBIGUOUS: (
+        "This character performs BOTH significant harmful AND beneficial actions. "
+        "Profile should present a balanced view acknowledging both aspects. "
+        "Avoid simplifying them as purely good or purely evil."
+    ),
+    MoralValence.NEUTRAL: (
+        "This character primarily performs neutral actions (daily life, observation, work). "
+        "Profile should focus on their role in the narrative without moral judgment."
+    ),
+    MoralValence.VICTIM: (
+        "This character is primarily a RECIPIENT of harmful actions from others. "
+        "Profile should acknowledge their suffering and any resilience or growth shown."
+    ),
+    MoralValence.UNCERTAIN: (
+        "Insufficient evidence to classify this character's moral role. "
+        "Profile should be factual and avoid making moral judgments."
+    ),
+}
+
+
 @dataclass
 class MoralValenceResult:
     """Result of moral valence classification."""
@@ -183,10 +217,21 @@ class MoralValenceClassifier:
         except ValueError:
             valence = MoralValence.UNCERTAIN
 
+        # F14: Warn when confidence is missing from LLM response
+        confidence_raw = result.get("confidence")
+        if confidence_raw is None:
+            logger.warning(
+                f"Moral valence classification for '{character_name}' did not return confidence - "
+                "using default 0.5"
+            )
+            confidence = 0.5
+        else:
+            confidence = float(confidence_raw)
+
         return MoralValenceResult(
             character_name=character_name,
             valence=valence,
-            confidence=result.get("confidence", 0.5),
+            confidence=confidence,
             key_actions=result.get("key_actions", []),
             evidence_quotes=result.get("evidence_quotes", []),
             reasoning=result.get("reasoning", ""),

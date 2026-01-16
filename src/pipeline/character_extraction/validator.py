@@ -5,10 +5,12 @@ Validates character proposals and identifies potential aliases.
 """
 
 import re
+import time
 from typing import Optional
 import logging
 
 from .models import CharacterProposal, CharacterValidationResult
+from .constants import NICKNAME_MAP
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -228,25 +230,48 @@ class CharacterValidator:
             contexts=contexts_str,
         )
 
-        result, response = self.llm.query_json(prompt, system=VALIDATION_SYSTEM_PROMPT)
+        # Retry logic with exponential backoff
+        max_retries = 2
+        last_error = None
 
-        if not response.success:
-            # HTTP error or connection failure - fail fast instead of masking with fallback
-            error_msg = f"LLM validation failed for '{proposal.name}': {response.error}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        for attempt in range(max_retries + 1):
+            result, response = self.llm.query_json(prompt, system=VALIDATION_SYSTEM_PROMPT)
 
-        if result is None or not isinstance(result, dict):
-            # JSON parsing failure or wrong type - fail fast instead of masking with fallback
-            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
-            error_msg = f"LLM validation returned invalid JSON for '{proposal.name}': {error_detail}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            if not response.success:
+                last_error = f"LLM query failed: {response.error}"
+                logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' failed: {last_error}")
+                if attempt < max_retries:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                    continue
+                else:
+                    raise ValueError(f"LLM validation failed for '{proposal.name}' after {max_retries + 1} attempts: {last_error}")
+
+            if result is None or not isinstance(result, dict):
+                error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+                last_error = f"Invalid JSON: {error_detail}"
+                logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' returned invalid JSON: {error_detail}")
+                if attempt < max_retries:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    raise ValueError(f"LLM validation returned invalid JSON for '{proposal.name}' after {max_retries + 1} attempts: {last_error}")
+
+            # Success - parse LLM response
+            break
 
         # Parse LLM response
         is_person = result.get("is_person", True)
         is_person_score = 0.9 if is_person else 0.1
-        context_score = float(result.get("context_supports", 0.5))
+        # F14: Warn when LLM doesn't return context_supports score
+        context_supports_raw = result.get("context_supports")
+        if context_supports_raw is None:
+            logger.warning(
+                f"LLM validation for '{proposal.name}' did not return context_supports - "
+                "using neutral default 0.5"
+            )
+            context_score = 0.5
+        else:
+            context_score = float(context_supports_raw)
         alias_candidates = result.get("alias_candidates", [])
         overall_valid = result.get("overall_valid", is_person)
         reasoning = result.get("is_person_reasoning", "LLM validation")
@@ -318,20 +343,9 @@ class CharacterValidator:
             # to all character names, will handle alias detection with the LLM's help.
             # Generating phantom aliases pollutes the system and wastes LLM tokens.
 
-        # Common nickname patterns
-        nickname_map = {
-            'elizabeth': ['lizzy', 'liz', 'beth', 'eliza'],
-            'william': ['will', 'bill', 'billy', 'willy'],
-            'robert': ['rob', 'bob', 'bobby', 'robbie'],
-            'richard': ['rick', 'dick', 'ricky'],
-            'james': ['jim', 'jimmy', 'jamie'],
-            'katherine': ['kate', 'kathy', 'katie', 'kitty'],
-            'margaret': ['maggie', 'meg', 'peggy', 'marge'],
-            'nicholas': ['nick', 'nicky'],
-        }
-
+        # Use shared nickname map from constants module
         name_lower = name.lower()
-        for full_name, nicknames in nickname_map.items():
+        for full_name, nicknames in NICKNAME_MAP.items():
             if full_name in name_lower:
                 aliases.extend([n.title() for n in nicknames])
             elif any(nick in name_lower for nick in nicknames):

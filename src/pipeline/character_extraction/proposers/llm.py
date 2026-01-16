@@ -216,7 +216,15 @@ class LLMCharacterProposer(BaseCharacterProposer):
                 logger.debug(f"LLM proposed '{name}' but not found in text")
                 continue
 
-            confidence = float(item.get("confidence", 0.7))
+            # F14: Warn and use conservative default when LLM doesn't return confidence
+            confidence_raw = item.get("confidence")
+            if confidence_raw is None:
+                logger.warning(
+                    f"LLM did not return confidence for '{name}' - using conservative default 0.5"
+                )
+                confidence = 0.5
+            else:
+                confidence = float(confidence_raw)
 
             # Extract character type
             char_type_str = item.get("type", "uncertain")

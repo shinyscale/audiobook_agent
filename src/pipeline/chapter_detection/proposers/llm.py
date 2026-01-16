@@ -235,12 +235,23 @@ class LLMMarkerProposer(BaseProposer):
                 logger.debug(f"Could not find marker text: {marker_text[:50]}")
                 continue
 
+            # F14: Warn when LLM doesn't return confidence
+            confidence_raw = item.get("confidence")
+            if confidence_raw is None:
+                logger.warning(
+                    f"LLM chapter detection did not return confidence for marker at {position} - "
+                    "using conservative default 0.5"
+                )
+                confidence = 0.5
+            else:
+                confidence = float(confidence_raw)
+
             proposals.append(ChapterProposal(
                 strategy=self.name,
                 position=position,
                 title=item.get("title"),
                 evidence=marker_text,
-                confidence=float(item.get("confidence", 0.7)),
+                confidence=confidence,
                 reasoning=item.get("reasoning"),
             ))
 
@@ -405,7 +416,17 @@ class LLMNarrativeProposer(BaseProposer):
 
             # Narrative breaks have lower base confidence than explicit markers
             # Reduced from 0.8 to 0.7 to be more conservative and avoid false positives
-            confidence = float(item.get("confidence", 0.5)) * 0.7
+            # F14: Warn when LLM doesn't return confidence
+            confidence_raw = item.get("confidence")
+            if confidence_raw is None:
+                logger.warning(
+                    f"LLM narrative break detection did not return confidence - "
+                    "using conservative default 0.3"
+                )
+                base_confidence = 0.3
+            else:
+                base_confidence = float(confidence_raw) * 0.7
+            confidence = base_confidence
 
             proposals.append(ChapterProposal(
                 strategy=self.name,

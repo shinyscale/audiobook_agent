@@ -156,7 +156,16 @@ class NarratorDetector:
             narrator_name = None
 
         narrator_role = result.get("narrator_role", "")
-        confidence = result.get("confidence", 0.7)
+
+        # F14: Warn when confidence is missing
+        confidence_raw = result.get("confidence")
+        if confidence_raw is None:
+            logger.warning(
+                "Narrator detection did not return confidence - using default 0.6"
+            )
+            confidence = 0.6
+        else:
+            confidence = float(confidence_raw)
 
         return NarratorInfo(
             narrative_style=narrative_style,
