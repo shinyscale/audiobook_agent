@@ -618,12 +618,16 @@ class CharacterConsensusBuilder:
         """
         Pick which name should be canonical vs alias.
 
-        Priority:
-        1. Longer names (more complete)
-        2. Untitled over titled
-        3. Higher mention count (NEW!)
-        4. Alphabetically first
+        F15: Priority order (mention count is PRIMARY):
+        1. Higher mention count (most frequently used form is canonical)
+        2. Longer names (more complete)
+        3. Untitled over titled
+        4. Alphabetically first (tiebreaker only)
         """
+        # F15: Prefer higher mention count FIRST (most used form is canonical)
+        if count1 != count2:
+            return (name1, name2) if count1 > count2 else (name2, name1)
+
         # Prefer full names over first names
         parts1 = name1.split()
         parts2 = name2.split()
@@ -641,10 +645,6 @@ class CharacterConsensusBuilder:
             return name2, name1
         elif has_title2 and not has_title1:
             return name1, name2
-
-        # Prefer higher mention count (most frequently used name)
-        if count1 != count2:
-            return (name1, name2) if count1 > count2 else (name2, name1)
 
         # Default: alphabetically first is canonical
         return (name1, name2) if name1 < name2 else (name2, name1)
@@ -1003,20 +1003,34 @@ class CharacterConsensusBuilder:
             components[find(n)].append(n)
 
         # Choose canonical for each component deterministically using mention counts + name completeness
+        # F15: Mention count is PRIMARY factor, then name quality indicators
         alias_map: dict[str, list[str]] = {}
         for _root, members in components.items():
             if len(members) == 1:
                 alias_map[members[0]] = []
                 continue
 
-            def score(name: str) -> tuple[int, int, int, str]:
+            def score(name: str) -> tuple[int, int, int, int, str]:
                 parts = name.split()
                 has_title = 1 if parts and parts[0].rstrip('.').lower() in TITLES else 0
                 mention_count = self._total_mentions_for_name(name, name_groups)
-                # higher is better for first/third; lower is better for has_title
-                return (len(parts), -has_title, mention_count, name)
+                # F15: Priority order:
+                # 1. Higher mention count (PRIMARY - most used form is canonical)
+                # 2. More name parts (more complete names)
+                # 3. No title preferred (-has_title: untitled=0 > titled=-1)
+                # 4. Alphabetically first (tiebreaker only)
+                # Note: we negate name for alphabetically-first tiebreaker with max()
+                return (mention_count, len(parts), -has_title, 0, name)
 
-            canonical = max(members, key=score)
+            # Use min on inverted tuple for alphabetical tiebreaker (first alphabetically wins)
+            def score_with_alpha_first(name: str) -> tuple:
+                parts = name.split()
+                has_title = 1 if parts and parts[0].rstrip('.').lower() in TITLES else 0
+                mention_count = self._total_mentions_for_name(name, name_groups)
+                # Negate values we want to maximize, so min() picks the best
+                return (-mention_count, -len(parts), has_title, name.lower())
+
+            canonical = min(members, key=score_with_alpha_first)
             aliases = [m for m in members if m != canonical]
             alias_map[canonical] = aliases
 
