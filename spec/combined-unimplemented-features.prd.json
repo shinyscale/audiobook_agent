@@ -368,7 +368,7 @@
         "src/export/html_report.py",
         "src/analyzer.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F26",
