@@ -2,6 +2,9 @@
 Character profiling pipeline orchestrator.
 
 Coordinates the summary-driven character identification and profiling workflow.
+
+Feature F2: Summary-Derived Profile Evidence
+The pipeline now passes summary_map to the generator for evidence extraction.
 """
 
 import logging
@@ -16,6 +19,7 @@ from .models import (
 from .identifier import SummaryDrivenCharacterIdentifier
 from .generator import CharacterProfileGenerator
 from .passage_gatherer import CharacterPassageGatherer
+from .summary_evidence import SummaryEvidenceExtractor
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from ..chapter_detection.models import ChapterMap
 from ..llm import LLMClient
@@ -94,8 +98,10 @@ class CharacterProfilingPipeline:
         profiles = []
         if self.generate_rich_profiles:
             # Generate rich profiles with appearance, personality, voice guidance
-            generator = CharacterProfileGenerator(self.llm)
+            # Feature F2: Pass summary_map to generator for summary evidence extraction
+            generator = CharacterProfileGenerator(self.llm, summary_map=summary_map)
             passage_gatherer = CharacterPassageGatherer()
+            summary_extractor = SummaryEvidenceExtractor(self.llm)
 
             for i, char in enumerate(characters):
                 logger.info(f"Profiling character {i + 1}/{len(characters)}: {char.canonical_name}")
@@ -103,12 +109,20 @@ class CharacterProfilingPipeline:
                 # Gather passages for this character
                 passages = passage_gatherer.gather_passages(char, full_text, chapter_map)
 
-                # Generate rich profile
+                # Extract summary evidence (Feature F2)
+                summary_evidence = summary_extractor.extract_evidence(
+                    char.canonical_name,
+                    char.aliases,
+                    summary_map,
+                )
+
+                # Generate rich profile with summary evidence
                 profile = generator.generate_profile(
                     character=char,
                     full_text=full_text,
                     chapter_map=chapter_map,
                     passages=passages,
+                    summary_evidence=summary_evidence,
                 )
                 profiles.append(profile)
                 self._report_progress("profiling", i + 1, len(characters))

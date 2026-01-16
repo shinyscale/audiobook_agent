@@ -2,6 +2,9 @@
 Character profile generator.
 
 Generates rich character profiles from gathered passages using LLM.
+
+Feature F2: Summary-Derived Profile Evidence
+Summary evidence is included as PRIMARY evidence, ranked above raw text mentions.
 """
 
 import json
@@ -19,7 +22,9 @@ from .models import (
     ProfileEvidence,
 )
 from .passage_gatherer import CharacterPassage, CharacterPassageGatherer
+from .summary_evidence import CharacterSummaryEvidence, SummaryEvidenceExtractor
 from ..chapter_detection.models import ChapterMap
+from ..chapter_summary.models import ChapterSummaryMap
 from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -32,12 +37,18 @@ A character is defined by what they DO, not how they are DESCRIBED.
 A beautiful character can be a monster. A physically ugly character can be heroic.
 
 EVIDENCE PRIORITY ORDER (highest to lowest):
-1. ACTIONS (highest weight) - What the character DOES (murders, helps, betrays, protects)
-2. SPEECH (high weight) - What the character SAYS and how they say it
-3. RELATIONSHIPS (medium weight) - How they treat and interact with others
-4. DESCRIPTIONS (lowest weight) - How they LOOK or are described physically
+1. SUMMARY EVIDENCE (highest weight) - Facts from chapter summaries are CONFIRMED plot events
+2. ACTIONS (very high weight) - What the character DOES (murders, helps, betrays, protects)
+3. SPEECH (high weight) - What the character SAYS and how they say it
+4. RELATIONSHIPS (medium weight) - How they treat and interact with others
+5. DESCRIPTIONS (lowest weight) - How they LOOK or are described physically
+
+IMPORTANT: Summary evidence represents CONFIRMED facts about what happens in the story.
+If a chapter summary says a character "poisons" or "murders" someone, this is a FACT
+that MUST be reflected prominently in the profile.
 
 IMPORTANT RULES:
+- Summary evidence ALWAYS takes priority over raw text interpretations
 - If actions contradict descriptions, ACTIONS WIN
 - "Beautiful" or "charming" descriptions do NOT indicate moral goodness
 - Harmful actions (murder, manipulation, cruelty, abuse) MUST dominate the profile
@@ -45,8 +56,7 @@ IMPORTANT RULES:
 
 Your goal is to help narrators understand each character for voice work.
 
-CRITICAL: Only include information directly supported by the provided text passages.
-Include specific quotes as evidence for each claim.
+CRITICAL: Prioritize SUMMARY EVIDENCE when available. Include specific quotes as evidence.
 
 Always respond with valid JSON. No other text."""
 
@@ -57,6 +67,7 @@ CHARACTER: {name}
 ALIASES: {aliases}
 ROLE: {role}
 
+{summary_evidence}
 RELEVANT TEXT PASSAGES:
 {passages}
 
@@ -147,14 +158,18 @@ class CharacterProfileGenerator:
         self,
         llm_client: LLMClient,
         passage_gatherer: Optional[CharacterPassageGatherer] = None,
+        summary_map: Optional[ChapterSummaryMap] = None,
     ):
         """
         Args:
             llm_client: LLM client for profile generation
             passage_gatherer: Optional custom passage gatherer
+            summary_map: Optional chapter summary map for summary evidence (Feature F2)
         """
         self.llm = llm_client
         self.passage_gatherer = passage_gatherer or CharacterPassageGatherer()
+        self.summary_map = summary_map
+        self.summary_extractor = SummaryEvidenceExtractor(llm_client) if summary_map else None
 
     def generate_profile(
         self,
@@ -162,6 +177,7 @@ class CharacterProfileGenerator:
         full_text: str,
         chapter_map: ChapterMap,
         passages: Optional[list[CharacterPassage]] = None,
+        summary_evidence: Optional[CharacterSummaryEvidence] = None,
     ) -> CharacterProfile:
         """
         Generate comprehensive profile for a character.
@@ -171,6 +187,7 @@ class CharacterProfileGenerator:
             full_text: Complete document text
             chapter_map: Chapter boundaries
             passages: Optional pre-gathered passages
+            summary_evidence: Optional pre-extracted summary evidence (Feature F2)
 
         Returns:
             Rich CharacterProfile
@@ -188,6 +205,23 @@ class CharacterProfileGenerator:
             logger.warning(f"No passages found for {character.canonical_name}")
             return profile
 
+        # Extract summary evidence if available (Feature F2)
+        if summary_evidence is None and self.summary_map is not None:
+            summary_evidence = self.summary_extractor.extract_evidence(
+                character.canonical_name,
+                character.aliases,
+                self.summary_map,
+            )
+
+        # Format evidence for prompt
+        summary_evidence_text = ""
+        if summary_evidence and summary_evidence.evidence:
+            summary_evidence_text = summary_evidence.format_for_prompt()
+            logger.info(
+                f"Including {len(summary_evidence.evidence)} summary evidence items "
+                f"for {character.canonical_name}"
+            )
+
         # Format passages for prompt
         passages_text = self._format_passages(passages)
 
@@ -196,6 +230,7 @@ class CharacterProfileGenerator:
             name=character.canonical_name,
             aliases=", ".join(character.aliases) if character.aliases else "None",
             role=character.role,
+            summary_evidence=summary_evidence_text,
             passages=passages_text,
         )
 
@@ -314,6 +349,7 @@ def generate_character_profile(
     full_text: str,
     chapter_map: ChapterMap,
     llm_client: LLMClient,
+    summary_map: Optional[ChapterSummaryMap] = None,
 ) -> CharacterProfile:
     """
     Convenience function to generate a character profile.
@@ -323,9 +359,10 @@ def generate_character_profile(
         full_text: Complete document text
         chapter_map: Chapter boundaries
         llm_client: LLM client
+        summary_map: Optional chapter summaries for summary evidence (Feature F2)
 
     Returns:
         Rich CharacterProfile
     """
-    generator = CharacterProfileGenerator(llm_client)
+    generator = CharacterProfileGenerator(llm_client, summary_map=summary_map)
     return generator.generate_profile(character, full_text, chapter_map)

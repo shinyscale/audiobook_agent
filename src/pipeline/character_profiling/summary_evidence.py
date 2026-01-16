@@ -1,0 +1,408 @@
+"""
+Summary-derived evidence extractor for character profiling.
+
+Extracts character-specific statements from chapter summaries to use as
+PRIMARY evidence in profile generation. This ranks above raw text mentions
+because summaries capture the LLM's understanding of significant events.
+
+Feature F2: Summary-Derived Profile Evidence
+"""
+
+import logging
+import re
+from dataclasses import dataclass, field
+from typing import Optional
+
+from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
+from ..llm import LLMClient
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SummaryEvidence:
+    """Evidence about a character extracted from a chapter summary."""
+
+    character_name: str
+    statement: str  # The relevant statement about the character
+    chapter_index: int
+    source_type: str  # "summary", "key_event", or "character_present"
+    relevance_score: float = 0.8  # How relevant this evidence is (0-1)
+
+    def to_dict(self) -> dict:
+        return {
+            "character_name": self.character_name,
+            "statement": self.statement,
+            "chapter_index": self.chapter_index,
+            "source_type": self.source_type,
+            "relevance_score": self.relevance_score,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SummaryEvidence":
+        return cls(
+            character_name=data["character_name"],
+            statement=data["statement"],
+            chapter_index=data["chapter_index"],
+            source_type=data["source_type"],
+            relevance_score=data.get("relevance_score", 0.8),
+        )
+
+
+@dataclass
+class CharacterSummaryEvidence:
+    """All summary-derived evidence for a single character."""
+
+    character_name: str
+    aliases: list[str] = field(default_factory=list)
+    evidence: list[SummaryEvidence] = field(default_factory=list)
+
+    # Derived from evidence
+    key_actions: list[str] = field(default_factory=list)  # Actions mentioned in summaries
+    key_relationships: list[str] = field(default_factory=list)  # Relationships noted
+    key_traits: list[str] = field(default_factory=list)  # Character traits mentioned
+
+    def to_dict(self) -> dict:
+        return {
+            "character_name": self.character_name,
+            "aliases": self.aliases,
+            "evidence": [e.to_dict() for e in self.evidence],
+            "key_actions": self.key_actions,
+            "key_relationships": self.key_relationships,
+            "key_traits": self.key_traits,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CharacterSummaryEvidence":
+        return cls(
+            character_name=data["character_name"],
+            aliases=data.get("aliases", []),
+            evidence=[SummaryEvidence.from_dict(e) for e in data.get("evidence", [])],
+            key_actions=data.get("key_actions", []),
+            key_relationships=data.get("key_relationships", []),
+            key_traits=data.get("key_traits", []),
+        )
+
+    def format_for_prompt(self) -> str:
+        """Format evidence for inclusion in profile generation prompt."""
+        if not self.evidence:
+            return ""
+
+        lines = [f"=== SUMMARY EVIDENCE FOR {self.character_name} (HIGH PRIORITY) ==="]
+        lines.append("These statements come from chapter summaries and represent confirmed plot events:")
+        lines.append("")
+
+        # Group by chapter
+        by_chapter: dict[int, list[SummaryEvidence]] = {}
+        for ev in self.evidence:
+            by_chapter.setdefault(ev.chapter_index, []).append(ev)
+
+        for chapter_idx in sorted(by_chapter.keys()):
+            chapter_evidence = by_chapter[chapter_idx]
+            lines.append(f"Chapter {chapter_idx}:")
+            for ev in chapter_evidence:
+                lines.append(f"  - {ev.statement}")
+
+        if self.key_actions:
+            lines.append("")
+            lines.append("KEY ACTIONS from summaries:")
+            for action in self.key_actions:
+                lines.append(f"  * {action}")
+
+        lines.append("")
+        return "\n".join(lines)
+
+
+EVIDENCE_EXTRACTION_SYSTEM = """You are extracting character evidence from chapter summaries.
+
+Your job is to identify statements that directly describe a character's:
+1. ACTIONS - What they DO (highest importance)
+2. RELATIONSHIPS - How they relate to other characters
+3. TRAITS - Personality characteristics revealed
+4. EVENTS - Significant events they're involved in
+
+Extract only statements that are DIRECTLY relevant to the specified character.
+Be specific and preserve important details from the summaries.
+
+Respond with valid JSON only."""
+
+
+EVIDENCE_EXTRACTION_PROMPT = """Extract evidence about "{character_name}" from these chapter summaries.
+
+CHARACTER: {character_name}
+ALIASES: {aliases}
+
+CHAPTER SUMMARIES:
+{summaries}
+
+Extract statements about this character that describe:
+- Actions they take (especially morally significant ones)
+- Their relationships to other characters
+- Their personality or behavior patterns
+- Significant events they cause or are involved in
+
+Return JSON:
+```json
+{{
+  "relevant_statements": [
+    {{
+      "chapter_index": 1,
+      "statement": "Character does X to Y",
+      "category": "action/relationship/trait/event"
+    }}
+  ],
+  "key_actions": ["action 1", "action 2"],
+  "key_relationships": ["relationship to Person A"],
+  "key_traits": ["trait 1", "trait 2"]
+}}
+```
+
+Only include statements that DIRECTLY mention or involve {character_name}.
+Do not infer or assume - extract only what is explicitly stated."""
+
+
+class SummaryEvidenceExtractor:
+    """
+    Extracts character-relevant evidence from chapter summaries.
+
+    This evidence is ranked ABOVE raw text mentions because summaries
+    represent the LLM's distillation of significant plot events.
+    """
+
+    def __init__(self, llm_client: Optional[LLMClient] = None):
+        """
+        Args:
+            llm_client: Optional LLM for enhanced extraction. If None, uses pattern-based extraction.
+        """
+        self.llm = llm_client
+
+    def extract_evidence(
+        self,
+        character_name: str,
+        aliases: list[str],
+        summary_map: ChapterSummaryMap,
+    ) -> CharacterSummaryEvidence:
+        """
+        Extract all summary evidence for a character.
+
+        Args:
+            character_name: The character's canonical name
+            aliases: Alternative names/forms for the character
+            summary_map: All chapter summaries
+
+        Returns:
+            CharacterSummaryEvidence with all extracted evidence
+        """
+        all_names = [character_name] + aliases
+        evidence_result = CharacterSummaryEvidence(
+            character_name=character_name,
+            aliases=aliases,
+        )
+
+        # Pattern-based extraction (always run)
+        pattern_evidence = self._extract_pattern_based(all_names, summary_map)
+        evidence_result.evidence.extend(pattern_evidence)
+
+        # LLM-based extraction for deeper analysis (if available)
+        if self.llm and len(pattern_evidence) > 0:
+            llm_evidence = self._extract_llm_based(character_name, aliases, summary_map)
+            if llm_evidence:
+                evidence_result.key_actions = llm_evidence.get("key_actions", [])
+                evidence_result.key_relationships = llm_evidence.get("key_relationships", [])
+                evidence_result.key_traits = llm_evidence.get("key_traits", [])
+
+                # Add any new statements not captured by pattern matching
+                for stmt in llm_evidence.get("relevant_statements", []):
+                    if not self._is_duplicate(stmt["statement"], evidence_result.evidence):
+                        evidence_result.evidence.append(SummaryEvidence(
+                            character_name=character_name,
+                            statement=stmt["statement"],
+                            chapter_index=stmt.get("chapter_index", 0),
+                            source_type="summary",
+                            relevance_score=0.9,  # LLM-identified is high relevance
+                        ))
+
+        logger.info(
+            f"Extracted {len(evidence_result.evidence)} summary evidence items "
+            f"for {character_name}"
+        )
+
+        return evidence_result
+
+    def _extract_pattern_based(
+        self,
+        names: list[str],
+        summary_map: ChapterSummaryMap,
+    ) -> list[SummaryEvidence]:
+        """Extract evidence using pattern matching on summaries."""
+        evidence = []
+
+        for summary in summary_map.summaries:
+            # Check if character is in this chapter
+            chapter_chars = [c.lower() for c in summary.characters_present]
+            name_in_chapter = any(
+                name.lower() in chapter_chars or
+                any(name.lower() in c for c in chapter_chars)
+                for name in names
+            )
+
+            if not name_in_chapter:
+                continue
+
+            # Extract from summary text
+            summary_statements = self._extract_statements_mentioning(
+                summary.summary, names, summary.chapter_index, "summary"
+            )
+            evidence.extend(summary_statements)
+
+            # Extract from key events
+            for event in summary.key_events:
+                event_statements = self._extract_statements_mentioning(
+                    event, names, summary.chapter_index, "key_event"
+                )
+                evidence.extend(event_statements)
+
+        return evidence
+
+    def _extract_statements_mentioning(
+        self,
+        text: str,
+        names: list[str],
+        chapter_index: int,
+        source_type: str,
+    ) -> list[SummaryEvidence]:
+        """Extract sentences that mention any of the character names."""
+        evidence = []
+
+        # Split into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            # Check if any name variant is mentioned
+            for name in names:
+                if self._name_in_text(name, sentence):
+                    # Score based on content indicators
+                    score = self._score_statement(sentence)
+
+                    evidence.append(SummaryEvidence(
+                        character_name=names[0],  # Use canonical name
+                        statement=sentence,
+                        chapter_index=chapter_index,
+                        source_type=source_type,
+                        relevance_score=score,
+                    ))
+                    break  # Only add once per sentence
+
+        return evidence
+
+    def _name_in_text(self, name: str, text: str) -> bool:
+        """Check if a name appears in text (word boundary aware)."""
+        # Handle multi-word names and single names
+        pattern = r'\b' + re.escape(name) + r'\b'
+        return bool(re.search(pattern, text, re.IGNORECASE))
+
+    def _score_statement(self, statement: str) -> float:
+        """Score a statement's relevance based on content indicators."""
+        score = 0.7  # Base score
+
+        statement_lower = statement.lower()
+
+        # Action verbs increase score
+        action_indicators = [
+            "kills", "murders", "attacks", "saves", "helps", "betrays",
+            "reveals", "discovers", "confronts", "escapes", "fights",
+            "poisons", "manipulates", "deceives", "protects", "threatens",
+        ]
+        if any(ind in statement_lower for ind in action_indicators):
+            score += 0.15
+
+        # Relationship indicators
+        relationship_indicators = [
+            "husband", "wife", "lover", "mistress", "friend", "enemy",
+            "brother", "sister", "mother", "father", "daughter", "son",
+            "marries", "loves", "hates", "trusts",
+        ]
+        if any(ind in statement_lower for ind in relationship_indicators):
+            score += 0.1
+
+        # Character trait indicators
+        trait_indicators = [
+            "cruel", "kind", "evil", "good", "monster", "hero",
+            "manipulative", "honest", "deceptive", "brave", "cowardly",
+        ]
+        if any(ind in statement_lower for ind in trait_indicators):
+            score += 0.1
+
+        return min(score, 1.0)
+
+    def _extract_llm_based(
+        self,
+        character_name: str,
+        aliases: list[str],
+        summary_map: ChapterSummaryMap,
+    ) -> Optional[dict]:
+        """Use LLM for deeper evidence extraction."""
+        if not self.llm:
+            return None
+
+        # Format summaries for prompt
+        summaries_text = []
+        for summary in summary_map.summaries:
+            summaries_text.append(
+                f"Chapter {summary.chapter_index} ({summary.chapter_title or 'untitled'}):\n"
+                f"Summary: {summary.summary}\n"
+                f"Key Events: {', '.join(summary.key_events)}\n"
+                f"Characters: {', '.join(summary.characters_present)}\n"
+            )
+
+        prompt = EVIDENCE_EXTRACTION_PROMPT.format(
+            character_name=character_name,
+            aliases=", ".join(aliases) if aliases else "None",
+            summaries="\n".join(summaries_text),
+        )
+
+        result, response = self.llm.query_json(prompt, system=EVIDENCE_EXTRACTION_SYSTEM)
+
+        if not response.success or result is None:
+            logger.warning(f"LLM evidence extraction failed for {character_name}")
+            return None
+
+        return result
+
+    def _is_duplicate(self, statement: str, existing: list[SummaryEvidence]) -> bool:
+        """Check if a statement is a duplicate of existing evidence."""
+        statement_lower = statement.lower().strip()
+        for ev in existing:
+            if ev.statement.lower().strip() == statement_lower:
+                return True
+            # Also check for high similarity (substring)
+            if len(statement_lower) > 20:
+                if statement_lower in ev.statement.lower() or ev.statement.lower() in statement_lower:
+                    return True
+        return False
+
+
+def extract_character_summary_evidence(
+    character_name: str,
+    aliases: list[str],
+    summary_map: ChapterSummaryMap,
+    llm_client: Optional[LLMClient] = None,
+) -> CharacterSummaryEvidence:
+    """
+    Convenience function to extract summary evidence for a character.
+
+    Args:
+        character_name: The character's canonical name
+        aliases: Alternative names for the character
+        summary_map: All chapter summaries
+        llm_client: Optional LLM for enhanced extraction
+
+    Returns:
+        CharacterSummaryEvidence with all extracted evidence
+    """
+    extractor = SummaryEvidenceExtractor(llm_client)
+    return extractor.extract_evidence(character_name, aliases, summary_map)

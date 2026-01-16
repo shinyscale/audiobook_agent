@@ -681,6 +681,8 @@ class TestRichProfilingPipeline:
         """Test that pipeline generates rich profiles with LLM."""
         mock_llm = Mock()
         # First call: identification
+        # Second call: summary evidence extraction (Feature F2)
+        # Third call: profile generation
         mock_llm.query_json.side_effect = [
             (
                 {
@@ -697,7 +699,23 @@ class TestRichProfilingPipeline:
                 },
                 LLMResponse(content="...", model="test", error=None),
             ),
-            # Second call: profile generation
+            # Second call: summary evidence extraction (Feature F2)
+            (
+                {
+                    "relevant_statements": [
+                        {
+                            "chapter_index": 3,
+                            "statement": "Nick meets the mysterious Gatsby",
+                            "category": "event",
+                        }
+                    ],
+                    "key_actions": ["throws parties"],
+                    "key_relationships": [],
+                    "key_traits": ["mysterious"],
+                },
+                LLMResponse(content="...", model="test", error=None),
+            ),
+            # Third call: profile generation
             (
                 {
                     "appearance": {"summary": "Elegant young man with rare smile"},
@@ -1432,7 +1450,9 @@ class TestActionWeightedProfiling:
         )
         # Verify system prompt establishes action priority
         assert "CHARACTER = ACTIONS" in PROFILE_GENERATION_SYSTEM
-        assert "ACTIONS (highest weight)" in PROFILE_GENERATION_SYSTEM
+        # Feature F2: SUMMARY EVIDENCE is now highest, ACTIONS is very high
+        assert "SUMMARY EVIDENCE (highest weight)" in PROFILE_GENERATION_SYSTEM
+        assert "ACTIONS (very high weight)" in PROFILE_GENERATION_SYSTEM
         assert "DESCRIPTIONS (lowest weight)" in PROFILE_GENERATION_SYSTEM
 
         # Verify prompt includes three-phase structure
@@ -1900,6 +1920,170 @@ class TestCharacterProfileNarratorComments:
         profile = CharacterProfile.from_dict(data)
         assert len(profile.narrator_comments) == 1
         assert profile.narrator_comments[0]["sentiment"] == "positive"
+
+
+class TestSummaryEvidence:
+    """Tests for summary evidence extraction (Feature F2)."""
+
+    def test_summary_evidence_model_creation(self):
+        """Test creating SummaryEvidence model."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidence
+
+        evidence = SummaryEvidence(
+            character_name="Jay Gatsby",
+            statement="Nick meets Gatsby at a party",
+            chapter_index=3,
+            source_type="summary",
+            relevance_score=0.8,
+        )
+        assert evidence.character_name == "Jay Gatsby"
+        assert evidence.chapter_index == 3
+        assert evidence.source_type == "summary"
+
+    def test_summary_evidence_to_dict(self):
+        """Test SummaryEvidence serialization."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidence
+
+        evidence = SummaryEvidence(
+            character_name="Tom Buchanan",
+            statement="Tom breaks Myrtle's nose",
+            chapter_index=2,
+            source_type="key_event",
+            relevance_score=0.95,
+        )
+        data = evidence.to_dict()
+        assert data["character_name"] == "Tom Buchanan"
+        assert data["source_type"] == "key_event"
+
+    def test_character_summary_evidence_format_for_prompt(self):
+        """Test formatting evidence for prompt inclusion."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            CharacterSummaryEvidence,
+            SummaryEvidence,
+        )
+
+        evidence = CharacterSummaryEvidence(
+            character_name="Gatsby",
+            aliases=["Jay Gatsby"],
+            evidence=[
+                SummaryEvidence(
+                    character_name="Gatsby",
+                    statement="Gatsby throws lavish parties",
+                    chapter_index=3,
+                    source_type="summary",
+                ),
+                SummaryEvidence(
+                    character_name="Gatsby",
+                    statement="Gatsby's mysterious past is discussed",
+                    chapter_index=4,
+                    source_type="key_event",
+                ),
+            ],
+            key_actions=["throws parties"],
+        )
+
+        formatted = evidence.format_for_prompt()
+        assert "SUMMARY EVIDENCE FOR Gatsby" in formatted  # Case preserved
+        assert "HIGH PRIORITY" in formatted
+        assert "Chapter 3:" in formatted
+        assert "throws parties" in formatted.lower()
+
+    def test_extractor_pattern_based_extraction(self):
+        """Test pattern-based extraction from summaries."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        summary_map = ChapterSummaryMap(
+            summaries=GATSBY_SUMMARIES[:2],  # First 2 chapters
+            total_chapters=2,
+            total_word_count=9500,
+            total_duration_minutes=63,
+            overall_tones={"reflective": 1, "dark": 1},
+            character_appearances={
+                "Nick Carraway": [1, 2],
+                "Tom Buchanan": [1, 2],
+            },
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)  # No LLM for pattern-based
+        evidence = extractor.extract_evidence(
+            character_name="Tom Buchanan",
+            aliases=["Tom"],
+            summary_map=summary_map,
+        )
+
+        # Should find evidence in chapter summaries
+        assert evidence.character_name == "Tom Buchanan"
+        assert len(evidence.evidence) > 0
+        # Should find Tom-related statements
+        assert any("Tom" in e.statement for e in evidence.evidence)
+
+    def test_extractor_handles_no_matches(self):
+        """Test extractor handles characters not in summaries."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        summary_map = ChapterSummaryMap(
+            summaries=GATSBY_SUMMARIES[:1],
+            total_chapters=1,
+            total_word_count=5000,
+            total_duration_minutes=33,
+            overall_tones={"reflective": 1},
+            character_appearances={"Nick Carraway": [1]},
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor.extract_evidence(
+            character_name="Unknown Character",
+            aliases=[],
+            summary_map=summary_map,
+        )
+
+        # Should return empty evidence
+        assert evidence.character_name == "Unknown Character"
+        assert len(evidence.evidence) == 0
+
+    def test_extractor_scores_action_statements_higher(self):
+        """Test that statements with action verbs score higher."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+
+        # Score a statement with harmful action verb (breaks = attacks)
+        action_score = extractor._score_statement("Tom attacks and kills someone")
+        # Score a plain statement with no action indicators
+        plain_score = extractor._score_statement("Tom walks to the house")
+
+        assert action_score > plain_score
+
+    def test_convenience_function(self):
+        """Test extract_character_summary_evidence convenience function."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            extract_character_summary_evidence,
+        )
+
+        summary_map = ChapterSummaryMap(
+            summaries=GATSBY_SUMMARIES[:1],
+            total_chapters=1,
+            total_word_count=5000,
+            total_duration_minutes=33,
+            overall_tones={"reflective": 1},
+            character_appearances={"Nick Carraway": [1]},
+        )
+
+        evidence = extract_character_summary_evidence(
+            character_name="Nick Carraway",
+            aliases=["Mr. Carraway"],
+            summary_map=summary_map,
+            llm_client=None,
+        )
+
+        assert evidence.character_name == "Nick Carraway"
+        assert "Mr. Carraway" in evidence.aliases
 
 
 # Integration test marker - requires actual LLM

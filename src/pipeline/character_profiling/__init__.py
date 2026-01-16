@@ -44,6 +44,12 @@ from .summary_merger import (
     find_summary_merges,
     apply_summary_merges,
 )
+from .summary_evidence import (
+    SummaryEvidence,
+    CharacterSummaryEvidence,
+    SummaryEvidenceExtractor,
+    extract_character_summary_evidence,
+)
 
 __all__ = [
     # Models
@@ -87,4 +93,9 @@ __all__ = [
     "IdentityStatement",
     "find_summary_merges",
     "apply_summary_merges",
+    # Summary Evidence (Feature F2)
+    "SummaryEvidence",
+    "CharacterSummaryEvidence",
+    "SummaryEvidenceExtractor",
+    "extract_character_summary_evidence",
 ]
