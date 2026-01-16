@@ -128,23 +128,34 @@ class CharacterExtractionPipeline:
         else:
             checkpoint = CharacterPipelineCheckpoint.create_new(source_file, text_hash)
 
+        import time as _time  # Local import for timing
+
         # Stage 1: Extraction
         if checkpoint.stage == "extraction":
+            stage_start = _time.perf_counter()
             logger.info("Stage 1: Character extraction from chapters")
             checkpoint = self._run_extraction(full_text, chapter_map, checkpoint)
             self._save_checkpoint(checkpoint)
+            elapsed = _time.perf_counter() - stage_start
+            logger.info(f"Stage 1 completed in {elapsed:.1f}s")
 
         # Stage 2: Validation
         if checkpoint.stage == "validation":
+            stage_start = _time.perf_counter()
             logger.info("Stage 2: Validating character proposals")
             checkpoint = self._run_validation(checkpoint)
             self._save_checkpoint(checkpoint)
+            elapsed = _time.perf_counter() - stage_start
+            logger.info(f"Stage 2 completed in {elapsed:.1f}s")
 
         # Stage 3: Consensus
         if checkpoint.stage == "consensus":
+            stage_start = _time.perf_counter()
             logger.info("Stage 3: Building cross-chapter consensus")
             checkpoint = self._run_consensus(checkpoint, len(chapter_map.chapters))
             self._save_checkpoint(checkpoint)
+            elapsed = _time.perf_counter() - stage_start
+            logger.info(f"Stage 3 completed in {elapsed:.1f}s")
 
         return checkpoint.character_map, checkpoint
 
