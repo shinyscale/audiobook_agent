@@ -1188,12 +1188,14 @@ class AudiobookAnalyzer:
                         "provider": stage.provider_used or "unknown",
                     }
 
-            # Generate overview
+            # Generate overview with narrator context
             overview_gen = OverviewGenerator(llm_client=llm)
             overview = overview_gen.generate_overview(
                 analysis_result=temp_result,
                 profiling_data=profiling_report.to_dict(),
                 model_usage=model_usage,
+                narrator_name=narrator_detected,
+                narrative_style="first-person" if narrator_detected else None,
             )
             print(f"   Overview generated successfully")
 

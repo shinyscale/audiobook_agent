@@ -191,7 +191,7 @@ class ProgressWindow:
         self.model_label.pack(fill=tk.X)
         self.tokens_label = tk.Label(
             metrics_frame,
-            text="💰 Tokens: 0 | Cost: $0.00",
+            text="💰 In: 0 | Out: 0 | Cost: $0.00",
             anchor=tk.W,
             font=("Arial", 9)
         )
@@ -333,7 +333,7 @@ class ProgressWindow:
             cost_str = "Unknown"
 
         self.tokens_label.config(
-            text=f"💰 Tokens: {snapshot.total_tokens:,} | Cost: {cost_str}"
+            text=f"💰 In: {snapshot.total_prompt_tokens:,} | Out: {snapshot.total_completion_tokens:,} | Cost: {cost_str}"
         )
 
         # Update details if expanded
@@ -2307,8 +2307,15 @@ class AudiobookPrepGUI:
                     )
                     progress.update("Saving HTML...")
                 except Exception as e:
-                    print(f"Warning: HTML export failed: {e}")
-            
+                    import traceback
+                    error_msg = str(e)
+                    traceback.print_exc()  # Log to console for debugging
+                    # Show error in GUI
+                    self.root.after(0, lambda msg=error_msg: messagebox.showwarning(
+                        "HTML Export Warning",
+                        f"HTML report could not be generated:\n\n{msg[:300]}"
+                    ))
+
             progress.update("Analysis complete!")
 
             # Show completion summary with final metrics

@@ -28,7 +28,7 @@ PLOT_SUMMARY_PROMPT = """Create a comprehensive plot summary from these chapter 
 
 BOOK TITLE: {title}
 CHAPTER COUNT: {chapter_count}
-
+{narrator_context}
 CHAPTER SUMMARIES:
 {chapter_summaries}
 
@@ -38,7 +38,7 @@ Create a plot summary that:
 - Mentions key character relationships and developments
 - Highlights major plot points and turning points
 - Flows naturally as a cohesive narrative
-
+{narrator_instruction}
 Return a JSON response with this structure:
 
 ```json
@@ -67,6 +67,8 @@ class OverviewGenerator:
         analysis_result: AnalysisResult,
         profiling_data: Optional[dict] = None,
         model_usage: Optional[dict] = None,
+        narrator_name: Optional[str] = None,
+        narrative_style: Optional[str] = None,
     ) -> dict:
         """
         Generate overview from analysis results.
@@ -75,6 +77,8 @@ class OverviewGenerator:
             analysis_result: Complete analysis results
             profiling_data: Optional profiling/timing information
             model_usage: Optional dict mapping phase -> model name
+            narrator_name: Optional name of the detected narrator
+            narrative_style: Optional narrative style (e.g., "first-person")
 
         Returns:
             Dict with overview information
@@ -86,7 +90,11 @@ class OverviewGenerator:
 
         # Plot summary (if LLM available)
         if self.llm and analysis_result.structure:
-            overview["plot_summary"] = self._generate_plot_summary(analysis_result)
+            overview["plot_summary"] = self._generate_plot_summary(
+                analysis_result,
+                narrator_name=narrator_name,
+                narrative_style=narrative_style,
+            )
         else:
             overview["plot_summary"] = None
 
@@ -156,7 +164,12 @@ class OverviewGenerator:
             "description": description,
         }
 
-    def _generate_plot_summary(self, result: AnalysisResult) -> Optional[dict]:
+    def _generate_plot_summary(
+        self,
+        result: AnalysisResult,
+        narrator_name: Optional[str] = None,
+        narrative_style: Optional[str] = None,
+    ) -> Optional[dict]:
         """Generate plot summary from chapter summaries using LLM."""
         if not result.structure:
             return None
@@ -172,10 +185,24 @@ class OverviewGenerator:
 
         summaries_text = "\n\n".join(chapter_summaries)
 
+        # Build narrator context for the prompt
+        narrator_context = ""
+        narrator_instruction = ""
+        if narrator_name:
+            narrator_context = f"NARRATOR: The story is narrated by {narrator_name}"
+            if narrative_style:
+                narrator_context += f" ({narrative_style})"
+            narrator_instruction = (
+                f"\n- Refer to the narrator by their name ({narrator_name}) "
+                f"rather than 'the narrator' or 'an unnamed narrator'"
+            )
+
         prompt = PLOT_SUMMARY_PROMPT.format(
             title=result.structure[0].title if result.structure else "Unknown",
             chapter_count=len(result.structure),
             chapter_summaries=summaries_text,
+            narrator_context=narrator_context,
+            narrator_instruction=narrator_instruction,
         )
 
         result_json, response = self.llm.query_json(prompt, system=PLOT_SUMMARY_SYSTEM)

@@ -926,8 +926,9 @@ HTML_TEMPLATE = '''
                         <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence ({{ char.evidence|length }} citations)</summary>
                         <div class="chapter-details" style="margin-top: 0.5rem;">
                             <ul class="evidence-list">
+                                {% set char_idx = loop.index %}
                                 {% for ev in char.evidence[:15] %}
-                                <li class="evidence-item" id="ev-{{ loop.parent.loop.index }}-{{ loop.index }}">
+                                <li class="evidence-item" id="ev-{{ char_idx }}-{{ loop.index }}">
                                     <div>
                                         <span class="tag">{{ ev.get("type","fact") }}</span>
                                         {% if ev.get("chunk") %}<span class="tag">Ch. {{ ev.get("chunk") }}</span>{% endif %}

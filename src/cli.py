@@ -354,7 +354,9 @@ def run_analyze(args):
             except ImportError:
                 print("Warning: HTML export not available (missing src/export module)")
             except Exception as e:
-                print(f"Warning: HTML export failed: {e}")
+                import traceback
+                print(f"\n  HTML export failed: {e}")
+                traceback.print_exc()
 
         # Launch TUI if requested
         if args.tui:
