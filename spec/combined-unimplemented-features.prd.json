@@ -216,7 +216,7 @@
         "src/pipeline/character_extraction/pipeline.py",
         "src/agents/characters.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F15",
@@ -229,7 +229,7 @@
       "files": [
         "src/pipeline/character_extraction/consensus.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F16",
@@ -243,7 +243,7 @@
         "src/pipeline/character_extraction/validator.py",
         "src/pipeline/character_extraction/consensus.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F17",
@@ -258,7 +258,7 @@
         "src/agents/config.py",
         "src/gui/desktop.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F18",
@@ -273,7 +273,7 @@
         "src/pipeline/character_extraction/pipeline.py",
         "src/agents/characters.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F19",
@@ -287,7 +287,7 @@
         "src/pipeline/character_profiling/generator.py",
         "src/models.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F20",
@@ -301,7 +301,7 @@
         "src/models.py",
         "src/export/html_report.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F21",
@@ -314,7 +314,7 @@
       "files": [
         "src/export/html_report.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F22",
@@ -327,7 +327,7 @@
       "files": [
         "src/export/html_report.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F23",
@@ -340,7 +340,7 @@
       "files": [
         "src/export/html_report.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F24",
@@ -353,7 +353,7 @@
       "files": [
         "src/export/html_report.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F25",
