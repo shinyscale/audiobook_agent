@@ -2156,6 +2156,170 @@ class TestSummaryEvidence:
         assert "Mr. Carraway" in evidence.aliases
 
 
+class TestTagIdentity:
+    """Tests for chapter tag identity propagation (Feature F5)."""
+
+    def test_parse_compound_name_simple(self):
+        """Test parsing simple compound names."""
+        from src.pipeline.character_profiling.tag_identity import parse_compound_name
+
+        result = parse_compound_name("Cathy/Kate")
+        assert result == ("Cathy", "Kate")
+
+    def test_parse_compound_name_with_spaces(self):
+        """Test parsing compound names with spaces around slash."""
+        from src.pipeline.character_profiling.tag_identity import parse_compound_name
+
+        result = parse_compound_name("Cathy / Kate")
+        assert result == ("Cathy", "Kate")
+
+    def test_parse_compound_name_multiword(self):
+        """Test parsing compound names with multi-word names."""
+        from src.pipeline.character_profiling.tag_identity import parse_compound_name
+
+        result = parse_compound_name("Lady Catherine / Catherine Trask")
+        assert result == ("Lady Catherine", "Catherine Trask")
+
+    def test_parse_compound_name_not_compound(self):
+        """Test that non-compound names return None."""
+        from src.pipeline.character_profiling.tag_identity import parse_compound_name
+
+        assert parse_compound_name("Simple Name") is None
+        assert parse_compound_name("Jay Gatsby") is None
+        assert parse_compound_name("Nick") is None
+
+    def test_parse_compound_name_too_short(self):
+        """Test that very short names are rejected."""
+        from src.pipeline.character_profiling.tag_identity import parse_compound_name
+
+        # Single letters should be rejected
+        assert parse_compound_name("A/B") is None
+        assert parse_compound_name("X / Y") is None
+
+    def test_extract_tag_identities(self):
+        """Test extracting identities from chapter summaries."""
+        from src.pipeline.character_profiling.tag_identity import extract_tag_identities
+
+        summary_map = ChapterSummaryMap(
+            summaries=[
+                ChapterSummary(
+                    chapter_index=24,
+                    chapter_title="Chapter 24",
+                    summary="A chapter about identity",
+                    key_events=["Something happened"],
+                    primary_tone="dramatic",
+                    secondary_tones=[],
+                    dialogue_density="medium",
+                    characters_present=["Adam", "Cathy/Kate", "Cal"],  # Compound name
+                    pov_character="Adam",
+                    word_count=5000,
+                    estimated_duration_minutes=33,
+                    confidence=0.9,
+                ),
+            ],
+            total_chapters=1,
+            total_word_count=5000,
+            total_duration_minutes=33,
+            overall_tones={"dramatic": 1},
+            character_appearances={"Adam": [24], "Cathy/Kate": [24], "Cal": [24]},
+        )
+
+        result = extract_tag_identities(summary_map)
+
+        assert result.total_tags_scanned == 3  # Adam, Cathy/Kate, Cal
+        assert result.compound_tags_found == 1
+        assert len(result.matches) == 1
+        assert result.matches[0].name1 == "Cathy"
+        assert result.matches[0].name2 == "Kate"
+        assert result.matches[0].chapter_index == 24
+        assert result.matches[0].confidence >= 0.9
+
+    def test_extract_tag_identities_no_compound(self):
+        """Test extraction with no compound names."""
+        from src.pipeline.character_profiling.tag_identity import extract_tag_identities
+
+        summary_map = ChapterSummaryMap(
+            summaries=[
+                ChapterSummary(
+                    chapter_index=1,
+                    chapter_title="Chapter 1",
+                    summary="Normal chapter",
+                    key_events=[],
+                    primary_tone="reflective",
+                    secondary_tones=[],
+                    dialogue_density="low",
+                    characters_present=["Nick", "Tom", "Daisy"],
+                    pov_character="Nick",
+                    word_count=3000,
+                    estimated_duration_minutes=20,
+                    confidence=0.9,
+                ),
+            ],
+            total_chapters=1,
+            total_word_count=3000,
+            total_duration_minutes=20,
+            overall_tones={"reflective": 1},
+            character_appearances={},
+        )
+
+        result = extract_tag_identities(summary_map)
+
+        assert result.total_tags_scanned == 3
+        assert result.compound_tags_found == 0
+        assert len(result.matches) == 0
+
+    def test_apply_tag_identities_to_merge_candidates(self):
+        """Test combining tag identities with existing candidates."""
+        from src.pipeline.character_profiling.tag_identity import (
+            TagIdentityResult,
+            TagIdentityMatch,
+            apply_tag_identities_to_merge_candidates,
+        )
+
+        tag_result = TagIdentityResult(
+            matches=[
+                TagIdentityMatch(
+                    name1="Cathy",
+                    name2="Kate",
+                    chapter_index=24,
+                    tag_text="Cathy/Kate",
+                    confidence=0.95,
+                )
+            ],
+            total_tags_scanned=10,
+            compound_tags_found=1,
+        )
+
+        # Existing candidate with lower confidence
+        existing = [
+            {"name1": "Cathy", "name2": "Kate", "confidence": 0.7, "reason": "Similar chapters"}
+        ]
+
+        candidates = apply_tag_identities_to_merge_candidates(tag_result, existing)
+
+        # Should have updated confidence
+        assert len(candidates) == 1
+        assert candidates[0]["confidence"] == 0.95  # Updated to higher confidence
+
+    def test_tag_identity_extractor_class(self):
+        """Test TagIdentityExtractor class interface."""
+        from src.pipeline.character_profiling.tag_identity import TagIdentityExtractor
+
+        summary_map = ChapterSummaryMap(
+            summaries=GATSBY_SUMMARIES[:1],
+            total_chapters=1,
+            total_word_count=5000,
+            total_duration_minutes=33,
+            overall_tones={"reflective": 1},
+            character_appearances={},
+        )
+
+        extractor = TagIdentityExtractor()
+        result = extractor.extract(summary_map)
+
+        assert isinstance(result.total_tags_scanned, int)
+
+
 # Integration test marker - requires actual LLM
 @pytest.mark.skip(reason="Integration test - requires LLM")
 class TestCharacterProfilingIntegration:

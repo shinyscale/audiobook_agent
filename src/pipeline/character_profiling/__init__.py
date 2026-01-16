@@ -50,6 +50,14 @@ from .summary_evidence import (
     SummaryEvidenceExtractor,
     extract_character_summary_evidence,
 )
+from .tag_identity import (
+    TagIdentityMatch,
+    TagIdentityResult,
+    TagIdentityExtractor,
+    parse_compound_name,
+    extract_tag_identities,
+    apply_tag_identities_to_merge_candidates,
+)
 
 __all__ = [
     # Models
@@ -98,4 +106,11 @@ __all__ = [
     "CharacterSummaryEvidence",
     "SummaryEvidenceExtractor",
     "extract_character_summary_evidence",
+    # Tag Identity (Feature F5)
+    "TagIdentityMatch",
+    "TagIdentityResult",
+    "TagIdentityExtractor",
+    "parse_compound_name",
+    "extract_tag_identities",
+    "apply_tag_identities_to_merge_candidates",
 ]
