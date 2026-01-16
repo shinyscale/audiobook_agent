@@ -12,11 +12,20 @@ from typing import Callable, Optional
 
 
 @dataclass
+class ParagraphBoundary:
+    """A paragraph boundary in the document (Feature F26)."""
+    start: int
+    end: int
+    chapter_index: int
+
+
+@dataclass
 class WordOccurrence:
     """Single occurrence of a word in the document."""
     position: int
     original_form: str
     chapter_index: int
+    paragraph_index: Optional[int] = None  # F26: which paragraph this word is in
 
 
 class WordIndex:
@@ -52,7 +61,71 @@ class WordIndex:
         self.full_text = full_text
         self.chapter_boundaries = chapter_boundaries
         self.word_positions: dict[str, list[WordOccurrence]] = {}
+        self.paragraphs: list[ParagraphBoundary] = []  # F26: paragraph boundaries
+        self._build_paragraph_index()  # F26: detect paragraphs first
         self._build_index()
+
+    def _build_paragraph_index(self) -> None:
+        """
+        F26: Detect and store paragraph boundaries in a single pass.
+
+        Paragraphs are separated by:
+        - Two or more newlines
+        - Newline followed by indent
+        - Chapter boundaries
+
+        This enables paragraph-based context extraction (F27).
+        """
+        # Pattern for paragraph separators: 2+ newlines or newline + whitespace indent
+        para_separator = re.compile(r'\n\s*\n+|\n(?=[ \t]{2,})')
+
+        current_pos = 0
+        para_idx = 0
+
+        for match in para_separator.finditer(self.full_text):
+            para_start = current_pos
+            para_end = match.start()
+
+            # Only add non-empty paragraphs
+            if para_end > para_start:
+                chapter_idx = self._get_chapter(para_start)
+                self.paragraphs.append(ParagraphBoundary(
+                    start=para_start,
+                    end=para_end,
+                    chapter_index=chapter_idx,
+                ))
+                para_idx += 1
+
+            current_pos = match.end()
+
+        # Handle last paragraph (after last separator)
+        if current_pos < len(self.full_text):
+            chapter_idx = self._get_chapter(current_pos)
+            self.paragraphs.append(ParagraphBoundary(
+                start=current_pos,
+                end=len(self.full_text),
+                chapter_index=chapter_idx,
+            ))
+
+    def _get_paragraph_index(self, position: int) -> Optional[int]:
+        """F26: Get the paragraph index for a given position."""
+        for idx, para in enumerate(self.paragraphs):
+            if para.start <= position < para.end:
+                return idx
+        return None
+
+    def get_paragraph(self, paragraph_index: int) -> Optional[ParagraphBoundary]:
+        """F26: Get paragraph boundary by index."""
+        if 0 <= paragraph_index < len(self.paragraphs):
+            return self.paragraphs[paragraph_index]
+        return None
+
+    def get_paragraph_text(self, paragraph_index: int) -> Optional[str]:
+        """F26: Get the text of a paragraph by index."""
+        para = self.get_paragraph(paragraph_index)
+        if para:
+            return self.full_text[para.start:para.end].strip()
+        return None
 
     def _build_index(self) -> None:
         """
@@ -74,6 +147,7 @@ class WordIndex:
             word_lower = word.lower()
             position = match.start()
             chapter_idx = self._get_chapter(position)
+            paragraph_idx = self._get_paragraph_index(position)  # F26
 
             if word_lower not in self.word_positions:
                 self.word_positions[word_lower] = []
@@ -82,6 +156,7 @@ class WordIndex:
                 position=position,
                 original_form=word,
                 chapter_index=chapter_idx,
+                paragraph_index=paragraph_idx,  # F26
             ))
 
     def _get_chapter(self, position: int) -> int:
@@ -162,3 +237,40 @@ class WordIndex:
             context = context + "..."
 
         return context
+
+    def extract_paragraph_context(
+        self,
+        position: int,
+        word_length: int,
+    ) -> Optional[tuple[str, int, int]]:
+        """
+        F27: Extract full paragraph containing word, with word position info.
+
+        Returns the complete paragraph text instead of a fixed window,
+        providing complete sentence context.
+
+        Args:
+            position: Character position of word start
+            word_length: Length of the target word
+
+        Returns:
+            Tuple of (paragraph_text, word_offset_in_para, word_length) or None
+        """
+        para_idx = self._get_paragraph_index(position)
+        if para_idx is None:
+            return None
+
+        para = self.paragraphs[para_idx]
+        para_text = self.full_text[para.start:para.end].strip()
+
+        # Calculate word offset within paragraph
+        word_offset = position - para.start
+        # Adjust for stripped whitespace at start
+        leading_ws = len(self.full_text[para.start:para.end]) - len(self.full_text[para.start:para.end].lstrip())
+        word_offset -= leading_ws
+
+        return (para_text, max(0, word_offset), word_length)
+
+    def get_paragraph_count(self) -> int:
+        """F26: Get total number of paragraphs detected."""
+        return len(self.paragraphs)
