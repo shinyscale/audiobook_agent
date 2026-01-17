@@ -1,0 +1,410 @@
+{
+  "prd": {
+    "title": "Autonomous Improvement Loop v1: Oracle-Driven Quality Iteration",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "High",
+    "target": "Enable autonomous iteration on audiobook analysis using Claude as quality oracle"
+  },
+  "executive_summary": "Implement an autonomous improvement loop that runs the audiobook analysis tool against test texts, evaluates output quality using Claude as an oracle, and iteratively fixes issues until quality thresholds are met. This 'Ralph Wiggum' style loop uses fresh context per iteration with state persisted to disk, allowing systematic quality improvement across multiple test texts without human intervention.",
+  "problem_statement": {
+    "assessment": "Manual Testing is Bottleneck",
+    "whats_improved": [
+      "Agent infrastructure with self-verification (STRUCTURAL, SELF_CHECK levels) already exists",
+      "Confidence scoring system tracks HIGH/MEDIUM/LOW per item",
+      "Upstream validation prevents pipeline failures",
+      "Test texts available in Test_Texts/ directory",
+      "CLI supports full analysis with HTML output"
+    ],
+    "core_problem": "No Automated Quality Feedback Loop",
+    "current_failures": [
+      {
+        "issue": "Manual evaluation required",
+        "example": "Human must review HTML output to identify character merge issues, summary hallucinations, etc.",
+        "root_cause": "ORACLE verification level defined but not implemented",
+        "impact": "Quality improvements require human time and attention"
+      },
+      {
+        "issue": "No systematic regression testing",
+        "example": "Fixing character extraction for Gatsby may break Frankenstein handling",
+        "root_cause": "No automated multi-text quality tracking",
+        "impact": "Fixes may introduce new problems undetected"
+      },
+      {
+        "issue": "Context accumulation limits iteration",
+        "example": "Long analysis sessions exhaust context window",
+        "root_cause": "No mechanism to reset context while preserving progress",
+        "impact": "Cannot run extended improvement sessions"
+      }
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Oracle Loop Shell Script",
+      "priority": "CRITICAL",
+      "rationale": "Core orchestrator that manages the three-phase iteration cycle with fresh context per phase",
+      "current_behavior": "No automated loop exists - all analysis and evaluation is manual",
+      "proposed_behavior": "Bash script orchestrates ANALYZE -> EVALUATE -> FIX cycle, auto-detecting current phase from state file, respecting quality thresholds and attempt limits",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Loop auto-detects phase from EVALUATION_STATE.md",
+          "steps": [
+            "Create EVALUATION_STATE.md with phase: awaiting_analysis",
+            "Run ./oracle-loop.sh",
+            "Verify it selects PROMPT_analyze.md",
+            "Update state to phase: awaiting_evaluation",
+            "Run ./oracle-loop.sh again",
+            "Verify it selects PROMPT_evaluate.md"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Loop respects max attempts per text",
+          "steps": [
+            "Set max_attempts_per_text: 3 in manifest.json",
+            "Run loop until text reaches 3 attempts without passing",
+            "Verify loop marks text complete (even if failed) and advances",
+            "Check manifest.json shows attempts: 3"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Loop stops when all texts complete",
+          "steps": [
+            "Create manifest with 2 texts",
+            "Run loop until both pass quality threshold",
+            "Verify loop exits with ALL_COMPLETE message",
+            "Check both texts show complete: true in manifest"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop.sh",
+            "description": "Main bash orchestrator script",
+            "changes": [
+              {
+                "location": "script",
+                "description": "Three-phase loop with Claude Code invocations",
+                "notes": "Uses --dangerously-skip-permissions for autonomous operation"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Analysis Phase Prompt",
+      "priority": "CRITICAL",
+      "rationale": "Phase 1 runs the local LLM pipeline to generate HTML output for evaluation",
+      "current_behavior": "Analysis is run manually via CLI",
+      "proposed_behavior": "PROMPT_analyze.md instructs Claude to read state, identify current text, run audiobook-prep analyze, and update state",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Analysis prompt runs correct CLI command",
+          "steps": [
+            "Set up manifest with gatsby.txt as first text",
+            "Run ./oracle-loop.sh analyze",
+            "Verify audiobook-prep analyze Test_Texts/gatsby.txt --html is executed",
+            "Check output appears in output/gatsby/ directory"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Analysis updates state after completion",
+          "steps": [
+            "Run analysis phase",
+            "Check EVALUATION_STATE.md phase changed to awaiting_evaluation",
+            "Verify attempt counter incremented if re-run"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "PROMPT_analyze.md",
+            "description": "Phase 1 instructions for Claude",
+            "changes": [
+              {
+                "location": "document",
+                "description": "Orient, Run Analysis, Update State, Exit sections"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Evaluation Phase Prompt",
+      "priority": "CRITICAL",
+      "rationale": "Phase 2 uses Claude's literary knowledge as oracle to assess output quality",
+      "current_behavior": "Already exists at spec/Autonomous_Improvement_Plan/PROMPT_evaluate.md",
+      "proposed_behavior": "Move to project root, verify instructions match actual codebase paths",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Evaluation scores against rubric categories",
+          "steps": [
+            "Run analysis on gatsby.txt to generate HTML",
+            "Run ./oracle-loop.sh evaluate",
+            "Check EVALUATION_STATE.md contains scores for all 6 categories",
+            "Verify overall score calculated with correct weights"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Evaluation identifies specific issues with severity",
+          "steps": [
+            "Run evaluation on output with known issues",
+            "Check EVALUATION_STATE.md lists issues under CRITICAL/HIGH/MEDIUM/LOW",
+            "Verify each issue includes description, evidence, location, suggested fix"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Evaluation advances to next text on pass",
+          "steps": [
+            "Run evaluation where score >= 8.0",
+            "Verify manifest.json text marked complete: true",
+            "Check EVALUATION_STATE.md phase set to complete",
+            "Verify next incomplete text becomes active"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "PROMPT_evaluate.md",
+            "description": "Phase 2 oracle evaluation instructions - copy from spec/Autonomous_Improvement_Plan/"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Fix Phase Prompt",
+      "priority": "CRITICAL",
+      "rationale": "Phase 3 addresses issues identified in evaluation by modifying code/prompts",
+      "current_behavior": "Fixes are applied manually by developers",
+      "proposed_behavior": "PROMPT_fix.md instructs Claude to read issues, investigate codebase, make targeted fixes, run tests, and update state",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Fix prompt addresses CRITICAL issues first",
+          "steps": [
+            "Set up EVALUATION_STATE.md with CRITICAL and HIGH issues",
+            "Run ./oracle-loop.sh fix",
+            "Verify Claude investigates CRITICAL issue first",
+            "Check code changes address the specific issue"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Fix prompt runs relevant tests",
+          "steps": [
+            "Run fix phase that modifies src/agents/characters.py",
+            "Verify pytest tests/test_character_agent.py is executed",
+            "Check test results are considered before committing"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Fix prompt updates state and commits",
+          "steps": [
+            "Run fix phase",
+            "Verify EVALUATION_STATE.md phase changed to awaiting_analysis",
+            "Check fix added to Fix History section",
+            "Verify git commit created with descriptive message"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "PROMPT_fix.md",
+            "description": "Phase 3 fix instructions for Claude"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "Operational Guide",
+      "priority": "HIGH",
+      "rationale": "AGENTS.md provides Claude with accurate information about how to run the tool and navigate the codebase",
+      "current_behavior": "CLAUDE.md exists but doesn't include operational commands for the loop",
+      "proposed_behavior": "AGENTS.md contains CLI commands, output locations, key source files, and common troubleshooting",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "AGENTS.md contains correct CLI commands",
+          "steps": [
+            "Read AGENTS.md",
+            "Verify it shows audiobook-prep analyze command (not python -m)",
+            "Check paths reference Test_Texts/ not test_texts/",
+            "Verify output paths match actual output/ directory structure"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "description": "Operational guide with corrected paths and commands"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F6",
+      "name": "Test Manifest",
+      "priority": "HIGH",
+      "rationale": "manifest.json tracks which texts have been processed, their scores, and completion status",
+      "current_behavior": "No manifest exists - test texts are run ad-hoc",
+      "proposed_behavior": "JSON manifest with quality_threshold, max_attempts, and per-text tracking (complete, attempts, final_score)",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Manifest tracks text completion status",
+          "steps": [
+            "Initialize manifest with gatsby and frankenstein texts",
+            "Run loop until gatsby passes",
+            "Verify gatsby shows complete: true, frankenstein shows complete: false",
+            "Check final_score and attempts recorded for gatsby"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "manifest.json",
+            "description": "Test text tracking manifest - template with existing Test_Texts"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F7",
+      "name": "State Tracking File",
+      "priority": "HIGH",
+      "rationale": "EVALUATION_STATE.md persists state between loop iterations, enabling context-free resumption",
+      "current_behavior": "No persistent state - progress lost between sessions",
+      "proposed_behavior": "Markdown file with active text, attempt count, phase, scores, issues, and fix history",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "State file enables loop resumption",
+          "steps": [
+            "Run loop until mid-iteration (Ctrl+C during fix phase)",
+            "Restart loop with ./oracle-loop.sh",
+            "Verify loop resumes at correct phase",
+            "Check previous scores and issues preserved"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "EVALUATION_STATE.md",
+            "description": "Initial state file ready for first iteration"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F8",
+      "name": "Quality Rubric",
+      "priority": "HIGH",
+      "rationale": "Standardized rubric ensures consistent evaluation across texts and iterations",
+      "current_behavior": "Rubric documented in PRD format (output-quality-v1.prd.md) but not formatted for evaluation use",
+      "proposed_behavior": "specs/output_quality.md formatted as evaluation checklist with scoring criteria and book-agnostic guidance",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Rubric covers all evaluation categories with weights",
+          "steps": [
+            "Read specs/output_quality.md",
+            "Verify 6 categories present: Structure, Characters, Profiles, Summaries, Pronunciation, Presentation",
+            "Check weights sum to 100% (20+25+15+20+10+10)",
+            "Verify scoring formula documented"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "specs/output_quality.md",
+            "description": "Reformatted quality rubric for evaluation use"
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Oracle Loop Shell Script", "rationale": "Core orchestrator needed first"},
+    {"feature": "F5", "name": "Operational Guide", "rationale": "Prompts depend on accurate operational info"},
+    {"feature": "F2", "name": "Analysis Phase Prompt", "rationale": "First phase of the loop"},
+    {"feature": "F3", "name": "Evaluation Phase Prompt", "rationale": "Second phase - already exists, just copy"},
+    {"feature": "F4", "name": "Fix Phase Prompt", "rationale": "Third phase of the loop"},
+    {"feature": "F6", "name": "Test Manifest", "rationale": "Required for loop to know what to process"},
+    {"feature": "F7", "name": "State Tracking File", "rationale": "Required for loop to track progress"},
+    {"feature": "F8", "name": "Quality Rubric", "rationale": "Required for evaluation phase"}
+  ],
+  "verification_plan": {
+    "primary_test": {
+      "name": "Single text iteration cycle",
+      "steps": [
+        "Initialize manifest with gatsby.txt only",
+        "Run ./oracle-loop.sh",
+        "Verify ANALYZE phase runs audiobook-prep analyze",
+        "Verify EVALUATE phase scores output and identifies issues",
+        "Verify FIX phase addresses top issue",
+        "Verify loop cycles back to ANALYZE",
+        "Monitor until pass or max attempts"
+      ]
+    },
+    "regression_tests": [
+      "Run pytest tests/ before and after loop iterations",
+      "Verify existing analysis functionality unchanged",
+      "Check git log shows clean commit history"
+    ],
+    "success_metrics": [
+      "Loop runs without manual intervention for 5+ iterations",
+      "Quality scores improve between iterations",
+      "Fixes address identified issues (not random changes)",
+      "Loop correctly advances to next text on pass"
+    ]
+  },
+  "affected_files_summary": [
+    "spec/autonomous-improvement-loop-v1.prd.json (NEW - this file)",
+    "oracle-loop.sh (NEW)",
+    "PROMPT_analyze.md (NEW)",
+    "PROMPT_evaluate.md (COPY from spec/Autonomous_Improvement_Plan/)",
+    "PROMPT_fix.md (NEW)",
+    "AGENTS.md (NEW)",
+    "manifest.json (NEW)",
+    "EVALUATION_STATE.md (NEW)",
+    "specs/output_quality.md (NEW)"
+  ]
+}
