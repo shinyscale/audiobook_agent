@@ -29,6 +29,7 @@ PLOT_SUMMARY_PROMPT = """Create a comprehensive plot summary from these chapter 
 BOOK TITLE: {title}
 CHAPTER COUNT: {chapter_count}
 {narrator_context}
+{main_characters}
 CHAPTER SUMMARIES:
 {chapter_summaries}
 
@@ -197,12 +198,29 @@ class OverviewGenerator:
                 f"rather than 'the narrator' or 'an unnamed narrator'"
             )
 
+        # Build main characters context to ground the LLM
+        main_characters = ""
+        if result.characters:
+            # Sort by mention count (descending) and take top 3
+            sorted_chars = sorted(
+                result.characters,
+                key=lambda c: c.mention_count,
+                reverse=True
+            )[:3]
+            if sorted_chars:
+                char_lines = []
+                for char in sorted_chars:
+                    role_info = f" ({char.role})" if char.role else ""
+                    char_lines.append(f"- {char.canonical_name}{role_info}: {char.mention_count} mentions")
+                main_characters = "MAIN CHARACTERS (use these names, do NOT invent others):\n" + "\n".join(char_lines)
+
         prompt = PLOT_SUMMARY_PROMPT.format(
             title=result.structure[0].title if result.structure else "Unknown",
             chapter_count=len(result.structure),
             chapter_summaries=summaries_text,
             narrator_context=narrator_context,
             narrator_instruction=narrator_instruction,
+            main_characters=main_characters,
         )
 
         result_json, response = self.llm.query_json(prompt, system=PLOT_SUMMARY_SYSTEM)

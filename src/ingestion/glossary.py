@@ -36,17 +36,17 @@ class GlossaryExtractionResult:
 # Each tuple: (compiled_pattern, confidence, method_name)
 GLOSSARY_PATTERNS = [
     # "Term: definition" (most common format)
-    # Allow terms starting with uppercase or lowercase, capture multi-line definitions
-    (re.compile(r'^([A-Za-z][^:\n]{0,60}):\s*(.+?)(?=\n[A-Za-z][^:\n]{0,60}:|$)', re.MULTILINE | re.DOTALL), 0.9, "colon"),
+    # Allow terms starting with letter or digit (e.g., "1-oh", "11-Bravo")
+    (re.compile(r'^([A-Za-z0-9][^:\n]{0,60}):\s*(.+?)(?=\n[A-Za-z0-9][^:\n]{0,60}:|$)', re.MULTILINE | re.DOTALL), 0.9, "colon"),
 
     # "Term - definition" or "Term — definition" (em-dash or en-dash)
-    (re.compile(r'^([A-Za-z][^-—\n]{0,60})\s*[-—]\s*(.+?)(?=\n[A-Za-z][^-—\n]{0,60}\s*[-—]|$)', re.MULTILINE | re.DOTALL), 0.85, "dash"),
+    (re.compile(r'^([A-Za-z0-9][^-—\n]{0,60})\s*[-—]\s*(.+?)(?=\n[A-Za-z0-9][^-—\n]{0,60}\s*[-—]|$)', re.MULTILINE | re.DOTALL), 0.85, "dash"),
 
     # Bold term: **Term** definition (markdown-style, less common in books)
     (re.compile(r'^\*\*([^*\n]+)\*\*\s*(.+?)(?=\n\*\*|$)', re.MULTILINE | re.DOTALL), 0.8, "bold"),
 
     # Term on own line, definition indented below
-    (re.compile(r'^([A-Z][^\n]{1,40})\n[ \t]{2,}(.+?)(?=\n[A-Z][^\n]{1,40}\n[ \t]{2,}|$)', re.MULTILINE | re.DOTALL), 0.7, "indented"),
+    (re.compile(r'^([A-Z0-9][^\n]{1,40})\n[ \t]{2,}(.+?)(?=\n[A-Z0-9][^\n]{1,40}\n[ \t]{2,}|$)', re.MULTILINE | re.DOTALL), 0.7, "indented"),
 ]
 
 

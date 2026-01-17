@@ -281,14 +281,19 @@ class RegionDetector:
                 # Look for a logical boundary (paragraph break or section end)
                 match_start = offset + match.start()
 
-                # Find end of section (next double newline or end of section)
-                search_start = match.end()
-                next_break = section_text.find("\n\n", search_start)
-                if next_break == -1:
+                # Special handling for glossary: extend to end of section
+                # since glossaries contain many term/definition pairs separated by newlines
+                if label == "glossary":
                     match_end = offset + len(section_text)
                 else:
-                    # Extend a bit past the break for context
-                    match_end = offset + min(next_break + 100, len(section_text))
+                    # Find end of section (next double newline or end of section)
+                    search_start = match.end()
+                    next_break = section_text.find("\n\n", search_start)
+                    if next_break == -1:
+                        match_end = offset + len(section_text)
+                    else:
+                        # Extend a bit past the break for context
+                        match_end = offset + min(next_break + 100, len(section_text))
 
                 regions.append(DocumentRegion(
                     region_type=region_type,
