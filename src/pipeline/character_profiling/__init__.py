@@ -20,7 +20,8 @@ from .identifier import SummaryDrivenCharacterIdentifier
 from .passage_gatherer import CharacterPassageGatherer, CharacterPassage
 from .generator import CharacterProfileGenerator
 from .narrator import NarratorDetector, NarratorInfo, detect_narrator_from_summary
-from .reconciler import CharacterReconciler, reconcile_characters
+from .reconciler import CharacterReconciler, reconcile_characters, verify_handoff_candidates
+from .handoff_detector import HandoffDetector, HandoffCandidate, detect_handoffs
 from .pipeline import CharacterProfilingPipeline, profile_characters
 from .converter import (
     profile_to_character,
@@ -90,6 +91,11 @@ __all__ = [
     "detect_narrator_from_summary",
     "CharacterReconciler",
     "reconcile_characters",
+    "verify_handoff_candidates",
+    # Handoff Detection
+    "HandoffDetector",
+    "HandoffCandidate",
+    "detect_handoffs",
     # Pipeline
     "CharacterProfilingPipeline",
     "profile_characters",

@@ -39,6 +39,21 @@ CRITICAL RULES:
    - If summaries say "X is married to Y", they are different people
    - If summaries say "X, also known as Y", they are the same person
 
+5. Nickname variants are often the SAME person
+   - Example: "Cal" and "Caleb" = likely SAME person
+   - Example: "Cathy" and "Catherine" = likely SAME person
+   - Example: "Tom" and "Thomas", "Nick" and "Nicholas" = SAME person
+
+6. Characters appearing in ADJACENT chapters with similar names are likely the SAME
+   - If Character A disappears after chapter X and Character B appears in chapter X+1
+   - And their names share a surname or are nickname variants
+   - They are likely the same person using different names
+
+7. Single-chapter characters with formal names may be aliases
+   - A character appearing in only 1-2 chapters with a full formal name
+   - May be an alias of an established character (especially villains/spies)
+   - Check if any major character stopped appearing around the same time
+
 Always respond with valid JSON only. No other text."""
 
 
@@ -62,6 +77,9 @@ IMPORTANT MERGE RULES:
 - First name + Mrs./Mr. last name = SAME person (if same family, merge them)
 - Mr. X and Mrs. X with same last name = DIFFERENT people (spouses, keep separate)
 - Different first names = DIFFERENT people (keep separate)
+- Nickname variants = SAME person (Cal/Caleb, Cathy/Catherine, Tom/Thomas)
+- Adjacent chapter appearance + similar names = likely SAME person (merge them)
+- Short-lived formal name + established character disappearing = likely SAME person (alias)
 
 Return a JSON array:
 ```json

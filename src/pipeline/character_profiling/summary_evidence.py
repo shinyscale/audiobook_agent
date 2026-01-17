@@ -169,18 +169,141 @@ class SummaryEvidenceExtractor:
     represent the LLM's distillation of significant plot events.
     """
 
-    def __init__(self, llm_client: Optional[LLMClient] = None):
+    def __init__(
+        self,
+        llm_client: Optional[LLMClient] = None,
+        all_character_names: Optional[list[str]] = None,
+    ):
         """
         Args:
             llm_client: Optional LLM for enhanced extraction. If None, uses pattern-based extraction.
+            all_character_names: List of all character names for collision detection.
         """
         self.llm = llm_client
+        self.surname_collisions = self._build_surname_collisions(all_character_names or [])
+
+    def _build_surname_collisions(self, names: list[str]) -> dict[str, list[str]]:
+        """
+        Build a map of surname -> list of full names containing that surname.
+
+        This helps detect when extracting evidence for "Ames" (parents) but
+        the sentence is actually about "Cathy Ames" (daughter).
+
+        Args:
+            names: List of all character names
+
+        Returns:
+            Dict mapping surname/short name to list of longer names containing it
+        """
+        collisions: dict[str, list[str]] = {}
+
+        for name in names:
+            name_lower = name.lower().strip()
+            parts = name_lower.split()
+
+            if len(parts) < 2:
+                continue
+
+            # Extract surname (last part)
+            surname = parts[-1]
+
+            # Add all other full names that contain this surname
+            for other_name in names:
+                other_lower = other_name.lower().strip()
+                if other_lower == name_lower:
+                    continue
+
+                # Check if other name contains this surname as a word
+                other_parts = other_lower.split()
+                if surname in other_parts:
+                    # The surname appears in another name
+                    if surname not in collisions:
+                        collisions[surname] = []
+                    if name not in collisions[surname]:
+                        collisions[surname].append(name)
+                    if other_name not in collisions[surname]:
+                        collisions[surname].append(other_name)
+
+        return collisions
+
+    def _is_collision_sentence(
+        self,
+        target_name: str,
+        sentence: str,
+        all_names: list[str],
+    ) -> bool:
+        """
+        Check if a sentence is primarily about a different character.
+
+        When extracting evidence for "Ames" and the sentence contains
+        "Cathy Ames did X", return True because the sentence is about
+        Cathy, not about "Ames" (the parents).
+
+        Args:
+            target_name: The name we're extracting evidence for
+            sentence: The sentence to check
+            all_names: All name variants for the target character
+
+        Returns:
+            True if the sentence is primarily about a different character
+        """
+        target_lower = target_name.lower().strip()
+        sentence_lower = sentence.lower()
+
+        # Check if target is a short name (single word or surname only)
+        target_parts = target_lower.split()
+
+        # For single-word targets (like "Ames"), check for longer variants
+        if len(target_parts) == 1:
+            # Look for any full name containing this word
+            for collision_key, collision_names in self.surname_collisions.items():
+                if collision_key == target_lower or target_lower in collision_key:
+                    # Check if any longer name is in the sentence
+                    for full_name in collision_names:
+                        full_lower = full_name.lower()
+                        # Skip if this IS our target
+                        if full_lower == target_lower or full_lower in [n.lower() for n in all_names]:
+                            continue
+                        # Check if the longer name appears in the sentence
+                        if self._name_in_text(full_name, sentence):
+                            logger.debug(
+                                f"Collision detected: extracting for '{target_name}' "
+                                f"but sentence contains '{full_name}'"
+                            )
+                            return True
+
+        # For multi-word targets, check if a longer variant is present
+        # e.g., "Mr. Ames" but sentence has "Cathy Ames"
+        if len(target_parts) >= 2:
+            surname = target_parts[-1]
+            if surname in self.surname_collisions:
+                for full_name in self.surname_collisions[surname]:
+                    full_lower = full_name.lower()
+                    # Skip if this is our target
+                    if full_lower == target_lower or full_lower in [n.lower() for n in all_names]:
+                        continue
+                    # Check if sentence contains the other full name
+                    if self._name_in_text(full_name, sentence):
+                        # Verify the other name is truly different
+                        # (not just a variant like "Mr. Ames" vs "Mrs. Ames")
+                        other_parts = full_lower.split()
+                        # If first names are different, it's a collision
+                        if len(other_parts) >= 2 and other_parts[0] != target_parts[0]:
+                            logger.debug(
+                                f"Collision detected: extracting for '{target_name}' "
+                                f"but sentence contains '{full_name}'"
+                            )
+                            return True
+
+        return False
 
     def extract_evidence(
         self,
         character_name: str,
         aliases: list[str],
         summary_map: ChapterSummaryMap,
+        is_narrator: bool = False,
+        narrative_style: str = "unknown",
     ) -> CharacterSummaryEvidence:
         """
         Extract all summary evidence for a character.
@@ -189,6 +312,8 @@ class SummaryEvidenceExtractor:
             character_name: The character's canonical name
             aliases: Alternative names/forms for the character
             summary_map: All chapter summaries
+            is_narrator: Whether this character is the narrator
+            narrative_style: Narrative style ("first-person", "third-person", "mixed", "unknown")
 
         Returns:
             CharacterSummaryEvidence with all extracted evidence
@@ -202,6 +327,17 @@ class SummaryEvidenceExtractor:
         # Pattern-based extraction (always run)
         pattern_evidence = self._extract_pattern_based(all_names, summary_map)
         evidence_result.evidence.extend(pattern_evidence)
+
+        # First-person evidence extraction for narrators
+        if is_narrator and narrative_style == "first-person":
+            for summary in summary_map.summaries:
+                fp_evidence = self._extract_first_person_evidence(summary, character_name)
+                for ev in fp_evidence:
+                    if not self._is_duplicate(ev.statement, evidence_result.evidence):
+                        evidence_result.evidence.append(ev)
+            logger.info(
+                f"Extracted first-person evidence for narrator {character_name}"
+            )
 
         # LLM-based extraction for deeper analysis (if available)
         if self.llm and len(pattern_evidence) > 0:
@@ -228,6 +364,54 @@ class SummaryEvidenceExtractor:
         )
 
         return evidence_result
+
+    def _extract_first_person_evidence(
+        self,
+        summary: ChapterSummary,
+        narrator_name: str,
+    ) -> list[SummaryEvidence]:
+        """
+        Extract evidence from first-person statements for the narrator.
+
+        First-person pronouns ("I", "my", etc.) in summaries should be
+        attributed to the narrator.
+
+        Args:
+            summary: A chapter summary
+            narrator_name: The narrator's name
+
+        Returns:
+            List of SummaryEvidence items from first-person statements
+        """
+        evidence = []
+
+        first_person_patterns = [
+            r'\bI\b', r'\bmy\b', r'\bme\b', r'\bmyself\b',
+            r"\bI'm\b", r"\bI've\b", r"\bI'd\b", r"\bI'll\b",
+        ]
+
+        sentences = re.split(r'(?<=[.!?])\s+', summary.summary)
+
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            has_first_person = any(
+                re.search(pattern, sentence, re.IGNORECASE) for pattern in first_person_patterns
+            )
+
+            if has_first_person:
+                score = self._score_statement(sentence)
+                evidence.append(SummaryEvidence(
+                    character_name=narrator_name,
+                    statement=sentence,
+                    chapter_index=summary.chapter_index,
+                    source_type="first_person_narration",
+                    relevance_score=score,
+                ))
+
+        return evidence
 
     def _extract_pattern_based(
         self,
@@ -285,6 +469,14 @@ class SummaryEvidenceExtractor:
             # Check if any name variant is mentioned
             for name in names:
                 if self._name_in_text(name, sentence):
+                    # Check for surname collision before adding
+                    # (e.g., sentence about "Cathy Ames" when extracting for "Ames")
+                    if self._is_collision_sentence(name, sentence, names):
+                        logger.debug(
+                            f"Skipping collision sentence for '{name}': {sentence[:50]}..."
+                        )
+                        continue
+
                     # Score based on content indicators
                     score = self._score_statement(sentence)
 
@@ -391,6 +583,9 @@ def extract_character_summary_evidence(
     aliases: list[str],
     summary_map: ChapterSummaryMap,
     llm_client: Optional[LLMClient] = None,
+    is_narrator: bool = False,
+    narrative_style: str = "unknown",
+    all_character_names: Optional[list[str]] = None,
 ) -> CharacterSummaryEvidence:
     """
     Convenience function to extract summary evidence for a character.
@@ -400,9 +595,15 @@ def extract_character_summary_evidence(
         aliases: Alternative names for the character
         summary_map: All chapter summaries
         llm_client: Optional LLM for enhanced extraction
+        is_narrator: Whether this character is the narrator
+        narrative_style: Narrative style ("first-person", "third-person", "mixed", "unknown")
+        all_character_names: List of all character names for collision detection
 
     Returns:
         CharacterSummaryEvidence with all extracted evidence
     """
-    extractor = SummaryEvidenceExtractor(llm_client)
-    return extractor.extract_evidence(character_name, aliases, summary_map)
+    extractor = SummaryEvidenceExtractor(llm_client, all_character_names)
+    return extractor.extract_evidence(
+        character_name, aliases, summary_map,
+        is_narrator=is_narrator, narrative_style=narrative_style
+    )

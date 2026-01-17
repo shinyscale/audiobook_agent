@@ -24,6 +24,7 @@ from .generator import CharacterProfileGenerator
 from .moral_valence import MoralValenceClassifier
 from .passage_gatherer import CharacterPassageGatherer
 from .summary_evidence import SummaryEvidenceExtractor
+from .handoff_detector import HandoffDetector, HandoffCandidate
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from ..chapter_detection.models import ChapterMap
 from ..llm import LLMClient
@@ -95,6 +96,28 @@ class CharacterProfilingPipeline:
         if narrator_name:
             logger.info(f"Narrator: {narrator_name}")
 
+        # Stage 1.5: Handoff Detection and Auto-Merge
+        logger.info("Stage 1.5: Detecting character handoffs")
+        self._report_progress("identification", 2, 3)
+
+        handoff_detector = HandoffDetector(gap_tolerance=2, min_confidence=0.5)
+        handoff_candidates = handoff_detector.detect_handoffs(characters, summary_map)
+
+        # Apply high-confidence merges automatically (>0.85)
+        high_confidence_merges = [c for c in handoff_candidates if c.confidence >= 0.85]
+        if high_confidence_merges:
+            logger.info(f"Auto-merging {len(high_confidence_merges)} high-confidence handoffs")
+            characters = self._apply_handoff_merges(characters, high_confidence_merges)
+            logger.info(f"After merge: {len(characters)} characters")
+
+        self._report_progress("identification", 3, 3)
+
+        # Build list of all character names for collision filtering
+        all_character_names = []
+        for char in characters:
+            all_character_names.append(char.canonical_name)
+            all_character_names.extend(char.aliases)
+
         # Stage 2: Profile Generation
         logger.info("Stage 2: Generating character profiles")
         self._report_progress("profiling", 0, len(characters))
@@ -105,7 +128,8 @@ class CharacterProfilingPipeline:
             # Feature F2: Pass summary_map to generator for summary evidence extraction
             generator = CharacterProfileGenerator(self.llm, summary_map=summary_map)
             passage_gatherer = CharacterPassageGatherer()
-            summary_extractor = SummaryEvidenceExtractor(self.llm)
+            # Pass all character names for collision filtering
+            summary_extractor = SummaryEvidenceExtractor(self.llm, all_character_names)
             # Feature F3: Moral valence classifier for hard constraints
             valence_classifier = MoralValenceClassifier(self.llm)
 
@@ -116,10 +140,17 @@ class CharacterProfilingPipeline:
                 passages = passage_gatherer.gather_passages(char, full_text, chapter_map)
 
                 # Extract summary evidence (Feature F2)
+                # Check if this character is the narrator
+                is_char_narrator = (
+                    narrator_name and
+                    char.canonical_name.lower() == narrator_name.lower()
+                )
                 summary_evidence = summary_extractor.extract_evidence(
                     char.canonical_name,
                     char.aliases,
                     summary_map,
+                    is_narrator=is_char_narrator,
+                    narrative_style=narrative_style,
                 )
 
                 # Classify moral valence (Feature F3)
@@ -142,6 +173,7 @@ class CharacterProfilingPipeline:
                     passages=passages,
                     summary_evidence=summary_evidence,
                     moral_valence=moral_valence,
+                    narrative_style=narrative_style,
                 )
                 profiles.append(profile)
                 self._report_progress("profiling", i + 1, len(characters))
@@ -192,6 +224,68 @@ class CharacterProfilingPipeline:
             chapter_summaries=summary_map.summaries,
             plot_summary=plot_summary or "",
         )
+
+    def _apply_handoff_merges(
+        self,
+        characters: list[IdentifiedCharacter],
+        merges: list[HandoffCandidate],
+    ) -> list[IdentifiedCharacter]:
+        """
+        Apply handoff merges to the character list.
+
+        Merges name_b into name_a (name_a is kept as canonical).
+
+        Args:
+            characters: List of identified characters
+            merges: List of high-confidence handoff candidates to merge
+
+        Returns:
+            Updated list with merges applied
+        """
+        # Build name -> character lookup
+        char_by_name: dict[str, IdentifiedCharacter] = {}
+        for char in characters:
+            char_by_name[char.canonical_name.lower()] = char
+            for alias in char.aliases:
+                char_by_name[alias.lower()] = char
+
+        chars_to_remove = set()
+
+        for merge in merges:
+            name_a = merge.name_a.lower()
+            name_b = merge.name_b.lower()
+
+            char_a = char_by_name.get(name_a)
+            char_b = char_by_name.get(name_b)
+
+            if not char_a or not char_b or char_a == char_b:
+                continue
+
+            logger.info(
+                f"Merging '{merge.name_b}' into '{merge.name_a}' "
+                f"(confidence={merge.confidence:.2f}): {merge.reason}"
+            )
+
+            # Merge B into A
+            # Add B's canonical name and aliases to A
+            if merge.name_b not in char_a.aliases:
+                char_a.aliases.append(merge.name_b)
+            for alias in char_b.aliases:
+                if alias not in char_a.aliases and alias.lower() != char_a.canonical_name.lower():
+                    char_a.aliases.append(alias)
+
+            # Merge chapters
+            char_a.chapters_present = sorted(set(char_a.chapters_present + char_b.chapters_present))
+
+            # Update first appearance
+            if char_b.first_appearance_chapter < char_a.first_appearance_chapter:
+                char_a.first_appearance_chapter = char_b.first_appearance_chapter
+
+            # Mark B for removal
+            chars_to_remove.add(id(char_b))
+
+        # Return filtered list
+        return [c for c in characters if id(c) not in chars_to_remove]
 
     def _report_progress(self, stage: str, current: int, total: int) -> None:
         """Report progress if callback is configured."""

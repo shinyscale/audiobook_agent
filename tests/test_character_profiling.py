@@ -21,6 +21,10 @@ from src.pipeline.character_profiling import (
     profile_to_character,
     profile_map_to_characters,
     character_to_rich_dict,
+    HandoffDetector,
+    HandoffCandidate,
+    detect_handoffs,
+    verify_handoff_candidates,
 )
 from src.pipeline.character_profiling.models import (
     ActionAnalysis,
@@ -949,6 +953,135 @@ class TestNarratorDetector:
         result = detector.detect_narrator(summary, [])
 
         assert result.narrative_style == "third-person"
+
+    def test_narrator_role_elevation_supporting_to_protagonist(self):
+        """Test that first-person narrator with role 'supporting' is elevated to 'protagonist'."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Nick Carraway",
+                aliases=["Mr. Carraway"],
+                role="supporting",  # Initially supporting
+            ),
+            IdentifiedCharacter(canonical_name="Jay Gatsby", role="protagonist"),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="Nick Carraway",
+            narrator_role="First-person narrator",
+            confidence=0.95,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        nick = next(c for c in characters if c.canonical_name == "Nick Carraway")
+        assert nick.is_narrator is True
+        assert nick.role == "protagonist"  # Elevated from supporting
+
+    def test_narrator_role_elevation_minor_to_protagonist(self):
+        """Test that first-person narrator with role 'minor' is elevated to 'protagonist'."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="The Narrator",
+                role="minor",  # Initially minor
+            ),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="The Narrator",
+            narrator_role="First-person narrator",
+            confidence=0.9,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        narrator = characters[0]
+        assert narrator.is_narrator is True
+        assert narrator.role == "protagonist"  # Elevated from minor
+
+    def test_narrator_role_elevation_already_protagonist(self):
+        """Test that first-person narrator already 'protagonist' remains unchanged."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Hero",
+                role="protagonist",  # Already protagonist
+            ),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="Hero",
+            narrator_role="First-person narrator",
+            confidence=0.9,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        hero = characters[0]
+        assert hero.is_narrator is True
+        assert hero.role == "protagonist"  # Unchanged
+
+    def test_narrator_role_no_elevation_for_third_person(self):
+        """Test that third-person narrators do not get role elevation."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Unknown Narrator",
+                role="supporting",
+            ),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="third-person",
+            narrator_name="Unknown Narrator",
+            narrator_role="Omniscient narrator",
+            confidence=0.9,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        narrator = characters[0]
+        assert narrator.is_narrator is True
+        # Role should NOT be elevated for third-person
+        assert narrator.role == "supporting"
+
+    def test_narrator_role_elevation_via_alias(self):
+        """Test that role elevation works when narrator is found via alias."""
+        mock_llm = Mock()
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Nick Carraway",
+                aliases=["Mr. Carraway"],
+                role="supporting",
+            ),
+        ]
+
+        narrator_info = NarratorInfo(
+            narrative_style="first-person",
+            narrator_name="Mr. Carraway",  # Using alias
+            narrator_role="First-person narrator",
+            confidence=0.9,
+        )
+
+        detector = NarratorDetector(mock_llm)
+        detector.mark_narrator_in_characters(characters, narrator_info)
+
+        nick = characters[0]
+        assert nick.is_narrator is True
+        assert nick.role == "protagonist"  # Elevated even when matched by alias
 
 
 class TestCharacterReconciler:
@@ -2155,6 +2288,252 @@ class TestSummaryEvidence:
         assert evidence.character_name == "Nick Carraway"
         assert "Mr. Carraway" in evidence.aliases
 
+    def test_first_person_evidence_extraction(self):
+        """Test that first-person statements are extracted for the narrator."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        # Create summaries with first-person statements
+        first_person_summaries = [
+            ChapterSummary(
+                chapter_index=1,
+                chapter_title="Chapter 1",
+                summary="I arrived at West Egg that summer. My cousin Daisy lived across the bay.",
+                key_events=["Narrator arrives", "Meets cousin"],
+                primary_tone="reflective",
+                secondary_tones=["mysterious"],
+                dialogue_density="low",
+                characters_present=["Narrator"],
+                pov_character="Narrator",
+                word_count=1000,
+                estimated_duration_minutes=7,
+                confidence=0.9,
+            ),
+            ChapterSummary(
+                chapter_index=2,
+                chapter_title="Chapter 2",
+                summary="I've discovered something troubling about Tom. He seems dangerous.",
+                key_events=["Discovery about Tom"],
+                primary_tone="dark",
+                secondary_tones=["dramatic"],
+                dialogue_density="medium",
+                characters_present=["Narrator", "Tom"],
+                pov_character="Narrator",
+                word_count=1200,
+                estimated_duration_minutes=8,
+                confidence=0.9,
+            ),
+        ]
+
+        summary_map = ChapterSummaryMap(
+            summaries=first_person_summaries,
+            total_chapters=2,
+            total_word_count=2200,
+            total_duration_minutes=15,
+            overall_tones={"reflective": 1, "dark": 1},
+            character_appearances={"Narrator": [1, 2]},
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor.extract_evidence(
+            character_name="Nick Carraway",
+            aliases=["Nick"],
+            summary_map=summary_map,
+            is_narrator=True,
+            narrative_style="first-person",
+        )
+
+        # Should find first-person evidence
+        first_person_evidence = [
+            e for e in evidence.evidence
+            if e.source_type == "first_person_narration"
+        ]
+
+        assert len(first_person_evidence) > 0
+        # Check that "I" statements are captured
+        assert any("I arrived" in e.statement for e in first_person_evidence)
+        assert any("My cousin" in e.statement for e in first_person_evidence)
+
+    def test_first_person_evidence_not_extracted_for_non_narrator(self):
+        """Test that first-person evidence is NOT extracted for non-narrators."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        first_person_summaries = [
+            ChapterSummary(
+                chapter_index=1,
+                chapter_title="Chapter 1",
+                summary="I arrived at West Egg. Tom Buchanan greeted me rudely.",
+                key_events=["Arrival", "Meeting Tom"],
+                primary_tone="tense",
+                secondary_tones=["dramatic"],
+                dialogue_density="medium",
+                characters_present=["Narrator", "Tom Buchanan"],
+                pov_character="Narrator",
+                word_count=1000,
+                estimated_duration_minutes=7,
+                confidence=0.9,
+            ),
+        ]
+
+        summary_map = ChapterSummaryMap(
+            summaries=first_person_summaries,
+            total_chapters=1,
+            total_word_count=1000,
+            total_duration_minutes=7,
+            overall_tones={"tense": 1},
+            character_appearances={"Tom Buchanan": [1]},
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor.extract_evidence(
+            character_name="Tom Buchanan",
+            aliases=["Tom"],
+            summary_map=summary_map,
+            is_narrator=False,  # Tom is NOT the narrator
+            narrative_style="first-person",
+        )
+
+        # Should NOT find first-person evidence for Tom
+        first_person_evidence = [
+            e for e in evidence.evidence
+            if e.source_type == "first_person_narration"
+        ]
+
+        assert len(first_person_evidence) == 0
+
+    def test_first_person_evidence_not_extracted_for_third_person_narrative(self):
+        """Test that first-person evidence is NOT extracted in third-person narratives."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        # Even if the narrator is marked, third-person style shouldn't extract "I" statements
+        third_person_summaries = [
+            ChapterSummary(
+                chapter_index=1,
+                chapter_title="Chapter 1",
+                summary="Elizabeth arrived at Pemberley. She discovered Darcy was home.",
+                key_events=["Arrival"],
+                primary_tone="tense",
+                secondary_tones=["romantic"],
+                dialogue_density="low",
+                characters_present=["Elizabeth"],
+                pov_character="Elizabeth",
+                word_count=1000,
+                estimated_duration_minutes=7,
+                confidence=0.9,
+            ),
+        ]
+
+        summary_map = ChapterSummaryMap(
+            summaries=third_person_summaries,
+            total_chapters=1,
+            total_word_count=1000,
+            total_duration_minutes=7,
+            overall_tones={"tense": 1},
+            character_appearances={"Elizabeth": [1]},
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor.extract_evidence(
+            character_name="Elizabeth",
+            aliases=["Lizzy"],
+            summary_map=summary_map,
+            is_narrator=True,  # Marked as narrator but...
+            narrative_style="third-person",  # Third-person style
+        )
+
+        # Should NOT find first-person evidence in third-person narrative
+        first_person_evidence = [
+            e for e in evidence.evidence
+            if e.source_type == "first_person_narration"
+        ]
+
+        assert len(first_person_evidence) == 0
+
+    def test_first_person_evidence_deduplication(self):
+        """Test that duplicate evidence is not added when both name and pronoun appear."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        # Summary where the narrator mentions both "I" and their own name
+        mixed_summaries = [
+            ChapterSummary(
+                chapter_index=1,
+                chapter_title="Chapter 1",
+                summary="I am Nick Carraway. Nick Carraway arrived at West Egg.",
+                key_events=["Introduction"],
+                primary_tone="reflective",
+                secondary_tones=["mysterious"],
+                dialogue_density="low",
+                characters_present=["Nick Carraway"],
+                pov_character="Nick Carraway",
+                word_count=1000,
+                estimated_duration_minutes=7,
+                confidence=0.9,
+            ),
+        ]
+
+        summary_map = ChapterSummaryMap(
+            summaries=mixed_summaries,
+            total_chapters=1,
+            total_word_count=1000,
+            total_duration_minutes=7,
+            overall_tones={"reflective": 1},
+            character_appearances={"Nick Carraway": [1]},
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor.extract_evidence(
+            character_name="Nick Carraway",
+            aliases=["Nick"],
+            summary_map=summary_map,
+            is_narrator=True,
+            narrative_style="first-person",
+        )
+
+        # Check for duplicates - same sentence shouldn't appear twice
+        statements = [e.statement for e in evidence.evidence]
+        # Each statement should be unique (no exact duplicates)
+        assert len(statements) == len(set(statements))
+
+    def test_extract_first_person_evidence_method(self):
+        """Test the _extract_first_person_evidence method directly."""
+        from src.pipeline.character_profiling.summary_evidence import (
+            SummaryEvidenceExtractor,
+        )
+
+        summary = ChapterSummary(
+            chapter_index=1,
+            chapter_title="Chapter 1",
+            summary="I discovered the truth. My heart sank. I'm convinced he lied. I've seen enough. I'd rather leave. I'll remember this forever.",
+            key_events=["Discovery"],
+            primary_tone="dramatic",
+            secondary_tones=["dark"],
+            dialogue_density="low",
+            characters_present=["Narrator"],
+            pov_character="Narrator",
+            word_count=500,
+            estimated_duration_minutes=3,
+            confidence=0.9,
+        )
+
+        extractor = SummaryEvidenceExtractor(llm_client=None)
+        evidence = extractor._extract_first_person_evidence(summary, "The Narrator")
+
+        # Should capture all sentences with first-person pronouns
+        assert len(evidence) >= 5  # At least 5 of the 6 sentences have first-person
+        # All should have the correct source type
+        assert all(e.source_type == "first_person_narration" for e in evidence)
+        # All should have the narrator's name
+        assert all(e.character_name == "The Narrator" for e in evidence)
+        # All should have the correct chapter index
+        assert all(e.chapter_index == 1 for e in evidence)
+
 
 class TestTagIdentity:
     """Tests for chapter tag identity propagation (Feature F5)."""
@@ -2318,6 +2697,423 @@ class TestTagIdentity:
         result = extractor.extract(summary_map)
 
         assert isinstance(result.total_tags_scanned, int)
+
+
+class TestHandoffDetector:
+    """Tests for character handoff detection."""
+
+    def test_basic_handoff_detection(self):
+        """Test that basic handoff is detected when A ends and B begins."""
+        from src.pipeline.character_profiling.handoff_detector import (
+            HandoffDetector,
+            detect_handoffs,
+        )
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Cathy Ames",
+                aliases=["Cathy"],
+                role="antagonist",
+                chapters_present=[5, 6, 7],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Catherine Amesbury",
+                aliases=[],
+                role="supporting",
+                chapters_present=[8],
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.4)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should detect handoff (chapters disjoint, B starts right after A)
+        assert len(candidates) >= 1
+        # Check that the pair is flagged
+        names = {(c.name_a, c.name_b) for c in candidates}
+        names.update({(c.name_b, c.name_a) for c in candidates})  # Both directions
+        assert ("Cathy Ames", "Catherine Amesbury") in names or ("Catherine Amesbury", "Cathy Ames") in names
+
+    def test_gap_tolerance_detection(self):
+        """Test that handoff is detected with 1-2 chapter gap."""
+        from src.pipeline.character_profiling.handoff_detector import HandoffDetector
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Character A",
+                aliases=[],
+                role="protagonist",
+                chapters_present=[5, 6, 7],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Character B",
+                aliases=[],
+                role="supporting",
+                chapters_present=[9],  # Gap of 2 chapters
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.3)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should detect with gap tolerance of 2
+        assert len(candidates) >= 1
+
+    def test_no_handoff_with_large_gap(self):
+        """Test that handoff is NOT detected with large chapter gap."""
+        from src.pipeline.character_profiling.handoff_detector import HandoffDetector
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Character A",
+                aliases=[],
+                role="supporting",
+                chapters_present=[1, 2, 3],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Character B",
+                aliases=[],
+                role="supporting",
+                chapters_present=[10, 11, 12],  # Large gap
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.3)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should NOT detect handoff (gap too large)
+        assert len(candidates) == 0
+
+    def test_no_handoff_with_overlapping_chapters(self):
+        """Test that handoff is NOT detected when chapters overlap."""
+        from src.pipeline.character_profiling.handoff_detector import HandoffDetector
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Character A",
+                aliases=[],
+                role="supporting",
+                chapters_present=[5, 6, 7, 8],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Character B",
+                aliases=[],
+                role="supporting",
+                chapters_present=[7, 8, 9, 10],  # Overlaps at 7, 8
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.3)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should NOT detect handoff (chapters overlap significantly)
+        assert len(candidates) == 0
+
+    def test_nickname_variant_detection(self):
+        """Test that Cal/Caleb nickname variants boost confidence."""
+        from src.pipeline.character_profiling.handoff_detector import HandoffDetector
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Cal",
+                aliases=[],
+                role="protagonist",
+                chapters_present=[23, 24, 25],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Caleb",
+                aliases=[],
+                role="supporting",
+                chapters_present=[21, 22],  # Appears before Cal
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.4)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should detect - names are nickname variants
+        assert len(candidates) >= 1
+        # Check for higher confidence due to nickname similarity
+        if candidates:
+            # The candidate should mention nickname variant in reason
+            assert any("nickname" in c.reason.lower() or c.name_similarity > 0 for c in candidates)
+
+    def test_married_couple_not_merged(self):
+        """Test that Mr./Mrs. with same surname are NOT flagged as handoff."""
+        from src.pipeline.character_profiling.handoff_detector import HandoffDetector
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="Tom Wilson",
+                aliases=["Mr. Wilson"],
+                role="supporting",
+                chapters_present=[2, 7, 8],
+            ),
+            IdentifiedCharacter(
+                canonical_name="Mary Wilson",
+                aliases=["Mrs. Wilson"],
+                role="supporting",
+                chapters_present=[5, 6],  # Between Tom's appearances
+            ),
+        ]
+
+        detector = HandoffDetector(gap_tolerance=2, min_confidence=0.5)
+        candidates = detector.detect_handoffs(characters)
+
+        # Should not flag as handoff - different first names, same surname = family
+        # Low confidence candidates might exist but should be below threshold
+        high_conf = [c for c in candidates if c.confidence >= 0.7]
+        assert len(high_conf) == 0
+
+    def test_convenience_function(self):
+        """Test the detect_handoffs convenience function."""
+        from src.pipeline.character_profiling.handoff_detector import detect_handoffs
+
+        characters = [
+            IdentifiedCharacter(
+                canonical_name="A",
+                aliases=[],
+                role="protagonist",
+                chapters_present=[1, 2, 3],
+            ),
+            IdentifiedCharacter(
+                canonical_name="B",
+                aliases=[],
+                role="supporting",
+                chapters_present=[4],
+            ),
+        ]
+
+        candidates = detect_handoffs(characters, gap_tolerance=2, min_confidence=0.3)
+        assert isinstance(candidates, list)
+
+
+class TestSurnameCollisionFiltering:
+    """Tests for surname collision filtering in evidence extraction."""
+
+    def test_collision_detection_filters_wrong_evidence(self):
+        """Test that 'Ames' profile doesn't get evidence about 'Cathy Ames'."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidenceExtractor
+
+        all_names = ["Cathy Ames", "Mr. Ames", "Mrs. Ames", "Ames"]
+
+        extractor = SummaryEvidenceExtractor(
+            llm_client=None,
+            all_character_names=all_names,
+        )
+
+        # Check collision detection
+        # Sentence about "Cathy Ames" should be flagged when extracting for "Ames"
+        result = extractor._is_collision_sentence(
+            target_name="Ames",
+            sentence="Cathy Ames burns down her parents' house.",
+            all_names=["Ames"],
+        )
+        assert result is True  # Should detect collision
+
+    def test_no_collision_for_correct_subject(self):
+        """Test that 'Ames' profile DOES get evidence about 'Mr. Ames'."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidenceExtractor
+
+        all_names = ["Cathy Ames", "Mr. Ames", "Mrs. Ames"]
+
+        extractor = SummaryEvidenceExtractor(
+            llm_client=None,
+            all_character_names=all_names,
+        )
+
+        # Sentence about "Mr. Ames" should NOT be flagged when extracting for "Mr. Ames"
+        result = extractor._is_collision_sentence(
+            target_name="Mr. Ames",
+            sentence="Mr. Ames discovers his daughter's deception.",
+            all_names=["Mr. Ames", "Ames"],
+        )
+        assert result is False  # Should NOT be a collision
+
+    def test_surname_collision_map_building(self):
+        """Test that surname collision map is built correctly."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidenceExtractor
+
+        all_names = ["Cathy Ames", "Mr. Ames", "Mrs. Ames", "Tom Buchanan", "Daisy Buchanan"]
+
+        extractor = SummaryEvidenceExtractor(
+            llm_client=None,
+            all_character_names=all_names,
+        )
+
+        # Check that collisions are detected for shared surnames
+        assert "ames" in extractor.surname_collisions
+        assert "buchanan" in extractor.surname_collisions
+
+    def test_collision_filtering_in_extraction(self):
+        """Test that collision filtering works during evidence extraction."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidenceExtractor
+        from src.pipeline.chapter_summary.models import ChapterSummary, ChapterSummaryMap
+
+        all_names = ["Cathy Ames", "Mr. Ames"]
+
+        extractor = SummaryEvidenceExtractor(
+            llm_client=None,
+            all_character_names=all_names,
+        )
+
+        # Create a summary with evidence about Cathy Ames
+        summary = ChapterSummary(
+            chapter_index=7,
+            chapter_title="Chapter 7",
+            summary="Cathy Ames sets fire to her parents' house. Mr. Ames is devastated.",
+            key_events=["Fire at Ames house"],
+            primary_tone="dark",
+            secondary_tones=[],
+            dialogue_density="low",
+            characters_present=["Cathy Ames", "Mr. Ames"],
+            pov_character=None,
+            word_count=500,
+            estimated_duration_minutes=3,
+            confidence=0.9,
+        )
+        summary_map = ChapterSummaryMap(
+            summaries=[summary],
+            total_chapters=1,
+            total_word_count=500,
+            total_duration_minutes=3,
+            overall_tones={"dark": 1},
+            character_appearances={"Cathy Ames": [7], "Mr. Ames": [7]},
+        )
+
+        # Extract evidence for "Mr. Ames"
+        evidence = extractor.extract_evidence(
+            character_name="Mr. Ames",
+            aliases=["Ames"],
+            summary_map=summary_map,
+        )
+
+        # Should NOT include the sentence about Cathy Ames setting fire
+        statements = [e.statement for e in evidence.evidence]
+        for stmt in statements:
+            # Sentences primarily about Cathy should be filtered
+            if "Cathy Ames sets fire" in stmt:
+                pytest.fail("Evidence about Cathy Ames incorrectly attributed to Mr. Ames")
+
+    def test_no_collision_for_single_word_names(self):
+        """Test that single word names without longer variants work correctly."""
+        from src.pipeline.character_profiling.summary_evidence import SummaryEvidenceExtractor
+
+        all_names = ["Gatsby", "Nick", "Tom"]  # Single word names only
+
+        extractor = SummaryEvidenceExtractor(
+            llm_client=None,
+            all_character_names=all_names,
+        )
+
+        # Should not have any surname collisions
+        assert len(extractor.surname_collisions) == 0
+
+        # Should not detect collision for single-word names
+        result = extractor._is_collision_sentence(
+            target_name="Gatsby",
+            sentence="Gatsby throws a party.",
+            all_names=["Gatsby"],
+        )
+        assert result is False
+
+
+class TestHandoffReconciliation:
+    """Tests for handoff verification in reconciler."""
+
+    def test_reconciler_has_handoff_methods(self):
+        """Test that reconciler has handoff verification methods."""
+        mock_llm = Mock()
+        from src.pipeline.character_profiling.reconciler import CharacterReconciler
+
+        reconciler = CharacterReconciler(mock_llm)
+
+        assert hasattr(reconciler, 'verify_handoff')
+        assert hasattr(reconciler, 'verify_handoffs')
+
+    def test_verify_handoff_calls_llm(self):
+        """Test that verify_handoff uses LLM for verification."""
+        from src.pipeline.character_profiling.reconciler import CharacterReconciler
+        from src.pipeline.character_profiling.handoff_detector import HandoffCandidate
+
+        mock_llm = Mock()
+        mock_llm.query_json.return_value = (
+            {
+                "are_same_person": True,
+                "confidence": 0.9,
+                "reasoning": "Names are sequential, same role",
+            },
+            LLMResponse(content="...", model="test", error=None),
+        )
+
+        reconciler = CharacterReconciler(mock_llm)
+
+        candidate = HandoffCandidate(
+            name_a="Cathy Ames",
+            name_b="Catherine Amesbury",
+            last_chapter_a=7,
+            first_chapter_b=8,
+            confidence=0.7,
+            reason="Sequential chapters",
+            chapters_a=[5, 6, 7],
+            chapters_b=[8],
+        )
+
+        profiles = [
+            CharacterProfile(id="1", canonical_name="Cathy Ames", role="antagonist"),
+            CharacterProfile(id="2", canonical_name="Catherine Amesbury", role="supporting"),
+        ]
+
+        are_same, conf, reason = reconciler.verify_handoff(candidate, profiles)
+
+        assert are_same is True
+        assert conf == 0.9
+        mock_llm.query_json.assert_called_once()
+
+    def test_verify_handoffs_filters_by_confidence(self):
+        """Test that verify_handoffs only returns high-confidence results."""
+        from src.pipeline.character_profiling.reconciler import CharacterReconciler
+        from src.pipeline.character_profiling.handoff_detector import HandoffCandidate
+
+        mock_llm = Mock()
+        mock_llm.query_json.side_effect = [
+            (
+                {"are_same_person": True, "confidence": 0.9, "reasoning": "Same person"},
+                LLMResponse(content="...", model="test", error=None),
+            ),
+            (
+                {"are_same_person": True, "confidence": 0.5, "reasoning": "Maybe same"},
+                LLMResponse(content="...", model="test", error=None),
+            ),
+        ]
+
+        reconciler = CharacterReconciler(mock_llm, confidence_threshold=0.85)
+
+        candidates = [
+            HandoffCandidate(
+                name_a="A", name_b="B",
+                last_chapter_a=1, first_chapter_b=2,
+                confidence=0.6, reason="Test",
+            ),
+            HandoffCandidate(
+                name_a="C", name_b="D",
+                last_chapter_a=3, first_chapter_b=4,
+                confidence=0.6, reason="Test",
+            ),
+        ]
+
+        profiles = [
+            CharacterProfile(id="1", canonical_name="A"),
+            CharacterProfile(id="2", canonical_name="B"),
+            CharacterProfile(id="3", canonical_name="C"),
+            CharacterProfile(id="4", canonical_name="D"),
+        ]
+
+        verified = reconciler.verify_handoffs(candidates, profiles)
+
+        # Only first should pass (conf 0.9 >= 0.85)
+        assert len(verified) == 1
+        assert verified[0].name_a == "A"
 
 
 # Integration test marker - requires actual LLM
