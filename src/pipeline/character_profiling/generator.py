@@ -239,6 +239,7 @@ class CharacterProfileGenerator:
         passages: Optional[list[CharacterPassage]] = None,
         summary_evidence: Optional[CharacterSummaryEvidence] = None,
         moral_valence: Optional[MoralValenceResult] = None,
+        narrative_style: str = "unknown",
     ) -> CharacterProfile:
         """
         Generate comprehensive profile for a character.
@@ -251,6 +252,7 @@ class CharacterProfileGenerator:
             summary_evidence: Optional pre-extracted summary evidence (Feature F2)
             moral_valence: Optional moral valence classification (Feature F3)
                           When provided, acts as HARD CONSTRAINT on profile generation
+            narrative_style: Narrative style for first-person evidence extraction
 
         Returns:
             Rich CharacterProfile
@@ -274,6 +276,8 @@ class CharacterProfileGenerator:
                 character.canonical_name,
                 character.aliases,
                 self.summary_map,
+                is_narrator=character.is_narrator,
+                narrative_style=narrative_style,
             )
 
         # Format evidence for prompt
@@ -489,6 +493,7 @@ def generate_character_profile(
     llm_client: LLMClient,
     summary_map: Optional[ChapterSummaryMap] = None,
     moral_valence: Optional[MoralValenceResult] = None,
+    narrative_style: str = "unknown",
 ) -> CharacterProfile:
     """
     Convenience function to generate a character profile.
@@ -500,11 +505,13 @@ def generate_character_profile(
         llm_client: LLM client
         summary_map: Optional chapter summaries for summary evidence (Feature F2)
         moral_valence: Optional moral valence constraint (Feature F3)
+        narrative_style: Narrative style for first-person evidence extraction
 
     Returns:
         Rich CharacterProfile
     """
     generator = CharacterProfileGenerator(llm_client, summary_map=summary_map)
     return generator.generate_profile(
-        character, full_text, chapter_map, moral_valence=moral_valence
+        character, full_text, chapter_map, moral_valence=moral_valence,
+        narrative_style=narrative_style
     )

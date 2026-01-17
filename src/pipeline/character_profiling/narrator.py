@@ -213,6 +213,8 @@ class NarratorDetector:
         Mark the narrator character in the character list.
 
         Modifies characters in-place to set is_narrator flag.
+        For first-person narrators, also elevates role from supporting/minor
+        to protagonist (narrators should not be supporting/minor characters).
 
         Args:
             characters: List of identified characters (modified in-place)
@@ -228,6 +230,17 @@ class NarratorDetector:
             if char.canonical_name.lower() == narrator_lower:
                 char.is_narrator = True
                 char.narrative_role = narrator_info.narrator_role
+
+                # Elevate role - first-person narrators should not be supporting/minor
+                if char.role in ("supporting", "minor"):
+                    old_role = char.role
+                    if narrator_info.narrative_style == "first-person":
+                        char.role = "protagonist"
+                        logger.info(
+                            f"Elevated first-person narrator {char.canonical_name} "
+                            f"from '{old_role}' to 'protagonist'"
+                        )
+
                 logger.info(f"Marked {char.canonical_name} as narrator")
                 return
 
@@ -236,6 +249,17 @@ class NarratorDetector:
                 if alias.lower() == narrator_lower:
                     char.is_narrator = True
                     char.narrative_role = narrator_info.narrator_role
+
+                    # Elevate role - first-person narrators should not be supporting/minor
+                    if char.role in ("supporting", "minor"):
+                        old_role = char.role
+                        if narrator_info.narrative_style == "first-person":
+                            char.role = "protagonist"
+                            logger.info(
+                                f"Elevated first-person narrator {char.canonical_name} "
+                                f"from '{old_role}' to 'protagonist'"
+                            )
+
                     logger.info(f"Marked {char.canonical_name} as narrator (matched alias: {alias})")
                     return
 

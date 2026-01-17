@@ -1044,10 +1044,19 @@ class AudiobookAnalyzer:
                     summary_evidence = None
                     if summary_evidence_extractor and summary_map:
                         try:
+                            # Check if this character is the narrator
+                            is_char_narrator = (
+                                narrator_detected and
+                                char.canonical_name == narrator_detected
+                            )
+                            narrative_style = "first-person" if narrator_detected else "unknown"
+
                             summary_evidence = summary_evidence_extractor.extract_evidence(
                                 char.canonical_name,
                                 char.aliases,
                                 summary_map,
+                                is_narrator=is_char_narrator,
+                                narrative_style=narrative_style,
                             )
                             if summary_evidence.evidence:
                                 logger.debug(
