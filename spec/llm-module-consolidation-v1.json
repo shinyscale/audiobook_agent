@@ -1,0 +1,413 @@
+{
+  "metadata": {
+    "title": "LLM Module Consolidation",
+    "version": "1.0",
+    "status": "Ready for Implementation",
+    "priority": "Medium",
+    "target": "Technical debt reduction and code maintainability"
+  },
+  "executive_summary": "The codebase has two LLM modules with overlapping functionality: src/llm/ (legacy, 4 files, ~2,700 LOC) and src/pipeline/llm.py (modern, 1 file, 520 LOC). This duplication creates confusion about which module to use, potential import conflicts, and maintenance burden. Solution: Consolidate to a single src/llm/ module that combines the clean API from pipeline/llm.py with the useful utilities from the legacy module, while deprecating redundant code.",
+  "problem_statement": {
+    "current_state": {
+      "legacy_module": {
+        "path": "src/llm/",
+        "files": 4,
+        "lines_of_code": 2700,
+        "purpose": "config, refiner, prompts, exceptions"
+      },
+      "modern_module": {
+        "path": "src/pipeline/llm.py",
+        "files": 1,
+        "lines_of_code": 520,
+        "purpose": "clean LLMClient API"
+      }
+    },
+    "duplication_analysis": {
+      "overlapping_features": [
+        {
+          "feature": "Provider enum",
+          "legacy": "LLMProvider in config.py",
+          "modern": "Literal type in LLMConfig"
+        },
+        {
+          "feature": "Configuration class",
+          "legacy": "ModelConfig (hardware-focused)",
+          "modern": "LLMConfig (API-focused)"
+        },
+        {
+          "feature": "API calls",
+          "legacy": "LLMRefiner._query()",
+          "modern": "LLMClient.query()"
+        },
+        {
+          "feature": "JSON parsing",
+          "legacy": "In refiner.py",
+          "modern": "LLMClient.query_json()"
+        },
+        {
+          "feature": "Connection testing",
+          "legacy": "test_connection()",
+          "modern": "LLMClient.test_connection()"
+        },
+        {
+          "feature": "Thinking tag cleanup",
+          "legacy": "Not present",
+          "modern": "_clean_thinking_tags()"
+        }
+      ],
+      "unique_to_legacy": [
+        "config.py: Model recommendations, VRAM calculations, Ollama model management",
+        "prompts.py: Prompt templates (PromptConfig, DEFAULT_PROMPTS)",
+        "exceptions.py: Custom exceptions",
+        "refiner.py: Legacy batch refinement methods (UNUSED)"
+      ],
+      "unique_to_modern": [
+        "Clean LLMClient class with lazy initialization",
+        "LLMResponse dataclass with token tracking",
+        "Thinking tag cleanup for reasoning models",
+        "JSON repair utilities",
+        "Health check functionality",
+        "Metrics integration"
+      ]
+    },
+    "current_usage": {
+      "pipeline_llm_py": {
+        "status": "PRIMARY API",
+        "used_by": [
+          "src/pipeline/chapter_detection/ (5 files)",
+          "src/pipeline/character_extraction/ (4 files)",
+          "src/pipeline/character_profiling/ (9 files)",
+          "src/pipeline/chapter_summary/ (2 files)",
+          "src/pipeline/pronunciation_guide/ (2 files)",
+          "src/pipeline/overview/ (1 file)",
+          "src/agents/ (4 files)",
+          "src/analyzer.py (1 file)",
+          "tests/ (3 files)"
+        ],
+        "total_importers": 27
+      },
+      "src_llm": {
+        "status": "LIMITED USAGE",
+        "used_by": [
+          "src/gui/desktop.py - imports config.py and prompts.py",
+          "src/analyzer.py - imports prompts.py for PromptConfig"
+        ]
+      }
+    },
+    "problems": [
+      "Confusion: Developers don't know which module to use",
+      "Inconsistency: Two different ways to make LLM calls",
+      "Maintenance burden: Bug fixes may need to be applied in two places",
+      "Import complexity: from ..llm could resolve to either module",
+      "Dead code: refiner.py (1,654 LOC) is completely unused"
+    ]
+  },
+  "target_architecture": {
+    "structure": {
+      "src/llm/__init__.py": "Public API exports",
+      "src/llm/client.py": "LLMClient, LLMConfig, LLMResponse, create_client (from pipeline/llm.py)",
+      "src/llm/providers.py": "LLMProvider enum, DEFAULT_URLS, detect_available_models, detect_context_length, test_connection",
+      "src/llm/models.py": "CONTEXT_PERCENT, ModelConfig, RECOMMENDED_MODELS, get_model_for_hardware, get_default_model",
+      "src/llm/ollama.py": "pull_ollama_model, delete_ollama_model, get_ollama_model_info",
+      "src/llm/prompts.py": "PromptConfig, DEFAULT_PROMPTS (unchanged)",
+      "src/llm/exceptions.py": "Custom exceptions (unchanged)"
+    },
+    "benefits": [
+      "Single source of truth for LLM interactions",
+      "Clear separation of concerns (client, providers, models, ollama, prompts)",
+      "Consistent import paths",
+      "No dead code",
+      "~1,654 LOC removed"
+    ]
+  },
+  "implementation": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Delete Unused Code",
+        "risk": "Low",
+        "tasks": [
+          {
+            "id": "1.1",
+            "action": "DELETE",
+            "file": "src/llm/refiner.py",
+            "description": "Delete entire file (1,654 lines of completely unused code)",
+            "status": "pending"
+          },
+          {
+            "id": "1.2",
+            "action": "MODIFY",
+            "file": "src/llm/__init__.py",
+            "description": "Remove refiner imports and exports (LLMRefiner, refine_analysis)",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Create New Module Structure",
+        "risk": "Low",
+        "tasks": [
+          {
+            "id": "2.1",
+            "action": "CREATE",
+            "file": "src/llm/client.py",
+            "description": "Copy content from src/pipeline/llm.py (520 lines). Update relative import for logger.",
+            "source": "src/pipeline/llm.py",
+            "contains": ["LLMClient", "LLMConfig", "LLMResponse", "create_client"],
+            "status": "pending"
+          },
+          {
+            "id": "2.2",
+            "action": "CREATE",
+            "file": "src/llm/providers.py",
+            "description": "Extract provider-related code from config.py",
+            "source": "src/llm/config.py",
+            "source_lines": {
+              "LLMProvider": "12-17",
+              "DEFAULT_URLS": "21-26",
+              "get_default_url": "165-167",
+              "detect_available_models": "170-224",
+              "detect_context_length": "227-287",
+              "test_connection": "290-392"
+            },
+            "contains": ["LLMProvider", "DEFAULT_URLS", "get_default_url", "detect_available_models", "detect_context_length", "test_connection"],
+            "status": "pending"
+          },
+          {
+            "id": "2.3",
+            "action": "CREATE",
+            "file": "src/llm/models.py",
+            "description": "Extract model recommendation code from config.py",
+            "source": "src/llm/config.py",
+            "source_lines": {
+              "CONTEXT_PERCENT": "29-36",
+              "ModelConfig": "39-52",
+              "RECOMMENDED_MODELS": "56-111",
+              "get_model_for_hardware": "114-138",
+              "get_default_model": "141-162"
+            },
+            "contains": ["CONTEXT_PERCENT", "ModelConfig", "RECOMMENDED_MODELS", "get_model_for_hardware", "get_default_model"],
+            "status": "pending"
+          },
+          {
+            "id": "2.4",
+            "action": "CREATE",
+            "file": "src/llm/ollama.py",
+            "description": "Extract Ollama-specific utilities from config.py",
+            "source": "src/llm/config.py",
+            "source_lines": {
+              "pull_ollama_model": "395-453",
+              "delete_ollama_model": "456-489",
+              "get_ollama_model_info": "492-520"
+            },
+            "contains": ["pull_ollama_model", "delete_ollama_model", "get_ollama_model_info"],
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Update Exports and Create Shims",
+        "risk": "Low",
+        "tasks": [
+          {
+            "id": "3.1",
+            "action": "MODIFY",
+            "file": "src/llm/__init__.py",
+            "description": "Update with complete exports from all new submodules",
+            "exports": [
+              "LLMClient", "LLMConfig", "LLMResponse", "create_client",
+              "LLMProvider", "DEFAULT_URLS", "get_default_url", "detect_available_models", "detect_context_length", "test_connection",
+              "CONTEXT_PERCENT", "ModelConfig", "RECOMMENDED_MODELS", "get_model_for_hardware", "get_default_model",
+              "pull_ollama_model", "delete_ollama_model", "get_ollama_model_info",
+              "PromptConfig", "DEFAULT_PROMPTS",
+              "LLMAnalysisError", "ChapterDetectionError", "CharacterProfileError", "ChapterSummaryError", "PronunciationFilterError", "CharacterMergeError", "RelationshipExtractionError"
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "3.2",
+            "action": "REPLACE",
+            "file": "src/pipeline/llm.py",
+            "description": "Replace with backward-compatible shim that re-exports from src/llm/client.py",
+            "shim_exports": ["LLMClient", "LLMConfig", "LLMResponse", "create_client"],
+            "status": "pending"
+          },
+          {
+            "id": "3.3",
+            "action": "REPLACE",
+            "file": "src/llm/config.py",
+            "description": "Replace with backward-compatible shim that re-exports from providers.py, models.py, ollama.py",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Verify and Clean Up",
+        "risk": "Low",
+        "tasks": [
+          {
+            "id": "4.1",
+            "action": "TEST",
+            "command": "pytest",
+            "description": "Run full test suite - all tests should pass",
+            "status": "pending"
+          },
+          {
+            "id": "4.2",
+            "action": "VERIFY",
+            "description": "Verify new import paths work",
+            "commands": [
+              "python -c \"from src.llm import LLMClient, LLMConfig, LLMResponse\"",
+              "python -c \"from src.llm import LLMProvider, pull_ollama_model\"",
+              "python -c \"from src.llm import ModelConfig, RECOMMENDED_MODELS\""
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "4.3",
+            "action": "VERIFY",
+            "description": "Verify backward-compatible import paths work",
+            "commands": [
+              "python -c \"from src.pipeline.llm import LLMClient\"",
+              "python -c \"from src.llm.config import LLMProvider\""
+            ],
+            "status": "pending"
+          },
+          {
+            "id": "4.4",
+            "action": "TEST",
+            "command": "audiobook-prep analyze --help",
+            "description": "Verify CLI works",
+            "status": "pending"
+          },
+          {
+            "id": "4.5",
+            "action": "TEST",
+            "command": "./launch_gui.sh",
+            "description": "Launch GUI and verify model management tab works",
+            "status": "pending"
+          }
+        ]
+      }
+    ]
+  },
+  "files_summary": {
+    "delete": [
+      "src/llm/refiner.py"
+    ],
+    "create": [
+      "src/llm/client.py",
+      "src/llm/providers.py",
+      "src/llm/models.py",
+      "src/llm/ollama.py"
+    ],
+    "modify": [
+      "src/llm/__init__.py"
+    ],
+    "replace_with_shim": [
+      "src/llm/config.py",
+      "src/pipeline/llm.py"
+    ],
+    "unchanged": [
+      "src/llm/prompts.py",
+      "src/llm/exceptions.py"
+    ]
+  },
+  "user_stories": [
+    {
+      "id": "US-1",
+      "category": "functional",
+      "description": "All pipeline modules use the consolidated LLMClient",
+      "steps": [
+        "Search codebase for LLM client imports",
+        "Verify all imports resolve to src/llm/client.py (directly or via shim)",
+        "Confirm all LLM calls use LLMClient.query() or query_json()"
+      ],
+      "acceptance": "All 27 files using LLMClient continue to work without modification"
+    },
+    {
+      "id": "US-2",
+      "category": "functional",
+      "description": "LLMClient supports all three providers",
+      "steps": [
+        "Create client with LLMConfig.ollama()",
+        "Create client with LLMConfig.openai()",
+        "Create client with LLMConfig.anthropic()",
+        "Verify all three can make successful queries"
+      ],
+      "acceptance": "All provider configurations work correctly"
+    },
+    {
+      "id": "US-3",
+      "category": "functional",
+      "description": "Model recommendations are accessible",
+      "steps": [
+        "Import from src.llm",
+        "Access RECOMMENDED_MODELS list",
+        "Call get_model_for_hardware(vram_gb=48)",
+        "Verify appropriate model is returned"
+      ],
+      "acceptance": "Model recommendation functions work from new location"
+    },
+    {
+      "id": "US-4",
+      "category": "functional",
+      "description": "Ollama operations are accessible",
+      "steps": [
+        "Import from src.llm",
+        "Call detect_available_models()",
+        "Call pull_ollama_model() with a small model",
+        "Call get_ollama_model_info()",
+        "Verify all operations work correctly"
+      ],
+      "acceptance": "Ollama management functions work from new location"
+    },
+    {
+      "id": "US-5",
+      "category": "functional",
+      "description": "Backward compatibility maintained",
+      "steps": [
+        "Import LLMClient from src.pipeline.llm",
+        "Import LLMProvider from src.llm.config",
+        "Verify no deprecation warnings (shims are silent)",
+        "All existing code continues to work without changes"
+      ],
+      "acceptance": "Existing import patterns continue to work"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Breaking imports during migration",
+      "likelihood": "Low",
+      "impact": "High",
+      "mitigation": "Backward-compatible shims ensure all existing imports work"
+    },
+    {
+      "risk": "GUI breakage",
+      "likelihood": "Low",
+      "impact": "Medium",
+      "mitigation": "Manual GUI testing after migration"
+    },
+    {
+      "risk": "Test failures",
+      "likelihood": "Low",
+      "impact": "Low",
+      "mitigation": "Run pytest after each phase"
+    },
+    {
+      "risk": "Missing exports in __init__.py",
+      "likelihood": "Low",
+      "impact": "Medium",
+      "mitigation": "Comprehensive __all__ lists and verification commands"
+    }
+  ],
+  "success_metrics": {
+    "code_reduction": "~1,654 LOC removed (refiner.py)",
+    "import_consistency": "100% of LLM imports use from src.llm import or backward-compat shims",
+    "test_coverage": "All existing tests pass",
+    "no_regressions": "All pipelines produce identical output"
+  }
+}
