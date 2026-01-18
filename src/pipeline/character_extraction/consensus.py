@@ -855,6 +855,67 @@ class CharacterConsensusBuilder:
             x, y = (a, b) if a < b else (b, a)
             pairs_set.add((x, y))
 
+        # PRIORITY: Add relational/familial descriptor candidates FIRST (e.g., "my father", "Father", "the old man")
+        # These often don't share tokens with character names but may refer to named characters
+        # Generate these FIRST to ensure they're included within max_pairs limit
+        RELATIONAL_TERMS = {
+            'father', 'mother', 'son', 'daughter', 'brother', 'sister',
+            'uncle', 'aunt', 'grandfather', 'grandmother', 'cousin',
+            'husband', 'wife', 'friend', 'companion',
+        }
+
+        # Descriptive patterns that might be character references
+        DESCRIPTIVE_PATTERNS = {
+            'man', 'woman', 'lady', 'gentleman', 'creature', 'monster',
+            'fiend', 'wretch', 'stranger', 'visitor', 'guest',
+            'captain', 'professor', 'doctor', 'detective',
+        }
+
+        # Find names that contain only relational/descriptive terms
+        relational_names = []
+        proper_names = []
+
+        for name in names:
+            words = re.sub(r"[^\w\s]", "", name.lower()).split()
+            sig = self._filter_title_words(words)
+
+            # Check if this is a relational/descriptive reference
+            is_relational = any(term in sig for term in RELATIONAL_TERMS)
+            is_descriptive = any(term in sig for term in DESCRIPTIVE_PATTERNS)
+
+            # Check if this is a proper name (capitalized, multi-word, etc.)
+            is_proper = len([w for w in name.split() if w and w[0].isupper() and len(w) > 2]) >= 1
+
+            if is_relational or is_descriptive:
+                relational_names.append(name)
+            elif is_proper:
+                proper_names.append(name)
+
+        # Pair each relational/descriptive name with top proper names
+        # The LLM will decide if they actually refer to the same person
+        top_proper = sorted(proper_names, key=lambda n: -mention_rank.get(n, 0))[:30]
+        top_relational = sorted(relational_names, key=lambda n: -mention_rank.get(n, 0))[:20]
+
+        logger.info(f"Relational/descriptive names found: {top_relational[:10]}")
+        logger.info(f"Top proper names for pairing: {top_proper[:10]}")
+
+        for rel_name in top_relational:
+            if len(pairs_set) >= max_pairs:
+                break
+            for proper_name in top_proper:
+                if len(pairs_set) >= max_pairs:
+                    break
+                add_pair(rel_name, proper_name)
+                # Log father/Frankenstein pairs specifically
+                if ('father' in rel_name.lower() and 'frankenstein' in proper_name.lower()):
+                    logger.info(
+                        f"CRITICAL PAIR GENERATED: '{rel_name}' <-> '{proper_name}'"
+                    )
+                else:
+                    logger.debug(
+                        f"Relational pair: '{rel_name}' <-> '{proper_name}'"
+                    )
+
         # Generate within token buckets
         for token, bucket in token_to_names.items():
             if len(bucket) < 2:
@@ -929,68 +990,6 @@ class CharacterConsensusBuilder:
                         add_pair(n1, n2)
                         logger.debug(
                             f"Nickname match: '{n1}' ({fn1}) <-> '{n2}' ({fn2})"
-                        )
-
-        # Add relational/familial descriptor candidates (e.g., "my father", "Father", "the old man")
-        # These often don't share tokens with character names but may refer to named characters
-        if len(pairs_set) < max_pairs:
-            # Common relational/familial terms that might be character aliases
-            RELATIONAL_TERMS = {
-                'father', 'mother', 'son', 'daughter', 'brother', 'sister',
-                'uncle', 'aunt', 'grandfather', 'grandmother', 'cousin',
-                'husband', 'wife', 'friend', 'companion',
-            }
-
-            # Descriptive patterns that might be character references
-            DESCRIPTIVE_PATTERNS = {
-                'man', 'woman', 'lady', 'gentleman', 'creature', 'monster',
-                'fiend', 'wretch', 'stranger', 'visitor', 'guest',
-                'captain', 'professor', 'doctor', 'detective',
-            }
-
-            # Find names that contain only relational/descriptive terms
-            relational_names = []
-            proper_names = []
-
-            for name in names:
-                words = re.sub(r"[^\w\s]", "", name.lower()).split()
-                sig = self._filter_title_words(words)
-
-                # Check if this is a relational/descriptive reference
-                is_relational = any(term in sig for term in RELATIONAL_TERMS)
-                is_descriptive = any(term in sig for term in DESCRIPTIVE_PATTERNS)
-
-                # Check if this is a proper name (capitalized, multi-word, etc.)
-                is_proper = len([w for w in name.split() if w and w[0].isupper() and len(w) > 2]) >= 1
-
-                if is_relational or is_descriptive:
-                    relational_names.append(name)
-                elif is_proper:
-                    proper_names.append(name)
-
-            # Pair each relational/descriptive name with top proper names
-            # The LLM will decide if they actually refer to the same person
-            top_proper = sorted(proper_names, key=lambda n: -mention_rank.get(n, 0))[:30]
-            top_relational = sorted(relational_names, key=lambda n: -mention_rank.get(n, 0))[:20]
-
-            logger.info(f"Relational/descriptive names found: {top_relational[:10]}")
-            logger.info(f"Top proper names for pairing: {top_proper[:10]}")
-
-            for rel_name in top_relational:
-                if len(pairs_set) >= max_pairs:
-                    break
-                for proper_name in top_proper:
-                    if len(pairs_set) >= max_pairs:
-                        break
-                    add_pair(rel_name, proper_name)
-                    # Log father/Frankenstein pairs specifically
-                    if ('father' in rel_name.lower() and 'frankenstein' in proper_name.lower()):
-                        logger.info(
-                            f"CRITICAL PAIR GENERATED: '{rel_name}' <-> '{proper_name}'"
-                        )
-                    else:
-                        logger.debug(
-                            f"Relational pair: '{rel_name}' <-> '{proper_name}'"
                         )
 
         return list(pairs_set)

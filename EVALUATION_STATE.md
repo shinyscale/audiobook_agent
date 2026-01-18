@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 4 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 5 of 5
+- **Phase:** awaiting_analysis
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -224,6 +224,27 @@ This suggests one of three problems:
 
 **Next Action:** Must analyze the diagnostic logs to identify root cause, THEN implement an actual fix to the merge logic.
 
+### Attempt 5: Fixed relational descriptor pairing execution order
+**Issue:** Critical #1 from Attempt 4 - Relational/descriptive pairing code was never executing, preventing merges of "my father" + "Alphonse Frankenstein"
+
+**Root Cause Investigation:**
+Analyzed the diagnostic logs from Attempt 4:
+- No "Relational/descriptive names found" log messages appeared (proves code never executed)
+- The relational pairing section was at the END of `_candidate_pairs_for_merge` (lines 934-995)
+- Earlier stages (token bucket, substring, nickname matching) filled `pairs_set` to max_pairs=250 limit
+- Early returns (`if len(pairs_set) >= max_pairs: break`) prevented reaching the relational section
+
+**Fix Applied:**
+- Modified `src/pipeline/character_extraction/consensus.py` lines 858-918
+- **MOVED** relational/descriptive pairing logic from END to BEGINNING of function
+- Now executes FIRST, immediately after `add_pair` function definition
+- Ensures critical pairs ("my father" + proper names) are generated within max_pairs limit
+- **REMOVED** duplicate code from old location (lines 995-1055)
+
+**Testing:** All 444 tests pass.
+
+**Expected Impact:** Should fix Critical #1 (Alphonse fragmentation), High #7 (Caroline fragmentation), and potentially High #4-6 (Victor, Henry, Robert fragmentations) by ensuring relational/title pairs are actually evaluated by the LLM.
+
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
@@ -332,28 +353,30 @@ Rounding: **Overall: 6.25/10** (Below threshold: 8.0)
 
 ## Next Action
 
-**Status:** FAIL - Score 6.25/10 (threshold: 8.0) - NO IMPROVEMENT from Attempt 3
+**Status:** FIX IMPLEMENTED - Re-run analysis to verify
 
-**Attempt 4 was WASTED:** Only added logging without analyzing it or implementing fixes.
+### Attempt 5: Fixed relational descriptor pairing execution order
 
-**This is the FINAL ATTEMPT (5 of 5).** Must fix critical issues or Frankenstein will fail like Gatsby.
+**Root Cause Analysis:**
+Analyzed the diagnostic logs from Attempt 4 and discovered the relational/descriptive pairing code (added in Attempt 2, lines 934-995) **was never executing**:
+- No "Relational/descriptive names found" messages appeared in logs
+- The earlier pairing stages (token bucket, substring, nickname matching) filled `pairs_set` to the 250 max_pairs limit
+- Early returns at lines 870, 888, etc. prevented reaching the relational pairing section at the end
 
-**Primary blockers (unchanged from Attempt 3):**
-1. Character fragmentation (2.75 points lost) ← MUST FIX
-2. Missing William Frankenstein (1.0 point lost) ← MUST FIX
-3. Pronunciation false positives (0.7 points lost)
+**Fix Applied:**
+**Modified:** `src/pipeline/character_extraction/consensus.py` lines 858-918
+- **MOVED** relational/descriptive pairing logic from END to BEGINNING of `_candidate_pairs_for_merge`
+- Now executes FIRST, immediately after the `add_pair` function definition
+- Ensures critical relational descriptor pairs ("my father" + "Alphonse Frankenstein") are generated within the max_pairs limit
+- **REMOVED** duplicate relational/descriptive pairing code from lines 995-1055 (old location)
 
-**Required fixes to reach 8.0:**
-- Fix character aliasing to merge fragmented characters: +2.0 pts → 8.25/10 ✓
-- Add William Frankenstein to character list: +0.5 pts → 6.75/10 (not enough alone)
-- Reduce pronunciation false positives: +0.4 pts → 6.65/10 (not enough alone)
+**Testing:** All 444 tests pass.
 
-**CRITICAL:** Must fix character fragmentation (Critical #1) in Attempt 5 or fail.
+**Expected Impact:**
+This fix should significantly improve character alias resolution for fragmented characters:
+- "my father" + "Alphonse Frankenstein" should merge
+- "my mother" + "Madame Frankenstein" should merge
+- "the creature" + "the monster" + "the wretch" should remain correctly merged
+- Surname + title variations ("Clerval" + "M. Clerval", "Walton" + "Captain Walton") should merge
 
-**Strategy for Attempt 5:**
-1. FIRST: Analyze the diagnostic logs from Attempt 4 to find root cause
-2. THEN: Implement targeted fix based on log analysis
-3. Focus on highest-impact issue: Alphonse Frankenstein fragmentation
-4. If time permits: Also fix William missing and pronunciation false positives
-
-Run PROMPT_fix.md to analyze logs and implement character merge fix.
+**Next:** Re-run analysis to verify fix effectiveness and measure improvement.
