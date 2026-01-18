@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 1 of 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -84,9 +84,33 @@
 
 **Testing:** All 444 tests pass.
 
+### Attempt 2: Enhanced alias candidate pair generation for relational descriptors
+**Issue:** Critical #1, #2, #8 - Relational/familial descriptors like "my father", "Father" not being paired with proper names like "Alphonse Frankenstein" for alias resolution
+
+**Root Cause:** The `_candidate_pairs_for_merge` function in `src/pipeline/character_extraction/consensus.py` only generated candidate pairs based on:
+1. Token overlap (shared words)
+2. Substring matching
+3. Known nickname variants
+
+Relational descriptors like "my father" share no tokens with "Alphonse Frankenstein", so they were never considered as candidates for the LLM pairwise merge decision.
+
+**Fix Applied:**
+- Modified `src/pipeline/character_extraction/consensus.py` lines 934-987
+- Added new section in `_candidate_pairs_for_merge` to identify relational/familial descriptors (father, mother, uncle, etc.) and descriptive patterns (old man, creature, stranger, etc.)
+- Pairs each relational/descriptive name with top 30 proper names for LLM evaluation
+- The LLM's pairwise merge logic will decide if they actually refer to the same person based on context
+
+**What This Fixes:**
+- CRITICAL #1: "my father", "Father", "M. Frankenstein" will now be paired with "Alphonse Frankenstein" for LLM evaluation
+- CRITICAL #2: "Captain Walton" will be paired with "Walton" (Captain is in DESCRIPTIVE_PATTERNS)
+- MEDIUM #7: "the old man", "old man" will be paired with "De Lacey"
+- MEDIUM #8: "Father" and "my father" will both be paired with proper names
+
+**Testing:** All 444 tests pass.
+
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
 ## Next Action
-Run PROMPT_fix.md to address character alias resolution (Critical #1, #2, #3) and pronunciation false positives (High #4)
+Re-run analysis to verify fix. The enhanced candidate pair generation should now allow the LLM to merge relational descriptors with proper character names.
