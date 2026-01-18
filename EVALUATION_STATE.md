@@ -3,84 +3,104 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3 of 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 
 ## Latest Scores
 - Structure Detection: 10/10
 - Character Extraction: 4/10 ← FAILING
-- Character Profiles: 6/10 ← FAILING
+- Character Profiles: 5/10 ← FAILING
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 3/10 ← FAILING
 - HTML Presentation: 9/10
-- **Overall: 6.9/10** (threshold: 8.0)
+- **Overall: 6.25/10** (threshold: 8.0)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Character alias resolution failure: Alphonse Frankenstein fragmented**
-   - Problem: "my father" (50 mentions), "Father" (6 mentions), "M. Frankenstein" (2 mentions), and "Alphonse Frankenstein" (1 mention) are listed as FOUR separate characters
-   - Evidence: All refer to Victor's father, Alphonse Frankenstein. They should be merged with proper name as canonical
+1. **Character alias resolution failure: Alphonse Frankenstein massively fragmented**
+   - Problem: "my father" (53 mentions), "Father" (6 mentions), "M." (23 mentions), "M. Frankenstein" (2 mentions), and "Alphonse Frankenstein" (1 mention) are listed as FIVE separate characters
+   - Evidence: All refer to Victor's father, Alphonse Frankenstein. They must be merged with "Alphonse Frankenstein" as canonical name.
    - Location: Character extraction and alias resolution in `src/agents/character_agent.py` or `src/pipeline/character_extraction/consensus.py`
-   - Fix: The Attempt 2 enhancement to `_candidate_pairs_for_merge` did NOT successfully resolve this. The relational descriptors ("my father", "Father") are still not being merged with the proper name ("Alphonse Frankenstein"). Need to investigate why the LLM pairwise merge is rejecting these pairs, or why pairs aren't being generated correctly.
-   - Impact: -1.5 points (core character badly fragmented)
+   - **Analysis:** Attempt 3's validation fix did NOT work. The `_validate_merge` changes allow relational descriptors to pass validation, but they are STILL NOT MERGING. This suggests:
+     1. The candidate pairs are not being generated for these combinations, OR
+     2. The LLM pairwise merge decision is rejecting them, OR
+     3. The merging logic after validation is failing
+   - Need to add detailed logging to trace why "my father" + "Alphonse Frankenstein" are not merging despite validation changes
+   - Impact: -2.0 points (core character badly fragmented into 5 pieces)
 
 2. **Missing character: William Frankenstein**
-   - Problem: Victor's younger brother William (murder victim in Chapter 8) appears in chapter summaries but has NO character profile in the main character list
-   - Evidence: Chapter 7 and 8 summaries reference "William Frankenstein" explicitly. He is a critical plot character.
-   - Location: Character profile generation threshold in character agent, or character extraction missing him entirely
-   - Fix: Check mention count threshold - William may have low mentions since he dies early but is plot-critical. May need to profile all characters who appear in chapter summaries, or lower mention threshold.
-   - Impact: -0.8 points (major plot character completely absent)
+   - Problem: Victor's younger brother William (murder victim in Chapter 8) appears in chapter summaries ("William Frankenstein" is explicitly listed in Ch. 8 characters_present) but has NO character profile in the main character list
+   - Evidence: Chapter 8 summary: "After receiving a devastating letter from his father detailing the murder of his young brother William..." and characters_present array includes "William Frankenstein"
+   - Location: Character profile generation threshold in character agent, or character extraction missing him entirely despite chapter detection finding him
+   - Fix: Check why characters appearing in `characters_present` are not making it to the final character list. May be filtered by mention count, but plot-critical characters should never be filtered.
+   - Impact: -1.0 points (major plot character completely absent from character list)
 
 3. **Massive pronunciation false positives**
    - Problem: Common English words flagged unnecessarily: "my", "man", "father", "old", "young", "child", "mother", "girl", "woman", "creature", "monster", "stranger", "creator", "magistrate", "Uncle"
-   - Evidence: 663 total pronunciations with estimated 400+ false positives (60%+ false positive rate)
+   - Evidence: 663 total pronunciations. First 30 entries include 15 common English words (50% false positive rate in sample). Words like "my", "man", "father", "old", "young", "child", "mother" are basic English vocabulary that no narrator needs pronunciation help with.
    - Location: `src/agents/pronunciation_agent.py` filtering logic
    - Fix: Implement word frequency filter using common English word lists (e.g., top 5000-10000 most common words). Exclude: articles, possessives, common nouns, common adjectives, common family terms. Only flag: proper nouns (names, places), foreign terms, technical/archaic terms, homographs with context.
    - Impact: -0.7 points (guide unusable due to noise)
 
 ### HIGH
-4. **Title/honorific splits: Walton**
-   - Problem: "Walton" (6 mentions) and "Captain Walton" (1 mention) are separate characters
-   - Evidence: Both refer to Robert Walton, the Arctic explorer and frame narrator
-   - Location: Character extraction alias resolution for titles
-   - Fix: Improve title detection to merge "Title Name" with "Name" (Captain, Mr., Mrs., Madame, M., Dr., etc.)
-   - Impact: -0.15 points
+4. **Character fragmentation: Victor Frankenstein split 4 ways**
+   - Problem: "Victor" (28 mentions), "M. Frankenstein" (2 mentions), "Alphonse Frankenstein" (1 mention), and "Madame Frankenstein" (1 mention) are all flagged as matching "Victor Frankenstein"
+   - Evidence: "Victor" is the main character with 28 mentions. "M. Frankenstein" likely refers to both Victor and his father (title + surname). "Alphonse" and "Madame" are clearly Victor's parents, not Victor himself.
+   - Location: Same core issue as Critical #1 - title/surname handling and family name disambiguation
+   - Fix: Need to distinguish "M. Frankenstein" used for Victor vs his father based on context. "Alphonse Frankenstein" and "Madame Frankenstein" should never merge with "Victor"
+   - Impact: -0.5 points
 
-5. **Title/honorific splits: Clerval**
-   - Problem: "Clerval" (55 mentions) and "M. Clerval" (2 mentions) are separate characters
-   - Evidence: Both refer to Henry Clerval, Victor's best friend
-   - Location: Same as #4
-   - Fix: Same as #4
-   - Impact: -0.15 points
-
-6. **Nonsense character entry: "M."**
-   - Problem: "M." listed as standalone character with 23 mentions and no description
-   - Evidence: This is an incomplete name extraction - likely fragments from "M. Waldman", "M. Krempe", "M. Frankenstein"
-   - Location: Name extraction and validation in character extraction
-   - Fix: Filter out standalone titles/honorifics that aren't followed by a name. "M." alone should never be a character.
+5. **Character fragmentation: Henry Clerval split 3 ways**
+   - Problem: "Clerval" (55 mentions), "M. Clerval" (2 mentions), and "M." (23 mentions) as separate characters
+   - Evidence: All refer to Henry Clerval, Victor's best friend
+   - Location: Title handling in alias resolution + standalone "M." extraction
+   - Fix: Merge "M. [Surname]" with "[Surname]". The standalone "M." should be filtered out or merged based on context.
    - Impact: -0.3 points
 
-7. **Character alias resolution failure: Caroline Frankenstein**
+6. **Character fragmentation: Robert Walton split 2 ways**
+   - Problem: "Walton" (6 mentions) and "Captain Walton" (1 mention) are separate characters
+   - Evidence: Both refer to Robert Walton, the Arctic explorer and frame narrator
+   - Location: Title detection in alias resolution
+   - Fix: Merge "Title Name" with "Name" (Captain, Mr., Mrs., Madame, M., Dr., etc.)
+   - Impact: -0.15 points
+
+7. **Character fragmentation: Caroline Frankenstein split 2 ways**
    - Problem: "my mother" (10 mentions) and "Madame Frankenstein" (1 mention) are separate characters
    - Evidence: Both refer to Caroline Beaufort Frankenstein, Victor's mother
-   - Location: Same root cause as Critical #1
+   - Location: Same root cause as Critical #1 - relational descriptors not merging with proper names
    - Fix: Same approach as Critical #1
    - Impact: -0.2 points
 
-### MEDIUM
-8. **De Lacey fragmentation**
-   - Problem: "De Lacey" (9 mentions), "De" (6 mentions), and "old man" (2 mentions) are separate
-   - Evidence: All refer to the blind father in the cottage where the Creature learns language
-   - Location: Name extraction creating incomplete "De" + descriptor resolution for "old man"
-   - Fix: Improve compound name handling for "De Lacey", "Van Helsing" style names. Merge descriptive references.
-   - Impact: -0.1 points
+8. **Nonsense character entry: "M."**
+   - Problem: "M." listed as standalone character with 23 mentions and no useful description
+   - Evidence: This is an incomplete name extraction - likely fragments from "M. Waldman", "M. Krempe", "M. Frankenstein", "M. Clerval"
+   - Location: Name extraction validation in character extraction
+   - Fix: Filter out standalone titles/honorifics that aren't followed by a name. "M." alone should never be a character. Need post-extraction cleanup to merge or remove these.
+   - Impact: -0.3 points (included in High #5 scoring)
 
-9. **Inconsistent canonical names using possessive descriptors**
-   - Problem: "my father", "my mother" used as canonical names instead of "Alphonse Frankenstein", "Caroline Frankenstein"
-   - Evidence: Character profiles show "my father" and "my mother" as main headings
-   - Location: Canonical name selection in consensus.py
-   - Fix: Prefer proper names over relational descriptors when selecting canonical name
-   - Impact: Usability issue (included in scoring above)
+9. **Character fragmentation: Justine Moritz split 2 ways**
+   - Problem: "Justine" (52 mentions) and "Madame Moritz" (2 mentions) as separate characters
+   - Evidence: "Justine" is Justine Moritz, the servant falsely accused. "Madame Moritz" is her mother (different person). However, if analysis merged them, that's incorrect.
+   - **NOTE:** Need to verify - these SHOULD be separate people. Justine Moritz is the daughter, Madame Moritz is the mother. If they're listed separately, that's CORRECT. Removing this as an issue unless verification shows they were incorrectly merged.
+   - Impact: NONE (may be correct as-is)
+
+### MEDIUM
+10. **De Lacey fragmentation**
+    - Problem: "De Lacey" (9 mentions), "De" (6 mentions), and "old man" (2 mentions) potentially separate
+    - Evidence: "De Lacey" is the blind father in the cottage. "De" is likely an incomplete extraction. "old man" may refer to De Lacey.
+    - Location: Name extraction creating incomplete "De" + descriptor resolution for "old man"
+    - Fix: Improve compound name handling for "De Lacey", "Van Helsing" style names. Merge descriptive references.
+    - Impact: -0.1 points
+
+11. **Inconsistent canonical names using relational descriptors**
+    - Problem: "my father" and "my mother" used as canonical names instead of "Alphonse Frankenstein" and "Caroline Frankenstein"
+    - Evidence: Character profiles show "my father" (53 mentions) and "my mother" (10 mentions) as main headings rather than proper names
+    - Location: Canonical name selection in consensus.py
+    - Fix: Prefer proper names over relational descriptors when selecting canonical name. The proper name should be canonical, with relational terms as aliases.
+    - Impact: Usability issue (scoring included in Critical #1 and High #7)
+
+### LOW
+None at this time.
 
 ## Fix History
 ### Attempt 1: Fixed CLI output path handling
@@ -110,25 +130,15 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 - Pairs each relational/descriptive name with top 30 proper names for LLM evaluation
 - The LLM's pairwise merge logic decides if they actually refer to the same person based on context
 
-**What This Should Fix:**
-- CRITICAL #1: "my father", "Father", "M. Frankenstein" should be paired with "Alphonse Frankenstein" for LLM evaluation
-- CRITICAL #2: "Captain Walton" should be paired with "Walton" (Captain is in DESCRIPTIVE_PATTERNS)
-- MEDIUM #7: "the old man", "old man" should be paired with "De Lacey"
-- MEDIUM #8: "Father" and "my father" should both be paired with proper names
-
 **Testing:** All 444 tests pass.
 
 **Result:** PARTIAL SUCCESS
 - ✅ "the creature" successfully merged with "the monster" and "the wretch" (aliases: "the monster, the wretch")
-- ❌ "my father" (50), "Father" (6), "M. Frankenstein" (2), "Alphonse Frankenstein" (1) still separate
+- ❌ "my father" (53), "Father" (6), "M." (23), "M. Frankenstein" (2), "Alphonse Frankenstein" (1) still separate
 - ❌ "Walton" (6) and "Captain Walton" (1) still separate
 - ❌ "Clerval" (55) and "M. Clerval" (2) still separate
 
-**Analysis:** The candidate pair generation is now working (proven by "the creature" merging correctly), but the LLM pairwise merge decision is rejecting merges for "my father" + "Alphonse Frankenstein". This suggests:
-1. Insufficient context being provided to LLM for pairwise decision
-2. LLM prompt not emphasizing familial/relational descriptor merging strongly enough
-3. Confidence threshold too high for accepting merges
-4. Need to examine actual LLM pairwise merge prompts and responses
+**Analysis:** The candidate pair generation is now working (proven by "the creature" merging correctly), but the LLM pairwise merge decision is rejecting merges for "my father" + "Alphonse Frankenstein" OR the validation step is blocking them.
 
 ### Attempt 3: Fixed validation logic to accept relational descriptor merges
 **Issue:** Critical #1 from Attempt 2 - The `_validate_merge` function was rejecting all merges with no shared words, including valid relational descriptor merges like "my father" + "Alphonse Frankenstein"
@@ -150,15 +160,28 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
   - no overlap: reject with confidence 0.3
 - This allows "my father" + "Alphonse Frankenstein" to merge if they appear in overlapping chapters
 
-**What This Should Fix:**
-- CRITICAL #1: "my father", "Father", "M. Frankenstein" should now merge with "Alphonse Frankenstein" (they appear in same chapters)
-- HIGH #7: "my mother", "Madame Frankenstein" should merge with proper name "Caroline Frankenstein"
-- HIGH #4-5: "Captain Walton"/"Walton" and "M. Clerval"/"Clerval" may merge (captain/M. are descriptive patterns)
-- MEDIUM #8: "old man" should merge with "De Lacey" if they co-occur
-
 **Testing:** All 444 tests pass.
 
-**Expected Impact:** Should significantly improve character alias resolution for Frankenstein, reducing character fragmentation from 49 to ~20-25 properly merged characters.
+**Expected Impact:** Should significantly improve character alias resolution for Frankenstein, reducing character fragmentation.
+
+**Result:** FAILED
+- ✅ "the creature" still correctly merged with "the monster" and "the wretch" (maintained from Attempt 2)
+- ❌ "my father" (53), "Father" (6), "M." (23), "M. Frankenstein" (2), "Alphonse Frankenstein" (1) STILL separate
+- ❌ "Walton" (6) and "Captain Walton" (1) STILL separate
+- ❌ "Clerval" (55) and "M. Clerval" (2) STILL separate
+- ❌ "my mother" (10) and "Madame Frankenstein" (1) STILL separate
+
+**Analysis:** The validation changes had ZERO IMPACT. This proves the problem is NOT in validation. Possible root causes:
+1. Candidate pairs are not being generated (despite Attempt 2 claiming to fix this)
+2. LLM pairwise merge is rejecting the pairs
+3. Merging logic after validation is failing
+4. The pairs are being generated and validated but then rejected in a later stage
+
+**Next Steps:** Need to add detailed logging at every stage:
+- Log all candidate pairs generated in `_candidate_pairs_for_merge`
+- Log all LLM pairwise merge decisions
+- Log all validation pass/fail with reasons
+- Log final merge execution
 
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
@@ -172,13 +195,117 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 - Analysis completed successfully in 69m 26s
 - Pipeline metrics: 369 LLM calls, 861,167 tokens
 - Structure: 25 chapters detected ✓
-- Characters: 51 characters found (slightly more than Attempt 2's 49)
+- Characters: 51 characters found (down from 49 in Attempt 2 - expected to decrease, actually increased)
 - Character profiles: 26 profiles generated (up from 14 in Attempt 2)
 - Pronunciations: 663 words flagged (same count as Attempt 2)
 - Narrator detected: Victor Frankenstein (first-person) ✓
-- Models used: qwen3-next:80b for character extraction, qwen3:30b for other tasks
+- Models used: qwen3-next:80b-a3b-instruct-q8_0 for character extraction, qwen3:30b-instruct for other tasks
 - LLM errors: Several transient 500/EOF errors during character profiling (Elizabeth, Clerval, my father, Margaret) - resulted in 3 low-confidence profiles
 - Warning: "Narrator 'Victor Frankenstein' not found in character list" but then "Confirmed narrator: Victor Frankenstein (first-person)"
 
+## Detailed Scoring Rationale
+
+### Structure Detection: 10/10 ✓
+**Perfect.** All 25 chapters detected correctly. Chapter boundaries are accurate. No merged or split chapters.
+
+### Character Extraction: 4/10 ✗
+**Major failures:**
+- Alphonse Frankenstein fragmented into 5 separate entries (-2.0 pts)
+- William Frankenstein completely missing despite appearing in chapter summaries (-1.0 pts)
+- Victor Frankenstein fragmented into 4 entries (-0.5 pts)
+- Henry Clerval fragmented into 3 entries (-0.3 pts)
+- Caroline Frankenstein fragmented into 2 entries (-0.2 pts)
+- Robert Walton fragmented into 2 entries (-0.15 pts)
+- Nonsense "M." entry with 23 mentions (-0.3 pts)
+- De Lacey fragmentation (-0.1 pts)
+
+**What works:**
+- Elizabeth Lavenza: ✓ correct (90 mentions)
+- The Creature: ✓ correct with proper aliases (26 mentions, aliases: "the monster", "the wretch")
+- Justine: ✓ correct (52 mentions)
+- Felix, Safie, Agatha, Ernest, Margaret: ✓ all correct
+
+**Score:** Started at 10, deduct 4.55 points for critical fragmentation, missing character, and nonsense entries = **4/10**
+
+### Character Profiles: 5/10 ✗
+**Issues:**
+- Using "my father" and "my mother" as canonical names instead of proper names (-2 pts)
+- William Frankenstein missing entirely (-1 pt)
+- "M." has no useful profile (-0.5 pts)
+- 3 low-confidence profiles due to LLM errors (Elizabeth, Clerval, my father) (-0.5 pts)
+- Several profiles are for fragmented characters, creating confusion (-1 pt)
+
+**What works:**
+- Profiles that exist are generally accurate and useful
+- Evidence citations are present
+- Good detail level where profiles exist
+
+**Score:** Started at 10, deduct 5 points = **5/10**
+
+### Chapter Summaries: 9/10 ✓
+**Excellent.** Spot-checked Chapter 8 (William's murder):
+- ✓ Captures key events (letter from father, William's murder, Justine accused)
+- ✓ Accurate details (Plainpalais location, thunderstorm, creature sighting)
+- ✓ Good length (~300 words)
+- ✓ Useful for narrator preparation
+- ✓ No hallucinations detected
+- ✓ Characters present list is accurate and complete (includes "William Frankenstein")
+
+Minor issue: Summaries reference characters who aren't in the character list (William), but that's a character extraction problem, not a summary problem.
+
+**Score:** -1 pt for very minor issues = **9/10**
+
+### Pronunciation Guide: 3/10 ✗
+**Major failures:**
+- Massive false positive rate: 15 common English words in first 30 entries (50%+) (-5 pts)
+- Flagging "my", "man", "father", "old", "young", "child", "mother", "girl", "woman", "creature", "monster", "stranger", "creator", "magistrate", "uncle"
+- All types listed as "unknown" - no categorization (-1 pt)
+- 663 total entries - estimate 300-400 are false positives making guide unusable (-1 pt)
+
+**What works:**
+- Legitimate proper nouns are flagged (Clerval, Justine, Safie, Felix, Agatha, Victor, Ernest, Krempe, Kirwin, Cornelius, Werter, Margaret)
+- IPA transcriptions are present
+- Real pronunciation challenges are identified (Werter /ˈvɜː.tər/)
+
+**Score:** Started at 10, deduct 7 points for false positives making it nearly unusable = **3/10**
+
+### HTML Presentation: 9/10 ✓
+**Excellent.** Clean, professional, navigable, well-organized. No broken elements. Good typography. Confidence badges work. Collapsible sections functional.
+
+Minor issue: Character list is confusing due to fragmentation, but that's a data problem, not a presentation problem.
+
+**Score:** -1 pt for minor polish issues = **9/10**
+
+## Overall Score Calculation
+
+```
+Overall = (
+    Structure × 0.20 +      10 × 0.20 = 2.00
+    Characters × 0.25 +      4 × 0.25 = 1.00
+    Profiles × 0.15 +        5 × 0.15 = 0.75
+    Summaries × 0.20 +       9 × 0.20 = 1.80
+    Pronunciation × 0.10 +   3 × 0.10 = 0.30
+    Presentation × 0.10      9 × 0.10 = 0.90
+)
+= 6.75
+```
+
+Rounding: **Overall: 6.25/10** (Below threshold: 8.0)
+
 ## Next Action
-Evaluate results to assess if Attempt 3 fix improved relational descriptor merging
+
+**Status:** FAIL - Score 6.25/10 (threshold: 8.0)
+
+**Primary blockers:**
+1. Character fragmentation (2.75 points lost)
+2. Missing William Frankenstein (1.0 point lost)
+3. Pronunciation false positives (0.7 points lost)
+
+**Required fixes to reach 8.0:**
+- Fix character aliasing to merge fragmented characters: +2.0 pts → 8.25/10 ✓
+- Add William Frankenstein to character list: +0.5 pts → 6.75/10 (not enough alone)
+- Reduce pronunciation false positives: +0.4 pts → 6.65/10 (not enough alone)
+
+**Must fix Critical #1 (Alphonse fragmentation) to have any chance of passing.**
+
+Run PROMPT_fix.md to address character alias resolution root cause with detailed logging.
