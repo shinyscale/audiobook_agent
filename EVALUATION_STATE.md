@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1 of 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 
 ## Output Files
 - HTML: output/gatsby/report.html
@@ -174,12 +174,22 @@ Overall = (
 **Rounded to 5.15/10 to account for weighted severity of critical issues**
 
 ## Fix History
-(No fixes yet - this is the first analysis)
+
+### Attempt 1, Fix 1: Chapter Detection Title Selection (CRITICAL Issue #1)
+- **Issue:** Wrong chapter count - 7 detected instead of 9, with incorrect Roman numeral titles
+- **Root Cause:** When consensus builder merged proposals from multiple proposers (regex + LLM), the LLM proposer's Arabic numeral titles ("Chapter 2", "Chapter 3") were selected over the regex proposer's Roman numeral titles ("Chapter I", "Chapter II") because LLM proposals had slightly higher validation scores. This caused:
+  1. The `_is_simple_sequence()` check to fail (mixed Roman/Arabic titles)
+  2. LLM sequence validation to incorrectly remove valid chapters due to perceived "inconsistency"
+  3. Wrong chapter count (7 or 8 instead of 9)
+- **Fix:** Modified `_make_cluster()` in `src/pipeline/chapter_detection/consensus.py` to prioritize hard boundary titles (explicit markers like "Chapter I") over soft signals when selecting the best title for a cluster
+- **Modified Files:** `src/pipeline/chapter_detection/consensus.py`
+- **Testing:** Verified with both qwen2.5:32b and qwen3:30b-instruct models - both now correctly detect all 9 chapters with Roman numeral titles (I, II, III, IV, V, VI, VII, VIII, IX)
+- **Expected Impact:** Should fix:
+  - Critical Issue #1 (wrong chapter count): +7 points → Structure 10/10
+  - Critical Issue #7 (Chapter 1 bloat): Automatically resolved
+  - Low Issue #9 (incorrect chapter titles): Automatically resolved
+  - **Total expected improvement:** ~+7 points to structure detection
+  - **New estimated overall score:** ~6.5/10 (still below threshold, need more fixes)
 
 ## Next Action
-Run PROMPT_fix.md to address critical issues:
-1. Chapter detection (7 vs 9 chapters) - HIGHEST PRIORITY
-2. Character merge (Gatsby/James Gatz split) - CRITICAL
-3. Pronunciation false positives - HIGH PRIORITY
-
-These three fixes alone should bring the score from 5.15 to approximately 7.5-8.0, crossing the threshold.
+Re-run analysis with fix to verify chapter detection improvement and re-evaluate remaining issues.

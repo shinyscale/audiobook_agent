@@ -135,6 +135,9 @@ class CharacterValidationResult:
         )
 
 
+RoleType = Literal["protagonist", "antagonist", "supporting", "minor"]
+
+
 @dataclass
 class Character:
     """A validated character with all information merged across chapters."""
@@ -152,6 +155,12 @@ class Character:
     profile_evidence: list[dict] = field(default_factory=list)  # Evidence supporting profile claims
     # Confidence in profile quality (0.0-1.0). None means "no profile was generated/attempted".
     profile_confidence: Optional[float] = None
+    # Narrator detection fields
+    is_narrator: bool = False       # Is this the narrator of the story?
+    narrative_role: Optional[str] = None  # e.g., "First-person narrator"
+    role: RoleType = "supporting"   # Character role in the story
+    # Effective mention count for narrators (boosted to match main characters)
+    effective_mention_count: Optional[int] = None
 
     def to_dict(self) -> dict:
         return {
@@ -168,6 +177,10 @@ class Character:
             "character_type": self.character_type.value,
             "profile_evidence": self.profile_evidence,
             "profile_confidence": self.profile_confidence,
+            "is_narrator": self.is_narrator,
+            "narrative_role": self.narrative_role,
+            "role": self.role,
+            "effective_mention_count": self.effective_mention_count,
         }
 
     @classmethod
@@ -192,6 +205,10 @@ class Character:
             character_type=char_type,
             profile_evidence=data.get("profile_evidence", []),
             profile_confidence=data.get("profile_confidence", None),
+            is_narrator=data.get("is_narrator", False),
+            narrative_role=data.get("narrative_role"),
+            role=data.get("role", "supporting"),
+            effective_mention_count=data.get("effective_mention_count"),
         )
 
 

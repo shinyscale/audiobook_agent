@@ -200,6 +200,8 @@ class IdentifiedCharacter:
     first_appearance_chapter: int = 1
     chapters_present: list[int] = field(default_factory=list)
     brief_description: str = ""  # From summaries
+    # Effective mention count for narrators (boosted to match main characters)
+    effective_mention_count: Optional[int] = None
 
     def to_dict(self) -> dict:
         return {
@@ -211,6 +213,7 @@ class IdentifiedCharacter:
             "first_appearance_chapter": self.first_appearance_chapter,
             "chapters_present": self.chapters_present,
             "brief_description": self.brief_description,
+            "effective_mention_count": self.effective_mention_count,
         }
 
     @classmethod
@@ -224,6 +227,7 @@ class IdentifiedCharacter:
             first_appearance_chapter=data.get("first_appearance_chapter", 1),
             chapters_present=data.get("chapters_present", []),
             brief_description=data.get("brief_description", ""),
+            effective_mention_count=data.get("effective_mention_count"),
         )
 
 

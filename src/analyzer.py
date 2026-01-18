@@ -1208,6 +1208,47 @@ class AudiobookAnalyzer:
             )
             print(f"   Overview generated successfully")
 
+        # Step 6.5: Re-run narrator detection with plot_summary (more accurate)
+        # The plot_summary often correctly identifies the narrator even when
+        # pronoun heuristics fail (e.g., first-person narrators who use "I" not their name)
+        print("🎭 Finalizing narrator detection...")
+        if overview and overview.get("plot_summary") and llm:
+            plot_summary_obj = overview["plot_summary"]
+            plot_summary_text = (
+                plot_summary_obj.get("plot_summary", "")
+                if isinstance(plot_summary_obj, dict)
+                else str(plot_summary_obj)
+            )
+
+            if plot_summary_text:
+                from .pipeline.character_profiling.narrator import NarratorDetector
+
+                narrator_detector = NarratorDetector(llm)
+                narrator_info = narrator_detector.detect_narrator(
+                    plot_summary=plot_summary_text,
+                    characters=pipeline_char_map.characters,
+                )
+
+                if narrator_info.narrator_name and narrator_info.confidence >= 0.7:
+                    # Mark narrator in character list
+                    self._mark_narrator_in_character_map(
+                        pipeline_char_map.characters, narrator_info
+                    )
+
+                    # Apply narrator role injection for first-person
+                    if narrator_info.narrative_style == "first-person":
+                        self._apply_narrator_role_injection(
+                            pipeline_char_map, narrator_info.narrator_name
+                        )
+
+                    # Update narrator_detected for consistency
+                    narrator_detected = narrator_info.narrator_name
+                    print(f"   Confirmed narrator: {narrator_info.narrator_name} ({narrator_info.narrative_style})")
+                else:
+                    print(f"   No definitive narrator identified from plot summary")
+        else:
+            print(f"   Skipped (no plot summary or LLM)")
+
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
 
@@ -1769,6 +1810,129 @@ Return ONLY valid JSON matching the above structure. No other text."""
                 )
 
         return None
+
+    def _mark_narrator_in_character_map(
+        self,
+        characters: list,
+        narrator_info,
+    ) -> None:
+        """
+        Mark the narrator character in the character list.
+
+        Similar to NarratorDetector.mark_narrator_in_characters but works with
+        Character objects from character_extraction (not IdentifiedCharacter).
+
+        Args:
+            characters: List of Character objects (modified in-place)
+            narrator_info: NarratorInfo with detected narrator details
+        """
+        if not narrator_info.narrator_name:
+            return
+
+        narrator_lower = narrator_info.narrator_name.lower()
+
+        for char in characters:
+            # Check canonical name
+            if char.canonical_name.lower() == narrator_lower:
+                char.is_narrator = True
+                char.narrative_role = narrator_info.narrator_role
+
+                # Elevate role - first-person narrators should not be supporting/minor
+                if char.role in ("supporting", "minor"):
+                    old_role = char.role
+                    if narrator_info.narrative_style == "first-person":
+                        char.role = "protagonist"
+                        logger.info(
+                            f"Elevated first-person narrator {char.canonical_name} "
+                            f"from '{old_role}' to 'protagonist'"
+                        )
+
+                logger.info(f"Marked {char.canonical_name} as narrator")
+                return
+
+            # Check aliases
+            for alias in char.aliases:
+                if alias.lower() == narrator_lower:
+                    char.is_narrator = True
+                    char.narrative_role = narrator_info.narrator_role
+
+                    # Elevate role
+                    if char.role in ("supporting", "minor"):
+                        old_role = char.role
+                        if narrator_info.narrative_style == "first-person":
+                            char.role = "protagonist"
+                            logger.info(
+                                f"Elevated first-person narrator {char.canonical_name} "
+                                f"from '{old_role}' to 'protagonist'"
+                            )
+
+                    logger.info(f"Marked {char.canonical_name} as narrator (matched alias: {alias})")
+                    return
+
+        logger.warning(
+            f"Narrator '{narrator_info.narrator_name}' not found in character list"
+        )
+
+    def _apply_narrator_role_injection(
+        self,
+        char_map,
+        narrator_name: str,
+    ) -> None:
+        """
+        Boost narrator importance for first-person narratives.
+
+        First-person narrators have low explicit mention counts because they
+        use "I" instead of their name. This ensures the narrator is treated
+        as a main character by setting their effective_mention_count to match
+        the most-mentioned character.
+
+        Args:
+            char_map: CharacterMap containing characters
+            narrator_name: Name of the narrator to boost
+        """
+        # Find max mention count among all characters
+        max_mentions = max(
+            (getattr(c, 'mention_count', 0) for c in char_map.characters),
+            default=10
+        )
+
+        # Find narrator and boost their effective importance
+        for char in char_map.characters:
+            if char.canonical_name.lower() == narrator_name.lower():
+                # Store original for reference
+                original_mentions = getattr(char, 'mention_count', 0)
+
+                # Set effective mention count to match most-mentioned character
+                char.effective_mention_count = max(max_mentions, original_mentions)
+
+                # Ensure role is protagonist (already done in mark_narrator_in_characters,
+                # but double-check here)
+                if hasattr(char, 'role') and char.role in ("supporting", "minor", None):
+                    char.role = "protagonist"
+
+                logger.info(
+                    f"Narrator role injection: {char.canonical_name} - "
+                    f"mentions {original_mentions} → effective {char.effective_mention_count}, "
+                    f"role={char.role}"
+                )
+                return
+
+        # Also check aliases
+        for char in char_map.characters:
+            for alias in char.aliases:
+                if alias.lower() == narrator_name.lower():
+                    original_mentions = getattr(char, 'mention_count', 0)
+                    char.effective_mention_count = max(max_mentions, original_mentions)
+
+                    if hasattr(char, 'role') and char.role in ("supporting", "minor", None):
+                        char.role = "protagonist"
+
+                    logger.info(
+                        f"Narrator role injection: {char.canonical_name} (via alias {alias}) - "
+                        f"mentions {original_mentions} → effective {char.effective_mention_count}, "
+                        f"role={char.role}"
+                    )
+                    return
 
     def _convert_chapters(
         self,

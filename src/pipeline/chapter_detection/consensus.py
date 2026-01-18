@@ -251,12 +251,33 @@ class ConsensusBuilder:
         center = sum(positions) // len(positions)
 
         # Pick best title (highest confidence proposal with a title)
+        # Prefer hard boundary titles (explicit markers like "Chapter I", "Chapter 1")
+        # over soft signals, even if soft signals have slightly higher scores
         best_title = None
         best_title_score = 0
+        best_title_is_hard = False
+
         for v in validations:
-            if v.proposal.title and v.overall_score > best_title_score:
+            if not v.proposal.title:
+                continue
+
+            is_hard = getattr(v.proposal, 'is_hard_boundary', False)
+
+            # Prefer hard boundaries, or higher scores among same boundary type
+            if best_title is None:
                 best_title = v.proposal.title
                 best_title_score = v.overall_score
+                best_title_is_hard = is_hard
+            elif is_hard and not best_title_is_hard:
+                # Hard boundary beats soft boundary
+                best_title = v.proposal.title
+                best_title_score = v.overall_score
+                best_title_is_hard = is_hard
+            elif is_hard == best_title_is_hard and v.overall_score > best_title_score:
+                # Same boundary type, higher score wins
+                best_title = v.proposal.title
+                best_title_score = v.overall_score
+                best_title_is_hard = is_hard
 
         # Strategies that contributed
         strategies = list(set(v.proposal.strategy for v in validations))

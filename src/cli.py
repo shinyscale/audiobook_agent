@@ -144,6 +144,11 @@ Examples:
         choices=['dgx', 'workstation', 'laptop', 'macbook_pro', 'macbook_air', 'cpu_only'],
         help='Use specific hardware profile (dgx, workstation, laptop, macbook_pro, macbook_air, cpu_only)'
     )
+    analyze_parser.add_argument(
+        '--rich-progress',
+        action='store_true',
+        help='Show live-updating Rich progress display during analysis'
+    )
 
     # Specs command (show system specs)
     specs_parser = subparsers.add_parser(
@@ -202,6 +207,7 @@ def run_specs():
 
 def run_analyze(args):
     """Run full analysis."""
+    import threading
     from .analyzer import AudiobookAnalyzer
 
     file_path = Path(args.file)
@@ -308,7 +314,48 @@ def run_analyze(args):
     )
 
     try:
-        result = analyzer.analyze(file_path)
+        # Run analysis - with optional rich progress display
+        if args.rich_progress:
+            from .gui.progress_display import RichProgressDisplay
+
+            # Container for result and exceptions from background thread
+            result_container = [None]
+            error_container = []
+            complete_event = threading.Event()
+
+            def run_analysis():
+                """Run analysis in background thread."""
+                try:
+                    result_container[0] = analyzer.analyze(file_path)
+                except Exception as e:
+                    error_container.append(e)
+                finally:
+                    complete_event.set()
+
+            # Start analysis in background thread
+            analysis_thread = threading.Thread(target=run_analysis, daemon=True)
+            analysis_thread.start()
+
+            # Run progress display in main thread
+            display = RichProgressDisplay(analyzer._metrics)
+            try:
+                display.run_until_complete(complete_event, error_container)
+            except KeyboardInterrupt:
+                print("\nWaiting for analysis to stop...")
+                complete_event.set()
+                analysis_thread.join(timeout=2.0)
+                sys.exit(130)
+
+            # Wait for analysis thread to finish
+            analysis_thread.join()
+
+            # Re-raise any exception from the analysis thread
+            if error_container:
+                raise error_container[0]
+
+            result = result_container[0]
+        else:
+            result = analyzer.analyze(file_path)
 
         # Print summary
         print_analysis_summary(result)

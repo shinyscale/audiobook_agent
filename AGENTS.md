@@ -7,22 +7,23 @@ This guide provides operational commands and codebase navigation for the autonom
 ### Basic Commands
 
 ```bash
-# Full analysis on a text file with HTML output
-audiobook-prep analyze Test_Texts/gatsby.txt --html output/gatsby/report.html --output output/gatsby/analysis.json
+# Full analysis on a text file with HTML output (use --rich-progress for live updates)
+venv/bin/python -m src.cli analyze Test_Texts/gatsby.txt --html output/gatsby/report.html --output output/gatsby/analysis.json --rich-progress
 
 # With specific models per agent
-audiobook-prep analyze Test_Texts/gatsby.txt \
+venv/bin/python -m src.cli analyze Test_Texts/gatsby.txt \
     --structure-model qwen2.5:14b \
     --character-model qwen2.5:32b \
     --summary-model qwen2.5:32b \
     --pronunciation-model qwen2.5:14b \
-    --html output/gatsby/report.html
+    --html output/gatsby/report.html \
+    --rich-progress
 
 # Set default model for all agents
-audiobook-prep analyze Test_Texts/gatsby.txt --llm-model qwen2.5:32b --html output/gatsby/report.html
+venv/bin/python -m src.cli analyze Test_Texts/gatsby.txt --llm-model qwen2.5:32b --html output/gatsby/report.html --rich-progress
 
 # Adjust minimum character mentions threshold
-audiobook-prep analyze Test_Texts/gatsby.txt --min-mentions 3 --html output/gatsby/report.html
+venv/bin/python -m src.cli analyze Test_Texts/gatsby.txt --min-mentions 3 --html output/gatsby/report.html --rich-progress
 ```
 
 ### CLI Options
@@ -39,6 +40,7 @@ audiobook-prep analyze Test_Texts/gatsby.txt --min-mentions 3 --html output/gats
 | `--character-model MODEL` | Model for character extraction | Default |
 | `--summary-model MODEL` | Model for chapter summaries | Default |
 | `--pronunciation-model MODEL` | Model for pronunciation flags | Default |
+| `--rich-progress` | Show live-updating progress display | False |
 
 ## Output Locations
 
