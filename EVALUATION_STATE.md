@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 2 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 3 of 5
+- **Phase:** awaiting_analysis
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -130,6 +130,36 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 3. Confidence threshold too high for accepting merges
 4. Need to examine actual LLM pairwise merge prompts and responses
 
+### Attempt 3: Fixed validation logic to accept relational descriptor merges
+**Issue:** Critical #1 from Attempt 2 - The `_validate_merge` function was rejecting all merges with no shared words, including valid relational descriptor merges like "my father" + "Alphonse Frankenstein"
+
+**Root Cause Investigation:**
+- Traced through `_validate_merge` function in `src/pipeline/character_extraction/consensus.py`
+- Found that after checking various special cases, line 2001-2011 had a blanket rejection for ANY pair with zero shared words
+- "my father" (words: "my", "father") and "Alphonse Frankenstein" (words: "alphonse", "frankenstein") share NO words
+- Since both are multi-word names, they didn't match the single-word special case logic
+- The code reached the final "no shared words = reject" clause and was blocked
+
+**Fix Applied:**
+- Modified `src/pipeline/character_extraction/consensus.py` lines 2001-2042
+- Added special case handling BEFORE the blanket rejection for relational/descriptive terms
+- Detects if either name contains relational terms (father, mother, uncle, etc.) or descriptive patterns (creature, monster, man, etc.)
+- For relational/descriptive pairs with chapter overlap, allow merge with confidence based on overlap ratio:
+  - overlap_ratio > 0.3: confidence 0.75
+  - any overlap: confidence 0.65
+  - no overlap: reject with confidence 0.3
+- This allows "my father" + "Alphonse Frankenstein" to merge if they appear in overlapping chapters
+
+**What This Should Fix:**
+- CRITICAL #1: "my father", "Father", "M. Frankenstein" should now merge with "Alphonse Frankenstein" (they appear in same chapters)
+- HIGH #7: "my mother", "Madame Frankenstein" should merge with proper name "Caroline Frankenstein"
+- HIGH #4-5: "Captain Walton"/"Walton" and "M. Clerval"/"Clerval" may merge (captain/M. are descriptive patterns)
+- MEDIUM #8: "old man" should merge with "De Lacey" if they co-occur
+
+**Testing:** All 444 tests pass.
+
+**Expected Impact:** Should significantly improve character alias resolution for Frankenstein, reducing character fragmentation from 49 to ~20-25 properly merged characters.
+
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
@@ -149,7 +179,4 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 - Models used: qwen3-next:80b for character extraction, qwen3:30b for other tasks
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Investigate why LLM pairwise merge is rejecting "my father" + "Alphonse Frankenstein" despite candidate pairs being generated
-2. CRITICAL #2: Fix William Frankenstein missing from character profiles
-3. CRITICAL #3: Add word frequency filter to pronunciation agent to eliminate common English words
+Re-run analysis to verify Attempt 3 fix for relational descriptor merging

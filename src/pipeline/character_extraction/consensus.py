@@ -1998,10 +1998,54 @@ class CharacterConsensusBuilder:
                     )
                     return False, 0.1
 
+        # SPECIAL CASE: Relational/descriptive terms with no shared words
+        # Examples: "my father" + "Alphonse Frankenstein", "the creature" + "the monster"
+        # These are valid aliases IF they have strong chapter overlap
+        RELATIONAL_TERMS = {
+            'father', 'mother', 'son', 'daughter', 'brother', 'sister',
+            'uncle', 'aunt', 'grandfather', 'grandmother', 'cousin',
+            'husband', 'wife', 'friend', 'companion',
+        }
+        DESCRIPTIVE_PATTERNS = {
+            'man', 'woman', 'lady', 'gentleman', 'creature', 'monster',
+            'fiend', 'wretch', 'stranger', 'visitor', 'guest',
+            'captain', 'professor', 'doctor', 'detective',
+        }
+
+        # Check if either name is a relational/descriptive reference
+        is_relational1 = any(term in significant1 for term in RELATIONAL_TERMS)
+        is_descriptive1 = any(term in significant1 for term in DESCRIPTIVE_PATTERNS)
+        is_relational2 = any(term in significant2 for term in RELATIONAL_TERMS)
+        is_descriptive2 = any(term in significant2 for term in DESCRIPTIVE_PATTERNS)
+
+        # If one is relational/descriptive and they have chapter overlap, allow merge
+        if (is_relational1 or is_descriptive1 or is_relational2 or is_descriptive2):
+            if has_chapter_overlap and overlap_ratio > 0.3:
+                logger.debug(
+                    f"Merge accepted: {canonical} <- {alias} "
+                    f"(relational/descriptive term with chapter overlap: "
+                    f"overlap_ratio={overlap_ratio:.2f})"
+                )
+                return True, 0.75
+            elif has_chapter_overlap:
+                logger.debug(
+                    f"Merge accepted: {canonical} <- {alias} "
+                    f"(relational/descriptive term with some chapter overlap: "
+                    f"overlap_ratio={overlap_ratio:.2f})"
+                )
+                return True, 0.65
+            else:
+                logger.debug(
+                    f"Merge rejected: {canonical} <-> {alias} "
+                    f"(relational/descriptive term but no chapter overlap)"
+                )
+                return False, 0.3
+
         # CRITICAL: We should NEVER merge names with zero shared words
         # The only exceptions are specific patterns we've already handled above:
         # - title+lastname pattern (already returned True if applicable)
         # - single-word matching first/last (already returned False if not matched)
+        # - relational/descriptive terms with chapter overlap (just checked above)
         #
         # If we reach here with no shared words, something is wrong - likely LLM hallucination
         logger.debug(
