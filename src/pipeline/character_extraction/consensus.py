@@ -1499,6 +1499,74 @@ class CharacterConsensusBuilder:
                         f"({word1} and {word2} are known nickname variants)"
                     )
 
+        # CRITICAL CHECK: Different first names with same last name = different people (family members)
+        # This must happen BEFORE other checks to prevent false merges of spouses, siblings, etc.
+        # Extract first and last names, skipping titles
+        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+
+        # Helper to extract first/last name from word list
+        def get_first_last(words: list[str]) -> tuple[str, str]:
+            if not words:
+                return "", ""
+            # Skip title if present
+            start_idx = 1 if (words[0].rstrip('.').lower() in titles and len(words) > 1) else 0
+            if start_idx >= len(words):
+                return "", ""
+            first = words[start_idx] if start_idx < len(words) else ""
+            last = words[-1] if len(words) > start_idx else ""
+            return first, last
+
+        first1, last1 = get_first_last(words1)
+        first2, last2 = get_first_last(words2)
+
+        # If both names have first+last components, check for family member pattern
+        if first1 and last1 and first2 and last2:
+            # Same last name but DIFFERENT first names = likely family members (REJECT)
+            if last1 == last2 and first1 != first2:
+                logger.debug(
+                    f"Merge rejected: {canonical} <-> {alias} "
+                    f"(same last name '{last1}', different first names '{first1}' vs '{first2}' - likely family members)"
+                )
+                return False, 0.05
+
+        # Additional check: if one name is a single word and the other has first+last,
+        # check if multiple people share that last name
+        # Example: "Wilson" should NOT merge with "Myrtle Wilson" if "George Wilson" also exists
+        if (len(significant1) == 1 and first2 and last2) or (len(significant2) == 1 and first1 and last1):
+            # Identify which is the single-word name and which is the full name
+            if len(significant1) == 1:
+                single_word = list(significant1)[0]
+                full_first, full_last = first2, last2
+            else:
+                single_word = list(significant2)[0]
+                full_first, full_last = first1, last1
+
+            # If single word matches the last name, check for multiple people with that last name
+            if single_word == full_last:
+                # Count how many DIFFERENT first names exist with this last name
+                different_first_names = set()
+                for name in name_groups.keys():
+                    name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
+                    sig_words = self._filter_title_words(name_words)
+                    if len(sig_words) >= 2:  # Multi-word name
+                        # Extract first and last
+                        start_idx = 1 if (name_words[0].rstrip('.').lower() in titles and len(name_words) > 1) else 0
+                        if start_idx < len(name_words):
+                            name_first = name_words[start_idx]
+                            name_last = name_words[-1]
+                            if name_last == single_word:
+                                different_first_names.add(name_first)
+
+                # If multiple people have this last name, reject the merge
+                # The single-word "Wilson" is ambiguous and could refer to any Wilson
+                if len(different_first_names) > 1:
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"(single-word last name '{single_word}' is ambiguous - {len(different_first_names)} "
+                        f"different people share this last name: {sorted(different_first_names)})"
+                    )
+                    return False, 0.1
+
         # Check for gendered title conflicts
         # Mr. vs Mrs./Miss suggests different people (likely spouses/family)
         male_titles = {'mr', 'sir', 'lord'}

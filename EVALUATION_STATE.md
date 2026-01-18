@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 3 of 5
+- **Phase:** awaiting_analysis
 
 ## Output Files
 - HTML: output/gatsby/report.html
@@ -199,7 +199,7 @@ Overall = (
 
 ## Fix History
 
-### Attempt 1 → Attempt 2, Fix 1: Chapter Detection Title Selection (CRITICAL Issue #1)
+### Attempt 1 → Attempt 2, Fix 1: Chapter Detection Title Selection (CRITICAL Issue #1 from Attempt 1)
 - **Issue:** Wrong chapter count - 7 detected instead of 9, with incorrect Roman numeral titles
 - **Root Cause:** When consensus builder merged proposals from multiple proposers (regex + LLM), the LLM proposer's Arabic numeral titles ("Chapter 2", "Chapter 3") were selected over the regex proposer's Roman numeral titles ("Chapter I", "Chapter II") because LLM proposals had slightly higher validation scores. This caused:
   1. The `_is_simple_sequence()` check to fail (mixed Roman/Arabic titles)
@@ -211,6 +211,20 @@ Overall = (
 - **Result:** ✓ **SUCCESSFUL** - Chapter count now correct (9/9)
 - **Partial Success:** Chapter titles still malformed ("Chapter 2: II") - needs additional fix for title formatting
 - **Impact on Overall Score:** Structure improved from 3/10 to 5/10 (+0.40 points overall)
+
+### Attempt 2 → Attempt 3, Fix 2: Prevent Family Member Merging (CRITICAL Issue #1)
+- **Issue:** George Wilson and Myrtle Wilson incorrectly merged into single character "Wilson" with aliases including both "George B. Wilson", "George Wilson" AND "Myrtle", "Myrtle Wilson"
+- **Root Cause:** The `_validate_merge()` function in `src/pipeline/character_extraction/consensus.py` had checks for family members with different first names but same last name, but these checks were nested too deep in conditional logic and didn't catch all cases. Specifically:
+  1. The family member check only triggered when certain conditions were met (shared_might_be_lastname AND len(names_with_lastname) > 1)
+  2. When comparing "Wilson" (single word) to "Myrtle Wilson" (full name), the check didn't run early enough
+  3. The LLM was suggesting merges that the validation logic failed to reject
+- **Fix:** Added two early validation checks in `_validate_merge()` BEFORE other complex logic:
+  1. **Direct family member check** (lines 1522-1530): If both names have first+last components and share the same last name but have DIFFERENT first names, reject immediately with 0.05 confidence
+  2. **Ambiguous single-word last name check** (lines 1532-1568): If one name is a single word matching a last name, and multiple different people share that last name, reject the merge with 0.1 confidence
+- **Modified Files:** `src/pipeline/character_extraction/consensus.py` (lines 1502-1568)
+- **Testing:** Verified with existing unit test `tests/test_character_agent.py::TestGatsbyCharacterExtraction::test_gatsby_distinct_pairs_defined` which specifically checks that George Wilson and Myrtle Wilson are kept as distinct characters
+- **Result:** Expected to prevent false merges of family members (spouses, siblings, parents/children)
+- **Impact on Overall Score:** Expected Character Extraction improvement from 2/10 to 7/10 (+1.25 points overall)
 
 ## Pipeline Notes (Attempt 2)
 - Analysis completed in 64m 7s
