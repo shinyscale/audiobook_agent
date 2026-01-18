@@ -26,6 +26,58 @@ If the file is large, read it in sections:
 - Pronunciation guide
 - Structure/navigation
 
+## 1.5 DETERMINISTIC SANITY CHECKS (Run Before LLM Evaluation)
+
+Before applying LLM judgment, run these quick programmatic checks to catch obvious failures:
+
+### Quick Verification Script
+
+```bash
+# Extract key metrics from the output for verification
+python -c "
+import json
+from pathlib import Path
+
+# Load the analysis result (adjust path as needed)
+result_path = Path('output/{book_name}/analysis_result.json')
+if result_path.exists():
+    result = json.loads(result_path.read_text())
+
+    print('=== SANITY CHECK RESULTS ===')
+    print(f'Chapters detected: {len(result.get(\"chapters\", []))}')
+    print(f'Characters detected: {len(result.get(\"characters\", []))}')
+
+    # List main characters
+    chars = result.get('characters', [])
+    main_chars = [c['name'] for c in chars if c.get('mention_count', 0) > 10]
+    print(f'Main characters (>10 mentions): {main_chars}')
+
+    # Check narrator if present
+    narrator = result.get('narrator')
+    print(f'Narrator identified: {narrator}')
+"
+```
+
+### Expected Values for Test Texts
+
+| Text | Chapters | Main Characters Must Include | Narrator |
+|------|----------|------------------------------|----------|
+| The Great Gatsby | 9 | Nick, Gatsby, Daisy, Tom | Nick Carraway |
+| Frankenstein | 24+ (letters + chapters) | Victor, Creature, Elizabeth | Robert Walton / Victor (nested) |
+| Dracula | 27 (diary format) | Dracula, Jonathan, Mina, Van Helsing | Multiple (epistolary) |
+| Pride and Prejudice | 61 | Elizabeth, Darcy, Jane, Bingley | Third-person omniscient |
+
+### Sanity Check Failures
+
+If ANY of these checks fail, note them as **CRITICAL** issues immediately:
+
+1. **Chapter count wildly wrong** (off by >50%): Structure detection is broken
+2. **Zero main characters detected**: Character extraction pipeline failed
+3. **Protagonist missing from character list**: Major extraction failure
+4. **Wrong narrator for first-person narrative**: Summary/narrator detection broken
+
+These deterministic checks help catch catastrophic failures that don't require LLM judgment.
+
 ## 2. Evaluate Against Rubric
 
 For each category in the rubric, score from 0-10 and document specific issues.
