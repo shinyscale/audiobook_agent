@@ -321,6 +321,11 @@ class CharacterConsensusBuilder:
         if epithet_groups:
             logger.info(f"CharacterConsensusBuilder: found {len(epithet_groups)} descriptive handles")
 
+        # CRITICAL FIX: Filter out ambiguous last-name-only entries before alias resolution
+        # Example: If we have "Wilson", "George Wilson", and "Myrtle Wilson", remove "Wilson"
+        # because it's ambiguous and could refer to either person
+        proper_name_groups = self._filter_ambiguous_lastnames(proper_name_groups)
+
         # Resolve aliases for proper names
         if self.use_llm_alias_resolution and len(proper_name_groups) > 1:
             logger.info("CharacterConsensusBuilder: using LLM alias resolution")
@@ -1849,6 +1854,98 @@ class CharacterConsensusBuilder:
 
         # Use SequenceMatcher for general similarity
         return SequenceMatcher(None, n1, n2).ratio()
+
+    def _filter_ambiguous_lastnames(
+        self, name_groups: dict[str, list[CharacterValidationResult]]
+    ) -> dict[str, list[CharacterValidationResult]]:
+        """
+        Filter out ambiguous single-word last names that match multiple different people.
+
+        Example: If we have "Wilson", "George Wilson", and "Myrtle Wilson", remove "Wilson"
+        because it's ambiguous and could refer to either George or Myrtle.
+
+        This prevents incorrect merges like "Wilson" <- "George Wilson" + "Myrtle Wilson"
+        which would incorrectly combine a husband and wife into a single character.
+
+        Args:
+            name_groups: Dictionary mapping names to their validation results
+
+        Returns:
+            Filtered name_groups with ambiguous last names removed
+        """
+        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+
+        # First, build a map of last names to the full names that use them
+        lastname_to_fullnames: dict[str, list[str]] = {}
+
+        for name in name_groups.keys():
+            # Normalize and split
+            name_clean = re.sub(r'[^\w\s]', '', name.lower())
+            words = name_clean.split()
+
+            # Skip titles
+            start_idx = 0
+            if words and words[0] in titles and len(words) > 1:
+                start_idx = 1
+
+            # If this is a multi-word name (has first + last), record the last name
+            if len(words) > start_idx + 1:  # At least 2 significant words (first + last)
+                lastname = words[-1]  # Last word is the last name
+                if lastname not in lastname_to_fullnames:
+                    lastname_to_fullnames[lastname] = []
+                lastname_to_fullnames[lastname].append(name)
+
+        # Now identify ambiguous single-word names
+        ambiguous_names = set()
+
+        for name in name_groups.keys():
+            name_clean = re.sub(r'[^\w\s]', '', name.lower())
+            words = name_clean.split()
+
+            # Check if this is a single-word name (no title)
+            if len(words) == 1:
+                single_word = words[0]
+
+                # Check if this word appears as a last name for multiple DIFFERENT full names
+                if single_word in lastname_to_fullnames:
+                    full_names = lastname_to_fullnames[single_word]
+
+                    # Extract first names from the full names to check if they're different people
+                    first_names = set()
+                    for full_name in full_names:
+                        full_clean = re.sub(r'[^\w\s]', '', full_name.lower())
+                        full_words = full_clean.split()
+
+                        # Skip title
+                        start_idx = 0
+                        if full_words and full_words[0] in titles and len(full_words) > 1:
+                            start_idx = 1
+
+                        if start_idx < len(full_words):
+                            first_name = full_words[start_idx]
+                            first_names.add(first_name)
+
+                    # If multiple different first names share this last name, it's ambiguous
+                    if len(first_names) > 1:
+                        ambiguous_names.add(name)
+                        logger.info(
+                            f"Filtering out ambiguous last name '{name}' "
+                            f"(matches {len(full_names)} people with different first names: {sorted(full_names)})"
+                        )
+
+        # Filter out ambiguous names
+        filtered_groups = {
+            name: results
+            for name, results in name_groups.items()
+            if name not in ambiguous_names
+        }
+
+        if ambiguous_names:
+            logger.info(
+                f"Removed {len(ambiguous_names)} ambiguous last-name-only entries before alias resolution"
+            )
+
+        return filtered_groups
 
     def _is_descriptive_handle(self, name: str) -> bool:
         """

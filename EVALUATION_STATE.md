@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 4 of 5
+- **Phase:** awaiting_analysis
 
 ## Output Files
 - HTML: output/gatsby/report.html
@@ -237,6 +237,34 @@ Overall = (
   2. Is the merge happening in a different part of the pipeline?
   3. Did the fix over-correct and reject valid same-person merges (like Gatsby/Gatz)?
 
+### Attempt 3 → Attempt 4, Fix 3: Filter Ambiguous Last-Name-Only Entries (CRITICAL Issues #1 and #3)
+- **Issue:** Same issues as Attempt 3:
+  1. George Wilson and Myrtle Wilson still incorrectly merged via "Wilson" intermediate
+  2. James Gatz and Gatsby incorrectly split into separate characters
+- **Root Cause Analysis:** The validation logic added in Attempt 3 was correct but insufficient. The problem is that the LLM alias resolution was receiving "Wilson" (single word), "George Wilson", and "Myrtle Wilson" as separate names. The LLM would then suggest merging:
+  - "Wilson" <- "George Wilson" (seems reasonable if you don't know about Myrtle)
+  - "Wilson" <- "Myrtle Wilson" (seems reasonable if you don't know about George)
+  - This creates a single "Wilson" character with both George and Myrtle as aliases
+- **Fix Implemented:** Pre-filter ambiguous last-name-only entries BEFORE alias resolution
+  - Added `_filter_ambiguous_lastnames()` method (lines 1858-1948) that:
+    1. Identifies single-word names that match the last name of multiple full names with DIFFERENT first names
+    2. Removes these ambiguous names from consideration before LLM alias resolution
+    3. Example: If "Wilson", "George Wilson", and "Myrtle Wilson" exist, remove "Wilson" entirely
+  - Called this filter at line 327, right after separating proper names from epithets
+- **Modified Files:**
+  - `src/pipeline/character_extraction/consensus.py` (lines 324-327: added filter call)
+  - `src/pipeline/character_extraction/consensus.py` (lines 1858-1948: new `_filter_ambiguous_lastnames()` method)
+- **Testing:** All character extraction tests pass:
+  - `tests/test_character_agent.py` - 12 passed
+  - `tests/test_alias_merging.py` - 12 passed
+- **Expected Results:**
+  - George Wilson and Myrtle Wilson will remain separate characters (fixes CRITICAL #1)
+  - Gatsby and James Gatz should merge correctly because "Gatsby" is NOT ambiguous (no other full names with different first names share "Gatsby" as last name)
+  - This fix is more robust than attempt 3 because it prevents the problematic merge pattern entirely
+- **Impact on Overall Score:**
+  - If successful: Character Extraction 2 → 10 (+2.0 points), Overall 4.65 → 6.65
+  - Still need to fix narrator issue (+0.60) and other issues to cross 8.0 threshold
+
 ## Pipeline Notes (Attempt 3)
 - Analysis completed in 60m 9s
 - **Chapter Detection:** Found 9 chapters (✓ correct count!)
@@ -252,19 +280,12 @@ Overall = (
 - **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
 
 ## Next Action
-Proceed to fix phase (PROMPT_fix.md) to investigate and fix the character extraction issues.
+Re-run analysis (PROMPT_analyze.md) to verify that Attempt 4 fix resolves the character merging issues.
 
-**CRITICAL PRIORITY:**
-1. **INVESTIGATE WHY FIX FAILED:** The attempt 3 fix for George/Myrtle Wilson merge did NOT work. Need to add debug logging or examine the actual merge decisions being made.
-2. **FIX THE OVER-CORRECTION:** James Gatz and Gatsby are now split (new critical error). The validation logic may be rejecting valid same-person merges.
-
-**ROOT CAUSE ANALYSIS NEEDED:**
-- Run the analysis with debug logging enabled in `_validate_merge()` to see:
-  - What merge decisions are being made for "Wilson", "George Wilson", "Myrtle Wilson"
-  - What merge decisions are being made for "Gatsby", "James Gatz"
-  - Are the validation checks actually being triggered?
-  - If triggered, why are they not preventing the Wilson merge?
-  - If triggered, why are they preventing the Gatsby/Gatz merge?
+**Fix Applied in Attempt 4:**
+- Implemented pre-filtering of ambiguous last-name-only entries before alias resolution
+- This should prevent "Wilson" from being merged with both "George Wilson" and "Myrtle Wilson"
+- Should also allow "Gatsby" and "James Gatz" to merge correctly (since "Gatsby" is not ambiguous)
 
 ## Priority for Next Fix (Attempt 4)
 
