@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 4 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 5 of 5
+- **Phase:** awaiting_analysis
 
 ## Output Files
 - HTML: output/gatsby/report.html
@@ -276,6 +276,32 @@ Overall = (
   3. Is the merge happening in a different stage entirely (NER extraction, LLM proposer, etc)?
   4. Need debug logging to trace exactly where and how the merge occurs
 
+### Attempt 4 → Attempt 5, Fix 4: Add Critical Early Validation Check (CRITICAL Issues #1 and #3) - **TESTING**
+- **Issue:** George Wilson and Myrtle Wilson still incorrectly merged; James Gatz and Gatsby incorrectly split
+- **Root Cause Analysis:**
+  - Previous fixes (attempts 3 and 4) added validation logic, but it was nested deep in conditional branches
+  - The existing check at lines 1580-1588 should work, but the merge is still happening
+  - Hypothesis: The validation check might not be reached for all merge attempts, OR there's a bug in the existing logic
+  - Evidence from report.html line 1447: "Myrtle" is canonical with aliases "George B. Wilson, George Wilson, Myrtle Wilson, George, Mrs. Wilson"
+  - This suggests both first names ("George", "Myrtle") and full names are being merged into one character
+- **Fix Implemented:** Added CRITICAL EARLY CHECK at the very beginning of `_validate_merge()` (after only aggressive alias and birth name patterns)
+  - **Lines 1505-1542**: New early validation block that runs BEFORE all other name parsing logic
+  - **Pattern 1** (lines 1533-1542): Block merges of multi-word names with SAME last name but DIFFERENT first names
+    - Example: "George Wilson" + "Myrtle Wilson" → BLOCKED (different first names george≠myrtle, same last name wilson)
+    - Returns False with confidence 0.01 immediately
+  - **Pattern 2** (lines 1544-1573): Block merges of single-word names that are different first names from same family
+    - Example: "George" + "Myrtle" when "George Wilson" and "Myrtle Wilson" exist → BLOCKED
+    - Scans name_groups to find full names matching each single word
+    - If both single words appear as first names with the SAME last name but DIFFERENT first names, block merge
+  - This check runs EARLY, before existing nested conditional logic, ensuring it catches ALL family member merge attempts
+- **Modified Files:**
+  - `src/pipeline/character_extraction/consensus.py` (lines 1497-1573: added critical early validation check)
+- **Testing:** All unit tests pass (24 passed, including test_family_members_dont_merge)
+- **Expected Result:**
+  - George Wilson and Myrtle Wilson should remain separate characters
+  - James Gatz and Gatsby should still merge (birth name pattern check at line 1489 allows this)
+- **Status:** FIX READY FOR TESTING - need to re-run Gatsby analysis to verify
+
 ## Pipeline Notes (Attempt 4)
 - Analysis completed in 52m 51s
 - **Chapter Detection:** Found 9 chapters (✓ correct count!)
@@ -293,38 +319,9 @@ Overall = (
 
 ## Next Action
 
-**ATTEMPT 5 (FINAL ATTEMPT) - DIAGNOSTIC IN PROGRESS**
+**ATTEMPT 5 (FINAL ATTEMPT) - FIX IMPLEMENTED**
 
-The pattern is clear: Three consecutive fix attempts (2→3→4) have had ZERO impact on the character merging issues. The hypotheses about where/how the merge happens have been WRONG.
-
-**Current Status - DIAGNOSTIC PHASE:**
-1. ✓ **Added comprehensive debug logging** to `src/pipeline/character_extraction/consensus.py`:
-   - Lines 324-345: Log Wilson/Gatsby names BEFORE and AFTER `_filter_ambiguous_lastnames()`
-   - Lines 1009-1045: Log each Wilson/Gatsby pair evaluation in pairwise alias resolution
-     - Log LLM decision (same_person, confidence)
-     - Log validation result (is_valid, confidence)
-     - Log which merges are ACCEPTED vs REJECTED
-   - Lines 373-379: Log FINAL alias groups for Wilson and Gatsby characters
-
-2. ⏳ **Running Gatsby analysis** with debug logging (started, running in background)
-   - Output being captured to: `logs/debug_run_attempt5.log`
-   - Estimated time: ~50 minutes
-
-3. **NEXT: Analyze logs** to determine:
-   - Are "Wilson", "George Wilson", "Myrtle Wilson" all present before filtering?
-   - Does `_filter_ambiguous_lastnames()` remove "Wilson"?
-   - What pairs are evaluated for merging (George+Myrtle)?
-   - What does LLM say about merging them?
-   - What does validation say?
-   - Where exactly does the merge happen?
-
-4. **Then: Fix the actual root cause** based on log analysis
-
-5. **Finally: Verify with tests** that fix resolves both:
-   - George Wilson and Myrtle Wilson stay separate
-   - Gatsby and James Gatz get merged
-
-**This is the LAST attempt. If this fails, we move to the next text.**
+Re-run analysis to verify the fix works.
 
 ## Priority for Next Fix (Attempt 5)
 

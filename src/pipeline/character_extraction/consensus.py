@@ -1502,6 +1502,76 @@ class CharacterConsensusBuilder:
         significant2 = self._filter_title_words(words2)
         shared_words = significant1 & significant2
 
+        # CRITICAL EARLY CHECK: Block merges of completely different names
+        # This catches cases like "George" + "Myrtle" or "George Wilson" + "Myrtle Wilson"
+        # where the first names are completely different but they might share a last name
+        #
+        # Extract just the core name components (no titles)
+        titles_set = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain'}
+
+        def get_name_components(words: list[str]) -> tuple[str, str]:
+            """Extract (first_name, last_name) from a word list, skipping titles."""
+            if not words:
+                return "", ""
+            # Skip title if present
+            start = 1 if (words[0].rstrip('.') in titles_set and len(words) > 1) else 0
+            if start >= len(words):
+                return "", ""
+            # For single significant word, it's ambiguous (could be first or last name)
+            if len(words) - start == 1:
+                return words[start], words[start]  # Return same word for both
+            # For multi-word: first significant word is first name, last word is last name
+            first_name = words[start]
+            last_name = words[-1]
+            return first_name, last_name
+
+        first1, last1 = get_name_components(words1)
+        first2, last2 = get_name_components(words2)
+
+        # If both have identifiable name components, check for problematic patterns
+        if first1 and first2:
+            # Pattern 1: Both multi-word names with SAME last name but DIFFERENT first names
+            # Example: "George Wilson" + "Myrtle Wilson" = husband and wife, NOT same person
+            if (len(words1) > 1 and len(words2) > 1 and
+                last1 == last2 and first1 != first2):
+                logger.debug(
+                    f"Merge BLOCKED: {canonical} <-> {alias} "
+                    f"(CRITICAL: both have last name '{last1}' but different first names "
+                    f"'{first1}' vs '{first2}' - likely family members/spouses)"
+                )
+                return False, 0.01
+
+            # Pattern 2: Single-word names that are COMPLETELY different
+            # Example: "George" + "Myrtle" when both appear to be first names
+            # (Single-word names where first==last because ambiguous)
+            if (len(words1) == 1 and len(words2) == 1 and
+                first1 == last1 and first2 == last2 and  # Both ambiguous single words
+                first1 != first2):  # But the words are different
+                # Check if these might be first names that share a last name
+                # by looking for full names in name_groups
+                for name in name_groups.keys():
+                    name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
+                    if len(name_words) >= 2:
+                        # Check if this full name contains either single word
+                        name_first, name_last = get_name_components(name_words)
+                        if name_first == first1 or name_first == first2:
+                            # Found a full name with one of our single words as first name
+                            # Check if the OTHER single word also appears as a first name with same last
+                            for other_name in name_groups.keys():
+                                other_words = re.sub(r'[^\w\s]', '', other_name.lower()).split()
+                                if len(other_words) >= 2:
+                                    other_first, other_last = get_name_components(other_words)
+                                    # If we find "FirstName1 LastName" and "FirstName2 LastName"
+                                    if name_last == other_last and name_first != other_first:
+                                        if (name_first == first1 and other_first == first2) or \
+                                           (name_first == first2 and other_first == first1):
+                                            logger.debug(
+                                                f"Merge BLOCKED: {canonical} <-> {alias} "
+                                                f"(CRITICAL: single-word first names from DIFFERENT people "
+                                                f"who share last name '{name_last}' - found '{name}' and '{other_name}')"
+                                            )
+                                            return False, 0.01
+
         # SINGLE-WORD NAME HANDLING
         # When comparing single-word vs multi-word names, assume the single word is the LAST NAME
         # (most common pattern in literature: "Smith" is the last name in "John Smith")
