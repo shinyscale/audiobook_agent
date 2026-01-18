@@ -3,12 +3,12 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
-- Quality Report: output/gatsby_20260117_201435/quality.md
+- Quality Report: output/gatsby_20260117_212312/quality.md
 
 ## Latest Scores
 - Structure Detection: 5/10 ← FAILING
@@ -226,18 +226,19 @@ Overall = (
 - **Result:** Expected to prevent false merges of family members (spouses, siblings, parents/children)
 - **Impact on Overall Score:** Expected Character Extraction improvement from 2/10 to 7/10 (+1.25 points overall)
 
-## Pipeline Notes (Attempt 2)
-- Analysis completed in 64m 7s
+## Pipeline Notes (Attempt 3)
+- Analysis completed in 60m 9s
 - **Chapter Detection:** Found 9 chapters (✓ correct count!)
 - **Character Extraction:** 58 characters detected
-- **Character Profiles:** 16 profiles generated, 4 low-confidence
-- **Pronunciation Guide:** 628 words flagged (unchanged from attempt 1)
+- **Character Profiles:** 17 profiles generated, 3 low-confidence
+- **Pronunciation Guide:** 628 words flagged (unchanged from attempt 1 & 2)
 - **Warnings/Errors:**
   - TOC validation: 87 entries seems too many (may be false positive)
   - StructureAgent: 2 errors found but refinement not yet implemented
-  - Multiple "Failed to parse JSON response" errors for character profiles (Tom, McKee, Sloane, Meyer)
-  - Low confidence profiles: Tom (0.30), McKee (0.30), Sloane (0.30), Meyer (0.30)
-  - Moral valence classification failed for Tom, Daisy, Baker
+  - Failed to parse JSON response for Nick
+  - Low confidence profiles: Daisy (0.00), McKee (0.00), Nick (0.30)
+  - Moral valence classification failed for Tom, Daisy, McKee
+- **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
 
 ## Next Action
 Proceed to fix phase (PROMPT_fix.md) to address critical character merge issue (George + Myrtle Wilson) as top priority, followed by narrator hallucination error.
