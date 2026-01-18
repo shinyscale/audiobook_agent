@@ -6,14 +6,15 @@
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
-      "attempts": 3,
+      "attempts": 4,
       "final_score": null,
       "issues_resolved": [
         "Attempt 1→2: Fixed chapter count (7→9 chapters) via title selection prioritization"
       ],
       "issues_not_resolved": [
         "Attempt 2→3: FAILED to fix George/Myrtle Wilson merge - still occurs",
-        "Attempt 2→3: NEW CRITICAL ISSUE - James Gatz and Gatsby now split into separate characters (over-correction)"
+        "Attempt 2→3: NEW CRITICAL ISSUE - James Gatz and Gatsby now split into separate characters (over-correction)",
+        "Attempt 3→4: FAILED - Pre-filtering ambiguous lastnames had ZERO impact, all critical issues remain"
       ]
     },
     {

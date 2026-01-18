@@ -3,21 +3,32 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4 of 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
 - Quality Report: output/gatsby_20260117_225321/quality.md
 
-## Latest Scores
+## Latest Scores (Attempt 4)
 - Structure Detection: 5/10 ← FAILING
-- Character Extraction: 2/10 ← CRITICAL FAILURE (no improvement from attempt 2)
+- Character Extraction: 2/10 ← CRITICAL FAILURE (NO IMPROVEMENT from attempt 3)
 - Character Profiles: 6/10 ← FAILING
 - Chapter Summaries: 6/10 ← FAILING
 - Pronunciation Guide: 4/10 ← FAILING
 - HTML Presentation: 9/10
 - **Overall: 4.65/10** (threshold: 8.0)
+
+## Attempt 4 Result: FAIL - Fix Did Not Work
+
+**The pre-filtering fix implemented in attempt 4 FAILED to resolve the character merging issues.**
+
+Evidence:
+- Line 1447 in report.html: Character "Myrtle" has aliases "George B. Wilson, George Wilson, Myrtle Wilson, George, Mrs. Wilson" - **UNCHANGED**
+- Line 2460 in report.html: "James Gatz" is a separate supporting character with alias "Mr. Gatz", while "Gatsby" is a separate main character - **UNCHANGED**
+- Plot summary (line 631) still identifies narrator as "Mrs. Sigourney Howard" - **UNCHANGED**
+
+**All critical issues from attempt 3 remain present. The fix had ZERO impact.**
 
 ## Current Issues (Priority Order)
 
@@ -237,14 +248,11 @@ Overall = (
   2. Is the merge happening in a different part of the pipeline?
   3. Did the fix over-correct and reject valid same-person merges (like Gatsby/Gatz)?
 
-### Attempt 3 → Attempt 4, Fix 3: Filter Ambiguous Last-Name-Only Entries (CRITICAL Issues #1 and #3)
+### Attempt 3 → Attempt 4, Fix 3: Filter Ambiguous Last-Name-Only Entries (CRITICAL Issues #1 and #3) - **FAILED**
 - **Issue:** Same issues as Attempt 3:
   1. George Wilson and Myrtle Wilson still incorrectly merged via "Wilson" intermediate
   2. James Gatz and Gatsby incorrectly split into separate characters
-- **Root Cause Analysis:** The validation logic added in Attempt 3 was correct but insufficient. The problem is that the LLM alias resolution was receiving "Wilson" (single word), "George Wilson", and "Myrtle Wilson" as separate names. The LLM would then suggest merging:
-  - "Wilson" <- "George Wilson" (seems reasonable if you don't know about Myrtle)
-  - "Wilson" <- "Myrtle Wilson" (seems reasonable if you don't know about George)
-  - This creates a single "Wilson" character with both George and Myrtle as aliases
+- **Root Cause Hypothesis:** The validation logic added in Attempt 3 was correct but insufficient. The problem appeared to be that the LLM alias resolution was receiving "Wilson" (single word), "George Wilson", and "Myrtle Wilson" as separate names, leading to incorrect merges
 - **Fix Implemented:** Pre-filter ambiguous last-name-only entries BEFORE alias resolution
   - Added `_filter_ambiguous_lastnames()` method (lines 1858-1948) that:
     1. Identifies single-word names that match the last name of multiple full names with DIFFERENT first names
@@ -254,16 +262,19 @@ Overall = (
 - **Modified Files:**
   - `src/pipeline/character_extraction/consensus.py` (lines 324-327: added filter call)
   - `src/pipeline/character_extraction/consensus.py` (lines 1858-1948: new `_filter_ambiguous_lastnames()` method)
-- **Testing:** All character extraction tests pass:
+- **Testing:** All character extraction tests passed (but tests do NOT validate actual Gatsby analysis output)
   - `tests/test_character_agent.py` - 12 passed
   - `tests/test_alias_merging.py` - 12 passed
-- **Expected Results:**
-  - George Wilson and Myrtle Wilson will remain separate characters (fixes CRITICAL #1)
-  - Gatsby and James Gatz should merge correctly because "Gatsby" is NOT ambiguous (no other full names with different first names share "Gatsby" as last name)
-  - This fix is more robust than attempt 3 because it prevents the problematic merge pattern entirely
-- **Impact on Overall Score:**
-  - If successful: Character Extraction 2 → 10 (+2.0 points), Overall 4.65 → 6.65
-  - Still need to fix narrator issue (+0.60) and other issues to cross 8.0 threshold
+- **Result:** ✗ **FAILED** - NO CHANGE to any critical issues
+  - George Wilson and Myrtle Wilson are STILL merged (line 1447 in report.html)
+  - James Gatz and Gatsby are STILL split into separate characters (lines 1117, 2460)
+  - **Hypothesis was WRONG** - The filtering approach did not address the actual root cause
+- **Impact on Overall Score:** ZERO improvement - score remains 4.65/10
+- **Lesson Learned:** The fix was based on an incorrect hypothesis about where the merge was happening. Need to investigate:
+  1. Is `_filter_ambiguous_lastnames()` actually being called and executing?
+  2. Are "Wilson", "George Wilson", "Myrtle Wilson" even present in the names list before filtering?
+  3. Is the merge happening in a different stage entirely (NER extraction, LLM proposer, etc)?
+  4. Need debug logging to trace exactly where and how the merge occurs
 
 ## Pipeline Notes (Attempt 4)
 - Analysis completed in 52m 51s
@@ -281,14 +292,35 @@ Overall = (
 - **Critical Character Issue:** Console output shows "Myrtle (aka George B. Wilson, George Wilson)" - merge STILL present
 
 ## Next Action
-Evaluate output (PROMPT_evaluate.md) to determine if Attempt 4 fix resolved the character merging issues or if it failed again.
 
-**Fix Applied in Attempt 4:**
-- Implemented pre-filtering of ambiguous last-name-only entries before alias resolution
-- This should prevent "Wilson" from being merged with both "George Wilson" and "Myrtle Wilson"
-- Should also allow "Gatsby" and "James Gatz" to merge correctly (since "Gatsby" is not ambiguous)
+**ATTEMPT 5 (FINAL ATTEMPT) - DIAGNOSTIC AND FIX**
 
-## Priority for Next Fix (Attempt 4)
+The pattern is clear: Three consecutive fix attempts (2→3→4) have had ZERO impact on the character merging issues. The hypotheses about where/how the merge happens have been WRONG.
+
+**Required for Attempt 5:**
+1. **STOP GUESSING** - Add comprehensive debug logging to trace the EXACT path of character data:
+   - Log all character names detected by NER extraction
+   - Log all names sent to each proposer (LLM, NER-based)
+   - Log merge proposals from each proposer before consensus
+   - Log final character list after consensus
+   - Log names before and after `_filter_ambiguous_lastnames()` (if it's even being called)
+
+2. **ANALYZE LOGS** - Run on Gatsby and examine logs to determine:
+   - Is "Wilson" even extracted as a standalone name?
+   - If yes, where does it come from (which proposer)?
+   - At what stage does "George Wilson" merge with "Myrtle Wilson"?
+   - Is it happening in NER extraction, LLM proposer, consensus, or alias resolution?
+
+3. **FIX THE ACTUAL ROOT CAUSE** - Once the diagnostic shows WHERE the merge happens, implement the correct fix at that location
+
+4. **VERIFY WITH TESTS** - Add integration test that runs full Gatsby analysis and validates:
+   - George Wilson and Myrtle Wilson are separate characters
+   - Gatsby and James Gatz are the same character
+   - Narrator is identified as Nick Carraway (not "Mrs. Sigourney Howard")
+
+**This is the LAST attempt. If this fails, we move to the next text.**
+
+## Priority for Next Fix (Attempt 5)
 
 **CRITICAL - Must fix to have any hope of reaching 8.0:**
 1. **CRITICAL #1:** Separate George Wilson from Myrtle Wilson (+5 points → Character Extraction: 7/10)
