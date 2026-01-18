@@ -6,9 +6,11 @@
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
-      "attempts": 1,
+      "attempts": 2,
       "final_score": null,
-      "issues_resolved": []
+      "issues_resolved": [
+        "Attempt 1→2: Fixed chapter count (7→9 chapters) via title selection prioritization"
+      ]
     },
     {
       "name": "frankenstein",
