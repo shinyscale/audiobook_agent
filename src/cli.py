@@ -364,6 +364,8 @@ def run_analyze(args):
         if args.output:
             # User explicitly specified output path
             output_path = Path(args.output)
+            # Ensure parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
         elif analyzer._last_run_dir:
             # Per-run directory was created, save there
             output_path = analyzer._last_run_dir / "analysis.json"
@@ -391,6 +393,9 @@ def run_analyze(args):
                     # If it's a directory, create filename based on input
                     if html_path.is_dir() or (not html_path.suffix and not html_path.exists()):
                         html_path = Path(html_path) / file_path.with_suffix('.html').name
+
+                # Ensure parent directory exists
+                html_path.parent.mkdir(parents=True, exist_ok=True)
 
                 export_html_report(
                     result,
