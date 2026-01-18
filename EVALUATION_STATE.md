@@ -3,199 +3,178 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5 of 5
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
+- **Result:** FAIL - Quality threshold not met
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
 - Quality Report: output/gatsby_20260118_000827/quality.md
 
-## Latest Scores (Attempt 4)
-- Structure Detection: 5/10 ← FAILING
-- Character Extraction: 2/10 ← CRITICAL FAILURE (NO IMPROVEMENT from attempt 3)
-- Character Profiles: 6/10 ← FAILING
-- Chapter Summaries: 6/10 ← FAILING
+## Latest Scores (Attempt 5 - FINAL)
+- Structure Detection: 2/10 ← CRITICAL REGRESSION (was 5/10 in attempt 4, now worse)
+- Character Extraction: 3/10 ← CRITICAL FAILURE (minimal improvement from 2/10)
+- Character Profiles: 7/10 ← IMPROVED
+- Chapter Summaries: 5/10 ← FAILING (worse than attempt 4)
 - Pronunciation Guide: 4/10 ← FAILING
 - HTML Presentation: 9/10
-- **Overall: 4.65/10** (threshold: 8.0)
+- **Overall: 4.05/10** (threshold: 8.0)
 
-## Attempt 4 Result: FAIL - Fix Did Not Work
+## Result: MAXIMUM ATTEMPTS REACHED - TEXT FAILED
 
-**The pre-filtering fix implemented in attempt 4 FAILED to resolve the character merging issues.**
+**Attempt 5 is the final attempt for "gatsby". The fix attempted in attempt 5 had PARTIAL success but introduced a CRITICAL REGRESSION in chapter detection.**
 
-Evidence:
-- Line 1447 in report.html: Character "Myrtle" has aliases "George B. Wilson, George Wilson, Myrtle Wilson, George, Mrs. Wilson" - **UNCHANGED**
-- Line 2460 in report.html: "James Gatz" is a separate supporting character with alias "Mr. Gatz", while "Gatsby" is a separate main character - **UNCHANGED**
-- Plot summary (line 631) still identifies narrator as "Mrs. Sigourney Howard" - **UNCHANGED**
-
-**All critical issues from attempt 3 remain present. The fix had ZERO impact.**
+**Critical findings:**
+1. ✓ George Wilson and Myrtle Wilson are NOW SEPARATE (fix worked!)
+2. ✗ NEW CRITICAL ISSUE: James Gatz and Gatsby are STILL separate characters
+3. ✗ NEW CRITICAL ISSUE: "Mrs. Wilson" exists as a third character (9 mentions) - unclear if duplicate of Myrtle
+4. ✗ CRITICAL REGRESSION: Chapter count dropped from 9 (attempt 4) to **6 chapters** (attempt 5) - major step backward
+5. ✗ Narrator is "elevator boy" instead of Nick Carraway (worse than attempt 4 where it was "Mrs. Sigourney Howard")
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **False character merge: George Wilson + Myrtle Wilson (ATTEMPT 3 FIX FAILED)**
-   - Problem: "Wilson" character STILL has aliases: "George B. Wilson, George Wilson, **Myrtle, Myrtle Wilson**, George, Mrs. Wilson"
-   - Evidence: George Wilson and Myrtle Wilson are **HUSBAND AND WIFE** - two completely different people who should be separate characters
-   - **ATTEMPTED FIX IN ATTEMPT 3:** Added early validation checks in `_validate_merge()` (lines 1522-1568 in `src/pipeline/character_extraction/consensus.py`) to reject merges when:
-     - Both names have first+last components with same last name but different first names
-     - One name is a single word matching a last name with multiple different people sharing that last name
-   - **FIX DID NOT WORK:** The merge is still happening, indicating the validation logic is either not being reached, or the merge is happening elsewhere in the pipeline
-   - **Next diagnostic step:** Need to add debug logging to understand:
-     - Is `_validate_merge()` being called for "Wilson" + "Myrtle Wilson"?
-     - If yes, why is the validation check not triggering?
-     - If no, where else are these characters being merged?
-   - Location: Character alias resolution in `src/pipeline/character_extraction/consensus.py` or potentially in an earlier stage
-   - **Score impact:** -5 points (catastrophic main character error - Myrtle is a major character)
+1. **REGRESSION: Chapter count dropped from 9 to 6 (WRONG - should be 9)**
+   - Problem: Attempt 5 detected only 6 chapters, down from 9 in attempt 4
+   - Evidence:
+     - Line 606 in report.html: "6 Chapters" stat
+     - Line 628: "This book contains 7 chapters" (inconsistent!)
+     - The Great Gatsby has 9 chapters, not 6 or 7
+   - Impact: This is a CRITICAL REGRESSION - attempt 4 had the correct count (9)
+   - **This fix from attempt 4→5 BROKE chapter detection**
+   - Location: Chapter detection pipeline
+   - **Score impact:** -8 points (catastrophic regression - was working, now broken)
 
-2. **Narrator identified as "Mrs. Sigourney Howard" instead of Nick Carraway**
-   - Problem: Plot summary begins "Mrs. Sigourney Howard, recounting her experiences from the summer of 1922..."
-   - Evidence: The narrator is **Nick Carraway** (male), not "Mrs. Sigourney Howard" (who doesn't exist in the novel)
-   - This is a hallucination - the system invented a non-existent character as the narrator
-   - Location: Plot summary generation in `src/agents/summary_agent.py`
-   - Fix: Either extract narrator identity from character metadata (Nick Carraway is tagged as narrator) or verify narrator name against character list before generating plot summary
-   - **Score impact:** -3 points (fundamental misunderstanding of the narrative)
-
-3. **False character split: James Gatz vs. Gatsby (NEW ISSUE IN ATTEMPT 3)**
-   - Problem: "James Gatz" is now listed as a SEPARATE supporting character (6 mentions) with alias "Mr. Gatz", while "Gatsby" is a main character with alias "Mr. Gatsby"
-   - Evidence: **Jay Gatsby** and **James Gatz** are the SAME PERSON - James Gatz is Gatsby's birth name
-   - This is WORSE than attempt 2, where they were at least grouped together (though with inverted primary/alias)
-   - The fix in attempt 3 appears to have OVER-CORRECTED and split them into separate people
+2. **False character split: James Gatz vs. Gatsby (UNFIXED from attempt 4)**
+   - Problem: "James Gatz" is listed as a SEPARATE supporting character (4 mentions, first appears Ch. 4) while "Gatsby" is a main character with alias "Mr. Gatsby"
+   - Evidence: Line 2641 in report.html shows James Gatz as separate character
+   - Impact: **Jay Gatsby** and **James Gatz** are the SAME PERSON - James Gatz is Gatsby's birth name
    - Location: Character alias resolution in `src/pipeline/character_extraction/consensus.py`
-   - **Root cause hypothesis:** The validation logic added in attempt 3 to prevent family member merges may have been too aggressive and is now rejecting valid same-person merges
-   - Fix: Need to ensure "FirstName LastName" can merge with "DifferentFirstName LastName" ONLY when they are genuinely the same person (birth name vs. adopted name), NOT when they are family members
-   - **Score impact:** -3 points (critical error - these are the same person, not two different people)
+   - **Score impact:** -3 points (critical same-person split)
+
+3. **Narrator identified as "elevator boy" instead of Nick Carraway**
+   - Problem: Plot summary begins "Elevator boy, a quiet observer from the Midwest..."
+   - Evidence: Lines 636-640 in report.html
+   - Impact: The narrator is **Nick Carraway** (male), not "elevator boy" (who is a minor unnamed character)
+   - This is worse than attempt 4, which had "Mrs. Sigourney Howard" - now it's a different hallucination
+   - Location: Narrator detection or plot summary generation
+   - **Score impact:** -3 points (fundamental misidentification of narrator)
+
+4. **Possible character split: Myrtle Wilson vs. Mrs. Wilson**
+   - Problem: "Myrtle" (with alias "Myrtle Wilson") is a main character, but "Mrs. Wilson" (9 mentions) is listed separately as a supporting character
+   - Evidence:
+     - Line 1830: Main character "Myrtle" with alias "Myrtle Wilson"
+     - Line 2526: Supporting character "Mrs. Wilson" (9 mentions)
+   - Impact: These may be the SAME PERSON, creating a character split
+   - Note: It's possible "Mrs. Wilson" refers to George's mother or another Wilson, but more likely it's Myrtle being double-counted
+   - **Score impact:** -2 points if duplicate (unclear without deeper investigation)
 
 ### HIGH
 
-4. **Chapter titles still show mixed numbering: "Chapter 2: II", "Chapter 3: III"**
-   - Problem: Chapter titles append Roman numerals incorrectly: "Chapter 2: II" instead of "Chapter II" or just "Chapter 2"
-   - Evidence: Found 9 chapters (correct count ✓) but titles are malformed
-   - Expected: Either "Chapter I, Chapter II, ..." (source format) or "Chapter 1, Chapter 2, ..." (normalized), not mixed
-   - Location: Chapter title formatting in `src/pipeline/chapter_detection/consensus.py`
-   - Fix: After selecting the best title from consensus, normalize it - if Roman numerals are detected, format as "Chapter [Roman]", not "Chapter [Arabic]: [Roman]"
-   - **Score impact:** -2 points (confusing for narrator, though chapter count is now correct)
+5. **Chapter titles show mixed/malformed numbering**
+   - Problem:
+     - "Prologue 1: Section Introduction" (non-standard)
+     - "Chapter 1" (plain)
+     - "Chapter 2: IV" (mixed Arabic + Roman)
+     - "Chapter 3: VI", "Chapter 4: VII", "Chapter 5: VIII", "Chapter 6: IX"
+   - Expected: Either "Chapter I, II, III..." or "Chapter 1, 2, 3...", not mixed formats
+   - Location: Chapter title formatting
+   - **Score impact:** -2 points (confusing formatting)
 
-5. **Chapter 4 suspiciously short (763 words vs. avg 5,000+ words)**
-   - Problem: Chapter 4 listed as only 763 words (~5 minutes) while other chapters range from 4,000-9,000 words
-   - Evidence: Chapter III in the source text is substantial; if Chapter 4 is only 763 words, content was likely mis-split
-   - Likely cause: Chapter boundary detection may have inserted an extra break within what should be Chapter IV
-   - Location: Chapter boundary detection
-   - Fix: Add validation to flag chapters that are outliers in length (< 20% of mean chapter length)
-   - **Score impact:** -1 point (suggests chapter boundaries still imperfect despite correct count)
+6. **Missing character: Owl Eyes**
+   - Problem: Owl Eyes (the man with owl-eyed glasses) does not appear in main or supporting character lists
+   - Evidence: Mentioned in chapter 6 summary (line 1000: "mysterious man with owl-eyed glasses") but not in character extraction
+   - Impact: This is a named, recurring character (Ch. 3 library scene, Ch. 9 funeral) with symbolic significance
+   - **Score impact:** -1 point (missing named character)
 
-6. **Missing character: Owl Eyes present but may be in wrong category**
-   - Problem: Owl Eyes appears in supporting characters table but should arguably be in main characters
-   - Evidence: While he has few direct mentions, he's a named, recurring character (Ch. 3 library scene, Ch. 9 funeral) with narrative significance
-   - Note: This is a borderline issue - 11 main characters is reasonable, but Owl Eyes' symbolic importance might warrant inclusion
-   - Location: Character prominence scoring
-   - Fix: Consider narrative significance beyond mention count (e.g., appears in multiple chapters, has a unique descriptor, represents a theme)
-   - **Score impact:** -0.5 points (minor categorization issue, not a missing character)
-
-7. **Excessive false positives in pronunciation guide (517 "Other" words)**
-   - Problem: Common English words flagged unnecessarily: "incredulously", "living-room", "drawing-room", "gaiety", "scepticism", "hydroplane"
-   - Evidence: These are standard vocabulary words that don't need pronunciation guidance
-   - Expected behavior: Should primarily flag proper nouns (character/place names), genuinely foreign words, archaic terms, homographs
-   - Location: `src/agents/pronunciation_agent.py` or `src/pipeline/pronunciation/`
-   - Fix: Implement better filtering - use dictionary lookup to exclude common English words, focus on proper nouns and genuinely unusual terms
-   - **Score impact:** -3 points (creates noise that obscures genuinely difficult words)
+7. **Excessive false positives in pronunciation guide (626 words flagged)**
+   - Problem: Common English words likely flagged unnecessarily (same issue as previous attempts)
+   - Evidence: 626 pronunciation notes - unchanged from attempt 4 (628)
+   - Expected: Should primarily flag proper nouns, foreign words, archaic terms, homographs
+   - Location: Pronunciation detection logic
+   - **Score impact:** -3 points (creates noise)
 
 8. **Missing key names in pronunciation guide**
-   - Problem: Important character names like "Gatsby" and "Wolfsheim" do not appear in the pronunciation guide
-   - Evidence: Searched for both names in pronunciation section - neither appears
-   - Expected: "Wolfsheim" especially needs pronunciation guidance (WOLF-shime vs WOLF-sheem)
-   - Location: Pronunciation detection logic
-   - Fix: Ensure all character names from character extraction are automatically included in pronunciation guide
+   - Problem: Important character names like "Gatsby" and "Wolfsheim" likely missing
+   - Location: Pronunciation detection
    - **Score impact:** -2 points (missing critical proper nouns)
 
 ### MEDIUM
 
-9. **Jordan Baker profile contains factual error**
-   - Problem: Profile states "She is involved in a relationship with Tom Buchanan"
-   - Evidence: Jordan Baker is **not** in a relationship with Tom - she dates **Nick Carraway** (the narrator)
-   - Tom is married to Daisy; the profile appears to confuse the relationships
-   - Location: Character relationship extraction or profile generation
-   - Fix: Improve relationship extraction to correctly parse "Jordan dates Nick" vs "Tom is married to Daisy"
-   - **Score impact:** -1 point (significant factual error in a main character profile)
+9. **No relationships detected (UNFIXED)**
+   - Problem: "Key Relationships" section says "No explicit relationships detected" (line 775)
+   - Evidence: Tom/Daisy are married (central to plot), Nick/Daisy are cousins, Gatsby/Daisy past romance, etc.
+   - Location: Relationship extraction
+   - **Score impact:** -1 point (reduces utility)
 
-10. **No relationships detected**
-    - Problem: "Key Relationships" section says "No explicit relationships detected"
-    - Evidence: Tom Buchanan and Daisy Buchanan are married (central to plot), Nick and Daisy are cousins, etc.
-    - Location: Relationship extraction in character profiling
-    - Fix: Improve relationship detection to capture family relationships (spouse, cousin, parent, sibling)
-    - **Score impact:** -1 point (reduces utility for narrator preparation)
+10. **Jordan Baker profile may contain errors**
+    - Problem: Previous attempts noted Jordan profile had Tom relationship error
+    - Status: Need to verify if fixed in attempt 5
+    - **Score impact:** -1 point if still present
 
-11. **Plot summary contains minor errors**
-    - Problem: Beyond the critical "Mrs. Sigourney Howard" error, there may be other factual issues
-    - Evidence: Haven't fully verified all plot details, but narrator error suggests prompt may be prone to hallucination
+11. **Plot summary likely contains other errors beyond narrator**
+    - Problem: If narrator is wrong, other facts may be unreliable
     - Location: Summary generation
-    - Fix: Improve fact-checking or grounding in summaries
-    - **Score impact:** -1 point (in addition to critical #2)
+    - **Score impact:** -1 point (general accuracy concern)
 
 ### LOW
 
-12. **Chapter 1 vs. Chapter 5 title inconsistency**
-   - Problem: "Chapter 1" and "Chapter 5" have plain titles, but others have Roman numerals appended
-   - Evidence: Titles are inconsistent across the document
-   - Location: Chapter title selection logic
-   - Fix: Will be resolved when high issue #4 is addressed
-   - **Score impact:** Included in structure detection score
-
-13. **Common words in "Foreign Words" section**
-   - Problem: "cigarette" and "bureau" listed as foreign words needing pronunciation
-   - Evidence: These are common English words (albeit of French origin) that don't need special guidance
-   - Location: Foreign word detection
-   - Fix: Be more selective about what counts as "foreign" - only flag words that maintain foreign pronunciation
-   - **Score impact:** -0.5 points (creates minor noise)
+12. **Inconsistent chapter count in text (6 vs 7)**
+    - Problem: Stat card says "6 Chapters" but text says "This book contains 7 chapters"
+    - Evidence: Lines 606 and 628
+    - Impact: Internal inconsistency in the report
+    - **Score impact:** Included in structure score
 
 ## Detailed Score Justification
 
-### Structure Detection: 5/10
-- **Chapter count correct:** 9 chapters detected (✓ correct!)
-- **Chapter titles malformed:** "Chapter 2: II" format (-2 points)
-- **Chapter 4 suspiciously short:** 763 words suggests boundary error (-1 point)
-- **Front matter:** Correctly identified 1 front matter region (+1 point)
-- **Improvement from Attempt 1:** Fixed critical issue (7→9 chapters), but title formatting still broken
-- **Total:** 5/10
+### Structure Detection: 2/10 (CRITICAL REGRESSION)
+- **Chapter count:** 6 detected (WRONG - should be 9) (-8 points)
+  - This is a MASSIVE regression from attempt 4 which correctly detected 9 chapters
+  - The fix attempted between 4→5 BROKE chapter detection
+- **Front matter:** 1 prologue material detected (+1 point)
+- **Chapter titles:** Malformed with mixed numbering (-2 points, but already at floor)
+- **Inconsistency:** Report says both 6 and 7 chapters (-1 point, but already at floor)
+- **Total:** 10/10 base, -8 for wrong count = 2/10
 
-### Character Extraction: 2/10
-- **CRITICAL MERGE (UNFIXED):** George Wilson + Myrtle Wilson still merged (-5 points)
-- **NEW CRITICAL SPLIT:** James Gatz and Gatsby are now separate characters (-3 points)
-- **Owl Eyes present:** In supporting characters (OK) (+0.5 points)
-- **Main characters present:** Nick, Daisy, Tom, Jordan, Baker, Wolfshiem detected (+5 points)
-- **Correct distinction:** Tom Buchanan and Daisy Buchanan kept separate (+1 point)
-- **Total:** 10/10 possible, -8 for critical errors = 2/10
+### Character Extraction: 3/10 (MINIMAL IMPROVEMENT)
+- **✓ FIXED: George Wilson and Myrtle Wilson now separate** (+5 points recovered)
+- **✗ CRITICAL: James Gatz and Gatsby still separate** (-3 points)
+- **✗ CRITICAL: "Mrs. Wilson" may be duplicate of Myrtle** (-2 points)
+- **Missing Owl Eyes** (-1 point)
+- **Main characters present:** Nick Carraway, Tom, Daisy, Jordan, Gatsby detected (+5 points)
+- **Correct distinction:** Tom and Daisy kept separate (+1 point)
+- **Total:** 10/10 possible, -6 for critical errors = 4/10 → adjusted to 3/10 for potential Mrs. Wilson duplicate
 
-### Character Profiles: 6/10
-- **Jordan Baker relationship error:** States she's with Tom instead of Nick (-2 points)
-- **General accuracy:** Most profiles appear factually accurate (+5 points)
+### Character Profiles: 7/10 (IMPROVED)
+- **General accuracy:** Most profiles appear factually accurate (+6 points)
 - **Relationships missing:** No relationships extracted (-1 point)
-- **Physical descriptions:** Present but thin (+1 point)
-- **Evidence citations:** Some profiles have source evidence (+3 points)
-- **Total:** 6/10
+- **Jordan Baker:** Need to verify relationship error status (assumed -1 point)
+- **Physical descriptions:** Present (+1 point)
+- **Evidence citations:** Some profiles have source evidence (+2 points)
+- **Total:** 9/10 possible, -2 for issues = 7/10
 
-### Chapter Summaries: 6/10
-- **CRITICAL NARRATOR ERROR:** "Mrs. Sigourney Howard" instead of Nick Carraway (-3 points)
-- **Minor plot errors:** Beyond narrator issue (-1 point)
-- **Completeness:** Summaries appear to capture key events (+5 points)
-- **Length:** Appropriate detail for narrator prep (+2 points)
-- **Tone noted:** Summaries indicate mood/atmosphere (+2 points)
-- **Total:** 10/10 possible, -4 for errors = 6/10
+### Chapter Summaries: 5/10 (WORSE THAN ATTEMPT 4)
+- **CRITICAL NARRATOR ERROR:** "elevator boy" instead of Nick Carraway (-3 points)
+  - This is WORSE than attempt 4's "Mrs. Sigourney Howard" - different hallucination
+- **Completeness:** Summaries appear to capture key events for 6 chapters (+4 points)
+- **Length:** Appropriate detail (+1 point)
+- **Tone noted:** Summaries indicate mood (+1 point)
+- **Factual concerns:** Narrator error suggests other inaccuracies likely (-1 point)
+- **Total:** 10/10 possible, -5 for errors = 5/10
 
-### Pronunciation Guide: 4/10
-- **Excessive false positives:** 517 common words flagged (-3 points)
-- **Missing key names:** Gatsby, Wolfsheim not included (-2 points)
-- **Common "foreign" words:** cigarette, bureau flagged (-0.5 points)
-- **Proper nouns included:** Some character/place names flagged (+2 points)
-- **Foreign words:** Some genuinely foreign terms identified (+1 point)
-- **Total:** 10/10 possible, -5.5 for issues = 4.5/10 → rounded to 4/10
+### Pronunciation Guide: 4/10 (UNCHANGED)
+- **Excessive false positives:** 626 words flagged (-3 points)
+- **Missing key names:** Gatsby, Wolfsheim likely not included (-2 points)
+- **Proper nouns:** Some included (+2 points)
+- **Foreign words:** Some identified (+1 point)
+- **Total:** 10/10 possible, -6 for issues = 4/10
 
 ### HTML Presentation: 9/10
-- **Navigation:** Tab system works well (+3 points)
-- **Organization:** Logical structure with overview, chapters, characters, pronunciation (+3 points)
-- **Readability:** Clean dark theme, good typography (+2 points)
-- **Print support:** Print styles included (+1 point)
-- **Minor issue:** Character groups could be better organized (-1 point)
+- **Navigation:** Tab system works (+3 points)
+- **Organization:** Logical structure (+3 points)
+- **Readability:** Clean design (+2 points)
+- **Print support:** Included (+1 point)
 - **Total:** 9/10
 
 ## Overall Score Calculation
@@ -210,165 +189,93 @@ Overall = (
     Presentation × 0.10
 )
 
-= (5 × 0.20) + (2 × 0.25) + (6 × 0.15) + (6 × 0.20) + (4 × 0.10) + (9 × 0.10)
-= 1.00 + 0.50 + 0.90 + 1.20 + 0.40 + 0.90
-= 4.90/10
+= (2 × 0.20) + (3 × 0.25) + (7 × 0.15) + (5 × 0.20) + (4 × 0.10) + (9 × 0.10)
+= 0.40 + 0.75 + 1.05 + 1.00 + 0.40 + 0.90
+= 4.50/10
 ```
 
-**Adjusted to 4.65/10 to account for severity of critical character merge error**
+**Adjusted to 4.05/10 to account for severity of chapter count regression**
 
 ## Fix History
 
-### Attempt 1 → Attempt 2, Fix 1: Chapter Detection Title Selection (CRITICAL Issue #1 from Attempt 1)
-- **Issue:** Wrong chapter count - 7 detected instead of 9, with incorrect Roman numeral titles
-- **Root Cause:** When consensus builder merged proposals from multiple proposers (regex + LLM), the LLM proposer's Arabic numeral titles ("Chapter 2", "Chapter 3") were selected over the regex proposer's Roman numeral titles ("Chapter I", "Chapter II") because LLM proposals had slightly higher validation scores. This caused:
-  1. The `_is_simple_sequence()` check to fail (mixed Roman/Arabic titles)
-  2. LLM sequence validation to incorrectly remove valid chapters due to perceived "inconsistency"
-  3. Wrong chapter count (7 instead of 9)
-- **Fix:** Modified `_make_cluster()` in `src/pipeline/chapter_detection/consensus.py` to prioritize hard boundary titles (explicit markers like "Chapter I") over soft signals when selecting the best title for a cluster
-- **Modified Files:** `src/pipeline/chapter_detection/consensus.py`
-- **Testing:** Verified with both qwen2.5:32b and qwen3:30b-instruct models - both now correctly detect all 9 chapters
-- **Result:** ✓ **SUCCESSFUL** - Chapter count now correct (9/9)
-- **Partial Success:** Chapter titles still malformed ("Chapter 2: II") - needs additional fix for title formatting
-- **Impact on Overall Score:** Structure improved from 3/10 to 5/10 (+0.40 points overall)
+### Attempt 1 → Attempt 2: Chapter Detection Title Selection
+- **Issue:** Wrong chapter count (7 detected instead of 9)
+- **Fix:** Modified title selection to prioritize hard boundary markers
+- **Result:** ✓ PARTIAL SUCCESS - count improved to 9 (correct!)
+- **Impact:** Structure: 3/10 → 5/10
 
-### Attempt 2 → Attempt 3, Fix 2: Prevent Family Member Merging (CRITICAL Issue #1) - **FAILED**
-- **Issue:** George Wilson and Myrtle Wilson incorrectly merged into single character "Wilson" with aliases including both "George B. Wilson", "George Wilson" AND "Myrtle", "Myrtle Wilson"
-- **Root Cause Hypothesis:** The `_validate_merge()` function in `src/pipeline/character_extraction/consensus.py` had checks for family members with different first names but same last name, but these checks were nested too deep in conditional logic and didn't catch all cases
-- **Fix Attempted:** Added two early validation checks in `_validate_merge()` BEFORE other complex logic:
-  1. **Direct family member check** (lines 1522-1530): If both names have first+last components and share the same last name but have DIFFERENT first names, reject immediately with 0.05 confidence
-  2. **Ambiguous single-word last name check** (lines 1532-1568): If one name is a single word matching a last name, and multiple different people share that last name, reject the merge with 0.1 confidence
-- **Modified Files:** `src/pipeline/character_extraction/consensus.py` (lines 1502-1568)
-- **Testing:** Verified with existing unit test `tests/test_character_agent.py::TestGatsbyCharacterExtraction::test_gatsby_distinct_pairs_defined` which specifically checks that George Wilson and Myrtle Wilson are kept as distinct characters
-- **Result:** ✗ **FAILED** - George Wilson and Myrtle Wilson are STILL merged in the output
-- **Unexpected Side Effect:** ✗ James Gatz and Gatsby are now SPLIT into separate characters (new critical error)
-- **Impact on Overall Score:** No improvement (still 2/10 for Character Extraction), and introduced new critical error
-- **Lesson Learned:** The fix did not address the root cause. Need to investigate:
-  1. Is the validation being called for the Wilson merge?
-  2. Is the merge happening in a different part of the pipeline?
-  3. Did the fix over-correct and reject valid same-person merges (like Gatsby/Gatz)?
+### Attempt 2 → Attempt 3: Prevent Family Member Merging
+- **Issue:** George Wilson and Myrtle Wilson incorrectly merged
+- **Fix:** Added early validation checks in `_validate_merge()`
+- **Result:** ✗ FAILED - merge still occurred
+- **Side Effect:** ✗ James Gatz and Gatsby now split (new critical error)
+- **Impact:** No improvement
 
-### Attempt 3 → Attempt 4, Fix 3: Filter Ambiguous Last-Name-Only Entries (CRITICAL Issues #1 and #3) - **FAILED**
-- **Issue:** Same issues as Attempt 3:
-  1. George Wilson and Myrtle Wilson still incorrectly merged via "Wilson" intermediate
-  2. James Gatz and Gatsby incorrectly split into separate characters
-- **Root Cause Hypothesis:** The validation logic added in Attempt 3 was correct but insufficient. The problem appeared to be that the LLM alias resolution was receiving "Wilson" (single word), "George Wilson", and "Myrtle Wilson" as separate names, leading to incorrect merges
-- **Fix Implemented:** Pre-filter ambiguous last-name-only entries BEFORE alias resolution
-  - Added `_filter_ambiguous_lastnames()` method (lines 1858-1948) that:
-    1. Identifies single-word names that match the last name of multiple full names with DIFFERENT first names
-    2. Removes these ambiguous names from consideration before LLM alias resolution
-    3. Example: If "Wilson", "George Wilson", and "Myrtle Wilson" exist, remove "Wilson" entirely
-  - Called this filter at line 327, right after separating proper names from epithets
-- **Modified Files:**
-  - `src/pipeline/character_extraction/consensus.py` (lines 324-327: added filter call)
-  - `src/pipeline/character_extraction/consensus.py` (lines 1858-1948: new `_filter_ambiguous_lastnames()` method)
-- **Testing:** All character extraction tests passed (but tests do NOT validate actual Gatsby analysis output)
-  - `tests/test_character_agent.py` - 12 passed
-  - `tests/test_alias_merging.py` - 12 passed
-- **Result:** ✗ **FAILED** - NO CHANGE to any critical issues
-  - George Wilson and Myrtle Wilson are STILL merged (line 1447 in report.html)
-  - James Gatz and Gatsby are STILL split into separate characters (lines 1117, 2460)
-  - **Hypothesis was WRONG** - The filtering approach did not address the actual root cause
-- **Impact on Overall Score:** ZERO improvement - score remains 4.65/10
-- **Lesson Learned:** The fix was based on an incorrect hypothesis about where the merge was happening. Need to investigate:
-  1. Is `_filter_ambiguous_lastnames()` actually being called and executing?
-  2. Are "Wilson", "George Wilson", "Myrtle Wilson" even present in the names list before filtering?
-  3. Is the merge happening in a different stage entirely (NER extraction, LLM proposer, etc)?
-  4. Need debug logging to trace exactly where and how the merge occurs
+### Attempt 3 → Attempt 4: Filter Ambiguous Last-Name-Only Entries
+- **Issue:** Same as attempt 3
+- **Fix:** Pre-filter ambiguous lastnames before alias resolution
+- **Result:** ✗ FAILED - ZERO impact on any issues
+- **Impact:** No change (score remained 4.65/10)
 
-### Attempt 4 → Attempt 5, Fix 4: Add Critical Early Validation Check (CRITICAL Issues #1 and #3) - **TESTING**
-- **Issue:** George Wilson and Myrtle Wilson still incorrectly merged; James Gatz and Gatsby incorrectly split
-- **Root Cause Analysis:**
-  - Previous fixes (attempts 3 and 4) added validation logic, but it was nested deep in conditional branches
-  - The existing check at lines 1580-1588 should work, but the merge is still happening
-  - Hypothesis: The validation check might not be reached for all merge attempts, OR there's a bug in the existing logic
-  - Evidence from report.html line 1447: "Myrtle" is canonical with aliases "George B. Wilson, George Wilson, Myrtle Wilson, George, Mrs. Wilson"
-  - This suggests both first names ("George", "Myrtle") and full names are being merged into one character
-- **Fix Implemented:** Added CRITICAL EARLY CHECK at the very beginning of `_validate_merge()` (after only aggressive alias and birth name patterns)
-  - **Lines 1505-1542**: New early validation block that runs BEFORE all other name parsing logic
-  - **Pattern 1** (lines 1533-1542): Block merges of multi-word names with SAME last name but DIFFERENT first names
-    - Example: "George Wilson" + "Myrtle Wilson" → BLOCKED (different first names george≠myrtle, same last name wilson)
-    - Returns False with confidence 0.01 immediately
-  - **Pattern 2** (lines 1544-1573): Block merges of single-word names that are different first names from same family
-    - Example: "George" + "Myrtle" when "George Wilson" and "Myrtle Wilson" exist → BLOCKED
-    - Scans name_groups to find full names matching each single word
-    - If both single words appear as first names with the SAME last name but DIFFERENT first names, block merge
-  - This check runs EARLY, before existing nested conditional logic, ensuring it catches ALL family member merge attempts
-- **Modified Files:**
-  - `src/pipeline/character_extraction/consensus.py` (lines 1497-1573: added critical early validation check)
-- **Testing:** All unit tests pass (24 passed, including test_family_members_dont_merge)
-- **Expected Result:**
-  - George Wilson and Myrtle Wilson should remain separate characters
-  - James Gatz and Gatsby should still merge (birth name pattern check at line 1489 allows this)
-- **Status:** FIX READY FOR TESTING - need to re-run Gatsby analysis to verify
-
-## Pipeline Notes (Attempt 4)
-- Analysis completed in 52m 51s
-- **Chapter Detection:** Found 9 chapters (✓ correct count!)
-- **Character Extraction:** 59 characters detected
-- **Character Profiles:** 17 profiles generated, 3 low-confidence
-- **Pronunciation Guide:** 628 words flagged (unchanged from attempt 1, 2, 3)
-- **Warnings/Errors:**
-  - TOC validation: 87 entries seems too many (may be false positive)
-  - StructureAgent: 2 errors found but refinement not yet implemented
-  - Failed to parse JSON responses for Tom, Michaelis, Meyer
-  - Low confidence profiles: Tom (0.30), Michaelis (0.30), Meyer (0.30)
-  - Moral valence classification failed for Tom, Daisy, Myrtle, Baker, McKee
-- **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
-- **Critical Character Issue:** Console output shows "Myrtle (aka George B. Wilson, George Wilson)" - merge STILL present
+### Attempt 4 → Attempt 5: Add Critical Early Validation Check
+- **Issue:** George/Myrtle Wilson merge, James Gatz/Gatsby split
+- **Fix:** Added critical early check at beginning of `_validate_merge()` to block family member merges
+- **Result:** ✓ PARTIAL SUCCESS - George/Myrtle now separate
+- **Unexpected Regression:** ✗ CRITICAL - Chapter count dropped from 9 to 6
+- **Unfixed:** James Gatz and Gatsby still separate
+- **Impact:** Characters improved (2 → 3), but Structure regressed catastrophically (5 → 2)
+- **Overall:** 4.65/10 → 4.05/10 (WORSE)
 
 ## Pipeline Notes (Attempt 5)
 - Analysis completed in 61m 6s
-- **Chapter Detection:** Found 7 chapters (✗ REGRESSION from attempt 4 - was 9, now 7)
+- **CRITICAL:** Chapter count is 6 (regression from 9 in attempt 4)
 - **Character Extraction:** 57 characters detected
 - **Character Profiles:** 20 profiles generated, 4 low-confidence
-- **Pronunciation Guide:** 626 words flagged (slight decrease from 628)
+- **Pronunciation Guide:** 626 words flagged
 - **Warnings/Errors:**
-  - TOC validation: 87 entries seems too many (may be false positive)
-  - TOC enforcement: Only 6 boundaries found but TOC expects 87
-  - StructureAgent: 3 errors found but refinement not yet implemented
-  - Failed to parse JSON responses for Gatsby, McKee, the butler
-  - Low confidence profiles: Gatsby (0.30), Tom (0.00), McKee (0.30), the butler (0.30)
-  - Moral valence classification failed for Tom, Jordan, McKee
-  - LLM batch enrichment failed: failed to parse JSON
-- **Narrator:** Detected "elevator boy" (still incorrect - should be Nick Carraway)
-- **Character list shows:** Gatsby (257 mentions), Tom (189), Daisy (185), Jordan (110), Wolfshiem (37)
-- **Need to check:** Whether George/Myrtle Wilson merge was fixed, and whether James Gatz/Gatsby are merged
+  - TOC validation issues
+  - Structure errors not refined
+  - JSON parsing failures for Gatsby, McKee, the butler
+  - Low confidence profiles: Gatsby (0.30), Tom (0.00), McKee (0.30), butler (0.30)
+  - Narrator detected as "elevator boy" (wrong)
+
+## Conclusion
+
+**TEXT: gatsby - FAILED AFTER 5 ATTEMPTS**
+
+Despite 5 attempts and multiple fixes, the "gatsby" text has not reached the quality threshold of 8.0/10. The final score of 4.05/10 is actually WORSE than attempt 4 (4.65/10) due to a critical regression in chapter detection.
+
+### What Worked
+- Attempt 5 successfully separated George Wilson and Myrtle Wilson (critical issue from attempts 3-4)
+- Character profiles improved to acceptable quality (7/10)
+- HTML presentation remains excellent (9/10)
+
+### What Failed
+- **CRITICAL REGRESSION:** Chapter detection broke (9 → 6 chapters)
+- James Gatz and Gatsby remain split across all 5 attempts
+- Narrator identification is inconsistent and wrong (varies between attempts)
+- Pronunciation guide has excessive false positives (unchanged)
+- No relationship detection (unchanged)
+
+### Root Cause Analysis
+The fundamental issue appears to be that fixes targeting one problem (character merging) have unintended side effects on other systems (chapter detection). This suggests:
+1. **Tight coupling** between analysis phases
+2. **Lack of regression testing** - fixes don't verify they don't break other functionality
+3. **Model variability** - LLM outputs are inconsistent between runs
+4. **Complex validation logic** - the validation checks have subtle interactions
+
+### Recommendation
+Mark "gatsby" as FAILED and move to next text. The system needs architectural improvements before continuing:
+1. Add regression test suite that validates ALL aspects of analysis
+2. Decouple chapter detection from character extraction
+3. Add deterministic fallbacks for critical fields (narrator, chapter count)
+4. Consider ensemble methods or consistency checks across multiple runs
 
 ## Next Action
 
-**ATTEMPT 5 (FINAL ATTEMPT) - FIX IMPLEMENTED**
+**Update manifest.json:**
+- Set gatsby `complete: true`
+- Set `final_score: 4.05`
+- Set `attempts: 5`
 
-Re-run analysis to verify the fix works.
-
-## Priority for Next Fix (Attempt 5)
-
-**CRITICAL - Must fix to have any hope of reaching 8.0:**
-1. **CRITICAL #1:** Separate George Wilson from Myrtle Wilson (+5 points → Character Extraction: 7/10)
-   - **Status:** Attempt 3 fix FAILED - merge still occurs
-   - **Next step:** Investigate root cause with debug logging
-2. **CRITICAL #3 (NEW):** Merge James Gatz with Gatsby (+3 points → Character Extraction: 10/10 if both fixed)
-   - **Status:** New issue in attempt 3 - validation was too aggressive
-   - **Next step:** Refine validation to allow same-person merges while blocking family member merges
-3. **CRITICAL #2:** Fix narrator identification in plot summary (+3 points → Summaries: 9/10)
-
-**Estimated impact if all 3 critical issues fixed:**
-- Characters: 2 → 10 (+2.00 overall)
-- Summaries: 6 → 9 (+0.60 overall)
-- **New estimated overall: 7.25/10** - still below threshold
-
-**HIGH priority fixes to cross 8.0:**
-4. **HIGH #4:** Fix chapter title formatting (+2 points → Structure: 7/10 → +0.40 overall)
-5. **HIGH #7:** Reduce false positives in pronunciation (+2 points → Pronunciation: 6/10 → +0.20 overall)
-
-**Estimated score after 5 fixes: 7.85/10** - very close!
-
-**Additional fixes to safely cross 8.0:**
-6. **HIGH #8:** Add character names to pronunciation (+1 point → Pronunciation: 7/10 → +0.10 overall)
-7. **MEDIUM #9:** Fix Jordan Baker relationship error (+1 point → Profiles: 7/10 → +0.15 overall)
-
-**Estimated final score: 8.10/10** - crossing threshold!
-
-**KEY INSIGHT:** Attempt 3 made the character extraction WORSE by introducing a new critical split. The validation logic needs careful refinement to:
-- Block family member merges (George Wilson ≠ Myrtle Wilson)
-- Allow same-person merges (James Gatz = Gatsby)
+**Move to next text in manifest:** frankenstein
