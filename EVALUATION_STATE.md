@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3 of 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 
 ## Output Files
 - HTML: output/gatsby/report.html
@@ -12,7 +12,7 @@
 
 ## Latest Scores
 - Structure Detection: 5/10 ← FAILING
-- Character Extraction: 2/10 ← CRITICAL FAILURE
+- Character Extraction: 2/10 ← CRITICAL FAILURE (no improvement from attempt 2)
 - Character Profiles: 6/10 ← FAILING
 - Chapter Summaries: 6/10 ← FAILING
 - Pronunciation Guide: 4/10 ← FAILING
@@ -23,11 +23,18 @@
 
 ### CRITICAL
 
-1. **False character merge: George Wilson + Myrtle Wilson**
-   - Problem: "Wilson" character has aliases: "George B. Wilson, George Wilson, **Myrtle, Myrtle Wilson**, George, Mrs. Wilson"
+1. **False character merge: George Wilson + Myrtle Wilson (ATTEMPT 3 FIX FAILED)**
+   - Problem: "Wilson" character STILL has aliases: "George B. Wilson, George Wilson, **Myrtle, Myrtle Wilson**, George, Mrs. Wilson"
    - Evidence: George Wilson and Myrtle Wilson are **HUSBAND AND WIFE** - two completely different people who should be separate characters
-   - Location: Character alias resolution in `src/agents/character_agent.py` or `src/pipeline/character_extraction/`
-   - Fix: Improve alias grouping to recognize that characters sharing only a surname (especially with gendered titles like Mr./Mrs.) are often different people (spouses, siblings)
+   - **ATTEMPTED FIX IN ATTEMPT 3:** Added early validation checks in `_validate_merge()` (lines 1522-1568 in `src/pipeline/character_extraction/consensus.py`) to reject merges when:
+     - Both names have first+last components with same last name but different first names
+     - One name is a single word matching a last name with multiple different people sharing that last name
+   - **FIX DID NOT WORK:** The merge is still happening, indicating the validation logic is either not being reached, or the merge is happening elsewhere in the pipeline
+   - **Next diagnostic step:** Need to add debug logging to understand:
+     - Is `_validate_merge()` being called for "Wilson" + "Myrtle Wilson"?
+     - If yes, why is the validation check not triggering?
+     - If no, where else are these characters being merged?
+   - Location: Character alias resolution in `src/pipeline/character_extraction/consensus.py` or potentially in an earlier stage
    - **Score impact:** -5 points (catastrophic main character error - Myrtle is a major character)
 
 2. **Narrator identified as "Mrs. Sigourney Howard" instead of Nick Carraway**
@@ -38,13 +45,15 @@
    - Fix: Either extract narrator identity from character metadata (Nick Carraway is tagged as narrator) or verify narrator name against character list before generating plot summary
    - **Score impact:** -3 points (fundamental misunderstanding of the narrative)
 
-3. **False character split: James Gatz vs. Gatsby**
-   - Problem: "James Gatz" is listed as a main character (269 mentions) with aliases "Mr. Gatz, Gatsby, Mr. Gatsby"
-   - Evidence: This is backwards - **Jay Gatsby** should be the primary entry with "James Gatz" as an alias (his birth name)
-   - The system treats them as if "James Gatz" is the main identity, which misrepresents the novel
-   - Location: Character alias resolution and primary name selection
-   - Fix: When selecting primary vs. alias names, prefer the name used most frequently in narrative prose (not dialogue) and the name most central to the character's identity
-   - **Score impact:** -1 point (while technically merged, the primary/alias relationship is inverted)
+3. **False character split: James Gatz vs. Gatsby (NEW ISSUE IN ATTEMPT 3)**
+   - Problem: "James Gatz" is now listed as a SEPARATE supporting character (6 mentions) with alias "Mr. Gatz", while "Gatsby" is a main character with alias "Mr. Gatsby"
+   - Evidence: **Jay Gatsby** and **James Gatz** are the SAME PERSON - James Gatz is Gatsby's birth name
+   - This is WORSE than attempt 2, where they were at least grouped together (though with inverted primary/alias)
+   - The fix in attempt 3 appears to have OVER-CORRECTED and split them into separate people
+   - Location: Character alias resolution in `src/pipeline/character_extraction/consensus.py`
+   - **Root cause hypothesis:** The validation logic added in attempt 3 to prevent family member merges may have been too aggressive and is now rejecting valid same-person merges
+   - Fix: Need to ensure "FirstName LastName" can merge with "DifferentFirstName LastName" ONLY when they are genuinely the same person (birth name vs. adopted name), NOT when they are family members
+   - **Score impact:** -3 points (critical error - these are the same person, not two different people)
 
 ### HIGH
 
@@ -139,12 +148,12 @@
 - **Total:** 5/10
 
 ### Character Extraction: 2/10
-- **CRITICAL MERGE:** George Wilson + Myrtle Wilson merged (-5 points)
-- **False split/inversion:** James Gatz primary instead of Jay Gatsby (-1 point)
+- **CRITICAL MERGE (UNFIXED):** George Wilson + Myrtle Wilson still merged (-5 points)
+- **NEW CRITICAL SPLIT:** James Gatz and Gatsby are now separate characters (-3 points)
 - **Owl Eyes present:** In supporting characters (OK) (+0.5 points)
 - **Main characters present:** Nick, Daisy, Tom, Jordan, Baker, Wolfshiem detected (+5 points)
 - **Correct distinction:** Tom Buchanan and Daisy Buchanan kept separate (+1 point)
-- **Total:** 10/10 possible, -6 for critical errors = 4/10 → adjusted to 2/10 for severity
+- **Total:** 10/10 possible, -8 for critical errors = 2/10
 
 ### Character Profiles: 6/10
 - **Jordan Baker relationship error:** States she's with Tom instead of Nick (-2 points)
@@ -212,19 +221,21 @@ Overall = (
 - **Partial Success:** Chapter titles still malformed ("Chapter 2: II") - needs additional fix for title formatting
 - **Impact on Overall Score:** Structure improved from 3/10 to 5/10 (+0.40 points overall)
 
-### Attempt 2 → Attempt 3, Fix 2: Prevent Family Member Merging (CRITICAL Issue #1)
+### Attempt 2 → Attempt 3, Fix 2: Prevent Family Member Merging (CRITICAL Issue #1) - **FAILED**
 - **Issue:** George Wilson and Myrtle Wilson incorrectly merged into single character "Wilson" with aliases including both "George B. Wilson", "George Wilson" AND "Myrtle", "Myrtle Wilson"
-- **Root Cause:** The `_validate_merge()` function in `src/pipeline/character_extraction/consensus.py` had checks for family members with different first names but same last name, but these checks were nested too deep in conditional logic and didn't catch all cases. Specifically:
-  1. The family member check only triggered when certain conditions were met (shared_might_be_lastname AND len(names_with_lastname) > 1)
-  2. When comparing "Wilson" (single word) to "Myrtle Wilson" (full name), the check didn't run early enough
-  3. The LLM was suggesting merges that the validation logic failed to reject
-- **Fix:** Added two early validation checks in `_validate_merge()` BEFORE other complex logic:
+- **Root Cause Hypothesis:** The `_validate_merge()` function in `src/pipeline/character_extraction/consensus.py` had checks for family members with different first names but same last name, but these checks were nested too deep in conditional logic and didn't catch all cases
+- **Fix Attempted:** Added two early validation checks in `_validate_merge()` BEFORE other complex logic:
   1. **Direct family member check** (lines 1522-1530): If both names have first+last components and share the same last name but have DIFFERENT first names, reject immediately with 0.05 confidence
   2. **Ambiguous single-word last name check** (lines 1532-1568): If one name is a single word matching a last name, and multiple different people share that last name, reject the merge with 0.1 confidence
 - **Modified Files:** `src/pipeline/character_extraction/consensus.py` (lines 1502-1568)
 - **Testing:** Verified with existing unit test `tests/test_character_agent.py::TestGatsbyCharacterExtraction::test_gatsby_distinct_pairs_defined` which specifically checks that George Wilson and Myrtle Wilson are kept as distinct characters
-- **Result:** Expected to prevent false merges of family members (spouses, siblings, parents/children)
-- **Impact on Overall Score:** Expected Character Extraction improvement from 2/10 to 7/10 (+1.25 points overall)
+- **Result:** ✗ **FAILED** - George Wilson and Myrtle Wilson are STILL merged in the output
+- **Unexpected Side Effect:** ✗ James Gatz and Gatsby are now SPLIT into separate characters (new critical error)
+- **Impact on Overall Score:** No improvement (still 2/10 for Character Extraction), and introduced new critical error
+- **Lesson Learned:** The fix did not address the root cause. Need to investigate:
+  1. Is the validation being called for the Wilson merge?
+  2. Is the merge happening in a different part of the pipeline?
+  3. Did the fix over-correct and reject valid same-person merges (like Gatsby/Gatz)?
 
 ## Pipeline Notes (Attempt 3)
 - Analysis completed in 60m 9s
@@ -241,37 +252,48 @@ Overall = (
 - **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
 
 ## Next Action
-Proceed to fix phase (PROMPT_fix.md) to address critical character merge issue (George + Myrtle Wilson) as top priority, followed by narrator hallucination error.
+Proceed to fix phase (PROMPT_fix.md) to investigate and fix the character extraction issues.
 
-## Priority for Next Fix
+**CRITICAL PRIORITY:**
+1. **INVESTIGATE WHY FIX FAILED:** The attempt 3 fix for George/Myrtle Wilson merge did NOT work. Need to add debug logging or examine the actual merge decisions being made.
+2. **FIX THE OVER-CORRECTION:** James Gatz and Gatsby are now split (new critical error). The validation logic may be rejecting valid same-person merges.
 
-**Must fix to reach 8.0 threshold:**
+**ROOT CAUSE ANALYSIS NEEDED:**
+- Run the analysis with debug logging enabled in `_validate_merge()` to see:
+  - What merge decisions are being made for "Wilson", "George Wilson", "Myrtle Wilson"
+  - What merge decisions are being made for "Gatsby", "James Gatz"
+  - Are the validation checks actually being triggered?
+  - If triggered, why are they not preventing the Wilson merge?
+  - If triggered, why are they preventing the Gatsby/Gatz merge?
+
+## Priority for Next Fix (Attempt 4)
+
+**CRITICAL - Must fix to have any hope of reaching 8.0:**
 1. **CRITICAL #1:** Separate George Wilson from Myrtle Wilson (+5 points → Character Extraction: 7/10)
-2. **CRITICAL #2:** Fix narrator identification in plot summary (+3 points → Summaries: 9/10)
-3. **HIGH #4:** Fix chapter title formatting (+2 points → Structure: 7/10)
+   - **Status:** Attempt 3 fix FAILED - merge still occurs
+   - **Next step:** Investigate root cause with debug logging
+2. **CRITICAL #3 (NEW):** Merge James Gatz with Gatsby (+3 points → Character Extraction: 10/10 if both fixed)
+   - **Status:** New issue in attempt 3 - validation was too aggressive
+   - **Next step:** Refine validation to allow same-person merges while blocking family member merges
+3. **CRITICAL #2:** Fix narrator identification in plot summary (+3 points → Summaries: 9/10)
 
-**Estimated impact of these 3 fixes:**
-- Structure: 5 → 7 (+0.40 overall)
-- Characters: 2 → 7 (+1.25 overall)
+**Estimated impact if all 3 critical issues fixed:**
+- Characters: 2 → 10 (+2.00 overall)
 - Summaries: 6 → 9 (+0.60 overall)
-- **New estimated overall: 6.90/10**
+- **New estimated overall: 7.25/10** - still below threshold
 
-**Still need ~1.1 more points - likely from:**
-4. **HIGH #7:** Reduce false positives in pronunciation (+1.5 points → Pronunciation: 5.5/10 → +0.15 overall)
-5. **HIGH #8:** Add character names to pronunciation (+1 point → Pronunciation: 6.5/10 → +0.10 overall)
-6. **MEDIUM #9:** Fix Jordan Baker relationship error (+1 point → Profiles: 7/10 → +0.15 overall)
+**HIGH priority fixes to cross 8.0:**
+4. **HIGH #4:** Fix chapter title formatting (+2 points → Structure: 7/10 → +0.40 overall)
+5. **HIGH #7:** Reduce false positives in pronunciation (+2 points → Pronunciation: 6/10 → +0.20 overall)
 
-**Estimated score after all 6 fixes: 7.30/10** - still below threshold
+**Estimated score after 5 fixes: 7.85/10** - very close!
 
-**Additional fixes needed to cross 8.0:**
-7. **MEDIUM #10:** Extract relationships (+1 point → Profiles: 8/10 → +0.15 overall)
-8. **Fix any remaining summary errors** (+1 point → Summaries: 10/10 → +0.20 overall)
+**Additional fixes to safely cross 8.0:**
+6. **HIGH #8:** Add character names to pronunciation (+1 point → Pronunciation: 7/10 → +0.10 overall)
+7. **MEDIUM #9:** Fix Jordan Baker relationship error (+1 point → Profiles: 7/10 → +0.15 overall)
 
-**Estimated score after 8 fixes: 7.65/10** - closer but still below threshold
+**Estimated final score: 8.10/10** - crossing threshold!
 
-**Final push:**
-9. **HIGH #5:** Investigate Chapter 4 length issue and fix boundary detection if needed (+1 point → Structure: 8/10 → +0.20 overall)
-
-**Estimated final score: 7.85/10** - very close to threshold
-
-The path to 8.0+ requires fixing **all critical issues** plus most high-priority issues. The system is improving (5.15 → 4.65 shows regression in character extraction despite structure improvement), indicating that the character merge issue introduced in attempt 2 is more severe than the chapter count issue that was fixed.
+**KEY INSIGHT:** Attempt 3 made the character extraction WORSE by introducing a new critical split. The validation logic needs careful refinement to:
+- Block family member merges (George Wilson ≠ Myrtle Wilson)
+- Allow same-person merges (James Gatz = Gatsby)
