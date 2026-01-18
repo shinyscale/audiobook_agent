@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -164,19 +164,21 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
-## Output Files (Attempt 2)
+## Output Files (Attempt 3)
 - HTML: output/frankenstein/report.html
 - JSON: output/frankenstein/analysis.json
 
-## Pipeline Notes (Attempt 2)
-- Analysis completed successfully in 63m 51s
-- Pipeline metrics: 368 LLM calls, 865,482 tokens
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 69m 26s
+- Pipeline metrics: 369 LLM calls, 861,167 tokens
 - Structure: 25 chapters detected ✓
-- Characters: 49 characters found (many are splits/fragments)
-- Character profiles: 14 profiles generated (missing William Frankenstein)
-- Pronunciations: 663 words flagged (60%+ false positives)
+- Characters: 51 characters found (slightly more than Attempt 2's 49)
+- Character profiles: 26 profiles generated (up from 14 in Attempt 2)
+- Pronunciations: 663 words flagged (same count as Attempt 2)
 - Narrator detected: Victor Frankenstein (first-person) ✓
 - Models used: qwen3-next:80b for character extraction, qwen3:30b for other tasks
+- LLM errors: Several transient 500/EOF errors during character profiling (Elizabeth, Clerval, my father, Margaret) - resulted in 3 low-confidence profiles
+- Warning: "Narrator 'Victor Frankenstein' not found in character list" but then "Confirmed narrator: Victor Frankenstein (first-person)"
 
 ## Next Action
-Re-run analysis to verify Attempt 3 fix for relational descriptor merging
+Evaluate results to assess if Attempt 3 fix improved relational descriptor merging
