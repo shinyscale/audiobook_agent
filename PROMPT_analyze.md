@@ -60,7 +60,7 @@ Example update:
 ```markdown
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1 of 5
+- **Attempt:** 1
 - **Phase:** awaiting_evaluation
 
 ## Output Files

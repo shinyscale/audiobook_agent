@@ -246,8 +246,8 @@ Future iterations depend on understanding what was tried. Be explicit about your
 If you can't figure out how to fix an issue after reasonable investigation:
 1. Document what you tried in EVALUATION_STATE.md
 2. Lower the issue priority or mark it as "deferred"
-3. Move on to the next issue
-4. The loop will eventually hit max attempts and advance
+3. Move on to the next issue in the same text
+4. The loop stays on this text until it passes - try different approaches
 
 ### If Root Cause Cannot Be Found
 If Phase 1 fails to identify a clear root cause:

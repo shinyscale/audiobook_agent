@@ -24,15 +24,14 @@ if [ ! -f "manifest.json" ]; then
 fi
 
 THRESHOLD=$(jq -r '.quality_threshold' manifest.json)
-MAX_ATTEMPTS=$(jq -r '.max_attempts_per_text' manifest.json)
 
 echo ""
 echo "========================================"
 echo "  Audiobook Analysis Oracle Loop"
 echo "========================================"
 echo "Quality Threshold: $THRESHOLD"
-echo "Max Attempts per Text: $MAX_ATTEMPTS"
 echo "Max Total Iterations: $MAX_ITERATIONS"
+echo "Mode: Stay on each text until PASS"
 echo "========================================"
 
 # Determine which prompt to use

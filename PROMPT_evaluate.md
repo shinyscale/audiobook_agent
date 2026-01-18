@@ -268,9 +268,9 @@ Update `EVALUATION_STATE.md` with the full evaluation results:
 
 ## Active Text
 - **Name:** {book_name}
-- **Attempt:** {n} of 5
+- **Attempt:** {n}
 - **Phase:** {awaiting_fix | complete}
-- **baseline_score: {first_attempt_score}** <!-- Keep this unchanged until text passes or max attempts reached -->
+- **baseline_score: {first_attempt_score}** <!-- Keep this unchanged until text passes -->
 
 ## Latest Scores
 - Structure Detection: {score}/10
@@ -357,7 +357,7 @@ Here's what a good evaluation update to EVALUATION_STATE.md looks like:
 
 ## Active Text
 - **Name:** the_great_gatsby
-- **Attempt:** 2 of 5
+- **Attempt:** 2
 - **Phase:** awaiting_fix
 
 ## Latest Scores

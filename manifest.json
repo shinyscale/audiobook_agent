@@ -1,49 +1,23 @@
 {
   "quality_threshold": 8.0,
-  "max_attempts_per_text": 5,
   "texts": [
     {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
-      "complete": true,
-      "attempts": 5,
-      "final_score": 4.05,
-      "issues_resolved": [
-        "Attempt 1→2: Fixed chapter count (7→9 chapters) via title selection prioritization",
-        "Attempt 4→5: PARTIAL - George Wilson and Myrtle Wilson now separate (critical fix)"
-      ],
-      "issues_not_resolved": [
-        "Attempt 2→3: FAILED to fix George/Myrtle Wilson merge - still occurs",
-        "Attempt 2→3: NEW CRITICAL ISSUE - James Gatz and Gatsby now split into separate characters (over-correction)",
-        "Attempt 3→4: FAILED - Pre-filtering ambiguous lastnames had ZERO impact, all critical issues remain",
-        "Attempt 4→5: CRITICAL REGRESSION - Chapter count dropped from 9 to 6 (broke chapter detection)",
-        "Attempt 4→5: James Gatz and Gatsby STILL separate (unfixed across all attempts)",
-        "Attempt 4→5: Narrator misidentified as 'elevator boy' (was 'Mrs. Sigourney Howard' in attempt 4)",
-        "MAX ATTEMPTS REACHED - TEXT FAILED at 4.05/10 (threshold: 8.0)"
-      ]
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "previous_attempts_summary": "Attempts 1-5 failed (best: 6.15/10). Key issues: James Gatz/Gatsby split, narrator misidentification, character merge failures. See ATTEMPT_1_SUMMARY.md for details."
     },
     {
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
-      "complete": true,
-      "attempts": 5,
-      "final_score": 6.75,
-      "issues_resolved": [
-        "Attempt 2: PARTIAL - 'the creature' correctly merges with 'the monster' and 'the wretch' as aliases",
-        "Attempt 3: MAINTAINED - 'the creature' still properly merged",
-        "Attempt 5: MAINTAINED - 'the creature' merge persists (only success across all attempts)"
-      ],
-      "issues_not_resolved": [
-        "Attempt 3→4: WASTED ATTEMPT - Added diagnostic logging but didn't analyze it or implement fixes",
-        "Attempt 5: ZERO IMPROVEMENT - Moving relational pairing to execute first had NO IMPACT",
-        "Attempt 5: Alphonse Frankenstein STILL fragmented into 5 pieces (my father=53, Father=6, M.=23, M. Frankenstein=2, Alphonse=1)",
-        "Attempt 5: William Frankenstein STILL missing (appears in Ch. 7-8 summaries but not in character list)",
-        "Attempt 5: Henry Clerval STILL split into 3 entries (Clerval=55, M. Clerval=2, M.=23)",
-        "Attempt 5: Caroline Frankenstein STILL split (my mother=10, Madame Frankenstein=1)",
-        "Attempt 5: Robert Walton STILL split (Walton=6, Captain Walton=1)",
-        "Attempt 5: Pronunciation false positives UNCHANGED (664 entries, ~50% common words: 'my', 'this', 'man', 'father', 'old', 'child', 'mother', 'young', 'girl', 'woman')",
-        "MAX ATTEMPTS REACHED - TEXT FAILED at 6.75/10 (threshold: 8.0)"
-      ]
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "previous_attempts_summary": "Attempts 1-5 failed (best: 6.75/10). Key issues: Character fragmentation (Alphonse, Henry, William), pronunciation false positives. See ATTEMPT_1_SUMMARY.md for details."
     },
     {
       "name": "dracula",
