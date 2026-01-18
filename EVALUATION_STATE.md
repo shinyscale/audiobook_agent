@@ -3,12 +3,12 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
-- Quality Report: output/gatsby_20260117_225321/quality.md
+- Quality Report: output/gatsby_20260118_000827/quality.md
 
 ## Latest Scores (Attempt 4)
 - Structure Detection: 5/10 ← FAILING
@@ -316,6 +316,24 @@ Overall = (
   - Moral valence classification failed for Tom, Daisy, Myrtle, Baker, McKee
 - **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
 - **Critical Character Issue:** Console output shows "Myrtle (aka George B. Wilson, George Wilson)" - merge STILL present
+
+## Pipeline Notes (Attempt 5)
+- Analysis completed in 61m 6s
+- **Chapter Detection:** Found 7 chapters (✗ REGRESSION from attempt 4 - was 9, now 7)
+- **Character Extraction:** 57 characters detected
+- **Character Profiles:** 20 profiles generated, 4 low-confidence
+- **Pronunciation Guide:** 626 words flagged (slight decrease from 628)
+- **Warnings/Errors:**
+  - TOC validation: 87 entries seems too many (may be false positive)
+  - TOC enforcement: Only 6 boundaries found but TOC expects 87
+  - StructureAgent: 3 errors found but refinement not yet implemented
+  - Failed to parse JSON responses for Gatsby, McKee, the butler
+  - Low confidence profiles: Gatsby (0.30), Tom (0.00), McKee (0.30), the butler (0.30)
+  - Moral valence classification failed for Tom, Jordan, McKee
+  - LLM batch enrichment failed: failed to parse JSON
+- **Narrator:** Detected "elevator boy" (still incorrect - should be Nick Carraway)
+- **Character list shows:** Gatsby (257 mentions), Tom (189), Daisy (185), Jordan (110), Wolfshiem (37)
+- **Need to check:** Whether George/Myrtle Wilson merge was fixed, and whether James Gatz/Gatsby are merged
 
 ## Next Action
 
