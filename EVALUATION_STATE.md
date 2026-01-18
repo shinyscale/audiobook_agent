@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -219,21 +219,21 @@ This suggests one of three problems:
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
-## Output Files (Attempt 3)
+## Output Files (Attempt 4)
 - HTML: output/frankenstein/report.html
 - JSON: output/frankenstein/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed successfully in 69m 26s
-- Pipeline metrics: 369 LLM calls, 861,167 tokens
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 62m 13s
+- Pipeline metrics: 370 LLM calls, 866,409 tokens
 - Structure: 25 chapters detected ✓
-- Characters: 51 characters found (down from 49 in Attempt 2 - expected to decrease, actually increased)
-- Character profiles: 26 profiles generated (up from 14 in Attempt 2)
-- Pronunciations: 663 words flagged (same count as Attempt 2)
-- Narrator detected: Victor Frankenstein (first-person) ✓
-- Models used: qwen3-next:80b-a3b-instruct-q8_0 for character extraction, qwen3:30b-instruct for other tasks
-- LLM errors: Several transient 500/EOF errors during character profiling (Elizabeth, Clerval, my father, Margaret) - resulted in 3 low-confidence profiles
-- Warning: "Narrator 'Victor Frankenstein' not found in character list" but then "Confirmed narrator: Victor Frankenstein (first-person)"
+- Characters: 51 characters found (same as Attempt 3)
+- Character profiles: 26 profiles generated (same as Attempt 3)
+- Pronunciations: 664 words flagged (up from 663 in Attempt 3)
+- Narrator detected: "my creator" (unexpected - likely first-person creature narration, not Victor)
+- Models used: qwen3-next:80b-a3b-instruct-q8_0 for character extraction/summaries, qwen3:30b-instruct for structure/pronunciation
+- LLM errors: JSON parse failures during character profiling (Elizabeth, "the old man", Margaret) - resulted in 3 low-confidence profiles
+- Diagnostic logging enabled: Added comprehensive logging to trace merge candidate pairs and LLM decisions
 
 ## Detailed Scoring Rationale
 
