@@ -973,6 +973,9 @@ class CharacterConsensusBuilder:
             top_proper = sorted(proper_names, key=lambda n: -mention_rank.get(n, 0))[:30]
             top_relational = sorted(relational_names, key=lambda n: -mention_rank.get(n, 0))[:20]
 
+            logger.info(f"Relational/descriptive names found: {top_relational[:10]}")
+            logger.info(f"Top proper names for pairing: {top_proper[:10]}")
+
             for rel_name in top_relational:
                 if len(pairs_set) >= max_pairs:
                     break
@@ -980,9 +983,15 @@ class CharacterConsensusBuilder:
                     if len(pairs_set) >= max_pairs:
                         break
                     add_pair(rel_name, proper_name)
-                    logger.debug(
-                        f"Relational pair: '{rel_name}' <-> '{proper_name}'"
-                    )
+                    # Log father/Frankenstein pairs specifically
+                    if ('father' in rel_name.lower() and 'frankenstein' in proper_name.lower()):
+                        logger.info(
+                            f"CRITICAL PAIR GENERATED: '{rel_name}' <-> '{proper_name}'"
+                        )
+                    else:
+                        logger.debug(
+                            f"Relational pair: '{rel_name}' <-> '{proper_name}'"
+                        )
 
         return list(pairs_set)
 
@@ -1051,6 +1060,13 @@ class CharacterConsensusBuilder:
         candidates = self._candidate_pairs_for_merge(name_groups, max_pairs=250)
         logger.info(f"Pairwise alias resolution: evaluating {len(candidates)} candidate pairs")
 
+        # Log all candidate pairs for debugging
+        logger.debug("=== ALL CANDIDATE PAIRS ===")
+        for a, b in candidates[:50]:  # Log first 50 to avoid spam
+            logger.debug(f"  Candidate: '{a}' <-> '{b}'")
+        if len(candidates) > 50:
+            logger.debug(f"  ... and {len(candidates) - 50} more pairs")
+
         # Union-Find to build clusters
         parent: dict[str, str] = {n: n for n in names}
 
@@ -1068,43 +1084,45 @@ class CharacterConsensusBuilder:
         # Evaluate candidates
         accepted = 0
         for a, b in candidates:
-            # DEBUG: Log Wilson and Gatsby pairs being evaluated
+            # DEBUG: Log pairs of interest
             is_wilson_pair = ('wilson' in a.lower() or 'wilson' in b.lower())
             is_gatsby_pair = (('gat' in a.lower() or 'gatz' in a.lower()) or
                             ('gat' in b.lower() or 'gatz' in b.lower()))
+            is_father_pair = ('father' in a.lower() or 'father' in b.lower())
+            is_frankenstein_pair = ('frankenstein' in a.lower() or 'frankenstein' in b.lower())
+            is_clerval_pair = ('clerval' in a.lower() or 'clerval' in b.lower())
+            is_walton_pair = ('walton' in a.lower() or 'walton' in b.lower())
+
+            # Determine if this is an interesting pair to log
+            is_interesting = (is_wilson_pair or is_gatsby_pair or is_father_pair or
+                            is_frankenstein_pair or is_clerval_pair or is_walton_pair)
 
             same, conf, canonical, alias = self._llm_pairwise_merge_decision(a, b, name_groups)
 
-            if is_wilson_pair:
-                logger.info(f"DEBUG: Wilson pair evaluated: '{a}' + '{b}' -> same={same}, conf={conf:.2f}")
-            if is_gatsby_pair:
-                logger.info(f"DEBUG: Gatsby pair evaluated: '{a}' + '{b}' -> same={same}, conf={conf:.2f}")
+            if is_interesting:
+                logger.info(f"DEBUG: Pair evaluated: '{a}' <-> '{b}' -> same={same}, conf={conf:.2f}")
 
             if not same or conf < 0.7:
-                if is_wilson_pair or is_gatsby_pair:
+                if is_interesting:
                     logger.info(f"DEBUG: Rejected by LLM (same={same}, conf={conf:.2f})")
                 continue
 
             # Validate with our strict sanity checks before merging
             is_valid, _vconf = self._validate_merge(canonical or a, alias or b, name_groups)
 
-            if is_wilson_pair:
-                logger.info(f"DEBUG: Wilson validation result: valid={is_valid}, conf={_vconf:.2f}")
-            if is_gatsby_pair:
-                logger.info(f"DEBUG: Gatsby validation result: valid={is_valid}, conf={_vconf:.2f}")
+            if is_interesting:
+                logger.info(f"DEBUG: Validation result: valid={is_valid}, conf={_vconf:.2f}")
 
             if not is_valid:
-                if is_wilson_pair or is_gatsby_pair:
+                if is_interesting:
                     logger.info(f"DEBUG: Rejected by validation (conf={_vconf:.2f})")
                 continue
 
             union(a, b)
             accepted += 1
 
-            if is_wilson_pair:
-                logger.info(f"DEBUG: Wilson merge ACCEPTED: '{a}' + '{b}'")
-            if is_gatsby_pair:
-                logger.info(f"DEBUG: Gatsby merge ACCEPTED: '{a}' + '{b}'")
+            if is_interesting:
+                logger.info(f"DEBUG: Merge ACCEPTED: '{a}' <-> '{b}'")
 
         logger.info(f"Pairwise alias resolution: accepted {accepted}/{len(candidates)} merges")
 

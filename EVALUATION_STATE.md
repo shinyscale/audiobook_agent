@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 3 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 4 of 5
+- **Phase:** awaiting_analysis
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -177,11 +177,43 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 3. Merging logic after validation is failing
 4. The pairs are being generated and validated but then rejected in a later stage
 
-**Next Steps:** Need to add detailed logging at every stage:
-- Log all candidate pairs generated in `_candidate_pairs_for_merge`
-- Log all LLM pairwise merge decisions
-- Log all validation pass/fail with reasons
-- Log final merge execution
+**Next Steps:** Need to add detailed logging at every stage to diagnose the root cause.
+
+### Attempt 4: Added comprehensive diagnostic logging to merge pipeline
+**Issue:** Critical #1 from Attempt 3 - Need to trace exactly where the merge pipeline is failing for "my father" + "Alphonse Frankenstein"
+
+**Root Cause Investigation:**
+After Attempts 2 and 3, we know:
+- Candidate pair generation was enhanced (Attempt 2)
+- Validation logic was enhanced (Attempt 3)
+- Yet NO merges are happening for fragmented characters
+
+This suggests one of three problems:
+1. Candidate pairs are still not being generated properly
+2. LLM is rejecting the pairs in pairwise merge decision
+3. Some other stage in the pipeline is failing
+
+**Fix Applied:**
+- Modified `src/pipeline/character_extraction/consensus.py` lines 1051-1059: Added logging of all candidate pairs (first 50)
+- Modified `src/pipeline/character_extraction/consensus.py` lines 1069-1109: Enhanced logging for merge evaluation, validation, and acceptance/rejection
+  - Added tracking for "father", "frankenstein", "clerval", "walton" pairs (in addition to existing wilson/gatsby tracking)
+  - Log LLM decision (same_person, confidence)
+  - Log validation result (is_valid, confidence)
+  - Log merge acceptance/rejection with reasons
+- Modified `src/pipeline/character_extraction/consensus.py` lines 973-990: Added logging in relational/descriptive pairing section
+  - Log top relational/descriptive names found
+  - Log top proper names used for pairing
+  - Flag critical pairs like "my father" + "Alphonse Frankenstein" with INFO level
+
+**Testing:** All 444 tests pass.
+
+**Expected Impact:** Logging will reveal exactly where the merge pipeline fails:
+- If pairs aren't generated: We'll see missing pairs in candidate list
+- If LLM rejects: We'll see same=False or low confidence in LLM decision logs
+- If validation rejects: We'll see is_valid=False in validation logs
+- If merge fails after validation: We'll see acceptance logs missing for valid pairs
+
+**Next Action:** Re-run analysis with enhanced logging to diagnose the root cause. The logs will guide the next fix.
 
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
