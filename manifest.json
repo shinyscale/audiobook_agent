@@ -25,23 +25,25 @@
     {
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
-      "complete": false,
-      "attempts": 4,
-      "final_score": null,
+      "complete": true,
+      "attempts": 5,
+      "final_score": 6.75,
       "issues_resolved": [
-        "Attempt 2: PARTIAL - 'the creature' now correctly merges with 'the monster' and 'the wretch' as aliases",
+        "Attempt 2: PARTIAL - 'the creature' correctly merges with 'the monster' and 'the wretch' as aliases",
         "Attempt 3: MAINTAINED - 'the creature' still properly merged",
-        "Attempt 4: NONE - no behavioral changes, only logging added"
+        "Attempt 5: MAINTAINED - 'the creature' merge persists (only success across all attempts)"
       ],
       "issues_not_resolved": [
         "Attempt 3→4: WASTED ATTEMPT - Added diagnostic logging but didn't analyze it or implement fixes",
-        "Attempt 3→4: Alphonse Frankenstein STILL fragmented into 5 pieces (my father=54, Father=6, M.=23, M. Frankenstein=2, Alphonse=1)",
-        "Attempt 3→4: William Frankenstein STILL missing (appears in Ch. 8 summary but not in character list)",
-        "Attempt 3→4: Henry Clerval STILL split into 3 entries (Clerval=55, M. Clerval=2, M.=23)",
-        "Attempt 3→4: Robert Walton STILL split (Walton=6, Captain Walton=1)",
-        "Attempt 3→4: Pronunciation false positives UNCHANGED (664 entries, ~50% common words like 'my', 'man', 'father', 'old')"
-      ],
-      "last_score": 6.25
+        "Attempt 5: ZERO IMPROVEMENT - Moving relational pairing to execute first had NO IMPACT",
+        "Attempt 5: Alphonse Frankenstein STILL fragmented into 5 pieces (my father=53, Father=6, M.=23, M. Frankenstein=2, Alphonse=1)",
+        "Attempt 5: William Frankenstein STILL missing (appears in Ch. 7-8 summaries but not in character list)",
+        "Attempt 5: Henry Clerval STILL split into 3 entries (Clerval=55, M. Clerval=2, M.=23)",
+        "Attempt 5: Caroline Frankenstein STILL split (my mother=10, Madame Frankenstein=1)",
+        "Attempt 5: Robert Walton STILL split (Walton=6, Captain Walton=1)",
+        "Attempt 5: Pronunciation false positives UNCHANGED (664 entries, ~50% common words: 'my', 'this', 'man', 'father', 'old', 'child', 'mother', 'young', 'girl', 'woman')",
+        "MAX ATTEMPTS REACHED - TEXT FAILED at 6.75/10 (threshold: 8.0)"
+      ]
     },
     {
       "name": "dracula",
