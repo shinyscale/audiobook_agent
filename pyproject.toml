@@ -60,6 +60,7 @@ full = [
 [project.scripts]
 audiobook-prep = "src.cli:main"
 audiobook-prep-gui = "src.gui.desktop:main"
+oracle-monitor = "src.gui.oracle_monitor:main"
 
 [project.urls]
 Homepage = "https://github.com/zachaudiobook/audiobook-prep"
