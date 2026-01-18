@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4 of 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -207,33 +207,39 @@ This suggests one of three problems:
 
 **Testing:** All 444 tests pass.
 
-**Expected Impact:** Logging will reveal exactly where the merge pipeline fails:
-- If pairs aren't generated: We'll see missing pairs in candidate list
-- If LLM rejects: We'll see same=False or low confidence in LLM decision logs
-- If validation rejects: We'll see is_valid=False in validation logs
-- If merge fails after validation: We'll see acceptance logs missing for valid pairs
+**Result:** FAILED - No improvement, same issues as Attempt 3
+- ❌ "my father" (54), "Father" (6), "M." (23), "M. Frankenstein" (2), "Alphonse Frankenstein" (1) STILL separate
+- ❌ William Frankenstein STILL missing from character list (present in Ch. 8 summary)
+- ❌ "Clerval" (55) and "M. Clerval" (2) STILL separate
+- ❌ "Walton" (6) and "Captain Walton" (1) STILL separate
+- ❌ "my mother" (10) still separate from "Madame Frankenstein"
+- ❌ Pronunciation false positives UNCHANGED (664 entries, ~50% common words)
+- ✅ "the creature" (24) still correctly merged with aliases (maintained from Attempt 2)
+- ✅ 25 chapters detected correctly
+- ✅ Chapter summaries remain excellent
 
-**Next Action:** Re-run analysis with enhanced logging to diagnose the root cause. The logs will guide the next fix.
+**Analysis:** Diagnostic logging added but NO FIXES IMPLEMENTED. The logging changes only add observability - they don't change behavior. The analysis ran with the same broken logic as Attempt 3, so results are identical. Score: 6.25/10 (unchanged).
+
+**Critical Error:** Attempt 4 was supposed to ANALYZE THE LOGS and then IMPLEMENT A FIX based on findings. Instead, only logging was added and the system was re-run without any behavioral changes. This wasted an attempt.
+
+**Next Action:** Must analyze the diagnostic logs to identify root cause, THEN implement an actual fix to the merge logic.
 
 ## Previous Text: gatsby
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
 ## Output Files (Attempt 4)
-- HTML: output/frankenstein/report.html
-- JSON: output/frankenstein/analysis.json
+- HTML: output/frankenstein/report.html (generated Jan 18 06:10)
+- JSON: output/frankenstein/analysis.json (generated Jan 18 06:10)
 
 ## Pipeline Notes (Attempt 4)
-- Analysis completed successfully in 62m 13s
-- Pipeline metrics: 370 LLM calls, 866,409 tokens
+- Analysis completed successfully
 - Structure: 25 chapters detected ✓
-- Characters: 51 characters found (same as Attempt 3)
-- Character profiles: 26 profiles generated (same as Attempt 3)
-- Pronunciations: 664 words flagged (up from 663 in Attempt 3)
-- Narrator detected: "my creator" (unexpected - likely first-person creature narration, not Victor)
-- Models used: qwen3-next:80b-a3b-instruct-q8_0 for character extraction/summaries, qwen3:30b-instruct for structure/pronunciation
-- LLM errors: JSON parse failures during character profiling (Elizabeth, "the old man", Margaret) - resulted in 3 low-confidence profiles
-- Diagnostic logging enabled: Added comprehensive logging to trace merge candidate pairs and LLM decisions
+- Characters: 51 characters found (SAME as Attempt 3 - no improvement)
+- Character profiles: Generated
+- Pronunciations: 664 words flagged (essentially same as 663 in Attempt 3)
+- Diagnostic logging enabled but NOT ANALYZED - logging code added without implementing fixes
+- **CRITICAL:** Attempt 4 wasted - only added logging without using it to implement fixes
 
 ## Detailed Scoring Rationale
 
@@ -326,11 +332,15 @@ Rounding: **Overall: 6.25/10** (Below threshold: 8.0)
 
 ## Next Action
 
-**Status:** FAIL - Score 6.25/10 (threshold: 8.0)
+**Status:** FAIL - Score 6.25/10 (threshold: 8.0) - NO IMPROVEMENT from Attempt 3
 
-**Primary blockers:**
-1. Character fragmentation (2.75 points lost)
-2. Missing William Frankenstein (1.0 point lost)
+**Attempt 4 was WASTED:** Only added logging without analyzing it or implementing fixes.
+
+**This is the FINAL ATTEMPT (5 of 5).** Must fix critical issues or Frankenstein will fail like Gatsby.
+
+**Primary blockers (unchanged from Attempt 3):**
+1. Character fragmentation (2.75 points lost) ← MUST FIX
+2. Missing William Frankenstein (1.0 point lost) ← MUST FIX
 3. Pronunciation false positives (0.7 points lost)
 
 **Required fixes to reach 8.0:**
@@ -338,6 +348,12 @@ Rounding: **Overall: 6.25/10** (Below threshold: 8.0)
 - Add William Frankenstein to character list: +0.5 pts → 6.75/10 (not enough alone)
 - Reduce pronunciation false positives: +0.4 pts → 6.65/10 (not enough alone)
 
-**Must fix Critical #1 (Alphonse fragmentation) to have any chance of passing.**
+**CRITICAL:** Must fix character fragmentation (Critical #1) in Attempt 5 or fail.
 
-Run PROMPT_fix.md to address character alias resolution root cause with detailed logging.
+**Strategy for Attempt 5:**
+1. FIRST: Analyze the diagnostic logs from Attempt 4 to find root cause
+2. THEN: Implement targeted fix based on log analysis
+3. Focus on highest-impact issue: Alphonse Frankenstein fragmentation
+4. If time permits: Also fix William missing and pronunciation false positives
+
+Run PROMPT_fix.md to analyze logs and implement character merge fix.

@@ -26,18 +26,20 @@
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
       "complete": false,
-      "attempts": 3,
+      "attempts": 4,
       "final_score": null,
       "issues_resolved": [
         "Attempt 2: PARTIAL - 'the creature' now correctly merges with 'the monster' and 'the wretch' as aliases",
-        "Attempt 3: MAINTAINED - 'the creature' still properly merged"
+        "Attempt 3: MAINTAINED - 'the creature' still properly merged",
+        "Attempt 4: NONE - no behavioral changes, only logging added"
       ],
       "issues_not_resolved": [
-        "Attempt 3: FAILED - Validation logic changes had ZERO impact on relational descriptor merging",
-        "Attempt 3: Alphonse Frankenstein STILL fragmented into 5 pieces (my father, Father, M., M. Frankenstein, Alphonse Frankenstein)",
-        "Attempt 3: William Frankenstein STILL missing from character list",
-        "Attempt 3: Henry Clerval STILL split into 3 entries (Clerval, M. Clerval, M.)",
-        "Attempt 3: Pronunciation false positives UNCHANGED (663 entries, ~50% common words)"
+        "Attempt 3→4: WASTED ATTEMPT - Added diagnostic logging but didn't analyze it or implement fixes",
+        "Attempt 3→4: Alphonse Frankenstein STILL fragmented into 5 pieces (my father=54, Father=6, M.=23, M. Frankenstein=2, Alphonse=1)",
+        "Attempt 3→4: William Frankenstein STILL missing (appears in Ch. 8 summary but not in character list)",
+        "Attempt 3→4: Henry Clerval STILL split into 3 entries (Clerval=55, M. Clerval=2, M.=23)",
+        "Attempt 3→4: Robert Walton STILL split (Walton=6, Captain Walton=1)",
+        "Attempt 3→4: Pronunciation false positives UNCHANGED (664 entries, ~50% common words like 'my', 'man', 'father', 'old')"
       ],
       "last_score": 6.25
     },
