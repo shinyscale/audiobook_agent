@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 5 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -249,18 +249,20 @@ Analyzed the diagnostic logs from Attempt 4:
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
-## Output Files (Attempt 4)
-- HTML: output/frankenstein/report.html (generated Jan 18 06:10)
-- JSON: output/frankenstein/analysis.json (generated Jan 18 06:10)
+## Output Files (Attempt 5)
+- HTML: output/frankenstein/report.html (generated Jan 18 07:23)
+- JSON: output/frankenstein/analysis.json (generated Jan 18 07:23)
 
-## Pipeline Notes (Attempt 4)
-- Analysis completed successfully
+## Pipeline Notes (Attempt 5)
+- Analysis completed successfully in 63m 40s
 - Structure: 25 chapters detected ✓
-- Characters: 51 characters found (SAME as Attempt 3 - no improvement)
-- Character profiles: Generated
-- Pronunciations: 664 words flagged (essentially same as 663 in Attempt 3)
-- Diagnostic logging enabled but NOT ANALYZED - logging code added without implementing fixes
-- **CRITICAL:** Attempt 4 wasted - only added logging without using it to implement fixes
+- Characters: 52 characters found (increased by 1 from Attempt 4)
+- Character profiles: 26 profiles generated (4 low-confidence: Clerval, Justine, Felix, Margaret)
+- Pronunciations: 664 words flagged (same as Attempt 4)
+- Narrator detected: Victor Frankenstein (first-person) - was "my creator" during extraction
+- Total LLM tokens: 866,267
+- Warnings: Some JSON parse failures for character profiles (Clerval, Justine, Felix, Margaret)
+- Relational descriptor pairing code now executes first (fix applied)
 
 ## Detailed Scoring Rationale
 
