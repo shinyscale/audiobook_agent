@@ -321,29 +321,6 @@ class CharacterConsensusBuilder:
         if epithet_groups:
             logger.info(f"CharacterConsensusBuilder: found {len(epithet_groups)} descriptive handles")
 
-        # DEBUG: Log names before filtering
-        logger.info(f"DEBUG: Before ambiguous lastname filter: {len(proper_name_groups)} names")
-        wilson_related = [n for n in proper_name_groups.keys() if 'wilson' in n.lower()]
-        if wilson_related:
-            logger.info(f"DEBUG: Wilson-related names BEFORE filter: {wilson_related}")
-        gatsby_related = [n for n in proper_name_groups.keys() if 'gat' in n.lower() or 'gatz' in n.lower()]
-        if gatsby_related:
-            logger.info(f"DEBUG: Gatsby-related names BEFORE filter: {gatsby_related}")
-
-        # CRITICAL FIX: Filter out ambiguous last-name-only entries before alias resolution
-        # Example: If we have "Wilson", "George Wilson", and "Myrtle Wilson", remove "Wilson"
-        # because it's ambiguous and could refer to either person
-        proper_name_groups = self._filter_ambiguous_lastnames(proper_name_groups)
-
-        # DEBUG: Log names after filtering
-        logger.info(f"DEBUG: After ambiguous lastname filter: {len(proper_name_groups)} names")
-        wilson_related_after = [n for n in proper_name_groups.keys() if 'wilson' in n.lower()]
-        if wilson_related_after:
-            logger.info(f"DEBUG: Wilson-related names AFTER filter: {wilson_related_after}")
-        gatsby_related_after = [n for n in proper_name_groups.keys() if 'gat' in n.lower() or 'gatz' in n.lower()]
-        if gatsby_related_after:
-            logger.info(f"DEBUG: Gatsby-related names AFTER filter: {gatsby_related_after}")
-
         # Resolve aliases for proper names
         if self.use_llm_alias_resolution and len(proper_name_groups) > 1:
             logger.info("CharacterConsensusBuilder: using LLM alias resolution")
@@ -369,15 +346,6 @@ class CharacterConsensusBuilder:
 
         # Log alias groups
         logger.info(f"CharacterConsensusBuilder: resolved to {len(alias_groups)} characters")
-
-        # DEBUG: Specifically log Wilson and Gatsby alias groups
-        for canonical, aliases in alias_groups.items():
-            if 'wilson' in canonical.lower() or any('wilson' in a.lower() for a in aliases):
-                logger.info(f"DEBUG: FINAL Wilson group: '{canonical}' <- {aliases}")
-            if ('gat' in canonical.lower() or 'gatz' in canonical.lower() or
-                any('gat' in a.lower() or 'gatz' in a.lower() for a in aliases)):
-                logger.info(f"DEBUG: FINAL Gatsby group: '{canonical}' <- {aliases}")
-
         for canonical, aliases in sorted(alias_groups.items(), key=lambda x: -len(x[1])):
             if aliases:
                 logger.info(f"  '{canonical}' <- aliases: {aliases}")
@@ -855,67 +823,6 @@ class CharacterConsensusBuilder:
             x, y = (a, b) if a < b else (b, a)
             pairs_set.add((x, y))
 
-        # PRIORITY: Add relational/familial descriptor candidates FIRST (e.g., "my father", "Father", "the old man")
-        # These often don't share tokens with character names but may refer to named characters
-        # Generate these FIRST to ensure they're included within max_pairs limit
-        RELATIONAL_TERMS = {
-            'father', 'mother', 'son', 'daughter', 'brother', 'sister',
-            'uncle', 'aunt', 'grandfather', 'grandmother', 'cousin',
-            'husband', 'wife', 'friend', 'companion',
-        }
-
-        # Descriptive patterns that might be character references
-        DESCRIPTIVE_PATTERNS = {
-            'man', 'woman', 'lady', 'gentleman', 'creature', 'monster',
-            'fiend', 'wretch', 'stranger', 'visitor', 'guest',
-            'captain', 'professor', 'doctor', 'detective',
-        }
-
-        # Find names that contain only relational/descriptive terms
-        relational_names = []
-        proper_names = []
-
-        for name in names:
-            words = re.sub(r"[^\w\s]", "", name.lower()).split()
-            sig = self._filter_title_words(words)
-
-            # Check if this is a relational/descriptive reference
-            is_relational = any(term in sig for term in RELATIONAL_TERMS)
-            is_descriptive = any(term in sig for term in DESCRIPTIVE_PATTERNS)
-
-            # Check if this is a proper name (capitalized, multi-word, etc.)
-            is_proper = len([w for w in name.split() if w and w[0].isupper() and len(w) > 2]) >= 1
-
-            if is_relational or is_descriptive:
-                relational_names.append(name)
-            elif is_proper:
-                proper_names.append(name)
-
-        # Pair each relational/descriptive name with top proper names
-        # The LLM will decide if they actually refer to the same person
-        top_proper = sorted(proper_names, key=lambda n: -mention_rank.get(n, 0))[:30]
-        top_relational = sorted(relational_names, key=lambda n: -mention_rank.get(n, 0))[:20]
-
-        logger.info(f"Relational/descriptive names found: {top_relational[:10]}")
-        logger.info(f"Top proper names for pairing: {top_proper[:10]}")
-
-        for rel_name in top_relational:
-            if len(pairs_set) >= max_pairs:
-                break
-            for proper_name in top_proper:
-                if len(pairs_set) >= max_pairs:
-                    break
-                add_pair(rel_name, proper_name)
-                # Log father/Frankenstein pairs specifically
-                if ('father' in rel_name.lower() and 'frankenstein' in proper_name.lower()):
-                    logger.info(
-                        f"CRITICAL PAIR GENERATED: '{rel_name}' <-> '{proper_name}'"
-                    )
-                else:
-                    logger.debug(
-                        f"Relational pair: '{rel_name}' <-> '{proper_name}'"
-                    )
-
         # Generate within token buckets
         for token, bucket in token_to_names.items():
             if len(bucket) < 2:
@@ -1059,13 +966,6 @@ class CharacterConsensusBuilder:
         candidates = self._candidate_pairs_for_merge(name_groups, max_pairs=250)
         logger.info(f"Pairwise alias resolution: evaluating {len(candidates)} candidate pairs")
 
-        # Log all candidate pairs for debugging
-        logger.debug("=== ALL CANDIDATE PAIRS ===")
-        for a, b in candidates[:50]:  # Log first 50 to avoid spam
-            logger.debug(f"  Candidate: '{a}' <-> '{b}'")
-        if len(candidates) > 50:
-            logger.debug(f"  ... and {len(candidates) - 50} more pairs")
-
         # Union-Find to build clusters
         parent: dict[str, str] = {n: n for n in names}
 
@@ -1083,45 +983,17 @@ class CharacterConsensusBuilder:
         # Evaluate candidates
         accepted = 0
         for a, b in candidates:
-            # DEBUG: Log pairs of interest
-            is_wilson_pair = ('wilson' in a.lower() or 'wilson' in b.lower())
-            is_gatsby_pair = (('gat' in a.lower() or 'gatz' in a.lower()) or
-                            ('gat' in b.lower() or 'gatz' in b.lower()))
-            is_father_pair = ('father' in a.lower() or 'father' in b.lower())
-            is_frankenstein_pair = ('frankenstein' in a.lower() or 'frankenstein' in b.lower())
-            is_clerval_pair = ('clerval' in a.lower() or 'clerval' in b.lower())
-            is_walton_pair = ('walton' in a.lower() or 'walton' in b.lower())
-
-            # Determine if this is an interesting pair to log
-            is_interesting = (is_wilson_pair or is_gatsby_pair or is_father_pair or
-                            is_frankenstein_pair or is_clerval_pair or is_walton_pair)
-
             same, conf, canonical, alias = self._llm_pairwise_merge_decision(a, b, name_groups)
-
-            if is_interesting:
-                logger.info(f"DEBUG: Pair evaluated: '{a}' <-> '{b}' -> same={same}, conf={conf:.2f}")
-
             if not same or conf < 0.7:
-                if is_interesting:
-                    logger.info(f"DEBUG: Rejected by LLM (same={same}, conf={conf:.2f})")
                 continue
 
             # Validate with our strict sanity checks before merging
             is_valid, _vconf = self._validate_merge(canonical or a, alias or b, name_groups)
-
-            if is_interesting:
-                logger.info(f"DEBUG: Validation result: valid={is_valid}, conf={_vconf:.2f}")
-
             if not is_valid:
-                if is_interesting:
-                    logger.info(f"DEBUG: Rejected by validation (conf={_vconf:.2f})")
                 continue
 
             union(a, b)
             accepted += 1
-
-            if is_interesting:
-                logger.info(f"DEBUG: Merge ACCEPTED: '{a}' <-> '{b}'")
 
         logger.info(f"Pairwise alias resolution: accepted {accepted}/{len(candidates)} merges")
 
@@ -1572,76 +1444,6 @@ class CharacterConsensusBuilder:
         significant2 = self._filter_title_words(words2)
         shared_words = significant1 & significant2
 
-        # CRITICAL EARLY CHECK: Block merges of completely different names
-        # This catches cases like "George" + "Myrtle" or "George Wilson" + "Myrtle Wilson"
-        # where the first names are completely different but they might share a last name
-        #
-        # Extract just the core name components (no titles)
-        titles_set = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord', 'professor', 'captain'}
-
-        def get_name_components(words: list[str]) -> tuple[str, str]:
-            """Extract (first_name, last_name) from a word list, skipping titles."""
-            if not words:
-                return "", ""
-            # Skip title if present
-            start = 1 if (words[0].rstrip('.') in titles_set and len(words) > 1) else 0
-            if start >= len(words):
-                return "", ""
-            # For single significant word, it's ambiguous (could be first or last name)
-            if len(words) - start == 1:
-                return words[start], words[start]  # Return same word for both
-            # For multi-word: first significant word is first name, last word is last name
-            first_name = words[start]
-            last_name = words[-1]
-            return first_name, last_name
-
-        first1, last1 = get_name_components(words1)
-        first2, last2 = get_name_components(words2)
-
-        # If both have identifiable name components, check for problematic patterns
-        if first1 and first2:
-            # Pattern 1: Both multi-word names with SAME last name but DIFFERENT first names
-            # Example: "George Wilson" + "Myrtle Wilson" = husband and wife, NOT same person
-            if (len(words1) > 1 and len(words2) > 1 and
-                last1 == last2 and first1 != first2):
-                logger.debug(
-                    f"Merge BLOCKED: {canonical} <-> {alias} "
-                    f"(CRITICAL: both have last name '{last1}' but different first names "
-                    f"'{first1}' vs '{first2}' - likely family members/spouses)"
-                )
-                return False, 0.01
-
-            # Pattern 2: Single-word names that are COMPLETELY different
-            # Example: "George" + "Myrtle" when both appear to be first names
-            # (Single-word names where first==last because ambiguous)
-            if (len(words1) == 1 and len(words2) == 1 and
-                first1 == last1 and first2 == last2 and  # Both ambiguous single words
-                first1 != first2):  # But the words are different
-                # Check if these might be first names that share a last name
-                # by looking for full names in name_groups
-                for name in name_groups.keys():
-                    name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
-                    if len(name_words) >= 2:
-                        # Check if this full name contains either single word
-                        name_first, name_last = get_name_components(name_words)
-                        if name_first == first1 or name_first == first2:
-                            # Found a full name with one of our single words as first name
-                            # Check if the OTHER single word also appears as a first name with same last
-                            for other_name in name_groups.keys():
-                                other_words = re.sub(r'[^\w\s]', '', other_name.lower()).split()
-                                if len(other_words) >= 2:
-                                    other_first, other_last = get_name_components(other_words)
-                                    # If we find "FirstName1 LastName" and "FirstName2 LastName"
-                                    if name_last == other_last and name_first != other_first:
-                                        if (name_first == first1 and other_first == first2) or \
-                                           (name_first == first2 and other_first == first1):
-                                            logger.debug(
-                                                f"Merge BLOCKED: {canonical} <-> {alias} "
-                                                f"(CRITICAL: single-word first names from DIFFERENT people "
-                                                f"who share last name '{name_last}' - found '{name}' and '{other_name}')"
-                                            )
-                                            return False, 0.01
-
         # SINGLE-WORD NAME HANDLING
         # When comparing single-word vs multi-word names, assume the single word is the LAST NAME
         # (most common pattern in literature: "Smith" is the last name in "John Smith")
@@ -1696,74 +1498,6 @@ class CharacterConsensusBuilder:
                         f"Allowing potential nickname merge: {canonical} <-> {alias} "
                         f"({word1} and {word2} are known nickname variants)"
                     )
-
-        # CRITICAL CHECK: Different first names with same last name = different people (family members)
-        # This must happen BEFORE other checks to prevent false merges of spouses, siblings, etc.
-        # Extract first and last names, skipping titles
-        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
-
-        # Helper to extract first/last name from word list
-        def get_first_last(words: list[str]) -> tuple[str, str]:
-            if not words:
-                return "", ""
-            # Skip title if present
-            start_idx = 1 if (words[0].rstrip('.').lower() in titles and len(words) > 1) else 0
-            if start_idx >= len(words):
-                return "", ""
-            first = words[start_idx] if start_idx < len(words) else ""
-            last = words[-1] if len(words) > start_idx else ""
-            return first, last
-
-        first1, last1 = get_first_last(words1)
-        first2, last2 = get_first_last(words2)
-
-        # If both names have first+last components, check for family member pattern
-        if first1 and last1 and first2 and last2:
-            # Same last name but DIFFERENT first names = likely family members (REJECT)
-            if last1 == last2 and first1 != first2:
-                logger.debug(
-                    f"Merge rejected: {canonical} <-> {alias} "
-                    f"(same last name '{last1}', different first names '{first1}' vs '{first2}' - likely family members)"
-                )
-                return False, 0.05
-
-        # Additional check: if one name is a single word and the other has first+last,
-        # check if multiple people share that last name
-        # Example: "Wilson" should NOT merge with "Myrtle Wilson" if "George Wilson" also exists
-        if (len(significant1) == 1 and first2 and last2) or (len(significant2) == 1 and first1 and last1):
-            # Identify which is the single-word name and which is the full name
-            if len(significant1) == 1:
-                single_word = list(significant1)[0]
-                full_first, full_last = first2, last2
-            else:
-                single_word = list(significant2)[0]
-                full_first, full_last = first1, last1
-
-            # If single word matches the last name, check for multiple people with that last name
-            if single_word == full_last:
-                # Count how many DIFFERENT first names exist with this last name
-                different_first_names = set()
-                for name in name_groups.keys():
-                    name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
-                    sig_words = self._filter_title_words(name_words)
-                    if len(sig_words) >= 2:  # Multi-word name
-                        # Extract first and last
-                        start_idx = 1 if (name_words[0].rstrip('.').lower() in titles and len(name_words) > 1) else 0
-                        if start_idx < len(name_words):
-                            name_first = name_words[start_idx]
-                            name_last = name_words[-1]
-                            if name_last == single_word:
-                                different_first_names.add(name_first)
-
-                # If multiple people have this last name, reject the merge
-                # The single-word "Wilson" is ambiguous and could refer to any Wilson
-                if len(different_first_names) > 1:
-                    logger.debug(
-                        f"Merge rejected: {canonical} <-> {alias} "
-                        f"(single-word last name '{single_word}' is ambiguous - {len(different_first_names)} "
-                        f"different people share this last name: {sorted(different_first_names)})"
-                    )
-                    return False, 0.1
 
         # Check for gendered title conflicts
         # Mr. vs Mrs./Miss suggests different people (likely spouses/family)
@@ -2015,54 +1749,10 @@ class CharacterConsensusBuilder:
                     )
                     return False, 0.1
 
-        # SPECIAL CASE: Relational/descriptive terms with no shared words
-        # Examples: "my father" + "Alphonse Frankenstein", "the creature" + "the monster"
-        # These are valid aliases IF they have strong chapter overlap
-        RELATIONAL_TERMS = {
-            'father', 'mother', 'son', 'daughter', 'brother', 'sister',
-            'uncle', 'aunt', 'grandfather', 'grandmother', 'cousin',
-            'husband', 'wife', 'friend', 'companion',
-        }
-        DESCRIPTIVE_PATTERNS = {
-            'man', 'woman', 'lady', 'gentleman', 'creature', 'monster',
-            'fiend', 'wretch', 'stranger', 'visitor', 'guest',
-            'captain', 'professor', 'doctor', 'detective',
-        }
-
-        # Check if either name is a relational/descriptive reference
-        is_relational1 = any(term in significant1 for term in RELATIONAL_TERMS)
-        is_descriptive1 = any(term in significant1 for term in DESCRIPTIVE_PATTERNS)
-        is_relational2 = any(term in significant2 for term in RELATIONAL_TERMS)
-        is_descriptive2 = any(term in significant2 for term in DESCRIPTIVE_PATTERNS)
-
-        # If one is relational/descriptive and they have chapter overlap, allow merge
-        if (is_relational1 or is_descriptive1 or is_relational2 or is_descriptive2):
-            if has_chapter_overlap and overlap_ratio > 0.3:
-                logger.debug(
-                    f"Merge accepted: {canonical} <- {alias} "
-                    f"(relational/descriptive term with chapter overlap: "
-                    f"overlap_ratio={overlap_ratio:.2f})"
-                )
-                return True, 0.75
-            elif has_chapter_overlap:
-                logger.debug(
-                    f"Merge accepted: {canonical} <- {alias} "
-                    f"(relational/descriptive term with some chapter overlap: "
-                    f"overlap_ratio={overlap_ratio:.2f})"
-                )
-                return True, 0.65
-            else:
-                logger.debug(
-                    f"Merge rejected: {canonical} <-> {alias} "
-                    f"(relational/descriptive term but no chapter overlap)"
-                )
-                return False, 0.3
-
         # CRITICAL: We should NEVER merge names with zero shared words
         # The only exceptions are specific patterns we've already handled above:
         # - title+lastname pattern (already returned True if applicable)
         # - single-word matching first/last (already returned False if not matched)
-        # - relational/descriptive terms with chapter overlap (just checked above)
         #
         # If we reach here with no shared words, something is wrong - likely LLM hallucination
         logger.debug(
@@ -2091,98 +1781,6 @@ class CharacterConsensusBuilder:
 
         # Use SequenceMatcher for general similarity
         return SequenceMatcher(None, n1, n2).ratio()
-
-    def _filter_ambiguous_lastnames(
-        self, name_groups: dict[str, list[CharacterValidationResult]]
-    ) -> dict[str, list[CharacterValidationResult]]:
-        """
-        Filter out ambiguous single-word last names that match multiple different people.
-
-        Example: If we have "Wilson", "George Wilson", and "Myrtle Wilson", remove "Wilson"
-        because it's ambiguous and could refer to either George or Myrtle.
-
-        This prevents incorrect merges like "Wilson" <- "George Wilson" + "Myrtle Wilson"
-        which would incorrectly combine a husband and wife into a single character.
-
-        Args:
-            name_groups: Dictionary mapping names to their validation results
-
-        Returns:
-            Filtered name_groups with ambiguous last names removed
-        """
-        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
-
-        # First, build a map of last names to the full names that use them
-        lastname_to_fullnames: dict[str, list[str]] = {}
-
-        for name in name_groups.keys():
-            # Normalize and split
-            name_clean = re.sub(r'[^\w\s]', '', name.lower())
-            words = name_clean.split()
-
-            # Skip titles
-            start_idx = 0
-            if words and words[0] in titles and len(words) > 1:
-                start_idx = 1
-
-            # If this is a multi-word name (has first + last), record the last name
-            if len(words) > start_idx + 1:  # At least 2 significant words (first + last)
-                lastname = words[-1]  # Last word is the last name
-                if lastname not in lastname_to_fullnames:
-                    lastname_to_fullnames[lastname] = []
-                lastname_to_fullnames[lastname].append(name)
-
-        # Now identify ambiguous single-word names
-        ambiguous_names = set()
-
-        for name in name_groups.keys():
-            name_clean = re.sub(r'[^\w\s]', '', name.lower())
-            words = name_clean.split()
-
-            # Check if this is a single-word name (no title)
-            if len(words) == 1:
-                single_word = words[0]
-
-                # Check if this word appears as a last name for multiple DIFFERENT full names
-                if single_word in lastname_to_fullnames:
-                    full_names = lastname_to_fullnames[single_word]
-
-                    # Extract first names from the full names to check if they're different people
-                    first_names = set()
-                    for full_name in full_names:
-                        full_clean = re.sub(r'[^\w\s]', '', full_name.lower())
-                        full_words = full_clean.split()
-
-                        # Skip title
-                        start_idx = 0
-                        if full_words and full_words[0] in titles and len(full_words) > 1:
-                            start_idx = 1
-
-                        if start_idx < len(full_words):
-                            first_name = full_words[start_idx]
-                            first_names.add(first_name)
-
-                    # If multiple different first names share this last name, it's ambiguous
-                    if len(first_names) > 1:
-                        ambiguous_names.add(name)
-                        logger.info(
-                            f"Filtering out ambiguous last name '{name}' "
-                            f"(matches {len(full_names)} people with different first names: {sorted(full_names)})"
-                        )
-
-        # Filter out ambiguous names
-        filtered_groups = {
-            name: results
-            for name, results in name_groups.items()
-            if name not in ambiguous_names
-        }
-
-        if ambiguous_names:
-            logger.info(
-                f"Removed {len(ambiguous_names)} ambiguous last-name-only entries before alias resolution"
-            )
-
-        return filtered_groups
 
     def _is_descriptive_handle(self, name: str) -> bool:
         """
