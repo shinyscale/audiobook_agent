@@ -3,12 +3,12 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
-- Quality Report: output/gatsby_20260117_212312/quality.md
+- Quality Report: output/gatsby_20260117_225321/quality.md
 
 ## Latest Scores
 - Structure Detection: 5/10 ← FAILING
@@ -265,22 +265,23 @@ Overall = (
   - If successful: Character Extraction 2 → 10 (+2.0 points), Overall 4.65 → 6.65
   - Still need to fix narrator issue (+0.60) and other issues to cross 8.0 threshold
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed in 60m 9s
+## Pipeline Notes (Attempt 4)
+- Analysis completed in 52m 51s
 - **Chapter Detection:** Found 9 chapters (✓ correct count!)
-- **Character Extraction:** 58 characters detected
+- **Character Extraction:** 59 characters detected
 - **Character Profiles:** 17 profiles generated, 3 low-confidence
-- **Pronunciation Guide:** 628 words flagged (unchanged from attempt 1 & 2)
+- **Pronunciation Guide:** 628 words flagged (unchanged from attempt 1, 2, 3)
 - **Warnings/Errors:**
   - TOC validation: 87 entries seems too many (may be false positive)
   - StructureAgent: 2 errors found but refinement not yet implemented
-  - Failed to parse JSON response for Nick
-  - Low confidence profiles: Daisy (0.00), McKee (0.00), Nick (0.30)
-  - Moral valence classification failed for Tom, Daisy, McKee
+  - Failed to parse JSON responses for Tom, Michaelis, Meyer
+  - Low confidence profiles: Tom (0.30), Michaelis (0.30), Meyer (0.30)
+  - Moral valence classification failed for Tom, Daisy, Myrtle, Baker, McKee
 - **Narrator:** Detected "Mrs. Sigourney Howard" (still incorrect - should be Nick Carraway)
+- **Critical Character Issue:** Console output shows "Myrtle (aka George B. Wilson, George Wilson)" - merge STILL present
 
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify that Attempt 4 fix resolves the character merging issues.
+Evaluate output (PROMPT_evaluate.md) to determine if Attempt 4 fix resolved the character merging issues or if it failed again.
 
 **Fix Applied in Attempt 4:**
 - Implemented pre-filtering of ambiguous last-name-only entries before alias resolution
