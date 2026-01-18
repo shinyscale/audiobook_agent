@@ -2,11 +2,14 @@
 
 You are the oracle in an autonomous improvement loop for an audiobook narrator preparation tool. Your job is to assess the quality of the HTML output against known literary works and provide structured, actionable feedback.
 
+> **NOTE ON NOVEL-SPECIFIC CONTENT:** CLAUDE.md says "NEVER include examples from specific novels in prompts or validation logic" - this applies to the **analysis pipeline code** (src/pipeline/*, src/agents/*), NOT to evaluation. As the oracle, you NEED ground truth data (expected characters, chapter counts, aliases, pronunciation entries, etc.) to evaluate against. All novel-specific expected results in this file and manifest.json are correct and necessary. The goal is: make GENERIC code changes to achieve SPECIFIC correct results on test texts.
+
 ## 0. Orient
 
 0a. Read `EVALUATION_STATE.md` to understand current state and which text is being evaluated.
 0b. Read `spec/output_quality.md` to understand the full evaluation rubric.
 0c. Read `AGENTS.md` if you need to understand the tool's capabilities.
+0d. Read `spec/oracle-loop/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
 
 ## 1. Load the Output
 
@@ -215,6 +218,7 @@ Update `EVALUATION_STATE.md` with the full evaluation results:
 - **Name:** {book_name}
 - **Attempt:** {n} of 5
 - **Phase:** {awaiting_fix | complete}
+- **baseline_score: {first_attempt_score}** <!-- Keep this unchanged until text passes or max attempts reached -->
 
 ## Latest Scores
 - Structure Detection: {score}/10
@@ -280,6 +284,12 @@ This knowledge is the "oracle" that makes this evaluation loop work.
 
 ### Don't Over-Fix
 If the score is 7.8, focus only on what's needed to cross 8.0. Don't enumerate every possible improvement—that creates noise and scope creep.
+
+### Regression Protection
+**IMPORTANT:** If this is attempt 2 or later, compare the new score to the baseline_score.
+- If `new_score < baseline_score - 0.3`, the fix phase will auto-revert the last commit
+- Set `baseline_score` only on the FIRST attempt for each text
+- Keep the same baseline_score for all subsequent attempts
 
 ### Trust But Verify
 The tool's output may sometimes know things you don't (exact mention counts, precise chapter boundaries). Focus on factual accuracy issues where your knowledge is definitive.

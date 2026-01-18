@@ -126,10 +126,19 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     # Using claude CLI in headless mode with piped prompt
     LOG_FILE="logs/iteration_${ITERATION}_$(date '+%Y%m%d_%H%M%S').log"
 
+    # Select model based on phase - Opus for evaluation (the oracle), Sonnet for fixes
+    if [ "$PROMPT_FILE" = "PROMPT_evaluate.md" ]; then
+        MODEL="opus"
+        echo "Using model: opus (oracle evaluation phase)"
+    else
+        MODEL="sonnet"
+        echo "Using model: sonnet (analysis/fix phase)"
+    fi
+
     cat "$PROMPT_FILE" | claude -p \
         --dangerously-skip-permissions \
         --output-format=stream-json \
-        --model sonnet \
+        --model "$MODEL" \
         --verbose \
         2>&1 | tee "$LOG_FILE"
 
@@ -139,6 +148,49 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         echo ""
         echo "Warning: Claude exited with code $EXIT_CODE"
         echo "Check $LOG_FILE for details"
+    fi
+
+    # Check for regression after evaluation phase
+    if [ "$PROMPT_FILE" = "PROMPT_evaluate.md" ]; then
+        # Extract new score and baseline from EVALUATION_STATE.md
+        NEW_SCORE=$(grep -oP '(?<=\*\*Overall: )\d+(\.\d+)?' EVALUATION_STATE.md 2>/dev/null | head -1 || echo "0")
+        BASELINE=$(grep -oP '(?<=baseline_score: )\d+(\.\d+)?' EVALUATION_STATE.md 2>/dev/null || echo "0")
+
+        if [ -n "$BASELINE" ] && [ "$BASELINE" != "0" ] && [ -n "$NEW_SCORE" ] && [ "$NEW_SCORE" != "0" ]; then
+            DIFF=$(echo "$NEW_SCORE - $BASELINE" | bc 2>/dev/null || echo "0")
+            echo ""
+            echo "Regression check: new_score=$NEW_SCORE, baseline=$BASELINE, diff=$DIFF"
+
+            if [ "$(echo "$DIFF < -0.3" | bc -l 2>/dev/null)" = "1" ]; then
+                echo ""
+                echo "========================================"
+                echo "  REGRESSION DETECTED!"
+                echo "========================================"
+                echo "  New score: $NEW_SCORE"
+                echo "  Baseline:  $BASELINE"
+                echo "  Diff:      $DIFF (threshold: -0.3)"
+                echo "========================================"
+                echo ""
+                echo "Reverting last fix..."
+
+                # Get the last commit that was a fix
+                LAST_FIX=$(git log --oneline -1 --grep="^Fix:" 2>/dev/null | cut -d' ' -f1)
+                if [ -n "$LAST_FIX" ]; then
+                    git revert --no-commit "$LAST_FIX" 2>/dev/null
+                    git commit -m "Auto-revert: Fix caused regression ($NEW_SCORE < $BASELINE)
+
+Reverted commit: $LAST_FIX
+Score drop: $DIFF points" 2>/dev/null
+                    echo "Reverted commit $LAST_FIX"
+
+                    # Update phase to awaiting_analysis to re-run with reverted code
+                    sed -i 's/\*\*Phase:\*\* awaiting_fix/\*\*Phase:\*\* awaiting_analysis/' EVALUATION_STATE.md 2>/dev/null
+                    echo "Reset phase to awaiting_analysis"
+                else
+                    echo "Could not find fix commit to revert"
+                fi
+            fi
+        fi
     fi
 
     # Brief pause between iterations to avoid rate limiting
