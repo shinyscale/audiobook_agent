@@ -3,12 +3,20 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 1 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 
 ## Output Files
-- HTML: Pending (will be created on next run)
-- JSON: Pending (will be created on next run)
-- Quality Report: Pending (will be created on next run)
+- HTML: output/frankenstein/report.html
+- JSON: output/frankenstein/analysis.json
+- Quality Report: Pending (will be created during evaluation)
+
+## Pipeline Notes
+- Analysis completed successfully in ~60 seconds
+- Structure Agent: 24 chapter boundaries detected (TOC indicated 31 expected entries)
+- Character Agent: Some profiles had JSON parsing failures (Elizabeth, Margaret) resulting in low confidence (0.30)
+- Character Agent: LLM evidence extraction failed for "De Lacey"
+- Final counts: 25 chapters, 51 characters, 663 pronunciation flags
+- No fatal errors encountered
 
 ## Fix History
 ### Attempt 1: Fixed CLI output path handling
