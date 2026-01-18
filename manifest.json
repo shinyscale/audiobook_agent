@@ -2,46 +2,44 @@
   "quality_threshold": 8.0,
   "texts": [
     {
+      "name": "cask_of_amontillado",
+      "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "masque_of_red_death",
+      "file": "Test_Texts/Masque of the Red Death - Poe.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "berenice",
+      "file": "Test_Texts/Berenice - Poe.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "monkeys_paw",
+      "file": "Test_Texts/The_Monkey's_Paw.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null,
-      "previous_attempts_summary": "Attempts 1-5 failed (best: 6.15/10). Key issues: James Gatz/Gatsby split, narrator misidentification, character merge failures. See ATTEMPT_1_SUMMARY.md for details."
-    },
-    {
-      "name": "frankenstein",
-      "file": "Test_Texts/Frankenstein_ebook.txt",
-      "complete": false,
-      "attempts": 0,
-      "final_score": null,
-      "baseline_score": null,
-      "previous_attempts_summary": "Attempts 1-5 failed (best: 6.75/10). Key issues: Character fragmentation (Alphonse, Henry, William), pronunciation false positives. See ATTEMPT_1_SUMMARY.md for details."
-    },
-    {
-      "name": "dracula",
-      "file": "Test_Texts/Dracula - Bram Stoker.txt",
-      "complete": false,
-      "attempts": 0,
-      "final_score": null,
-      "issues_resolved": []
-    },
-    {
-      "name": "don_quixote",
-      "file": "Test_Texts/Don Quixote - Cervantes.txt",
-      "complete": false,
-      "attempts": 0,
-      "final_score": null,
-      "issues_resolved": []
-    },
-    {
-      "name": "east_of_eden",
-      "file": "Test_Texts/East of Eden - East Of Eden.pdf",
-      "complete": false,
-      "attempts": 0,
-      "final_score": null,
-      "issues_resolved": []
+      "baseline_score": null
     },
     {
       "name": "i_have_no_mouth",
@@ -49,7 +47,23 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "issues_resolved": []
+      "baseline_score": null
+    },
+    {
+      "name": "frankenstein",
+      "file": "Test_Texts/Frankenstein_ebook.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "dracula",
+      "file": "Test_Texts/Dracula - Bram Stoker.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
     },
     {
       "name": "one_hundred_years_of_solitude",
@@ -57,7 +71,31 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "issues_resolved": []
+      "baseline_score": null
+    },
+    {
+      "name": "east_of_eden",
+      "file": "Test_Texts/East of Eden - East Of Eden.pdf",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "don_quixote",
+      "file": "Test_Texts/Don Quixote - Cervantes.txt",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
+    },
+    {
+      "name": "flowers_for_algernon",
+      "file": "Test_Texts/Flowers_For_Algernon.pdf",
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null
     }
   ]
 }
