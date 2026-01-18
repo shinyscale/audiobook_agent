@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 1 of 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 2 of 5
+- **Phase:** awaiting_evaluation
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -112,5 +112,22 @@ Relational descriptors like "my father" share no tokens with "Alphonse Frankenst
 - **Result:** FAILED after 5 attempts (4.05/10)
 - **Status:** Marked complete in manifest.json
 
+## Output Files (Attempt 2)
+- HTML: output/frankenstein/report.html
+- JSON: output/frankenstein/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 63m 51s
+- Pipeline metrics: 368 LLM calls, 865,482 tokens
+- Structure: 25 chapters detected
+- Characters: 49 characters found
+- Character profiles: 25 profiles generated (23 high confidence, 2 low confidence)
+- Pronunciations: 663 words flagged
+- Narrator detected: Victor Frankenstein (first-person)
+- Warnings during run:
+  - TOC validation: 31 TOC entries but only 24 boundaries found
+  - 2 low-confidence profiles (Margaret, De Lacey) due to JSON parsing failures
+  - Narrator 'Victor Frankenstein' not found in character list (resolved during finalization)
+
 ## Next Action
-Re-run analysis to verify fix. The enhanced candidate pair generation should now allow the LLM to merge relational descriptors with proper character names.
+Evaluate the analysis output to determine if the alias resolution fix improved character extraction.
