@@ -321,10 +321,28 @@ class CharacterConsensusBuilder:
         if epithet_groups:
             logger.info(f"CharacterConsensusBuilder: found {len(epithet_groups)} descriptive handles")
 
+        # DEBUG: Log names before filtering
+        logger.info(f"DEBUG: Before ambiguous lastname filter: {len(proper_name_groups)} names")
+        wilson_related = [n for n in proper_name_groups.keys() if 'wilson' in n.lower()]
+        if wilson_related:
+            logger.info(f"DEBUG: Wilson-related names BEFORE filter: {wilson_related}")
+        gatsby_related = [n for n in proper_name_groups.keys() if 'gat' in n.lower() or 'gatz' in n.lower()]
+        if gatsby_related:
+            logger.info(f"DEBUG: Gatsby-related names BEFORE filter: {gatsby_related}")
+
         # CRITICAL FIX: Filter out ambiguous last-name-only entries before alias resolution
         # Example: If we have "Wilson", "George Wilson", and "Myrtle Wilson", remove "Wilson"
         # because it's ambiguous and could refer to either person
         proper_name_groups = self._filter_ambiguous_lastnames(proper_name_groups)
+
+        # DEBUG: Log names after filtering
+        logger.info(f"DEBUG: After ambiguous lastname filter: {len(proper_name_groups)} names")
+        wilson_related_after = [n for n in proper_name_groups.keys() if 'wilson' in n.lower()]
+        if wilson_related_after:
+            logger.info(f"DEBUG: Wilson-related names AFTER filter: {wilson_related_after}")
+        gatsby_related_after = [n for n in proper_name_groups.keys() if 'gat' in n.lower() or 'gatz' in n.lower()]
+        if gatsby_related_after:
+            logger.info(f"DEBUG: Gatsby-related names AFTER filter: {gatsby_related_after}")
 
         # Resolve aliases for proper names
         if self.use_llm_alias_resolution and len(proper_name_groups) > 1:
@@ -351,6 +369,15 @@ class CharacterConsensusBuilder:
 
         # Log alias groups
         logger.info(f"CharacterConsensusBuilder: resolved to {len(alias_groups)} characters")
+
+        # DEBUG: Specifically log Wilson and Gatsby alias groups
+        for canonical, aliases in alias_groups.items():
+            if 'wilson' in canonical.lower() or any('wilson' in a.lower() for a in aliases):
+                logger.info(f"DEBUG: FINAL Wilson group: '{canonical}' <- {aliases}")
+            if ('gat' in canonical.lower() or 'gatz' in canonical.lower() or
+                any('gat' in a.lower() or 'gatz' in a.lower() for a in aliases)):
+                logger.info(f"DEBUG: FINAL Gatsby group: '{canonical}' <- {aliases}")
+
         for canonical, aliases in sorted(alias_groups.items(), key=lambda x: -len(x[1])):
             if aliases:
                 logger.info(f"  '{canonical}' <- aliases: {aliases}")
@@ -988,17 +1015,43 @@ class CharacterConsensusBuilder:
         # Evaluate candidates
         accepted = 0
         for a, b in candidates:
+            # DEBUG: Log Wilson and Gatsby pairs being evaluated
+            is_wilson_pair = ('wilson' in a.lower() or 'wilson' in b.lower())
+            is_gatsby_pair = (('gat' in a.lower() or 'gatz' in a.lower()) or
+                            ('gat' in b.lower() or 'gatz' in b.lower()))
+
             same, conf, canonical, alias = self._llm_pairwise_merge_decision(a, b, name_groups)
+
+            if is_wilson_pair:
+                logger.info(f"DEBUG: Wilson pair evaluated: '{a}' + '{b}' -> same={same}, conf={conf:.2f}")
+            if is_gatsby_pair:
+                logger.info(f"DEBUG: Gatsby pair evaluated: '{a}' + '{b}' -> same={same}, conf={conf:.2f}")
+
             if not same or conf < 0.7:
+                if is_wilson_pair or is_gatsby_pair:
+                    logger.info(f"DEBUG: Rejected by LLM (same={same}, conf={conf:.2f})")
                 continue
 
             # Validate with our strict sanity checks before merging
             is_valid, _vconf = self._validate_merge(canonical or a, alias or b, name_groups)
+
+            if is_wilson_pair:
+                logger.info(f"DEBUG: Wilson validation result: valid={is_valid}, conf={_vconf:.2f}")
+            if is_gatsby_pair:
+                logger.info(f"DEBUG: Gatsby validation result: valid={is_valid}, conf={_vconf:.2f}")
+
             if not is_valid:
+                if is_wilson_pair or is_gatsby_pair:
+                    logger.info(f"DEBUG: Rejected by validation (conf={_vconf:.2f})")
                 continue
 
             union(a, b)
             accepted += 1
+
+            if is_wilson_pair:
+                logger.info(f"DEBUG: Wilson merge ACCEPTED: '{a}' + '{b}'")
+            if is_gatsby_pair:
+                logger.info(f"DEBUG: Gatsby merge ACCEPTED: '{a}' + '{b}'")
 
         logger.info(f"Pairwise alias resolution: accepted {accepted}/{len(candidates)} merges")
 

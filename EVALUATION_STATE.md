@@ -293,30 +293,36 @@ Overall = (
 
 ## Next Action
 
-**ATTEMPT 5 (FINAL ATTEMPT) - DIAGNOSTIC AND FIX**
+**ATTEMPT 5 (FINAL ATTEMPT) - DIAGNOSTIC IN PROGRESS**
 
 The pattern is clear: Three consecutive fix attempts (2→3→4) have had ZERO impact on the character merging issues. The hypotheses about where/how the merge happens have been WRONG.
 
-**Required for Attempt 5:**
-1. **STOP GUESSING** - Add comprehensive debug logging to trace the EXACT path of character data:
-   - Log all character names detected by NER extraction
-   - Log all names sent to each proposer (LLM, NER-based)
-   - Log merge proposals from each proposer before consensus
-   - Log final character list after consensus
-   - Log names before and after `_filter_ambiguous_lastnames()` (if it's even being called)
+**Current Status - DIAGNOSTIC PHASE:**
+1. ✓ **Added comprehensive debug logging** to `src/pipeline/character_extraction/consensus.py`:
+   - Lines 324-345: Log Wilson/Gatsby names BEFORE and AFTER `_filter_ambiguous_lastnames()`
+   - Lines 1009-1045: Log each Wilson/Gatsby pair evaluation in pairwise alias resolution
+     - Log LLM decision (same_person, confidence)
+     - Log validation result (is_valid, confidence)
+     - Log which merges are ACCEPTED vs REJECTED
+   - Lines 373-379: Log FINAL alias groups for Wilson and Gatsby characters
 
-2. **ANALYZE LOGS** - Run on Gatsby and examine logs to determine:
-   - Is "Wilson" even extracted as a standalone name?
-   - If yes, where does it come from (which proposer)?
-   - At what stage does "George Wilson" merge with "Myrtle Wilson"?
-   - Is it happening in NER extraction, LLM proposer, consensus, or alias resolution?
+2. ⏳ **Running Gatsby analysis** with debug logging (started, running in background)
+   - Output being captured to: `logs/debug_run_attempt5.log`
+   - Estimated time: ~50 minutes
 
-3. **FIX THE ACTUAL ROOT CAUSE** - Once the diagnostic shows WHERE the merge happens, implement the correct fix at that location
+3. **NEXT: Analyze logs** to determine:
+   - Are "Wilson", "George Wilson", "Myrtle Wilson" all present before filtering?
+   - Does `_filter_ambiguous_lastnames()` remove "Wilson"?
+   - What pairs are evaluated for merging (George+Myrtle)?
+   - What does LLM say about merging them?
+   - What does validation say?
+   - Where exactly does the merge happen?
 
-4. **VERIFY WITH TESTS** - Add integration test that runs full Gatsby analysis and validates:
-   - George Wilson and Myrtle Wilson are separate characters
-   - Gatsby and James Gatz are the same character
-   - Narrator is identified as Nick Carraway (not "Mrs. Sigourney Howard")
+4. **Then: Fix the actual root cause** based on log analysis
+
+5. **Finally: Verify with tests** that fix resolves both:
+   - George Wilson and Myrtle Wilson stay separate
+   - Gatsby and James Gatz get merged
 
 **This is the LAST attempt. If this fails, we move to the next text.**
 
