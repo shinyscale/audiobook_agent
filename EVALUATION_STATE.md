@@ -2,13 +2,13 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1 of 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 2 of 5
+- **Phase:** awaiting_evaluation
 
 ## Output Files
 - HTML: output/gatsby/report.html
 - JSON: output/gatsby/analysis.json
-- Quality Report: output/gatsby_20260117_184020/quality.md
+- Quality Report: output/gatsby_20260117_201435/quality.md
 
 ## Latest Scores
 - Structure Detection: 3/10 ← FAILING
@@ -191,5 +191,18 @@ Overall = (
   - **Total expected improvement:** ~+7 points to structure detection
   - **New estimated overall score:** ~6.5/10 (still below threshold, need more fixes)
 
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 64m 7s
+- **Chapter Detection:** Found 9 chapters (✓ correct count!)
+- **Character Extraction:** 58 characters detected (was 57 in attempt 1)
+- **Character Profiles:** 16 profiles generated, 4 low-confidence
+- **Pronunciation Guide:** 628 words flagged (same as attempt 1)
+- **Warnings/Errors:**
+  - TOC validation: 87 entries seems too many (may be false positive)
+  - StructureAgent: 2 errors found but refinement not yet implemented
+  - Multiple "Failed to parse JSON response" errors for character profiles (Tom, McKee, Sloane, Meyer)
+  - Low confidence profiles: Tom (0.30), McKee (0.30), Sloane (0.30), Meyer (0.30)
+  - Moral valence classification failed for Tom, Daisy, Baker
+
 ## Next Action
-Re-run analysis with fix to verify chapter detection improvement and re-evaluate remaining issues.
+Proceed to evaluation phase to assess whether the chapter detection fix improved the overall score.
