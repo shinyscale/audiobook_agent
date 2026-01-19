@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -254,6 +254,14 @@ Overall = (
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
+- Quality Report: output/Masque of the Red Death - Poe_20260119_060338/quality.md
+
+## Pipeline Notes (Attempt 18)
+- Analysis completed successfully in 7m 39s
+- Character extraction shows SAME ISSUE: "the mummer (aka Prospero)"
+- The substring fix did NOT resolve the issue
+- 2 characters detected (unchanged from attempt 17)
+- All agents ran without errors
 
 ## Next Action
 Run PROMPT_fix.md to add diagnostic logging and understand why the substring pre-merge isn't working
