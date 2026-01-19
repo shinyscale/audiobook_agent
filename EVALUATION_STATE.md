@@ -3,8 +3,20 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 20
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
+
+## Output Files
+- HTML: output/masque_of_red_death/report.html
+- JSON: output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 20)
+- Analysis completed successfully in 8m 2s
+- Character Profiles stage: GENERATED 2 profiles (26.7s, 3 LLM calls, 2H confidence)
+- Previously this stage showed 0.0s duration, 0 LLM calls, 0 profiles
+- Adaptive threshold fix appears to be working - profiles generated for characters with 3 and 4 mentions
+- Some transient EOF errors during LLM calls but analysis completed
+- Total: 26 LLM calls, 39,670 tokens
 
 ## Latest Scores
 - Structure Detection: 10/10
