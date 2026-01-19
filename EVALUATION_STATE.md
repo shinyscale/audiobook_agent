@@ -3,112 +3,94 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 5/10 ← FAILING
-- Character Profiles: 2/10 ← FAILING (cascading from character extraction)
+- Character Extraction: 3/10 ← CRITICAL REGRESSION (was 5)
+- Character Profiles: 5/10 ← IMPROVED (was 2)
 - Chapter Summaries: 9/10
-- Pronunciation Guide: 6/10 ← IMPROVED (was 5)
+- Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 6.75/10** (threshold: 8.0)
+- **Overall: 6.70/10** (threshold: 8.0)
 
-## Score Delta from Attempt 1
+## Score Delta from Baseline (Attempt 1)
 - Structure: 10 → 10 (unchanged)
-- Characters: 5 → 5 (unchanged)
-- Profiles: 2 → 2 (unchanged)
+- Characters: 5 → 3 (**-2 REGRESSION**)
+- Profiles: 2 → 5 (+3 improvement)
 - Summaries: 9 → 9 (unchanged)
-- Pronunciation: 5 → 6 (+1 - "the" no longer flagged)
-- Presentation: 9 → 8 (-1 - noticed timing table issues)
-- **Overall: 6.75 → 6.75 (unchanged)**
+- Pronunciation: 5 → 6 (+1 improvement)
+- Presentation: 9 → 8 (-1 regression)
+- **Overall: 6.75 → 6.70 (-0.05 slight regression)**
 
-## Fix Assessment from Attempt 1
+## Fix Assessment from Attempt 2
 
-### Fix 1: Cross-group epithet-to-proper-name resolution
-**Status: DID NOT WORK**
-- **Expected:** "the prince", "the duke" merged into "Prince Prospero", mention count ~15+
-- **Actual:** "the Prince Prospero" still shows only 3 mentions, no aliases
-- **Evidence:** Pronunciation guide shows "Prospero" with 18 occurrences, "Prince" with 9 occurrences, but character only has 3 mentions
-- **Root cause:** The cross-group resolution was added but either:
-  1. Not being called in the execution path
-  2. Failing to find cross-group matches
-  3. Not updating mention counts after merging
+### Fix: Proper name with article classification
+**Status: PARTIALLY WORKED BUT CAUSED NEW REGRESSION**
 
-### Fix 2: Add articles to pronunciation whitelist
-**Status: PARTIALLY WORKED**
-- **Expected:** "the" removed from pronunciation guide
-- **Actual:** ✅ "the" is no longer in the pronunciation guide
-- **Remaining issue:** "away" is still flagged as a foreign word (not covered by article fix)
+- **Expected:** "the Prince Prospero" classified as proper name, merged with "Prince Prospero" and "Prospero"
+- **Actual result:** Character shows 6 mentions (improved from 3), 1 profile generated (was 0)
+- **NEW PROBLEM:** "the mummer" is now incorrectly listed as an alias of Prince Prospero
+  - **"the mummer" refers to the MASKED FIGURE (Red Death), NOT Prince Prospero!**
+  - Evidence: "But the mummer had gone so far as to assume the type of the Red Death"
+  - Evidence: "seizing the mummer, whose tall figure stood erect and motionless within the shadow"
+  - This is the main antagonist of the story being merged with the protagonist
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Character mention counts are NOT using alias-aware counting**
-   - Problem: "the Prince Prospero" shows 3 mentions, but the text contains:
-     - "Prince Prospero" (5+ times)
-     - "Prospero" alone (18 times per pronunciation guide)
-     - "Prince" as title (9 times)
-     - "the prince" (multiple times)
-     - "the duke" (at least once - "the duke's love of the bizarre")
-   - Evidence: Character shows 3 mentions while pronunciation shows 18 "Prospero" occurrences
-   - Root cause: The mention count is counting exact matches of "the Prince Prospero" rather than any reference to the character
-   - Location: `src/pipeline/character_extraction/consensus.py` - mention counting in `build_consensus()` or wherever mention_count is calculated
-   - Impact: Characters appear to have too few mentions → profiles not generated → cascading failure
-   - Fix approach: After building alias groups, recalculate mention_count as sum of all alias mention counts
+1. **False character merge: "the mummer" merged with "Prince Prospero"**
+   - Problem: "the mummer" is listed as an alias of Prince Prospero, but it refers to the Red Death personification
+   - Evidence from text:
+     - "But the mummer had gone so far as to assume the type of the Red Death. His vesture was dabbled in blood"
+     - "seizing the mummer, whose tall figure stood erect and motionless within the shadow of the ebony clock"
+   - Impact: The main antagonist is incorrectly merged with the protagonist (-2 point character score)
+   - Root cause: The fix in attempt 2 may have made epithet merging too aggressive
+   - Location: `src/pipeline/character_extraction/consensus.py` - alias resolution logic
+   - Fix approach: Need context-aware epithet matching - "the mummer" clearly refers to a different entity (the intruder/stranger) not the prince
 
-2. **No character profiles generated (0 profiles)**
-   - Problem: Report shows "Generated 0 character profiles (both characters below minimum mention threshold)"
-   - Evidence: Prince Prospero is the PROTAGONIST of a 2,400-word story - he absolutely needs a profile
-   - Root cause: Cascading from Issue #1 - mention counts are too low
-   - Secondary cause: Profile threshold may be too high for short stories
-   - Location: Profile generation threshold in `src/agents/` or profiling pipeline
-   - Fix approach:
-     1. First fix mention counting (Issue #1)
-     2. Consider lowering profile threshold for short texts (<5000 words)
+2. **Missing character: The Red Death / Masked Figure**
+   - Problem: The antagonist of the story is not present as a character entry
+   - Evidence: Multiple text references to this entity:
+     - "the stranger"
+     - "the figure"
+     - "the masked figure"
+     - "the intruder"
+     - "the mummer" (currently mis-merged with Prospero)
+   - Impact: Major character missing
+   - Location: Character extraction pipeline
+   - Fix approach: After fixing issue #1, this character should emerge naturally
 
 ### HIGH
-3. **No aliases recorded for either character**
-   - Problem: Both characters show "—" for aliases despite clear alias relationships:
-     - Prince Prospero = Prospero = the prince = the duke
-     - the mummer = the figure = the masked figure = the intruder = the stranger = Red Death
-   - Evidence: All these terms appear in the text referring to the same characters
-   - Location: `src/pipeline/character_extraction/consensus.py` - alias resolution
-   - Root cause: The cross-group resolution may be running but not populating the aliases list
-   - Fix: Ensure aliases are populated when characters are merged across groups
+3. **Mention count still low for Prince Prospero**
+   - Problem: Character shows 6 mentions, but pronunciation shows 18 "Prospero" + 9 "Prince" occurrences
+   - Evidence: Clear discrepancy between pronunciation counting and character counting
+   - Location: Mention count aggregation in character pipeline
+   - Fix: Ensure mention counts aggregate across all aliases
 
-4. **"away" incorrectly flagged as foreign word**
-   - Problem: Common English word "away" is listed in Foreign Words section with note: "Note: 'away' is not German, but the context may suggest a foreign tone"
-   - Evidence: "away" is a standard English word, not foreign
-   - Location: `src/pipeline/pronunciation_guide/` - foreign word detection logic
-   - Fix: Improve foreign word detection or add more common words to exclusion list
+4. **Missing aliases for Prince Prospero**
+   - Problem: "the duke" is used in the text but not captured as alias
+   - Evidence: "as might have been expected from the duke's love of the bizarre"
+   - Location: Alias detection
 
 ### MEDIUM
 5. **Canonical name format includes leading article**
    - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
-   - Evidence: Leading "the" is awkward and non-standard
-   - Location: Character name normalization logic
-   - Fix: Strip leading articles from canonical names
+   - Location: Character name normalization
 
 6. **Too many common words in pronunciation guide (65 in "Other")**
-   - Problem: Common words like "dauntless", "chiming", "evolutions", "girdled", "provisioned" are flagged
-   - Evidence: These are standard English words that most narrators would know
-   - Location: Pronunciation flagging threshold/filtering
-   - Fix: Add word frequency filtering using a common English word list (top 5000 words)
+   - Problem: Common words like "dauntless", "chiming", "magnificence" are flagged
+   - Location: Pronunciation flagging threshold
 
-7. **Generic themes miss the allegorical nature**
-   - Problem: Listed themes "identity, ambition, loss" are generic
-   - Actual themes: mortality, inevitability of death, hubris, wealth's impotence against death, denial of mortality
-   - Location: Theme extraction in summary pipeline
-   - Fix: Low priority - themes are supplementary
+7. **Foreign word false positive: "decorum"**
+   - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived)
+   - Location: Foreign word detection
 
 ### LOW
 8. **Timing table formatting issues**
    - Problem: "started_at" and "ended_at" rows show empty duration values
-   - Problem: "4m 60s" should display as "5m 0s"
-   - Location: HTML template timing table generation
-   - Fix: Filter out timestamp entries, fix duration formatting
+   - Location: HTML template
 
 ## Fix History
 
@@ -118,44 +100,37 @@
 
 ### Attempt 2 Fixes Applied
 1. **Proper name with article classification** (consensus.py:_is_descriptive_handle())
-   - **Root cause:** Function classified ANY name starting with "the " as an epithet, including "the Prince Prospero"
-   - **Location:** src/pipeline/character_extraction/consensus.py:_is_descriptive_handle():1845
-   - **Fix:** Added logic to distinguish proper names with articles (e.g., "the Prince Prospero") from generic epithets (e.g., "the prince")
-   - **Approach:** Check if 2+ capitalized words follow "the " - if so, treat as proper name not epithet
-   - **Smoke test:** PASS - All 8 test cases correct (proper names vs epithets)
-   - **Full tests:** PASS - 444 tests passed, 11 skipped
-   - **Expected impact:**
-     - "the Prince Prospero" will now be classified as proper name
-     - Will be grouped with "Prince Prospero" and "Prospero" properly
-     - Mention count should aggregate all references (expected: 18+ instead of 3)
-     - Profile generation should now trigger for Prince Prospero
+   - Partially worked: Profile now generated, mention count improved 3→6
+   - Caused regression: "the mummer" incorrectly merged with Prince Prospero
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
-- Quality Report: output/Masque of the Red Death - Poe_20260118_235801/quality.md
 
 ## Pipeline Notes
-- Analysis completed successfully in 7m 28s
-- 1 character detected: "the Prince Prospero" (aka "the mummer") with 6 mentions
-- 1 character profile generated (improvement from 0 profiles in attempt 2)
+- Analysis completed successfully in 7m 18s
+- 1 character detected: "the Prince Prospero" (with INCORRECTLY merged alias "the mummer")
+- 1 character profile generated
 - 73 pronunciation flags
-- Bottleneck: Character Extraction (65.8% of time)
-- Warning: LLM identity detection failed with 500 error at end (non-critical)
-
-## Next Action
-Evaluate attempt 3 to determine if fixes improved the results.
 
 ## Key Insight for Fix Phase
-The pronunciation guide shows:
-- "Prospero": 18 occurrences
-- "Prince": 9 occurrences
 
-But the character "the Prince Prospero" only shows 3 mentions.
+The attempt 2 fix made epithet-to-proper-name linking too aggressive. The fix needs refinement:
 
-This proves the mention counting is NOT aggregating across aliases. The character extraction is finding the references (otherwise pronunciation couldn't count them), but the final character object is not getting the aggregated count.
+1. "the mummer" in text refers to the INTRUDER/RED DEATH figure, not Prince Prospero
+2. Context matters: epithets should only merge when they clearly refer to the same entity
+3. Consider: "the mummer" appears in sentences describing a DIFFERENT character from Prospero
+   - "the mummer had gone so far as to assume the type of the Red Death"
+   - This is clearly NOT describing Prospero
 
-**Data flow to investigate:**
-1. Where does `mention_count` get set on the Character object?
-2. Is it before or after alias merging?
-3. Are alias mention counts being summed into the primary character?
+**Possible fix approaches:**
+1. Use sentence-level context to determine if epithet co-refers with proper name
+2. Check if epithet appears in same sentence/paragraph as the proper name being referenced
+3. Add negative signals: if epithet appears in description of a DIFFERENT entity, don't merge
+4. Consider semantic similarity of actions/descriptions around each reference
+
+## Next Action
+Run PROMPT_fix.md to address the false merge of "the mummer" with "Prince Prospero" (Critical #1)
+
+## Regression Warning
+The overall score dropped from 6.75 to 6.70. If it drops below 6.45 (baseline - 0.3), the fix phase should auto-revert.
