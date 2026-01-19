@@ -2112,7 +2112,8 @@ class CharacterConsensusBuilder:
         for name, results in sorted_epithets:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=8)
-            context_str = self._format_contexts(results, max_contexts=4, max_chars=150)
+            # Increased context size to capture long sentences (e.g., Poe's confrontation scenes)
+            context_str = self._format_contexts(results, max_contexts=4, max_chars=400)
             epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             epithet_lines.append(f"  Context: {context_str}")
 
@@ -2126,7 +2127,8 @@ class CharacterConsensusBuilder:
         for name, results in sorted_proper:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, proper_name_groups, max_chapters=8)
-            context_str = self._format_contexts(results, max_contexts=3, max_chars=120)
+            # Increased context size to capture long sentences (e.g., Poe's confrontation scenes)
+            context_str = self._format_contexts(results, max_contexts=3, max_chars=400)
             proper_name_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             proper_name_lines.append(f"  Context: {context_str}")
 

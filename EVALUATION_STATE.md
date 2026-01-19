@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -151,6 +151,21 @@ After 6 failed attempts, the confrontation detection approach needs fundamental 
 - Score unchanged at 6.70/10
 - The fix from attempt 5 had no observable effect
 
+### Attempt 7 Fixes Applied
+1. **Root cause analysis completed** (Phase 1 mandatory step)
+   - Root cause: Context window too small for LLM cross-group resolution
+   - Evidence: Poe's confrontation scene is ~500 chars, but context was limited to 150 chars (epithets) and 120 chars (proper names)
+   - Location: `src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution()` lines 2116, 2131
+   - The LLM prompt warns against merging entities in confrontation, but couldn't apply the rule without seeing the full sentence
+   - Confrontation detection code exists (line 2168) but runs AFTER LLM decision - by then it's too late
+2. **Fix applied: Increased context window size**
+   - Changed epithet context: 150 → 400 chars (line 2116)
+   - Changed proper name context: 120 → 400 chars (line 2131)
+   - This allows the LLM to see Poe's full confrontation sentence
+   - Smoke test: Running in background (full pipeline takes ~7min)
+3. **Modified files:**
+   - `src/pipeline/character_extraction/consensus.py`
+
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
@@ -166,17 +181,11 @@ After 6 failed attempts, the confrontation detection approach needs fundamental 
 
 ## Next Action
 
-**CRITICAL: Different approach needed after 6 failed attempts**
+Re-run analysis to verify the context window fix addresses the false merge issue.
 
-The confrontation detection logic has been implemented and enhanced 4 times (attempts 3-6) with zero effect. Either:
-1. The code is not executing (check with explicit logging)
-2. The merge decision happens at a different location than expected
-3. The LLM is overriding the structural detection
-
-Recommended next steps:
-1. **Add explicit entry/exit logging** to `_entities_in_confrontation()` to verify it's being called
-2. **Trace the merge decision flow** - add logging at EVERY point where "mummer" and "Prospero" could be paired/merged
-3. **Check if the function returns True** - log the actual return value and inputs
-4. **Consider hardcoding a test** - temporarily return True unconditionally from `_entities_in_confrontation()` to verify the blocking logic downstream works
-
-Run PROMPT_fix.md with focus on DEBUGGING why the fix code isn't working, not adding more detection patterns.
+**Fix rationale:**
+- Previous attempts added confrontation detection logic but it ran AFTER the LLM decision
+- The LLM prompt already instructs to avoid merging entities in confrontation
+- The problem was the LLM couldn't see enough context to apply this rule
+- Increasing context from 150/120 → 400 chars should allow the LLM to see the full confrontation sentence
+- This is a different approach than attempts 3-6, which focused on post-LLM detection
