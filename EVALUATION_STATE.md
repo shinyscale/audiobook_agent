@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -159,3 +159,17 @@ The character extraction validation is failing because the LLM is returning a li
 **Location:** Character extraction validation logic
 **Impact:** Pipeline cannot complete - BLOCKING error
 **Root Cause:** LLM validation is returning incorrect format (list vs JSON object)
+
+## Attempt 4 Re-Run (2026-01-18)
+
+Attempted to re-run analysis after Attempt 5 fixes were implemented. Same error occurred:
+```
+LLM validation attempt 1 for 'Montresors' returned invalid JSON: got list
+LLM validation attempt 2 for 'Montresors' returned invalid JSON: got list
+LLM validation attempt 3 for 'Montresors' returned invalid JSON: got list
+Validation failed for 'Montresors': LLM validation returned invalid JSON for 'Montresors' after 3 attempts: Invalid JSON: got list
+```
+
+This error is blocking progress. The character validation code is expecting a JSON object but the LLM is returning a list when validating "Montresors" (note: the possessive form with 's).
+
+**Next Step:** This requires investigation and fix in the character validation pipeline before analysis can proceed.
