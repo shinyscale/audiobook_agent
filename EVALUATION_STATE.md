@@ -1,17 +1,21 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** dracula
+- **Name:** cask_of_amontillado
 - **Attempt:** 1 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** (will be set after first evaluation)
 
-## Previous Text Summary
-- **frankenstein:** FAILED at 6.75/10 after 5 attempts (max attempts reached)
+## Output Files
+- HTML: output/cask_of_amontillado/report.html
+- JSON: output/cask_of_amontillado/analysis.json
 
-## Next Steps
-Running first analysis on dracula with model configuration:
-- Structure: qwen3:30b-instruct
-- Characters: qwen3-next:80b-a3b-instruct-q8_0
-- Summaries: qwen3-next:80b-a3b-instruct-q8_0
-- Pronunciation: qwen3:30b-instruct
+## Pipeline Notes
+- Analysis completed in 9m 38s
+- Total tokens used: 40,106
+- Found 1 chapter, 3 characters, 56 pronunciation flags
+- Quality concerns noted:
+  - 2 low-confidence character profiles (Amontillado: 0.30, Fortunato: 0.30)
+  - Failed to parse JSON response for character profiles
+  - Character Extraction was bottleneck (35.7% of time)
+  - Detected narrator as "Amontillado" (likely incorrect - should be Montresor)
