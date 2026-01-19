@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -168,14 +168,14 @@ The fix added:
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 4)
-- Analysis completed successfully in ~7m
+## Pipeline Notes (Attempt 5)
+- Analysis completed successfully in 7m 31s
 - 1 character detected: "the Prince Prospero" (alias: "the mummer")
 - 1 character profile generated
 - 73 pronunciation flags
-- Character extraction time: 4m 28s (62.5% of total time)
-- Note: LLM identity detection failed (server error 500)
-- Note: Moral valence classification failed (server error 500)
+- Character extraction time: 4m 55s (65.3% of total time)
+- Total tokens: 33,923
+- 19 LLM calls
 
 ## Next Action
 Re-run analysis with PROMPT_analyze.md to verify the confrontation detection fix resolves the "the mummer" / "Prince Prospero" merge issue.
