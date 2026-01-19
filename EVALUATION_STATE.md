@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -190,11 +190,12 @@ See git history for full details.
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 10)
-- Analysis completed in 7m 29s
-- Total LLM tokens: 32,012
-- Character count: 1 (still showing merge issue - "the Prince Prospero (aka the mummer)")
-- Pipeline bottleneck: Character Extraction (57.8% of time, 4m26s)
+## Pipeline Notes (Attempt 11)
+- Analysis completed in 7m 38s
+- Total LLM tokens: 35,769
+- Character count: 1 (still showing merge issue - "the Prince Prospero (aka Prospero, the mummer)")
+- Pipeline bottleneck: Character Extraction (67.8% of time, 5m11s)
+- Several LLM 500 errors during profile generation (EOF errors) but core analysis completed
 
 ## Key Observation
 
