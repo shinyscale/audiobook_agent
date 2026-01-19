@@ -1746,23 +1746,34 @@ CRITICAL INSTRUCTIONS:
                             f"voice_guidance={'present' if voice_guidance else 'missing'}"
                         )
 
-                        # Clean up "unknown" values to maintain consistency
+                        # DETAILED DEBUG: Log the actual structured field contents
+                        if appearance:
+                            logger.info(f"  appearance content: {json.dumps(appearance)}")
+                        if personality:
+                            logger.info(f"  personality content: {json.dumps(personality)}")
+                        if voice_guidance:
+                            logger.info(f"  voice_guidance content: {json.dumps(voice_guidance)}")
+
+                        # Preserve structured fields even if they contain "unknown" values
                         def _clean_dict(d):
                             if not isinstance(d, dict):
                                 return None
-                            # Remove keys with "unknown" values or empty arrays
-                            cleaned = {}
-                            for k, v in d.items():
-                                if v == "unknown" or v == [] or v == "":
-                                    continue
-                                if isinstance(v, list) and all(x == "unknown" or x == "" for x in v):
-                                    continue
-                                cleaned[k] = v
-                            return cleaned if cleaned else None
+                            # Return the dict as-is if it has any content
+                            # We keep "unknown" values because they indicate the LLM responded
+                            # but found no evidence in the text (which is valid information)
+                            return d if d else None
 
                         appearance = _clean_dict(appearance)
                         personality = _clean_dict(personality)
                         voice_guidance = _clean_dict(voice_guidance)
+
+                        # DEBUG: Log after cleaning
+                        logger.info(
+                            f"After _clean_dict for {character.canonical_name}: "
+                            f"appearance={'present' if appearance else 'NULL'}, "
+                            f"personality={'present' if personality else 'NULL'}, "
+                            f"voice_guidance={'present' if voice_guidance else 'NULL'}"
+                        )
 
                         # Fallback: If LLM didn't provide structured fields, attempt to structure the profile text
                         if not appearance and not personality and not voice_guidance and profile:
@@ -2175,6 +2186,9 @@ Return ONLY the JSON object."""
                 evidence=evidence,
                 is_narrator=getattr(pc, 'is_narrator', False),
                 narrative_role=getattr(pc, 'narrative_role', None),
+                appearance=getattr(pc, 'appearance', None),
+                personality=getattr(pc, 'personality', None),
+                voice_guidance=getattr(pc, 'voice_guidance', None),
             ))
 
         # Also add low confidence characters (no profiles generated for these)

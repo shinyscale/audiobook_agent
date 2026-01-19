@@ -161,6 +161,10 @@ class Character:
     role: RoleType = "supporting"   # Character role in the story
     # Effective mention count for narrators (boosted to match main characters)
     effective_mention_count: Optional[int] = None
+    # Structured profile fields (F8: Simplified Character Output)
+    appearance: Optional[dict] = None  # {summary, age_indication, distinguishing_features}
+    personality: Optional[dict] = None  # {summary, traits, temperament, emotional_range}
+    voice_guidance: Optional[dict] = None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
 
     def to_dict(self) -> dict:
         return {
@@ -181,6 +185,9 @@ class Character:
             "narrative_role": self.narrative_role,
             "role": self.role,
             "effective_mention_count": self.effective_mention_count,
+            "appearance": self.appearance,
+            "personality": self.personality,
+            "voice_guidance": self.voice_guidance,
         }
 
     @classmethod
@@ -209,6 +216,9 @@ class Character:
             narrative_role=data.get("narrative_role"),
             role=data.get("role", "supporting"),
             effective_mention_count=data.get("effective_mention_count"),
+            appearance=data.get("appearance"),
+            personality=data.get("personality"),
+            voice_guidance=data.get("voice_guidance"),
         )
 
 

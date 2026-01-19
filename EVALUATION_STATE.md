@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Attempt:** 22
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Output Files
@@ -161,6 +161,18 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Score Impact:** 0 (no change)
 - **Status:** Code change did not produce expected result - debugging required
 
+### Attempt 22 - In Progress
+- **Change:** Fix structured profile field transfer in model conversion
+- **Root Cause:** src/analyzer.py:_convert_characters():lines_2178-2189 did not transfer structured fields when converting from pipeline Character to Pydantic Character model
+- **Files Modified:**
+  - `src/pipeline/character_extraction/models.py` lines 164-167 (added structured fields to dataclass)
+  - `src/pipeline/character_extraction/models.py` lines 188-190, 219-221 (updated to_dict/from_dict)
+  - `src/analyzer.py` lines 2189-2191 (added field transfer in _convert_characters)
+  - `src/analyzer.py` lines 1750-1756 (simplified _clean_dict to preserve "unknown" values)
+- **Smoke Test:** PASS - Characters with profiles now have all three structured fields populated
+- **Expected Impact:** Character Profiles 6→7+ (+0.15+ points) → reach 8.0 threshold
+- **Status:** Ready for full analysis
+
 ## Next Action
-**Phase:** awaiting_fix
-Debug why structured profile fields remain null despite code changes. Add logging to trace LLM response and field population.
+**Phase:** awaiting_analysis
+Re-run full analysis on masque_of_red_death to verify fix and check if score reaches 8.0 threshold.
