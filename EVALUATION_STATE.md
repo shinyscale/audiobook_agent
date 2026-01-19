@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 14
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -24,29 +24,31 @@
 - Presentation: 9 -> 8 (-1 regression)
 - **Overall: 6.75 -> 6.85 (+0.10 slight improvement)**
 
-## Attempt 13 Analysis: ENHANCED DEATH DETECTION FAILED
+## Attempt 14 Result: FAILED
 
 ### What Was Tried
-Enhanced `_entities_in_death_relationship()` in `src/pipeline/character_extraction/consensus.py` to use multiple name variants and improved matching patterns.
+Added DEATH RULE and CONFRONTATION RULE to `PAIRWISE_ALIAS_SYSTEM` and `PAIRWISE_ALIAS_PROMPT` in `src/pipeline/character_extraction/consensus.py` (lines 141-176):
+- "DEATH RULE: If one name KILLS or CAUSES THE DEATH of the other name in the context, they are DIFFERENT people"
+- "CONFRONTATION RULE: If contexts show one name physically attacking the other with a weapon, they are likely DIFFERENT people"
 
 ### Result
-**FAILED** - The merge STILL occurs with the production model (qwen3-next:80b).
+**FAILED** - The merge STILL occurs. "the mummer" is still listed as an alias of "Prince Prospero".
 
-### Key Finding from Debug Logs
-`_entities_in_death_relationship()` is **NOT being called at all**.
+### Why Attempt 14 Failed
+The pairwise alias prompt rules did not prevent the merge. Possible reasons:
+1. The LLM is not actually seeing the death context in the pairwise comparison
+2. The rules are being overridden by other heuristic matching
+3. The context provided to the pairwise decision doesn't include the death scene
+4. The merge may be happening at a different stage (initial extraction, not pairwise resolution)
 
-This proves the merge is happening at a DIFFERENT level than cross-group resolution - likely at:
-1. Pairwise alias resolution (`_llm_alias_resolution()` or `_heuristic_alias_resolution()`)
-2. Or at the proposer level where "the mummer" is already associated with Prospero
-
-### The Smoking Gun (Unchanged from Previous Attempts)
+### Key Evidence
 **The chapter summary pipeline CORRECTLY identifies 2 characters:**
 - "Prince Prospero"
 - "The masked figure (Red Death)"
 
 **But the character extraction pipeline merges them into 1.**
 
-This proves the underlying LLM CAN distinguish these characters - the merge is happening in the character extraction consensus logic.
+This proves the underlying LLM CAN distinguish these characters when given the full chapter context. The problem is in how the character extraction pipeline handles the pairwise comparisons or initial grouping.
 
 ## Current Issues (Priority Order)
 
@@ -59,8 +61,8 @@ This proves the underlying LLM CAN distinguish these characters - the merge is h
      - The mummer is "dressed as the Red Death itself, draped in grave-cloths"
      - When unmasked, the figure is "untenanted by any tangible form" (not a person at all)
    - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
-   - **THIRTEEN attempts have now failed to fix this issue**
-   - **Status:** Cross-group resolution fixes don't work because the merge happens BEFORE that stage
+   - **FOURTEEN attempts have now failed to fix this issue**
+   - **Status:** Neither cross-group resolution fixes NOR pairwise prompt rules have worked
 
 2. **Missing character: The Red Death / Masked Figure**
    - Problem: The antagonist of the story should be its own character entry
@@ -75,7 +77,7 @@ This proves the underlying LLM CAN distinguish these characters - the merge is h
 
 ### HIGH
 3. **Missing alias: "the duke" for Prince Prospero**
-   - Problem: Text uses "the duke" to refer to Prospero: "as might have been expected from the duke's love of the bizarre"
+   - Problem: Text uses "the duke" to refer to Prospero: "The tastes of the duke were peculiar"
    - Location: Alias detection
 
 ### MEDIUM
@@ -83,24 +85,25 @@ This proves the underlying LLM CAN distinguish these characters - the merge is h
    - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
    - Location: Character name normalization
 
-5. **Too many common words in pronunciation guide (65 in "Other")**
-   - Problem: Common words like "dauntless", "chiming", "magnificence", "casements" are flagged
-   - Location: Pronunciation flagging threshold
+5. **Too many common words in pronunciation guide (30%+ false positives)**
+   - Problem: Common words like "dauntless", "chiming", "magnificence", "casements", "buffoons" are flagged
+   - Count: ~20-25 of 73 entries are false positives
+   - Location: Pronunciation flagging threshold or common word filter
 
 6. **Foreign word false positive: "decorum"**
    - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but fully assimilated)
    - Location: Foreign word detection
 
-## Root Cause Analysis: Summary After 13 Attempts
+## Root Cause Analysis: Summary After 14 Attempts
 
 ### The Core Problem
-The merge happens BEFORE cross-group resolution. Debug logging proves `_entities_in_death_relationship()` is never called, meaning "the mummer" and "Prince Prospero" are already in the same character group by the time cross-group resolution runs.
+The LLM decides "the mummer" = "Prince Prospero" despite all prompt-based fixes. 14 different approaches have been tried at various pipeline stages (cross-group resolution, pairwise prompt rules, context windows, death detection functions), and NONE have worked.
 
-### Where the Merge Is Happening (Investigation Needed)
-Possible locations:
-1. **`_is_descriptive_handle()` classification** - "the mummer" may be classified as a proper name rather than an epithet
-2. **`_llm_alias_resolution()` or `_heuristic_alias_resolution()`** - The LLM may be deciding "the mummer" = "Prince Prospero" at the pairwise merge level
-3. **Initial extraction** - Proposers may already be tagging "the mummer" with Prospero
+### Where the Merge Is Likely Happening
+Based on 14 failed attempts, the merge is happening at a level that prompt engineering cannot easily fix:
+1. **Initial name extraction** - The proposers may be tagging "the mummer" contexts with "Prospero" from the start
+2. **Heuristic-level matching** - There may be heuristic code that considers "the mummer" a descriptive epithet for any character in the same scene
+3. **LLM overconfidence** - The LLM may be too confident in merging characters at a masquerade ball
 
 ### What Has Been Tried (All Failed)
 | Attempt | Fix Applied | Result |
@@ -118,47 +121,43 @@ Possible locations:
 | 11 | mention_context_chars 100 -> 200 | +0.15 score, merge still occurs |
 | 12 | mention_context_chars 200 -> 250 | Works on small model, FAILS on production |
 | 13 | Enhanced death relationship detection | Never called - merge happens earlier |
+| 14 | Death/confrontation rules in pairwise prompt | No effect |
 
 ## Fix History
 
-### Attempts 1-12
+### Attempts 1-13
 See previous EVALUATION_STATE.md entries and git history.
 
-### Attempt 13
-- **Change:** Enhanced `_entities_in_death_relationship()` with multiple name variants
-- **Result:** Function is NEVER CALLED - merge happens before cross-group resolution
-- **Conclusion:** Must investigate WHERE the merge actually happens (pairwise level, not cross-group)
-
 ### Attempt 14
-- **Root cause identified:** The merge happens in `_llm_pairwise_merge_decision()` at lines 970-1017 of consensus.py. The LLM prompt (PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT) had NO rules about death relationships or antagonistic confrontations.
-- **Change:** Added DEATH RULE and CONFRONTATION RULE to PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT
-  - DEATH RULE: "If one name KILLS or CAUSES THE DEATH of the other name in the context, they are DIFFERENT people"
-  - CONFRONTATION RULE: "If contexts show one name physically attacking the other with a weapon, they are likely DIFFERENT people"
-- **Modified:** `src/pipeline/character_extraction/consensus.py` lines 141-176
-- **Confidence:** HIGH - All 13 previous attempts fixed cross-group resolution, but the merge happens at the earlier pairwise LLM decision level. The prompt rules directly control the LLM's merge decisions.
+- **Change:** Added death/confrontation rules to PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT
+- **Result:** No effect - merge still occurs
+- **Conclusion:** Prompt-based rules at pairwise level are insufficient
 
-## Recommended Next Approach (Attempt 15, if needed)
+## Recommended Next Approach (Attempt 15)
 
-### Priority 1: Add Debug Logging to Find Merge Location
-Add logging to these functions to trace where "the mummer" gets merged with "Prince Prospero":
+### Priority 1: Post-Processing Character Reconciliation
+Since the SUMMARY pipeline correctly identifies both characters:
+1. After character extraction completes, compare characters against `characters_present` from summaries
+2. If summaries identify MORE character entities than extraction, flag potential false merges
+3. Use textual evidence (death scenes, attacks) to SPLIT incorrectly merged characters
+4. This is a POST-HOC fix that doesn't require changing the extraction logic
 
-1. **`_is_descriptive_handle()`** - Is "the mummer" classified as epithet or proper name?
-2. **`_heuristic_alias_resolution()`** - Does heuristic logic merge them?
-3. **`_llm_alias_resolution()`** - Does the LLM merge them at pairwise level?
-4. **Initial extraction results** - Are they separate groups initially?
+### Priority 2: Hardcoded Split for Death Relationships
+Add a post-processing step that:
+1. Searches for death scene patterns in the text (e.g., "fell prostrate in death", "died", "killed")
+2. Extracts the names involved
+3. If two names are currently merged but one KILLS the other in text, force a split
 
-### Priority 2: Post-Processing Character Split
-Since the summary pipeline correctly identifies both characters, add a post-processing step:
-1. Extract character names from chapter summaries (already available in `characters_present`)
-2. Compare against final character list
-3. If summary identifies more characters than extraction, investigate potential incorrect merges
-4. Use death scene detection to SPLIT characters that were incorrectly merged
+### Priority 3: Extraction-Level Investigation
+Add debug logging to understand WHERE the merge actually happens:
+1. Log initial proposer outputs - are "the mummer" and "Prospero" already merged?
+2. Log heuristic resolution steps
+3. Log LLM pairwise decisions with full context provided
 
-### Priority 3: Classification Fix
-If "the mummer" is being classified as a proper name:
-- Make `_is_descriptive_handle()` more conservative about "the X" patterns
-- "the mummer" should be classified as an epithet, not a proper name
-- Epithets go through cross-group resolution (where death detection could work)
+### What NOT to Try Again
+- Cross-group resolution changes (attempts 1-13 proved these don't help)
+- Prompt-based rules alone (attempt 14 proved these don't help)
+- Context window adjustments (attempts 7-12 showed these have minimal effect)
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
@@ -166,11 +165,11 @@ If "the mummer" is being classified as a proper name:
 - Directory: output/Masque of the Red Death - Poe_20260119_041724
 
 ## Pipeline Notes (Attempt 14)
-- Analysis completed successfully in 7m 55s
+- Analysis completed successfully in 7m 44s
 - Total tokens: 40,255
-- Character extraction bottleneck: 65% of time (5m9s)
+- Character extraction bottleneck: 65% of time (5m 9s)
 - Result: Still only 1 character detected with "the mummer" listed as an alias of "Prince Prospero"
 - The fix applied to pairwise alias prompts did NOT resolve the merge issue
 
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify the fix resolves the character merge issue
+Run PROMPT_fix.md to implement post-processing character reconciliation using summary data
