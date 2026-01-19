@@ -2000,17 +2000,34 @@ class CharacterConsensusBuilder:
                 if mention.context:
                     proper_contexts.append(mention.context.lower())
 
-        # Normalize names for matching
+        # Normalize names for matching - try multiple variants
         epithet_normalized = epithet_name.lower().replace("the ", "").strip()
+        epithet_variants = [
+            epithet_normalized,
+            epithet_name.lower().strip(),  # With "the" if present
+        ]
+
         proper_normalized = proper_name.lower().replace("the ", "").strip()
         proper_parts = proper_normalized.split()
+        proper_variants = [
+            proper_normalized,
+            proper_name.lower().strip(),  # With "the" if present
+        ]
+        # Add individual parts (last name, first name) for matching
+        for part in proper_parts:
+            if len(part) > 2:  # Skip very short words
+                proper_variants.append(part)
 
-        # NEW LOGIC: Check ALL contexts from BOTH entities
+        # Check ALL contexts from BOTH entities
         # If we find a death pattern + BOTH names in the same context, block the merge
-        # This handles cases where both entities appear in the same passage
         all_contexts = epithet_contexts + proper_contexts
 
-        for ctx in all_contexts:
+        logger.info(f"Death check: epithet '{epithet_name}' vs proper '{proper_name}'")
+        logger.info(f"  Epithet variants: {epithet_variants}")
+        logger.info(f"  Proper variants: {proper_variants}")
+        logger.info(f"  Total contexts to check: {len(all_contexts)}")
+
+        for i, ctx in enumerate(all_contexts):
             # Check if this context contains a death pattern
             has_death = False
             for pattern in death_patterns:
@@ -2021,26 +2038,28 @@ class CharacterConsensusBuilder:
             if not has_death:
                 continue
 
-            # Check if BOTH entities are mentioned in this context
-            has_epithet = epithet_normalized in ctx
-            has_proper = proper_normalized in ctx
+            logger.info(f"  Context {i} has death pattern")
 
-            # Also check for proper name parts (last name, first name)
-            if not has_proper:
-                for part in proper_parts:
-                    if len(part) > 2 and part in ctx:
-                        has_proper = True
-                        break
+            # Check if epithet is mentioned in this context (any variant)
+            has_epithet = any(variant in ctx for variant in epithet_variants)
+
+            # Check if proper name is mentioned in this context (any variant)
+            has_proper = any(variant in ctx for variant in proper_variants)
+
+            logger.info(f"  Context {i}: has_epithet={has_epithet}, has_proper={has_proper}")
+            if has_epithet or has_proper:
+                logger.info(f"  Context {i} content: {ctx[:500]}")
 
             # If we have death + both entities in same context, they're separate people
             if has_death and has_epithet and has_proper:
                 logger.warning(
                     f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
                     f"and '{proper_name}' - both appear together in death context: "
-                    f"{ctx[:200]}"
+                    f"{ctx[:300]}"
                 )
                 return True
 
+        logger.info(f"Death check complete: NO death relationship found")
         return False
 
     def _entities_in_confrontation(

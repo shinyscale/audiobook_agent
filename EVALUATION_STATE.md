@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Attempt:** 13
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -167,6 +167,14 @@ See git history. All targeted cross-group resolution in `consensus.py`. None wor
 - **Result:** Works on qwen3:4b-instruct, FAILS on qwen3-next:80b
 - **Conclusion:** Fix is model-dependent, production model has stronger merge bias
 
+### Attempt 13
+- **Change:** Enhanced `_entities_in_death_relationship()` to use multiple name variants and improved matching
+- **Root cause:** `src/pipeline/character_extraction/consensus.py:_entities_in_death_relationship()` - The function wasn't finding both names in the same context window
+- **Smoke test:** **FAILED** - Merge still occurs (1 character extracted)
+- **Key finding:** Debug logging shows `_entities_in_death_relationship()` is NOT being called at all
+- **Conclusion:** The merge is happening at a DIFFERENT level than cross-group resolution - likely at pairwise or heuristic level BEFORE cross-group is even attempted
+- **Files modified:** `src/pipeline/character_extraction/consensus.py` (lines 2003-2063)
+
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
@@ -179,16 +187,19 @@ See git history. All targeted cross-group resolution in `consensus.py`. None wor
 
 ## Next Action
 
-**Implement Option A or B:** Use the summary output to validate/correct character extraction.
+**CRITICAL: After 13 attempts, the merge is NOT happening at cross-group resolution.**
 
-The summary pipeline KNOWS these are different characters. We need to leverage that knowledge to fix the character extraction output.
+Debug logging from attempt 13 proves `_entities_in_death_relationship()` is never called, which means:
+- The merge happens BEFORE cross-group resolution
+- Either "the mummer" is being classified as a proper name (not an epithet)
+- OR they're being merged at the pairwise/heuristic level as proper names
 
-Specifically:
-1. After character extraction completes, parse the chapter summary for character mentions
-2. If the summary lists characters as separate but character extraction merged them, split them
-3. This is a post-processing correction, not a fix to the extraction logic itself
+**Recommended investigation for Attempt 14:**
+1. Add logging to `_is_descriptive_handle()` to see if "the mummer" is classified as epithet or proper name
+2. Add logging to `_llm_alias_resolution()` or `_heuristic_alias_resolution()` to see if merge happens there
+3. Check if both "the mummer" and "Prince Prospero" are extracted as separate names initially
 
-This approach has the highest chance of success because:
-- It uses information we KNOW is correct (summary output)
-- It's a targeted fix for this specific failure mode
-- It doesn't require understanding why the merge is happening
+**Alternative approaches if investigation shows fundamental architecture issue:**
+- **Option A (most promising)**: Use summary output to post-process and split incorrectly merged characters
+- **Option B**: Add a global character split rule based on death scenes (post-processing after all merging)
+- **Option C**: Change how "the X" names are classified - make classification more conservative
