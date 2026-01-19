@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -137,7 +137,27 @@
 - Reject names that start or end with non-alphabetic characters
 - Example: `if not name[0].isalpha() or not name[-1].isalpha(): return False`
 
+## Attempt 2 Analysis Run (2026-01-18): FAILED - NER bug still present
+
+**Error Encountered:**
+```
+LLM validation attempt 1 for '--yes' returned invalid JSON: got list
+LLM validation attempt 2 for '--yes' returned invalid JSON: got list
+LLM validation attempt 3 for '--yes' returned invalid JSON: got list
+Validation failed for '--yes': LLM validation returned invalid JSON for '--yes' after 3 attempts: Invalid JSON: got list
+Error during analysis: LLM validation returned invalid JSON for '--yes' after 3 attempts: Invalid JSON: got list
+```
+
+**Analysis:**
+- Confirmed the bug documented in Attempt 2 is still present
+- NER is extracting "--yes" from text and sending it to LLM validation
+- Current `_is_valid_name()` function (line 237-257) accepts "--yes" because:
+  - It has 5 characters (passes `len(name) < 2` check on line 239)
+  - It has 3 alphabetic characters, giving 60% ratio (passes 50% threshold on line 254)
+- The proposed fix (reject names starting/ending with non-alphabetic chars) is NOT yet implemented
+- Fix needs to be applied before analysis can proceed
+
 ## Next Action
 **Phase:** awaiting_fix
 
-Fix NER validation to reject names with leading/trailing punctuation.
+Fix NER validation to reject names with leading/trailing punctuation as documented in Attempt 2.
