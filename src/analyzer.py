@@ -1011,7 +1011,19 @@ class AudiobookAnalyzer:
                 logger.warning(f"F5 tag identity extraction failed: {e}")
 
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
-        MIN_MENTIONS_FOR_PROFILE = 5
+        # Adaptive threshold based on text length
+        # For short texts (< 5000 words), use a lower threshold
+        # For normal texts (5000-50000 words), use standard threshold
+        # For long texts (> 50000 words), maintain standard threshold
+        word_count = len(doc.text.split())
+        if word_count < 5000:
+            # Short story: profile characters with 2+ mentions
+            MIN_MENTIONS_FOR_PROFILE = 2
+            logger.info(f"Short text detected ({word_count} words) - using MIN_MENTIONS_FOR_PROFILE = 2")
+        else:
+            # Standard threshold for longer texts
+            MIN_MENTIONS_FOR_PROFILE = 5
+
         if llm:
             print("📋 Generating character profiles...")
             self._write_progress("Character Profiles", llm.config.model if llm and llm.config else None)
@@ -1037,7 +1049,7 @@ class AudiobookAnalyzer:
                     c for c in pipeline_char_map.characters
                     if c.mention_count >= MIN_MENTIONS_FOR_PROFILE or getattr(c, 'is_narrator', False)
                 ]
-                logger.info(f"Generating profiles for {len(eligible_chars)} eligible characters (5+ mentions or narrator)")
+                logger.info(f"Generating profiles for {len(eligible_chars)} eligible characters ({MIN_MENTIONS_FOR_PROFILE}+ mentions or narrator)")
                 profile_count = 0
                 high_conf_count = 0
                 medium_conf_count = 0
