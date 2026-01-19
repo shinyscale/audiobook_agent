@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -116,8 +116,22 @@
 1. **Cross-group epithet resolution** (consensus.py) - Did not produce expected results
 2. **Article filtering for pronunciation** (cmu_proposer.py) - Partially worked ("the" removed)
 
+### Attempt 2 Fixes Applied
+1. **Proper name with article classification** (consensus.py:_is_descriptive_handle())
+   - **Root cause:** Function classified ANY name starting with "the " as an epithet, including "the Prince Prospero"
+   - **Location:** src/pipeline/character_extraction/consensus.py:_is_descriptive_handle():1845
+   - **Fix:** Added logic to distinguish proper names with articles (e.g., "the Prince Prospero") from generic epithets (e.g., "the prince")
+   - **Approach:** Check if 2+ capitalized words follow "the " - if so, treat as proper name not epithet
+   - **Smoke test:** PASS - All 8 test cases correct (proper names vs epithets)
+   - **Full tests:** PASS - 444 tests passed, 11 skipped
+   - **Expected impact:**
+     - "the Prince Prospero" will now be classified as proper name
+     - Will be grouped with "Prince Prospero" and "Prospero" properly
+     - Mention count should aggregate all references (expected: 18+ instead of 3)
+     - Profile generation should now trigger for Prince Prospero
+
 ## Next Action
-Run PROMPT_fix.md to address mention counting (Critical #1) - this is the root cause of both the character extraction and profile generation failures.
+Set phase to `awaiting_analysis` and re-run pipeline to verify fix effectiveness.
 
 ## Key Insight for Fix Phase
 The pronunciation guide shows:

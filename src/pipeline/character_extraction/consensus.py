@@ -1839,6 +1839,7 @@ class CharacterConsensusBuilder:
         Detect if a name is a descriptive handle (epithet) like "the creature".
 
         Descriptive handles start with "the" followed by a noun/adjective phrase.
+        Proper names with articles like "the Prince Prospero" are NOT epithets.
         """
         name_lower = name.lower().strip()
         # Must start with "the "
@@ -1848,6 +1849,21 @@ class CharacterConsensusBuilder:
         rest = name_lower[4:]
         if rest.split()[0].rstrip('.') in TITLES:
             return False
+
+        # Check if this is a proper name with article (e.g., "the Prince Prospero")
+        # vs a generic epithet (e.g., "the prince")
+        # Proper names typically have multiple capitalized words after "the"
+        original_rest = name.strip()[4:]  # Get the part after "the " without lowercasing
+        words = original_rest.split()
+
+        if len(words) >= 2:
+            # If we have 2+ words and they're capitalized, it's likely a proper name
+            # e.g., "the Prince Prospero" → proper name
+            # e.g., "the blind priest" → epithet
+            capitalized_count = sum(1 for w in words if w and w[0].isupper())
+            if capitalized_count >= 2:
+                return False  # This is a proper name with article, not an epithet
+
         return True
 
     def _llm_epithet_resolution(
