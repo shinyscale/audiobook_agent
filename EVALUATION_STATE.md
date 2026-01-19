@@ -3,39 +3,34 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 10
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 3/10 ← CRITICAL FAILURE (9 consecutive attempts failed)
-- Character Profiles: 6/10
+- Character Extraction: 3/10 <- CRITICAL FAILURE (10 consecutive attempts failed)
+- Character Profiles: 5/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 6.85/10** (threshold: 8.0)
+- **Overall: 6.70/10** (threshold: 8.0)
 
 ## Score Delta from Baseline (Attempt 1)
-- Structure: 10 → 10 (unchanged)
-- Characters: 5 → 3 (**-2 REGRESSION** from attempt 1)
-- Profiles: 2 → 6 (+4 improvement)
-- Summaries: 9 → 9 (unchanged)
-- Pronunciation: 5 → 6 (+1 improvement)
-- Presentation: 9 → 8 (-1 regression)
-- **Overall: 6.75 → 6.85 (+0.10 slight improvement)**
+- Structure: 10 -> 10 (unchanged)
+- Characters: 5 -> 3 (**-2 REGRESSION** from attempt 1)
+- Profiles: 2 -> 5 (+3 improvement)
+- Summaries: 9 -> 9 (unchanged)
+- Pronunciation: 5 -> 6 (+1 improvement)
+- Presentation: 9 -> 8 (-1 regression)
+- **Overall: 6.75 -> 6.70 (-0.05 slight regression)**
 
-## Attempt 10 Fix: FAILED
+## Attempt 10 Fix: CONFIRMED FAILED
 
-### Root Cause Hypothesis (DISPROVEN)
-The hypothesis was that the death relationship detection logic was flawed because it checked each entity's contexts separately, missing co-occurrence.
+### What Was Tried
+Changed the death relationship detection logic in `_entities_in_death_relationship()` to check ALL contexts from BOTH entities for death patterns and co-occurrence of both names.
 
-**Location:** `src/pipeline/character_extraction/consensus.py:_entities_in_death_relationship():2008-2041`
-
-**The Fix Applied:** Changed logic to check ALL contexts from BOTH entities for death pattern + BOTH names appearing together.
-
-**Smoke Test:** PASSED - correctly detected death relationship with mock data containing the actual Poe text.
-
-**Actual Result:** DID NOT WORK - the merge still occurs. The function may not be called, or the merge happens at a different stage.
+### Why It Failed
+The fix passed smoke tests but had NO EFFECT on actual analysis. This confirms what attempts 1-9 also showed: **the merge is NOT happening in cross-group resolution where all fixes have been applied.**
 
 ## Current Issues (Priority Order)
 
@@ -49,7 +44,7 @@ The hypothesis was that the death relationship detection logic was flawed becaus
      - When unmasked, the figure is "untenanted by any tangible form" (not a person at all)
    - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
    - **TEN attempts have now failed to fix this issue**
-   - Location: Unknown - not in cross-group resolution where all fixes have been applied
+   - Location: **UNKNOWN** - NOT in cross-group resolution where all 10 fixes have been applied
 
 2. **Missing character: The Red Death / Masked Figure**
    - Problem: The antagonist of the story should be its own character entry
@@ -64,34 +59,29 @@ The hypothesis was that the death relationship detection logic was flawed becaus
    - Note: Will emerge naturally once issue #1 is fixed
 
 ### HIGH
-3. **Missing alias: "the duke" for Prince Prospero**
+3. **Inaccurate death description in profile**
+   - Problem: Profile evidence states "He is fatally stabbed by the intruder"
+   - Evidence: Prospero is NOT stabbed - he simply collapses dead after confronting the figure. The text says "fell prostrate in death the Prince Prospero" with no mention of stabbing. The dagger was Prospero's, and it "dropped gleaming upon the sable carpet"
+   - Location: Character profile generation or evidence extraction
+
+4. **Missing alias: "the duke" for Prince Prospero**
    - Problem: Text uses "the duke" to refer to Prospero: "as might have been expected from the duke's love of the bizarre"
    - Location: Alias detection
 
-4. **Mention count discrepancy for Prince Prospero**
-   - Problem: Character shows 6 mentions, but pronunciation shows 18 "Prospero" + 9 "Prince" occurrences
-   - Evidence: Clear discrepancy between pronunciation counting and character counting
-   - Location: Mention count aggregation in character pipeline
-
-5. **Inaccurate death description in profile**
-   - Problem: Profile states "He dies after being stabbed by the intruder"
-   - Evidence: Prospero is NOT stabbed - he simply collapses dead after confronting the figure. The text says "fell prostrate in death the Prince Prospero" with no mention of stabbing
-   - Location: Character profile generation
-
 ### MEDIUM
-6. **Canonical name format includes leading article**
+5. **Canonical name format includes leading article**
    - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
    - Location: Character name normalization
 
-7. **Too many common words in pronunciation guide (65+ in "Other")**
+6. **Too many common words in pronunciation guide (65+ in "Other")**
    - Problem: Common words like "dauntless", "chiming", "magnificence", "casements" are flagged
    - Location: Pronunciation flagging threshold
 
-8. **Foreign word false positive: "decorum"**
+7. **Foreign word false positive: "decorum"**
    - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but fully assimilated)
    - Location: Foreign word detection
 
-## Root Cause Analysis: Why 9 Attempts Have Failed
+## Root Cause Analysis: Why 10 Attempts Have Failed
 
 ### Summary of All Failed Attempts
 
@@ -103,22 +93,22 @@ The hypothesis was that the death relationship detection logic was flawed becaus
 | 4 | Implemented `_entities_in_confrontation()` function | No effect |
 | 5 | Solo pattern matching for confrontation | No effect |
 | 6 | (Evaluation only, no new fix) | No effect |
-| 7 | Increased context window 150/120 → 400 chars | No effect |
+| 7 | Increased context window 150/120 -> 400 chars | No effect |
 | 8 | Hard-coded death relationship detection | No effect |
 | 9 | Increased context windows to 600-800, added death rule #6 | No effect |
 | 10 | Fixed death relationship detection (check ALL contexts) | No effect |
 
 ### The Fundamental Problem
 
-After 10 attempts, we have tried:
-- LLM prompt modifications (attempts 3, 5, 9)
-- Structural pre-filters (attempts 4, 8)
-- Context window increases (attempts 7, 9)
-- Death relationship detection (attempts 8, 10)
+After 10 attempts targeting cross-group resolution, we have confirmed:
+- LLM prompt modifications don't help
+- Structural pre-filters don't help
+- Context window increases don't help
+- Death relationship detection doesn't help
 
-**None have worked.** The merge continues regardless of all fixes applied to the cross-group resolution stage. Even the fix to check ALL contexts from BOTH entities (attempt 10) did not prevent the merge.
+**CONCLUSION: The merge is NOT happening in cross-group resolution.**
 
-### Critical Insight
+### Critical Evidence
 
 The **chapter summary pipeline CORRECTLY identifies 2 characters:**
 - "Prince Prospero"
@@ -128,35 +118,38 @@ The **chapter summary pipeline CORRECTLY identifies 2 characters:**
 
 This proves:
 1. The underlying text analysis CAN distinguish these characters
-2. The character extraction pipeline is making a WRONG DECISION somewhere
-3. The decision point is NOT in cross-group resolution where all fixes have been applied
+2. The merge decision is happening OUTSIDE of cross-group resolution
+3. All 10 attempts have been fixing the WRONG code
 
-### Hypotheses for Next Attempt
+### Where Else Could the Merge Happen?
 
-1. **The merge may happen BEFORE cross-group resolution**: The epithet "the mummer" may be classified and merged at an earlier pipeline stage (e.g., initial entity grouping, NER, or single-group resolution)
+Based on the pipeline architecture, the merge could occur at:
 
-2. **The cross-group resolution code may not be in the execution path**: Despite 9 attempts of modifications, the code may be conditionally skipped
-
-3. **Need to trace the ACTUAL execution path**: Add comprehensive logging at EVERY decision point to identify exactly where the merge occurs
+1. **Initial entity classification** - When entities are first extracted and classified (epithet vs proper name), "the mummer" may be incorrectly classified
+2. **Single-group resolution** - Before cross-group resolution runs, entities within a single group may be pre-merged
+3. **Character merging post-processing** - After cross-group resolution, additional merging may occur
+4. **NER extraction** - spaCy's named entity recognition may conflate these entities
 
 ### Recommended Next Approach
 
-**STOP modifying cross-group resolution code until we verify it's actually being called.**
+**CRITICAL: STOP modifying cross-group resolution code - 10 attempts prove the bug is elsewhere.**
 
-1. **Add extensive debug logging** to trace the complete character extraction pipeline:
-   - Log when initial entities are extracted
-   - Log when entities are classified (epithet vs proper name)
-   - Log when single-group resolution runs
-   - Log when cross-group resolution runs
-   - Log the EXACT point where "the mummer" gets linked to Prospero
-   - Log the final character list before output
+1. **Add comprehensive debug logging** to trace the EXACT point where "the mummer" becomes an alias of "Prince Prospero":
+   - Log initial NER extraction results
+   - Log entity classification (epithet vs proper name)
+   - Log single-group resolution decisions
+   - Log cross-group resolution input/output
+   - Log any post-processing merges
 
-2. **Identify the EXACT line of code** where "the mummer" gets added to Prince Prospero's alias list
+2. **Examine the entity classification stage** - "the mummer" as an epithet might be getting auto-linked to the closest proper noun (Prospero) during classification, BEFORE cross-group resolution runs
 
-3. **Consider a fundamentally different approach**:
-   - Post-processing step to DETECT incorrectly merged characters
-   - Use chapter summary (which is correct) to validate character extraction
-   - Add a "death relationship" post-filter that splits characters if one dies confronting the other
+3. **Consider a post-processing safety net**:
+   - Add a final validation step that checks: "If character A dies while confronting character B in the chapter summary, they should NOT be merged"
+   - Use the chapter summary (which is CORRECT) to validate character extraction
+
+4. **Investigate LLM decision boundaries**:
+   - The LLM may never be asked about this merge
+   - The merge may happen through heuristic rules, not LLM judgment
 
 ## Fix History
 
@@ -170,8 +163,8 @@ This proves:
 ### Attempt 9 Fixes Applied
 1. **Increased LLM context windows** (consensus.py lines 2205, 2220)
    - Root cause hypothesis: 100-char context windows too small to capture 150+ char death scene
-   - Increased epithet contexts: 400 → 800 chars
-   - Increased proper name contexts: 400 → 600 chars
+   - Increased epithet contexts: 400 -> 800 chars
+   - Increased proper name contexts: 400 -> 600 chars
    - **Result: DID NOT WORK**
 
 2. **Added explicit death rule to LLM prompt** (consensus.py lines 112-115)
@@ -180,12 +173,7 @@ This proves:
    - Provides examples: "fell prostrate in death", "killed by"
    - **Result: DID NOT WORK**
 
-### Attempt 8 Fixes Applied
-1. **Death relationship detection** (consensus.py)
-   - Added `_entities_in_death_relationship()` function
-   - **Result: DID NOT WORK** - context windows too small (hypothesis)
-
-### Attempts 1-7 Fixes
+### Attempts 1-8 Fixes
 See git history for full details.
 
 ## Output Files
@@ -193,12 +181,10 @@ See git history for full details.
 - JSON: output/masque_of_red_death/analysis.json
 
 ## Pipeline Notes (Attempt 10)
-- Analysis completed in 7m 41s
+- Analysis completed in 7m 29s
 - Total LLM tokens: 32,012
 - Character count: 1 (still showing merge issue - "the Prince Prospero (aka the mummer)")
-- Some LLM 500 errors occurred during identity/valence detection (EOF errors)
 - Pipeline bottleneck: Character Extraction (57.8% of time, 4m26s)
-- **RESULT: Death relationship fix DID NOT WORK - merge still occurring**
 
 ## Key Observation
 
@@ -208,11 +194,12 @@ See git history for full details.
 
 **But the character extraction pipeline merges them into 1.**
 
-This proves the information is available - the character extraction pipeline is making a wrong decision at an unknown stage.
+This proves the information is available - the character extraction pipeline is making a wrong decision at an **UNKNOWN stage BEFORE cross-group resolution**.
 
 ## Next Action
 
-Run PROMPT_analyze.md to re-run the analysis pipeline with the death relationship fix and verify:
-1. "the mummer" is no longer merged with "Prince Prospero"
-2. Two separate characters appear in output: "Prince Prospero" and "the mummer"/"Red Death"
-3. Character extraction score improves from 3/10 to 8+/10
+Run PROMPT_fix.md with CRITICAL instruction:
+1. **DO NOT modify cross-group resolution code** - 10 attempts prove the bug is not there
+2. **Add debug logging to trace where the merge actually occurs**
+3. **Examine entity classification and single-group resolution stages**
+4. **Consider a post-processing validation using the correct chapter summary**
