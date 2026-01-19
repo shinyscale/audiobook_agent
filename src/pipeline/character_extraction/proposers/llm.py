@@ -44,9 +44,6 @@ Focus on finding:
 - First names only: "Michael", "Emma"
 - Titled names: "Mr. Anderson", "Dr. Williams"
 - Nicknames: "Mike", "Liz"
-- **CRITICAL - First-person narrators**: If the text uses first-person ("I", "my") and the narrator explicitly names themselves, ALWAYS include that name even if mentioned only once
-  Patterns: "My name is X", "I am X", "My baptismal name is X", "I, X, ..."
-  These are PRIMARY characters and must not be missed
 - Descriptive handles: ONLY if they refer to a person who speaks/acts AND appear 3+ times in the excerpt
   Examples: "the creature said", "the monster walked", "the old man replied"
 
@@ -62,14 +59,6 @@ CHARACTER_PROMPT_TEMPLATE = """Find all CHARACTER NAMES mentioned in this text e
 
 TEXT:
 {text}
-
-CRITICAL FIRST STEP: Check if this text is written in first-person ("I", "my", "me"). If yes, look for where the narrator explicitly names themselves using patterns like:
-- "My name is X"
-- "I am X"
-- "My baptismal name is X"
-- "I, X, ..."
-
-If you find such a pattern, include that character name even if it only appears once. First-person narrators who name themselves are PRIMARY characters.
 
 Return a JSON array of character names found. For each character:
 - "name": The character's name as it appears in the text
@@ -87,7 +76,6 @@ Example response:
 ```json
 [
   {{"name": "Mike Mitchell", "type": "story", "mentions": 5, "in_dialogue": true, "acts": true, "confidence": 0.95}},
-  {{"name": "Egaeus", "type": "story", "mentions": 1, "in_dialogue": false, "acts": true, "confidence": 0.95, "note": "First-person narrator who names himself"}},
   {{"name": "Martin Luther King", "type": "historical", "mentions": 1, "in_dialogue": false, "acts": false, "confidence": 0.95}},
   {{"name": "the creature", "type": "descriptive", "mentions": 4, "in_dialogue": true, "acts": true, "confidence": 0.85}}
 ]
