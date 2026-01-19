@@ -5,11 +5,11 @@
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
       "complete": false,
-      "attempts": 2,
+      "attempts": 7,
       "final_score": null,
       "baseline_score": 6.45,
       "last_score": 5.95,
-      "regression_detected": true
+      "regression_detected": false
     },
     {
       "name": "masque_of_red_death",
