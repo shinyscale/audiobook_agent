@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -24,37 +24,18 @@
 - Presentation: 9 → 8 (-1 regression)
 - **Overall: 6.75 → 6.85 (+0.10 slight improvement)**
 
-## Attempt 10 Fix: IN PROGRESS (awaiting_analysis)
+## Attempt 10 Fix: FAILED
 
-### Root Cause Analysis Completed
-After 9 failed attempts, root cause has been identified:
+### Root Cause Hypothesis (DISPROVEN)
+The hypothesis was that the death relationship detection logic was flawed because it checked each entity's contexts separately, missing co-occurrence.
 
 **Location:** `src/pipeline/character_extraction/consensus.py:_entities_in_death_relationship():2008-2041`
 
-**The Problem:** The death relationship detection logic was FLAWED. It checked:
-1. "Does proper_name appear in epithet's contexts AND has death pattern?"
-2. "Does epithet appear in proper_name's contexts AND has death pattern?"
+**The Fix Applied:** Changed logic to check ALL contexts from BOTH entities for death pattern + BOTH names appearing together.
 
-This failed because the text has BOTH entities in the SAME context passage:
-> "fell prostrate in death the Prince Prospero. Then... seizing the mummer"
+**Smoke Test:** PASSED - correctly detected death relationship with mock data containing the actual Poe text.
 
-Since context windows (100 chars) are tied to individual entity mentions, the function only saw ONE entity per context, missing the co-occurrence.
-
-**The Fix:** Changed logic to check ALL contexts from BOTH entities for death pattern + BOTH names appearing together. If found, block the merge.
-
-**Smoke Test:** PASSED - death relationship now correctly detected with mock data containing the actual Poe text.
-
-### What Was Changed
-Modified `_entities_in_death_relationship()` in consensus.py lines 2003-2044:
-- OLD: Check each entity's contexts separately for other entity + death
-- NEW: Check ALL contexts for death pattern + BOTH entities together
-- This handles cases where both names appear in the same passage
-
-### Expected Impact
-- Should correctly detect that "the mummer" and "Prince Prospero" appear together in a death context
-- Should block the cross-group merge
-- "the mummer" should become a separate character (Red Death antagonist)
-- Character score should improve from 3/10 to at least 8/10
+**Actual Result:** DID NOT WORK - the merge still occurs. The function may not be called, or the merge happens at a different stage.
 
 ## Current Issues (Priority Order)
 
@@ -67,7 +48,7 @@ Modified `_entities_in_death_relationship()` in consensus.py lines 2003-2044:
      - The mummer is "dressed as the Red Death itself, draped in grave-cloths"
      - When unmasked, the figure is "untenanted by any tangible form" (not a person at all)
    - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
-   - **NINE attempts have now failed to fix this issue**
+   - **TEN attempts have now failed to fix this issue**
    - Location: Unknown - not in cross-group resolution where all fixes have been applied
 
 2. **Missing character: The Red Death / Masked Figure**
@@ -125,16 +106,17 @@ Modified `_entities_in_death_relationship()` in consensus.py lines 2003-2044:
 | 7 | Increased context window 150/120 → 400 chars | No effect |
 | 8 | Hard-coded death relationship detection | No effect |
 | 9 | Increased context windows to 600-800, added death rule #6 | No effect |
+| 10 | Fixed death relationship detection (check ALL contexts) | No effect |
 
 ### The Fundamental Problem
 
-After 9 attempts, we have tried:
+After 10 attempts, we have tried:
 - LLM prompt modifications (attempts 3, 5, 9)
 - Structural pre-filters (attempts 4, 8)
 - Context window increases (attempts 7, 9)
-- Death relationship detection (attempt 8)
+- Death relationship detection (attempts 8, 10)
 
-**None have worked.** The merge continues regardless of all fixes applied to the cross-group resolution stage.
+**None have worked.** The merge continues regardless of all fixes applied to the cross-group resolution stage. Even the fix to check ALL contexts from BOTH entities (attempt 10) did not prevent the merge.
 
 ### Critical Insight
 
@@ -180,10 +162,10 @@ This proves:
 
 ### Attempt 10 Fixes Applied
 1. **Fixed death relationship detection logic** (consensus.py lines 2003-2044)
-   - Root cause: Function checked each entity's contexts separately, missing co-occurrence
+   - Root cause hypothesis: Function checked each entity's contexts separately, missing co-occurrence
    - Fixed: Now checks ALL contexts from BOTH entities for death pattern + both names together
    - Smoke test: PASSED - correctly detects death relationship with Poe text
-   - **Result: AWAITING FULL ANALYSIS**
+   - **Result: DID NOT WORK - merge still occurring**
 
 ### Attempt 9 Fixes Applied
 1. **Increased LLM context windows** (consensus.py lines 2205, 2220)
@@ -210,12 +192,13 @@ See git history for full details.
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 9)
-- Analysis completed in 7m 9s
-- Total LLM tokens: 32,019
+## Pipeline Notes (Attempt 10)
+- Analysis completed in 7m 41s
+- Total LLM tokens: 32,012
 - Character count: 1 (still showing merge issue - "the Prince Prospero (aka the mummer)")
 - Some LLM 500 errors occurred during identity/valence detection (EOF errors)
-- Pipeline bottleneck: Character Extraction (67.4% of time, 4m55s)
+- Pipeline bottleneck: Character Extraction (57.8% of time, 4m26s)
+- **RESULT: Death relationship fix DID NOT WORK - merge still occurring**
 
 ## Key Observation
 
