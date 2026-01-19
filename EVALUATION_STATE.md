@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -130,8 +130,21 @@
      - Mention count should aggregate all references (expected: 18+ instead of 3)
      - Profile generation should now trigger for Prince Prospero
 
+## Output Files
+- HTML: output/masque_of_red_death/report.html
+- JSON: output/masque_of_red_death/analysis.json
+- Quality Report: output/Masque of the Red Death - Poe_20260118_235801/quality.md
+
+## Pipeline Notes
+- Analysis completed successfully in 7m 28s
+- 1 character detected: "the Prince Prospero" (aka "the mummer") with 6 mentions
+- 1 character profile generated (improvement from 0 profiles in attempt 2)
+- 73 pronunciation flags
+- Bottleneck: Character Extraction (65.8% of time)
+- Warning: LLM identity detection failed with 500 error at end (non-critical)
+
 ## Next Action
-Set phase to `awaiting_analysis` and re-run pipeline to verify fix effectiveness.
+Evaluate attempt 3 to determine if fixes improved the results.
 
 ## Key Insight for Fix Phase
 The pronunciation guide shows:
