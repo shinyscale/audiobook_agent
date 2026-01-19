@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 22
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Output Files
@@ -161,7 +161,7 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Score Impact:** 0 (no change)
 - **Status:** Code change did not produce expected result - debugging required
 
-### Attempt 22 - In Progress
+### Attempt 22 - Analysis Complete
 - **Change:** Fix structured profile field transfer in model conversion
 - **Root Cause:** src/analyzer.py:_convert_characters():lines_2178-2189 did not transfer structured fields when converting from pipeline Character to Pydantic Character model
 - **Files Modified:**
@@ -171,8 +171,19 @@ See git history and previous EVALUATION_STATE.md entries.
   - `src/analyzer.py` lines 1750-1756 (simplified _clean_dict to preserve "unknown" values)
 - **Smoke Test:** PASS - Characters with profiles now have all three structured fields populated
 - **Expected Impact:** Character Profiles 6→7+ (+0.15+ points) → reach 8.0 threshold
-- **Status:** Ready for full analysis
+- **Status:** Analysis complete, awaiting evaluation
+
+## Pipeline Notes (Attempt 22)
+- Analysis completed in 8m 27s
+- Total tokens: 38,522 across 25 LLM calls
+- Character Extraction was bottleneck (62.8% of time, 5m19s)
+- **WARNING:** Some LLM 500 errors occurred during profile generation:
+  - Profile generation failed for 'the Prince Prospero' after 2 attempts (EOF errors)
+  - This may have affected structured field population
+- Output files generated successfully:
+  - output/masque_of_red_death/analysis.json
+  - output/masque_of_red_death/report.html
 
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run full analysis on masque_of_red_death to verify fix and check if score reaches 8.0 threshold.
+**Phase:** awaiting_evaluation
+Evaluate the output to determine if structured profile fields are now properly populated and if the score reaches the 8.0 threshold.
