@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -24,27 +24,43 @@
 - Presentation: 9 → 8 (-1 regression)
 - **Overall: 6.75 → 6.85 (+0.10 slight improvement)**
 
-## Attempt 8 Fix Assessment
+## Attempt 9 Fix
 
-### Fix: Hard-coded death relationship detection
-**Status: DID NOT WORK**
+### Root Cause Analysis (CONFIRMED):
 
-The fix from attempt 8 added `_entities_in_death_relationship()` function to detect when one entity dies at the hands of another. This was meant to block the merge of "the mummer" with "Prince Prospero" based on the text:
-- "fell prostrate in death the Prince Prospero" (Prospero dies)
-- "seizing the mummer" (after Prospero confronts the mummer)
+After tracing the complete data flow, the root cause is:
 
-**Result:** "the mummer" is STILL incorrectly merged with "Prince Prospero"
+1. **"the mummer"** has only 3 mentions in the text
+2. The critical 3rd mention: "seizing the mummer, whose tall figure stood erect..."
+3. This occurs ~150 characters AFTER "fell prostrate in death the Prince Prospero"
+4. **Context windows were only 100 chars**, so the death scene was SPLIT across windows
+5. The LLM never saw both entities AND the death pattern in the same context
+6. Post-hoc death checks (attempts 4, 8) failed for the same reason - they used 100-char windows
 
-**Evidence from analysis.json:**
-- Character: "the Prince Prospero"
-- Aliases: ["the mummer"]
-- Only 1 character detected (should be 2)
+**Why ALL previous attempts failed:**
+- Attempts 3-5, 7: LLM prompt rules couldn't work - LLM never saw the full death scene
+- Attempts 4, 8: Post-hoc code checks couldn't work - they searched the same 100-char windows
+- Attempt 7: Increased to 400 chars TOTAL (= 4 contexts × 100 each) - still too small per context
 
-**Why it failed:** Possible reasons:
-1. The death relationship function may not be getting called
-2. The merge may be happening at an earlier pipeline stage
-3. The function's pattern matching may not be capturing the actual text patterns
-4. The merge decision may be bypassing the death relationship check
+### Fix Applied:
+
+1. **Increased context window for cross-group LLM prompt:**
+   - Epithets: 400 → **800 chars** (showing ~200 chars per context)
+   - Proper names: 400 → **600 chars** (showing ~200 chars per context)
+   - Ensures death/confrontation scenes spanning 150+ chars are fully captured
+
+2. **Added explicit death rule to LLM system prompt (CRITICAL RULE #6):**
+   - "DO NOT link if one entity DIES in interaction with the other entity"
+   - Examples: "fell prostrate in death", "killed by"
+   - Makes death prohibition explicit alongside existing confrontation rule
+
+**Files modified:**
+- `src/pipeline/character_extraction/consensus.py:96-117` (CROSS_GROUP_SYSTEM - added rule #6)
+- `src/pipeline/character_extraction/consensus.py:2205` (increased epithet context 400→800)
+- `src/pipeline/character_extraction/consensus.py:2220` (increased proper name context 400→600)
+
+**Expected outcome:**
+LLM will now see: "fell prostrate in death the Prince Prospero. Then... seizing the mummer" in a single ~200-char context, recognize the death pattern per rule #6, and reject the merge
 
 ## Current Issues (Priority Order)
 
@@ -148,15 +164,26 @@ After 8 attempts, we have tried:
 
 ## Fix History
 
+### Attempt 9 Fixes Applied
+1. **Increased LLM context windows** (consensus.py lines 2205, 2220)
+   - Root cause: 100-char context windows too small to capture 150+ char death scene
+   - Increased epithet contexts: 400 → 800 chars
+   - Increased proper name contexts: 400 → 600 chars
+   - Result: AWAITING EVALUATION
+
+2. **Added explicit death rule to LLM prompt** (consensus.py lines 112-115)
+   - Added CRITICAL RULE #6 to CROSS_GROUP_SYSTEM prompt
+   - Explicitly prohibits linking entities when one dies near the other
+   - Provides examples: "fell prostrate in death", "killed by"
+   - Result: AWAITING EVALUATION
+
 ### Attempt 8 Fixes Applied
 1. **Death relationship detection** (consensus.py)
-   - Root cause: `src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution()`
    - Added `_entities_in_death_relationship()` function
-   - Detects patterns like "fell prostrate in death" + entity name co-occurrence
-   - **Result: DID NOT WORK** - merge still happening
+   - **Result: DID NOT WORK** - context windows too small
 
 ### Attempt 1-7 Fixes
-See previous evaluation state for full history.
+See git history for full details.
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html

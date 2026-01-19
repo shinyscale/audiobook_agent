@@ -109,6 +109,10 @@ CRITICAL RULES:
 5. DO NOT link if the epithet and proper name are in CONFLICT, OPPOSITION, or CONFRONTATION
    - If context shows them interacting as separate entities, they are different people
    - Examples: "the intruder" confronting "Prince Prospero", "the stranger" fighting "the hero"
+6. DO NOT link if one entity DIES in interaction with the other entity
+   - If context shows one character dying near/after encountering the other, they are DIFFERENT people
+   - Examples: "fell prostrate in death" near another entity, "killed by" another entity
+   - Death in proximity to another character means they cannot be the same person
 
 Return ONLY valid JSON. No other text."""
 
@@ -2192,8 +2196,9 @@ class CharacterConsensusBuilder:
         for name, results in sorted_epithets:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=8)
-            # Increased context size to capture long sentences (e.g., Poe's confrontation scenes)
-            context_str = self._format_contexts(results, max_contexts=4, max_chars=400)
+            # Increased context size to 800 chars to capture death/confrontation scenes that may span 150+ chars
+            # (e.g., Poe's death scene: "fell prostrate in death" to "seizing the mummer" is ~150 chars)
+            context_str = self._format_contexts(results, max_contexts=4, max_chars=800)
             epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             epithet_lines.append(f"  Context: {context_str}")
 
@@ -2207,8 +2212,8 @@ class CharacterConsensusBuilder:
         for name, results in sorted_proper:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, proper_name_groups, max_chapters=8)
-            # Increased context size to capture long sentences (e.g., Poe's confrontation scenes)
-            context_str = self._format_contexts(results, max_contexts=3, max_chars=400)
+            # Increased context size to 600 chars to capture death/confrontation scenes
+            context_str = self._format_contexts(results, max_contexts=3, max_chars=600)
             proper_name_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             proper_name_lines.append(f"  Context: {context_str}")
 
