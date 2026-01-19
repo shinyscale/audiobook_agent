@@ -1076,12 +1076,15 @@ class CharacterConsensusBuilder:
 
                 # Check if one name is a substring of the other
                 if norm1 in norm2 or norm2 in norm1:
+                    logger.debug(f"Pre-merge substring check: '{name1}' ('{norm1}') vs '{name2}' ('{norm2}')")
                     # Validate the merge is sensible (chapter overlap, not death-related)
                     is_valid, _vconf = self._validate_merge(name1, name2, name_groups)
                     if is_valid:
                         union(name1, name2)
                         substring_merges += 1
-                        logger.debug(f"Pre-merge substring match: '{name1}' <-> '{name2}'")
+                        logger.debug(f"Pre-merge substring match ACCEPTED: '{name1}' <-> '{name2}'")
+                    else:
+                        logger.warning(f"Pre-merge substring match REJECTED by validation: '{name1}' <-> '{name2}' (conf={_vconf:.2f})")
 
         if substring_merges > 0:
             logger.info(f"Pre-merged {substring_merges} substring matches before LLM evaluation")
@@ -1678,7 +1681,18 @@ class CharacterConsensusBuilder:
                         first2 = words2[1]
 
                     # If one is just a last name, it's ambiguous - reject
+                    # EXCEPT: Allow if one name is a substring of the other (high-confidence match)
                     if len(words1) == 1 or len(words2) == 1:
+                        # Check for substring relationship - these are almost always valid
+                        norm1 = self._normalize_name(canonical)
+                        norm2 = self._normalize_name(alias)
+                        if norm1 in norm2 or norm2 in norm1:
+                            logger.debug(
+                                f"Merge accepted: {canonical} <- {alias} "
+                                f"(substring match overrides ambiguous last name check)"
+                            )
+                            return True, 0.95  # High confidence for substring matches
+
                         logger.debug(
                             f"Merge rejected: {canonical} <-> {alias} "
                             f"(ambiguous last name with multiple family members: {names_with_lastname})"

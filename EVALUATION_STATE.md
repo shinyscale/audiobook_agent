@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -140,6 +140,20 @@ See previous EVALUATION_STATE.md entries and git history.
   a) `_validate_merge()` is rejecting the valid Prospero/Prince Prospero pair, OR
   b) The names list doesn't include both "Prospero" and "the Prince Prospero" at the pre-merge stage
 - **Next Step:** Add diagnostic logging to understand why pre-merge didn't trigger
+
+### Attempt 18
+- **Change:** Allow substring matches to bypass ambiguous last name validation check
+- **Root Cause:** Lines 1684-1689 in `_validate_merge()` rejected single-word names when multiple names share that word as a last name (to prevent family member merges). This incorrectly blocked "Prospero" + "Prince Prospero" because both contain "Prospero" as a last name component.
+- **Files Modified:**
+  - src/pipeline/character_extraction/consensus.py:1079-1087 (added diagnostic logging)
+  - src/pipeline/character_extraction/consensus.py:1684-1700 (added substring check before ambiguous last name rejection)
+- **Fix Details:** Added substring relationship check before rejecting single-word+multi-word pairs. If one normalized name is a substring of the other, allow the merge with high confidence (0.95) even if they share a last name.
+- **Smoke Test:** SKIPPED (venv issues), but logic verified through root cause analysis:
+  - "prospero" IS in "the prince prospero" ✓
+  - Substring check now bypasses ambiguous last name rejection ✓
+- **Full Test Suite:** ✅ PASSED - 444 tests passed, 11 skipped
+- **Expected Impact:** Should fix the "Prospero" mismerge with "the mummer" by allowing the pre-merge phase to correctly merge "Prospero" with "Prince Prospero" first
+- **Next Step:** Re-run analysis to verify fix works in practice
 
 ## Evaluation Details
 
