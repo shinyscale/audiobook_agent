@@ -3,12 +3,21 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 4 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.45
 
 ## Output Files
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 10m 31s
+- Pipeline ran with Attempt 4 fix: LLM validation JSON format parsing
+- Total LLM calls: 25
+- Warning observed: "LLM validation attempt 1 for 'Montresors' returned array: got list with 0 elements"
+- Console output shows Amontillado still detected as narrator with 16 mentions
+- Montresor still only has 1 mention
+- Fortunato has 14 mentions
 
 ## Latest Scores
 - Structure Detection: 10/10
