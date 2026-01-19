@@ -42,9 +42,16 @@ Your task is to determine if a proposed name refers to a real character (person)
 and identify other names that might refer to the same person.
 
 Consider:
-- Is this a person's name (not a place, title alone, or abstract concept)?
+- Is this a person's name (not a place, title alone, object, food/drink, or abstract concept)?
 - Does the context suggest this is a character who acts, speaks, or is spoken about?
-- What other names/titles might refer to the same person?"""
+- What other names/titles might refer to the same person?
+
+CRITICAL: Reject names that refer to:
+- Objects, items, or things (e.g., wine, books, weapons, artifacts)
+- Food or beverages
+- Places or locations
+- Abstract concepts or ideas
+- Titles without names"""
 
 
 VALIDATION_PROMPT_TEMPLATE = """Validate this character proposal from a novel:
@@ -56,9 +63,14 @@ MENTION COUNT: {mention_count}
 SAMPLE CONTEXTS (where this name appears):
 {contexts}
 
-Please analyze and return JSON with:
-- "is_person": true/false - Is this a real person/character name (not a place, title, or concept)?
-- "is_person_reasoning": Brief explanation
+Analyze the contexts carefully. Ask yourself:
+1. Is "{name}" a PERSON's name, or is it an object/item/place/concept?
+2. If people are talking ABOUT "{name}" (e.g., "the Amontillado", "some Amontillado"), is it something they're discussing rather than someone they're addressing?
+3. Do the contexts show "{name}" performing human actions (speaking, thinking, moving) or being acted upon as an object?
+
+Please return JSON with:
+- "is_person": true/false - Is this a real person/character name (NOT an object, food, drink, place, or concept)?
+- "is_person_reasoning": Brief explanation of why this is or isn't a person
 - "context_supports": 0.0-1.0 - How strongly does the context support this being a character?
 - "alias_candidates": List of other names that might refer to the same person (e.g., "Elizabeth" -> ["Lizzy", "Miss Bennet"])
 - "overall_valid": true/false - Should we include this as a character?
@@ -150,20 +162,11 @@ class CharacterValidator:
                 reasoning=f"'{name}' is a title without a name",
             )
 
-        # Accept: high mention count with dialogue
+        # Removed overly aggressive heuristic - high mention count alone doesn't guarantee character
+        # Objects, food, drinks can also be mentioned frequently in dialogue
+        # Let LLM validation handle these ambiguous cases
+
         dialogue_mentions = sum(1 for m in proposal.mentions if m.in_dialogue)
-        if proposal.mention_count >= 10 and dialogue_mentions >= 3:
-            # Strong signal: mentioned often and speaks
-            alias_candidates = self._find_obvious_aliases(proposal)
-            return CharacterValidationResult(
-                proposal=proposal,
-                is_person_score=0.95,
-                context_score=0.9,
-                alias_candidates=alias_candidates,
-                overall_score=0.92,
-                is_valid=True,
-                reasoning=f"High mention count ({proposal.mention_count}) with dialogue ({dialogue_mentions} in speech)",
-            )
 
         # Accept: appears in dialogue tags (said X, asked X)
         dialogue_tag_count = self._count_dialogue_tags(proposal)

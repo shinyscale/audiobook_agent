@@ -70,14 +70,51 @@
    - Fix approach: Minor - improve foreign word detection
 
 ## Fix History
-- (First attempt - no prior fixes)
+
+### Attempt 1 (2026-01-18): Fixed validator heuristic for non-person entities
+
+**Root Cause Analysis:**
+- Issue #1 ("Amontillado as character"):
+  - Traced from: `output/cask_of_amontillado/analysis.json` → `CharacterMap.characters[0]` → `CharacterExtractionPipeline` → `CharacterValidator._heuristic_validation()` line 167
+  - **Root cause:** Heuristic at line 167-178 auto-accepted any name with 10+ mentions and 3+ dialogue occurrences WITHOUT LLM validation
+  - "Amontillado" (wine) had 16 mentions and appeared in dialogue ("Amontillado!" when discussing the wine), triggering false acceptance
+  - Confidence: HIGH
+
+- Issue #2 (Montresor not narrator):
+  - **Root cause:** Cascading failure from Issue #1
+  - Narrator detector received corrupted character list with "Amontillado" (16 mentions) vs "Montresor" (1 mention)
+  - LLM picked "Amontillado" as narrator due to higher prominence
+  - Confidence: HIGH
+
+- Issue #3 (Montresor missing profile):
+  - **Root cause:** NER limitation - "Montresor" name appears only once explicitly in text (when Fortunato cries "For the love of God, Montresor!")
+  - All first-person narration uses "I", "my" which NER doesn't attribute to Montresor
+  - Confidence: HIGH (fundamental NER limitation, requires different approach to fix)
+
+**Changes Made:**
+- File: `src/pipeline/character_extraction/validator.py`
+- Line 165-178: **Removed** overly aggressive heuristic that auto-accepted high-mention-count names without LLM validation
+- Line 39-54: **Enhanced** validation system prompt to explicitly reject objects, food, drink, places
+- Line 66-69: **Enhanced** validation prompt template to ask LLM to distinguish between people and objects being discussed
+
+**Smoke Test Results (PASS):**
+- Ran analysis on "The Cask of Amontillado - Poe.txt" with qwen2.5:32b
+- ✅ "Amontillado" removed from character list (went from 3 to 2 characters)
+- ✅ Narrator correctly identified as "Montresor" in plot summary
+- ✅ Plot summary says "The story is narrated by Montresor" (not "Amontillado")
+- ❌ Montresor still has only 1 mention (NER limitation - deferred as separate issue)
+
+**Full Test Suite: PASSED**
+- 444 tests passed, 11 skipped, 1 warning
+- No regressions introduced
+
+**Issues Addressed:**
+- ✅ Issue #1: Fixed (Amontillado no longer extracted as character)
+- ✅ Issue #2: Fixed (Montresor correctly identified as narrator in plot summary)
+- ✅ Issue #5: Fixed (plot summary now uses "Montresor" not "Amontillado")
+- ⏸️ Issue #3: Partially addressed (narrator identified but profile still thin due to 1 mention - NER limitation)
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Priority fix order:
-1. Fix the "Amontillado as character" bug - this is the root cause of multiple issues
-2. Fix narrator detection to properly identify Montresor
-3. Ensure character profiles are generated for all characters including the narrator
-
-The most impactful single fix would be preventing non-person entities (like the wine name from the title) from being extracted as characters. This would likely improve the score significantly by fixing issues #1, #2, #3, and #5 simultaneously.
+Re-run analysis on cask_of_amontillado to verify fix improves quality score.
