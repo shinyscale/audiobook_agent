@@ -14,11 +14,11 @@
     {
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": false,
-      "attempts": 22,
-      "final_score": null,
+      "complete": true,
+      "attempts": 23,
+      "final_score": 8.025,
       "baseline_score": 6.75,
-      "last_score": 7.925,
+      "last_score": 8.025,
       "regression_detected": false
     },
     {
