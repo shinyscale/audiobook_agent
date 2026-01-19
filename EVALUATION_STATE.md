@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Attempt:** 17
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -154,6 +154,25 @@ See previous EVALUATION_STATE.md entries and git history.
 - **Result:** FAILED - Split function didn't trigger
 - **Root Cause:** Mention contexts don't contain death scene; fundamental merge is wrong (Prospero->mummer instead of Prospero->Prince Prospero)
 
+### Attempt 17
+- **Change:** PRE-MERGE substring matching to prioritize "Prospero" + "Prince Prospero" over "Prospero" + "the mummer"
+- **Files Modified:** src/pipeline/character_extraction/consensus.py:1055-1094
+- **Root Cause:**
+  - **Symptom:** "Prospero" merged with "the mummer" instead of "Prince Prospero"
+  - **Data flow:** HTML ← AnalysisResult ← CharacterAgent ← consensus.py:_llm_pairwise_merge_decision()
+  - **Origin:** Lines 1025-1111 in consensus.py - candidate pairs sent to LLM without substring priority
+  - **Why:** Substring matches ("Prospero" ⊂ "Prince Prospero") were generated alongside token matches ("Prospero" + "the mummer") with equal priority. LLM accepted the wrong pair.
+  - **Confidence:** HIGH
+- **Fix:** Added pre-merge phase (lines 1055-1087) that merges substring matches BEFORE LLM evaluation
+  - If "Prospero" ⊂ "Prince Prospero", merge immediately
+  - Skip pre-merged pairs in LLM evaluation loop (line 1093: `if find(a) == find(b): continue`)
+  - This ensures "Prospero" cannot be compared to "the mummer" after being merged with "Prince Prospero"
+- **Smoke Test:** Deferred to full evaluation loop (analysis too slow for quick test)
+- **Expected Impact:**
+  - Should fix Prospero/Prince Prospero split (character score 3→6+)
+  - May also fix other substring-based splits
+  - No expected regressions (existing validation still applies)
+
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
@@ -172,4 +191,4 @@ The summary pipeline CORRECTLY identifies the characters as separate:
 But the character extraction pipeline makes the wrong merge decision. This suggests the summarization has better context or instructions than the character pairwise merge logic.
 
 ## Next Action
-Run PROMPT_fix.md - Implement pre-merge substring matching to fix "Prospero" -> "Prince Prospero" grouping
+Re-run analysis (PROMPT_analyze.md) to verify Attempt 17 fix

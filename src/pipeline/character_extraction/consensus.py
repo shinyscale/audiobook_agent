@@ -1052,9 +1052,47 @@ class CharacterConsensusBuilder:
             if ra != rb:
                 parent[rb] = ra
 
+        # PRE-MERGE: Handle obvious substring matches BEFORE LLM evaluation
+        # This ensures "Prospero" merges with "Prince Prospero" instead of "the mummer"
+        # when both pairs are in candidates
+        mention_rank = {n: self._total_mentions_for_name(n, name_groups) for n in names}
+        norm_names = {n: self._normalize_name(n) for n in names}
+        substring_merges = 0
+
+        for i, name1 in enumerate(names):
+            if find(name1) != name1:  # Already merged
+                continue
+            norm1 = norm_names[name1]
+            if not norm1:
+                continue
+
+            for j in range(i + 1, len(names)):
+                name2 = names[j]
+                if find(name2) != name2:  # Already merged
+                    continue
+                norm2 = norm_names[name2]
+                if not norm2:
+                    continue
+
+                # Check if one name is a substring of the other
+                if norm1 in norm2 or norm2 in norm1:
+                    # Validate the merge is sensible (chapter overlap, not death-related)
+                    is_valid, _vconf = self._validate_merge(name1, name2, name_groups)
+                    if is_valid:
+                        union(name1, name2)
+                        substring_merges += 1
+                        logger.debug(f"Pre-merge substring match: '{name1}' <-> '{name2}'")
+
+        if substring_merges > 0:
+            logger.info(f"Pre-merged {substring_merges} substring matches before LLM evaluation")
+
         # Evaluate candidates
         accepted = 0
         for a, b in candidates:
+            # Skip if already merged by pre-merge phase
+            if find(a) == find(b):
+                continue
+
             same, conf, canonical, alias = self._llm_pairwise_merge_decision(a, b, name_groups)
             if not same or conf < 0.7:
                 continue
