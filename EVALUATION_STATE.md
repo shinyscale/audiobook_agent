@@ -114,7 +114,30 @@
 - ✅ Issue #5: Fixed (plot summary now uses "Montresor" not "Amontillado")
 - ⏸️ Issue #3: Partially addressed (narrator identified but profile still thin due to 1 mention - NER limitation)
 
-## Next Action
-**Phase:** awaiting_analysis
+## Attempt 2 (2026-01-18): NER extracting invalid character name "--yes"
 
-Re-run analysis on cask_of_amontillado to verify fix improves quality score.
+**Pipeline Failure:**
+- Analysis failed during character extraction phase
+- Error: `LLM validation returned invalid JSON for '--yes' after 3 attempts: Invalid JSON: got list`
+
+**Root Cause Analysis:**
+- Location: Text line 166 of "The Cask of Amontillado - Poe.txt"
+- Context: Fortunato's dialogue: "He! he! he! --he! he! he! --yes, the Amontillado..."
+- spaCy NER tagged "--yes" as a PERSON entity (incorrect)
+- The string "--yes" passed `_is_valid_name()` check (60% alphabetic ratio: 3 of 5 chars)
+- Went to LLM validation, but LLM returned invalid JSON format (list instead of dict)
+
+**Why Previous Fix Didn't Address This:**
+- Previous fix (Attempt 1) only removed the heuristic auto-acceptance
+- Did not add filtering for names starting with punctuation
+- spaCy occasionally mis-tags punctuation-heavy fragments as PERSON entities
+
+**Proposed Fix:**
+- Add check in `_is_valid_name()` (src/pipeline/character_extraction/proposers/ner.py:237)
+- Reject names that start or end with non-alphabetic characters
+- Example: `if not name[0].isalpha() or not name[-1].isalpha(): return False`
+
+## Next Action
+**Phase:** awaiting_fix
+
+Fix NER validation to reject names with leading/trailing punctuation.
