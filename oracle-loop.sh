@@ -13,9 +13,23 @@ set -euo pipefail
 PHASE="${1:-auto}"
 MAX_ITERATIONS="${2:-100}"
 ITERATION=0
+NO_PROGRESS_COUNT=0
+MAX_NO_PROGRESS=3
 
 # Ensure logs directory exists
 mkdir -p logs
+
+# Function to compute state hash (for no-progress detection)
+compute_state_hash() {
+    local hash=""
+    if [ -f "EVALUATION_STATE.md" ]; then
+        hash="${hash}$(md5sum EVALUATION_STATE.md 2>/dev/null | cut -d' ' -f1)"
+    fi
+    if [ -f "manifest.json" ]; then
+        hash="${hash}$(md5sum manifest.json 2>/dev/null | cut -d' ' -f1)"
+    fi
+    echo "$hash"
+}
 
 # Quality threshold from manifest
 if [ ! -f "manifest.json" ]; then
@@ -47,7 +61,8 @@ get_prompt_file() {
         return
     fi
 
-    local current_phase=$(grep -oP '(?<=\*\*Phase:\*\* )\w+' EVALUATION_STATE.md 2>/dev/null || echo "analyze")
+    local current_phase=$(sed -n 's/.*\*\*Phase:\*\* \([a-z_]*\).*/\1/p' EVALUATION_STATE.md 2>/dev/null | head -1)
+    current_phase="${current_phase:-analyze}"
 
     case "$current_phase" in
         awaiting_analysis|analyze)
@@ -83,7 +98,7 @@ all_complete() {
 # Get current text name for logging
 get_current_text() {
     if [ -f "EVALUATION_STATE.md" ]; then
-        grep -oP '(?<=\*\*Name:\*\* )\S+' EVALUATION_STATE.md 2>/dev/null || echo "unknown"
+        sed -n 's/.*\*\*Name:\*\* \([^ ]*\).*/\1/p' EVALUATION_STATE.md 2>/dev/null | head -1 || echo "unknown"
     else
         jq -r '.texts[] | select(.complete == false) | .name' manifest.json | head -1
     fi
@@ -125,6 +140,9 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     # Using claude CLI in headless mode with piped prompt
     LOG_FILE="logs/iteration_${ITERATION}_$(date '+%Y%m%d_%H%M%S').log"
 
+    # Capture state hash BEFORE Claude run (for no-progress detection)
+    STATE_HASH_BEFORE=$(compute_state_hash)
+
     # Select model based on phase - Opus for evaluation (the oracle), Sonnet for fixes
     if [ "$PROMPT_FILE" = "PROMPT_evaluate.md" ]; then
         MODEL="opus"
@@ -149,11 +167,39 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         echo "Check $LOG_FILE for details"
     fi
 
+    # Check for no-progress (state unchanged after Claude run)
+    STATE_HASH_AFTER=$(compute_state_hash)
+    if [ "$STATE_HASH_BEFORE" = "$STATE_HASH_AFTER" ]; then
+        NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
+        echo ""
+        echo "Warning: No state change detected (iteration $NO_PROGRESS_COUNT of $MAX_NO_PROGRESS)"
+
+        if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
+            echo ""
+            echo "========================================"
+            echo "  NO-PROGRESS GUARDRAIL TRIGGERED"
+            echo "========================================"
+            echo "  $MAX_NO_PROGRESS consecutive no-progress iterations"
+            echo "  State files unchanged - loop is stuck"
+            echo "========================================"
+            echo ""
+            exit 1
+        fi
+    else
+        # Reset counter on progress
+        if [ $NO_PROGRESS_COUNT -gt 0 ]; then
+            echo "Progress detected, resetting no-progress counter"
+        fi
+        NO_PROGRESS_COUNT=0
+    fi
+
     # Check for regression after evaluation phase
     if [ "$PROMPT_FILE" = "PROMPT_evaluate.md" ]; then
         # Extract new score and baseline from EVALUATION_STATE.md
-        NEW_SCORE=$(grep -oP '(?<=\*\*Overall: )\d+(\.\d+)?' EVALUATION_STATE.md 2>/dev/null | head -1 || echo "0")
-        BASELINE=$(grep -oP '(?<=baseline_score: )\d+(\.\d+)?' EVALUATION_STATE.md 2>/dev/null || echo "0")
+        NEW_SCORE=$(sed -n 's/.*\*\*Overall: \([0-9.]*\).*/\1/p' EVALUATION_STATE.md 2>/dev/null | head -1)
+        NEW_SCORE="${NEW_SCORE:-0}"
+        BASELINE=$(sed -n 's/.*\*\*baseline_score:\*\* \([0-9.]*\).*/\1/p' EVALUATION_STATE.md 2>/dev/null | head -1)
+        BASELINE="${BASELINE:-0}"
 
         if [ -n "$BASELINE" ] && [ "$BASELINE" != "0" ] && [ -n "$NEW_SCORE" ] && [ "$NEW_SCORE" != "0" ]; then
             DIFF=$(echo "$NEW_SCORE - $BASELINE" | bc 2>/dev/null || echo "0")

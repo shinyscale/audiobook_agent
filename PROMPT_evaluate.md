@@ -39,7 +39,7 @@ import json
 from pathlib import Path
 
 # Load the analysis result (adjust path as needed)
-result_path = Path('output/{book_name}/analysis_result.json')
+result_path = Path('output/{book_name}/analysis.json')
 if result_path.exists():
     result = json.loads(result_path.read_text())
 
