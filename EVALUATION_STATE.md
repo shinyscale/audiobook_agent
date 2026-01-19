@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -29,7 +29,7 @@
 **Result:** FAILED - merge still occurred
 **Why:** Prompt rules existed but contexts were truncated before including death scene evidence
 
-## Attempt 15 Result: SUCCESS ✓
+## Attempt 15 Result: FAILED
 
 ### What Was Tried
 Increased `max_chars` in pairwise context formatting (consensus.py:991-994):
@@ -47,19 +47,18 @@ The death scene evidence ("fell prostrate in death the Prince Prospero... seizin
 5. LLM merges characters despite prompt rules
 
 ### Result
-**SUCCESS** - Smoke test shows 2 separate characters:
-- "the Prince Prospero" (aka Prospero) - 4 mentions
-- "the mummer" - 3 mentions
+**FAILED** - Smoke test showed 2 separate characters, but full analysis still merged them:
+- Smoke test (12m 3s): 2 characters detected separately
+- Full analysis (7m 45s): 1 character with "the mummer" as alias of "Prince Prospero"
 
 ### Key Evidence
-Smoke test output (12m 3s analysis):
+Full analysis output:
 ```
-👥 Characters: 2
-   • the Prince Prospero (aka Prospero) - 4 mentions
-   • the mummer - 3 mentions
+👥 Characters: 1
+   • the Prince Prospero (aka Prospero, the mummer) - 7 mentions
 ```
 
-The merge no longer occurs. The fix was simple: ensure the LLM actually sees the death scene evidence by not truncating it during context formatting.
+The merge still occurs despite the context window increase. The smoke test success may have been due to different model behavior or randomness in the LLM responses.
 
 ## Current Issues (Priority Order)
 
@@ -180,14 +179,15 @@ Add debug logging to understand WHERE the merge actually happens:
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
-- Directory: output/Masque of the Red Death - Poe_20260119_041724
+- Directory: output/Masque of the Red Death - Poe_20260119_044538
 
-## Pipeline Notes (Attempt 14)
-- Analysis completed successfully in 7m 44s
-- Total tokens: 40,255
-- Character extraction bottleneck: 65% of time (5m 9s)
+## Pipeline Notes (Attempt 15)
+- Analysis completed successfully in 7m 45s
+- Total tokens: 40,243
+- Character extraction bottleneck: 66% of time (5m 7s)
 - Result: Still only 1 character detected with "the mummer" listed as an alias of "Prince Prospero"
-- The fix applied to pairwise alias prompts did NOT resolve the merge issue
+- The context window increase did NOT resolve the merge issue in full analysis
+- Discrepancy: Smoke test showed 2 characters, but full analysis merged them
 
 ## Next Action
-Run PROMPT_analyze.md to verify fix resolves the character merge issue in full analysis
+Run PROMPT_evaluate.md to evaluate attempt 15 results
