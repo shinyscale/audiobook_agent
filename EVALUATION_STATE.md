@@ -3,275 +3,135 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 19
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 3/10 ← CRITICAL FAILURE (unchanged from attempts 16-17)
+- Character Extraction: 7/10 ← IMPROVED from 3/10 (attempt 18)
 - Character Profiles: 5/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 6.70/10** (threshold: 8.0)
+- **Overall: 7.70/10** (threshold: 8.0)
 
 ## Score Delta from Baseline (Attempt 1)
 - Structure: 10 -> 10 (unchanged)
-- Characters: 5 -> 3 (**-2 REGRESSION** from attempt 1)
+- Characters: 5 -> 7 (**+2 improvement** from baseline!)
 - Profiles: 2 -> 5 (+3 improvement from baseline)
 - Summaries: 9 -> 9 (unchanged)
 - Pronunciation: 5 -> 6 (+1 improvement)
 - Presentation: 9 -> 8 (-1 regression)
-- **Overall: 6.75 -> 6.70 (-0.05 slight regression)**
+- **Overall: 6.75 -> 7.70 (+0.95 improvement)**
 
-## Attempt 18 Result: FAILED
+## Attempt 19 Result: SIGNIFICANT IMPROVEMENT ✓
 
 ### What Was Tried
-Allow substring matches to bypass ambiguous last name validation check in `_validate_merge()` (src/pipeline/character_extraction/consensus.py:1684-1700).
+Post-processing fix to detect and move misplaced character aliases AFTER consensus completes.
 
 ### Result
-**FAILED** - The Prospero/mummer mismerge PERSISTS. The substring fix did NOT work.
+**SUCCESS** - The Prospero/mummer mismerge is FIXED!
+- "the Prince Prospero" now correctly has alias: ["Prospero"]
+- "the mummer" now correctly has no aliases (empty list)
 
-### Root Cause Analysis (Attempt 18)
+The post-processing approach worked where pre-merge approaches (attempts 17-18) failed.
 
-The fix added substring detection to the ambiguous last name validation check. However, the issue still occurs. This means one of the following:
+### Score Impact
+- Character Extraction: 3/10 → 7/10 (+4 points)
+- Overall: 6.70 → 7.70 (+1.0 point)
 
-1. **The pre-merge phase isn't being reached** - The names list may not include both "Prospero" and "the Prince Prospero" at the time the pre-merge loop runs
-
-2. **A different validation check is rejecting the merge** - There may be another validation rule in `_validate_merge()` that rejects the Prospero/Prince Prospero pair BEFORE or AFTER the last name check
-
-3. **The LLM is still deciding the merge** - Despite the pre-merge attempt, the actual pairing may still go to the LLM which incorrectly pairs Prospero with the mummer
-
-4. **Execution order issue** - The "Prospero" + "the mummer" merge may be happening through a different code path that bypasses the pre-merge phase entirely
-
-### Evidence from Output
-```json
-{
-  "canonical_name": "the mummer",
-  "aliases": ["Prospero"]
-}
-```
-
-This shows "Prospero" was merged with "the mummer" - the SAME incorrect result as before.
+## Gap to Threshold
+Current: 7.70 | Threshold: 8.0 | Gap: **0.30 points**
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **False character merge: "Prospero" merged with "the mummer" instead of "Prince Prospero"**
-   - Problem: "Prospero" (short for Prince Prospero) is incorrectly listed as an alias of "the mummer" (the Red Death)
-   - Evidence: The text clearly shows Prince Prospero is KILLED BY the mummer: "fell prostrate in death the Prince Prospero"
-   - Root Cause: **UNKNOWN** - Two attempts at pre-merge substring matching have failed
-   - **18 ATTEMPTS AND COUNTING** - This is a persistent, blocking issue
-
 ### HIGH
-2. **Only 2 characters detected for a story with a named protagonist and supernatural antagonist**
-   - Prince Prospero (protagonist) should be clearly identified with proper aliases
-   - The Red Death/mummer (antagonist) should be clearly identified
-   - These MUST be SEPARATE characters
-
-3. **"the Prince Prospero" has ZERO aliases**
-   - Should have: "Prospero", "the prince"
-   - This is a canonical name issue - the text uses "Prospero" 18 times, "Prince Prospero" 3 times
+1. **Character Profiles are empty (5/10)**
+   - Problem: Both characters have null for appearance, personality, voice_guidance
+   - Impact: +0.30 points available if raised to 7/10 (would meet threshold exactly)
+   - Evidence from text for Prince Prospero:
+     - Personality: "happy and dauntless and sagacious", "bold and fiery"
+     - Taste: "eccentric yet august taste"
+   - Evidence for the mummer:
+     - Appearance: "tall and gaunt, shrouded from head to foot in the habiliments of the grave"
+     - Mask: "made so nearly to resemble the countenance of a stiffened corpse"
+     - Vesture: "dabbled in blood"
+   - Location: `src/agents/characters.py` or profile extraction pipeline
+   - Fix: Ensure profile extraction runs and populates these fields
 
 ### MEDIUM
-4. **Empty character profiles**
-   - Both characters have null for appearance, personality, voice_guidance
-   - Should have basic descriptions from the text
+2. **Canonical name format: "the Prince Prospero" should be "Prince Prospero"**
+   - Problem: Leading article "the" shouldn't be part of a proper name
+   - Impact: Minor usability issue
+   - Location: Name normalization in character extraction
+   - Fix: Strip leading "the" from proper noun canonical names
 
-5. **Canonical name format: "the Prince Prospero" should be "Prince Prospero"**
-   - Leading article "the" should be stripped for proper nouns
+3. **Missing alias "the prince" for Prospero**
+   - Problem: Text uses "the prince" 6 times to refer to Prospero
+   - Impact: Minor completeness issue
+   - Location: Alias detection in character extraction
 
-6. **Pronunciation false positives (~35-40%)**
-   - Common English words flagged: "dauntless", "chiming", "magnificence"
+4. **Pronunciation false positives (~35-40%)**
+   - Problem: Common English words flagged: "dauntless", "chiming", "magnificence", "embellishments", "buffoons"
+   - Impact: +0.20 points available if reduced
+   - Location: `src/agents/pronunciation.py` or pronunciation pipeline
+   - Fix: Add frequency-based filtering to exclude common words
 
-## Recommended Next Approach (Attempt 19)
+5. **"away" incorrectly flagged as foreign**
+   - Problem: Standard English word "away" flagged with note about German "weg"
+   - Location: Foreign word detection logic
+   - Fix: Improve foreign word detection to not flag common English words
 
-### CRITICAL: Different Strategy Needed
+### LOW
+6. **Mention count doesn't include aliases**
+   - Problem: "the Prince Prospero" shows 3 mentions, but "Prospero" appears 18 times
+   - The combined count should be ~21
+   - Location: Mention counting logic
 
-The pre-merge substring approach has FAILED TWICE (attempts 17-18). Need a fundamentally different approach.
+7. **Minor summary inaccuracy**
+   - Problem: Summary says prince confronts figure "in the blue chamber"
+   - Reality: Pursuit starts in blue chamber, Prospero dies in black apartment
+   - Impact: Minimal
 
-### Option A: Debug the actual merge decision flow
-Add extensive logging to understand EXACTLY where and how "Prospero" is being merged with "the mummer":
-1. Log all candidate pairs generated
-2. Log which pairs pass validation
-3. Log which pairs go to LLM
-4. Log LLM decisions
-5. Log final merge results
+## Recommended Next Fix (Attempt 20)
 
-### Option B: Post-process to fix the mismerge
-Instead of preventing the wrong merge, detect and fix it after the fact:
-1. After consensus completes, check for character pairs where:
-   - One name contains "the" + another character's base name
-   - E.g., "the mummer" has alias "Prospero" but "the Prince Prospero" exists
-2. Move "Prospero" from mummer's aliases to Prince Prospero's aliases
+### Priority: Character Profiles (quickest path to 8.0)
 
-### Option C: Name normalization before consensus
-Before running consensus, normalize names:
-1. "Prospero" -> link to "Prince Prospero" explicitly
-2. Create a canonical name mapping before the merge process
+Raising profiles from 5/10 to 7/10 would add 0.30 points → 8.00 (PASS)
 
-### Recommendation: Option B
-Post-processing is lower risk and directly addresses the symptom. The pre-merge approach keeps failing, likely due to execution order or code path issues that are hard to debug.
+**Investigation needed:**
+1. Check why `Character Profiles` stage shows 0.0s duration and 0 LLM calls
+2. The profiling data shows the stage ran but did nothing:
+   ```json
+   "Character Profiles": {
+     "duration_seconds": 0.0,
+     "llm_calls": 0,
+     "items_processed": 0
+   }
+   ```
+3. This suggests profile extraction is being skipped or erroring silently
+
+**Likely fix locations:**
+- `src/agents/characters.py` - check if profile population is called
+- `src/pipeline/character_extraction/` - check profile extraction logic
+- Check if there's a minimum character count threshold preventing profile extraction
 
 ## What NOT to Try Again
-- Pre-merge substring matching (attempts 17-18) - FAILED TWICE
-- Substring validation bypass (attempt 18) - FAILED
-- Prompt-based rules (attempts 3, 14 ineffective)
-- Post-processing splits without proper context (attempts 15-16)
-- Context window adjustments (attempts 7-15 proved insufficient)
+- Pre-merge substring matching (attempts 17-18) - FAILED
+- Prompt-based rules (attempts 3, 14) - ineffective alone
+- Context window adjustments (attempts 7-15) - insufficient
 
 ## Fix History
 
-### Attempts 1-16
+### Attempts 1-18
 See git history and previous EVALUATION_STATE.md entries.
 
-### Attempt 17
-- **Change:** PRE-MERGE substring matching before LLM evaluation
-- **Files Modified:** src/pipeline/character_extraction/consensus.py (lines 1055-1094)
-- **Result:** FAILED - Substring check wasn't triggering
-
-### Attempt 18
-- **Change:** Allow substring matches to bypass ambiguous last name validation
-- **Files Modified:** src/pipeline/character_extraction/consensus.py (lines 1684-1700)
-- **Result:** FAILED - Same incorrect merge persists
-- **Full Test Suite:** PASSED (444 tests)
-- **Conclusion:** The fix logic is in place but isn't being used in the actual merge flow
-
-### Attempt 19
-- **Change:** POST-PROCESSING cross-character alias fix - detect and move misplaced aliases AFTER consensus
-- **Files Modified:** src/agents/characters.py (added `_fix_misplaced_aliases()` method at line 487-575, called at line 145)
-- **Root Cause:**
-  - **Symptom:** "Prospero" listed as alias of "the mummer" (line 52-54 in analysis.json)
-  - **Data flow:** analysis.json ← AnalysisResult ← CharacterAgent.run() ← consensus.py
-  - **Originates in:** LLM merge decision in consensus phase incorrectly pairs "Prospero" with "the mummer" instead of "Prince Prospero"
-  - **Confidence:** HIGH
-- **Approach:** Instead of preventing the wrong merge (attempts 17-18 failed), detect and fix it AFTER consensus:
-  1. For each character with aliases
-  2. Check if any alias is a substring or word match of another character's canonical name
-  3. Move the alias to the better-matching character
-  4. Example: "Prospero" is substring of "the Prince Prospero", so move it from "the mummer"
-- **Smoke Test:** PASS - Test script verified:
-  - ✓ "Prospero" moved from "the mummer" to "the Prince Prospero"
-  - ✓ Metadata tracked the move (post_processing_alias_moves: 1)
-- **Full Test Suite:** PASSED (444 tests, 11 skipped, 1 warning)
-- **Next:** Re-run analysis to verify fix works on actual masque_of_red_death text
-
-## Evaluation Details
-
-### 2.1 Structure Detection (Weight: 20%)
-
-**Score: 10/10**
-
-"The Masque of the Red Death" is a short story. Correctly identified as a single chapter.
-
-### 2.2 Character Extraction (Weight: 25%)
-
-**Score: 3/10** - CRITICAL FAILURE
-
-**Output:**
-1. "the Prince Prospero" - 3 mentions, NO aliases
-2. "the mummer" - 4 mentions, aliases: ["Prospero"]
-
-**Expected for "The Masque of the Red Death":**
-- Prince Prospero (protagonist) - aliases: "Prospero", "the prince"
-- The Red Death / The Mummer (antagonist) - aliases: "the figure", "the masked figure", "the stranger", "the intruder"
-
-**Critical Error:** "Prospero" merged with "the mummer" instead of "Prince Prospero". These are ANTAGONIST and PROTAGONIST - fundamentally different characters!
-
-### 2.3 Character Profiles (Weight: 15%)
-
-**Score: 5/10**
-
-- Both characters have null appearance, personality, voice_guidance
-- No useful profile information for narration
-- The summary contains character details not extracted to profiles
-
-### 2.4 Chapter Summaries (Weight: 20%)
-
-**Score: 9/10**
-
-Excellent summary capturing:
-- The Red Death plague setting
-- Prince Prospero's retreat with courtiers
-- The seven colored rooms
-- The ebony clock's hourly effect
-- The mysterious figure's midnight appearance
-- Prospero's pursuit and confrontation
-- The revelation of the empty costume
-- The final deaths
-
-### 2.5 Pronunciation Guide (Weight: 10%)
-
-**Score: 6/10**
-
-**Good catches:**
-- "Prospero" (Italian name)
-- "improvisatori" (Italian term)
-- "candelabrum" (Latin)
-- "Hernani" (literary reference)
-- "arabesque" (French)
-- "habiliments", "cerements" (archaic English)
-
-**False positives (~35-40%):**
-- "dauntless" - common English
-- "chiming" - common English
-- "magnificence" - common English
-- "evolutions" - common English
-- "girdled", "massy" - less common but standard English
-
-**Homographs correctly identified:**
-- "live" (verb vs adjective)
-- "close" (near vs shut)
-- "produce" (noun vs verb)
-- "deliberate" (adjective vs verb)
-
-### 2.6 HTML Presentation (Weight: 10%)
-
-**Score: 8/10**
-
-- Navigation works
-- Tab-based interface functional
-- Character profiles section present
-- Pronunciation guide organized well
-- Print styles included
-- Shows "0 Main Characters" which is technically correct (both are "Supporting")
-
-## Overall Score Calculation
-
-```
-Overall = (
-    10 × 0.20 +   # Structure: 2.00
-    3 × 0.25 +    # Characters: 0.75
-    5 × 0.15 +    # Profiles: 0.75
-    9 × 0.20 +    # Summaries: 1.80
-    6 × 0.10 +    # Pronunciation: 0.60
-    8 × 0.10      # Presentation: 0.80
-) = 6.70/10
-```
-
-**Overall: 6.70/10** (threshold: 8.0) - **FAIL**
-
-## Output Files
-- HTML: output/masque_of_red_death/report.html
-- JSON: output/masque_of_red_death/analysis.json
-
-## Pipeline Notes (Attempt 19)
-Analysis completed successfully with post-processing fix applied.
-
-**Key observations from CLI output:**
-- Characters found: 2
-  - "the Prince Prospero (aka Prospero)" - 3 mentions ✓ FIX WORKED!
-  - "the mummer" - 4 mentions (no incorrect alias)
-- Analysis time: 7m 37s
-- Character Extraction took 5m23s (70.6% of pipeline time)
-- Post-processing successfully moved "Prospero" from "the mummer" to "the Prince Prospero"
-
-**Verification:**
-Checked analysis.json and confirmed:
-- "the Prince Prospero" has aliases: ["Prospero"]
-- "the mummer" has aliases: []
-
-The post-processing fix (attempt 19) successfully corrected the mismerge that persisted through attempts 17-18.
+### Attempt 19 - SUCCESS ✓
+- **Change:** POST-PROCESSING cross-character alias fix
+- **Files Modified:** `src/agents/characters.py` (added `_fix_misplaced_aliases()` method)
+- **Result:** SUCCESS - Prospero alias correctly moved to Prince Prospero
+- **Score Impact:** +1.0 overall (6.70 → 7.70)
+- **Status:** Fix is working, but not yet at threshold
 
 ## Next Action
-Phase changed to awaiting_evaluation - the loop will restart with PROMPT_evaluate.md to score this attempt.
+Run PROMPT_fix.md to address Character Profiles (HIGH #1) - this is the quickest path to meet the 8.0 threshold.
