@@ -199,19 +199,54 @@ class OverviewGenerator:
             )
 
         # Build main characters context to ground the LLM
+        # Use scoring that accounts for: narrator status, role, and mention count
         main_characters = ""
         if result.characters:
-            # Sort by mention count (descending) and take top 3
-            sorted_chars = sorted(
-                result.characters,
-                key=lambda c: c.mention_count,
-                reverse=True
-            )[:3]
-            if sorted_chars:
+            # Calculate character scores with weighting
+            # - Narrator boost: 10x (narrators are central even with few name mentions)
+            # - Role weights: protagonist=1.5, antagonist=1.2, supporting=1.0, minor=0.5
+            # - Filter non-persons: entity_type must be 'person' or None (legacy)
+            role_weights = {
+                "protagonist": 1.5,
+                "antagonist": 1.2,
+                "supporting": 1.0,
+                "minor": 0.5,
+            }
+
+            def score_character(char):
+                # Filter out non-person entities (objects, places, etc.)
+                entity_type = getattr(char, 'entity_type', None)
+                if entity_type and entity_type.lower() != 'person':
+                    return -1  # Filter out
+
+                base_score = char.mention_count
+                # Narrator boost - narrators are often mentioned rarely by name but are central
+                if getattr(char, 'is_narrator', False):
+                    base_score *= 10
+                # Role weight
+                role = getattr(char, 'role', 'supporting')
+                weight = role_weights.get(role, 1.0)
+                return base_score * weight
+
+            # Score and filter characters
+            scored_chars = [
+                (char, score_character(char))
+                for char in result.characters
+            ]
+            # Filter out non-persons (score -1) and sort by score descending
+            filtered_chars = [
+                (char, score) for char, score in scored_chars if score >= 0
+            ]
+            filtered_chars.sort(key=lambda x: x[1], reverse=True)
+
+            # Take top 3
+            top_chars = filtered_chars[:3]
+            if top_chars:
                 char_lines = []
-                for char in sorted_chars:
-                    role_info = f" ({char.role})" if char.role else ""
-                    char_lines.append(f"- {char.canonical_name}{role_info}: {char.mention_count} mentions")
+                for char, score in top_chars:
+                    role_info = f" ({char.role})" if getattr(char, 'role', None) else ""
+                    narrator_note = " [NARRATOR]" if getattr(char, 'is_narrator', False) else ""
+                    char_lines.append(f"- {char.canonical_name}{role_info}{narrator_note}: {char.mention_count} mentions")
                 main_characters = "MAIN CHARACTERS (use these names, do NOT invent others):\n" + "\n".join(char_lines)
 
         prompt = PLOT_SUMMARY_PROMPT.format(
