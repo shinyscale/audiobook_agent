@@ -3,12 +3,12 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 3/10 ← CRITICAL FAILURE
+- Character Extraction: 3/10 ← CRITICAL FAILURE (8 consecutive attempts failed)
 - Character Profiles: 6/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
@@ -24,14 +24,14 @@
 - Presentation: 9 → 8 (-1 regression)
 - **Overall: 6.75 → 6.85 (+0.10 slight improvement)**
 
-## Attempt 7 Fix Assessment
+## Attempt 8 Fix Assessment
 
-### Fix: Increased context window for LLM cross-group resolution (150/120 → 400 chars)
+### Fix: Hard-coded death relationship detection
 **Status: DID NOT WORK**
 
-The fix from attempt 7 increased the context window size in `_llm_cross_group_resolution()`:
-1. Epithet context: 150 → 400 chars (line 2116)
-2. Proper name context: 120 → 400 chars (line 2131)
+The fix from attempt 8 added `_entities_in_death_relationship()` function to detect when one entity dies at the hands of another. This was meant to block the merge of "the mummer" with "Prince Prospero" based on the text:
+- "fell prostrate in death the Prince Prospero" (Prospero dies)
+- "seizing the mummer" (after Prospero confronts the mummer)
 
 **Result:** "the mummer" is STILL incorrectly merged with "Prince Prospero"
 
@@ -40,24 +40,23 @@ The fix from attempt 7 increased the context window size in `_llm_cross_group_re
 - Aliases: ["the mummer"]
 - Only 1 character detected (should be 2)
 
-**Why it failed:** Despite providing larger context windows (400 chars), the LLM is STILL deciding to merge these entities. Possible reasons:
-1. The LLM prompt may not be clear enough about confrontation semantics
-2. The merge decision is happening at an earlier stage before cross-group resolution
-3. The LLM may be weighing other factors (both appear in masquerade context) over confrontation evidence
-4. 400 chars may still not capture the full confrontation sentence
+**Why it failed:** Possible reasons:
+1. The death relationship function may not be getting called
+2. The merge may be happening at an earlier pipeline stage
+3. The function's pattern matching may not be capturing the actual text patterns
+4. The merge decision may be bypassing the death relationship check
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 1. **False character merge: "the mummer" merged with Prince Prospero**
    - Problem: "the mummer" is listed as an alias of Prince Prospero, but it refers to the Red Death personification - THE MAIN ANTAGONIST
-   - Evidence from text (line 30 of source):
-     - "He bore aloft a drawn dagger, and had approached, in rapid impetuosity, to within three or four feet of the retreating figure"
-     - "the latter, having attained the extremity of the velvet apartment, turned suddenly and confronted his pursuer"
-     - "seizing the mummer, whose tall figure stood erect and motionless"
+   - Evidence from text:
+     - "seizing the mummer, whose tall figure stood erect and motionless within the shadow of the ebony clock"
      - "fell prostrate in death the Prince Prospero" (Prospero DIES after confronting the mummer)
+     - The mummer is described as "dressed as the Red Death itself, draped in grave-cloths"
    - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
-   - **SEVEN attempts have now failed to fix this issue**
+   - **EIGHT attempts have now failed to fix this issue**
    - Location: `src/pipeline/character_extraction/consensus.py`
 
 2. **Missing character: The Red Death / Masked Figure**
@@ -68,7 +67,7 @@ The fix from attempt 7 increased the context window size in `_llm_cross_group_re
      - "the intruder"
      - "the mummer"
      - "the Red Death" (personification)
-   - Evidence: These ALL refer to the same supernatural entity that Prince Prospero confronts and dies fighting
+   - Evidence: Chapter summary CORRECTLY identifies two characters: "Prince Prospero" and "The masked figure (Red Death)" - but character extraction merges them
    - Impact: Major character missing from analysis
    - Note: Will emerge naturally once issue #1 is fixed
 
@@ -95,9 +94,9 @@ The fix from attempt 7 increased the context window size in `_llm_cross_group_re
    - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but fully assimilated)
    - Location: Foreign word detection
 
-## Root Cause Analysis: Why Confrontation Detection Keeps Failing
+## Root Cause Analysis: Why 8 Attempts Have Failed
 
-### Summary of 7 Failed Attempts
+### Summary of All Failed Attempts
 
 | Attempt | Fix Applied | Result |
 |---------|-------------|--------|
@@ -108,108 +107,74 @@ The fix from attempt 7 increased the context window size in `_llm_cross_group_re
 | 5 | Solo pattern matching for confrontation | No effect |
 | 6 | (Evaluation only, no new fix) | No effect |
 | 7 | Increased context window 150/120 → 400 chars | No effect |
+| 8 | Hard-coded death relationship detection | No effect |
 
 ### The Fundamental Problem
 
-The merge decision is happening **despite** the confrontation detection code and prompt warnings. This suggests:
+After 8 attempts, we have tried:
+- LLM prompt modifications (attempts 3, 5)
+- Structural pre-filters (attempts 4, 8)
+- Context window increases (attempt 7)
+- Death relationship detection (attempt 8)
 
-1. **The merge may happen BEFORE the cross-group resolution stage** - Epithets like "the mummer" may be classified and merged at an earlier stage
-2. **The LLM is overriding explicit rules** - Even with prompt warnings about confrontation, the LLM decides to merge based on other similarities (both at masquerade, both in same scene)
-3. **The confrontation detection code may not be executing** - Need to verify with explicit logging that the function is called AND that it returns True for these entities
+**None have worked.** The merge is happening despite ALL of these fixes.
 
-### Recommended Next Approach: Hard Blocking Rule
+### Hypotheses for Why Fixes Keep Failing
 
-After 7 failed attempts using LLM-based approaches, consider:
+1. **The merge may happen BEFORE cross-group resolution**: The epithet "the mummer" may be classified and merged at an earlier pipeline stage before any of our checks run
 
-1. **Hard-coded rule: If entity A dies at the hands of entity B, they CANNOT be merged**
-   - Check for patterns like "[A] fell prostrate in death" near "[B]" in confrontation context
-   - This bypasses LLM judgment entirely
+2. **The LLM merge decision is overriding all rules**: Even with explicit blocking code, the final merge decision may be bypassing these checks
 
-2. **Check WHERE the merge actually happens**
-   - Add explicit logging at entry/exit of `_entities_in_confrontation()`
-   - Add logging at the point where alias lists are created
-   - Verify the confrontation check is called BEFORE the merge decision
+3. **Logging gap**: We haven't verified that the blocking code is actually being called. Need to add explicit debug logging to trace the exact point where the merge decision is made
 
-3. **Examine the actual LLM response**
-   - Log the raw LLM response when it decides to merge "the mummer" with "Prince Prospero"
-   - Understand WHY the LLM thinks they're the same person
-   - This may reveal a prompt issue or context issue
+4. **The fix code may not be in the execution path**: The `_entities_in_death_relationship()` and `_entities_in_confrontation()` functions may exist but never be invoked
 
-4. **Consider blocking merge for short stories with single proper name candidate**
-   - If there's only one proper name character (Prince Prospero), be extra cautious about merging epithets that could be the antagonist
+### Recommended Next Approach
+
+**STOP adding new detection code until we verify existing code is being called.**
+
+1. **Add trace logging at EVERY decision point** in the character extraction pipeline:
+   - Log when epithet candidates are generated
+   - Log when cross-group resolution is called
+   - Log when confrontation/death checks are executed
+   - Log the exact LLM prompt and response for the merge decision
+   - Log the final merge output
+
+2. **Identify the EXACT line of code** where "the mummer" gets added to Prince Prospero's alias list
+
+3. **Consider fundamentally different approach**:
+   - Instead of trying to prevent the merge, post-process to SPLIT incorrectly merged characters
+   - Use the chapter summary (which correctly identifies 2 characters) to validate character extraction
 
 ## Fix History
 
 ### Attempt 8 Fixes Applied
 1. **Death relationship detection** (consensus.py)
-   - Root cause: `src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution():line 2140-2177`
-   - The LLM was merging "the mummer" with "Prince Prospero" despite confrontation detection
-   - Previous 7 attempts used LLM-based confrontation detection - ALL FAILED
-   - **New approach**: Hard-coded death relationship detector that bypasses LLM judgment
-   - Added `_entities_in_death_relationship()` function (lines 1959-2037)
+   - Root cause: `src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution()`
+   - Added `_entities_in_death_relationship()` function
    - Detects patterns like "fell prostrate in death" + entity name co-occurrence
-   - Called BEFORE confrontation check in `_llm_cross_group_resolution()` (line 2251)
-   - **Confidence: HIGH** - This is a fundamentally different approach from previous attempts
-   - Modified: `src/pipeline/character_extraction/consensus.py`
-
-### Attempt 1 Fixes Applied
-1. Cross-group epithet resolution (consensus.py) - Did not produce expected results
-2. Article filtering for pronunciation (cmu_proposer.py) - Partially worked
-
-### Attempt 2 Fixes Applied
-1. Proper name with article classification (consensus.py:_is_descriptive_handle())
-   - Partially worked: Profile now generated, mention count improved 3→6
-   - Caused regression: "the mummer" incorrectly merged with Prince Prospero
-
-### Attempt 3 Fixes Applied
-1. Enhanced cross-group resolution with conflict detection (consensus.py)
-   - Added CRITICAL RULE #5 about conflict/opposition/confrontation
-   - Increased epithet context from 3x100 to 4x150 chars
-   - Added context snippets for proper names (3x120 chars)
    - **Result: DID NOT WORK** - merge still happening
 
-### Attempt 4 Fixes Applied
-1. Structural confrontation detection pre-filter (consensus.py)
-   - Implemented `_entities_in_confrontation()` function (lines 1954-2047)
-   - Pre-filter check added in `_llm_cross_group_resolution()` (lines 2119-2125)
-   - **Result: DID NOT WORK** - merge still happening
-
-### Attempt 5 Fixes Applied
-1. Enhanced confrontation detection with solo pattern matching (consensus.py)
-   - Root cause identified: Context windows (120-150 chars) too small for Poe's long sentences
-   - Added indirect reference patterns ("his pursuer", "the retreating figure")
-   - NEW: Count confrontation patterns in each entity's contexts independently
-   - NEW: Block merge if BOTH entities show >= 2 confrontation patterns
-   - Added comprehensive diagnostic logging
-   - **Result: DID NOT WORK** - merge still happening
-
-### Attempt 6 Assessment
-- Analysis completed successfully
-- Same result as attempts 3, 4, 5: "the mummer" still merged with Prince Prospero
-- Score unchanged at 6.70/10
-- The fix from attempt 5 had no observable effect
-
-### Attempt 7 Fixes Applied
-1. **Increased context window size** (consensus.py)
-   - Changed epithet context: 150 → 400 chars (line 2116)
-   - Changed proper name context: 120 → 400 chars (line 2131)
-   - **Result: DID NOT WORK** - merge still happening
-   - Score improved marginally: 6.70 → 6.85 (due to profile score re-evaluation)
+### Attempt 1-7 Fixes
+See previous evaluation state for full history.
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 8)
-- Analysis completed successfully in 7m 13s
-- 1 character detected: "the Prince Prospero" (alias: "the mummer") ← STILL WRONG (death detection fix DID NOT WORK)
-- 1 character profile generated
-- 73 pronunciation flags
-- Character extraction time: 4m 49s (66.6% of total time)
-- Total tokens: 33,315
-- 19 LLM calls
-- **CRITICAL FINDING:** Chapter summary correctly identifies 2 characters ("Prince Prospero" + "The masked figure (Red Death)"), but character extraction merges them into 1
+## Key Observation
+
+**The chapter summary pipeline CORRECTLY identifies 2 characters:**
+- "Prince Prospero"
+- "The masked figure (Red Death)"
+
+**But the character extraction pipeline merges them into 1.**
+
+This proves the information is available - the character extraction pipeline is making a wrong decision.
 
 ## Next Action
 
-Oracle evaluation of attempt 8 results.
+Run PROMPT_fix.md with focus on:
+1. Add comprehensive debug logging to trace exactly WHERE the merge decision is made
+2. Verify that blocking code is actually being executed
+3. Consider post-processing approach to split incorrectly merged characters
