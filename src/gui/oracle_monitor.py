@@ -68,10 +68,11 @@ class OracleState:
     total_texts: int = 0
     completed_texts: int = 0
 
-    # From logs
+    # From logs / progress file
     model: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
+    current_stage: str = ""  # Current analysis stage (e.g., "Chapter Detection")
 
     # Recent commits
     commits: list[Commit] = field(default_factory=list)
@@ -134,6 +135,11 @@ class StateParser:
         match = re.search(r'\*\*Overall:\s*([\d.]+)/10', content)
         if match:
             result['overall_score'] = float(match.group(1))
+
+        # Parse model from configuration (e.g., "- Structure: qwen3:30b-instruct")
+        model_match = re.search(r'-\s*(?:Structure|Characters|Summaries):\s*(\S+)', content)
+        if model_match:
+            result['model'] = model_match.group(1)
 
         # Parse issues
         issues = []
@@ -198,8 +204,60 @@ class StateParser:
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             return []
 
+    def parse_progress_file(self) -> dict:
+        """Parse PROGRESS.json for current analysis stage."""
+        progress_file = self.base_dir / "output" / "PROGRESS.json"
+        if not progress_file.exists():
+            return {}
+
+        try:
+            with open(progress_file) as f:
+                data = json.load(f)
+            return {
+                'current_stage': data.get('stage', ''),
+                'stage_model': data.get('model', ''),
+            }
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+    def parse_analysis_output(self, text_name: str) -> dict:
+        """Parse analysis.json from output directory for token usage."""
+        output_dir = self.base_dir / "output" / text_name
+        analysis_file = output_dir / "analysis.json"
+
+        if not analysis_file.exists():
+            return {}
+
+        try:
+            with open(analysis_file) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+        profiling = data.get('_profiling', {})
+        totals = profiling.get('totals', {})
+        stages = profiling.get('stages', [])
+
+        # Sum input/output tokens from stages
+        input_tokens = sum(s.get('tokens_prompt', 0) for s in stages)
+        output_tokens = sum(s.get('tokens_completion', 0) for s in stages)
+
+        # Get model from first stage that has one
+        model = ""
+        for stage in stages:
+            if stage.get('model_used'):
+                model = stage['model_used']
+                break
+
+        return {
+            'model': model,
+            'input_tokens': input_tokens,
+            'output_tokens': output_tokens,
+            'llm_calls': totals.get('llm_calls', 0),
+        }
+
     def parse_latest_log(self) -> dict:
-        """Parse latest log file for model and token usage."""
+        """Parse latest log file for model and token usage (Claude Code logs)."""
         logs_dir = self.base_dir / "logs"
         if not logs_dir.exists():
             return {}
@@ -265,11 +323,27 @@ class StateParser:
         if 'threshold' in manifest:
             state.threshold = manifest['threshold']
 
-        # Parse log
-        log_data = self.parse_latest_log()
-        state.model = log_data.get('model', '')
-        state.input_tokens = log_data.get('input_tokens', 0)
-        state.output_tokens = log_data.get('output_tokens', 0)
+        # Parse progress file for current stage (real-time during analysis)
+        progress_data = self.parse_progress_file()
+        state.current_stage = progress_data.get('current_stage', '')
+
+        # Try to get model/tokens from analysis output first (local LLM usage)
+        analysis_data = self.parse_analysis_output(state.text_name) if state.text_name else {}
+
+        if analysis_data:
+            # Use analysis output data (from completed/in-progress analysis)
+            state.model = analysis_data.get('model', '')
+            state.input_tokens = analysis_data.get('input_tokens', 0)
+            state.output_tokens = analysis_data.get('output_tokens', 0)
+        else:
+            # Use model from progress file (current stage) if available
+            state.model = progress_data.get('stage_model', '') or eval_state.get('model', '')
+            # Fall back to Claude Code logs for tokens if no analysis data
+            log_data = self.parse_latest_log()
+            if not state.model:
+                state.model = log_data.get('model', '')
+            state.input_tokens = log_data.get('input_tokens', 0)
+            state.output_tokens = log_data.get('output_tokens', 0)
 
         # Parse git log
         state.commits = self.parse_git_log(5)
@@ -319,7 +393,7 @@ class StatusBar(Static):
 
         text.append("\n")
 
-        # Line 2: MODEL, TOKENS
+        # Line 2: MODEL, TOKENS, STAGE
         text.append("MODEL: ", style="bold cyan")
         model_name = self.state.model.split('/')[-1] if self.state.model else "(none)"
         # Truncate model name if too long
@@ -329,6 +403,12 @@ class StatusBar(Static):
         text.append("  │  ", style="dim")
         text.append("TOKENS: ", style="bold cyan")
         text.append(f"{format_tokens(self.state.input_tokens)} in / {format_tokens(self.state.output_tokens)} out", style="white")
+
+        # Show current stage if running analysis
+        if self.state.current_stage:
+            text.append("\n")
+            text.append("STAGE: ", style="bold cyan")
+            text.append(self.state.current_stage, style="bold yellow")
 
         return text
 
@@ -553,7 +633,8 @@ class OracleMonitorApp(App):
     }
 
     StatusBar {
-        height: 4;
+        height: auto;
+        max-height: 6;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;

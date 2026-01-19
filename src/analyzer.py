@@ -703,6 +703,7 @@ class AudiobookAnalyzer:
 
         # Step 2: Chapter Detection (using StructureAgent)
         print("📑 Detecting chapters...")
+        self._write_progress("Chapter Detection", self._get_agent_config("structure").model if self._get_agent_config("structure") else None)
         with self._metrics.stage("Chapter Detection") as ctx:
             # Create agent with agent-specific LLM client
             structure_llm = self._get_agent_llm_client("structure")
@@ -773,6 +774,7 @@ class AudiobookAnalyzer:
         else:
             # Step 3 SEQUENTIAL: Character Extraction (using CharacterAgent)
             print("👥 Extracting characters...")
+            self._write_progress("Character Extraction", self._get_agent_config("characters").model if self._get_agent_config("characters") else None)
             with self._metrics.stage("Character Extraction") as ctx:
                 # Create agent with agent-specific LLM client
                 # Note: CharacterAgent uses "characters" config key for backwards compat
@@ -840,6 +842,7 @@ class AudiobookAnalyzer:
 
         # Step 4: Chapter Summaries
         print("📝 Generating chapter summaries...")
+        self._write_progress("Chapter Summaries", self._get_agent_config("summaries").model if self._get_agent_config("summaries") else None)
 
         # Validate chapter_map before summarization (if quality gates enabled)
         if self._are_quality_gates_enabled():
@@ -1011,6 +1014,7 @@ class AudiobookAnalyzer:
         MIN_MENTIONS_FOR_PROFILE = 5
         if llm:
             print("📋 Generating character profiles...")
+            self._write_progress("Character Profiles", llm.config.model if llm and llm.config else None)
             with self._metrics.stage("Character Profiles") as ctx:
                 # Set model info from LLM client config (before running)
                 if llm and llm.config:
@@ -1140,6 +1144,7 @@ class AudiobookAnalyzer:
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
             print("🗣️  Generating pronunciation guide...")
+            self._write_progress("Pronunciation Guide", self._get_agent_config("pronunciation").model if self._get_agent_config("pronunciation") else None)
             # Use agent-specific LLM client for pronunciation
             pron_llm = self._get_agent_llm_client("pronunciation")
             with self._metrics.stage("Pronunciation Guide") as ctx:
@@ -1369,6 +1374,24 @@ class AudiobookAnalyzer:
         if mins > 0:
             return f"{mins}m {secs}s"
         return f"{secs}s"
+
+    def _write_progress(self, stage: str, model: str = None) -> None:
+        """Write a progress file for external monitoring (e.g., oracle-monitor)."""
+        output_dir = self.output_dir or Path('output')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        progress_file = output_dir / "PROGRESS.json"
+        try:
+            import json
+            from datetime import datetime
+            progress_data = {
+                "stage": stage,
+                "model": model,
+                "timestamp": datetime.now().isoformat(),
+            }
+            with open(progress_file, 'w') as f:
+                json.dump(progress_data, f)
+        except Exception:
+            pass  # Non-critical, don't fail analysis if progress write fails
 
     def _wrap_progress(self, stage: str) -> Callable[[str, int, int], None]:
         """Wrap progress callback with stage prefix and metrics updates."""

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 2 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 3 of 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.45
 
 ## Output Files
@@ -102,26 +102,28 @@ The system has TWO separate issues:
 
 ## Fix History
 
-### Attempt 2: Enhanced object/non-person entity filtering (FAILED - REGRESSION)
+### Attempt 3: Person-action verb detection for non-person entity filtering
+**Date:** 2026-01-18
+**Root cause:** src/pipeline/character_extraction/validator.py:_heuristic_validation():line 195-213
+  - Entities with 5+ mentions and 0 dialogue tags were passed to LLM validation
+  - LLM validation could accept non-person entities if context was ambiguous
+  - No check for whether entity PERFORMS person-like actions (speaks, thinks, walks, etc.)
+**Smoke test:** PASS
+  - Test with "Amontillado" (wine): Correctly rejected with reasoning "Entity has 16 mentions but never performs person actions (0/16 contexts checked)"
+  - Test with "Fortunato" (character with actions): Passed to LLM validation as expected
+**Modified:** src/pipeline/character_extraction/validator.py (lines 212-241)
+  - Added check: if entity has 5+ mentions, 0 dialogue tags, and NEVER performs person-action verbs → reject
+  - Checks pattern "{name} {verb}" to detect person actions (e.g., "Fortunato laughed")
+  - Scans up to 20 mention contexts for person-action patterns
+**Addresses:** Issue #1 (Amontillado as character) and downstream issues #3 and #5
+
+### Attempt 2: Enhanced object/non-person entity filtering (FAILED - REGRESSION - REVERTED)
 **Date:** 2026-01-18
 **Modified:** `src/pipeline/character_extraction/validator.py`
 **Result:** Score dropped from 6.45 to 5.95 (-0.50 points)
-**Why it failed:** The heuristic either isn't executing or isn't strong enough to override other signals
+**Why it failed:** Pattern-based object detection didn't match actual text contexts
+**Status:** REVERTED in commit 6ef2046
 
 ## Next Action
 
-**REVERT Attempt 2 changes** (score regressed beyond 0.3 threshold), then:
-
-1. **Diagnose why the fix didn't work:**
-   - Add temporary debug logging to trace "Amontillado" through validation
-   - Check if heuristic code is being reached
-   - Check actual pattern match counts
-
-2. **Stronger object detection:**
-   - Instead of pattern matching, scan full text for person-like verbs near the entity name
-   - If entity NEVER speaks, thinks, or performs actions → reject as character
-
-3. **First-person narrator detection:**
-   - Detect first-person narrative ("I" as subject)
-   - Find dialogue addressing narrator ("For the love of God, [NAME]!")
-   - That name = narrator identity, boost mention count to reflect "I" instances
+Re-run analysis to verify Attempt 3 fix addresses the Amontillado issue.

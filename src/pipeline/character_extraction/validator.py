@@ -209,6 +209,37 @@ class CharacterValidator:
                     reasoning="Single mention without dialogue or character verbs",
                 )
 
+        # Reject: multiple mentions but NEVER performs person actions
+        # This catches objects/things that are talked ABOUT but don't ACT
+        if proposal.mention_count >= 5 and dialogue_tag_count == 0:
+            # Check if entity EVER appears as subject of person-action verbs
+            person_action_count = 0
+            name_lower = name_lower
+
+            for mention in proposal.mentions[:20]:  # Check up to 20 samples
+                context_lower = mention.context.lower()
+
+                # Check for pattern: "{name} {verb}" (entity performs action)
+                # E.g., "Fortunato laughed", "Gatsby said", etc.
+                for verb in CHARACTER_VERBS:
+                    # Pattern: name followed by verb (with optional punctuation/whitespace)
+                    pattern = rf'\b{re.escape(name_lower)}\s*,?\s*{verb}\b'
+                    if re.search(pattern, context_lower):
+                        person_action_count += 1
+                        break  # Found one, move to next mention
+
+            # If entity has many mentions but NEVER performs person actions, likely not a person
+            if person_action_count == 0:
+                return CharacterValidationResult(
+                    proposal=proposal,
+                    is_person_score=0.1,
+                    context_score=0.1,
+                    alias_candidates=[],
+                    overall_score=0.1,
+                    is_valid=False,
+                    reasoning=f"Entity has {proposal.mention_count} mentions but never performs person actions (0/{min(20, len(proposal.mentions))} contexts checked)",
+                )
+
         # Ambiguous: need LLM validation
         return None
 
