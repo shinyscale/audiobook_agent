@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -24,25 +24,29 @@
 - Presentation: 9 -> 8 (-1 regression)
 - **Overall: 6.75 -> 6.85 (+0.10 slight improvement)**
 
-## Attempt 12 Analysis: CONTEXT WINDOW FIX FAILED
+## Attempt 13 Analysis: ENHANCED DEATH DETECTION FAILED
 
 ### What Was Tried
-Increased `character_mention_context_chars` from 200 -> 250 in `src/agents/config.py`.
+Enhanced `_entities_in_death_relationship()` in `src/pipeline/character_extraction/consensus.py` to use multiple name variants and improved matching patterns.
 
 ### Result
 **FAILED** - The merge STILL occurs with the production model (qwen3-next:80b).
 
-### Key Finding
-The smoke test with qwen3:4b-instruct showed the fix working (3 characters extracted), but the full analysis with qwen3-next:80b shows the merge still happening (1 character extracted with "the mummer" as an alias).
+### Key Finding from Debug Logs
+`_entities_in_death_relationship()` is **NOT being called at all**.
 
-**This is critical information:** The fix is MODEL-DEPENDENT.
+This proves the merge is happening at a DIFFERENT level than cross-group resolution - likely at:
+1. Pairwise alias resolution (`_llm_alias_resolution()` or `_heuristic_alias_resolution()`)
+2. Or at the proposer level where "the mummer" is already associated with Prospero
 
-### Why the Fix Worked on Small Model but Failed on Large Model
-Possible reasons:
-1. **Different consensus behavior**: The 80b model may have stronger consensus logic that overrides the death detection
-2. **Different tokenization**: The 80b model may process context differently
-3. **Different prompt interpretation**: The 80b model may interpret the "same person" heuristic differently
-4. **Merge happening earlier**: The 80b model may be merging at the proposer level, not cross-group resolution
+### The Smoking Gun (Unchanged from Previous Attempts)
+**The chapter summary pipeline CORRECTLY identifies 2 characters:**
+- "Prince Prospero"
+- "The masked figure (Red Death)"
+
+**But the character extraction pipeline merges them into 1.**
+
+This proves the underlying LLM CAN distinguish these characters - the merge is happening in the character extraction consensus logic.
 
 ## Current Issues (Priority Order)
 
@@ -55,8 +59,8 @@ Possible reasons:
      - The mummer is "dressed as the Red Death itself, draped in grave-cloths"
      - When unmasked, the figure is "untenanted by any tangible form" (not a person at all)
    - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
-   - **TWELVE attempts have now failed to fix this issue**
-   - **Status:** Context window fixes (attempts 11-12) work on small models but NOT on production model
+   - **THIRTEEN attempts have now failed to fix this issue**
+   - **Status:** Cross-group resolution fixes don't work because the merge happens BEFORE that stage
 
 2. **Missing character: The Red Death / Masked Figure**
    - Problem: The antagonist of the story should be its own character entry
@@ -66,7 +70,7 @@ Possible reasons:
      - "the intruder"
      - "the mummer"
      - "the Red Death" (personification)
-   - Evidence: Chapter summary CORRECTLY identifies two characters: "Prince Prospero" and "The masked figure (Red Death)" - but character extraction merges them
+   - Evidence: Chapter summary CORRECTLY identifies two characters but character extraction merges them
    - Impact: Major character missing from analysis
 
 ### HIGH
@@ -79,7 +83,7 @@ Possible reasons:
    - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
    - Location: Character name normalization
 
-5. **Too many common words in pronunciation guide (65+ in "Other")**
+5. **Too many common words in pronunciation guide (65 in "Other")**
    - Problem: Common words like "dauntless", "chiming", "magnificence", "casements" are flagged
    - Location: Pronunciation flagging threshold
 
@@ -87,19 +91,16 @@ Possible reasons:
    - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but fully assimilated)
    - Location: Foreign word detection
 
-## Root Cause Analysis: Summary After 12 Attempts
+## Root Cause Analysis: Summary After 13 Attempts
 
-### The Smoking Gun Evidence
-**The chapter summary pipeline CORRECTLY identifies 2 characters:**
-- "Prince Prospero"
-- "The masked figure (Red Death)"
+### The Core Problem
+The merge happens BEFORE cross-group resolution. Debug logging proves `_entities_in_death_relationship()` is never called, meaning "the mummer" and "Prince Prospero" are already in the same character group by the time cross-group resolution runs.
 
-**But the character extraction pipeline merges them into 1.**
-
-This proves:
-1. The underlying text analysis CAN distinguish these characters
-2. The LLM models UNDERSTAND they are different entities
-3. The merge is happening in the character extraction consensus/resolution logic, not in understanding
+### Where the Merge Is Happening (Investigation Needed)
+Possible locations:
+1. **`_is_descriptive_handle()` classification** - "the mummer" may be classified as a proper name rather than an epithet
+2. **`_llm_alias_resolution()` or `_heuristic_alias_resolution()`** - The LLM may be deciding "the mummer" = "Prince Prospero" at the pairwise merge level
+3. **Initial extraction** - Proposers may already be tagging "the mummer" with Prospero
 
 ### What Has Been Tried (All Failed)
 | Attempt | Fix Applied | Result |
@@ -116,91 +117,46 @@ This proves:
 | 10 | Death detection check ALL contexts | No effect |
 | 11 | mention_context_chars 100 -> 200 | +0.15 score, merge still occurs |
 | 12 | mention_context_chars 200 -> 250 | Works on small model, FAILS on production |
-
-### Key Insight from Attempt 12
-The context window fix DOES work - but only on smaller models. The production model (qwen3-next:80b) still merges the characters. This suggests:
-
-1. **The fix targets the right mechanism** (death scene context)
-2. **But the production model has a stronger merge bias** that overrides the death detection
-
-### Recommended Next Approach
-
-**STOP trying to fix cross-group resolution or context windows. After 12 attempts, we know:**
-1. Cross-group resolution fixes don't work (10 attempts)
-2. Context window fixes are model-dependent (2 attempts)
-
-**NEW APPROACH NEEDED:**
-
-#### Option A: Use Summary Output to Validate Characters
-Since the summary pipeline correctly identifies 2 characters, we could:
-1. Extract character names from the chapter summary
-2. Use these to VALIDATE/CORRECT the character extraction output
-3. If summary says "Prince Prospero" and "The masked figure (Red Death)" are separate, split them
-
-#### Option B: Add Post-Processing Character Split Rule
-Add a rule in the final character output stage:
-- If a character has an alias that appears in a "death scene" where the canonical name dies, split them
-- Pattern: "fell prostrate in death [character A]... seizing [character B]" -> split A and B
-
-#### Option C: Model-Specific Configuration
-Since the fix works on smaller models:
-- Use a smaller model specifically for character extraction on short texts
-- Or add model-specific thresholds for merge decisions
-
-#### Option D: Proposer-Level Investigation
-The merge may be happening at the PROPOSER level, not consensus:
-1. Add debug logging to see what each proposer extracts
-2. Check if "the mummer" is being associated with Prospero by individual proposers
-3. If so, fix at the proposer prompt level, not consensus
+| 13 | Enhanced death relationship detection | Never called - merge happens earlier |
 
 ## Fix History
 
-### Attempts 1-10
-See git history. All targeted cross-group resolution in `consensus.py`. None worked.
-
-### Attempt 11
-- **Change:** `character_mention_context_chars` 100 -> 200
-- **Result:** Score +0.15, merge still occurs
-
-### Attempt 12
-- **Change:** `character_mention_context_chars` 200 -> 250
-- **Result:** Works on qwen3:4b-instruct, FAILS on qwen3-next:80b
-- **Conclusion:** Fix is model-dependent, production model has stronger merge bias
+### Attempts 1-12
+See previous EVALUATION_STATE.md entries and git history.
 
 ### Attempt 13
-- **Change:** Enhanced `_entities_in_death_relationship()` to use multiple name variants and improved matching
-- **Root cause:** `src/pipeline/character_extraction/consensus.py:_entities_in_death_relationship()` - The function wasn't finding both names in the same context window
-- **Smoke test:** **FAILED** - Merge still occurs (1 character extracted)
-- **Key finding:** Debug logging shows `_entities_in_death_relationship()` is NOT being called at all
-- **Conclusion:** The merge is happening at a DIFFERENT level than cross-group resolution - likely at pairwise or heuristic level BEFORE cross-group is even attempted
-- **Files modified:** `src/pipeline/character_extraction/consensus.py` (lines 2003-2063)
+- **Change:** Enhanced `_entities_in_death_relationship()` with multiple name variants
+- **Result:** Function is NEVER CALLED - merge happens before cross-group resolution
+- **Conclusion:** Must investigate WHERE the merge actually happens (pairwise level, not cross-group)
+
+## Recommended Next Approach (Attempt 14)
+
+### Priority 1: Add Debug Logging to Find Merge Location
+Add logging to these functions to trace where "the mummer" gets merged with "Prince Prospero":
+
+1. **`_is_descriptive_handle()`** - Is "the mummer" classified as epithet or proper name?
+2. **`_heuristic_alias_resolution()`** - Does heuristic logic merge them?
+3. **`_llm_alias_resolution()`** - Does the LLM merge them at pairwise level?
+4. **Initial extraction results** - Are they separate groups initially?
+
+### Priority 2: Post-Processing Character Split
+Since the summary pipeline correctly identifies both characters, add a post-processing step:
+1. Extract character names from chapter summaries (already available in `characters_present`)
+2. Compare against final character list
+3. If summary identifies more characters than extraction, investigate potential incorrect merges
+4. Use death scene detection to SPLIT characters that were incorrectly merged
+
+### Priority 3: Classification Fix
+If "the mummer" is being classified as a proper name:
+- Make `_is_descriptive_handle()` more conservative about "the X" patterns
+- "the mummer" should be classified as an epithet, not a proper name
+- Epithets go through cross-group resolution (where death detection could work)
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 13)
-- Analysis completed in 3m 22s
-- Total LLM tokens: 39,886
-- Character count: 1 (STILL showing merge issue - "the mummer" listed as alias of Prince Prospero)
-- Model used for Character Extraction: qwen3-next:80b-a3b-instruct-q8_0
-- Enhanced death relationship detection was applied but merge still occurs
-
 ## Next Action
-
-**CRITICAL: After 13 attempts, the merge is NOT happening at cross-group resolution.**
-
-Debug logging from attempt 13 proves `_entities_in_death_relationship()` is never called, which means:
-- The merge happens BEFORE cross-group resolution
-- Either "the mummer" is being classified as a proper name (not an epithet)
-- OR they're being merged at the pairwise/heuristic level as proper names
-
-**Recommended investigation for Attempt 14:**
-1. Add logging to `_is_descriptive_handle()` to see if "the mummer" is classified as epithet or proper name
-2. Add logging to `_llm_alias_resolution()` or `_heuristic_alias_resolution()` to see if merge happens there
-3. Check if both "the mummer" and "Prince Prospero" are extracted as separate names initially
-
-**Alternative approaches if investigation shows fundamental architecture issue:**
-- **Option A (most promising)**: Use summary output to post-process and split incorrectly merged characters
-- **Option B**: Add a global character split rule based on death scenes (post-processing after all merging)
-- **Option C**: Change how "the X" names are classified - make classification more conservative
+Run PROMPT_fix.md to:
+1. First ADD DEBUG LOGGING to trace where the merge happens
+2. Then apply targeted fix based on findings
