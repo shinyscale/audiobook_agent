@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -184,13 +184,14 @@ See previous EVALUATION_STATE.md entries and git history.
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
-- Directory: output/Masque of the Red Death - Poe_20260119_044538
+- Directory: output/Masque of the Red Death - Poe_20260119_050220
 
-## Pipeline Notes (Attempt 15)
-- Analysis completed successfully in 7m 45s
-- Total tokens: 40,243
-- Character extraction bottleneck: 66% of time (5m 7s)
-- Result: Still only 1 character detected with "the mummer" listed as an alias of "Prince Prospero"
+## Pipeline Notes (Attempt 16)
+- Analysis completed successfully in 7m 37s
+- Total tokens: 35,432
+- Character extraction bottleneck: 69.7% of time (5m 19s)
+- Result: **STILL ONLY 2 CHARACTERS** with "the mummer (aka Prospero)" - post-processing split did NOT execute
+- Output shows: "the mummer (aka Prospero) - 4 mentions" indicating alias merge still present
 
 ## Next Action
-Run PROMPT_analyze.md - Fix has been implemented, awaiting full analysis to validate
+Run PROMPT_evaluate.md - Attempt 16 FAILED, need to investigate why post-processing split wasn't triggered
