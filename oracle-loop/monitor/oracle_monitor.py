@@ -80,6 +80,9 @@ class OracleState:
     # Metadata
     last_updated: datetime = field(default_factory=datetime.now)
 
+    # Loop status
+    loop_running: bool = False
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -206,7 +209,15 @@ class StateParser:
 
     def parse_progress_file(self) -> dict:
         """Parse PROGRESS.json for current analysis stage."""
-        progress_file = self.base_dir / "output" / "PROGRESS.json"
+        output_dir = self.base_dir / "output"
+
+        # If output dir doesn't exist, check parent directory (oracle-loop structure)
+        if not output_dir.exists():
+            parent_output = self.base_dir.parent / "output"
+            if parent_output.exists():
+                output_dir = parent_output
+
+        progress_file = output_dir / "PROGRESS.json"
         if not progress_file.exists():
             return {}
 
@@ -223,6 +234,13 @@ class StateParser:
     def parse_analysis_output(self, text_name: str) -> dict:
         """Parse analysis.json from output directory for token usage."""
         output_dir = self.base_dir / "output" / text_name
+
+        # If output dir doesn't exist, check parent directory (oracle-loop structure)
+        if not output_dir.exists():
+            parent_output = self.base_dir.parent / "output" / text_name
+            if parent_output.exists():
+                output_dir = parent_output
+
         analysis_file = output_dir / "analysis.json"
 
         if not analysis_file.exists():
@@ -259,6 +277,13 @@ class StateParser:
     def parse_latest_log(self) -> dict:
         """Parse latest log file for model and token usage (Claude Code logs)."""
         logs_dir = self.base_dir / "logs"
+
+        # If logs dir doesn't exist, check parent directory (oracle-loop structure)
+        if not logs_dir.exists():
+            parent_logs = self.base_dir.parent / "logs"
+            if parent_logs.exists():
+                logs_dir = parent_logs
+
         if not logs_dir.exists():
             return {}
 
@@ -296,6 +321,18 @@ class StateParser:
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
         }
+
+    def check_loop_running(self) -> bool:
+        """Check if oracle-loop.sh is currently running."""
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'oracle-loop.sh'],
+                capture_output=True,
+                timeout=2
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
 
     def get_state(self) -> OracleState:
         """Get combined state from all sources."""
@@ -348,6 +385,9 @@ class StateParser:
         # Parse git log
         state.commits = self.parse_git_log(5)
 
+        # Check if loop is running
+        state.loop_running = self.check_loop_running()
+
         state.last_updated = datetime.now()
 
         return state
@@ -372,6 +412,13 @@ class StatusBar(Static):
 
     def render(self) -> Text:
         text = Text()
+
+        # Loop status indicator (prominent, at start of first line)
+        if self.state.loop_running:
+            text.append("● RUNNING", style="bold green")
+        else:
+            text.append("● STOPPED", style="bold red")
+        text.append("  │  ", style="dim")
 
         # Line 1: TEXT, ATTEMPT, PHASE
         text.append("TEXT: ", style="bold cyan")
@@ -772,7 +819,9 @@ def main():
     )
 
     args = parser.parse_args()
-    run_oracle_monitor(base_dir=args.dir, polling_interval=args.interval)
+    # Resolve to absolute path before Textual changes working directory
+    base_dir = args.dir.resolve()
+    run_oracle_monitor(base_dir=base_dir, polling_interval=args.interval)
 
 
 if __name__ == "__main__":

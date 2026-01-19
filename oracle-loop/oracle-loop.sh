@@ -229,15 +229,36 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
                 # Get the last commit that was a fix
                 LAST_FIX=$(git log --oneline -1 --grep="^Fix:" 2>/dev/null | cut -d' ' -f1)
                 if [ -n "$LAST_FIX" ]; then
-                    git revert --no-commit "$LAST_FIX" 2>/dev/null
-                    git commit -m "Auto-revert: Fix caused regression ($NEW_SCORE < $BASELINE)
+                    # Revert only the code changes, not state files
+                    # First, get list of files changed in that commit (excluding state/)
+                    CODE_FILES=$(git diff-tree --no-commit-id --name-only -r "$LAST_FIX" 2>/dev/null | grep -v "^oracle-loop/state/" || true)
 
-Reverted commit: $LAST_FIX
-Score drop: $DIFF points" 2>/dev/null
-                    echo "Reverted commit $LAST_FIX"
+                    if [ -n "$CODE_FILES" ]; then
+                        echo "Reverting code files from $LAST_FIX:"
+                        echo "$CODE_FILES"
+
+                        # Restore each code file to its state before the fix commit
+                        for file in $CODE_FILES; do
+                            if [ -f "$file" ]; then
+                                git checkout "$LAST_FIX^" -- "$file" 2>/dev/null || true
+                            fi
+                        done
+
+                        git add -A
+                        git commit -m "Auto-revert: Fix caused regression ($NEW_SCORE < $BASELINE)
+
+Reverted code from commit: $LAST_FIX
+Score drop: $DIFF points
+Files reverted:
+$CODE_FILES" 2>/dev/null
+                        echo "Reverted code changes from commit $LAST_FIX"
+                    else
+                        echo "No code files to revert in $LAST_FIX"
+                    fi
 
                     # Update phase to awaiting_analysis to re-run with reverted code
                     sed -i 's/\*\*Phase:\*\* awaiting_fix/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
+                    sed -i 's/\*\*Phase:\*\* awaiting_evaluation/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
                     echo "Reset phase to awaiting_analysis"
                 else
                     echo "Could not find fix commit to revert"
