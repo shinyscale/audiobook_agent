@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -120,8 +120,21 @@
 
 **Smoke tests:** Test suite not available in environment - proceeded based on root cause confidence and code review
 
+## Output Files (Attempt 2)
+- HTML: output/masque_of_red_death/report.html
+- JSON: output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 7m 17s
+- Total tokens: 30,533
+- No errors during execution
+- Found 2 characters with 3 mentions each
+- Generated 0 character profiles (threshold not met)
+- Flagged 74 words in pronunciation guide
+- Note: "LLM identity detection failed" warning at end (non-critical)
+
 ## Next Action
-Re-run analysis via PROMPT_analyze.md to verify fixes
+Proceed to PROMPT_evaluate.md to score the output
 
 ## Estimated Impact of Fixes
 - Fix 1 (epithet linking): Should merge "the prince", "the duke" into "Prince Prospero" → Characters 5→8, Profiles 2→7
