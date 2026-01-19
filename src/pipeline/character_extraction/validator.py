@@ -22,6 +22,13 @@ PLACE_NAMES = {
     'broadway', 'manhattan',
 }
 
+# Common food/beverage names that NER might misidentify as characters
+FOOD_BEVERAGE_NAMES = {
+    'amontillado', 'sherry', 'wine', 'champagne', 'brandy', 'whiskey', 'bourbon',
+    'tea', 'coffee', 'water', 'milk', 'beer', 'ale', 'porter', 'rum', 'gin',
+    'bread', 'cheese', 'meat', 'fish', 'cake', 'pie', 'soup', 'stew',
+}
+
 TITLE_ONLY_PATTERN = re.compile(
     r'^(mr|mrs|ms|miss|dr|sir|lady|lord|captain|colonel|general|'
     r'professor|doctor|king|queen|prince|princess|duke|duchess)\.?$',
@@ -148,6 +155,18 @@ class CharacterValidator:
                 overall_score=0.0,
                 is_valid=False,
                 reasoning=f"'{name}' is a known place name",
+            )
+
+        # Reject: known food/beverage names
+        if name_lower in FOOD_BEVERAGE_NAMES:
+            return CharacterValidationResult(
+                proposal=proposal,
+                is_person_score=0.0,
+                context_score=0.0,
+                alias_candidates=[],
+                overall_score=0.0,
+                is_valid=False,
+                reasoning=f"'{name}' is a food or beverage, not a character",
             )
 
         # Reject: title only (no actual name)

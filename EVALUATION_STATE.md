@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -185,7 +185,45 @@ Error during analysis: LLM validation returned invalid JSON for '--yes' after 3 
 **Issue Addressed:**
 - ✅ Pipeline failure: NER extracting invalid character name "--yes"
 
+## Attempt 3 Fix (2026-01-18): Add food/beverage filter to validator
+
+**Root Cause Analysis:**
+- Issue #1 ("Amontillado as character"):
+  - Traced from: `output/cask_of_amontillado/analysis.json` → `CharacterMap.characters[0]` → `CharacterExtractionPipeline` → `CharacterValidator._heuristic_validation()`
+  - **Root cause:** After passing through heuristic checks, "Amontillado" was sent to LLM validation (line 218) which incorrectly accepted it as a character despite explicit instructions to reject beverages
+  - The LLM (qwen2.5:32b) is not reliable for distinguishing common nouns from character names
+  - Confidence: HIGH
+
+**Changes Made:**
+- File: `src/pipeline/character_extraction/validator.py`
+- Lines 24-29: **Added** `FOOD_BEVERAGE_NAMES` set with common food/drink names including 'amontillado', 'wine', 'sherry', etc. (24 entries total)
+- Lines 164-176: **Added** pre-filter check to reject food/beverage names BEFORE LLM validation
+- This is a heuristic filter similar to the existing `PLACE_NAMES` filter (line 142)
+
+**Smoke Test Results (PASS):**
+```
+✓ "Amontillado" → REJECT (food/beverage)
+✓ "Wine"        → REJECT (food/beverage)
+✓ "Sherry"      → REJECT (food/beverage)
+✓ "Fortunato"   → ALLOW
+✓ "Montresor"   → ALLOW
+```
+
+**Full Test Suite: PASSED**
+- 444 tests passed, 11 skipped, 1 warning
+- No regressions introduced
+
+**Issues Addressed:**
+- ✅ Issue #1: "Amontillado" (a wine) is listed as a character
+- ⏳ Issue #2: Montresor not identified as narrator (should cascade from fixing #1)
+- ⏳ Issue #5: Plot summary uses "Amontillado" as narrator name (should cascade from fixing #1)
+
+**Expected Impact:**
+- Amontillado should be filtered out before character extraction completes
+- Narrator detection should then correctly identify Montresor (since Amontillado won't be competing)
+- Plot summary should use correct narrator name
+
 ## Next Action
 **Phase:** awaiting_analysis
 
-Re-run analysis to verify the fix allows the pipeline to complete successfully.
+Re-run analysis to verify the fix successfully rejects "Amontillado" and correctly identifies Montresor as narrator.
