@@ -60,7 +60,7 @@ full = [
 [project.scripts]
 audiobook-prep = "src.cli:main"
 audiobook-prep-gui = "src.gui.desktop:main"
-oracle-monitor = "src.gui.oracle_monitor:main"
+# oracle-monitor moved to oracle-loop/monitor/ - run directly with python
 
 [project.urls]
 Homepage = "https://github.com/zachaudiobook/audiobook-prep"
