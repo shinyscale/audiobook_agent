@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -121,7 +121,16 @@ The fix from attempt 2 (first-person narrator detection in LLM prompt) **did not
 ## Output Files
 - HTML: /home/zacharymandrews/Tools/audiobook_agent/output/berenice/report.html
 - JSON: /home/zacharymandrews/Tools/audiobook_agent/output/berenice/analysis.json
-- Most recent timestamped: output/Berenice - Poe_20260119_152139/
+- Most recent timestamped: output/Berenice - Poe_20260119_154254/
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 9m 35s
+- Character count: 2 (Berenice, Mad'selle Salle)
+- **WARNING: Egaeus still NOT detected** - the fix did not work as expected
+- **WARNING: Narrator still incorrectly identified as Berenice**
+- No pipeline crashes or errors (aside from one LLM load failure at the end that didn't affect results)
+- LLM calls: 31 total
+- Tokens: 55,575 total
 
 ## Next Action
-Re-run analysis to verify the fix works
+Evaluate the output to assess if the fix improved the score
