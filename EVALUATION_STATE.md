@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 21
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Output Files
@@ -13,7 +13,7 @@
 ## Latest Scores
 - Structure Detection: 10/10
 - Character Extraction: 7/10
-- Character Profiles: 6/10 ← IMPROVED from 5/10 (attempt 19)
+- Character Profiles: 6/10 ← **NO CHANGE** (structured fields still null)
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
@@ -31,35 +31,52 @@
 ## Gap to Threshold
 Current: 7.85 | Threshold: 8.0 | Gap: **0.15 points**
 
-## Attempt 20 Result: PARTIAL SUCCESS ✓
+## Attempt 21 Result: FAIL ✗
 
 ### What Was Tried
-Adaptive MIN_MENTIONS_FOR_PROFILE threshold for short texts (threshold of 2 for texts < 5000 words).
+Populate structured profile fields (appearance, personality, voice_guidance) from LLM response.
 
 ### Result
-**PARTIAL SUCCESS** - Profile generation stage now runs:
-- Duration: 26.65s (was 0.0s)
-- LLM calls: 3 (was 0)
-- Items processed: 2 (was 0)
-- Confidence: 2 high (was 0)
+**FAILED** - The structured fields are STILL NULL in the output:
 
-**BUT**: The generated profiles are stored in the `descriptions` array, NOT in the structured `appearance`, `personality`, `voice_guidance` fields which remain null.
+```json
+"appearance": null,
+"personality": null,
+"voice_guidance": null,
+"descriptions": [
+  {
+    "text": "Prince Prospero is a defiant and arrogant noble...",
+    "confidence": "llm_refined"
+  }
+]
+```
+
+The code changes did not produce the expected result. The profile text continues to only populate the `descriptions` array.
+
+### Possible Root Causes
+1. The LLM is not returning structured JSON despite the prompt change
+2. The parsing code is failing silently and falling back to descriptions-only
+3. The Character model may not be properly updated with the new fields
+4. The return value unpacking may have a bug (tuple indexing issue)
 
 ### Score Impact
-- Character Profiles: 5/10 → 6/10 (+1 point)
-- Overall: 7.70 → 7.85 (+0.15 point)
+- Character Profiles: 6/10 → 6/10 (NO CHANGE)
+- Overall: 7.85 → 7.85 (NO CHANGE)
 
 ## Current Issues (Priority Order)
 
-### HIGH
-1. **Structured profile fields are empty (6/10)**
+### CRITICAL
+1. **Structured profile fields are STILL empty despite code fix (6/10)**
    - Problem: `appearance`, `personality`, `voice_guidance` are all null for both characters
-   - The profile LLM is generating good content, but it's stored in `descriptions` array only
-   - Impact: +0.15 points available if raised to 7/10 (would pass threshold)
-   - Evidence: The descriptions text contains personality info like "noble figure", "bold and aggressive"
-   - Root cause: `_generate_character_profile()` populates `descriptions` but not structured fields
-   - Location: `src/analyzer.py` around line 1050-1100 (profile generation and population)
-   - Fix: Extract structured data from LLM response OR modify LLM prompt to return structured fields
+   - Expected: These fields should be populated from the LLM profile response
+   - Evidence: analysis.json shows null for all three fields on both characters
+   - Root cause investigation needed:
+     a. Check if LLM prompt actually requests structured JSON output
+     b. Check if LLM response contains structured fields
+     c. Check if parsing code correctly extracts structured fields
+     d. Check if Character model assignment is working
+   - Location: `src/analyzer.py` lines 1630-1806 (_generate_character_profile)
+   - **REQUIRED:** Add debug logging to trace the LLM response and parsing steps
 
 ### MEDIUM
 2. **Canonical name format: "the Prince Prospero" should be "Prince Prospero"**
@@ -73,7 +90,11 @@ Adaptive MIN_MENTIONS_FOR_PROFILE threshold for short texts (threshold of 2 for 
    - Impact: Minor completeness issue
    - Location: Alias detection in character extraction
 
-4. **Pronunciation false positives (~35-40%)**
+4. **Missing aliases for the mummer**
+   - Problem: "the figure", "the intruder", "the Red Death" are all aliases
+   - Impact: Minor completeness issue
+
+5. **Pronunciation false positives (~35-40%)**
    - Problem: Common English words flagged: "dauntless", "chiming", "magnificence", "buffoons", etc.
    - Impact: +0.10 points available if reduced
    - 73 entries for a 2500-word text is excessive
@@ -81,31 +102,37 @@ Adaptive MIN_MENTIONS_FOR_PROFILE threshold for short texts (threshold of 2 for 
    - Fix: Add frequency-based filtering to exclude common words
 
 ### LOW
-5. **Mention count doesn't include aliases**
+6. **Mention count doesn't include aliases**
    - Problem: "the Prince Prospero" shows 3 mentions, but "Prospero" appears 18 times
    - The combined count should be ~21
    - Location: Mention counting logic
 
-## Recommended Next Fix (Attempt 21)
+## Recommended Next Fix (Attempt 22)
 
-### Priority: Populate Structured Profile Fields (quickest path to 8.0)
+### Priority: DEBUG the structured profile field population
 
-The profile generation is now running and producing good content in `descriptions`. The issue is that `appearance`, `personality`, and `voice_guidance` remain null.
+The attempt 21 code change did not work. Before trying more code changes, we need to understand WHY:
 
-**Investigation needed:**
-1. Check how `_generate_character_profile()` handles the LLM response
-2. The LLM may be returning unstructured text that goes to `descriptions`
-3. Need to either:
-   a. Modify LLM prompt to return structured JSON with appearance/personality/voice_guidance
-   b. Post-process the descriptions text to extract structured fields
-   c. Modify the code that populates Character model to also set structured fields
+**Step 1: Add diagnostic logging**
+Add temporary print/log statements to `_generate_character_profile()` to trace:
+1. What the LLM prompt actually looks like
+2. What the LLM returns (raw response)
+3. What the parsing extracts
+4. What values are assigned to the Character object
 
-**Expected Impact:** +0.15+ points on Profiles (6→7), reaching 8.0 threshold
+**Step 2: Run analysis with debug output**
+Run the pipeline and capture the debug output to understand where the structured fields are being lost.
+
+**Step 3: Fix based on findings**
+Only after understanding the actual failure point, apply a targeted fix.
+
+**Expected Impact:** If structured fields populate correctly → +0.15+ points on Profiles (6→7) → reach 8.0 threshold
 
 ## What NOT to Try Again
 - Pre-merge substring matching (attempts 17-18) - FAILED
 - Prompt-based rules (attempts 3, 14) - ineffective alone
 - Context window adjustments (attempts 7-15) - insufficient
+- Blind code changes without debugging (attempt 21) - FAILED
 
 ## Fix History
 
@@ -127,23 +154,13 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Score Impact:** +0.15 overall (7.70 → 7.85)
 - **Status:** Profile generation works, but output format needs adjustment
 
-### Attempt 21 - ANALYSIS COMPLETE
-- **Change:** Populate structured profile fields (appearance, personality, voice_guidance)
+### Attempt 21 - FAIL ✗
+- **Change:** Attempted to populate structured profile fields
 - **Files Modified:** `src/analyzer.py` lines 1630-1806
-- **Root Cause:** `_generate_character_profile()` was returning profile text which was stored in legacy `descriptions` field, but never populating the structured fields added in F8
-- **Fix Details:**
-  1. Modified LLM prompt to request structured JSON with appearance/personality/voice_guidance fields
-  2. Updated return signature to include structured fields (now returns 6-tuple instead of 3-tuple)
-  3. Updated calling code (line 1113) to unpack and store structured fields on character object
-  4. Added fallback: if LLM doesn't return structured fields, use secondary LLM call to structure the profile text
-- **Smoke Test:** Code runs without errors, all 444 unit tests pass
-- **Pipeline Run:** Completed in 8m 37s
-  - Character Profiles: 39.4s, 5 LLM calls, 2 items, 2 high confidence
-  - Total: 28 LLM calls, 43,037 tokens
-- **Status:** Ready for evaluation
+- **Result:** FAILED - Structured fields still null in output
+- **Score Impact:** 0 (no change)
+- **Status:** Code change did not produce expected result - debugging required
 
 ## Next Action
-**Phase:** awaiting_evaluation
-Evaluate the analysis output to verify structured profile fields are now populated correctly.
-
-Expected score improvement: 6/10 → 7/10 on Character Profiles (+0.15 overall → 8.0 total)
+**Phase:** awaiting_fix
+Debug why structured profile fields remain null despite code changes. Add logging to trace LLM response and field population.
