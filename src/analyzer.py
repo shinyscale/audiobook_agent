@@ -1870,7 +1870,7 @@ Return ONLY the JSON object."""
                         f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: {e}"
                     )
 
-        return "", [], 0.0
+        return "", [], 0.0, None, None, None
 
     def _detect_narrator(self, full_text: str, characters: list) -> Optional[str]:
         """
