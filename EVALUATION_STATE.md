@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.10
 
 ## Latest Scores
