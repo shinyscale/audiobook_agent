@@ -3,140 +3,132 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 5/10 <- FAILING
-- Character Profiles: 2/10 <- FAILING (cascading from character extraction)
+- Character Extraction: 5/10 ← FAILING
+- Character Profiles: 2/10 ← FAILING (cascading from character extraction)
 - Chapter Summaries: 9/10
-- Pronunciation Guide: 5/10 <- FAILING
-- HTML Presentation: 9/10
+- Pronunciation Guide: 6/10 ← IMPROVED (was 5)
+- HTML Presentation: 8/10
 - **Overall: 6.75/10** (threshold: 8.0)
+
+## Score Delta from Attempt 1
+- Structure: 10 → 10 (unchanged)
+- Characters: 5 → 5 (unchanged)
+- Profiles: 2 → 2 (unchanged)
+- Summaries: 9 → 9 (unchanged)
+- Pronunciation: 5 → 6 (+1 - "the" no longer flagged)
+- Presentation: 9 → 8 (-1 - noticed timing table issues)
+- **Overall: 6.75 → 6.75 (unchanged)**
+
+## Fix Assessment from Attempt 1
+
+### Fix 1: Cross-group epithet-to-proper-name resolution
+**Status: DID NOT WORK**
+- **Expected:** "the prince", "the duke" merged into "Prince Prospero", mention count ~15+
+- **Actual:** "the Prince Prospero" still shows only 3 mentions, no aliases
+- **Evidence:** Pronunciation guide shows "Prospero" with 18 occurrences, "Prince" with 9 occurrences, but character only has 3 mentions
+- **Root cause:** The cross-group resolution was added but either:
+  1. Not being called in the execution path
+  2. Failing to find cross-group matches
+  3. Not updating mention counts after merging
+
+### Fix 2: Add articles to pronunciation whitelist
+**Status: PARTIALLY WORKED**
+- **Expected:** "the" removed from pronunciation guide
+- **Actual:** ✅ "the" is no longer in the pronunciation guide
+- **Remaining issue:** "away" is still flagged as a foreign word (not covered by article fix)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Prince Prospero mention count severely undercounted**
-   - Problem: JSON shows 3 mentions but text has ~15+ references ("Prince Prospero", "the prince", "Prospero", "the duke")
-   - Evidence: Text contains "Prince Prospero" (5+ times), "the prince" (multiple), "Prospero" alone (multiple), "the duke" (1+ time)
-   - Location: `src/agents/character_agent.py` or `src/pipeline/character_extraction.py` - mention counting logic
-   - Impact: Causes cascading failure - characters appear to have too few mentions, preventing profile generation
-   - Fix: Ensure alias-aware mention counting includes all variant references
+1. **Character mention counts are NOT using alias-aware counting**
+   - Problem: "the Prince Prospero" shows 3 mentions, but the text contains:
+     - "Prince Prospero" (5+ times)
+     - "Prospero" alone (18 times per pronunciation guide)
+     - "Prince" as title (9 times)
+     - "the prince" (multiple times)
+     - "the duke" (at least once - "the duke's love of the bizarre")
+   - Evidence: Character shows 3 mentions while pronunciation shows 18 "Prospero" occurrences
+   - Root cause: The mention count is counting exact matches of "the Prince Prospero" rather than any reference to the character
+   - Location: `src/pipeline/character_extraction/consensus.py` - mention counting in `build_consensus()` or wherever mention_count is calculated
+   - Impact: Characters appear to have too few mentions → profiles not generated → cascading failure
+   - Fix approach: After building alias groups, recalculate mention_count as sum of all alias mention counts
 
-2. **No character profiles generated**
+2. **No character profiles generated (0 profiles)**
    - Problem: Report shows "Generated 0 character profiles (both characters below minimum mention threshold)"
-   - Evidence: Prince Prospero is the PROTAGONIST of a 2,400-word story - should absolutely have a profile
-   - Location: Profile generation threshold logic in `src/agents/` or profiling pipeline
-   - Root cause: Mention count underestimation (Issue #1)
-   - Fix: After fixing mention counts, profiles should generate. May also need to lower threshold for short stories.
-
-3. **"the" flagged as a proper noun with 263 occurrences**
-   - Problem: The definite article "the" is incorrectly listed in pronunciation guide as a proper noun
-   - Evidence: Appears as first entry in Proper Nouns section of pronunciation guide
-   - Location: `src/pipeline/pronunciation.py` or NER extraction - improper filtering of common words
-   - Fix: Add exclusion list for common English articles (the, a, an) or improve proper noun detection logic
+   - Evidence: Prince Prospero is the PROTAGONIST of a 2,400-word story - he absolutely needs a profile
+   - Root cause: Cascading from Issue #1 - mention counts are too low
+   - Secondary cause: Profile threshold may be too high for short stories
+   - Location: Profile generation threshold in `src/agents/` or profiling pipeline
+   - Fix approach:
+     1. First fix mention counting (Issue #1)
+     2. Consider lowering profile threshold for short texts (<5000 words)
 
 ### HIGH
-4. **Missing alias resolution for Prince Prospero**
-   - Problem: "Prince Prospero", "the prince", "the duke", "Prospero" should all be aliases
-   - Evidence: Text says "the duke's love of the bizarre" referring to same person as "Prince Prospero"
-   - Location: `src/agents/character_agent.py` - alias resolution logic
-   - Fix: Improve alias grouping to link titled references ("the prince", "the duke") with proper names
+3. **No aliases recorded for either character**
+   - Problem: Both characters show "—" for aliases despite clear alias relationships:
+     - Prince Prospero = Prospero = the prince = the duke
+     - the mummer = the figure = the masked figure = the intruder = the stranger = Red Death
+   - Evidence: All these terms appear in the text referring to the same characters
+   - Location: `src/pipeline/character_extraction/consensus.py` - alias resolution
+   - Root cause: The cross-group resolution may be running but not populating the aliases list
+   - Fix: Ensure aliases are populated when characters are merged across groups
 
-5. **Missing alias resolution for the mummer/Red Death figure**
-   - Problem: "the mummer", "the figure", "the masked figure", "the intruder", "the stranger" should be grouped
-   - Evidence: All these terms refer to the personified Red Death
-   - Location: Same as above - alias resolution
-   - Fix: Improve detection of definite article + noun phrases referring to same entity
-
-6. **"away" incorrectly flagged as foreign word**
-   - Problem: Common English word "away" is listed in Foreign Words section
-   - Evidence: "away" is not a foreign word in any context
-   - Location: `src/pipeline/pronunciation.py` - foreign word detection
-   - Fix: Improve foreign word detection or add common word exclusion
+4. **"away" incorrectly flagged as foreign word**
+   - Problem: Common English word "away" is listed in Foreign Words section with note: "Note: 'away' is not German, but the context may suggest a foreign tone"
+   - Evidence: "away" is a standard English word, not foreign
+   - Location: `src/pipeline/pronunciation_guide/` - foreign word detection logic
+   - Fix: Improve foreign word detection or add more common words to exclusion list
 
 ### MEDIUM
-7. **No IPA provided for any pronunciation entry**
-   - Problem: All 75 entries have `ipa: null`
-   - Evidence: Useful words like "improvisatori", "Prospero", "cerements" should have IPA
-   - Location: Pronunciation pipeline - IPA generation stage
-   - Fix: Enable/configure IPA generation, may need LLM call or dictionary lookup
+5. **Canonical name format includes leading article**
+   - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
+   - Evidence: Leading "the" is awkward and non-standard
+   - Location: Character name normalization logic
+   - Fix: Strip leading articles from canonical names
 
-8. **Too many common words in pronunciation guide**
-   - Problem: 65 words in "Other" category including common words like "chiming", "evolutions", "dauntless"
-   - Evidence: These are standard English words that don't need pronunciation help
-   - Location: Pronunciation flagging logic
-   - Fix: Improve filtering to focus on truly unusual words
+6. **Too many common words in pronunciation guide (65 in "Other")**
+   - Problem: Common words like "dauntless", "chiming", "evolutions", "girdled", "provisioned" are flagged
+   - Evidence: These are standard English words that most narrators would know
+   - Location: Pronunciation flagging threshold/filtering
+   - Fix: Add word frequency filtering using a common English word list (top 5000 words)
 
-9. **Themes are weak/generic**
-   - Problem: Listed themes "identity, ambition, loss" miss the core allegory
-   - Evidence: Central themes are: mortality, inevitability of death, hubris, wealth's impotence against death
-   - Location: Summary/theme extraction
-   - Fix: Low priority - themes are supplementary information
+7. **Generic themes miss the allegorical nature**
+   - Problem: Listed themes "identity, ambition, loss" are generic
+   - Actual themes: mortality, inevitability of death, hubris, wealth's impotence against death, denial of mortality
+   - Location: Theme extraction in summary pipeline
+   - Fix: Low priority - themes are supplementary
 
 ### LOW
-10. **Timing table shows spurious rows**
-    - Problem: "started_at" and "ended_at" rows in timing table have empty duration values
-    - Location: HTML template formatting
-    - Fix: Filter out non-duration timing entries from table display
-
-11. **Main Characters stat shows 0**
-    - Problem: Overview card shows "0 Main Characters" which is misleading
-    - Evidence: Prince Prospero is the main character
-    - Root cause: Cascading from mention count issue
-    - Fix: Will resolve when character extraction is fixed
+8. **Timing table formatting issues**
+   - Problem: "started_at" and "ended_at" rows show empty duration values
+   - Problem: "4m 60s" should display as "5m 0s"
+   - Location: HTML template timing table generation
+   - Fix: Filter out timestamp entries, fix duration formatting
 
 ## Fix History
 
-### Attempt 1 Fixes
-**Fix 1: Cross-group epithet-to-proper-name resolution**
-- **Root cause:** `src/pipeline/character_extraction/consensus.py:313-338` - epithets (names starting with "the ") were resolved separately from proper names, so "the prince"/"the duke" couldn't be linked to "Prince Prospero"
-- **Data flow trace:**
-  - Symptom: JSON shows Prince Prospero with only 3 mentions
-  - Stored in: Character.mention_count in AnalysisResult
-  - Generated by: CharacterConsensusBuilder.build_consensus() line 455
-  - Originates: Lines 313-338 split epithets and proper names into separate groups with no cross-linking
-- **Solution:** Added new `_llm_cross_group_resolution()` method and cross-group resolution step at line 344-357
-  - Uses LLM to identify when epithets like "the prince" refer to proper names like "Prince Prospero"
-  - Merges epithet mentions into proper name's alias group
-  - Added CROSS_GROUP_SYSTEM and CROSS_GROUP_PROMPT at lines 95-130
-- **Modified files:** `src/pipeline/character_extraction/consensus.py`
-- **Confidence:** HIGH - addresses core architectural gap in alias resolution
-- **Expected impact:** Characters 5→8, Profiles 2→7 (cascading fix)
-
-**Fix 2: Add articles to pronunciation whitelist**
-- **Root cause:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py:21-36` - COMMON_WORDS_WHITELIST didn't include articles "the", "a", "an"
-- **Data flow trace:**
-  - Symptom: "the" flagged as proper noun with 263 occurrences
-  - Generated by: CharacterProposer.propose() splitting character names into words
-  - Checked against: COMMON_WORDS_WHITELIST at line 66 of character_proposer.py
-  - Originates: cmu_proposer.py line 21 - whitelist definition missing articles
-- **Solution:** Added 'the', 'a', 'an' to COMMON_WORDS_WHITELIST at line 23
-- **Modified files:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
-- **Confidence:** HIGH - simple, targeted fix
-- **Expected impact:** Pronunciation 5→7
-
-**Smoke tests:** Test suite not available in environment - proceeded based on root cause confidence and code review
-
-## Output Files (Attempt 2)
-- HTML: output/masque_of_red_death/report.html
-- JSON: output/masque_of_red_death/analysis.json
-
-## Pipeline Notes (Attempt 2)
-- Analysis completed successfully in 7m 17s
-- Total tokens: 30,533
-- No errors during execution
-- Found 2 characters with 3 mentions each
-- Generated 0 character profiles (threshold not met)
-- Flagged 74 words in pronunciation guide
-- Note: "LLM identity detection failed" warning at end (non-critical)
+### Attempt 1 Fixes Applied
+1. **Cross-group epithet resolution** (consensus.py) - Did not produce expected results
+2. **Article filtering for pronunciation** (cmu_proposer.py) - Partially worked ("the" removed)
 
 ## Next Action
-Proceed to PROMPT_evaluate.md to score the output
+Run PROMPT_fix.md to address mention counting (Critical #1) - this is the root cause of both the character extraction and profile generation failures.
 
-## Estimated Impact of Fixes
-- Fix 1 (epithet linking): Should merge "the prince", "the duke" into "Prince Prospero" → Characters 5→8, Profiles 2→7
-- Fix 2 (article filtering): Should remove "the" from pronunciation guide → Pronunciation 5→7
-- Projected overall score after fixes: ~7.8-8.2 (may cross 8.0 threshold)
+## Key Insight for Fix Phase
+The pronunciation guide shows:
+- "Prospero": 18 occurrences
+- "Prince": 9 occurrences
+
+But the character "the Prince Prospero" only shows 3 mentions.
+
+This proves the mention counting is NOT aggregating across aliases. The character extraction is finding the references (otherwise pronunciation couldn't count them), but the final character object is not getting the aggregated count.
+
+**Data flow to investigate:**
+1. Where does `mention_count` get set on the Character object?
+2. Is it before or after alias merging?
+3. Are alias mention counts being summed into the primary character?
