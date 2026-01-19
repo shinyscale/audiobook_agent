@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -125,11 +125,14 @@
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes
-- Analysis completed successfully in 7m 18s
-- 1 character detected: "the Prince Prospero" (with INCORRECTLY merged alias "the mummer")
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 7m 8s
+- 1 character detected: "the Prince Prospero" (alias: "the mummer")
 - 1 character profile generated
 - 73 pronunciation flags
+- Character extraction time: 4m 28s (62.5% of total time)
+- Note: LLM identity detection failed (server error 500)
+- Note: Moral valence classification failed (server error 500)
 
 ## Key Insight for Fix Phase
 
