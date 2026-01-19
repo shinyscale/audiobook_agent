@@ -144,6 +144,8 @@ CRITICAL:
 - Use ONLY the evidence provided below (chapter appearances and context snippets).
 - Be conservative: false negatives (missing an alias) are better than false positives (merging different people).
 - Titles (Mr/Mrs/Miss/Dr/etc.) are not part of the name; treat them as address forms.
+- DEATH RULE: If one name KILLS or CAUSES THE DEATH of the other name in the context, they are DIFFERENT people.
+- CONFRONTATION RULE: If the contexts show one name physically attacking, confronting with a weapon, or fighting against the other name, they are likely DIFFERENT people.
 
 Return ONLY valid JSON. No other text."""
 
@@ -165,6 +167,8 @@ Rules:
 - Only say same_person=true if there is strong evidence they are the same character (name overlap, title variants, obvious nickname/full-name relationship, or clear contextual cues).
 - If the only overlap is a last name, be VERY cautious (family members/spouses share last names).
 - If they never appear in overlapping chapters, be cautious unless it's clearly a full-name/short-name relationship.
+- DEATH/VIOLENCE: If the context shows one name killing, causing the death of, or physically attacking the other with a weapon, they are DIFFERENT people. Example: if the context says "X stabbed Y and Y died" then X and Y are separate characters.
+- ANTAGONISTIC RELATIONSHIP: If the contexts show one name as an antagonist, enemy, or threat to the other, they are likely DIFFERENT people.
 
 Return JSON:
 {{

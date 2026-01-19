@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -129,7 +129,15 @@ See previous EVALUATION_STATE.md entries and git history.
 - **Result:** Function is NEVER CALLED - merge happens before cross-group resolution
 - **Conclusion:** Must investigate WHERE the merge actually happens (pairwise level, not cross-group)
 
-## Recommended Next Approach (Attempt 14)
+### Attempt 14
+- **Root cause identified:** The merge happens in `_llm_pairwise_merge_decision()` at lines 970-1017 of consensus.py. The LLM prompt (PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT) had NO rules about death relationships or antagonistic confrontations.
+- **Change:** Added DEATH RULE and CONFRONTATION RULE to PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT
+  - DEATH RULE: "If one name KILLS or CAUSES THE DEATH of the other name in the context, they are DIFFERENT people"
+  - CONFRONTATION RULE: "If contexts show one name physically attacking the other with a weapon, they are likely DIFFERENT people"
+- **Modified:** `src/pipeline/character_extraction/consensus.py` lines 141-176
+- **Confidence:** HIGH - All 13 previous attempts fixed cross-group resolution, but the merge happens at the earlier pairwise LLM decision level. The prompt rules directly control the LLM's merge decisions.
+
+## Recommended Next Approach (Attempt 15, if needed)
 
 ### Priority 1: Add Debug Logging to Find Merge Location
 Add logging to these functions to trace where "the mummer" gets merged with "Prince Prospero":
@@ -157,6 +165,4 @@ If "the mummer" is being classified as a proper name:
 - JSON: output/masque_of_red_death/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to:
-1. First ADD DEBUG LOGGING to trace where the merge happens
-2. Then apply targeted fix based on findings
+Re-run analysis (PROMPT_analyze.md) to verify the fix resolves the character merge issue
