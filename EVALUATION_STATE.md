@@ -144,6 +144,8 @@ To close the gap, we need approximately:
 ## Next Action
 **Phase:** awaiting_analysis
 
+**Note:** Attempt 6 fix has been implemented and committed. Ready to re-run full analysis to verify the plural family name rejection works and check if score improves.
+
 ## Attempt 4 Pipeline Error
 
 Analysis failed with LLM validation error:
