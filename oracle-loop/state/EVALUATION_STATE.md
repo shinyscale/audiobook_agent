@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -110,5 +110,17 @@ Issue #2 - Wrong narrator identification (Berenice marked as narrator):
 - Character Profiles score: 4 → 7+ (estimated)
 - Overall score: 6.05 → ~7.5+ (estimated)
 
+## Output Files
+- HTML: output/berenice/report.html
+- JSON: output/berenice/analysis.json
+- Timestamped directory: output/Berenice - Poe_20260119_152139/
+
+## Pipeline Notes
+- Analysis completed in 8m 41s
+- Character extraction: Still only found 2 characters (Berenice, Mad'selle Salle) - **Egaeus still missing**
+- Narrator detection: Still incorrectly identifies Berenice as narrator
+- Character profiling: Failed with server errors (500 EOF errors during profile generation)
+- The fix implemented in attempt 2 **did not work** - the LLM prompt changes did not result in Egaeus being detected
+
 ## Next Action
-Re-run analysis (set phase to awaiting_analysis) to verify fix works as expected.
+Evaluation phase will assess whether the fix worked (it didn't) and determine next steps.
