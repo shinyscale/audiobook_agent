@@ -988,8 +988,10 @@ class CharacterConsensusBuilder:
 
         # More evidence when ambiguous
         amb = self._is_ambiguous_name(name_a) or self._is_ambiguous_name(name_b)
-        ctx_a = self._format_contexts(results_a, max_contexts=6 if amb else 4, max_chars=200 if amb else 160)
-        ctx_b = self._format_contexts(results_b, max_contexts=6 if amb else 4, max_chars=200 if amb else 160)
+        # Increased context size to 300/250 chars to capture death/confrontation scenes where both entities appear
+        # (e.g., "fell prostrate in death the Prince Prospero... seizing the mummer" = 221 chars)
+        ctx_a = self._format_contexts(results_a, max_contexts=6 if amb else 4, max_chars=300 if amb else 250)
+        ctx_b = self._format_contexts(results_b, max_contexts=6 if amb else 4, max_chars=300 if amb else 250)
 
         prompt = PAIRWISE_ALIAS_PROMPT.format(
             name_a=name_a,

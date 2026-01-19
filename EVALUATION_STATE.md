@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -25,30 +25,41 @@
 - **Overall: 6.75 -> 6.85 (+0.10 slight improvement)**
 
 ## Attempt 14 Result: FAILED
+**What Was Tried:** Added death/confrontation rules to pairwise prompts
+**Result:** FAILED - merge still occurred
+**Why:** Prompt rules existed but contexts were truncated before including death scene evidence
+
+## Attempt 15 Result: SUCCESS ✓
 
 ### What Was Tried
-Added DEATH RULE and CONFRONTATION RULE to `PAIRWISE_ALIAS_SYSTEM` and `PAIRWISE_ALIAS_PROMPT` in `src/pipeline/character_extraction/consensus.py` (lines 141-176):
-- "DEATH RULE: If one name KILLS or CAUSES THE DEATH of the other name in the context, they are DIFFERENT people"
-- "CONFRONTATION RULE: If contexts show one name physically attacking the other with a weapon, they are likely DIFFERENT people"
+Increased `max_chars` in pairwise context formatting (consensus.py:991-994):
+- Ambiguous names: 200 → 300 chars
+- Non-ambiguous: 160 → 250 chars
+
+### Root Cause (After 14 Failed Attempts)
+The death scene evidence ("fell prostrate in death the Prince Prospero... seizing the mummer") spans ~221 chars. The pairwise decision was truncating contexts to 160-200 chars, removing the critical evidence BEFORE it reached the LLM. The prompt rules added in attempt 14 were correct, but the LLM never saw the death context to apply them.
+
+**Data flow:**
+1. Extraction captures 250-char contexts (config.py:71)
+2. BUT pairwise decision formats with max_chars=160/200 (consensus.py:991)
+3. Death scene gets truncated
+4. LLM receives incomplete context
+5. LLM merges characters despite prompt rules
 
 ### Result
-**FAILED** - The merge STILL occurs. "the mummer" is still listed as an alias of "Prince Prospero".
-
-### Why Attempt 14 Failed
-The pairwise alias prompt rules did not prevent the merge. Possible reasons:
-1. The LLM is not actually seeing the death context in the pairwise comparison
-2. The rules are being overridden by other heuristic matching
-3. The context provided to the pairwise decision doesn't include the death scene
-4. The merge may be happening at a different stage (initial extraction, not pairwise resolution)
+**SUCCESS** - Smoke test shows 2 separate characters:
+- "the Prince Prospero" (aka Prospero) - 4 mentions
+- "the mummer" - 3 mentions
 
 ### Key Evidence
-**The chapter summary pipeline CORRECTLY identifies 2 characters:**
-- "Prince Prospero"
-- "The masked figure (Red Death)"
+Smoke test output (12m 3s analysis):
+```
+👥 Characters: 2
+   • the Prince Prospero (aka Prospero) - 4 mentions
+   • the mummer - 3 mentions
+```
 
-**But the character extraction pipeline merges them into 1.**
-
-This proves the underlying LLM CAN distinguish these characters when given the full chapter context. The problem is in how the character extraction pipeline handles the pairwise comparisons or initial grouping.
+The merge no longer occurs. The fix was simple: ensure the LLM actually sees the death scene evidence by not truncating it during context formatting.
 
 ## Current Issues (Priority Order)
 
@@ -131,7 +142,14 @@ See previous EVALUATION_STATE.md entries and git history.
 ### Attempt 14
 - **Change:** Added death/confrontation rules to PAIRWISE_ALIAS_SYSTEM and PAIRWISE_ALIAS_PROMPT
 - **Result:** No effect - merge still occurs
-- **Conclusion:** Prompt-based rules at pairwise level are insufficient
+- **Conclusion:** Prompt-based rules exist but contexts were truncated
+
+### Attempt 15
+- **Change:** Increased pairwise context max_chars from 160/200 to 250/300 (consensus.py:991-994)
+- **Root Cause:** Death scene evidence (~221 chars) was being truncated before reaching LLM
+- **Smoke Test:** PASS - 2 separate characters detected ("Prince Prospero" and "the mummer")
+- **Files Modified:** src/pipeline/character_extraction/consensus.py
+- **Conclusion:** SUCCESS - the fix addresses the root cause identified after 14 failed attempts
 
 ## Recommended Next Approach (Attempt 15)
 
@@ -172,4 +190,4 @@ Add debug logging to understand WHERE the merge actually happens:
 - The fix applied to pairwise alias prompts did NOT resolve the merge issue
 
 ## Next Action
-Run PROMPT_fix.md to implement post-processing character reconciliation using summary data
+Run PROMPT_analyze.md to verify fix resolves the character merge issue in full analysis
