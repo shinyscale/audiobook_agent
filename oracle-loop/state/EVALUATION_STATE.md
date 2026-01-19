@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -87,33 +87,36 @@ The fix from attempt 2 (first-person narrator detection in LLM prompt) **did not
 - Identified core issues: Missing Egaeus, wrong narrator
 
 ### Attempt 2: Score 5.35 (REGRESSION -0.70)
-- **Fix attempted:** Modified `src/pipeline/character_extraction/proposers/llm.py` to add first-person narrator detection instructions
+- **Fix attempted:** Modified `src/pipeline/character_extraction/proposers/llm.py` to add first-person narrator detection instructions to the LLM prompt
 - **Expected outcome:** Egaeus would be detected and included in character list
 - **Actual outcome:** Egaeus still not detected, plot summary became worse (completely inverted)
-- **Analysis:** The LLM prompt change alone is insufficient. The bottleneck may be:
-  1. Mention count threshold filtering out Egaeus (he only has 1 explicit mention)
-  2. Consensus mechanism rejecting low-mention candidates
-  3. The LLM proposer output not being incorporated into final results
-- **Action:** REVERT this commit before next fix attempt
+- **Analysis:** The LLM prompt change alone is insufficient - relying on the LLM to understand the instruction didn't work
+- **Action:** REVERTED this commit
 
-## Investigation Needed Before Next Fix
-
-Before attempting another fix, the fix phase should:
-
-1. **Trace the data flow** to find where Egaeus gets lost:
-   ```
-   LLM proposer output → Consensus → Character list → Narrator detection → Plot summary
-   ```
-
-2. **Check specific files:**
-   - `src/pipeline/character_extraction/proposers/llm.py` - Does it output Egaeus?
-   - `src/pipeline/character_extraction/consensus.py` - Is Egaeus filtered by mention count?
-   - `src/agents/character_agent.py` - What threshold filters out characters?
-
-3. **Answer these questions:**
-   - What is the minimum mention count threshold for a character to be included?
-   - Is there special handling for first-person narrators?
-   - Why does chapter summary know about Egaeus but character list doesn't?
+### Attempt 3: Awaiting Analysis
+- **Fix implemented:** Added deterministic first-person narrator detection as post-processing step in `src/pipeline/character_extraction/proposers/llm.py`
+- **Root cause:**
+  - **Symptom:** Egaeus appears in chapter summary but NOT in character list
+  - **Data flow:** Chapter summaries use full text directly, but character extraction relies on LLM proposer to find names
+  - **Originates in:** `src/pipeline/character_extraction/proposers/llm.py:115-148` - The propose() method had no logic to detect first-person narrator self-identifications
+  - **Problem:** Egaeus only appears once by name ("My baptismal name is Egaeus") then uses "I" throughout. The LLM proposer may find this name but doesn't prioritize it, or may miss it entirely if focusing on frequently-mentioned names.
+- **Fix approach:** Instead of relying on LLM prompt instructions (attempt 2 failed), added explicit regex-based detection:
+  1. Check if text has substantial first-person usage (≥5 instances of "I", "my", "me", "mine")
+  2. Look for self-identification patterns: "My name is X", "I am X", "My baptismal name is X", etc.
+  3. If found, create high-confidence (0.95) CharacterProposal explicitly
+  4. Add to proposals list if not already present
+- **Smoke test:** PASS
+  - Regex correctly extracts "Egaeus" from "My baptismal name is Egaeus"
+  - First-person count: 9 instances in sample text (threshold: 5)
+  - Syntax check passed
+- **Modified:** `src/pipeline/character_extraction/proposers/llm.py`
+  - Added `_detect_first_person_narrator()` method (lines 342-415)
+  - Modified `propose()` to call narrator detection and inject proposal (lines 115-164)
+- **Expected impact:**
+  - Egaeus will be detected and added to character list
+  - With Egaeus present, narrator detection will correctly identify him as narrator (not Berenice)
+  - Plot summary will use correct narrator perspective
+  - Should fix CRITICAL issues #1, #2, and #3
 
 ## Output Files
 - HTML: /home/zacharymandrews/Tools/audiobook_agent/output/berenice/report.html
@@ -121,6 +124,4 @@ Before attempting another fix, the fix phase should:
 - Most recent timestamped: output/Berenice - Poe_20260119_152139/
 
 ## Next Action
-1. **REVERT** the attempt 2 commit (first-person narrator detection in LLM prompt)
-2. Investigate the data flow to find where Egaeus gets filtered out
-3. Make a targeted fix based on the investigation findings
+Re-run analysis to verify the fix works
