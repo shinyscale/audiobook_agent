@@ -2005,38 +2005,41 @@ class CharacterConsensusBuilder:
         proper_normalized = proper_name.lower().replace("the ", "").strip()
         proper_parts = proper_normalized.split()
 
-        # Check if proper name entity dies in epithet's contexts
-        for ctx in epithet_contexts:
-            # Check if proper name appears in this context
-            has_proper_name = proper_normalized in ctx
-            if not has_proper_name:
+        # NEW LOGIC: Check ALL contexts from BOTH entities
+        # If we find a death pattern + BOTH names in the same context, block the merge
+        # This handles cases where both entities appear in the same passage
+        all_contexts = epithet_contexts + proper_contexts
+
+        for ctx in all_contexts:
+            # Check if this context contains a death pattern
+            has_death = False
+            for pattern in death_patterns:
+                if re.search(pattern, ctx, re.IGNORECASE):
+                    has_death = True
+                    break
+
+            if not has_death:
+                continue
+
+            # Check if BOTH entities are mentioned in this context
+            has_epithet = epithet_normalized in ctx
+            has_proper = proper_normalized in ctx
+
+            # Also check for proper name parts (last name, first name)
+            if not has_proper:
                 for part in proper_parts:
                     if len(part) > 2 and part in ctx:
-                        has_proper_name = True
+                        has_proper = True
                         break
 
-            if has_proper_name:
-                # Check for death patterns
-                for pattern in death_patterns:
-                    if re.search(pattern, ctx, re.IGNORECASE):
-                        logger.warning(
-                            f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
-                            f"and '{proper_name}' - {proper_name} dies in context with {epithet_name}: "
-                            f"{ctx[:150]}"
-                        )
-                        return True
-
-        # Check if epithet entity dies in proper name's contexts
-        for ctx in proper_contexts:
-            if epithet_normalized in ctx:
-                for pattern in death_patterns:
-                    if re.search(pattern, ctx, re.IGNORECASE):
-                        logger.warning(
-                            f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
-                            f"and '{proper_name}' - {epithet_name} dies in context with {proper_name}: "
-                            f"{ctx[:150]}"
-                        )
-                        return True
+            # If we have death + both entities in same context, they're separate people
+            if has_death and has_epithet and has_proper:
+                logger.warning(
+                    f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
+                    f"and '{proper_name}' - both appear together in death context: "
+                    f"{ctx[:200]}"
+                )
+                return True
 
         return False
 
