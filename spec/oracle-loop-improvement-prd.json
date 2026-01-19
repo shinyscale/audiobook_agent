@@ -1,0 +1,405 @@
+{
+  "prd": {
+    "title": "Oracle Loop Improvement: Fix Spinning and Root Cause Analysis",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "Critical",
+    "target": "Fix infrastructure bugs causing infinite spinning and analysis bugs causing wrong fixes"
+  },
+  "executive_summary": "The oracle loop is failing for two reasons: (1) infrastructure bugs cause infinite spinning (baseline parsing broken, no progress guardrail), and (2) analysis quality bugs cause it to fix the wrong problems (narrator detection uses flawed pronoun density algorithm). This PRD addresses both categories simultaneously to restore meaningful autonomous improvement.",
+  "problem_statement": {
+    "assessment": "Loop Spinning on Wrong Fixes",
+    "whats_improved": [
+      "Oracle loop shell script exists and runs",
+      "Three-phase cycle (analyze/evaluate/fix) is implemented",
+      "State tracking via EVALUATION_STATE.md works conceptually",
+      "Regression gate concept exists in oracle-loop.sh"
+    ],
+    "core_problem": "Infrastructure Bugs + Wrong Root Cause Analysis",
+    "current_failures": [
+      {
+        "issue": "Baseline parsing broken",
+        "example": "grep -oP '(?<=baseline_score: )' doesn't match actual format '**baseline_score:**'",
+        "root_cause": "Regex assumes plain text but state file uses markdown bold formatting",
+        "impact": "Regression auto-revert never triggers, loop iterates on degraded baseline"
+      },
+      {
+        "issue": "No progress guardrail",
+        "example": "Claude exits without making changes, loop immediately restarts same phase",
+        "root_cause": "No check that state files changed between iterations",
+        "impact": "Burns tokens/time on iterations that accomplish nothing"
+      },
+      {
+        "issue": "Narrator detection uses flawed algorithm",
+        "example": "Amontillado (wine) identified as narrator because contexts around it have high 'I' density",
+        "root_cause": "Algorithm measures pronouns AROUND mentions, not who pronouns REFER TO",
+        "impact": "Wrong narrator cascades to wrong plot summary and profiles"
+      },
+      {
+        "issue": "Plot summary uses wrong character signal",
+        "example": "Highest mention count = main character, so wine (16 mentions) outranks narrator (1 mention)",
+        "root_cause": "Character selection only considers mention count, not role or type",
+        "impact": "LLM writes 'Amontillado recounts...' based on mention count"
+      }
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Fix Baseline Parsing",
+      "priority": "CRITICAL",
+      "rationale": "Regression gate cannot fire if baseline is always parsed as 0",
+      "current_behavior": "grep -oP '(?<=baseline_score: )' returns empty because format is '**baseline_score:**'",
+      "proposed_behavior": "Parse baseline from manifest.json using jq, or fix sed pattern to match markdown format",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Baseline parsing extracts correct value from EVALUATION_STATE.md",
+          "steps": [
+            "Create EVALUATION_STATE.md with '- **baseline_score:** 6.45'",
+            "Run baseline extraction logic",
+            "Verify returned value is 6.45 (not 0 or empty)"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Regression gate triggers on score drop",
+          "steps": [
+            "Set baseline_score: 6.45 in state",
+            "Simulate evaluation returning 5.95",
+            "Verify regression gate detects 0.50 drop > 0.3 threshold",
+            "Verify auto-revert logic is triggered"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop.sh",
+            "description": "Fix baseline parsing regex",
+            "changes": [
+              {
+                "location": "line 156",
+                "description": "Replace grep -oP with jq reading from manifest.json or sed matching markdown format"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Add No-Progress Guardrail",
+      "priority": "CRITICAL",
+      "rationale": "Loop can spin forever if Claude makes no state changes",
+      "current_behavior": "Loop restarts immediately after Claude exits, even if nothing changed",
+      "proposed_behavior": "Hash state files before/after each iteration, exit after 3 consecutive no-progress iterations",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Loop detects no-progress iterations",
+          "steps": [
+            "Run loop with prompt that makes no state changes",
+            "Verify warning logged: 'No state change detected'",
+            "Verify counter increments each no-progress iteration"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Loop exits after consecutive no-progress",
+          "steps": [
+            "Run loop with prompt that never changes state",
+            "Verify loop exits after 3 iterations",
+            "Verify error message: '3 consecutive no-progress iterations'"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Counter resets on progress",
+          "steps": [
+            "Run 2 no-progress iterations (counter = 2)",
+            "Run iteration that changes state",
+            "Verify counter resets to 0",
+            "Run 2 more no-progress iterations",
+            "Verify loop still running (counter = 2, not 4)"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop.sh",
+            "description": "Add state hashing and progress detection",
+            "changes": [
+              {
+                "location": "around line 137",
+                "description": "Hash EVALUATION_STATE.md + manifest.json before/after Claude run, track consecutive no-change count"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Make Parsing Portable",
+      "priority": "HIGH",
+      "rationale": "grep -P (Perl regex) not available on all systems",
+      "current_behavior": "Phase and name extraction use grep -oP which fails silently on some systems",
+      "proposed_behavior": "Use portable sed/awk for all state file parsing",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Phase detection works without Perl regex",
+          "steps": [
+            "Create EVALUATION_STATE.md with '- **Phase:** awaiting_evaluation'",
+            "Run phase extraction with sed (not grep -P)",
+            "Verify returns 'awaiting_evaluation'"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Name extraction works without Perl regex",
+          "steps": [
+            "Create EVALUATION_STATE.md with '- **Name:** cask_of_amontillado'",
+            "Run name extraction with sed (not grep -P)",
+            "Verify returns 'cask_of_amontillado'"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop.sh",
+            "description": "Replace grep -oP with portable sed",
+            "changes": [
+              {
+                "location": "lines 50, 86",
+                "description": "Use sed -n 's/pattern/\\1/p' instead of grep -oP '(?<=...)'"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Fix Spec Drift",
+      "priority": "HIGH",
+      "rationale": "Evaluate prompt references wrong file path, causing silent failures",
+      "current_behavior": "PROMPT_evaluate.md references 'analysis_result.json'",
+      "proposed_behavior": "Reference correct file 'analysis.json'",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Evaluate prompt uses correct file path",
+          "steps": [
+            "Read PROMPT_evaluate.md",
+            "Search for 'analysis_result.json'",
+            "Verify it says 'analysis.json' instead",
+            "Run evaluation, verify no file-not-found errors"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "PROMPT_evaluate.md",
+            "description": "Fix file path reference",
+            "changes": [
+              {
+                "location": "line 42",
+                "description": "Change 'analysis_result.json' to 'analysis.json'"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "Fix Narrator Detection Algorithm",
+      "priority": "CRITICAL",
+      "rationale": "Current algorithm misidentifies narrator, causing cascade of downstream errors",
+      "current_behavior": "Counts first-person pronouns in context window around character mentions; highest density wins. Fails because narrator says 'I' while discussing objects.",
+      "proposed_behavior": "Hybrid approach: (1) Direct address detection - find patterns like 'Name!' in dialogue where narrator is being addressed, (2) LLM fallback - ask 'who is the I?' if no direct address found",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Direct address detection identifies narrator",
+          "steps": [
+            "Analyze 'The Cask of Amontillado' (contains 'For the love of God, Montresor!')",
+            "Verify direct address pattern matches 'Montresor'",
+            "Check narrator_detected = 'Montresor' (not 'Amontillado')"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "LLM fallback works when no direct address",
+          "steps": [
+            "Analyze text with first-person narrator but no direct address",
+            "Verify LLM is asked 'who is the I in this text?'",
+            "Check narrator identified from LLM response"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Narrator detection no longer uses pronoun density",
+          "steps": [
+            "Analyze 'The Cask of Amontillado'",
+            "Verify 'Amontillado' is NOT identified as narrator",
+            "Verify pronoun density around mentions is NOT calculated"
+          ],
+          "passes": true
+        },
+        {
+          "category": "regression",
+          "description": "Narrator detection works for The Great Gatsby",
+          "steps": [
+            "Analyze 'The Great Gatsby'",
+            "Verify narrator_detected = 'Nick' or 'Nick Carraway'",
+            "Check narrator is marked in character list"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/analyzer.py",
+            "description": "Rewrite _detect_narrator() method",
+            "changes": [
+              {
+                "location": "lines 1746-1835",
+                "description": "Replace pronoun density algorithm with: 1) Direct address regex for 'Name!' patterns in dialogue, 2) LLM query 'who is the I?' as fallback"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F6",
+      "name": "Fix Plot Summary Character Selection",
+      "priority": "HIGH",
+      "rationale": "Using only mention count puts objects above actual protagonists",
+      "current_behavior": "Sorts characters by mention_count, takes top 3 as 'main characters'",
+      "proposed_behavior": "Score characters by: mention count + narrator boost + role weight, filter non-persons first",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Narrator gets boosted in character selection",
+          "steps": [
+            "Analyze 'The Cask of Amontillado'",
+            "Verify Montresor (narrator, 1 mention) ranks higher than Amontillado (wine, 16 mentions)",
+            "Check plot summary refers to 'Montresor' as narrator"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Non-persons filtered from main characters",
+          "steps": [
+            "Analyze text with object having high mention count",
+            "Verify object is not in 'main characters' list sent to LLM",
+            "Check only person-type characters included"
+          ],
+          "passes": true
+        },
+        {
+          "category": "functional",
+          "description": "Character role affects ranking",
+          "steps": [
+            "Analyze text with protagonist, antagonist, and minor characters",
+            "Verify protagonist ranks higher than minor character with same mention count",
+            "Check role is factored into scoring"
+          ],
+          "passes": true
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/overview/generator.py",
+            "description": "Improve character selection logic",
+            "changes": [
+              {
+                "location": "lines 201-215",
+                "description": "Add narrator boost (2x), role weight (protagonist 1.5x), filter to persons only before sorting"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Fix Baseline Parsing", "rationale": "Regression gate must work before other fixes"},
+    {"feature": "F2", "name": "Add No-Progress Guardrail", "rationale": "Stop infinite spinning"},
+    {"feature": "F3", "name": "Make Parsing Portable", "rationale": "Ensure loop works reliably"},
+    {"feature": "F4", "name": "Fix Spec Drift", "rationale": "Quick fix, unblocks evaluation"},
+    {"feature": "F5", "name": "Fix Narrator Detection", "rationale": "Root cause of analysis quality issues"},
+    {"feature": "F6", "name": "Fix Plot Summary Character Selection", "rationale": "Downstream improvement after narrator fix"}
+  ],
+  "verification_plan": {
+    "infrastructure_tests": [
+      {
+        "name": "Baseline parsing test",
+        "command": "Extract baseline from EVALUATION_STATE.md with new logic",
+        "expected": "Returns 6.45, not 0 or empty"
+      },
+      {
+        "name": "No-progress guardrail test",
+        "command": "Run loop with no-change prompt 3 times",
+        "expected": "Exits with 'no progress' error after 3rd iteration"
+      },
+      {
+        "name": "Portability test",
+        "command": "Run phase extraction with dash shell",
+        "expected": "Returns correct phase without grep -P"
+      }
+    ],
+    "analysis_quality_tests": [
+      {
+        "name": "Narrator detection - Cask of Amontillado",
+        "command": "audiobook-prep analyze 'Test_Texts/The Cask of Amontillado - Poe.txt'",
+        "verify": "jq '.characters[] | select(.is_narrator == true) | .canonical_name' output/*/analysis.json",
+        "expected": "Montresor (not Amontillado)"
+      },
+      {
+        "name": "Plot summary - Cask of Amontillado",
+        "command": "jq '.overview.plot_summary.plot_summary' output/*/analysis.json | head -1",
+        "expected": "Contains 'Montresor', not 'Amontillado recounts'"
+      },
+      {
+        "name": "Narrator detection - The Great Gatsby",
+        "command": "audiobook-prep analyze 'Test_Texts/gatsby.txt'",
+        "verify": "jq '.characters[] | select(.is_narrator == true) | .canonical_name' output/*/analysis.json",
+        "expected": "Nick or Nick Carraway"
+      }
+    ],
+    "success_metrics": [
+      "Regression gate fires correctly on score drops > 0.3",
+      "Loop exits on 3 consecutive no-progress iterations",
+      "Narrator correctly identified for Cask of Amontillado (Montresor)",
+      "Narrator correctly identified for The Great Gatsby (Nick)",
+      "Plot summary refers to correct narrator"
+    ]
+  },
+  "affected_files_summary": [
+    "oracle-loop.sh (MODIFY - fix parsing, add guardrail)",
+    "PROMPT_evaluate.md (MODIFY - fix file path)",
+    "src/analyzer.py (MODIFY - rewrite _detect_narrator())",
+    "src/pipeline/overview/generator.py (MODIFY - fix character selection)"
+  ]
+}
