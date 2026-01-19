@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 20
-- **Phase:** awaiting_fix
+- **Attempt:** 21
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Output Files
