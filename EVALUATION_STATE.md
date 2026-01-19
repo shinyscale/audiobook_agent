@@ -2,22 +2,20 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 4 of 5
-- **Phase:** awaiting_evaluation
+- **Attempt:** 5 of 5
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.45
 
 ## Output Files
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
 
-## Pipeline Notes (Attempt 4)
-- Analysis completed successfully in 10m 31s
-- Pipeline ran with Attempt 4 fix: LLM validation JSON format parsing
-- Total LLM calls: 25
-- Warning observed: "LLM validation attempt 1 for 'Montresors' returned array: got list with 0 elements"
-- Console output shows Amontillado still detected as narrator with 16 mentions
-- Montresor still only has 1 mention
-- Fortunato has 14 mentions
+## Pipeline Notes (Attempt 5)
+- **Pipeline FAILED during character extraction**
+- Error: "LLM validation returned invalid JSON for 'Montresors' after 3 attempts: Invalid JSON: got list with 0 elements"
+- The LLM (qwen3-next:80b-a3b-instruct-q8_0) returned an empty array `[]` for entity "Montresors"
+- Attempt 4 fix handles single-element arrays but not empty arrays
+- Analysis could not complete - no output files generated
 
 ## Latest Scores
 - Structure Detection: 10/10
@@ -133,20 +131,26 @@ The system has TWO separate issues:
 **Why it failed:** Pattern-based object detection didn't match actual text contexts
 **Status:** REVERTED in commit 6ef2046
 
-## Pipeline Error (Attempt 3)
+## Pipeline Error (Attempt 5)
 
-**Error:** LLM validation returned invalid JSON format
+**Error:** LLM validation returned empty array
 **Details:**
 - Entity: "Montresors"
-- Error message: "LLM validation returned invalid JSON for 'Montresors' after 3 attempts: Invalid JSON: got list"
-- Root cause: The LLM (qwen3-next:80b-a3b-instruct-q8_0) is returning a JSON array instead of a JSON object
-- Location: src/pipeline/character_extraction/validator.py:280 - `_llm_validation()` method
+- Error message: "LLM validation returned invalid JSON for 'Montresors' after 3 attempts: Invalid JSON: got list with 0 elements"
+- Root cause: The LLM (qwen3-next:80b-a3b-instruct-q8_0) is returning an empty JSON array `[]` for entity "Montresors"
+- Location: src/pipeline/character_extraction/validator.py:280-294 - `_llm_validation()` method
 - Expected: JSON object with fields {is_person, is_person_reasoning, context_supports, alias_candidates, overall_valid}
-- Actual: JSON array (list)
+- Actual: Empty JSON array `[]` (0 elements)
 
 **Impact:** The analysis pipeline cannot complete. Character extraction fails during LLM validation.
 
-**Fix needed:** The validation code needs to handle cases where the LLM returns a list, or the prompt needs to be more explicit about requiring an object, or we need to add response format enforcement for this specific model.
+**Fix needed:** The validation code needs to handle empty array responses. Options:
+1. Treat empty array as "reject entity" (overall_valid=False)
+2. Add more explicit prompt instructions to prevent empty array responses
+3. Fall back to heuristic validation when LLM returns empty array
+4. Consider if "Montresors" is a malformed entity that should be filtered earlier
+
+**Analysis:** "Montresors" is likely a plural/possessive form ("the Montresors" or "Montresor's") that shouldn't be extracted as a separate entity. The empty array might be the LLM's way of signaling "this is not a valid entity" but the code expects a structured rejection with reasoning.
 
 ## Fix History
 
@@ -170,5 +174,5 @@ The system has TWO separate issues:
 
 ## Next Action
 
-**Phase:** awaiting_analysis
-Re-run analysis to verify the pipeline completes and to assess the impact of the person-action verb detection fix from Attempt 3.
+**Phase:** awaiting_fix
+Fix the empty array handling in validator.py to allow the pipeline to complete.
