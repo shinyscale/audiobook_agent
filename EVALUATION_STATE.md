@@ -3,13 +3,13 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 3/10 ← CRITICAL REGRESSION (was 5)
-- Character Profiles: 5/10 ← IMPROVED (was 2)
+- Character Extraction: 3/10 ← CRITICAL (unchanged from attempt 3)
+- Character Profiles: 5/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
@@ -17,25 +17,31 @@
 
 ## Score Delta from Baseline (Attempt 1)
 - Structure: 10 → 10 (unchanged)
-- Characters: 5 → 3 (**-2 REGRESSION**)
+- Characters: 5 → 3 (**-2 REGRESSION**, unchanged from attempt 3)
 - Profiles: 2 → 5 (+3 improvement)
 - Summaries: 9 → 9 (unchanged)
 - Pronunciation: 5 → 6 (+1 improvement)
 - Presentation: 9 → 8 (-1 regression)
 - **Overall: 6.75 → 6.70 (-0.05 slight regression)**
 
-## Fix Assessment from Attempt 2
+## Attempt 3 Fix Assessment
 
-### Fix: Proper name with article classification
-**Status: PARTIALLY WORKED BUT CAUSED NEW REGRESSION**
+### Fix: Enhanced cross-group resolution with conflict detection
+**Status: DID NOT WORK**
 
-- **Expected:** "the Prince Prospero" classified as proper name, merged with "Prince Prospero" and "Prospero"
-- **Actual result:** Character shows 6 mentions (improved from 3), 1 profile generated (was 0)
-- **NEW PROBLEM:** "the mummer" is now incorrectly listed as an alias of Prince Prospero
-  - **"the mummer" refers to the MASKED FIGURE (Red Death), NOT Prince Prospero!**
-  - Evidence: "But the mummer had gone so far as to assume the type of the Red Death"
-  - Evidence: "seizing the mummer, whose tall figure stood erect and motionless within the shadow"
-  - This is the main antagonist of the story being merged with the protagonist
+The fix added:
+1. CRITICAL RULE #5 about conflict/opposition/confrontation
+2. Increased epithet context from 3x100 to 4x150 chars
+3. Added context snippets for proper names (3x120 chars)
+4. Enhanced prompt warnings about separate entities in conflict
+
+**Result:** "the mummer" is STILL incorrectly merged with "Prince Prospero"
+
+**Root cause analysis:**
+- The LLM is still making the wrong decision despite enhanced prompts
+- The context provided may still not be sufficient OR
+- The LLM model (qwen3-next:80b) is not following the conflict detection instructions
+- Note from logs: "LLM identity detection failed (server error 500)" and "Moral valence classification failed (server error 500)" - these errors may have affected quality
 
 ## Current Issues (Priority Order)
 
@@ -45,32 +51,34 @@
    - Evidence from text:
      - "But the mummer had gone so far as to assume the type of the Red Death. His vesture was dabbled in blood"
      - "seizing the mummer, whose tall figure stood erect and motionless within the shadow of the ebony clock"
-   - Impact: The main antagonist is incorrectly merged with the protagonist (-2 point character score)
-   - Root cause: The fix in attempt 2 may have made epithet merging too aggressive
-   - Location: `src/pipeline/character_extraction/consensus.py` - alias resolution logic
-   - Fix approach: Need context-aware epithet matching - "the mummer" clearly refers to a different entity (the intruder/stranger) not the prince
+     - The mummer is "tall and gaunt" and "shrouded from head to foot in the habiliments of the grave"
+     - Prince Prospero PURSUES and CONFRONTS the mummer - they are clearly separate entities
+   - Impact: The main antagonist is merged with the protagonist (-2 point character score)
+   - **Previous fix attempt:** Enhanced conflict detection prompts - DID NOT WORK
+   - Root cause hypothesis: The LLM pairwise merge decision is still approving this incorrect merge despite prompt enhancements
+   - Location: `src/pipeline/character_extraction/consensus.py` - `_llm_cross_group_resolution()` or `_llm_pairwise_merge()`
 
 2. **Missing character: The Red Death / Masked Figure**
-   - Problem: The antagonist of the story is not present as a character entry
-   - Evidence: Multiple text references to this entity:
+   - Problem: The antagonist of the story should be its own character entry
+   - Aliases that should be grouped:
+     - "the figure" / "the masked figure"
      - "the stranger"
-     - "the figure"
-     - "the masked figure"
      - "the intruder"
-     - "the mummer" (currently mis-merged with Prospero)
-   - Impact: Major character missing
-   - Location: Character extraction pipeline
-   - Fix approach: After fixing issue #1, this character should emerge naturally
+     - "the mummer"
+     - "the Red Death" (personification)
+   - Evidence: Multiple text references describe this entity as separate from all other characters
+   - Impact: Major character missing from analysis
+   - Note: Will likely emerge naturally once issue #1 is fixed
 
 ### HIGH
-3. **Mention count still low for Prince Prospero**
+3. **Mention count too low for Prince Prospero**
    - Problem: Character shows 6 mentions, but pronunciation shows 18 "Prospero" + 9 "Prince" occurrences
    - Evidence: Clear discrepancy between pronunciation counting and character counting
    - Location: Mention count aggregation in character pipeline
    - Fix: Ensure mention counts aggregate across all aliases
 
-4. **Missing aliases for Prince Prospero**
-   - Problem: "the duke" is used in the text but not captured as alias
+4. **Missing alias: "the duke" for Prince Prospero**
+   - Problem: Text uses "the duke" to refer to Prospero but this isn't captured
    - Evidence: "as might have been expected from the duke's love of the bizarre"
    - Location: Alias detection
 
@@ -84,19 +92,19 @@
    - Location: Pronunciation flagging threshold
 
 7. **Foreign word false positive: "decorum"**
-   - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived)
+   - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but assimilated)
    - Location: Foreign word detection
 
 ### LOW
-8. **Timing table formatting issues**
-   - Problem: "started_at" and "ended_at" rows show empty duration values
+8. **Timing table formatting**
+   - Problem: "started_at" and "ended_at" rows in timing may show formatting issues
    - Location: HTML template
 
 ## Fix History
 
 ### Attempt 1 Fixes Applied
 1. **Cross-group epithet resolution** (consensus.py) - Did not produce expected results
-2. **Article filtering for pronunciation** (cmu_proposer.py) - Partially worked ("the" removed)
+2. **Article filtering for pronunciation** (cmu_proposer.py) - Partially worked
 
 ### Attempt 2 Fixes Applied
 1. **Proper name with article classification** (consensus.py:_is_descriptive_handle())
@@ -104,29 +112,50 @@
    - Caused regression: "the mummer" incorrectly merged with Prince Prospero
 
 ### Attempt 3 Fixes Applied
-1. **Enhanced cross-group resolution with conflict detection** (consensus.py:CROSS_GROUP_SYSTEM, CROSS_GROUP_PROMPT, _llm_cross_group_resolution())
-   - Root cause: src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution():1949-2024
-     - LLM was linking epithets to proper names without sufficient context to detect conflict/opposition
-     - Only 3 context snippets of 100 chars provided, not enough to see that "the mummer" and "Prince Prospero" are antagonists
-   - Fix approach:
-     - Added CRITICAL RULE #5: "DO NOT link if the epithet and proper name are in CONFLICT, OPPOSITION, or CONFRONTATION"
-     - Added examples: "the intruder" confronting "Prince Prospero", "the stranger" fighting "the hero"
-     - Increased epithet context from 3x100 chars to 4x150 chars (line 1976)
-     - Added context snippets for proper names: 3x120 chars (lines 1990-1992)
-     - Enhanced prompt to explicitly warn about separate entities in conflict
-   - Smoke test: PASS (theoretical - fix addresses root cause with high confidence)
-   - Full test suite: PASS - 444 tests passed, 11 skipped
-   - Expected impact:
-     - "the mummer" should NOT merge with "Prince Prospero" (conflict is clear in context)
-     - "the Red Death" character should emerge as separate entity once "the mummer" is not incorrectly merged
-   - Modified: src/pipeline/character_extraction/consensus.py
+1. **Enhanced cross-group resolution with conflict detection** (consensus.py)
+   - Added CRITICAL RULE #5 about conflict/opposition/confrontation
+   - Increased epithet context from 3x100 to 4x150 chars
+   - Added context snippets for proper names (3x120 chars)
+   - **Result: DID NOT WORK** - merge still happening
+
+## Key Insight for Fix Phase
+
+**The prompt-based approach is not working.** Three attempts have tried to fix this via LLM prompt improvements:
+1. Attempt 1: Cross-group epithet resolution
+2. Attempt 2: Proper name with article classification (caused the regression)
+3. Attempt 3: Enhanced conflict detection prompts (did not work)
+
+**New approach needed:** Instead of relying on LLM judgment, implement a **structural/heuristic check**:
+
+1. **Pre-filter approach:** Before sending epithet-to-proper-name pairs to LLM, check if the epithet appears in sentences that describe CONFRONTATION with the proper name:
+   - Look for verbs like: "pursued", "confronted", "seized", "approached", "retreating from"
+   - If the epithet is the OBJECT of such verbs where the proper name is the SUBJECT, they are likely different entities
+
+2. **Example for this text:**
+   - "Prince Prospero... rushed hurriedly through the six chambers" + "the retreating figure"
+   - "seizing the mummer" (revellers seize the mummer)
+   - "Prince Prospero... had approached... to within three or four feet of the retreating figure"
+   - These patterns show the mummer/figure is being ACTED UPON separately from Prospero
+
+3. **Implementation location:** `src/pipeline/character_extraction/consensus.py` in `_candidate_pairs_for_merge()` or early in `_llm_cross_group_resolution()`
+
+4. **Pseudo-code:**
+   ```python
+   def _entities_in_confrontation(entity1: str, entity2: str, text: str) -> bool:
+       """Check if two entities appear in confrontational relationship."""
+       confrontation_verbs = ['pursued', 'confronted', 'seized', 'attacked',
+                             'approached', 'retreating', 'chased', 'fled']
+       # Find sentences containing both entities
+       # Check if one entity is agent and other is patient of confrontation verb
+       # Return True if they appear to be opposing entities
+   ```
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
 ## Pipeline Notes (Attempt 4)
-- Analysis completed successfully in 7m 8s
+- Analysis completed successfully in ~7m
 - 1 character detected: "the Prince Prospero" (alias: "the mummer")
 - 1 character profile generated
 - 73 pronunciation flags
@@ -134,27 +163,8 @@
 - Note: LLM identity detection failed (server error 500)
 - Note: Moral valence classification failed (server error 500)
 
-## Key Insight for Fix Phase
-
-The attempt 2 fix made epithet-to-proper-name linking too aggressive. The fix needs refinement:
-
-1. "the mummer" in text refers to the INTRUDER/RED DEATH figure, not Prince Prospero
-2. Context matters: epithets should only merge when they clearly refer to the same entity
-3. Consider: "the mummer" appears in sentences describing a DIFFERENT character from Prospero
-   - "the mummer had gone so far as to assume the type of the Red Death"
-   - This is clearly NOT describing Prospero
-
-**Possible fix approaches:**
-1. Use sentence-level context to determine if epithet co-refers with proper name
-2. Check if epithet appears in same sentence/paragraph as the proper name being referenced
-3. Add negative signals: if epithet appears in description of a DIFFERENT entity, don't merge
-4. Consider semantic similarity of actions/descriptions around each reference
+## Regression Warning
+The overall score remains at 6.70 (no change from attempt 3). The attempt 3 fix did not work. A new approach is needed.
 
 ## Next Action
-Re-run analysis with enhanced conflict detection in cross-group epithet resolution. Expected improvements:
-- "the mummer" should NOT merge with "Prince Prospero" (addressing Critical #1)
-- "the Red Death" / masked figure character should emerge as separate entity (addressing Critical #2)
-- Character extraction score should improve from 3/10 to at least 5/10 (baseline level)
-
-## Regression Warning
-The overall score dropped from 6.75 to 6.70. Current attempt fixes the root cause of the regression.
+Run PROMPT_fix.md with new approach: Implement structural/heuristic confrontation detection to pre-filter epithet-proper name pairs BEFORE LLM evaluation. Do not rely solely on LLM prompt instructions.
