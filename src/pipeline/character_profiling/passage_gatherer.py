@@ -61,8 +61,9 @@ class CharacterPassageGatherer:
         """
         Gather passages relevant to this character.
 
-        Searches for all name variants, deduplicates, scores, and selects
-        the most relevant passages distributed across the narrative.
+        For first-person narrators, searches for first-person pronouns ("I", "my", "me").
+        For other characters, searches for all name variants.
+        Deduplicates, scores, and selects the most relevant passages.
 
         Args:
             character: The character to gather passages for
@@ -72,13 +73,19 @@ class CharacterPassageGatherer:
         Returns:
             List of relevant passages, sorted by position
         """
-        all_names = [character.canonical_name] + character.aliases
-
-        # Gather passages for each name variant
         all_passages = []
-        for name in all_names:
-            passages = self._find_passages_for_name(name, full_text, chapter_map)
-            all_passages.extend(passages)
+
+        # Special handling for first-person narrators
+        if character.is_narrator and character.narrative_role and "first-person" in character.narrative_role.lower():
+            logger.info(f"{character.canonical_name} is first-person narrator - gathering 'I' passages")
+            # Gather passages containing first-person pronouns
+            all_passages = self._find_narrator_passages(full_text, chapter_map, character.canonical_name)
+        else:
+            # Standard name-based gathering
+            all_names = [character.canonical_name] + character.aliases
+            for name in all_names:
+                passages = self._find_passages_for_name(name, full_text, chapter_map)
+                all_passages.extend(passages)
 
         # Deduplicate by position (overlapping contexts)
         passages = self._deduplicate_passages(all_passages)
@@ -94,6 +101,86 @@ class CharacterPassageGatherer:
         )
 
         return sorted(passages, key=lambda p: p.position)
+
+    def _find_narrator_passages(
+        self,
+        full_text: str,
+        chapter_map: ChapterMap,
+        narrator_name: str,
+    ) -> list[CharacterPassage]:
+        """
+        Find passages for a first-person narrator by searching for first-person pronouns.
+
+        Samples passages containing "I", "my", "me" distributed throughout the text.
+        """
+        passages = []
+
+        # First-person pronouns to search for
+        # Use word boundary to avoid matching "I" inside words
+        fp_pattern = r'\b(I|my|me|myself)\b'
+
+        # Find all first-person pronouns, but sample evenly to avoid overwhelming
+        # the profiler with too many passages
+        matches = list(re.finditer(fp_pattern, full_text, re.IGNORECASE))
+
+        # Sample passages evenly across the text (take every Nth match)
+        total_matches = len(matches)
+        if total_matches == 0:
+            logger.warning(f"No first-person pronouns found for narrator {narrator_name}")
+            return []
+
+        # Target: ~50 passages spread across the story
+        target_passages = min(50, total_matches)
+        step = max(1, total_matches // target_passages)
+
+        sampled_matches = matches[::step][:target_passages]
+
+        for match in sampled_matches:
+            position = match.start()
+            pronoun = match.group(0)
+
+            # Get context window
+            start = max(0, position - self.context_window // 2)
+            end = min(len(full_text), position + len(pronoun) + self.context_window // 2)
+
+            # Expand to sentence boundaries
+            context = full_text[start:end]
+
+            # Clean up partial words at boundaries
+            if start > 0:
+                first_space = context.find(' ')
+                if first_space > 0 and first_space < 20:
+                    context = "..." + context[first_space + 1:]
+            if end < len(full_text):
+                last_period = max(
+                    context.rfind('.'),
+                    context.rfind('!'),
+                    context.rfind('?'),
+                    context.rfind('"'),
+                )
+                if last_period > len(context) - 50:
+                    context = context[:last_period + 1]
+                else:
+                    last_space = context.rfind(' ')
+                    if last_space > len(context) - 20:
+                        context = context[:last_space] + "..."
+
+            # Determine chapter
+            chapter_idx = self._find_chapter_for_position(position, chapter_map)
+
+            # Context type for narrator is typically "narration" or "dialogue"
+            context_type = self._classify_context(context, pronoun)
+
+            passages.append(CharacterPassage(
+                text=context.strip(),
+                chapter_index=chapter_idx,
+                position=position,
+                name_matched=f"[narrator: {pronoun}]",
+                context_type=context_type,
+            ))
+
+        logger.info(f"Found {len(passages)} narrator passages from {total_matches} first-person pronouns")
+        return passages
 
     def _find_passages_for_name(
         self,

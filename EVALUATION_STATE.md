@@ -108,12 +108,27 @@ To close the gap, we need approximately:
 - Pre-filter check before LLM validation
 - Result: Score improved 6.10 → 7.70 (+1.60 points)
 
+### Attempt 4 (2026-01-18): Narrator-aware profiling
+- Root cause: Passage gatherer searches for character names; first-person narrators use "I" not their name
+- Modified: src/pipeline/character_profiling/passage_gatherer.py:gather_passages()
+  - Added _find_narrator_passages() method at line 98
+  - For is_narrator=true characters, searches for "I", "my", "me" pronouns instead of names
+  - Samples ~50 passages evenly distributed across text
+- Modified: src/pipeline/character_profiling/pipeline.py:89-118
+  - Added defensive check to ensure narrator flag is set after identification
+  - Logs warning if narrator name doesn't match any character
+- Modified: src/pipeline/character_profiling/converter.py:_estimate_mention_count()
+  - Boosts mention_count to minimum 100 for first-person narrators
+  - Reflects narrative presence vs explicit name mentions
+- Smoke test: Unit tests pass (444 passed, 11 skipped)
+- Full pipeline test: Unable to complete due to Ollama server issues (model loading errors)
+
 ## Output Files (Attempt 3)
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
 Run PROMPT_fix.md to address Issue #1 (Montresor missing profile).
 

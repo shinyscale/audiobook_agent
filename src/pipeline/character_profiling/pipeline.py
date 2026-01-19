@@ -96,6 +96,28 @@ class CharacterProfilingPipeline:
         if narrator_name:
             logger.info(f"Narrator: {narrator_name}")
 
+            # Double-check that narrator is marked (case-insensitive match)
+            narrator_found = False
+            for char in characters:
+                if char.canonical_name.lower() == narrator_name.lower():
+                    if not char.is_narrator:
+                        logger.warning(f"Narrator {narrator_name} not marked - fixing")
+                        char.is_narrator = True
+                        char.narrative_role = "First-person narrator" if "first" in narrative_style.lower() else "Narrator"
+                    narrator_found = True
+                    break
+                # Also check aliases
+                if any(alias.lower() == narrator_name.lower() for alias in char.aliases):
+                    if not char.is_narrator:
+                        logger.warning(f"Narrator {narrator_name} (alias) not marked - fixing")
+                        char.is_narrator = True
+                        char.narrative_role = "First-person narrator" if "first" in narrative_style.lower() else "Narrator"
+                    narrator_found = True
+                    break
+
+            if not narrator_found:
+                logger.warning(f"Narrator {narrator_name} not in character list - may need addition")
+
         # Stage 1.5: Handoff Detection and Auto-Merge
         logger.info("Stage 1.5: Detecting character handoffs")
         self._report_progress("identification", 2, 3)

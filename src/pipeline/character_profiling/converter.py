@@ -191,6 +191,8 @@ def _estimate_mention_count(profile: CharacterProfile) -> int:
     Estimate mention count from profile data.
 
     Uses mention_frequency and chapters_present to estimate.
+    For first-person narrators, boosts the count significantly as they
+    are present throughout but not explicitly named.
     """
     frequency_map = {
         "frequent": 50,
@@ -203,7 +205,15 @@ def _estimate_mention_count(profile: CharacterProfile) -> int:
     # Adjust based on chapters present
     chapter_factor = max(1, len(profile.chapters_present))
 
-    return base * chapter_factor
+    estimated = base * chapter_factor
+
+    # Boost for first-person narrators who speak as "I" throughout
+    if profile.is_narrator and profile.narrative_role and "first-person" in profile.narrative_role.lower():
+        # First-person narrators are effectively present in every sentence they narrate
+        # Boost their count to reflect narrative presence
+        estimated = max(estimated, 100)  # Minimum 100 for first-person narrators
+
+    return estimated
 
 
 def profile_map_to_characters(profile_map: CharacterProfileMap) -> list[Character]:
