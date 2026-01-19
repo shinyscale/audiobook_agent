@@ -276,6 +276,9 @@ class CharacterValidator:
                 last_error = f"LLM query failed: {response.error}"
                 logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' failed: {last_error}")
                 if attempt < max_retries:
+                    # Record retry in metrics if available
+                    if self.llm.metrics and self.llm.metrics.current_stage:
+                        self.llm.metrics.current_stage.record_retry()
                     time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
                     continue
                 else:
@@ -291,6 +294,9 @@ class CharacterValidator:
                 last_error = f"Invalid JSON: {error_detail}"
                 logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' returned invalid JSON: {error_detail}")
                 if attempt < max_retries:
+                    # Record retry in metrics if available
+                    if self.llm.metrics and self.llm.metrics.current_stage:
+                        self.llm.metrics.current_stage.record_retry()
                     time.sleep(2 ** attempt)
                     continue
                 else:

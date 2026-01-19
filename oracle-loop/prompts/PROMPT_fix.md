@@ -4,11 +4,11 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 
 ## 0. Orient
 
-0a. Read `EVALUATION_STATE.md` to understand current issues and their priorities.
-0b. Read `spec/output_quality.md` to understand the quality criteria.
-0c. Read `AGENTS.md` for codebase navigation and commands.
-0d. Read `CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
-0e. **CRITICAL:** Read `spec/oracle-loop/ATTEMPT_1_SUMMARY.md` to understand what approaches have already been tried and FAILED.
+0a. Read `state/EVALUATION_STATE.md` to understand current issues and their priorities.
+0b. Read `docs/output_quality.md` to understand the quality criteria.
+0c. Read `../AGENTS.md` for codebase navigation and commands.
+0d. Read `../CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
+0e. **CRITICAL:** Read `docs/ATTEMPT_1_SUMMARY.md` to understand what approaches have already been tried and FAILED.
 
 > **DO NOT RETRY FAILED APPROACHES:** The summary documents approaches that had ZERO impact or caused regressions. Before implementing any fix, check if a similar approach was already tried. If so, you MUST try a DIFFERENT approach.
 
@@ -51,9 +51,58 @@ For EACH issue you plan to fix, you MUST document:
 
 **If blocked:** Add diagnostic logging to trace the data flow, then re-run analysis to gather evidence.
 
+### 1.4 Root Cause Categories (Expanded)
+
+When tracing the issue, consider ALL these categories:
+
+| Category | Description | Where to Look |
+|----------|-------------|---------------|
+| **Code Logic Bug** | Algorithm/flow error in Python code | `src/pipeline/*/`, `src/agents/*.py` |
+| **Prompt Issue** | LLM system prompt too strict/vague/wrong | `src/pipeline/*/proposers/*.py`, `*_validator.py` |
+| **Configuration Issue** | Wrong model, chunk size, temperature, context length | `src/agents/config.py`, `analysis.json._config` |
+| **Threshold Issue** | Confidence/filtering thresholds too aggressive | `src/pipeline/*/`, agent configs |
+| **Data Flow Issue** | Information lost between pipeline stages | Trace through agent outputs |
+
+### Configuration Fixes (when root cause is config)
+
+If the issue is configuration-related:
+1. Document current config values from `analysis.json._config`
+2. Propose specific new values with rationale
+3. Config changes should be made in `src/agents/config.py`:
+   - `PipelineTuningConfig` for chunking params
+   - `RECOMMENDED_AGENT_MODELS` for per-agent model/temperature settings
+4. Test with re-analysis before declaring fix complete
+
+Example config fix:
+```python
+# In src/agents/config.py - PipelineTuningConfig
+# Before: character_llm_chunk_chars: int = 8000
+# After (with rationale):
+character_llm_chunk_chars: int = 12000  # Increased to capture full chapter context for long chapters
+```
+
+### Prompt Fixes (when root cause is prompt)
+
+If the issue is a system prompt:
+1. Identify which prompt file:
+   - Chapter detection: `src/pipeline/chapter_detection/proposers/*.py`
+   - Character extraction: `src/pipeline/character_extraction/proposers/*.py`
+   - Summaries: `src/pipeline/chapter_summary/summarizer.py`
+   - Pronunciation: `src/pipeline/pronunciation_guide/extractor.py`
+2. Quote the problematic instruction
+3. Propose minimal change (don't rewrite entire prompt)
+4. Verify prompt change doesn't break other texts
+
+Example prompt fix:
+```python
+# Before: "Identify all character names in the text"
+# Problem: Too vague, misses nicknames
+# After: "Identify all character names including nicknames, titles, and informal references"
+```
+
 ## 2. Analyze Issues
 
-Review the issues in EVALUATION_STATE.md, prioritized by severity:
+Review the issues in `state/EVALUATION_STATE.md`, prioritized by severity:
 - **CRITICAL**: Must fix before re-running - blocks progress
 - **HIGH**: Significant impact on quality score
 - **MEDIUM**: Noticeable but manageable impact
@@ -89,7 +138,7 @@ Make minimal, targeted changes:
 3. **Make the smallest change that solves each problem**
 4. **Do NOT refactor surrounding code** - Stay focused
 5. **Do NOT add features** - Only fix the identified issues
-6. **Follow coding standards** from CLAUDE.md:
+6. **Follow coding standards** from `../CLAUDE.md`:
    - No novel-specific hardcoding (no "Gatsby", "Frankenstein", etc. in prompts)
    - Use generic guidance patterns
 
@@ -163,7 +212,7 @@ If tests fail:
 
 ## 7. Document Changes
 
-Update `EVALUATION_STATE.md`:
+Update `state/EVALUATION_STATE.md`:
 
 1. Move the fixed issue from "Current Issues" to "Fix History" with:
    - What was changed
@@ -206,7 +255,7 @@ The loop will restart with PROMPT_analyze.md to re-run the pipeline with your fi
 ## Guidelines
 
 ### Check Failed Approaches First
-Before implementing ANY fix, read `spec/oracle-loop/ATTEMPT_1_SUMMARY.md` and verify your approach wasn't already tried. Known failed approaches include:
+Before implementing ANY fix, read `docs/ATTEMPT_1_SUMMARY.md` and verify your approach wasn't already tried. Known failed approaches include:
 - Filter ambiguous last-name-only entries (ZERO impact)
 - Block family member merges globally (caused regressions)
 - Adding diagnostic logging without implementing fixes (wasted attempt)
@@ -244,7 +293,7 @@ Future iterations depend on understanding what was tried. Be explicit about your
 
 ### If Stuck
 If you can't figure out how to fix an issue after reasonable investigation:
-1. Document what you tried in EVALUATION_STATE.md
+1. Document what you tried in `state/EVALUATION_STATE.md`
 2. Lower the issue priority or mark it as "deferred"
 3. Move on to the next issue in the same text
 4. The loop stays on this text until it passes - try different approaches

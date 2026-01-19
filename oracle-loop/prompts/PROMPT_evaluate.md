@@ -6,10 +6,10 @@ You are the oracle in an autonomous improvement loop for an audiobook narrator p
 
 ## 0. Orient
 
-0a. Read `EVALUATION_STATE.md` to understand current state and which text is being evaluated.
-0b. Read `spec/output_quality.md` to understand the full evaluation rubric.
-0c. Read `AGENTS.md` if you need to understand the tool's capabilities.
-0d. Read `spec/oracle-loop/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
+0a. Read `state/EVALUATION_STATE.md` to understand current state and which text is being evaluated.
+0b. Read `docs/output_quality.md` to understand the full evaluation rubric.
+0c. Read `../AGENTS.md` if you need to understand the tool's capabilities.
+0d. Read `docs/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
 
 ## 1. Load the Output
 
@@ -17,7 +17,7 @@ Read the HTML report for the current text:
 
 ```bash
 # The output location follows this pattern
-cat output/{book_name}/report.html
+cat ../output/{book_name}/report.html
 ```
 
 If the file is large, read it in sections:
@@ -39,22 +39,26 @@ import json
 from pathlib import Path
 
 # Load the analysis result (adjust path as needed)
-result_path = Path('output/{book_name}/analysis.json')
+result_path = Path('../output/{book_name}/analysis.json')
 if result_path.exists():
     result = json.loads(result_path.read_text())
+    structure = result.get('structure', [])
+    chars = result.get('characters', [])
+    pron = result.get('pronunciations', [])
 
     print('=== SANITY CHECK RESULTS ===')
-    print(f'Chapters detected: {len(result.get(\"chapters\", []))}')
-    print(f'Characters detected: {len(result.get(\"characters\", []))}')
+    print(f'Structure elements: {len(structure)}')
+    print(f'Characters: {len(chars)}')
+    print(f'Pronunciations: {len(pron)}')
 
-    # List main characters
-    chars = result.get('characters', [])
-    main_chars = [c['name'] for c in chars if c.get('mention_count', 0) > 10]
-    print(f'Main characters (>10 mentions): {main_chars}')
+    main = [c.get('canonical_name') for c in chars if c.get('mention_count', 0) > 10]
+    print(f'Main characters (>10 mentions): {[m for m in main if m]}')
 
-    # Check narrator if present
-    narrator = result.get('narrator')
-    print(f'Narrator identified: {narrator}')
+    narrators = [c['canonical_name'] for c in chars if c.get('is_narrator', False)]
+    print(f'Narrators identified: {narrators}')
+
+    print(f'Config present: {\"_config\" in result}')
+    print(f'Profiling present: {\"_profiling\" in result}')
 "
 ```
 
@@ -207,12 +211,12 @@ Overall = (
 
 The text meets quality threshold. Update state to advance:
 
-1. Update `manifest.json`:
+1. Update `state/manifest.json`:
    - Set current text's `complete: true`
    - Set `final_score` to the overall score
    - Set `attempts` to current attempt number
 
-2. Update `EVALUATION_STATE.md`:
+2. Update `state/EVALUATION_STATE.md`:
    - Record final scores
    - Set phase to `complete` for this text
    - Clear current issues
@@ -253,7 +257,7 @@ Issues need to be fixed. Prioritize and document:
    - Likely location in codebase (which agent/file)
    - Suggested fix approach (if you can infer one)
 
-3. **Update `EVALUATION_STATE.md`:**
+3. **Update `state/EVALUATION_STATE.md`:**
    - Record all scores
    - List issues in priority order (CRITICAL first)
    - Set phase to `awaiting_fix`
@@ -261,7 +265,7 @@ Issues need to be fixed. Prioritize and document:
 
 ## 5. Write Evaluation State
 
-Update `EVALUATION_STATE.md` with the full evaluation results:
+Update `state/EVALUATION_STATE.md` with the full evaluation results:
 
 ```markdown
 # Current Evaluation State
@@ -305,13 +309,51 @@ Update `EVALUATION_STATE.md` with the full evaluation results:
 ## 6. Commit and Exit
 
 ```bash
-git add EVALUATION_STATE.md manifest.json
+git add state/EVALUATION_STATE.md state/manifest.json
 git commit -m "Evaluate: {book_name} attempt {n} - {PASS|FAIL} ({score}/10)"
 ```
 
 Exit cleanly. The loop will restart with:
 - `PROMPT_fix.md` if score < 8.0
 - `PROMPT_analyze.md` for next text if score ≥ 8.0
+
+---
+
+## 7. Configuration Audit (Required)
+
+Before finalizing your evaluation, check `../output/{book_name}/analysis.json` for the `_config` section:
+
+### Model Configuration
+- [ ] Are appropriate models assigned per agent? (e.g., larger model for complex character extraction)
+- [ ] Are context lengths sufficient for the book size?
+- [ ] Are temperatures appropriate? (lower for structured extraction, higher for summaries)
+
+### Chunking Configuration
+- [ ] Is `character_llm_chunk_chars` (default 8000) appropriate for chapter lengths?
+- [ ] Is `summary_chunk_words` (default 2500) creating too many/few chunks?
+- [ ] Are overlaps sufficient to avoid missing cross-chunk references?
+
+### Processing Issues (from `_profiling`)
+- [ ] Check `_profiling.stages[].llm_retries` - high retry counts indicate prompt/schema issues
+- [ ] Check confidence distributions - many LOW confidence items suggest config problems
+- [ ] Note any stages with unusually high token usage (possible truncation)
+
+### What to Do with Configuration Issues
+
+If configuration issues are found:
+1. Note them in the issues list with severity **MEDIUM** (unless they're the clear root cause, then **HIGH**)
+2. Provide specific recommendations (e.g., "Increase `character_llm_chunk_chars` from 8000 to 12000")
+3. Config fixes go in `src/agents/config.py` (either `PipelineTuningConfig` defaults or `RECOMMENDED_AGENT_MODELS`)
+
+Example config issue entry:
+```markdown
+### MEDIUM
+4. **Chunking may be too aggressive for long chapters**
+   - Problem: `character_llm_chunk_chars` is 8000, but average chapter is 15000 chars
+   - Evidence: `_profiling.stages["Character Extraction"].low_confidence` is 12 (high)
+   - Location: `src/agents/config.py` - `PipelineTuningConfig`
+   - Fix: Increase `character_llm_chunk_chars` to 12000 to capture full chapter context
+```
 
 ---
 

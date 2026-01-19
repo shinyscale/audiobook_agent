@@ -2329,11 +2329,102 @@ Return ONLY the JSON object."""
         if self._last_profiling_report:
             result_dict['_profiling'] = self._last_profiling_report.to_dict()
 
+        # Add configuration data for oracle loop auditing
+        result_dict['_config'] = self._build_config_dict()
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result_dict, f, indent=2, ensure_ascii=False)
 
         print(f"\n✅ Analysis saved to: {output_path}")
         return str(output_path)
+
+    def _build_config_dict(self) -> dict:
+        """
+        Build configuration dictionary for oracle loop auditing.
+
+        Captures all configuration that affects analysis quality:
+        - Orchestrator settings (default model, provider, parallelism)
+        - Per-agent configs (model, temperature, context length)
+        - Tuning parameters (chunk sizes, overlaps)
+        """
+        config_dict = {
+            "orchestrator": {
+                "default_model": (
+                    self.orchestrator_config.default_model
+                    if self.orchestrator_config and self.orchestrator_config.default_model
+                    else self.llm_model or "none"
+                ),
+                "default_provider": (
+                    self.orchestrator_config.default_provider
+                    if self.orchestrator_config and self.orchestrator_config.default_provider
+                    else self.llm_provider if self.llm_refine else "none"
+                ),
+                "parallel_execution": (
+                    self.orchestrator_config.parallel_execution
+                    if self.orchestrator_config else False
+                ),
+                "context_length": (
+                    self.orchestrator_config.context_length
+                    if self.orchestrator_config else self.llm_context_length
+                ),
+            },
+            "agents": {},
+            "tuning": {},
+        }
+
+        # Capture per-agent configurations
+        agent_names = ["structure", "characters", "summaries", "pronunciation"]
+        for agent_name in agent_names:
+            if self.orchestrator_config:
+                agent_config = self.orchestrator_config.get_agent_config(agent_name)
+                config_dict["agents"][agent_name] = {
+                    "model": agent_config.model or self.llm_model or "default",
+                    "provider": agent_config.provider,
+                    "temperature": agent_config.temperature,
+                    "context_length": agent_config.context_length,
+                    "max_tokens": agent_config.max_tokens,
+                    "think_mode": agent_config.think_mode,
+                }
+            else:
+                # No orchestrator config - using defaults
+                config_dict["agents"][agent_name] = {
+                    "model": self.llm_model or "default",
+                    "provider": self.llm_provider,
+                    "temperature": 0.3,
+                    "context_length": self.llm_context_length,
+                    "max_tokens": 4096,
+                    "think_mode": False,
+                }
+
+        # Capture tuning parameters
+        if self.orchestrator_config and self.orchestrator_config.tuning:
+            tuning = self.orchestrator_config.tuning
+            config_dict["tuning"] = {
+                "chapter_marker_chunk_chars": tuning.chapter_marker_chunk_chars,
+                "chapter_marker_chunk_overlap_chars": tuning.chapter_marker_chunk_overlap_chars,
+                "chapter_narrative_chunk_chars": tuning.chapter_narrative_chunk_chars,
+                "chapter_narrative_chunk_overlap_chars": tuning.chapter_narrative_chunk_overlap_chars,
+                "character_llm_chunk_chars": tuning.character_llm_chunk_chars,
+                "character_mention_context_chars": tuning.character_mention_context_chars,
+                "summary_chunk_words": tuning.summary_chunk_words,
+                "summary_chunk_overlap_words": tuning.summary_chunk_overlap_words,
+            }
+        else:
+            # Use PipelineTuningConfig defaults
+            from .agents.config import PipelineTuningConfig
+            defaults = PipelineTuningConfig()
+            config_dict["tuning"] = {
+                "chapter_marker_chunk_chars": defaults.chapter_marker_chunk_chars,
+                "chapter_marker_chunk_overlap_chars": defaults.chapter_marker_chunk_overlap_chars,
+                "chapter_narrative_chunk_chars": defaults.chapter_narrative_chunk_chars,
+                "chapter_narrative_chunk_overlap_chars": defaults.chapter_narrative_chunk_overlap_chars,
+                "character_llm_chunk_chars": defaults.character_llm_chunk_chars,
+                "character_mention_context_chars": defaults.character_mention_context_chars,
+                "summary_chunk_words": defaults.summary_chunk_words,
+                "summary_chunk_overlap_words": defaults.summary_chunk_overlap_words,
+            }
+
+        return config_dict
 
     def analyze_to_json(
         self,

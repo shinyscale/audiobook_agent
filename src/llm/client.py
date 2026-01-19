@@ -396,6 +396,13 @@ class LLMClient:
             return None, response
 
         parsed = self._extract_json(response.content)
+
+        # Record JSON parse failure if metrics context available
+        # This includes both parse failures (None) and wrong-shape results (e.g., array instead of object)
+        if self.metrics and self.metrics.current_stage:
+            if parsed is None or not isinstance(parsed, dict):
+                self.metrics.current_stage.record_json_failure()
+
         return parsed, response
 
     def _extract_json(self, text: str) -> Optional[dict]:

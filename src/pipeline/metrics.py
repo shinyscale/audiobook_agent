@@ -39,6 +39,10 @@ class StageMetrics:
     model_used: Optional[str] = None
     provider_used: Optional[str] = None
 
+    # Retry/failure tracking (for config auditing)
+    llm_retries: int = 0  # Retries due to parse/validation failures
+    json_parse_failures: int = 0  # JSON schema validation failures
+
     @property
     def items_per_second(self) -> float:
         """Calculate processing rate."""
@@ -156,6 +160,8 @@ class ProfilingReport:
                     "low_confidence": s.low_confidence_count,
                     "model_used": s.model_used,
                     "provider_used": s.provider_used,
+                    "llm_retries": s.llm_retries,
+                    "json_parse_failures": s.json_parse_failures,
                 }
                 for s in self.stages
             ],
@@ -221,6 +227,14 @@ class StageContext:
         """Set the model used for this stage."""
         self._metrics.model_used = model
         self._metrics.provider_used = provider
+
+    def record_retry(self) -> None:
+        """Record an LLM retry due to parse/validation failure."""
+        self._metrics.llm_retries += 1
+
+    def record_json_failure(self) -> None:
+        """Record a JSON schema validation failure."""
+        self._metrics.json_parse_failures += 1
 
     def finalize(self) -> StageMetrics:
         """Finalize and return the metrics."""

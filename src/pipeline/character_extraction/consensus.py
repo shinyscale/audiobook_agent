@@ -1194,6 +1194,10 @@ class CharacterConsensusBuilder:
                         f"Last error: {last_error}"
                     ) from last_error
 
+                # Record retry in metrics if available
+                if self.llm.metrics and self.llm.metrics.current_stage:
+                    self.llm.metrics.current_stage.record_retry()
+
                 # Wait before retry
                 time.sleep(1)
 
