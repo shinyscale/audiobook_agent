@@ -121,45 +121,31 @@ class LLMCharacterProposer(BaseCharacterProposer):
         """Extract character proposals from a chapter using LLM."""
         # For shorter chapters, process in one go
         if len(chapter_text) <= self.chunk_size:
-            proposals = self._process_chunk(chapter_text, chapter_index, chapter_start_position, 0)
-        else:
-            # For longer chapters, process in chunks and merge
-            proposals = []
-            chunk_start = 0
+            return self._process_chunk(chapter_text, chapter_index, chapter_start_position, 0)
 
-            while chunk_start < len(chapter_text):
-                chunk_end = min(chunk_start + self.chunk_size, len(chapter_text))
+        # For longer chapters, process in chunks and merge
+        proposals = []
+        chunk_start = 0
 
-                # Try to break at paragraph boundary
-                if chunk_end < len(chapter_text):
-                    para_break = chapter_text.rfind("\n\n", chunk_start + self.chunk_size - 500, chunk_end)
-                    if para_break > chunk_start:
-                        chunk_end = para_break
+        while chunk_start < len(chapter_text):
+            chunk_end = min(chunk_start + self.chunk_size, len(chapter_text))
 
-                chunk = chapter_text[chunk_start:chunk_end]
-                chunk_proposals = self._process_chunk(
-                    chunk, chapter_index, chapter_start_position, chunk_start
-                )
-                proposals.extend(chunk_proposals)
+            # Try to break at paragraph boundary
+            if chunk_end < len(chapter_text):
+                para_break = chapter_text.rfind("\n\n", chunk_start + self.chunk_size - 500, chunk_end)
+                if para_break > chunk_start:
+                    chunk_end = para_break
 
-                chunk_start = chunk_end
+            chunk = chapter_text[chunk_start:chunk_end]
+            chunk_proposals = self._process_chunk(
+                chunk, chapter_index, chapter_start_position, chunk_start
+            )
+            proposals.extend(chunk_proposals)
 
-            # Merge proposals for same character across chunks
-            proposals = self._merge_chunk_proposals(proposals)
+            chunk_start = chunk_end
 
-        # CRITICAL: Detect first-person narrator self-identifications
-        # These are often missed by LLM because the name only appears once
-        narrator_proposal = self._detect_first_person_narrator(
-            chapter_text, chapter_index, chapter_start_position
-        )
-        if narrator_proposal:
-            # Check if we already have this character
-            existing_names = {p.name.lower() for p in proposals}
-            if narrator_proposal.name.lower() not in existing_names:
-                logger.info(f"Detected first-person narrator: {narrator_proposal.name}")
-                proposals.append(narrator_proposal)
-
-        return proposals
+        # Merge proposals for same character across chunks
+        return self._merge_chunk_proposals(proposals)
 
     def _process_chunk(
         self,
@@ -338,76 +324,3 @@ class LLMCharacterProposer(BaseCharacterProposer):
                 )
 
         return list(by_name.values())
-
-    def _detect_first_person_narrator(
-        self,
-        chapter_text: str,
-        chapter_index: int,
-        chapter_start: int,
-    ) -> Optional[CharacterProposal]:
-        """
-        Detect first-person narrators who explicitly name themselves.
-
-        Patterns like "My name is X", "I am X", "My baptismal name is X", etc.
-        These are critical characters that should never be missed even if their
-        name only appears once in the text (the rest uses "I").
-        """
-        # First check if text is in first person
-        first_person_indicators = [r'\bI\b', r'\bmy\b', r'\bme\b', r'\bmine\b']
-        first_person_count = sum(
-            len(re.findall(pattern, chapter_text, re.IGNORECASE))
-            for pattern in first_person_indicators
-        )
-
-        # Need substantial first-person usage (at least 5 instances in chapter)
-        if first_person_count < 5:
-            return None
-
-        # Patterns for self-identification
-        # Generic patterns that work across all novels
-        naming_patterns = [
-            r'\bMy\s+(?:baptismal\s+)?name\s+is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',
-            r'\bI\s+am\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',
-            r'\bI,\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),',
-            r'\bcall\s+me\s+([A-Z][a-z]+)\b',
-            r'\bmy\s+christian\s+name\s+(?:is|was)\s+([A-Z][a-z]+)\b',
-        ]
-
-        for pattern in naming_patterns:
-            match = re.search(pattern, chapter_text)
-            if match:
-                name = match.group(1).strip()
-
-                # Filter out stopwords
-                if name.lower() in PRONOUN_STOPWORDS:
-                    continue
-
-                # Minimum length check
-                if len(name) < 2:
-                    continue
-
-                logger.info(
-                    f"Detected first-person narrator self-identification: '{name}' "
-                    f"(pattern: {pattern[:50]}...)"
-                )
-
-                # Find all mentions of this name
-                mentions = self._find_mentions(chapter_text, name, chapter_index, chapter_start, 0)
-
-                if not mentions:
-                    # Pattern matched but name not actually in text (shouldn't happen)
-                    logger.warning(f"Pattern matched '{name}' but no mentions found")
-                    continue
-
-                # Create high-confidence proposal
-                return CharacterProposal(
-                    strategy=f"{self.name}_first_person_narrator",
-                    name=name,
-                    mentions=mentions,
-                    confidence=0.95,  # High confidence for explicit self-identification
-                    chapter_index=chapter_index,
-                    reasoning=f"First-person narrator who explicitly identifies as '{name}'",
-                    character_type=CharacterType.STORY,
-                )
-
-        return None
