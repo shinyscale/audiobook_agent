@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Attempt:** 19
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -136,6 +136,25 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Result:** FAILED - Same incorrect merge persists
 - **Full Test Suite:** PASSED (444 tests)
 - **Conclusion:** The fix logic is in place but isn't being used in the actual merge flow
+
+### Attempt 19
+- **Change:** POST-PROCESSING cross-character alias fix - detect and move misplaced aliases AFTER consensus
+- **Files Modified:** src/agents/characters.py (added `_fix_misplaced_aliases()` method at line 487-575, called at line 145)
+- **Root Cause:**
+  - **Symptom:** "Prospero" listed as alias of "the mummer" (line 52-54 in analysis.json)
+  - **Data flow:** analysis.json ← AnalysisResult ← CharacterAgent.run() ← consensus.py
+  - **Originates in:** LLM merge decision in consensus phase incorrectly pairs "Prospero" with "the mummer" instead of "Prince Prospero"
+  - **Confidence:** HIGH
+- **Approach:** Instead of preventing the wrong merge (attempts 17-18 failed), detect and fix it AFTER consensus:
+  1. For each character with aliases
+  2. Check if any alias is a substring or word match of another character's canonical name
+  3. Move the alias to the better-matching character
+  4. Example: "Prospero" is substring of "the Prince Prospero", so move it from "the mummer"
+- **Smoke Test:** PASS - Test script verified:
+  - ✓ "Prospero" moved from "the mummer" to "the Prince Prospero"
+  - ✓ Metadata tracked the move (post_processing_alias_moves: 1)
+- **Full Test Suite:** PASSED (444 tests, 11 skipped, 1 warning)
+- **Next:** Re-run analysis to verify fix works on actual masque_of_red_death text
 
 ## Evaluation Details
 

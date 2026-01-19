@@ -141,6 +141,9 @@ class CharacterAgent(Agent):
         # POST-PROCESSING: Split characters that were incorrectly merged based on death evidence
         character_map = self._split_on_death_evidence(character_map)
 
+        # POST-PROCESSING: Fix misplaced aliases across characters
+        character_map = self._fix_misplaced_aliases(character_map)
+
         # Calculate confidence breakdown
         high = sum(1 for c in character_map.characters if c.confidence >= 0.7)
         medium = sum(1 for c in character_map.characters if 0.4 <= c.confidence < 0.7)
@@ -479,6 +482,96 @@ class CharacterAgent(Agent):
             character_map.pipeline_metadata["post_processing_splits"] = splits_made
 
         character_map.characters = new_characters
+        return character_map
+
+    def _fix_misplaced_aliases(self, character_map: CharacterMap) -> CharacterMap:
+        """
+        POST-PROCESSING: Fix aliases that were assigned to the wrong character.
+
+        This function detects cases where one character has an alias that is actually
+        a substring or variant of another character's canonical name. This commonly
+        happens when an LLM incorrectly merges "Prospero" with "the mummer" instead
+        of "Prince Prospero".
+
+        Algorithm:
+        1. For each character with aliases
+        2. Check if any alias is a substring of another character's name
+        3. If found, move that alias to the matching character
+        """
+        moves_made = 0
+
+        # Build a mapping of character names for quick lookup
+        for char_with_alias in character_map.characters:
+            if not char_with_alias.aliases:
+                continue
+
+            aliases_to_move = {}  # alias -> target_character
+
+            for alias in char_with_alias.aliases:
+                alias_lower = alias.lower()
+                alias_words = set(alias_lower.split())
+
+                # Check if this alias better matches another character
+                for target_char in character_map.characters:
+                    if target_char.id == char_with_alias.id:
+                        continue
+
+                    target_name_lower = target_char.canonical_name.lower()
+                    target_words = set(target_name_lower.split())
+
+                    # Check for substring match or word overlap
+                    # Case 1: alias is substring of target name (e.g., "Prospero" in "Prince Prospero")
+                    # Case 2: alias is a significant word in target name
+                    is_substring = alias_lower in target_name_lower
+                    significant_overlap = (
+                        len(alias_words & target_words) > 0 and
+                        alias_lower not in ['the', 'a', 'an']  # Exclude articles
+                    )
+
+                    if is_substring or significant_overlap:
+                        # Additional check: verify the alias doesn't also match the current character
+                        current_name_lower = char_with_alias.canonical_name.lower()
+                        current_words = set(current_name_lower.split())
+
+                        # If the alias is ALSO in the current character's name, we need to be careful
+                        # Only move if the target match is STRONGER (more specific)
+                        alias_in_current = alias_lower in current_name_lower
+                        overlap_with_current = len(alias_words & current_words) > 0
+
+                        # Move if:
+                        # - alias NOT in current name, but IS in target name (clear case)
+                        # - OR alias is substring of target but not current
+                        should_move = False
+                        if is_substring and not alias_in_current:
+                            should_move = True
+                        elif significant_overlap and not overlap_with_current:
+                            should_move = True
+
+                        if should_move:
+                            logger.info(
+                                f"ALIAS FIX: Moving alias '{alias}' from "
+                                f"'{char_with_alias.canonical_name}' to '{target_char.canonical_name}'"
+                            )
+                            aliases_to_move[alias] = target_char
+                            moves_made += 1
+                            break  # Found the best match for this alias
+
+            # Apply the moves
+            for alias, target_char in aliases_to_move.items():
+                # Remove from source character
+                char_with_alias.aliases = [a for a in char_with_alias.aliases if a != alias]
+
+                # Add to target character if not already there
+                if alias not in target_char.aliases:
+                    target_char.aliases.append(alias)
+
+                # Note: We're not moving mentions here since they're tracked separately
+                # The alias list is just metadata for display purposes
+
+        if moves_made > 0:
+            logger.info(f"POST-PROCESSING: Moved {moves_made} misplaced alias(es)")
+            character_map.pipeline_metadata["post_processing_alias_moves"] = moves_made
+
         return character_map
 
     def _check_duplicates_heuristic(self, characters: list[Character]) -> list[VerificationIssue]:
