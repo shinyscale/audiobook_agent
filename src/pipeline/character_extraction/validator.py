@@ -56,14 +56,14 @@ MENTION COUNT: {mention_count}
 SAMPLE CONTEXTS (where this name appears):
 {contexts}
 
-Please analyze and return JSON with:
+Please analyze and return a JSON object (not an array) with these exact fields:
 - "is_person": true/false - Is this a real person/character name (not a place, title, or concept)?
 - "is_person_reasoning": Brief explanation
 - "context_supports": 0.0-1.0 - How strongly does the context support this being a character?
 - "alias_candidates": List of other names that might refer to the same person (e.g., "Elizabeth" -> ["Lizzy", "Miss Bennet"])
 - "overall_valid": true/false - Should we include this as a character?
 
-Return ONLY valid JSON."""
+Return ONLY a valid JSON object starting with {{ and ending with }}. Do not return an array."""
 
 
 class CharacterValidator:
@@ -276,6 +276,22 @@ class CharacterValidator:
                     continue
                 else:
                     raise ValueError(f"LLM validation failed for '{proposal.name}' after {max_retries + 1} attempts: {last_error}")
+
+            # Handle case where LLM returns an array instead of object
+            if isinstance(result, list):
+                # If it's a single-element array containing a dict, extract it
+                if len(result) == 1 and isinstance(result[0], dict):
+                    logger.warning(f"LLM validation for '{proposal.name}' returned array instead of object - extracting first element")
+                    result = result[0]
+                else:
+                    error_detail = f"got list with {len(result)} elements"
+                    last_error = f"Invalid JSON: {error_detail}"
+                    logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' returned array: {error_detail}")
+                    if attempt < max_retries:
+                        time.sleep(2 ** attempt)
+                        continue
+                    else:
+                        raise ValueError(f"LLM validation returned invalid JSON for '{proposal.name}' after {max_retries + 1} attempts: {last_error}")
 
             if result is None or not isinstance(result, dict):
                 error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"

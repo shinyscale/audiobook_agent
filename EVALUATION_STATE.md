@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 3 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 4 of 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.45
 
 ## Output Files
@@ -139,6 +139,27 @@ The system has TWO separate issues:
 
 **Fix needed:** The validation code needs to handle cases where the LLM returns a list, or the prompt needs to be more explicit about requiring an object, or we need to add response format enforcement for this specific model.
 
+## Fix History
+
+### Attempt 4: Fix LLM validation JSON format parsing
+**Date:** 2026-01-18
+**Root cause:** src/pipeline/character_extraction/validator.py:_llm_validation():line 280
+  - Prompt didn't explicitly forbid array responses
+  - LLM (qwen3-next:80b-a3b-instruct-q8_0) returned JSON array `[...]` instead of object `{...}`
+  - Code rejected arrays entirely without fallback handling
+**Smoke test:** PASS
+  - Prompt template now explicitly requests "JSON object (not an array)"
+  - Prompt specifies format: "starting with { and ending with }"
+  - Added fallback: single-element arrays are unwrapped to extract the dict
+  - Code inspection confirms array handling logic is present
+**Modified:** src/pipeline/character_extraction/validator.py (lines 50-66, 280-294)
+  - Updated VALIDATION_PROMPT_TEMPLATE to explicitly request object format
+  - Added array detection and unwrapping logic before dict type check
+**Addresses:** Pipeline error blocking analysis completion
+
+(Previous fix history from Attempt 3 preserved above)
+
 ## Next Action
 
-Fix the LLM validation JSON parsing issue to allow the pipeline to complete.
+**Phase:** awaiting_analysis
+Re-run analysis to verify the pipeline completes and to assess the impact of the person-action verb detection fix from Attempt 3.
