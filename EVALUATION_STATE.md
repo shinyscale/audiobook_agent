@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.45
 
 ## Output Files
@@ -124,6 +124,21 @@ The system has TWO separate issues:
 **Why it failed:** Pattern-based object detection didn't match actual text contexts
 **Status:** REVERTED in commit 6ef2046
 
+## Pipeline Error (Attempt 3)
+
+**Error:** LLM validation returned invalid JSON format
+**Details:**
+- Entity: "Montresors"
+- Error message: "LLM validation returned invalid JSON for 'Montresors' after 3 attempts: Invalid JSON: got list"
+- Root cause: The LLM (qwen3-next:80b-a3b-instruct-q8_0) is returning a JSON array instead of a JSON object
+- Location: src/pipeline/character_extraction/validator.py:280 - `_llm_validation()` method
+- Expected: JSON object with fields {is_person, is_person_reasoning, context_supports, alias_candidates, overall_valid}
+- Actual: JSON array (list)
+
+**Impact:** The analysis pipeline cannot complete. Character extraction fails during LLM validation.
+
+**Fix needed:** The validation code needs to handle cases where the LLM returns a list, or the prompt needs to be more explicit about requiring an object, or we need to add response format enforcement for this specific model.
+
 ## Next Action
 
-Re-run analysis to verify Attempt 3 fix addresses the Amontillado issue.
+Fix the LLM validation JSON parsing issue to allow the pipeline to complete.
