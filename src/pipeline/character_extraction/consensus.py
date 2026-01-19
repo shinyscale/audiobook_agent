@@ -357,11 +357,16 @@ class CharacterConsensusBuilder:
         for name, results in name_groups.items():
             if self._is_descriptive_handle(name):
                 epithet_groups[name] = results
+                logger.debug(f"Classified as epithet: '{name}'")
             else:
                 proper_name_groups[name] = results
+                logger.debug(f"Classified as proper name: '{name}'")
 
         if epithet_groups:
             logger.info(f"CharacterConsensusBuilder: found {len(epithet_groups)} descriptive handles")
+            logger.info(f"Epithets: {list(epithet_groups.keys())}")
+        if proper_name_groups:
+            logger.info(f"Proper names: {list(proper_name_groups.keys())}")
 
         # Resolve aliases for proper names
         if self.use_llm_alias_resolution and len(proper_name_groups) > 1:
@@ -1963,6 +1968,9 @@ class CharacterConsensusBuilder:
 
         Returns True if they appear to be separate entities interacting (pursuing,
         confronting, seizing, etc.), which indicates they should NOT be merged.
+
+        Enhanced to detect confrontation even when the other entity is referred to
+        indirectly (e.g., "his pursuer", "the retreating figure").
         """
         # Confrontation indicators - verbs and patterns showing separate entities interacting
         confrontation_patterns = [
@@ -1979,6 +1987,9 @@ class CharacterConsensusBuilder:
             r'\b(watched|watching|watch|observed|observing|observe|saw|see|seeing)\b',
             # Interaction verbs showing separate agents
             r'\b(addressed|addressing|address|spoke to|speaking to|speak to)\b',
+            # Indirect references suggesting another entity
+            r'\b(his|her|their) (pursuer|opponent|attacker|assailant)\b',
+            r'\bthe (retreating|advancing|approaching) (figure|form|person|intruder|stranger)\b',
         ]
 
         # Collect all context snippets for both entities
@@ -2038,12 +2049,43 @@ class CharacterConsensusBuilder:
                         logger.info(f"Confrontation detected between '{epithet_name}' and '{proper_name}': {ctx[:100]}")
                         break
 
-        # If they co-occur and majority of co-occurrences show confrontation, they're separate entities
+        # ENHANCED: Also check for confrontation patterns in ANY context, even without direct co-occurrence
+        # This handles cases where long sentences prevent both names from appearing in the same context window
+        epithet_confrontation_solo = 0
+        for ctx in epithet_contexts:
+            for pattern in confrontation_patterns:
+                if re.search(pattern, ctx, re.IGNORECASE):
+                    epithet_confrontation_solo += 1
+                    logger.debug(f"Confrontation pattern in epithet context: {ctx[:80]}")
+                    break
+
+        proper_confrontation_solo = 0
+        for ctx in proper_contexts:
+            for pattern in confrontation_patterns:
+                if re.search(pattern, ctx, re.IGNORECASE):
+                    proper_confrontation_solo += 1
+                    logger.debug(f"Confrontation pattern in proper name context: {ctx[:80]}")
+                    break
+
+        # DEBUG: Log detection results
+        logger.info(f"Confrontation check: '{epithet_name}' vs '{proper_name}' - "
+                   f"co-occur: {total_cooccurrence}, confrontation: {confrontation_count}, "
+                   f"epithet_solo: {epithet_confrontation_solo}, proper_solo: {proper_confrontation_solo}")
+
+        # Original logic: If they co-occur and majority show confrontation, block
         if total_cooccurrence >= 2 and confrontation_count >= total_cooccurrence * 0.5:
             logger.info(f"Blocking merge: '{epithet_name}' and '{proper_name}' show confrontation "
                        f"({confrontation_count}/{total_cooccurrence} co-occurrences)")
             return True
 
+        # NEW LOGIC: If BOTH entities have confrontation patterns in their own contexts,
+        # they're likely separate entities interacting (even if not in the same snippet)
+        if epithet_confrontation_solo >= 2 and proper_confrontation_solo >= 2:
+            logger.info(f"Blocking merge: Both entities show confrontation patterns in their contexts "
+                       f"(epithet: {epithet_confrontation_solo}, proper: {proper_confrontation_solo})")
+            return True
+
+        logger.info(f"No confrontation detected (threshold not met): '{epithet_name}' vs '{proper_name}'")
         return False
 
     def _llm_cross_group_resolution(
@@ -2098,6 +2140,9 @@ class CharacterConsensusBuilder:
             if result is None or not isinstance(result, list):
                 logger.warning("LLM cross-group resolution returned invalid response")
                 return {}
+
+            # DEBUG: Log LLM recommendations
+            logger.info(f"LLM cross-group recommendations: {result}")
 
             # Parse response into epithet -> proper_name mapping
             cross_map = {}

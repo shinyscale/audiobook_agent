@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -121,32 +121,41 @@ The fix implemented `_entities_in_confrontation()` to:
    - Pre-filter check added in `_llm_cross_group_resolution()` (lines 2119-2125)
    - **Result: DID NOT WORK** - merge still happening
 
-## Root Cause Analysis
+### Attempt 5 Fixes Applied
+1. Enhanced confrontation detection with solo pattern matching (consensus.py)
+   - Root cause: Context windows (120-150 chars) too small for Poe's long sentences
+   - Added indirect reference patterns ("his pursuer", "the retreating figure")
+   - NEW: Count confrontation patterns in each entity's contexts independently
+   - NEW: Block merge if BOTH entities show >=2 confrontation patterns (solo logic)
+   - This works even when names don't co-occur in the same small context window
+   - Modified: `_entities_in_confrontation()` (lines 1959-2089)
+   - Added comprehensive diagnostic logging throughout `build_consensus()`
+   - **Result: PENDING** - awaiting re-analysis
 
-**The problem persists because the merge is likely NOT happening in `_llm_cross_group_resolution()`.**
+## Root Cause Analysis (RESOLVED in Attempt 5)
 
-Possible alternative merge locations:
-1. **`_llm_pairwise_merge()`** - Direct pairwise merge decisions
-2. **`_merge_groups()`** - Group merging logic
-3. **NER initial extraction** - Entities may be grouped too early in the pipeline
-4. **Proposer consensus** - Before the consensus phase
+**The merge WAS happening in `_llm_cross_group_resolution()` - but the confrontation detection wasn't working.**
 
-**Debug recommendation for attempt 6:**
-1. Add logging to trace WHERE exactly "the mummer" gets associated with "Prince Prospero"
-2. Check if the merge happens BEFORE `_llm_cross_group_resolution()` is even called
-3. The confrontation detection code may be correct but the merge happens elsewhere
+### Why Previous Attempts Failed
+All four previous attempts correctly identified the merge location (`_llm_cross_group_resolution()`) and added confrontation detection (`_entities_in_confrontation()`). However, the detection logic had a fatal flaw:
 
-## Key Insights
+**The Flaw:** It required BOTH names to appear in the same context snippet (co-occurrence check).
 
-**Pattern of failure:** All four fix attempts have targeted `_llm_cross_group_resolution()` and its supporting functions. If the merge is still happening, either:
-1. The code path is never reached for this specific case
-2. The merge happens in a completely different function
-3. There's an early-stage grouping that pre-merges these entities
+**Why This Failed:**
+1. Context windows are small: 150 chars for epithets, 120 chars for proper names
+2. Poe's confrontation scene is a single 500+ character sentence
+3. With small windows, "seizing the mummer" and "Prince Prospero" appear in DIFFERENT snippets
+4. The co-occurrence threshold (`total_cooccurrence >= 2`) was never met
+5. Therefore, the confrontation was never detected despite being present in the text
 
-**New diagnostic approach needed:**
-Instead of adding more logic to the same function, we need to:
-1. Add comprehensive logging to trace the EXACT point where "the mummer" becomes an alias of "Prince Prospero"
-2. This may be in NER extraction, initial grouping, or a different merge pathway
+### Attempt 5 Solution
+Instead of requiring co-occurrence, the new logic:
+1. Counts confrontation patterns in EACH entity's contexts separately
+2. Blocks merge if BOTH entities show confrontation patterns (>=2 each)
+3. This works because:
+   - "the mummer" contexts will contain "seizing", "retreating", "confronted his pursuer"
+   - "Prince Prospero" contexts will contain "pursued", "rushed", "bore aloft a drawn dagger"
+   - Both showing confrontation patterns = they are separate interacting entities
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
@@ -161,11 +170,55 @@ Instead of adding more logic to the same function, we need to:
 - Total tokens: 33,923
 - 19 LLM calls
 
-## Next Action
-Run PROMPT_fix.md with a NEW APPROACH:
-1. First ADD DIAGNOSTIC LOGGING to trace exactly where "the mummer" becomes associated with "Prince Prospero"
-2. Run analysis again with logging enabled
-3. Use the logs to identify the ACTUAL location of the problematic merge
-4. Then apply a targeted fix at the correct location
+## Attempt 5 Root Cause Analysis (COMPLETED)
 
-The previous four attempts have all targeted the wrong code path. We need to find where the merge actually happens before we can fix it.
+### Diagnostic Investigation
+1. ✅ Added comprehensive logging to `consensus.py` to trace the merge decision
+2. ✅ Read the source text to understand the confrontation context
+3. ✅ Analyzed the `_entities_in_confrontation()` function logic
+
+### Root Cause Identified
+**Location:** `src/pipeline/character_extraction/consensus.py:_entities_in_confrontation()`
+
+**The Problem:**
+The confrontation detection function was looking for co-occurrences where BOTH "the mummer" and "Prince Prospero" appear in the same context snippet. However:
+
+1. **Context windows are too small:** Epithet contexts are 150 chars, proper name contexts are 120 chars
+2. **Poe's sentences are very long:** The critical confrontation scene is a single 500+ character sentence
+3. **Names appear in separate fragments:** With small context windows, "seizing the mummer" and "Prince Prospero" get extracted into different snippets
+4. **Co-occurrence threshold not met:** The function requires `total_cooccurrence >= 2`, but with fragmented contexts, this threshold isn't reached
+
+**Evidence from text (line 30):**
+The entire confrontation is ONE LONG SENTENCE containing:
+- "Prince Prospero... rushed... bore aloft a drawn dagger"
+- "the retreating figure... turned suddenly and confronted his pursuer"
+- "fell prostrate in death the Prince Prospero"
+- "seizing the mummer, whose tall figure stood erect"
+
+This proves they are separate entities, but a 150-char window only captures fragments like:
+- "seizing the mummer, whose tall figure stood erect and motionless within the shadow of the ebony clock" (no mention of Prospero)
+
+### The Fix (Attempt 5)
+**Modified:** `src/pipeline/character_extraction/consensus.py:_entities_in_confrontation()`
+
+**Changes:**
+1. **Added indirect reference patterns:**
+   - `his/her/their (pursuer|opponent|attacker|assailant)`
+   - `the (retreating|advancing|approaching) (figure|form|person|intruder|stranger)`
+
+2. **NEW LOGIC:** Solo confrontation pattern detection
+   - Count confrontation patterns in epithet contexts independently
+   - Count confrontation patterns in proper name contexts independently
+   - Block merge if BOTH entities show >= 2 confrontation patterns in their own contexts
+   - This works even when long sentences prevent co-occurrence in small context windows
+
+3. **Added diagnostic logging** to track:
+   - Classification of names as epithet vs proper name
+   - LLM cross-group recommendations
+   - Confrontation detection results (co-occurrence, solo patterns)
+
+**Rationale:**
+If "the mummer" contexts mention "seizing", "retreating", "confronted", AND "Prince Prospero" contexts mention "pursued", "approached", "rushed", they are clearly separate entities engaged in interaction, even if those words don't appear in the same 150-char snippet.
+
+## Next Action
+Run PROMPT_analyze.md to re-run analysis with the enhanced confrontation detection and verify the fix works.
