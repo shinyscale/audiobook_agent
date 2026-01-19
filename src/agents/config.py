@@ -69,7 +69,7 @@ class PipelineTuningConfig:
 
     # Character extraction - LLM chunk size and mention context window (characters)
     character_llm_chunk_chars: int = 8000
-    character_mention_context_chars: int = 100
+    character_mention_context_chars: int = 200  # Increased from 100 to capture multi-entity scenes (e.g., death/confrontation)
 
     # Chapter summaries - chunk sizes in words
     summary_chunk_words: int = 2500
