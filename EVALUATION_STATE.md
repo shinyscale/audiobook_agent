@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -183,6 +183,14 @@ See previous EVALUATION_STATE.md entries and git history.
 - Total tokens: 35,432
 - Result: 2 characters with wrong merge ("Prospero" as alias of "the mummer")
 
+## Pipeline Notes (Attempt 17)
+- Analysis completed in 8m 17s
+- Character extraction: 5m 15s (63.3% of time)
+- Total tokens: 35,471
+- Result: SAME ISSUE - 2 characters with wrong merge ("Prospero" as alias of "the mummer")
+- Characters found: "the Prince Prospero" (3 mentions), "the mummer (aka Prospero)" (4 mentions)
+- **CRITICAL: The substring pre-merge fix did NOT work as expected**
+
 ## Key Insight
 
 The summary pipeline CORRECTLY identifies the characters as separate:
@@ -191,4 +199,4 @@ The summary pipeline CORRECTLY identifies the characters as separate:
 But the character extraction pipeline makes the wrong merge decision. This suggests the summarization has better context or instructions than the character pairwise merge logic.
 
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify Attempt 17 fix
+Evaluation phase (PROMPT_evaluate.md) - need to understand why substring pre-merge didn't work
