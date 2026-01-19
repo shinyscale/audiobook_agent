@@ -3,195 +3,173 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 16
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.75
 
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 3/10 ← CRITICAL FAILURE
-- Character Profiles: 6/10
+- Character Extraction: 3/10 ← CRITICAL FAILURE (same as attempt 15)
+- Character Profiles: 5/10 (regression from 6)
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 6.85/10** (threshold: 8.0)
+- **Overall: 6.70/10** (threshold: 8.0)
 
 ## Score Delta from Baseline (Attempt 1)
 - Structure: 10 -> 10 (unchanged)
 - Characters: 5 -> 3 (**-2 REGRESSION** from attempt 1)
-- Profiles: 2 -> 6 (+4 improvement)
+- Profiles: 2 -> 5 (+3 improvement from baseline, -1 from attempt 15)
 - Summaries: 9 -> 9 (unchanged)
 - Pronunciation: 5 -> 6 (+1 improvement)
 - Presentation: 9 -> 8 (-1 regression)
-- **Overall: 6.75 -> 6.85 (+0.10 slight improvement)**
+- **Overall: 6.75 -> 6.70 (-0.05 slight regression)**
 
-## Attempt 15 Result: FAILED
+## Attempt 16 Result: FAILED
 
 ### What Was Tried
-Increased `max_chars` in pairwise context formatting (consensus.py:991-994):
-- Ambiguous names: 200 → 300 chars
-- Non-ambiguous: 160 → 250 chars
+POST-PROCESSING character split based on death evidence (src/agents/characters.py:332-481):
+- Added `_split_on_death_evidence()` method to CharacterAgent
+- Scans merged character's mention contexts for death patterns
+- If two names within one character appear in death relationship, should split them
 
 ### Result
-**FAILED** - Smoke test showed 2 separate characters, but full analysis still merged them:
-- Smoke test (12m 3s): 2 characters detected separately
-- Full analysis (7m 45s): 1 character with "the mummer" as alias of "Prince Prospero"
+**FAILED** - The split function was added but DID NOT TRIGGER despite correct conditions:
+- "the mummer" character has alias "Prospero" (len(aliases) > 0)
+- Death patterns exist in text: "fell prostrate in death the Prince Prospero"
+- Pipeline log shows: "STILL ONLY 2 CHARACTERS" with merge still present
 
-### Why It Failed
-The context window increase was not sufficient. The merge is happening at a level that context alone cannot fix. Possible reasons:
-1. The LLM is still deciding these are the same character despite having the death scene context
-2. The pairwise decision is influenced by other factors (scene proximity, masquerade setting)
-3. The merge may be happening earlier in the pipeline (initial extraction or heuristics)
+### Why It Failed - ROOT CAUSE IDENTIFIED
+
+After code analysis, the post-processing split has **TWO BUGS**:
+
+**Bug 1: Mention contexts don't contain death scene**
+The Character object only stores 4 mentions with limited context windows (~100 chars each). The death scene context "fell prostrate in death the Prince Prospero" may not be captured in any of the stored mention contexts for "the mummer" character.
+
+**Bug 2: Pattern matching is looking in the wrong direction**
+The current output shows:
+- Canonical name: "the mummer"
+- Alias: "Prospero"
+
+The death pattern "fell prostrate in death the Prince Prospero" matches "Prospero" (the death victim).
+But "the mummer" doesn't appear in that same death context window because:
+- The mummer is the KILLER, not the victim
+- The text says: "seizing the mummer... Prince Prospero... fell prostrate in death"
+- These may be in different mention contexts
+
+**Bug 3: The fundamental merge decision is backwards**
+The REAL problem: "Prospero" should be an alias of "Prince Prospero", NOT "the mummer".
+The LLM is making the wrong merge decision because:
+- Both "Prospero" and "the mummer" appear in the climactic confrontation scene
+- The LLM may be confused by the masquerade setting (costumes, mummers)
+- The context doesn't clearly distinguish that Prospero is the HUMAN and the mummer is DEATH
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False character merge: "the mummer" merged with Prince Prospero**
-   - Problem: "the mummer" is listed as an alias of Prince Prospero, but it refers to the Red Death personification - THE MAIN ANTAGONIST
-   - Evidence from text:
-     - "seizing the mummer, whose tall figure stood erect and motionless within the shadow of the ebony clock"
-     - "fell prostrate in death the Prince Prospero" (Prospero DIES after confronting the mummer)
-     - The mummer is "dressed as the Red Death itself, draped in grave-cloths"
-     - When unmasked, the figure is "untenanted by any tangible form" (not a person at all)
-   - Impact: The main antagonist is merged with the protagonist (-2 point character score minimum)
-   - **FIFTEEN attempts have now failed to fix this issue**
-   - **Status:** Context windows, prompt rules, death detection functions - NONE have worked
+1. **False character merge: "Prospero" merged with "the mummer" instead of "Prince Prospero"**
+   - Problem: "Prospero" (short for Prince Prospero) is incorrectly listed as an alias of "the mummer" (the Red Death)
+   - Evidence: The text clearly shows Prince Prospero is KILLED BY the mummer: "fell prostrate in death the Prince Prospero"
+   - Root Cause: The pairwise merge decision is comparing:
+     - "Prospero" (4 mentions, standalone uses)
+     - "the mummer" (3 mentions)
+     - And deciding they're the same person (WRONG)
+   - Meanwhile "Prince Prospero" (3 mentions) is kept separate
+   - Impact: Protagonist and antagonist are merged (-4 points to character score)
 
-2. **Missing character: The Red Death / Masked Figure**
-   - Problem: The antagonist of the story should be its own character entry
-   - Aliases that should be grouped together:
-     - "the figure" / "the masked figure"
-     - "the stranger"
-     - "the intruder"
-     - "the mummer"
-     - "the Red Death" (personification)
-   - Evidence: Chapter summary CORRECTLY identifies two characters but character extraction merges them
-   - Impact: Major character missing from analysis
+2. **POST-PROCESSING fix didn't trigger**
+   - The `_split_on_death_evidence()` function exists but didn't split the characters
+   - Likely because: mention contexts don't include the death scene OR pattern matching failed
+   - Need: Add logging to see why split wasn't triggered, or add full-text scanning
 
 ### HIGH
-3. **Missing alias: "the duke" for Prince Prospero**
-   - Problem: Text uses "the duke" to refer to Prospero: "The tastes of the duke were peculiar"
-   - Location: Alias detection
+3. **Missing character: The Red Death as distinct entity**
+   - "the mummer" should have aliases: "the figure", "the masked figure", "the stranger", "the intruder"
+   - These are all references to the supernatural antagonist
+   - Currently these may be lost or not detected
+
+4. **Inconsistent mention counts**
+   - "Prince Prospero" has 3 mentions but "Prospero" appears 18 times (from pronunciation data)
+   - Suggests counting/grouping issues in the pipeline
 
 ### MEDIUM
-4. **Canonical name format includes leading article**
-   - Problem: Character name is "the Prince Prospero" instead of "Prince Prospero"
-   - Location: Character name normalization
+5. **Empty character profiles**
+   - Both characters have null for appearance, personality, voice_guidance
+   - Should at least have basic descriptions from the text
 
-5. **Too many common words in pronunciation guide (35-40% false positives)**
-   - Problem: Common words like "dauntless", "chiming", "magnificence", "casements", "buffoons", "glaringly" are flagged
-   - Count: ~25-30 of 73 entries are false positives
-   - Location: Pronunciation flagging threshold or common word filter
+6. **Canonical name format: "the Prince Prospero" should be "Prince Prospero"**
+   - Leading article should be stripped for proper nouns
 
-6. **Foreign word false positive: "decorum"**
-   - Problem: "decorum" flagged as foreign word - it's standard English (Latin-derived but fully assimilated)
-   - Location: Foreign word detection
+7. **Pronunciation false positives (~35-40%)**
+   - Common English words like "dauntless", "chiming", "magnificence" flagged
+   - "decorum" marked as "foreign" but is standard English
 
-## Root Cause Analysis: Summary After 15 Attempts
+## Recommended Next Approach (Attempt 17)
 
-### The Core Problem
-The LLM decides "the mummer" = "Prince Prospero" despite all fixes. 15 different approaches have been tried at various pipeline stages, and NONE have worked.
+### Priority 1: FIX THE MERGE DECISION ITSELF
 
-### Key Observation
-The chapter summary pipeline CORRECTLY identifies them as separate:
-> "Prince Prospero... pursues the figure through the chambers with a dagger, only to collapse dead upon confronting it in the black room"
+The fundamental problem is the LLM is merging "Prospero" with "the mummer" instead of with "Prince Prospero".
 
-But the character extraction pipeline merges them. This suggests:
-1. The summary agent has different/better context
-2. The character extraction pairwise decision is the bottleneck
-3. The merge decision is made with incomplete reasoning
+**Option A: Pre-merge heuristic rule**
+Add a rule BEFORE pairwise decisions:
+- If name A is a substring of name B (e.g., "Prospero" in "Prince Prospero"), prefer merging A with B
+- "Prospero" should merge with "Prince Prospero" (substring match) NOT "the mummer" (no name overlap)
 
-### What Has Been Tried (All Failed)
-| Attempt | Fix Applied | Result |
-|---------|-------------|--------|
-| 1 | Cross-group epithet resolution | No effect |
-| 2 | Proper name with article classification | Caused regression |
-| 3 | CRITICAL RULE #5 about confrontation in prompt | No effect |
-| 4 | `_entities_in_confrontation()` function | No effect |
-| 5 | Solo pattern matching for confrontation | No effect |
-| 6 | (Evaluation only) | No effect |
-| 7 | Context window 150/120 -> 400 chars | No effect |
-| 8 | Hard-coded death relationship detection | No effect |
-| 9 | Context windows 600-800, death rule #6 | No effect |
-| 10 | Death detection check ALL contexts | No effect |
-| 11 | mention_context_chars 100 -> 200 | +0.15 score, merge still occurs |
-| 12 | mention_context_chars 200 -> 250 | Works on small model, FAILS on production |
-| 13 | Enhanced death relationship detection | Never called - merge happens earlier |
-| 14 | Death/confrontation rules in pairwise prompt | No effect |
-| 15 | Pairwise context max_chars 160/200 -> 250/300 | Smoke test passed, full analysis failed |
+Location: `src/pipeline/character_extraction/consensus.py` - add pre-merge grouping
 
-## Recommended Next Approach (Attempt 16)
+**Option B: Epithet vs proper name distinction**
+"the mummer" starts with "the" (epithet/descriptor pattern)
+"Prospero" is a proper name without article
+These should NOT be merged by default without strong evidence
 
-### Priority 1: POST-PROCESSING SPLIT Based on Death Evidence
-Since every pre-merge approach has failed, implement a POST-PROCESSING step:
+Location: Add classification in proposer or validation stages
 
-1. After character extraction completes, scan the merged character's evidence/contexts
-2. Look for patterns indicating A kills B or A dies confronting B:
-   - "fell prostrate in death the [NAME]"
-   - "collapsed dead"
-   - "pursued... then died"
-3. If two names within a single character entry appear in a death relationship:
-   - SPLIT them into separate characters
-   - Move relevant contexts to each
+### Priority 2: Add logging to death evidence split
 
-This is a REMEDIATION approach that works AFTER the LLM has made its (wrong) decision.
+Add detailed logging to `_split_on_death_evidence()` to understand why it's not triggering:
+- Log all mention contexts being scanned
+- Log pattern matches found
+- Log why split wasn't performed
 
-### Priority 2: Compare Character List Against Summary
-The summary correctly identifies "Prince Prospero" and "the masked figure (Red Death)" as separate. Use this:
+### Priority 3: Full-text death scanning (backup)
 
-1. Parse `characters_present` from chapter summaries
-2. If summaries identify entities not in the final character list, flag potential false merges
-3. If a character in summaries is listed as an alias in extraction, investigate splitting
-
-### Priority 3: Force Split for Supernatural Entities
-Add a rule: if an entity is described as "untenanted by any tangible form" or similar supernatural descriptors, it CANNOT be an alias of a human character.
+If mention contexts don't contain death evidence, scan the FULL TEXT:
+- Load the original text
+- Find death patterns
+- Extract character names from death scenes
+- Force split if death relationship found
 
 ### What NOT to Try Again
-- Context window adjustments (attempts 7-15 proved these don't help significantly)
-- Prompt-based rules alone (attempts 3, 14 proved these don't help)
-- Death detection functions that rely on LLM decision (attempts 4-5, 8-10, 13)
-- Pre-merge heuristics (the LLM overrides them)
+- Context window adjustments alone (attempts 7-15 proved insufficient)
+- Prompt-based rules (attempts 3, 14 ineffective)
+- Post-processing without fixing the root merge decision
 
 ## Fix History
 
-### Attempts 1-14
+### Attempts 1-15
 See previous EVALUATION_STATE.md entries and git history.
 
-### Attempt 15
-- **Change:** Increased pairwise context max_chars from 160/200 to 250/300 (consensus.py:991-994)
-- **Root Cause Hypothesis:** Death scene evidence (~221 chars) was being truncated before reaching LLM
-- **Smoke Test:** PASS - 2 separate characters detected ("Prince Prospero" and "the mummer")
-- **Full Analysis:** FAIL - Characters still merged
-- **Files Modified:** src/pipeline/character_extraction/consensus.py
-- **Conclusion:** Context window increase alone is not sufficient; smoke test vs full analysis discrepancy suggests model behavior variance or other pipeline factors
-
 ### Attempt 16
-- **Change:** POST-PROCESSING character split based on death evidence (src/agents/characters.py:142, 332-468)
-- **Root Cause:** After 15 failed attempts to fix pre-merge logic, LLM consistently makes wrong merge decision despite all context improvements. The ONLY remaining option is post-processing remediation.
-- **Root Cause Location:**
-  - Symptom: "the mummer" appears as alias of "Prince Prospero" in output
-  - Originates: `CharacterConsensusBuilder.build_consensus()` in consensus.py - LLM pairwise merge decision
-  - Fix applied: POST-PROCESSING in `CharacterAgent.run()` after consensus completes
-- **Implementation:**
-  - Added `_split_on_death_evidence()` method to CharacterAgent
-  - Scans each character's mention contexts for death patterns (e.g., "fell prostrate in death the [NAME]")
-  - If two names within one character appear in death relationship contexts, splits them into separate characters
-  - Patterns checked: "died", "collapsed dead", "fell prostrate in death", "confronting [X]"
-  - Uses 300-char context window around death patterns to check for both names
-- **Smoke Test:** Syntax validated (python -m py_compile passes)
-- **Files Modified:** src/agents/characters.py
-- **Next:** Run full analysis to verify split occurs and characters remain separate
+- **Change:** POST-PROCESSING character split based on death evidence
+- **Files Modified:** src/agents/characters.py (lines 332-481)
+- **Result:** FAILED - Split function didn't trigger
+- **Root Cause:** Mention contexts don't contain death scene; fundamental merge is wrong (Prospero->mummer instead of Prospero->Prince Prospero)
 
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
-- Directory: output/Masque of the Red Death - Poe_20260119_050220
 
 ## Pipeline Notes (Attempt 16)
-- Analysis completed successfully in 7m 37s
+- Analysis completed in 7m 27s
+- Character extraction: 5m 19s (69.7% of time)
 - Total tokens: 35,432
-- Character extraction bottleneck: 69.7% of time (5m 19s)
-- Result: **STILL ONLY 2 CHARACTERS** with "the mummer (aka Prospero)" - post-processing split did NOT execute
-- Output shows: "the mummer (aka Prospero) - 4 mentions" indicating alias merge still present
+- Result: 2 characters with wrong merge ("Prospero" as alias of "the mummer")
+
+## Key Insight
+
+The summary pipeline CORRECTLY identifies the characters as separate:
+> "Prince Prospero... pursues the figure through the chambers with a dagger, only to collapse dead upon confronting it"
+
+But the character extraction pipeline makes the wrong merge decision. This suggests the summarization has better context or instructions than the character pairwise merge logic.
 
 ## Next Action
-Run PROMPT_evaluate.md - Attempt 16 FAILED, need to investigate why post-processing split wasn't triggered
+Run PROMPT_fix.md - Implement pre-merge substring matching to fix "Prospero" -> "Prince Prospero" grouping
