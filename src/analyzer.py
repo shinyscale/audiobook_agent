@@ -1110,7 +1110,7 @@ class AudiobookAnalyzer:
                         logger.warning(f"F3: Moral valence classification failed for {char.canonical_name}: {e}")
 
                     # Generate profile with enhanced context
-                    profile, evidence, confidence = self._generate_character_profile(
+                    profile, evidence, confidence, appearance, personality, voice_guidance = self._generate_character_profile(
                         llm, char, doc.text,
                         chapter_map=chapter_map,
                         summary_evidence=summary_evidence,
@@ -1124,6 +1124,11 @@ class AudiobookAnalyzer:
                         # Store evidence in character
                         char.profile_evidence = evidence
                         char.profile_confidence = confidence
+
+                        # Store structured profile fields (F8: Simplified Character Output)
+                        char.appearance = appearance
+                        char.personality = personality
+                        char.voice_guidance = voice_guidance
 
                         # Track confidence distribution
                         if confidence >= 0.7:
@@ -1459,7 +1464,7 @@ class AudiobookAnalyzer:
         chapter_map: Optional["ChapterMap"] = None,
         summary_evidence: Optional["CharacterSummaryEvidence"] = None,
         moral_valence: Optional["MoralValenceResult"] = None,
-    ) -> tuple[str, list[dict], float]:
+    ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict]]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
         Args:
@@ -1471,9 +1476,12 @@ class AudiobookAnalyzer:
             moral_valence: F3 - Moral valence classification result (optional)
 
         Returns:
-            tuple: (profile_text, evidence_list, confidence_score)
+            tuple: (profile_text, evidence_list, confidence_score, appearance, personality, voice_guidance)
                 evidence_list: List of dicts with 'statement', 'quote', 'position'
                 confidence_score: 0.0-1.0 based on evidence quality
+                appearance: Dict with appearance data or None
+                personality: Dict with personality data or None
+                voice_guidance: Dict with voice guidance data or None
         """
         import json
         import re
@@ -1570,7 +1578,7 @@ class AudiobookAnalyzer:
 
         if not contexts:
             logger.warning(f"No context available for {character.canonical_name}")
-            return "", [], 0.0
+            return "", [], 0.0, None, None, None
 
         context_text = "\n\n".join([
             f"[Context {i+1}, Chapter {c['chapter']}, Position {c['position']}]:\n{c['text']}"
@@ -1629,19 +1637,43 @@ Return a JSON response matching this example format exactly:
 
 ```json
 {{
-  "profile": "IMPORTANT: This must be PLAIN TEXT, not JSON. A brief 2-3 sentence description of the character based on provided evidence. The character is introduced as a young professional who recently moved to the area. They maintain close family connections and serve as an observer of unfolding events.",
+  "profile": "A brief 2-3 sentence overview based on provided evidence.",
+  "appearance": {{
+    "summary": "Brief physical description if available from text",
+    "age_indication": "young/middle-aged/elderly/unknown",
+    "distinguishing_features": ["feature1", "feature2"]
+  }},
+  "personality": {{
+    "summary": "Brief personality summary",
+    "traits": ["trait1", "trait2"],
+    "temperament": "calm/volatile/melancholic/cheerful/etc or unknown",
+    "emotional_range": "Brief note on emotional expression"
+  }},
+  "voice_guidance": {{
+    "suggested_tone": "authoritative/gentle/aggressive/etc based on dialogue",
+    "dialect_notes": "Any accent, regional speech, or class markers",
+    "verbal_tics": ["repeated phrase", "speech pattern"],
+    "formality_level": "formal/informal/moderate",
+    "example_quotes": ["quote1", "quote2"]
+  }},
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
-    {{"statement": "Has family in the area", "quote": "My cousin lived just across the bay", "position": 2456}},
-    {{"statement": "Observes others closely", "quote": "I found myself fascinated by their gatherings", "position": 3789}}
+    {{"statement": "Has family in the area", "quote": "My cousin lived just across the bay", "position": 2456}}
   ],
   "confidence": 0.85,
-  "limitations": "The provided context doesn't reveal the character's occupation, age, or long-term intentions in the area."
+  "limitations": "What the text doesn't reveal"
 }}
 ```
 
-CRITICAL: The "profile" field must contain PLAIN TEXT only, not nested JSON structures.
-Return ONLY valid JSON matching the above structure. No other text."""
+CRITICAL INSTRUCTIONS:
+- You MUST include ALL fields in your response: profile, appearance, personality, voice_guidance, evidence, confidence, limitations
+- If information is not available in the text, use "unknown" or empty arrays [] for that field
+- Do NOT omit any field - every field must be present even if the value is "unknown" or []
+- Do NOT invent details - only use what's explicitly or clearly implied in the provided text
+- For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
+- For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
+- For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
+- Return ONLY valid JSON matching the above structure. No other text."""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):
@@ -1700,6 +1732,78 @@ Return ONLY valid JSON matching the above structure. No other text."""
                         evidence = result.get("evidence", [])
                         confidence = float(result.get("confidence", 0.5))
 
+                        # Extract structured fields (F8: Simplified Character Output)
+                        appearance = result.get("appearance")
+                        personality = result.get("personality")
+                        voice_guidance = result.get("voice_guidance")
+
+                        # Debug logging
+                        logger.info(
+                            f"Profile generation for {character.canonical_name}: "
+                            f"keys={list(result.keys())}, "
+                            f"appearance={'present' if appearance else 'missing'}, "
+                            f"personality={'present' if personality else 'missing'}, "
+                            f"voice_guidance={'present' if voice_guidance else 'missing'}"
+                        )
+
+                        # Clean up "unknown" values to maintain consistency
+                        def _clean_dict(d):
+                            if not isinstance(d, dict):
+                                return None
+                            # Remove keys with "unknown" values or empty arrays
+                            cleaned = {}
+                            for k, v in d.items():
+                                if v == "unknown" or v == [] or v == "":
+                                    continue
+                                if isinstance(v, list) and all(x == "unknown" or x == "" for x in v):
+                                    continue
+                                cleaned[k] = v
+                            return cleaned if cleaned else None
+
+                        appearance = _clean_dict(appearance)
+                        personality = _clean_dict(personality)
+                        voice_guidance = _clean_dict(voice_guidance)
+
+                        # Fallback: If LLM didn't provide structured fields, attempt to structure the profile text
+                        if not appearance and not personality and not voice_guidance and profile:
+                            logger.warning(
+                                f"Structured fields missing for {character.canonical_name}, "
+                                f"attempting to structure profile text via secondary LLM call"
+                            )
+                            # Use LLM to structure the existing profile text
+                            structuring_prompt = f"""The following character profile needs to be organized into structured fields.
+Extract information into the specified categories. Only use information explicitly present in the profile.
+
+Profile text:
+{profile}
+
+Return a JSON object with these fields:
+{{
+  "appearance": {{"summary": "Physical description if mentioned", "age_indication": "age if mentioned", "distinguishing_features": []}},
+  "personality": {{"summary": "Personality traits and behavior", "traits": ["trait1", "trait2"], "temperament": "overall temperament"}},
+  "voice_guidance": {{"suggested_tone": "tone based on character's manner", "formality_level": "formal/informal/moderate"}}
+}}
+
+If a category has no information in the profile, use "unknown" or [] for that field.
+Return ONLY the JSON object."""
+
+                            try:
+                                struct_response = llm.query(structuring_prompt, system="You are a helpful assistant that structures character information.")
+                                if struct_response.success:
+                                    struct_content = struct_response.content.strip()
+                                    if "```json" in struct_content:
+                                        struct_content = struct_content.split("```json")[1].split("```")[0].strip()
+                                    elif "```" in struct_content:
+                                        struct_content = struct_content.split("```")[1].split("```")[0].strip()
+
+                                    struct_result = json.loads(struct_content)
+                                    appearance = _clean_dict(struct_result.get("appearance"))
+                                    personality = _clean_dict(struct_result.get("personality"))
+                                    voice_guidance = _clean_dict(struct_result.get("voice_guidance"))
+                                    logger.warning(f"Successfully structured profile for {character.canonical_name}")
+                            except Exception as e:
+                                logger.warning(f"Failed to structure profile for {character.canonical_name}: {e}")
+
                         # Validate evidence structure
                         validated_evidence = []
                         for ev in evidence:
@@ -1716,7 +1820,7 @@ Return ONLY valid JSON matching the above structure. No other text."""
                             logger.warning(f"Profile for {character.canonical_name} lacks evidence")
                             confidence = min(confidence, 0.3)
 
-                        return profile, validated_evidence, confidence
+                        return profile, validated_evidence, confidence, appearance, personality, voice_guidance
 
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse JSON response for {character.canonical_name}: {e}")
@@ -1725,8 +1829,8 @@ Return ONLY valid JSON matching the above structure. No other text."""
                         salvaged = self._extract_text_from_malformed_json(content)
                         if salvaged:
                             logger.info(f"Salvaged profile text for {character.canonical_name}")
-                            return salvaged, [], 0.3
-                        return "", [], 0.0
+                            return salvaged, [], 0.3, None, None, None
+                        return "", [], 0.0, None, None, None
                 else:
                     # LLM returned error response
                     error_msg = getattr(response, 'error', None) or 'unknown error'
@@ -1741,7 +1845,7 @@ Return ONLY valid JSON matching the above structure. No other text."""
                             f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: "
                             f"{error_msg}"
                         )
-                        return "", [], 0.0
+                        return "", [], 0.0, None, None, None
 
             except Exception as e:
                 if attempt < max_attempts - 1:

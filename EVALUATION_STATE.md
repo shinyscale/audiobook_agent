@@ -127,6 +127,18 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Score Impact:** +0.15 overall (7.70 → 7.85)
 - **Status:** Profile generation works, but output format needs adjustment
 
+### Attempt 21 - IN PROGRESS
+- **Change:** Populate structured profile fields (appearance, personality, voice_guidance)
+- **Files Modified:** `src/analyzer.py` lines 1630-1806
+- **Root Cause:** `_generate_character_profile()` was returning profile text which was stored in legacy `descriptions` field, but never populating the structured fields added in F8
+- **Fix Details:**
+  1. Modified LLM prompt to request structured JSON with appearance/personality/voice_guidance fields
+  2. Updated return signature to include structured fields (now returns 6-tuple instead of 3-tuple)
+  3. Updated calling code (line 1113) to unpack and store structured fields on character object
+  4. Added fallback: if LLM doesn't return structured fields, use secondary LLM call to structure the profile text
+- **Smoke Test:** Code runs without errors, all 444 unit tests pass
+- **Status:** Ready for full evaluation
+
 ## Next Action
-**Phase:** awaiting_fix
-Investigate `src/analyzer.py` profile generation to ensure structured fields are populated from LLM response.
+**Phase:** awaiting_analysis
+Re-run analysis on masque_of_red_death to verify structured profile fields are now populated.
