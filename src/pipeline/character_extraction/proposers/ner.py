@@ -166,6 +166,13 @@ class NERProposer(BaseCharacterProposer):
             # Normalize name
             name = ' '.join(ent.text.split())
 
+            # Strip possessive markers ('s or s')
+            # Examples: "Montresor's" → "Montresor", "James'" → "James"
+            if name.endswith("'s"):
+                name = name[:-2]
+            elif name.endswith("'"):
+                name = name[:-1]
+
             # Skip false positives
             if not self._is_valid_name(name):
                 continue

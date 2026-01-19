@@ -169,6 +169,19 @@ class CharacterValidator:
                 reasoning=f"'{name}' is a food or beverage, not a character",
             )
 
+        # Check for plural family names (e.g., "the Montresors" referring to the family)
+        # These appear in contexts like "the Xs" or "of the Xs" where X is a surname
+        if self._is_plural_family_reference(name, proposal.mentions):
+            return CharacterValidationResult(
+                proposal=proposal,
+                is_person_score=0.0,
+                context_score=0.0,
+                alias_candidates=[],
+                overall_score=0.0,
+                is_valid=False,
+                reasoning=f"'{name}' appears to be a plural family reference, not an individual",
+            )
+
         # Reject: title only (no actual name)
         if TITLE_ONLY_PATTERN.match(name):
             return CharacterValidationResult(
@@ -270,6 +283,11 @@ class CharacterValidator:
 
             if result is None or not isinstance(result, dict):
                 error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+
+                # If LLM returned a list, log the actual content for debugging
+                if isinstance(result, list):
+                    logger.warning(f"LLM validation for '{proposal.name}' returned a list instead of object. List content: {result[:3] if len(result) > 3 else result}")
+
                 last_error = f"Invalid JSON: {error_detail}"
                 logger.warning(f"LLM validation attempt {attempt + 1} for '{proposal.name}' returned invalid JSON: {error_detail}")
                 if attempt < max_retries:
@@ -397,3 +415,54 @@ class CharacterValidator:
                 aliases.append(full_name.title())
 
         return list(set(aliases))
+
+    def _is_plural_family_reference(self, name: str, mentions: list) -> bool:
+        """
+        Detect if a name is likely a plural family reference (e.g., "the Montresors").
+
+        Checks if:
+        1. Name ends in 's' (possible plural)
+        2. Contexts show patterns like "the Xs", "of the Xs", "X family"
+        3. Not a common name ending in 's' (Charles, James, etc.)
+        """
+        # Must end in 's' to be a potential plural
+        if not name.endswith('s') or len(name) < 4:
+            return False
+
+        # Common names that legitimately end in 's'
+        # (these are NOT plural family references)
+        common_s_endings = {
+            'james', 'charles', 'thomas', 'lucas', 'nicholas', 'jonas',
+            'francis', 'silas', 'julius', 'marcus', 'atticus', 'rufus',
+            'jesus', 'moses', 'agnes', 'frances', 'gladys', 'doris',
+        }
+
+        if name.lower() in common_s_endings:
+            return False
+
+        # Check contexts for plural family patterns
+        family_pattern_count = 0
+        total_mentions = len(mentions)
+
+        for mention in mentions:
+            context = mention.context.lower()
+            name_lower = name.lower()
+
+            # Patterns indicating family reference:
+            # "the Montresors", "of the Montresors", "Montresors were", "Montresors had"
+            family_patterns = [
+                f'the {name_lower}',
+                f'of the {name_lower}',
+                f'{name_lower} were',
+                f'{name_lower} had been',
+                f'{name_lower} family',
+            ]
+
+            if any(pattern in context for pattern in family_patterns):
+                family_pattern_count += 1
+
+        # If >50% of mentions show family patterns, likely a plural reference
+        if total_mentions > 0 and family_pattern_count / total_mentions > 0.5:
+            return True
+
+        return False

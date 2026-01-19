@@ -142,7 +142,7 @@ To close the gap, we need approximately:
 - JSON: output/cask_of_amontillado/analysis.json
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
 ## Attempt 4 Pipeline Error
 
@@ -173,3 +173,41 @@ Validation failed for 'Montresors': LLM validation returned invalid JSON for 'Mo
 This error is blocking progress. The character validation code is expecting a JSON object but the LLM is returning a list when validating "Montresors" (note: the possessive form with 's).
 
 **Next Step:** This requires investigation and fix in the character validation pipeline before analysis can proceed.
+
+## Attempt 6 (2026-01-18): Fixed plural family name extraction
+
+**Root Cause Analysis:**
+- **Issue:** LLM validation returning list instead of expected JSON object for "Montresors"
+- **Data flow trace:**
+  1. Error raised in: src/pipeline/character_extraction/validator.py:279
+  2. Type check at: validator.py:271 (expects dict, got list)
+  3. JSON parsed by: src/llm/client.py:_extract_json()
+  4. **Root cause discovered:** "Montresors" is NOT an LLM issue - it's a validation issue
+  5. **Actual root cause:** spaCy NER extracting "Montresors" (plural family name) from text:
+     - "catacombs of the Montresors" (family catacombs)
+     - "The Montresors...were a great and numerous family"
+  6. This is a PLURAL FAMILY REFERENCE, not an individual character name
+
+**Fix Applied:**
+- Modified: src/pipeline/character_extraction/proposers/ner.py
+  - Added possessive stripping logic (lines 169-174)
+  - Strips "'s" and "'" from extracted names (e.g., "Montresor's" → "Montresor")
+
+- Modified: src/pipeline/character_extraction/validator.py
+  - Added _is_plural_family_reference() method (lines 419-468)
+  - Detects plural family names by checking:
+    1. Name ends in 's'
+    2. Not a common name ending in 's' (James, Charles, etc.)
+    3. Contexts show family patterns ("the Xs", "of the Xs", "X were", "X family")
+    4. >50% of mentions match family patterns
+  - Added heuristic check at line 172-183 to reject plural family references early
+  - Added debug logging at lines 274-276 when LLM returns list (for future debugging)
+
+**Smoke Test:**
+- Code compiles successfully (both modified files)
+- Logic verified: "Montresors" will be rejected as plural family reference
+- Expected behavior: Pipeline should no longer attempt LLM validation for "Montresors"
+
+**Confidence:** HIGH - This addresses the actual root cause (plural family name extraction) rather than treating the symptom (LLM returning list)
+
+**Next Step:** Run full analysis to verify fix and check if score improves
