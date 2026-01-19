@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -163,6 +163,14 @@ If "the mummer" is being classified as a proper name:
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
+- Directory: output/Masque of the Red Death - Poe_20260119_041724
+
+## Pipeline Notes (Attempt 14)
+- Analysis completed successfully in 7m 55s
+- Total tokens: 40,255
+- Character extraction bottleneck: 65% of time (5m9s)
+- Result: Still only 1 character detected with "the mummer" listed as an alias of "Prince Prospero"
+- The fix applied to pairwise alias prompts did NOT resolve the merge issue
 
 ## Next Action
 Re-run analysis (PROMPT_analyze.md) to verify the fix resolves the character merge issue
