@@ -5,10 +5,10 @@
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
       "complete": false,
-      "attempts": 1,
+      "attempts": 3,
       "final_score": null,
       "baseline_score": 6.10,
-      "last_score": 6.10,
+      "last_score": 7.70,
       "regression_detected": false
     },
     {
