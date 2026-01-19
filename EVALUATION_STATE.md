@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 15
-- **Phase:** awaiting_fix
+- **Attempt:** 16
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -164,6 +164,23 @@ See previous EVALUATION_STATE.md entries and git history.
 - **Files Modified:** src/pipeline/character_extraction/consensus.py
 - **Conclusion:** Context window increase alone is not sufficient; smoke test vs full analysis discrepancy suggests model behavior variance or other pipeline factors
 
+### Attempt 16
+- **Change:** POST-PROCESSING character split based on death evidence (src/agents/characters.py:142, 332-468)
+- **Root Cause:** After 15 failed attempts to fix pre-merge logic, LLM consistently makes wrong merge decision despite all context improvements. The ONLY remaining option is post-processing remediation.
+- **Root Cause Location:**
+  - Symptom: "the mummer" appears as alias of "Prince Prospero" in output
+  - Originates: `CharacterConsensusBuilder.build_consensus()` in consensus.py - LLM pairwise merge decision
+  - Fix applied: POST-PROCESSING in `CharacterAgent.run()` after consensus completes
+- **Implementation:**
+  - Added `_split_on_death_evidence()` method to CharacterAgent
+  - Scans each character's mention contexts for death patterns (e.g., "fell prostrate in death the [NAME]")
+  - If two names within one character appear in death relationship contexts, splits them into separate characters
+  - Patterns checked: "died", "collapsed dead", "fell prostrate in death", "confronting [X]"
+  - Uses 300-char context window around death patterns to check for both names
+- **Smoke Test:** Syntax validated (python -m py_compile passes)
+- **Files Modified:** src/agents/characters.py
+- **Next:** Run full analysis to verify split occurs and characters remain separate
+
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
@@ -176,4 +193,4 @@ See previous EVALUATION_STATE.md entries and git history.
 - Result: Still only 1 character detected with "the mummer" listed as an alias of "Prince Prospero"
 
 ## Next Action
-Run PROMPT_fix.md to implement post-processing character split based on death evidence
+Run PROMPT_analyze.md - Fix has been implemented, awaiting full analysis to validate

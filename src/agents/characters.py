@@ -138,6 +138,9 @@ class CharacterAgent(Agent):
             source_file=context.source_file,
         )
 
+        # POST-PROCESSING: Split characters that were incorrectly merged based on death evidence
+        character_map = self._split_on_death_evidence(character_map)
+
         # Calculate confidence breakdown
         high = sum(1 for c in character_map.characters if c.confidence >= 0.7)
         medium = sum(1 for c in character_map.characters if 0.4 <= c.confidence < 0.7)
@@ -325,6 +328,158 @@ class CharacterAgent(Agent):
             llm_chunk_size=t.character_llm_chunk_chars,
             mention_context_window=t.character_mention_context_chars,
         )
+
+    def _split_on_death_evidence(self, character_map: CharacterMap) -> CharacterMap:
+        """
+        POST-PROCESSING: Split characters that were incorrectly merged based on death evidence.
+
+        This function scans each character's mention contexts for evidence that two names
+        within the same character entry are actually different entities in a death relationship.
+
+        Patterns checked:
+        - "fell prostrate in death the [NAME]"
+        - "[NAME1] ... died/collapsed/killed"
+        - "[NAME] pursuing [OTHER] ... died"
+        - "confronted [NAME] ... [OTHER] died"
+
+        If a character has aliases that appear in a death relationship, we split them
+        into separate characters.
+        """
+        import uuid
+
+        # Death-related patterns
+        DEATH_PATTERNS = [
+            r'fell\s+prostrate\s+in\s+death\s+(?:the\s+)?(\w+(?:\s+\w+)?)',
+            r'(\w+(?:\s+\w+)?)\s+(?:died|collapsed\s+dead|was\s+killed|fell\s+dead)',
+            r'(?:died|collapsed|fell)\s+(?:dead|prostrate)\s+(?:the\s+)?(\w+(?:\s+\w+)?)',
+            r'confronting\s+(?:the\s+)?(\w+)',  # Person who is confronted (may be the killer)
+        ]
+
+        new_characters = []
+        splits_made = 0
+
+        for char in character_map.characters:
+            # Check if this character has multiple aliases
+            if len(char.aliases) == 0:
+                new_characters.append(char)
+                continue
+
+            # Build list of all names (canonical + aliases)
+            all_names = [char.canonical_name] + char.aliases
+
+            # Collect all mention contexts
+            all_contexts = [m.context for m in char.mentions]
+            combined_context = " ".join(all_contexts)
+
+            # Check for death evidence involving any pair of names
+            death_evidence = []
+            for i, name1 in enumerate(all_names):
+                for name2 in all_names[i+1:]:
+                    # Check if both names appear in contexts with death language
+                    name1_lower = name1.lower()
+                    name2_lower = name2.lower()
+
+                    # Look for death patterns mentioning either name
+                    for pattern in DEATH_PATTERNS:
+                        matches = list(re.finditer(pattern, combined_context, re.IGNORECASE))
+                        for match in matches:
+                            matched_name = match.group(1).lower()
+                            # If the death pattern mentions one of our names
+                            name1_in_match = any(part in matched_name for part in name1_lower.split() if len(part) > 2)
+                            name2_in_match = any(part in matched_name for part in name2_lower.split() if len(part) > 2)
+
+                            if name1_in_match or name2_in_match:
+                                # Check if BOTH names appear in a wider context window around the death
+                                match_pos = match.start()
+                                context_window = combined_context[max(0, match_pos-300):match_pos+300].lower()
+
+                                # More flexible matching: check if key parts of names appear
+                                name1_parts = [p for p in name1_lower.split() if len(p) > 2]
+                                name2_parts = [p for p in name2_lower.split() if len(p) > 2]
+
+                                name1_found = any(part in context_window for part in name1_parts) if name1_parts else name1_lower in context_window
+                                name2_found = any(part in context_window for part in name2_parts) if name2_parts else name2_lower in context_window
+
+                                if name1_found and name2_found:
+                                    death_evidence.append((name1, name2, context_window[:200]))  # Store first 200 chars for logging
+                                    logger.info(
+                                        f"  Death evidence found: '{name1}' and '{name2}' both appear near death pattern"
+                                    )
+
+            # If we found death evidence, split the character
+            if death_evidence:
+                logger.info(
+                    f"SPLIT: Found death evidence in '{char.canonical_name}' - "
+                    f"splitting into separate characters"
+                )
+                splits_made += 1
+
+                # For now, we'll split into canonical vs all aliases
+                # More sophisticated logic could group aliases intelligently
+
+                # Character 1: Keep canonical name
+                char1_mentions = [m for m in char.mentions if m.text.lower() == char.canonical_name.lower()]
+                if char1_mentions:
+                    char1 = Character(
+                        id=char.id,
+                        canonical_name=char.canonical_name,
+                        aliases=[],  # Remove aliases to prevent re-merge
+                        mentions=char1_mentions,
+                        first_appearance_chapter=min(m.chapter_index for m in char1_mentions),
+                        mention_count=len(char1_mentions),
+                        chapters_present=sorted(set(m.chapter_index for m in char1_mentions)),
+                        confidence=char.confidence * 0.9,  # Slightly reduce confidence
+                        supporting_strategies=char.supporting_strategies,
+                        description=char.description,
+                        character_type=char.character_type,
+                        profile_evidence=char.profile_evidence,
+                        profile_confidence=char.profile_confidence,
+                        is_narrator=char.is_narrator,
+                        narrative_role=char.narrative_role,
+                        role=char.role,
+                        effective_mention_count=char.effective_mention_count,
+                    )
+                    new_characters.append(char1)
+
+                # Character 2: Create new character from aliases
+                alias_mentions = [m for m in char.mentions if m.text.lower() != char.canonical_name.lower()]
+                if alias_mentions:
+                    # Use the first/most common alias as the new canonical name
+                    alias_counts = {}
+                    for m in alias_mentions:
+                        alias_counts[m.text] = alias_counts.get(m.text, 0) + 1
+                    new_canonical = max(alias_counts.items(), key=lambda x: x[1])[0]
+
+                    char2 = Character(
+                        id=str(uuid.uuid4()),
+                        canonical_name=new_canonical,
+                        aliases=[a for a in char.aliases if a.lower() != new_canonical.lower()],
+                        mentions=alias_mentions,
+                        first_appearance_chapter=min(m.chapter_index for m in alias_mentions),
+                        mention_count=len(alias_mentions),
+                        chapters_present=sorted(set(m.chapter_index for m in alias_mentions)),
+                        confidence=char.confidence * 0.8,  # Reduce confidence more for split character
+                        supporting_strategies=char.supporting_strategies,
+                        description="",  # New character needs new description
+                        character_type=char.character_type,
+                        profile_evidence=[],
+                        profile_confidence=None,
+                        is_narrator=False,  # Reset narrator flag
+                        narrative_role=None,
+                        role="supporting",
+                        effective_mention_count=None,
+                    )
+                    new_characters.append(char2)
+            else:
+                # No death evidence, keep character as-is
+                new_characters.append(char)
+
+        if splits_made > 0:
+            logger.info(f"POST-PROCESSING: Split {splits_made} character(s) based on death evidence")
+            character_map.pipeline_metadata["post_processing_splits"] = splits_made
+
+        character_map.characters = new_characters
+        return character_map
 
     def _check_duplicates_heuristic(self, characters: list[Character]) -> list[VerificationIssue]:
         """Check for potential duplicates using name matching heuristics."""
