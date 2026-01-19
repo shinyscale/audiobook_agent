@@ -157,7 +157,35 @@ Error during analysis: LLM validation returned invalid JSON for '--yes' after 3 
 - The proposed fix (reject names starting/ending with non-alphabetic chars) is NOT yet implemented
 - Fix needs to be applied before analysis can proceed
 
-## Next Action
-**Phase:** awaiting_fix
+## Attempt 2 Fix (2026-01-18): Reject names with leading/trailing punctuation
 
-Fix NER validation to reject names with leading/trailing punctuation as documented in Attempt 2.
+**Root Cause:**
+- Location: `src/pipeline/character_extraction/proposers/ner.py` line 237 `_is_valid_name()` function
+- Root cause: Function only checked for 50% alphabetic characters, allowing "--yes" (60% alphabetic) to pass
+- Confidence: HIGH
+
+**Changes Made:**
+- File: `src/pipeline/character_extraction/proposers/ner.py`
+- Lines 242-245: **Added** check to reject names that start or end with non-alphabetic characters
+- This filters out spaCy mis-tagged dialogue fragments like "--yes", "--he", etc.
+
+**Smoke Test Results (PASS):**
+```
+✓ "--yes"    rejected (expected: reject)
+✓ "yes--"    rejected (expected: reject)
+✓ "--he"     rejected (expected: reject)
+✓ "Montresor" accepted (expected: accept)
+✓ "Fortunato" accepted (expected: accept)
+```
+
+**Full Test Suite: PASSED**
+- 444 tests passed, 11 skipped, 1 warning
+- No regressions introduced
+
+**Issue Addressed:**
+- ✅ Pipeline failure: NER extracting invalid character name "--yes"
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify the fix allows the pipeline to complete successfully.

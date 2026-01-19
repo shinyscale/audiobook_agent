@@ -239,6 +239,11 @@ class NERProposer(BaseCharacterProposer):
         if len(name) < 2:
             return False
 
+        # Reject names that start or end with non-alphabetic characters
+        # This filters out spaCy mis-tags like "--yes" from dialogue
+        if not name[0].isalpha() or not name[-1].isalpha():
+            return False
+
         # Check against false positives
         name_lower = name.lower()
         if name_lower in FALSE_POSITIVE_NAMES:
