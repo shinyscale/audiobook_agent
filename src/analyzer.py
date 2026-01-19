@@ -1747,19 +1747,12 @@ Return ONLY valid JSON matching the above structure. No other text."""
         """
         Detect if this is a first-person narrative and identify the narrator.
 
-        Uses a hybrid approach:
-        1. Direct address detection - find patterns like "Name!" in dialogue
-           where another character addresses the narrator
-        2. LLM fallback - ask "who is the I?" if no direct address found
-
-        This replaces the flawed pronoun density algorithm which incorrectly
-        identified objects (like "Amontillado" wine) as narrators.
+        Uses per-character pronoun density scoring to identify which character
+        is actually speaking in first person, not just mention count.
 
         Returns:
             Name of narrator character if detected, None otherwise
         """
-        import re
-
         # Sample text from beginning (first 5000 chars)
         sample_text = full_text[:5000]
 
@@ -1773,105 +1766,71 @@ Return ONLY valid JSON matching the above structure. No other text."""
         if first_person_count > 15:  # Threshold for first-person narrative
             logger.info(f"First-person narrative detected ({first_person_count} pronouns in opening)")
 
-            # Build character name set for matching
-            char_names = set()
-            char_name_to_obj = {}
+            # NEW: Calculate per-character first-person pronoun scores
+            # Check which character's contexts contain first-person pronouns
+            character_scores = []
+
             for char in characters:
-                char_names.add(char.canonical_name)
-                char_name_to_obj[char.canonical_name.lower()] = char
-                for alias in getattr(char, 'aliases', []):
-                    char_names.add(alias)
-                    char_name_to_obj[alias.lower()] = char
+                if not hasattr(char, 'mentions') or not char.mentions:
+                    continue
 
-            # STEP 1: Direct address detection
-            # Find patterns like: "Name!" or "For the love of God, Name!" in dialogue
-            # These patterns indicate someone addressing the narrator directly
-            # Weight exclamatory addresses higher - they're stronger narrator signals
-            direct_address_patterns = [
-                # Exclamatory direct address: "Montresor!" or "For the love of God, Montresor!"
-                # Weight: 3 - Strong signal that this person is being called out to
-                (r'[,!?]\s*([A-Z][a-z]+)!', 3),
-                # Direct call in dialogue: '"Name," he said' - ambiguous, could be narrator speaking
-                # Weight: 1
-                (r'"([A-Z][a-z]+),"', 1),
-            ]
-            # Note: Removed "my dear Name" pattern - this is usually the NARRATOR addressing someone,
-            # not the narrator being addressed
+                # Sample up to 10 mentions per character
+                sampled_mentions = char.mentions[:10]
 
-            direct_address_candidates = {}
-            for pattern, weight in direct_address_patterns:
-                for match in re.finditer(pattern, full_text):
-                    name = match.group(1)
-                    if name.lower() in char_name_to_obj:
-                        direct_address_candidates[name.lower()] = direct_address_candidates.get(name.lower(), 0) + weight
-                        logger.debug(f"Direct address found: '{name}' at position {match.start()} (weight={weight})")
+                # Count first-person pronouns in context around each mention
+                pronoun_count = 0
+                total_context_length = 0
 
-            if direct_address_candidates:
-                # Find the name most frequently addressed directly
-                best_candidate = max(direct_address_candidates.items(), key=lambda x: x[1])
-                narrator_name = best_candidate[0]
-                narrator_char = char_name_to_obj.get(narrator_name)
+                for mention in sampled_mentions:
+                    # Get context window around mention (±200 chars)
+                    start = max(0, mention.position - 200)
+                    end = min(len(full_text), mention.position + 200)
+                    context = full_text[start:end]
 
-                if narrator_char:
-                    narrator_char.is_narrator = True
-                    narrator_char.narrative_role = "First-person narrator"
-                    logger.info(
-                        f"Detected narrator via direct address: {narrator_char.canonical_name} "
-                        f"(addressed {best_candidate[1]} times)"
-                    )
-                    return narrator_char.canonical_name
+                    # Count pronouns in this context
+                    for pronoun in pronouns:
+                        pronoun_count += context.count(pronoun)
 
-            # STEP 2: LLM fallback - ask who the narrator is
-            logger.info("No direct address found, using LLM to identify narrator")
+                    total_context_length += len(context)
 
-            try:
-                llm_client = self._get_llm_client()
-                if llm_client:
-                    # Use a sample from the beginning of the text
-                    text_sample = full_text[:3000]
+                # Calculate pronoun density (pronouns per 1000 chars)
+                if total_context_length > 0:
+                    density = (pronoun_count / total_context_length) * 1000
+                else:
+                    density = 0.0
 
-                    prompt = f"""This is a first-person narrative (the story uses "I" frequently).
+                character_scores.append({
+                    'character': char,
+                    'pronoun_count': pronoun_count,
+                    'density': density,
+                    'mention_count': char.mention_count
+                })
 
-Based on the text below, who is the "I" - the first-person narrator telling this story?
+                logger.debug(
+                    f"Narrator scoring: {char.canonical_name} - "
+                    f"{pronoun_count} pronouns in contexts, density={density:.2f}, "
+                    f"mentions={char.mention_count}"
+                )
 
-Look for clues like:
-- When other characters address the narrator by name
-- When the narrator refers to themselves
-- Context about who is telling the story
+            # Sort by pronoun density (primary) and mention count (tiebreaker)
+            character_scores.sort(key=lambda x: (x['density'], x['mention_count']), reverse=True)
 
-TEXT SAMPLE:
-{text_sample}
+            if character_scores and character_scores[0]['density'] > 5.0:
+                # Narrator should have significant first-person pronoun usage in their contexts
+                narrator = character_scores[0]['character']
+                narrator.is_narrator = True
+                narrator.narrative_role = "First-person narrator"
 
-KNOWN CHARACTERS IN THIS STORY: {', '.join(char_names)}
-
-Respond with ONLY the narrator's name (one of the characters listed above), nothing else.
-If you cannot determine the narrator, respond with "UNKNOWN"."""
-
-                    response = llm_client.generate(prompt, temperature=0.1)
-                    narrator_name = response.strip().strip('"').strip("'")
-
-                    # Match to a character
-                    if narrator_name.lower() in char_name_to_obj:
-                        narrator_char = char_name_to_obj[narrator_name.lower()]
-                        narrator_char.is_narrator = True
-                        narrator_char.narrative_role = "First-person narrator"
-                        logger.info(f"Detected narrator via LLM: {narrator_char.canonical_name}")
-                        return narrator_char.canonical_name
-                    elif narrator_name != "UNKNOWN":
-                        # Try partial match
-                        for char_name_lower, char_obj in char_name_to_obj.items():
-                            if narrator_name.lower() in char_name_lower or char_name_lower in narrator_name.lower():
-                                char_obj.is_narrator = True
-                                char_obj.narrative_role = "First-person narrator"
-                                logger.info(f"Detected narrator via LLM (partial match): {char_obj.canonical_name}")
-                                return char_obj.canonical_name
-                        logger.warning(f"LLM suggested narrator '{narrator_name}' but no matching character found")
-                    else:
-                        logger.warning("LLM could not determine the narrator")
-            except Exception as e:
-                logger.warning(f"LLM narrator detection failed: {e}")
-
-            logger.warning("First-person narrative detected but narrator could not be identified")
+                logger.info(
+                    f"Detected first-person narrator: {narrator.canonical_name} "
+                    f"(density={character_scores[0]['density']:.2f}, {narrator.mention_count} mentions)"
+                )
+                return narrator.canonical_name
+            else:
+                logger.warning(
+                    f"First-person narrative detected but no character has strong pronoun association. "
+                    f"Top character: {character_scores[0]['character'].canonical_name if character_scores else 'none'}"
+                )
 
         return None
 
