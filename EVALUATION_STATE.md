@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -160,15 +160,18 @@ Instead of requiring co-occurrence, the new logic:
 ## Output Files
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
+- Quality Report: output/Masque of the Red Death - Poe_20260119_010013/quality.md
+- Per-run directory: output/Masque of the Red Death - Poe_20260119_010013
 
-## Pipeline Notes (Attempt 5)
-- Analysis completed successfully in 7m 20s
-- 1 character detected: "the Prince Prospero" (alias: "the mummer") ← WRONG
+## Pipeline Notes (Attempt 6)
+- Analysis completed successfully in 7m 23s
+- 1 character detected: "the Prince Prospero" (alias: "the mummer") ← STILL WRONG
 - 1 character profile generated
 - 73 pronunciation flags
-- Character extraction time: 4m 55s (65.3% of total time)
-- Total tokens: 33,923
+- Character extraction time: 4m 56s (66.6% of total time)
+- Total tokens: 33,419
 - 19 LLM calls
+- Warning: LLM identity detection failed at end (EOF error - likely model unload issue)
 
 ## Attempt 5 Root Cause Analysis (COMPLETED)
 
