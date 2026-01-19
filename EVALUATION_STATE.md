@@ -3,12 +3,20 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 2 of 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.45
 
 ## Output Files
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 8m 16s
+- Character extraction found 3 characters (Amontillado: 16 mentions, Fortunato: 14 mentions, Montresor: 1 mention)
+- Narrator detected as "Amontillado" (ISSUE PERSISTS despite fix)
+- Warning: "Moral valence classification failed for Amontillado: None"
+- Total tokens: 42,559
+- Pronunciation guide flagged 56 words
 
 ## Latest Scores
 - Structure Detection: 10/10
