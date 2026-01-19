@@ -1951,6 +1951,101 @@ class CharacterConsensusBuilder:
             logger.error(f"LLM epithet resolution failed: {e}")
             return {name: [] for name in epithet_groups}
 
+    def _entities_in_confrontation(
+        self,
+        epithet_name: str,
+        proper_name: str,
+        epithet_results: list[CharacterValidationResult],
+        proper_name_results: list[CharacterValidationResult],
+    ) -> bool:
+        """
+        Check if an epithet and proper name appear in confrontational relationship.
+
+        Returns True if they appear to be separate entities interacting (pursuing,
+        confronting, seizing, etc.), which indicates they should NOT be merged.
+        """
+        # Confrontation indicators - verbs and patterns showing separate entities interacting
+        confrontation_patterns = [
+            # Physical confrontation
+            r'\b(pursued|pursuing|chase|chased|chasing|fled|fleeing|escape|escaped|escaping)\b',
+            r'\b(seized|seizing|seize|grabbed|grabbing|grab|caught|catching|catch)\b',
+            r'\b(confronted|confronting|confront|faced|facing|face)\b',
+            r'\b(attacked|attacking|attack|struck|striking|strike|fought|fighting|fight)\b',
+            r'\b(approached|approaching|approach|advanced|advancing|advance)\b',
+            # Opposition/conflict
+            r'\b(opposed|opposing|oppose|resisted|resisting|resist)\b',
+            r'\b(retreating|retreat|retreated|backing away|backed away)\b',
+            # Observation as separate entities
+            r'\b(watched|watching|watch|observed|observing|observe|saw|see|seeing)\b',
+            # Interaction verbs showing separate agents
+            r'\b(addressed|addressing|address|spoke to|speaking to|speak to)\b',
+        ]
+
+        # Collect all context snippets for both entities
+        epithet_contexts = []
+        for result in epithet_results:
+            for mention in result.proposal.mentions:
+                if mention.context:
+                    epithet_contexts.append(mention.context.lower())
+
+        proper_contexts = []
+        for result in proper_name_results:
+            for mention in result.proposal.mentions:
+                if mention.context:
+                    proper_contexts.append(mention.context.lower())
+
+        # Normalize names for matching (remove "the ", lowercase, handle variations)
+        epithet_normalized = epithet_name.lower().replace("the ", "").strip()
+        proper_normalized = proper_name.lower().replace("the ", "").strip()
+
+        # Also check for partial matches (e.g., "Prince" from "Prince Prospero")
+        proper_parts = proper_normalized.split()
+
+        # Look for contexts where both names appear together
+        confrontation_count = 0
+        total_cooccurrence = 0
+
+        # Check epithet contexts for mentions of the proper name
+        for ctx in epithet_contexts:
+            # Check if proper name or its parts appear in this epithet context
+            has_proper_name = False
+            if proper_normalized in ctx:
+                has_proper_name = True
+            else:
+                # Check for partial matches (any part of the proper name)
+                for part in proper_parts:
+                    if len(part) > 2 and part in ctx:  # Avoid matching very short words
+                        has_proper_name = True
+                        break
+
+            if has_proper_name:
+                total_cooccurrence += 1
+                # Check for confrontation patterns
+                for pattern in confrontation_patterns:
+                    if re.search(pattern, ctx, re.IGNORECASE):
+                        confrontation_count += 1
+                        logger.info(f"Confrontation detected between '{epithet_name}' and '{proper_name}': {ctx[:100]}")
+                        break  # Count each context only once
+
+        # Check proper name contexts for mentions of the epithet
+        for ctx in proper_contexts:
+            if epithet_normalized in ctx:
+                total_cooccurrence += 1
+                # Check for confrontation patterns
+                for pattern in confrontation_patterns:
+                    if re.search(pattern, ctx, re.IGNORECASE):
+                        confrontation_count += 1
+                        logger.info(f"Confrontation detected between '{epithet_name}' and '{proper_name}': {ctx[:100]}")
+                        break
+
+        # If they co-occur and majority of co-occurrences show confrontation, they're separate entities
+        if total_cooccurrence >= 2 and confrontation_count >= total_cooccurrence * 0.5:
+            logger.info(f"Blocking merge: '{epithet_name}' and '{proper_name}' show confrontation "
+                       f"({confrontation_count}/{total_cooccurrence} co-occurrences)")
+            return True
+
+        return False
+
     def _llm_cross_group_resolution(
         self,
         epithet_groups: dict[str, list[CharacterValidationResult]],
@@ -2021,6 +2116,14 @@ class CharacterConsensusBuilder:
                 matched_proper = self._find_closest_name(proper_name, proper_name_groups.keys())
 
                 if matched_epithet and matched_proper:
+                    # Pre-filter: Check if they appear in confrontational relationship
+                    epithet_results = epithet_groups.get(matched_epithet, [])
+                    proper_results = proper_name_groups.get(matched_proper, [])
+
+                    if self._entities_in_confrontation(matched_epithet, matched_proper, epithet_results, proper_results):
+                        logger.info(f"Skipping cross-group match due to confrontation: '{matched_epithet}' vs '{matched_proper}'")
+                        continue
+
                     cross_map[matched_epithet] = matched_proper
                     logger.info(f"Cross-group match: epithet '{matched_epithet}' -> proper name '{matched_proper}'")
 

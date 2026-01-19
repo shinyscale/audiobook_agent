@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -118,6 +118,20 @@ The fix added:
    - Added context snippets for proper names (3x120 chars)
    - **Result: DID NOT WORK** - merge still happening
 
+### Attempt 4 Fixes Applied
+1. **Structural confrontation detection pre-filter** (consensus.py)
+   - **Root cause:** `_format_contexts()` samples contexts using narrative spread (early/middle/late) and chapter diversity, but does NOT prioritize showing contexts where the epithet and proper name co-occur or interact. The LLM was being asked "does 'the mummer' refer to 'Prince Prospero'?" but was NOT being shown the scenes where they confront each other.
+   - **Root cause location:** `src/pipeline/character_extraction/consensus.py:_llm_cross_group_resolution()` lines 2049-2135
+   - **Fix:** Implemented `_entities_in_confrontation()` function (lines 1954-2047) that checks if an epithet and proper name appear in confrontational relationships by:
+     - Collecting all context snippets for both entities
+     - Looking for co-occurrences where both names appear together
+     - Detecting confrontation verbs: pursued, seized, confronted, attacked, approached, retreating, watched, etc.
+     - Blocking the merge if ≥50% of co-occurrences show confrontation patterns
+   - **Implementation:** Pre-filter check added in `_llm_cross_group_resolution()` (lines 2119-2125) BEFORE accepting LLM match
+   - **Smoke test:** All 444 unit tests pass
+   - **Expected outcome:** "the mummer" should no longer merge with "Prince Prospero"; should emerge as separate "Red Death" character
+   - Modified: src/pipeline/character_extraction/consensus.py
+
 ## Key Insight for Fix Phase
 
 **The prompt-based approach is not working.** Three attempts have tried to fix this via LLM prompt improvements:
@@ -163,8 +177,5 @@ The fix added:
 - Note: LLM identity detection failed (server error 500)
 - Note: Moral valence classification failed (server error 500)
 
-## Regression Warning
-The overall score remains at 6.70 (no change from attempt 3). The attempt 3 fix did not work. A new approach is needed.
-
 ## Next Action
-Run PROMPT_fix.md with new approach: Implement structural/heuristic confrontation detection to pre-filter epithet-proper name pairs BEFORE LLM evaluation. Do not rely solely on LLM prompt instructions.
+Re-run analysis with PROMPT_analyze.md to verify the confrontation detection fix resolves the "the mummer" / "Prince Prospero" merge issue.
