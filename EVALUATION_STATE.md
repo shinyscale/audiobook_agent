@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 23
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Output Files
@@ -169,6 +169,16 @@ See git history and previous EVALUATION_STATE.md entries.
 - **Files Modified:** `src/analyzer.py` line 1873 (changed `return "", [], 0.0` to `return "", [], 0.0, None, None, None`)
 - **Smoke Test:** N/A - Fix is minimal (ensures return signature matches function declaration). Transient EOF errors in attempt 22 likely won't recur.
 - **Expected Impact:** If LLM errors occur, fallback will correctly return all 6 values. More importantly, re-running should succeed for Prospero since EOF errors were transient. Expected: +1.0 on Profiles (6.5→7.5+) → Overall 7.925→8.0+ → **PASS THRESHOLD**
+
+## Pipeline Run (Attempt 23)
+- **Duration:** 8m 31s
+- **Total Tokens:** 43,146
+- **Characters Found:** 2 (the Prince Prospero, the mummer)
+- **Profiles Generated:** 2 profiles for 2 eligible characters
+- **Status:** Completed successfully with no EOF errors
+- **Output Files:**
+  - HTML: output/masque_of_red_death/report.html (119K, updated 09:42)
+  - JSON: output/masque_of_red_death/analysis.json (67K, updated 09:42)
 
 ## Detailed Evaluation (Attempt 22)
 
