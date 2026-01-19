@@ -142,3 +142,5 @@ See git history and previous EVALUATION_STATE.md entries.
 ## Next Action
 **Phase:** awaiting_analysis
 Re-run analysis on masque_of_red_death to verify structured profile fields are now populated.
+
+Expected score improvement: 6/10 → 7/10 on Character Profiles (+0.15 overall → 8.0 total)
