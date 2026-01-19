@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -179,11 +179,12 @@ See git history. All targeted cross-group resolution in `consensus.py`. None wor
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 12)
-- Analysis completed in 7m 26s
-- Total LLM tokens: 39,946
-- Character count: 1 (STILL showing merge issue)
+## Pipeline Notes (Attempt 13)
+- Analysis completed in 3m 22s
+- Total LLM tokens: 39,886
+- Character count: 1 (STILL showing merge issue - "the mummer" listed as alias of Prince Prospero)
 - Model used for Character Extraction: qwen3-next:80b-a3b-instruct-q8_0
+- Enhanced death relationship detection was applied but merge still occurs
 
 ## Next Action
 
