@@ -25,10 +25,10 @@
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": false,
-      "attempts": 2,
+      "attempts": 3,
       "final_score": null,
       "baseline_score": 6.05,
-      "last_score": 5.35,
+      "last_score": 4.85,
       "regression_detected": true
     },
     {
