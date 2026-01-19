@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -137,14 +137,26 @@ To close the gap, we need approximately:
   - `narrative_role` populated
 - Result: Issues #1-3 FIXED
 
-## Output Files (Attempt 3)
+## Output Files (Attempt 4)
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 7m 57s
+- Pipeline processed 2,358 words
+- Found 2 characters (Fortunato: 14 mentions, Montresor: 1 mention)
+- Generated 2 character profiles
+- Flagged 56 pronunciation words
+- Some LLM errors occurred during character profiling:
+  - LLM identity detection failed with server error 500
+  - LLM evidence extraction failed for Fortunato
+  - Failed to parse JSON response for Montresor
+  - Low confidence profile for Montresor: 0.30
 
-**Note:** Attempt 6 fix has been implemented and committed. Ready to re-run full analysis to verify the plural family name rejection works and check if score improves.
+## Next Action
+**Phase:** awaiting_evaluation
+
+**Note:** Attempt 4 analysis complete. Fix for plural family name "Montresors" was applied (rejecting family references). Ready for evaluation to verify if score improved.
 
 ## Attempt 4 Pipeline Error
 
