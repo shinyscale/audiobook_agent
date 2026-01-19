@@ -1956,6 +1956,86 @@ class CharacterConsensusBuilder:
             logger.error(f"LLM epithet resolution failed: {e}")
             return {name: [] for name in epithet_groups}
 
+    def _entities_in_death_relationship(
+        self,
+        epithet_name: str,
+        proper_name: str,
+        epithet_results: list[CharacterValidationResult],
+        proper_name_results: list[CharacterValidationResult],
+    ) -> bool:
+        """
+        Check if one entity dies in context with another entity.
+
+        This is an ABSOLUTE merge blocker: if entity A dies in proximity to entity B,
+        they cannot be the same person. This handles cases like:
+        - "fell prostrate in death the Prince Prospero" near "the mummer"
+        - "killed by X" near "Y"
+
+        Returns True if a death relationship is detected, blocking the merge.
+        """
+        # Death indicators - patterns showing someone dying
+        death_patterns = [
+            r'\bfell prostrate in death\b',
+            r'\b(died|death|dead|dying|killed|slain|slew|murdered)\b',
+            r'\b(corpse|body|remains) of\b',
+            r'\bbreathed (his|her|their) last\b',
+            r'\bexpired\b',
+            r'\bperished\b',
+        ]
+
+        # Collect all context snippets for both entities
+        epithet_contexts = []
+        for result in epithet_results:
+            for mention in result.proposal.mentions:
+                if mention.context:
+                    epithet_contexts.append(mention.context.lower())
+
+        proper_contexts = []
+        for result in proper_name_results:
+            for mention in result.proposal.mentions:
+                if mention.context:
+                    proper_contexts.append(mention.context.lower())
+
+        # Normalize names for matching
+        epithet_normalized = epithet_name.lower().replace("the ", "").strip()
+        proper_normalized = proper_name.lower().replace("the ", "").strip()
+        proper_parts = proper_normalized.split()
+
+        # Check if proper name entity dies in epithet's contexts
+        for ctx in epithet_contexts:
+            # Check if proper name appears in this context
+            has_proper_name = proper_normalized in ctx
+            if not has_proper_name:
+                for part in proper_parts:
+                    if len(part) > 2 and part in ctx:
+                        has_proper_name = True
+                        break
+
+            if has_proper_name:
+                # Check for death patterns
+                for pattern in death_patterns:
+                    if re.search(pattern, ctx, re.IGNORECASE):
+                        logger.warning(
+                            f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
+                            f"and '{proper_name}' - {proper_name} dies in context with {epithet_name}: "
+                            f"{ctx[:150]}"
+                        )
+                        return True
+
+        # Check if epithet entity dies in proper name's contexts
+        for ctx in proper_contexts:
+            if epithet_normalized in ctx:
+                for pattern in death_patterns:
+                    if re.search(pattern, ctx, re.IGNORECASE):
+                        logger.warning(
+                            f"DEATH RELATIONSHIP DETECTED: Blocking merge of '{epithet_name}' "
+                            f"and '{proper_name}' - {epithet_name} dies in context with {proper_name}: "
+                            f"{ctx[:150]}"
+                        )
+                        return True
+
+        return False
+
     def _entities_in_confrontation(
         self,
         epithet_name: str,
@@ -2163,10 +2243,16 @@ class CharacterConsensusBuilder:
                 matched_proper = self._find_closest_name(proper_name, proper_name_groups.keys())
 
                 if matched_epithet and matched_proper:
-                    # Pre-filter: Check if they appear in confrontational relationship
+                    # Pre-filter: Check for absolute merge blockers
                     epithet_results = epithet_groups.get(matched_epithet, [])
                     proper_results = proper_name_groups.get(matched_proper, [])
 
+                    # FIRST: Check for death relationship (absolute blocker)
+                    if self._entities_in_death_relationship(matched_epithet, matched_proper, epithet_results, proper_results):
+                        logger.info(f"Skipping cross-group match due to death relationship: '{matched_epithet}' vs '{matched_proper}'")
+                        continue
+
+                    # SECOND: Check for confrontation (strong indicator they're separate)
                     if self._entities_in_confrontation(matched_epithet, matched_proper, epithet_results, proper_results):
                         logger.info(f"Skipping cross-group match due to confrontation: '{matched_epithet}' vs '{matched_proper}'")
                         continue
