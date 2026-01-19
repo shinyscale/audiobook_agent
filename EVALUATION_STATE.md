@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -200,15 +200,16 @@ After 7 failed attempts using LLM-based approaches, consider:
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 7)
-- Analysis completed successfully in ~7 minutes
-- 1 character detected: "the Prince Prospero" (alias: "the mummer") ← STILL WRONG
+## Pipeline Notes (Attempt 8)
+- Analysis completed successfully in 7m 13s
+- 1 character detected: "the Prince Prospero" (alias: "the mummer") ← STILL WRONG (death detection fix DID NOT WORK)
 - 1 character profile generated
 - 73 pronunciation flags
-- Character extraction time: 4m 40s (65.9% of total time)
-- Total tokens: 32,098
-- 18 LLM calls
+- Character extraction time: 4m 49s (66.6% of total time)
+- Total tokens: 33,315
+- 19 LLM calls
+- **CRITICAL FINDING:** Chapter summary correctly identifies 2 characters ("Prince Prospero" + "The masked figure (Red Death)"), but character extraction merges them into 1
 
 ## Next Action
 
-Re-run analysis to verify the death relationship detection fix works.
+Oracle evaluation of attempt 8 results.
