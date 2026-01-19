@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -223,7 +223,23 @@ Error during analysis: LLM validation returned invalid JSON for '--yes' after 3 
 - Narrator detection should then correctly identify Montresor (since Amontillado won't be competing)
 - Plot summary should use correct narrator name
 
-## Next Action
-**Phase:** awaiting_analysis
+## Output Files (Attempt 3)
+- HTML: output/cask_of_amontillado/report.html
+- JSON: output/cask_of_amontillado/analysis.json
 
-Re-run analysis to verify the fix successfully rejects "Amontillado" and correctly identifies Montresor as narrator.
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 7m 12s
+- Structure: 1 chapter detected
+- Characters: 2 characters found (Fortunato, Montresor)
+- Narrator: Montresor correctly identified as first-person narrator
+- Summaries: 1 chapter summary generated
+- Pronunciations: 56 words flagged
+- Warning: "Failed to parse JSON response for Fortunato" - character profile generation had issues
+- Warning: "Low confidence profile for Fortunato: 0.30" - profile quality concern
+- Quality concerns: 1 low-confidence character profile
+- Bottleneck: Character Extraction (68.8% of pipeline time)
+
+## Next Action
+**Phase:** awaiting_evaluation
+
+Evaluation phase will assess whether the fixes resolved the critical issues.
