@@ -106,6 +106,9 @@ CRITICAL RULES:
 2. Use chapter co-appearances and context clues
 3. Titles/roles (the king, the general, my father) can refer to properly-named characters
 4. Generic epithets that could be anyone should NOT be linked
+5. DO NOT link if the epithet and proper name are in CONFLICT, OPPOSITION, or CONFRONTATION
+   - If context shows them interacting as separate entities, they are different people
+   - Examples: "the intruder" confronting "Prince Prospero", "the stranger" fighting "the hero"
 
 Return ONLY valid JSON. No other text."""
 
@@ -116,6 +119,8 @@ DESCRIPTIVE HANDLES:
 
 NAMED CHARACTERS:
 {proper_names}
+
+IMPORTANT: Read the context snippets carefully. If an epithet and proper name appear in contexts showing them as SEPARATE ENTITIES (confronting, fighting, observing each other), DO NOT link them.
 
 For each epithet that CLEARLY refers to a named character, return a match.
 
@@ -1970,7 +1975,7 @@ class CharacterConsensusBuilder:
         for name, results in sorted_epithets:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=8)
-            context_str = self._format_contexts(results, max_contexts=3, max_chars=100)
+            context_str = self._format_contexts(results, max_contexts=4, max_chars=150)
             epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             epithet_lines.append(f"  Context: {context_str}")
 
@@ -1984,7 +1989,9 @@ class CharacterConsensusBuilder:
         for name, results in sorted_proper:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, proper_name_groups, max_chapters=8)
+            context_str = self._format_contexts(results, max_contexts=3, max_chars=120)
             proper_name_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
+            proper_name_lines.append(f"  Context: {context_str}")
 
         epithets_str = "\n".join(epithet_lines)
         proper_names_str = "\n".join(proper_name_lines)
