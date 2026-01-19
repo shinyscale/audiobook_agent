@@ -92,6 +92,43 @@ Return JSON array:
 
 Return ONLY the JSON array. Include only handles you're confident about - omit uncertain ones."""
 
+# Cross-group (epithet-to-proper-name) resolution prompt
+CROSS_GROUP_SYSTEM = """You are a literary analyst identifying whether descriptive handles (epithets) refer to named characters.
+
+Examples:
+- "the prince" might refer to "Prince Prospero"
+- "the duke" might refer to "Prince Prospero" (if the story mentions he's also a duke)
+- "the creature" might refer to "Adam" (if named)
+- "my father" might refer to "Alphonse Frankenstein"
+
+CRITICAL RULES:
+1. Only link when context CLEARLY indicates they're the same person
+2. Use chapter co-appearances and context clues
+3. Titles/roles (the king, the general, my father) can refer to properly-named characters
+4. Generic epithets that could be anyone should NOT be linked
+
+Return ONLY valid JSON. No other text."""
+
+CROSS_GROUP_PROMPT = """Identify which descriptive handles refer to properly-named characters.
+
+DESCRIPTIVE HANDLES:
+{epithets}
+
+NAMED CHARACTERS:
+{proper_names}
+
+For each epithet that CLEARLY refers to a named character, return a match.
+
+Return JSON array:
+```json
+[
+  {{"epithet": "the prince", "proper_name": "Prince Prospero"}},
+  {{"epithet": "my father", "proper_name": "Alphonse Frankenstein"}}
+]
+```
+
+Return ONLY the JSON array. Include only matches you're confident about - omit uncertain ones."""
+
 PAIRWISE_ALIAS_SYSTEM = """You are a literary analyst identifying whether two character names refer to the SAME PERSON.
 
 CRITICAL:
@@ -340,6 +377,21 @@ class CharacterConsensusBuilder:
             # No LLM - just add epithets as separate characters
             for name in epithet_groups:
                 alias_groups[name] = []
+
+        # Cross-group resolution: link epithets to proper names (e.g., "the prince" -> "Prince Prospero")
+        if epithet_groups and proper_name_groups and self.use_llm_alias_resolution:
+            logger.info("CharacterConsensusBuilder: running cross-group (epithet-to-proper) resolution")
+            cross_merges = self._llm_cross_group_resolution(epithet_groups, proper_name_groups)
+            # Apply cross-group merges
+            for epithet_name, proper_name in cross_merges.items():
+                if proper_name in alias_groups and epithet_name in alias_groups:
+                    # Add epithet as alias to proper name
+                    alias_groups[proper_name].append(epithet_name)
+                    # Also add any aliases the epithet had
+                    alias_groups[proper_name].extend(alias_groups[epithet_name])
+                    # Remove epithet as standalone character
+                    del alias_groups[epithet_name]
+                    logger.info(f"Cross-group merge: '{proper_name}' <- epithet '{epithet_name}'")
 
         # Merge name_groups to include epithets for downstream processing
         name_groups.update(epithet_groups)
@@ -1877,6 +1929,83 @@ class CharacterConsensusBuilder:
         except Exception as e:
             logger.error(f"LLM epithet resolution failed: {e}")
             return {name: [] for name in epithet_groups}
+
+    def _llm_cross_group_resolution(
+        self,
+        epithet_groups: dict[str, list[CharacterValidationResult]],
+        proper_name_groups: dict[str, list[CharacterValidationResult]],
+    ) -> dict[str, str]:
+        """
+        Use LLM to link epithets to proper names (e.g., "the prince" -> "Prince Prospero").
+
+        Returns:
+            dict mapping epithet_name -> proper_name for confirmed matches
+        """
+        if not self.llm or len(epithet_groups) == 0 or len(proper_name_groups) == 0:
+            return {}
+
+        # Build prompt with epithet info
+        epithet_lines = []
+        sorted_epithets = sorted(
+            epithet_groups.items(),
+            key=lambda x: -sum(r.proposal.mention_count for r in x[1]),
+        )[:15]  # Limit to top 15 epithets to keep prompt manageable
+
+        for name, results in sorted_epithets:
+            total_mentions = sum(r.proposal.mention_count for r in results)
+            chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=8)
+            context_str = self._format_contexts(results, max_contexts=3, max_chars=100)
+            epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
+            epithet_lines.append(f"  Context: {context_str}")
+
+        # Build prompt with proper name info
+        proper_name_lines = []
+        sorted_proper = sorted(
+            proper_name_groups.items(),
+            key=lambda x: -sum(r.proposal.mention_count for r in x[1]),
+        )[:15]  # Limit to top 15 proper names
+
+        for name, results in sorted_proper:
+            total_mentions = sum(r.proposal.mention_count for r in results)
+            chapters_str = self._chapters_for_name(name, proper_name_groups, max_chapters=8)
+            proper_name_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
+
+        epithets_str = "\n".join(epithet_lines)
+        proper_names_str = "\n".join(proper_name_lines)
+        prompt = CROSS_GROUP_PROMPT.format(epithets=epithets_str, proper_names=proper_names_str)
+
+        try:
+            result, response = self.llm.query_json(prompt, system=CROSS_GROUP_SYSTEM)
+
+            if result is None or not isinstance(result, list):
+                logger.warning("LLM cross-group resolution returned invalid response")
+                return {}
+
+            # Parse response into epithet -> proper_name mapping
+            cross_map = {}
+            for match in result:
+                if not isinstance(match, dict):
+                    continue
+
+                epithet = match.get("epithet", "")
+                proper_name = match.get("proper_name", "")
+
+                if not epithet or not proper_name:
+                    continue
+
+                # Match to actual names (fuzzy matching to handle LLM variations)
+                matched_epithet = self._find_closest_name(epithet, epithet_groups.keys())
+                matched_proper = self._find_closest_name(proper_name, proper_name_groups.keys())
+
+                if matched_epithet and matched_proper:
+                    cross_map[matched_epithet] = matched_proper
+                    logger.info(f"Cross-group match: epithet '{matched_epithet}' -> proper name '{matched_proper}'")
+
+            return cross_map
+
+        except Exception as e:
+            logger.error(f"LLM cross-group resolution failed: {e}")
+            return {}
 
     def _pick_canonical_epithet(
         self,

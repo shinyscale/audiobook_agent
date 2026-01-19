@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Common words to never flag
 COMMON_WORDS_WHITELIST = {
+    # Common articles and determiners (should never be flagged)
+    'the', 'a', 'an',
     # Common names
     'michael', 'james', 'william', 'david', 'richard', 'joseph', 'thomas',
     'mary', 'patricia', 'jennifer', 'linda', 'elizabeth', 'barbara', 'susan',
