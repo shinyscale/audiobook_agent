@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -170,22 +170,22 @@ After 6 failed attempts, the confrontation detection approach needs fundamental 
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 6)
-- Analysis completed successfully in 7m 13s
+## Pipeline Notes (Attempt 7)
+- Analysis completed successfully in 7m 5s
 - 1 character detected: "the Prince Prospero" (alias: "the mummer") ← STILL WRONG
 - 1 character profile generated
 - 73 pronunciation flags
-- Character extraction time: 4m 56s (66.6% of total time)
-- Total tokens: 33,419
-- 19 LLM calls
+- Character extraction time: 4m 40s (65.9% of total time)
+- Total tokens: 32,098
+- 18 LLM calls
+- Some LLM 500 errors during identity detection and moral valence classification (non-fatal)
 
 ## Next Action
 
-Re-run analysis to verify the context window fix addresses the false merge issue.
+Proceed to evaluation phase (awaiting_evaluation).
 
-**Fix rationale:**
-- Previous attempts added confrontation detection logic but it ran AFTER the LLM decision
-- The LLM prompt already instructs to avoid merging entities in confrontation
-- The problem was the LLM couldn't see enough context to apply this rule
-- Increasing context from 150/120 → 400 chars should allow the LLM to see the full confrontation sentence
-- This is a different approach than attempts 3-6, which focused on post-LLM detection
+**Attempt 7 Assessment:**
+- Fix from attempt 7 (increased context window 150/120 → 400 chars) DID NOT WORK
+- "the mummer" is still merged with Prince Prospero
+- This is the SEVENTH consecutive failed attempt to fix this issue
+- The context window increase had no observable effect on the merge decision
