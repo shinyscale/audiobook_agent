@@ -56,9 +56,15 @@ MENTION COUNT: {mention_count}
 SAMPLE CONTEXTS (where this name appears):
 {contexts}
 
+CRITICAL: Check if this entity behaves like a PERSON:
+- Does it speak, think, or perform actions? (said, thought, walked, looked, etc.)
+- Is it referred to with person pronouns? (he/she/they, him/her, his/hers)
+- Does it appear in dialogue tags? ("said X", "asked X")
+- OR is it an OBJECT/THING that people talk ABOUT? (objects appear as "the X", "a pipe of X", "search of X")
+
 Please analyze and return JSON with:
-- "is_person": true/false - Is this a real person/character name (not a place, title, or concept)?
-- "is_person_reasoning": Brief explanation
+- "is_person": true/false - Is this a real person/character name (not a place, object, title, or concept)?
+- "is_person_reasoning": Brief explanation - cite specific evidence from contexts
 - "context_supports": 0.0-1.0 - How strongly does the context support this being a character?
 - "alias_candidates": List of other names that might refer to the same person (e.g., "Elizabeth" -> ["Lizzy", "Miss Bennet"])
 - "overall_valid": true/false - Should we include this as a character?
@@ -207,6 +213,53 @@ class CharacterValidator:
                     overall_score=0.25,
                     is_valid=False,
                     reasoning="Single mention without dialogue or character verbs",
+                )
+
+        # Reject: likely non-person entity (object, place, concept)
+        # Check for entities with multiple mentions but NO person-like behavior
+        if proposal.mention_count >= 5 and dialogue_tag_count == 0:
+            # Count mentions with character verbs or pronouns
+            person_context_count = 0
+            object_pattern_count = 0
+
+            for mention in proposal.mentions[:10]:  # Check up to 10 samples
+                context_lower = mention.context.lower()
+
+                # Check for person-context (verbs, pronouns)
+                if any(verb in context_lower for verb in CHARACTER_VERBS):
+                    person_context_count += 1
+                    continue
+
+                # Check for person pronouns near the name
+                name_lower = proposal.name.lower()
+                if name_lower in context_lower:
+                    # Look for pronouns within 50 chars of the name
+                    name_pos = context_lower.find(name_lower)
+                    nearby = context_lower[max(0, name_pos - 50):min(len(context_lower), name_pos + len(name_lower) + 50)]
+                    if any(pronoun in nearby.split() for pronoun in ['he', 'she', 'they', 'him', 'her', 'his', 'hers', 'their']):
+                        person_context_count += 1
+                        continue
+
+                # Check for object patterns: "a/an/the X", "of X", "for X", "pipe of X"
+                object_patterns = [
+                    rf'\b(a|an|the)\s+{re.escape(name_lower)}',
+                    rf'\bof\s+{re.escape(name_lower)}',
+                    rf'\bfor\s+{re.escape(name_lower)}',
+                    rf'\b(pipe|cask|bottle|search|quest|pursuit)\s+of\s+{re.escape(name_lower)}',
+                ]
+                if any(re.search(pattern, context_lower) for pattern in object_patterns):
+                    object_pattern_count += 1
+
+            # If entity has many object patterns and few/no person contexts, likely not a person
+            if object_pattern_count >= 3 and person_context_count <= 1:
+                return CharacterValidationResult(
+                    proposal=proposal,
+                    is_person_score=0.2,
+                    context_score=0.1,
+                    alias_candidates=[],
+                    overall_score=0.15,
+                    is_valid=False,
+                    reasoning=f"Likely non-person entity: {object_pattern_count} object patterns, {person_context_count} person contexts, 0 dialogue tags",
                 )
 
         # Ambiguous: need LLM validation

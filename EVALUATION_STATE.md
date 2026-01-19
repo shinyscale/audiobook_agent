@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1 of 5
-- **Phase:** awaiting_fix
+- **Attempt:** 2 of 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.45
 
 ## Output Files
@@ -89,10 +89,51 @@ For "Amontillado":
 - Appears only as object of desire ("a pipe of Amontillado", "the cask of Amontillado")
 
 ## Fix History
-None - this is the first attempt
+
+### Attempt 2: Enhanced object/non-person entity filtering in character validation
+**Date:** 2026-01-18
+**Modified:** `src/pipeline/character_extraction/validator.py`
+
+**Root Cause Analysis:**
+- **Issue #1 (Amontillado as character):**
+  - Symptom: "Amontillado" (wine) listed as main character with 16 mentions
+  - Data flow: NER → CharacterProposal → CharacterValidator → CharacterMap
+  - Originates in: `src/pipeline/character_extraction/validator.py:_llm_validation()` line 215-312
+  - Root cause: spaCy NER tags "Amontillado" as PERSON entity. Validator's LLM prompt didn't emphasize checking for person-like actions. High mention count (16) triggered mention_boost, giving it high confidence despite being an object.
+
+- **Issue #2 (Montresor with 1 mention):**
+  - Symptom: Montresor (narrator) listed as supporting character with 1 mention
+  - Root cause: This is CORRECT behavior for NER - "Montresor" name only appears once in the text ("For the love of God, Montresor!"). The rest is first-person "I" narration.
+  - Fix needed: Narrator detection logic (separate from character extraction), NOT addressed in this attempt.
+
+**Changes Made:**
+1. Enhanced LLM validation prompt (line 50-72):
+   - Added CRITICAL section emphasizing person-like behavior checks
+   - Explicitly asks: Does entity speak, think, perform actions?
+   - Explicitly asks: Is it referred to with person pronouns?
+   - Explicitly contrasts PERSON vs OBJECT patterns
+
+2. Added heuristic object detection (line 218-263):
+   - Runs BEFORE expensive LLM validation
+   - Checks entities with 5+ mentions and 0 dialogue tags
+   - Counts person-context patterns (verbs, pronouns near name)
+   - Counts object-context patterns ("a/an/the X", "of X", "pipe of X")
+   - Rejects if object_pattern_count >= 3 and person_context_count <= 1
+   - Reasoning: "Amontillado" appears as "a pipe of Amontillado", "the Amontillado", etc. (object patterns) with ZERO dialogue or action verbs
+
+**Smoke Test Results:**
+- Validator tests: 17/17 passed
+- Full test suite: 444/444 passed
+- No regressions detected
+
+**Expected Impact:**
+- Issue #1 (Amontillado): SHOULD BE FIXED - new heuristic will catch "Amontillado" as non-person
+- Issue #3 (Narrator as Amontillado): SHOULD BE FIXED - downstream consequence of #1
+- Issue #5 (Profile on wrong entity): SHOULD BE FIXED - downstream consequence of #1
+- Issue #2 (Montresor 1 mention): NOT ADDRESSED - requires narrator detection enhancement
+- Issue #4 (Luchresi missing): NOT ADDRESSED - may require mention threshold adjustment
+
+**Confidence:** HIGH for issues #1, #3, #5 (directly addressed root cause)
 
 ## Next Action
-Run PROMPT_fix.md to address character extraction issues:
-1. Filter non-person entities (objects, places) from character list
-2. Improve narrator detection for first-person stories where narrator is named
-3. Ensure named characters with 5+ mentions are included in character list
+Re-run analysis on cask_of_amontillado to verify fixes
