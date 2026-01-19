@@ -1031,11 +1031,13 @@ class AudiobookAnalyzer:
                 logger.info("F3: Moral valence classification enabled")
 
                 # Generate profiles for all characters with sufficient mentions
+                # SPECIAL CASE: Include narrators even if they have few explicit mentions
+                # (first-person narrators may use "I" throughout without saying their name)
                 eligible_chars = [
                     c for c in pipeline_char_map.characters
-                    if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
+                    if c.mention_count >= MIN_MENTIONS_FOR_PROFILE or getattr(c, 'is_narrator', False)
                 ]
-                logger.info(f"Generating profiles for {len(eligible_chars)} characters (5+ mentions)")
+                logger.info(f"Generating profiles for {len(eligible_chars)} eligible characters (5+ mentions or narrator)")
                 profile_count = 0
                 high_conf_count = 0
                 medium_conf_count = 0
@@ -2055,6 +2057,8 @@ Return ONLY valid JSON matching the above structure. No other text."""
                 mention_count=pc.mention_count,
                 confidence=confidence,
                 evidence=evidence,
+                is_narrator=getattr(pc, 'is_narrator', False),
+                narrative_role=getattr(pc, 'narrative_role', None),
             ))
 
         # Also add low confidence characters (no profiles generated for these)

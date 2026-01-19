@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.10
 
 ## Latest Scores
@@ -108,7 +108,7 @@ To close the gap, we need approximately:
 - Pre-filter check before LLM validation
 - Result: Score improved 6.10 → 7.70 (+1.60 points)
 
-### Attempt 4 (2026-01-18): Narrator-aware profiling
+### Attempt 4 (2026-01-18): Narrator-aware profiling (PARTIAL - setup only)
 - Root cause: Passage gatherer searches for character names; first-person narrators use "I" not their name
 - Modified: src/pipeline/character_profiling/passage_gatherer.py:gather_passages()
   - Added _find_narrator_passages() method at line 98
@@ -123,6 +123,20 @@ To close the gap, we need approximately:
 - Smoke test: Unit tests pass (444 passed, 11 skipped)
 - Full pipeline test: Unable to complete due to Ollama server issues (model loading errors)
 
+### Attempt 5 (2026-01-18): Complete narrator profiling implementation
+- Root cause #1: `is_narrator` and `narrative_role` fields not copied from PipelineCharacter to final Character object
+  - Originates in: src/analyzer.py:_convert_pipeline_result_to_analysis_result():2049
+  - Fixed: Added `is_narrator` and `narrative_role` to Character() constructor (lines 2058-2059)
+- Root cause #2: Narrators with low mention count excluded from profiling eligibility
+  - Originates in: src/analyzer.py:1036 (eligibility filter)
+  - Fixed: Added special case to include narrators regardless of mention count (line 1038)
+- Smoke test: Unit tests pass (444 passed, 11 skipped)
+- Full pipeline test: PASS
+  - Montresor now has profile (1 description, 2 evidence items)
+  - `is_narrator: true` correctly set
+  - `narrative_role` populated
+- Result: Issues #1-3 FIXED
+
 ## Output Files (Attempt 3)
 - HTML: output/cask_of_amontillado/report.html
 - JSON: output/cask_of_amontillado/analysis.json
@@ -130,23 +144,6 @@ To close the gap, we need approximately:
 ## Next Action
 **Phase:** awaiting_analysis
 
-Run PROMPT_fix.md to address Issue #1 (Montresor missing profile).
-
-**Recommended Fix Approach:**
-The narrator profile problem requires a conceptual change:
-1. When the plot_summary identifies a first-person narrator (e.g., "Montresor, the story's first-person narrator")
-2. Extract that character name
-3. Build their profile from first-person statements ("I vowed revenge", "I led him deeper", etc.)
-4. Also set `is_narrator: true` for that character
-
-This is a cross-component fix involving:
-- `src/agents/summary_agent.py` (narrator identification)
-- `src/pipeline/character_extraction/` (profile building)
-- Character metadata sync
-
-**Alternative Quick Fix:**
-If the narrator-aware profile building is too complex, focus on just:
-- Lowering the mention count threshold to include Luchresi (6 mentions)
-- Fixing the `is_narrator` flag sync
-
-This simpler fix might get us the 0.30 points needed.
+Re-run analysis to verify fixes and evaluate new score. Expected improvements:
+- Character Profiles: 5 → 7+ (Montresor now has profile)
+- Overall score: 7.70 → 8.0+ (crossing threshold)
