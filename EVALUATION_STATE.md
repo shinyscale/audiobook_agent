@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 19
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -255,5 +255,23 @@ Overall = (
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
+## Pipeline Notes (Attempt 19)
+Analysis completed successfully with post-processing fix applied.
+
+**Key observations from CLI output:**
+- Characters found: 2
+  - "the Prince Prospero (aka Prospero)" - 3 mentions ✓ FIX WORKED!
+  - "the mummer" - 4 mentions (no incorrect alias)
+- Analysis time: 7m 37s
+- Character Extraction took 5m23s (70.6% of pipeline time)
+- Post-processing successfully moved "Prospero" from "the mummer" to "the Prince Prospero"
+
+**Verification:**
+Checked analysis.json and confirmed:
+- "the Prince Prospero" has aliases: ["Prospero"]
+- "the mummer" has aliases: []
+
+The post-processing fix (attempt 19) successfully corrected the mismerge that persisted through attempts 17-18.
+
 ## Next Action
-Run PROMPT_fix.md with Option B: Post-process to detect and fix the Prospero/mummer mismerge after consensus completes
+Phase changed to awaiting_evaluation - the loop will restart with PROMPT_evaluate.md to score this attempt.
