@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.75
 
 ## Latest Scores
@@ -231,11 +231,16 @@ See git history for full details. All targeted cross-group resolution in `consen
 - HTML: output/masque_of_red_death/report.html
 - JSON: output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 11)
-- Analysis completed in 7m 28s
-- Total LLM tokens: 35,769
+## Pipeline Notes (Attempt 12)
+- Analysis completed in 7m 36s
+- Total LLM tokens: 39,946
 - Character count: 1 (STILL showing merge issue - "the Prince Prospero (aka Prospero, the mummer)")
-- Pipeline bottleneck: Character Extraction (67.8% of time, 5m11s)
+- Pipeline bottleneck: Character Extraction (64.9% of time, 4m56s)
+- **CRITICAL**: The context window increase from 200 to 250 did NOT resolve the merge
+  - Smoke test with qwen3:4b-instruct showed fix working (3 characters extracted)
+  - Full analysis with qwen3-next:80b shows merge still happening (1 character extracted)
+  - This suggests the merge may be happening at a DIFFERENT location in the 80b model's processing
+  - OR the 80b model's consensus logic may be overriding the death detection
 
 ## Key Observation
 
