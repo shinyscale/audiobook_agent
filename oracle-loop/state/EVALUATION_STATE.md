@@ -295,6 +295,32 @@ This is a positive sign - the terminal output shows "Egaeus" as narrator. Now ne
 
 This is a positive sign - the terminal output shows "Egaeus" as narrator. Now need to verify the actual output files contain the correct data.
 
+## Attempt 14 - Analysis Complete (Round 2)
+
+**Analysis Runtime:** 5m 36s
+**Models Used:**
+- Structure: qwen3:30b-instruct
+- Characters: qwen3-next:80b-a3b-instruct-q8_0
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0
+- Pronunciation: qwen3:30b-instruct
+
+**Pipeline Output Summary:**
+- Confirmed narrator: Egaeus (first-person) ✓
+- Found 4 characters (Berenice, Mad'selle Salle, servant maiden, Egaeus)
+- Generated 1 chapter summary, 1 character profile, 114 pronunciation flags
+- Total tokens: 55,598
+- Bottleneck: Pronunciation Guide (36.5% of time)
+
+**Output Files:**
+- JSON: ../output/berenice/analysis.json (97K)
+- HTML: ../output/berenice/report.html (167K)
+
+**Key Pipeline Message:**
+```
+🎭 Finalizing narrator detection...
+   Confirmed narrator: Egaeus (first-person)
+```
+
 ## Next Action
 
 **Phase:** awaiting_evaluation
