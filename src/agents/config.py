@@ -26,7 +26,7 @@ class AgentConfig:
 
     # Model parameters
     temperature: float = 0.3
-    max_tokens: int = 4096
+    max_tokens: int = 8192  # Increased from 4096 to handle larger JSON responses (e.g., character extraction with many characters)
     context_length: int = 32768  # Context window size (num_ctx for Ollama)
 
     # Behavior

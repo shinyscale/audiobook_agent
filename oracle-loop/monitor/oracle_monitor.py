@@ -271,6 +271,8 @@ class StateParser:
             return {
                 'current_stage': data.get('stage', ''),
                 'stage_model': data.get('model', ''),
+                'input_tokens': data.get('input_tokens', 0),
+                'output_tokens': data.get('output_tokens', 0),
             }
         except (json.JSONDecodeError, IOError, OSError):
             return {}
@@ -496,11 +498,12 @@ class StateParser:
             state.output_tokens = log_data.get('output_tokens', 0)
         elif state.current_stage and progress_data.get('stage_model'):
             # Show local LLM model during active analysis stage
+            # Use real-time tokens from PROGRESS.json (updated during analysis)
             state.model = progress_data.get('stage_model', '')
-            state.input_tokens = analysis_data.get('input_tokens', 0) if analysis_data else 0
-            state.output_tokens = analysis_data.get('output_tokens', 0) if analysis_data else 0
+            state.input_tokens = progress_data.get('input_tokens', 0)
+            state.output_tokens = progress_data.get('output_tokens', 0)
         elif analysis_data:
-            # Fall back to analysis output data
+            # Fall back to analysis output data (completed analysis)
             state.model = analysis_data.get('model', '')
             state.input_tokens = analysis_data.get('input_tokens', 0)
             state.output_tokens = analysis_data.get('output_tokens', 0)
@@ -511,7 +514,7 @@ class StateParser:
             state.output_tokens = log_data.get('output_tokens', 0)
 
         # Parse git log
-        state.commits = self.parse_git_log(5)
+        state.commits = self.parse_git_log(12)
 
         # Check if loop is running
         state.loop_running = self.check_loop_running()
@@ -766,8 +769,8 @@ class CommitsPanel(Static):
             text.append(" │ ", style="dim")
             # Truncate long messages
             msg = commit.message
-            if len(msg) > 55:
-                msg = msg[:52] + "..."
+            if len(msg) > 80:
+                msg = msg[:77] + "..."
             text.append(msg, style="white")
             text.append("\n")
 

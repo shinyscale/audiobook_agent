@@ -283,6 +283,7 @@ class AudiobookAnalyzer:
 
                     # Apply agent-specific settings
                     config.temperature = agent_config.temperature
+                    config.max_tokens = agent_config.max_tokens
                     config.think = agent_config.think_mode
                     config.context_length = agent_config.context_length or self.orchestrator_config.context_length
 
@@ -322,6 +323,7 @@ class AudiobookAnalyzer:
             base_url = agent_config.base_url or self.llm_base_url
             model = agent_config.model or self.llm_model
             temperature = agent_config.temperature
+            max_tokens = agent_config.max_tokens
             think_mode = agent_config.think_mode
             context_length = agent_config.context_length or self.orchestrator_config.context_length
         else:
@@ -329,6 +331,7 @@ class AudiobookAnalyzer:
             base_url = self.llm_base_url
             model = self.llm_model
             temperature = 0.3
+            max_tokens = 8192  # Default for agents when no config
             think_mode = False
             context_length = self.llm_context_length
 
@@ -349,6 +352,7 @@ class AudiobookAnalyzer:
 
             # Apply agent-specific settings
             config.temperature = temperature
+            config.max_tokens = max_tokens
             config.think = think_mode
             config.context_length = context_length
 
@@ -1485,10 +1489,26 @@ class AudiobookAnalyzer:
         try:
             import json
             from datetime import datetime
+
+            # Get cumulative token counts from metrics
+            input_tokens = 0
+            output_tokens = 0
+            if self._metrics:
+                # Sum completed stages
+                for s in self._metrics._stages:
+                    input_tokens += s.tokens_prompt
+                    output_tokens += s.tokens_completion
+                # Add current stage (if any)
+                if self._metrics._current_context:
+                    input_tokens += self._metrics._current_context._metrics.tokens_prompt
+                    output_tokens += self._metrics._current_context._metrics.tokens_completion
+
             progress_data = {
                 "stage": stage,
                 "model": model,
                 "timestamp": datetime.now().isoformat(),
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
             }
             with open(progress_file, 'w') as f:
                 json.dump(progress_data, f)
@@ -1497,9 +1517,17 @@ class AudiobookAnalyzer:
 
     def _wrap_progress(self, stage: str) -> Callable[[str, int, int], None]:
         """Wrap progress callback with stage prefix and metrics updates."""
+        # Get model for this stage
+        stage_model = None
+        if self._metrics and self._metrics._current_context:
+            stage_model = self._metrics._current_context._metrics.model_used
+
         def wrapped(substage: str, current: int, total: int):
             # Update metrics (always, for real-time progress tracking)
             self._metrics.update_stage_progress(items_processed=current)
+
+            # Update PROGRESS.json for real-time monitoring
+            self._write_progress(stage, stage_model)
 
             # Call external progress callback if configured
             if self.progress_callback:

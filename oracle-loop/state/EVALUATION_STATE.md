@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** null
 
 ## Latest Scores
@@ -44,6 +44,39 @@ FAILED - NEW ERROR: LLM responses being truncated mid-JSON
 - **berenice:** 8.15/10 in 14 attempts ✓
 
 ## Fix History
+
+### Attempt 3 → 4: Fixed LLM response truncation by applying max_tokens from AgentConfig
+
+**Root Cause Analysis:**
+- **Symptom:** Pipeline failed - LLM responses truncated mid-JSON (e.g., `"name": "Herbert White", "type": "sto`)
+- **Data flow trace:**
+  1. Truncation occurs in: `src/llm/client.py:generate()` when response exceeds max_tokens limit
+  2. max_tokens limit defined in: `src/llm/client.py:LLMConfig.max_tokens = 4096`
+  3. AgentConfig has max_tokens: `src/agents/config.py:AgentConfig.max_tokens = 4096` (default)
+  4. **Originates in:** `src/analyzer.py` lines 284-288 and 350-353 - max_tokens from AgentConfig was NEVER copied to LLMConfig when creating LLM clients for agents
+- **Root cause:** The analyzer creates LLM clients for each agent but only copied `temperature`, `think_mode`, and `context_length` from AgentConfig to LLMConfig. The `max_tokens` field was never copied, so all LLM clients defaulted to 4096 tokens. After the prompt expansion in attempt 2 (adding explicit JSON examples), character extraction responses exceeded 4096 tokens and got truncated mid-JSON.
+- **Confidence:** HIGH
+
+**Fix Applied:**
+- Modified: `src/analyzer.py` and `src/agents/config.py`
+- Changes:
+  1. **Apply max_tokens from AgentConfig** (`src/analyzer.py` lines 286, 326, 334, 355):
+     - Added `config.max_tokens = agent_config.max_tokens` in `_get_agent_llm_client()`
+     - Added `max_tokens = agent_config.max_tokens` extraction and `config.max_tokens = max_tokens` in `_create_llm_client_for_agent()`
+     - Added fallback `max_tokens = 8192` when no orchestrator_config exists
+  2. **Increased default max_tokens** (`src/agents/config.py` line 29):
+     - Changed `max_tokens: int = 4096` to `max_tokens: int = 8192`
+     - Added comment explaining the increase is for larger JSON responses (character extraction with many characters)
+- Category: Code Logic Bug - Configuration value not being propagated from AgentConfig to LLMConfig
+- Smoke test:
+  - All 444 unit tests passed
+  - Config flow tests verified max_tokens properly extracted and applied
+  - Integration tests confirmed analyzer respects custom max_tokens values
+
+**Expected Outcome:**
+1. Character extraction and other agents will now respect the max_tokens setting (8192 by default, or custom value from orchestrator config)
+2. LLM responses should complete without truncation for texts with many characters
+3. The 8192 token limit provides 2x headroom over the previous 4096 limit
 
 ### Attempt 1 → 2: Fixed character validation for company names
 **Root Cause Analysis:**
@@ -98,16 +131,9 @@ LLM should now properly return `{"is_person": false, "is_person_reasoning": "Thi
 
 ## Diagnostic Notes
 
-The fixes from attempts 1-2 may have inadvertently changed behavior that now causes truncation. Possible causes:
-1. LLM output length limits being hit
-2. Response parsing cutting off valid JSON
-3. Model-specific issue with qwen3-next:80b-a3b-instruct-q8_0
+~~The fixes from attempts 1-2 may have inadvertently changed behavior that now causes truncation.~~
 
-The fact that multiple proposers (marker AND character) are experiencing truncation suggests this is a systemic issue in the LLM client or response handling, not specific to character extraction.
+**RESOLVED:** The truncation was caused by `max_tokens` from `AgentConfig` never being applied to `LLMConfig`. The prompt expansion in attempt 2 (adding explicit JSON examples) increased token usage, pushing responses over the 4096 token limit. Fix in attempt 3→4 now properly applies max_tokens (8192 default) to all agent LLM clients.
 
 ## Next Action
-Investigate LLM response truncation issue. Check:
-1. `src/llm/client.py` for response length handling
-2. `src/pipeline/chapter_detection/llm_marker_proposer.py` for parsing logic
-3. `src/pipeline/character_extraction/llm_character_proposer.py` for parsing logic
-4. Whether recent changes to `_extract_json()` affected response parsing
+Re-run analysis to verify the pipeline completes successfully without truncation.
