@@ -120,6 +120,10 @@ class CharacterAgentV2(Agent):
         characters = main_cast_extractor.profiles_to_characters(profiles)
         logger.info(f"V2 Step 1 complete: {len(characters)} main cast candidates")
 
+        # STEP 1.5: Merge title-variant characters (deterministic post-processing)
+        characters = self._merge_title_variants(characters)
+        logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
+
         # STEP 2: Search for mentions (F2)
         logger.info("V2 Step 2: Searching for character mentions")
         searcher = MentionSearcher(context.text, chapters)
@@ -353,6 +357,95 @@ class CharacterAgentV2(Agent):
             names.add(char.canonical_name)
             names.update(char.aliases)
         return names
+
+    def _merge_title_variants(self, characters: list[Character]) -> list[Character]:
+        """
+        Merge characters where one canonical name contains another.
+
+        Example: "Sergeant-Major Morris" contains "Morris" → merge as aliases
+
+        This is a deterministic post-processing step to handle LLM variance
+        where titles/ranks are inconsistently included.
+        """
+        if len(characters) <= 1:
+            return characters
+
+        merged = []
+        skip_indices = set()
+
+        for i, char1 in enumerate(characters):
+            if i in skip_indices:
+                continue
+
+            # Check if any other character's name is contained in this one
+            for j, char2 in enumerate(characters):
+                if i == j or j in skip_indices:
+                    continue
+
+                name1_lower = char1.canonical_name.lower()
+                name2_lower = char2.canonical_name.lower()
+
+                # Check if one name fully contains the other as a word
+                # "Sergeant-Major Morris" contains "Morris"
+                if self._name_contains_other(name1_lower, name2_lower):
+                    # Merge char2 into char1
+                    logger.info(
+                        f"Merging title variant: '{char2.canonical_name}' → "
+                        f"'{char1.canonical_name}' (as alias)"
+                    )
+
+                    # Add char2's canonical name as an alias of char1
+                    if char2.canonical_name not in char1.aliases:
+                        char1.aliases.append(char2.canonical_name)
+
+                    # Add char2's aliases to char1
+                    for alias in char2.aliases:
+                        if alias not in char1.aliases and alias != char1.canonical_name:
+                            char1.aliases.append(alias)
+
+                    skip_indices.add(j)
+
+                elif self._name_contains_other(name2_lower, name1_lower):
+                    # Merge char1 into char2
+                    logger.info(
+                        f"Merging title variant: '{char1.canonical_name}' → "
+                        f"'{char2.canonical_name}' (as alias)"
+                    )
+
+                    # Add char1's canonical name as an alias of char2
+                    if char1.canonical_name not in char2.aliases:
+                        char2.aliases.append(char1.canonical_name)
+
+                    # Add char1's aliases to char2
+                    for alias in char1.aliases:
+                        if alias not in char2.aliases and alias != char2.canonical_name:
+                            char2.aliases.append(alias)
+
+                    skip_indices.add(i)
+                    break  # Don't process this character further
+
+            if i not in skip_indices:
+                merged.append(char1)
+
+        return merged
+
+    def _name_contains_other(self, longer_name: str, shorter_name: str) -> bool:
+        """
+        Check if longer_name contains shorter_name as a complete word.
+
+        Examples:
+        - "sergeant-major morris" contains "morris" → True
+        - "mr. white" contains "white" → True
+        - "whitehouse" contains "white" → False (not word boundary)
+        """
+        import re
+
+        # Escape special regex characters in shorter_name
+        escaped = re.escape(shorter_name)
+
+        # Match as a complete word (with word boundaries or punctuation)
+        pattern = r'(?:^|[\s\-\.])'  + escaped + r'(?:$|[\s\-\.])'
+        return bool(re.search(pattern, longer_name))
 
     def _convert_to_pipeline_characters(
         self,

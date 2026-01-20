@@ -88,6 +88,7 @@ class OracleState:
     # Claude activity (from iteration logs)
     claude_activities: list[ClaudeActivity] = field(default_factory=list)
     claude_last_message: str = ""
+    thinking_text: list[str] = field(default_factory=list)  # Claude's reasoning/explanations
 
     # Metadata
     last_updated: datetime = field(default_factory=datetime.now)
@@ -344,6 +345,7 @@ class StateParser:
         output_tokens = 0
         activities = []
         last_message = ""
+        thinking_texts = []  # Collect Claude's text/reasoning blocks
 
         try:
             with open(latest_log) as f:
@@ -377,9 +379,11 @@ class StateParser:
                                     ))
 
                                 elif block.get('type') == 'text':
-                                    # Capture last text message (truncated)
+                                    # Capture text blocks for thinking panel
                                     text = block.get('text', '')
-                                    if text:
+                                    if text and len(text.strip()) > 10:  # Skip trivial texts
+                                        thinking_texts.append(text)
+                                        # Also keep last message for backwards compatibility
                                         last_message = text[:200] + "..." if len(text) > 200 else text
 
                     except json.JSONDecodeError:
@@ -393,6 +397,7 @@ class StateParser:
             'output_tokens': output_tokens,
             'activities': activities[-10:],  # Keep last 10 activities
             'last_message': last_message,
+            'thinking_texts': thinking_texts[-10:],  # Keep last 10 text blocks
         }
 
     def _describe_tool_use(self, tool_name: str, tool_input: dict) -> str:
@@ -486,6 +491,7 @@ class StateParser:
         log_data = self.parse_latest_log()
         state.claude_activities = log_data.get('activities', [])
         state.claude_last_message = log_data.get('last_message', '')
+        state.thinking_text = log_data.get('thinking_texts', [])
 
         # Choose model based on phase
         # During evaluate/fix phases, show Claude model; during analysis, show local LLM
@@ -605,6 +611,30 @@ class ScorePanel(Static):
     def render(self) -> Text:
         text = Text()
         threshold = self.state.threshold
+
+        # Prominent total score at top
+        text.append("═" * 56, style="dim cyan")
+        text.append("\n")
+        text.append("  TOTAL SCORE:  ", style="bold white")
+        if self.state.overall_score is not None:
+            overall = self.state.overall_score
+            # Color based on threshold comparison
+            if overall >= threshold:
+                score_style = "bold green"
+            elif overall >= threshold - 1.0:
+                score_style = "bold yellow"
+            else:
+                score_style = "bold red"
+            text.append(f"{overall:.2f}", style=score_style)
+            text.append(" / 10", style="white")
+            text.append(f"   [Threshold: {threshold:.1f}]", style="dim cyan")
+        else:
+            text.append("--", style="dim")
+            text.append(" / 10", style="dim")
+            text.append(f"   [Threshold: {threshold:.1f}]", style="dim cyan")
+        text.append("\n")
+        text.append("═" * 56, style="dim cyan")
+        text.append("\n\n")
 
         scores = [
             ("Structure", self.state.structure_score),
@@ -840,6 +870,64 @@ class ClaudeActivityPanel(Static):
         self.refresh()
 
 
+class ClaudeThinkingPanel(Static):
+    """Panel showing Claude's reasoning and explanations."""
+
+    def __init__(self, state: OracleState):
+        super().__init__()
+        self.state = state
+
+    def render(self) -> Text:
+        text = Text()
+
+        text.append("CLAUDE THINKING\n", style="bold white")
+
+        thinking_texts = self.state.thinking_text
+        if not thinking_texts:
+            text.append("  No reasoning captured yet", style="dim")
+            if self.state.phase in ('awaiting_analysis', 'running_analysis'):
+                text.append("\n  (Local LLMs running - Claude reasoning appears during evaluate/fix)", style="dim cyan")
+            return text
+
+        # Show recent thinking blocks with timestamps/numbering
+        for i, thinking in enumerate(thinking_texts[-5:], 1):  # Show last 5 blocks
+            # Add separator between blocks
+            if i > 1:
+                text.append("  ─────────────────────────────────────────\n", style="dim")
+
+            text.append(f"  [{i}] ", style="dim cyan")
+
+            # Word wrap and display the thinking text
+            # Clean up the text - remove excessive whitespace
+            cleaned = ' '.join(thinking.split())
+
+            # Truncate very long blocks
+            max_chars = 500
+            if len(cleaned) > max_chars:
+                cleaned = cleaned[:max_chars] + "..."
+
+            # Display with word wrapping by breaking into lines
+            words = cleaned.split()
+            current_line = ""
+            line_limit = 80
+
+            for word in words:
+                if len(current_line) + len(word) + 1 <= line_limit:
+                    current_line += (" " if current_line else "") + word
+                else:
+                    if current_line:
+                        text.append(current_line + "\n", style="white")
+                        text.append("      ", style="")  # Indent continuation
+                    current_line = word
+
+            if current_line:
+                text.append(current_line + "\n", style="white")
+
+        return text
+
+    def update_state(self, state: OracleState):
+        self.state = state
+        self.refresh()
 
 
 class FooterInfo(Static):
@@ -880,7 +968,7 @@ class OracleMonitorApp(App):
     }
 
     ScorePanel {
-        height: 8;
+        height: 12;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -913,6 +1001,14 @@ class OracleMonitorApp(App):
         height: auto;
         max-height: 10;
         border: solid $accent;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    ClaudeThinkingPanel {
+        height: auto;
+        max-height: 15;
+        border: solid $warning;
         padding: 0 1;
         margin: 0 0 1 0;
     }
@@ -958,6 +1054,7 @@ class OracleMonitorApp(App):
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
             yield ClaudeActivityPanel(self.state)
+            yield ClaudeThinkingPanel(self.state)
             yield IssuesPanel(self.state)
             yield CommitsPanel(self.state)
             yield Input(placeholder="Send note to Claude (press Enter)...", id="user-notes-input")
@@ -1008,6 +1105,7 @@ class OracleMonitorApp(App):
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)
+            self.query_one(ClaudeThinkingPanel).update_state(self.state)
             self.query_one(IssuesPanel).update_state(self.state)
             self.query_one(CommitsPanel).update_state(self.state)
             self.query_one(FooterInfo).update_state(self.state)

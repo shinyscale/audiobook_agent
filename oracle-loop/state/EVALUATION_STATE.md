@@ -124,6 +124,7 @@ The regression appears to be due to **LLM non-determinism** in the V2 character 
 | 14 | **V2 character extraction (summary-driven)** | **7.60** | **+1.325** |
 | 15 | F6 epithet filtering + pronunciation stopwords | **7.95** | **+1.675** |
 | 16 | Strip Project Gutenberg boilerplate | **7.80** | **Regression** |
+| 17 | Deterministic title-variant merge (Morris fix) | **TBD** | **TBD** |
 
 ## Score History
 
@@ -164,14 +165,33 @@ The fix strategy needs to address the character regression while preserving the 
 - Character Extraction: 27.2s (efficient)
 - Gutenberg removal: 19,050 chars (46.4%) removed successfully
 
-## Next Action
+## Fix Applied (Attempt 17)
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Fix the Morris character split. This is likely LLM variance - the same V2 pipeline that correctly merged Morris in attempt 15 failed to do so in attempt 16. Options:
+**Fix:** Added deterministic title-variant character merging in `src/agents/characters_v2.py`
 
-1. **Add deterministic post-merge rule**: If one character's canonical_name contains another's full name (e.g., "Sergeant-Major Morris" contains "Morris"), merge them
-2. **Re-run with explicit merge hints**: Add examples to the consolidation prompt
-3. **Investigate F6 filter**: Check if the epithet filtering from attempt 15 executed
+**Root Cause:**
+- **File:** `src/pipeline/character_extraction_v2/main_cast.py`
+- **Function:** `MainCastExtractor.extract()` lines 94-145
+- **Issue:** LLM non-determinism - different input (Gutenberg stripping changed summaries) caused different character extraction results
+- **Confidence:** HIGH - same code, different input text
 
-The safest fix is option 1 (deterministic post-processing) since it won't introduce LLM variance.
+**Implementation:**
+- Added `_merge_title_variants()` method in `CharacterAgentV2` (lines 363-425)
+- Runs after step 1 (main cast extraction), before step 2 (mention search)
+- Merges characters where one canonical name contains another as a word (e.g., "Sergeant-Major Morris" contains "Morris")
+- Word-boundary aware to avoid false merges (e.g., "White" won't merge "Whitehouse")
+
+**Smoke Test Results:** ✅ PASS
+- Correctly merges "Sergeant-Major Morris" + "Morris" → 1 character with alias
+- Correctly keeps "Mr. White", "Mrs. White", "Herbert White" separate (different first names)
+
+**Full Test Suite:** ✅ PASS (193 passed, 3 skipped in 6.36s)
+
+**Expected Impact:**
+- Should fix Morris split (Character 7→8, +0.25 weighted = 8.05 overall)
+- Will NOT restore missing aliases ("the old man", "the son") - those are LLM variance
+- Will NOT restore "the monkey's paw" character - also LLM variance
+
+**Next Step:** Re-run analysis to verify fix and check if it crosses 8.0 threshold
