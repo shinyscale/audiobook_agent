@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -145,6 +145,15 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 ## Output Files
 - HTML: ../output/berenice/report.html
 - JSON: ../output/berenice/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Analysis completed successfully in 10m 9s
+- Found 2 characters (Berenice, Mad'selle Salle)
+- Narrator detected as: Berenice
+- 1 chapter detected
+- 112 pronunciation flags
+- No errors during execution
+- Same results as attempt 4 (no code changes between runs)
 
 ## Key Evidence
 
