@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 10)
@@ -125,9 +125,34 @@ C. **In narrator detection** (src/pipeline/character_extraction/): Improve the n
 - HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:05)
 - JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:05)
 
+## Fix History
+
+### Attempt 11 (Current)
+**Issue Fixed:** Berenice incorrectly marked as narrator (Issue #1 from HIGH priority)
+
+**Root Cause:**
+- `src/analyzer.py:_mark_narrator_in_character_map()` lines 2042-2105
+- Multiple stages could set `is_narrator=True` but no stage would clear the flag from other characters
+- Step 3.5: `_detect_narrator()` incorrectly marked Berenice as narrator (she appears near "I" pronouns but isn't the speaker)
+- Step 6.5: Re-run narrator detection correctly identified Egaeus but didn't clear Berenice's flag
+
+**Fix Applied:**
+- Modified `_mark_narrator_in_character_map()` to clear `is_narrator=False` on ALL characters before marking the correct narrator
+- This ensures only one character has `is_narrator=True` at a time
+- File: `src/analyzer.py` lines 2062-2067
+
+**Smoke Test:** PASS
+- Logic verified: clears all narrator flags, then sets only the correct one
+- Unit tests pass (16/16 in test_analyzer_f1_f5_integration.py)
+- Guarantees single narrator
+
+**Expected Impact:**
+- Character Extraction: 7→8 (+0.25 weighted = +0.0625)
+- Character Profiles: 4→6 (+0.30 weighted = +0.045) if plot summary regenerates correctly
+- Total expected: 7.75 + 0.10 = 7.85 to 8.30 (depends on whether plot summary regenerates)
+
 ## Next Action
 
-Run PROMPT_fix.md to:
-1. Implement narrator deduplication in F6 reconciliation
-2. Re-run analysis
-3. Expected outcome: Score 8.0+ (Berenice correctly marked as non-narrator)
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fix and measure score improvement.

@@ -2059,6 +2059,14 @@ Return ONLY the JSON object."""
 
         narrator_lower = narrator_info.narrator_name.lower()
 
+        # First, clear narrator flag from ALL characters
+        # This ensures only one character is marked as narrator
+        for char in characters:
+            if char.is_narrator:
+                char.is_narrator = False
+                logger.debug(f"Cleared narrator flag from {char.canonical_name}")
+
+        # Now mark the correct narrator
         for char in characters:
             # Check canonical name
             if char.canonical_name.lower() == narrator_lower:

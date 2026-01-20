@@ -258,13 +258,21 @@ class StateParser:
             return {}
 
         try:
+            # Check if file was modified recently (within 60 seconds)
+            # If stale, the analysis has completed and we shouldn't show old stage
+            import time
+            mtime = progress_file.stat().st_mtime
+            age_seconds = time.time() - mtime
+            if age_seconds > 60:
+                return {}  # Stale progress file, analysis likely complete
+
             with open(progress_file) as f:
                 data = json.load(f)
             return {
                 'current_stage': data.get('stage', ''),
                 'stage_model': data.get('model', ''),
             }
-        except (json.JSONDecodeError, IOError):
+        except (json.JSONDecodeError, IOError, OSError):
             return {}
 
     def parse_analysis_output(self, text_name: str) -> dict:
