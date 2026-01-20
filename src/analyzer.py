@@ -1105,22 +1105,24 @@ class AudiobookAnalyzer:
             # Standard threshold for longer texts
             MIN_MENTIONS_FOR_PROFILE = 5
 
-        if llm:
+        # Use characters-specific LLM client for profiles (same model as character extraction)
+        profile_llm = self._get_agent_llm_client("characters") or llm
+        if profile_llm:
             print("📋 Generating character profiles...")
-            self._write_progress("Character Profiles", llm.config.model if llm and llm.config else None)
+            self._write_progress("Character Profiles", profile_llm.config.model if profile_llm and profile_llm.config else None)
             with self._metrics.stage("Character Profiles") as ctx:
                 # Set model info from LLM client config (before running)
-                if llm and llm.config:
-                    ctx.set_model(llm.config.model, llm.config.provider)
+                if profile_llm and profile_llm.config:
+                    ctx.set_model(profile_llm.config.model, profile_llm.config.provider)
 
                 # F2: Initialize summary evidence extractor (if summaries available)
                 summary_evidence_extractor = None
                 if summary_map:
-                    summary_evidence_extractor = SummaryEvidenceExtractor(llm)
+                    summary_evidence_extractor = SummaryEvidenceExtractor(profile_llm)
                     logger.info("F2: Summary evidence extraction enabled")
 
                 # F3: Initialize moral valence classifier
-                moral_valence_classifier = MoralValenceClassifier(llm)
+                moral_valence_classifier = MoralValenceClassifier(profile_llm)
                 logger.info("F3: Moral valence classification enabled")
 
                 # Generate profiles for all characters with sufficient mentions
@@ -1192,7 +1194,7 @@ class AudiobookAnalyzer:
 
                     # Generate profile with enhanced context
                     profile, evidence, confidence, appearance, personality, voice_guidance = self._generate_character_profile(
-                        llm, char, doc.text,
+                        profile_llm, char, doc.text,
                         chapter_map=chapter_map,
                         summary_evidence=summary_evidence,
                         moral_valence=moral_valence,
