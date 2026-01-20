@@ -163,12 +163,19 @@ Total potential: +0.45 points → **8.05/10 PASS**
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Run analysis to verify fixes:
-- Character extraction should now have 5 characters instead of 7 (no "the old man" / "the old woman")
-- Pronunciation should have ~40 fewer entries (no common English words like "old", "man", "woman", "son", "mother", "from")
+Analysis complete for attempt 15. Pipeline ran successfully:
+- Total time: 11m 49s
+- 26 LLM calls, 58,026 tokens
+- 7 characters extracted (5 from V2 + 2 from summary reconciliation)
+- 73 pronunciation flags
+
+## Pipeline Notes
+- Some low-confidence profile warnings (Mr. White: 0.30 confidence)
+- LLM identity detection had server errors (500) but analysis completed
+- Front matter detected (1 region)
 
 ## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
+- HTML: ../output/monkeys_paw/report.html (160KB)
+- JSON: ../output/monkeys_paw/analysis.json (84KB)
