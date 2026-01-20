@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Attempt:** 17
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -165,11 +165,9 @@ The fix strategy needs to address the character regression while preserving the 
 - Character Extraction: 27.2s (efficient)
 - Gutenberg removal: 19,050 chars (46.4%) removed successfully
 
-## Fix Applied (Attempt 17)
+## Notes for Attempt 17
 
-**Phase:** awaiting_analysis
-
-**Fix:** Added deterministic title-variant character merging in `src/agents/characters_v2.py`
+**Fix Applied:** Added deterministic title-variant character merging in `src/agents/characters_v2.py`
 
 **Root Cause:**
 - **File:** `src/pipeline/character_extraction_v2/main_cast.py`
