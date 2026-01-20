@@ -4,14 +4,46 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 
 ## 0. Orient
 
+**Context Budget:** You have a limited context budget. Be efficient:
+- Read `docs/CODEBASE_SUMMARY.md` FIRST for file locations (don't explore blindly)
+- Don't re-read files you've already read this session
+- Use Haiku (via `model: haiku` in Task agents) for exploration/search tasks
+- Use line ranges when reading source files (e.g., `Read file.py lines 100-200`)
+
 0a. Read `state/EVALUATION_STATE.md` to understand current issues and their priorities.
 0b. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").
 0c. Read `docs/output_quality.md` to understand the quality criteria.
-0d. Read `../AGENTS.md` for codebase navigation and commands.
+0d. Read `docs/CODEBASE_SUMMARY.md` for file locations and common fix locations.
 0e. Read `../CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
-0f. **CRITICAL:** Read `docs/ATTEMPT_1_SUMMARY.md` to understand what approaches have already been tried and FAILED.
+0f. **CRITICAL:** Search `docs/ATTEMPT_1_SUMMARY.md` for keywords related to the current issue.
+    Do NOT read the entire file - grep for relevant terms:
+    ```bash
+    grep -i "narrator\|merge\|alias" docs/ATTEMPT_1_SUMMARY.md
+    ```
+    Only read full sections if grep finds relevant matches.
 
 > **DO NOT RETRY FAILED APPROACHES:** The summary documents approaches that had ZERO impact or caused regressions. Before implementing any fix, check if a similar approach was already tried. If so, you MUST try a DIFFERENT approach.
+
+## 0.5 Efficient Exploration
+
+**IMPORTANT: Minimize context usage during codebase exploration.**
+
+When you need to search the codebase:
+1. First check `docs/CODEBASE_SUMMARY.md` for file locations and line numbers
+2. Use `model: haiku` when spawning Task agents for grep/search operations
+3. Only deep-read specific functions once you've identified the exact location
+4. Do NOT read entire files - use line ranges (e.g., `Read consensus.py lines 1571-1650`)
+
+Example efficient pattern:
+```
+BAD: Read entire consensus.py (2500 lines) → wastes 50K+ tokens
+GOOD: Read CODEBASE_SUMMARY.md → grep for function → Read consensus.py:1571-1650
+```
+
+For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md:
+- Character merge issues → `consensus.py` lines 1571-1700
+- Narrator issues → `analyzer.py` lines 1986-2076
+- Profile issues → `analyzer.py` lines 1570-1700
 
 ## 1. ROOT CAUSE ANALYSIS (MANDATORY)
 

@@ -4,6 +4,11 @@ You are running the audiobook analysis pipeline on a test text as part of an aut
 
 ## 0. Orient
 
+**Context Budget:** You have a limited context budget. Be efficient:
+- Read only the files you need for this phase (state files, manifest, config)
+- Don't explore the codebase - the analyze phase just runs the pipeline
+- Don't read source code files - that's for the fix phase
+
 0a. Read `state/EVALUATION_STATE.md` to understand current state.
 0b. Read `state/manifest.json` to identify the current active text.
 0c. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").

@@ -6,26 +6,54 @@ You are the oracle in an autonomous improvement loop for an audiobook narrator p
 
 ## 0. Orient
 
+**Context Budget:** You have a limited context budget. Be efficient:
+- Don't re-read files you've already read this session
+- Use `jq` to extract specific fields from large JSON files instead of reading entire files
+- Read only the sections of report.html relevant to failing scores
+- Skip detailed review of sections scoring 9-10/10 unless verifying a fix
+
 0a. Read `state/EVALUATION_STATE.md` to understand current state and which text is being evaluated.
 0b. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").
 0c. Read `docs/output_quality.md` to understand the full evaluation rubric.
 0d. Read `../AGENTS.md` if you need to understand the tool's capabilities.
-0e. Read `docs/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
+0e. Search `docs/ATTEMPT_1_SUMMARY.md` for relevant keywords instead of reading the entire file:
+    ```bash
+    grep -i "character\|narrator\|merge" docs/ATTEMPT_1_SUMMARY.md | head -30
+    ```
 
 ## 1. Load the Output
 
-Read the HTML report for the current text:
+**Context-Efficient Reading:**
+- For report.html: Read only the sections relevant to failing scores (don't read entire 100KB+ file)
+- For analysis.json: Use `jq` to extract specific fields rather than reading entire file
+- Skip sections scoring 9-10/10 unless verifying a fix
 
+**Efficient extraction examples:**
 ```bash
-# The output location follows this pattern
-cat ../output/{book_name}/report.html
+# Instead of reading entire analysis.json (50-100KB):
+# Extract character list only
+jq '.characters[] | {name: .canonical_name, aliases: .aliases, narrator: .is_narrator}' ../output/{book_name}/analysis.json
+
+# Extract chapter structure only
+jq '.structure[] | {title: .title, start_line: .start_line}' ../output/{book_name}/analysis.json
+
+# Extract pronunciation entries
+jq '.pronunciations[:20]' ../output/{book_name}/analysis.json
 ```
 
-If the file is large, read it in sections:
-- Character list and profiles
-- Chapter summaries
-- Pronunciation guide
-- Structure/navigation
+For report.html, use grep to find specific sections:
+```bash
+# Find character list section
+grep -n "character" ../output/{book_name}/report.html | head -20
+
+# Then read only that section with line ranges
+```
+
+If you need to read the HTML file directly, read it in targeted sections:
+- Character list and profiles (if Character Extraction score is low)
+- Chapter summaries (if Summaries score is low)
+- Pronunciation guide (if Pronunciation score is low)
+- Structure/navigation (if Structure score is low)
 
 ## 1.5 DETERMINISTIC SANITY CHECKS (Run Before LLM Evaluation)
 
