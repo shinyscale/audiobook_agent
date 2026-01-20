@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -166,16 +166,19 @@ Total potential: +0.45 points → **8.05/10 PASS**
 **Phase:** awaiting_evaluation
 
 Analysis complete for attempt 15. Pipeline ran successfully:
-- Total time: 11m 49s
-- 26 LLM calls, 58,026 tokens
-- 7 characters extracted (5 from V2 + 2 from summary reconciliation)
+- Total time: 8m 16s
+- 30 LLM calls, 64,411 tokens
+- 6 characters extracted (5 from V2 + 1 from summary reconciliation)
 - 73 pronunciation flags
 
 ## Pipeline Notes
-- Some low-confidence profile warnings (Mr. White: 0.30 confidence)
-- LLM identity detection had server errors (500) but analysis completed
+- Low confidence profile for "the monkey's paw": 0.30 confidence
+- JSON parse error for "the monkey's paw" profile
 - Front matter detected (1 region)
+- Character count: 6 total (down from 7 in attempt 14 - F6 filter working!)
+- Quality bottleneck: Character Profiles (49.4% of time)
 
 ## Output Files
-- HTML: ../output/monkeys_paw/report.html (160KB)
-- JSON: ../output/monkeys_paw/analysis.json (84KB)
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+- Quality report: output/The_Monkey's_Paw_20260120_153207/quality.md
