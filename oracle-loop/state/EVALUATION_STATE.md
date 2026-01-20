@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 12)
@@ -208,9 +208,43 @@ Disabled the unreliable pronoun density heuristic in Step 3.5. Set `narrator_det
 
 **Smoke Test:** PASS - All 444 tests pass
 
+**Result:** FIX DID NOT WORK - plot summary still says "Berenice, the first-person narrator"
+
+---
+
+### Attempt 14
+**Issue Targeted:** Root cause of why Attempt 13 fix failed (CRITICAL issues #2 and #3)
+
+**Deeper Root Cause Investigation:**
+Attempt 13 disabled Step 3.5 (early narrator detection), setting `narrator_detected = None` before overview generation. However, the plot summary in analysis.json STILL said "Berenice, the first-person narrator".
+
+**True Root Cause:**
+The OverviewGenerator (Step 6, line 1274) includes a "MAIN CHARACTERS" section in the plot summary prompt, showing characters by mention_count. The issue:
+
+1. F6 reconciliation (lines 1024-1093) adds "Egaeus" from chapter summaries with `mention_count = len(chapters_present) = 1` (line 1077)
+2. Berenice has `mention_count = 13` (explicit name mentions in text)
+3. OverviewGenerator includes this in prompt: "Berenice: 13 mentions, Egaeus: 1 mention"
+4. LLM sees lopsided counts and assumes Berenice is the main character/narrator, overriding the chapter summary text "the narrator Egaeus"
+
+**Data Flow Trace:**
+1. F6 reconciliation (line 1024): Adds "Egaeus" from summary with `mention_count=1`
+2. Step 6 overview (line 1306): Passes character list to OverviewGenerator
+3. OverviewGenerator (line 205): Builds "MAIN CHARACTERS" list sorted by mention_count
+4. Prompt includes: "Berenice: 13 mentions" (Egaeus: 1 mention filtered out or ranked last)
+5. LLM generates plot summary favoring Berenice despite chapter summary saying "narrator Egaeus"
+
+**Fix Applied:**
+Modified `src/pipeline/overview/generator.py` lines 201-215 to filter out characters with `mention_count < 3` from the main characters list. These are often first-person narrators added from summaries who use "I" instead of their name. Including them with artificially low counts misleads the LLM.
+
+**Modified:** `src/pipeline/overview/generator.py` lines 201-207 (added eligibility filter)
+
+**Smoke Test:** PASS - All 444 tests pass
+
 **Expected Impact:**
-- Character Extraction: 5→8 (+0.75 weighted) - correct narrator identification
-- Character Profiles: 3→7+ (+0.60+ weighted) - correct narrator, correct plot summary, correct voice assignments
+- Plot summary will no longer be biased by low-count narrator entries
+- LLM will rely on chapter summary text "the narrator Egaeus" without conflicting mention_count data
+- Character Extraction: 5→8 (+0.75 weighted)
+- Character Profiles: 3→7+ (+0.60+ weighted)
 - Total: +1.35+ points → 8.35+ (PASS threshold)
 
 ## Next Action

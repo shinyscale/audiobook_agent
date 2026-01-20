@@ -201,9 +201,14 @@ class OverviewGenerator:
         # Build main characters context to ground the LLM
         main_characters = ""
         if result.characters:
+            # Filter out characters with very low mention counts (< 3)
+            # These are often first-person narrators added from summaries who use "I" instead of their name
+            # Including them with artificially low counts can mislead the LLM
+            eligible_chars = [c for c in result.characters if c.mention_count >= 3]
+
             # Sort by mention count (descending) and take top 3
             sorted_chars = sorted(
-                result.characters,
+                eligible_chars,
                 key=lambda c: c.mention_count,
                 reverse=True
             )[:3]
