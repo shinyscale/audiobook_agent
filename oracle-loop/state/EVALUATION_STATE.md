@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -142,6 +142,7 @@ Overall = (9 × 0.20) + (5 × 0.25) + (7 × 0.15) + (8 × 0.20) + (4 × 0.10) + 
 | 11 | `is_ambiguous_lastname_only()` in heuristic path | 6.70 - fix in wrong code path |
 | 12 | Added ambiguity check to `_validate_merge()` in LLM path | 7.00 - partial fix (Herbert fixed) |
 | 13 | **Gender conflict detection in epithet resolution** | **7.00 - FIX NOT APPLIED (stale .pyc cache)** |
+| 14 | **Cleared Python bytecode cache** | Infrastructure fix - allows attempt 13 code to execute |
 
 ## Score History
 
@@ -156,22 +157,17 @@ Overall = (9 × 0.20) + (5 × 0.25) + (7 × 0.15) + (8 × 0.20) + (4 × 0.10) + 
 
 ## Next Action
 
-**CRITICAL: Clear Python bytecode cache before next analysis run**
+Re-run the analysis. The gender conflict detection code from attempt 13 will now execute properly with the bytecode cache cleared.
 
-```bash
-cd /home/zacharymandrews/Tools/audiobook_agent
-find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
-find . -name "*.pyc" -delete 2>/dev/null
-```
-
-Then re-run the analysis. The gender conflict detection code IS correct - it just needs to actually execute.
-
-After clearing cache and re-running, the expected results:
-- "the old woman" will be a separate character (not alias of "the sergeant-major")
+**Expected results after attempt 14:**
+- "the old woman" should be a separate character (not alias of "the sergeant-major")
 - "the old man" and "the soldier" may still merge with "the sergeant-major" (all male)
 - Character Extraction should improve from 5/10 to at least 6/10
 
-The remaining issue (all male epithets merging) requires semantic/contextual differentiation beyond gender, which is a more complex fix.
+**Remaining issues after cache fix:**
+- If male epithets still incorrectly merge, need semantic/contextual differentiation beyond gender
+- "White" (30 mentions) orphan entry still needs context-aware disambiguation
+- "his wife" needs relational pronoun resolution
 
 ## Configuration Audit
 

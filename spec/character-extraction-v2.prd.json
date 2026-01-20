@@ -1,0 +1,694 @@
+{
+  "prd": {
+    "title": "Character Extraction V2: Summary-Driven Architecture",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "Critical",
+    "target": "Rebuild character extraction from scratch using summaries as foundation, replacing complex merge heuristics with profile-first approach"
+  },
+  "executive_summary": "The current character extraction system (2500+ lines in consensus.py) is fundamentally flawed because it tries to solve an ambiguous semantic problem (are these two names the same person?) with rule-based heuristics. The oracle loop has been stuck at 6.7/10 for 12+ iterations because tweaks to merge logic cannot solve the architectural problem. This PRD proposes a rebuild using a 'profile-first' approach: extract the MAIN CAST as profiles (with aliases) from chapter summaries, then deterministically search the raw text for mentions. This eliminates the global merge problem and reduces code complexity by ~80%. The new system is tiered: high accuracy for main cast (10-15 characters), best-effort for supporting characters. Critical guardrails are included to avoid new failure modes: (1) no summaries↔characters dependency cycle (summaries must run without requiring v1 characters), (2) grounding gate to prevent summary hallucinations from becoming characters, and (3) first-class support for descriptive/unnamed characters (e.g., 'the creature', 'the monster'). Designed for NEW/UNPUBLISHED texts processed locally via Ollama.",
+  "problem_statement": {
+    "current_failures": [
+      {
+        "issue": "Wrong order of operations",
+        "description": "Extract names → merge globally → generate profiles",
+        "root_cause": "Merge decisions require understanding character identity, but identity isn't established until profiles exist",
+        "impact": "Ambiguous merge decisions cause fragmentation (5 entries for one character) or false merges"
+      },
+      {
+        "issue": "Post-hoc validation fights LLM decisions",
+        "description": "_validate_merge() rejects merges AFTER union-find has already merged them",
+        "root_cause": "consensus.py lines 1571-1850 - validation runs after LLM commit",
+        "impact": "Inconsistent state, fragmented characters, wasted LLM calls"
+      },
+      {
+        "issue": "11 different prompts with conflicting rules",
+        "description": "PAIRWISE_ALIAS_PROMPT, ALIAS_RESOLUTION_PROMPT, EPITHET_ALIAS_PROMPT, etc.",
+        "root_cause": "Organic growth without coherent architecture",
+        "impact": "Same character may merge in one path but not another"
+      },
+      {
+        "issue": "Conservative LLM prompts cause systematic under-merging",
+        "description": "Prompts say 'false negatives are better than false positives'",
+        "root_cause": "PAIRWISE_ALIAS_PROMPT lines 158-191",
+        "impact": "Valid merges rejected, characters fragmented"
+      },
+      {
+        "issue": "Cascading failures",
+        "description": "Narrator detection fails → wrong plot summary → worse character extraction",
+        "root_cause": "Narrator detection runs early without main cast context",
+        "impact": "Errors compound through pipeline"
+      }
+    ],
+    "why_current_system_cannot_be_fixed": [
+      "The merge problem is semantically ambiguous - no set of rules can solve it perfectly",
+      "Structure and Summaries work because they ask objective/scoped questions",
+      "Characters asks 'are these the same person?' - requires narrative understanding, not name matching",
+      "12+ oracle loop iterations have not moved score past 6.7 - architectural limit reached"
+    ],
+    "key_constraints": [
+      "Texts are NEW/UNPUBLISHED - not in LLM training data",
+      "Local processing required (Ollama) for security of unpublished works",
+      "Target users are audiobook narrators who need to prep without reading the book",
+      "Tiered accuracy acceptable: high for main cast, best-effort for minor characters"
+    ]
+  },
+  "architecture_notes": {
+    "dependency_cycle_fix": [
+      "V2 character extraction depends on chapter summaries, therefore SummaryAgent MUST NOT depend on characters.",
+      "In v2 mode the orchestrator order should be: structure → summaries → characters_v2 (then pronunciation, etc.).",
+      "Chapter summarization may optionally use character context IF available, but must function without it."
+    ],
+    "grounding_strategy": [
+      "Treat chapter summaries as a candidate generator, not a source of truth.",
+      "Every main-cast character and alias MUST be grounded by raw-text mention search.",
+      "Characters/aliases with zero hits are flagged as summary-only and excluded from high-confidence main cast by default."
+    ],
+    "descriptive_characters": [
+      "Unnamed characters referenced by recurring descriptive handles (e.g., 'the creature', 'the stranger') MUST be supported as main-cast entries when they are narratively central.",
+      "Descriptive handles should be treated as canonical names when no proper name exists; epithets become aliases."
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Main Cast Extraction from Summaries",
+      "priority": "CRITICAL",
+      "rationale": "This is the core insight: extract character PROFILES from chapter summaries (which work well), not character NAMES from raw text. The LLM already identifies who matters in each chapter summary. We formalize this into a character list.",
+      "current_behavior": "NER + LLM extract names from raw text, then complex merge logic tries to consolidate",
+      "proposed_behavior": "Feed chapter summaries to LLM, ask for main cast profiles directly. LLM provides canonical names AND aliases together - no merge step needed. The prompt must explicitly allow unnamed/descriptive characters (e.g., 'the creature') and must forbid inventing proper names that are not supported by the summaries.",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Main cast extracted from chapter summaries",
+          "steps": [
+            "Run analysis on a novel with chapter summaries generated",
+            "Verify 10-15 main characters are identified",
+            "Check that each character has canonical_name, aliases, role, description",
+            "Confirm characters are the actual main cast, not minor characters",
+            "Verify no merge heuristics were used - LLM provided aliases directly"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Aliases provided by LLM are accurate",
+          "steps": [
+            "Run analysis on Gatsby",
+            "Verify 'Jay Gatsby' has aliases including 'Gatsby', 'Mr. Gatsby', 'James Gatz'",
+            "Check that Tom Buchanan and Daisy Buchanan are SEPARATE characters",
+            "Confirm narrator (Nick Carraway) is correctly identified",
+            "Verify no false merges between characters who share last names"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Descriptive/unnamed main characters are supported",
+          "steps": [
+            "Run analysis on Frankenstein",
+            "Verify a main-cast character exists with canonical handle like 'the creature' (or most distinctive recurring handle)",
+            "Verify aliases include semantically equivalent epithets like 'the monster', 'the wretch', 'the fiend' when present",
+            "Verify the character is NOT incorrectly assigned a proper name that is not supported by the book text",
+            "Confirm this descriptive main-cast entry survives grounding (has raw-text mention hits)"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Works for NEW unpublished texts",
+          "steps": [
+            "Run analysis on a novel not in LLM training data",
+            "Verify main cast extraction uses only the chapter summaries WE generated",
+            "Check that character descriptions come from the text, not prior knowledge",
+            "Confirm analysis works offline with local Ollama model",
+            "Verify no hallucinated characters from other works (grounding gate rejects summary-only characters)"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction_v2/__init__.py",
+            "description": "NEW FILE: Package init for v2 extraction"
+          },
+          {
+            "path": "src/pipeline/character_extraction_v2/main_cast.py",
+            "description": "NEW FILE: Main cast extraction from summaries",
+            "changes": [
+              {
+                "location": "MainCastExtractor class",
+                "description": "Takes chapter_summaries + plot_summary, returns main cast profiles"
+              },
+              {
+                "location": "MAIN_CAST_PROMPT",
+                "description": "Single prompt asking for 10-15 main characters with aliases, roles, descriptions; MUST allow unnamed/descriptive characters; MUST forbid inventing unsupported proper names"
+              },
+              {
+                "location": "extract_main_cast()",
+                "description": "Main entry point: call LLM with summaries, parse response into Character objects"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Mention Search for Main Cast",
+      "priority": "CRITICAL",
+      "rationale": "Once we have profiles with aliases, searching for mentions is deterministic. No ambiguity - we know 'Gatsby', 'Jay Gatsby', 'Mr. Gatsby' are the same because the LLM told us so.",
+      "current_behavior": "Mentions found first, then try to merge - order causes ambiguity",
+      "proposed_behavior": "Profiles first, then search for mentions matching each character's name variants",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "All name variants found for each main character",
+          "steps": [
+            "Run analysis on a novel",
+            "For each main cast character, examine mentions list",
+            "Verify all aliases are searched for in the text",
+            "Check mention counts are reasonable and combined across aliases",
+            "Confirm word boundary matching prevents substring false positives"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Mention positions tracked for chapter distribution",
+          "steps": [
+            "Run analysis on a novel",
+            "For each main cast character, examine chapter distribution",
+            "Verify mentions are assigned to correct chapters",
+            "Check that first_appearance and last_appearance are accurate",
+            "Confirm chapter distribution matches narrative (protagonist appears throughout)"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction_v2/mention_search.py",
+            "description": "NEW FILE: Search text for character mentions",
+            "changes": [
+              {
+                "location": "MentionSearcher class",
+                "description": "Takes Character with aliases, full_text, returns mentions with positions"
+              },
+              {
+                "location": "build_search_patterns()",
+                "description": "Build regex patterns from canonical_name + aliases with word boundaries"
+              },
+              {
+                "location": "find_mentions()",
+                "description": "Search text, deduplicate overlapping matches, return with context"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2b",
+      "name": "Grounding Gate (Anti-Hallucination)",
+      "priority": "CRITICAL",
+      "rationale": "Summary-driven main-cast extraction is high leverage but introduces a new failure mode: summary hallucinations can become hallucinated characters. We must treat summaries as a candidate generator and use the raw text as the source of truth.",
+      "current_behavior": "Characters may be accepted based on LLM outputs even when the alleged name/handle never appears in the book text (or only appears due to substring/formatting artifacts).",
+      "proposed_behavior": "After mention search, enforce grounding rules: (1) each main-cast character must have >=3 total exact mention hits across canonical+aliases (configurable), (2) each alias with 0 hits is removed or flagged, and (3) any character with 0 hits is excluded from high-confidence main cast by default and placed into low-confidence output with a reason.",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Summary-only characters are rejected",
+          "steps": [
+            "Run v2 analysis on any book",
+            "Intentionally induce/observe a summary that mentions a non-existent character handle",
+            "Verify mention search finds 0 hits for that handle",
+            "Verify the character is flagged as summary-only and excluded from high-confidence main cast",
+            "Confirm final report does not present the hallucinated character as real"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Zero-hit aliases do not pollute output",
+          "steps": [
+            "Run v2 analysis on a book",
+            "Find a main-cast character with multiple aliases",
+            "Verify aliases with 0 text hits are removed or explicitly flagged as ungrounded",
+            "Confirm mention counts and chapter distributions are computed only from grounded aliases"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction_v2/grounding.py",
+            "description": "NEW FILE: Apply grounding rules and produce confidence/flags for ungrounded characters and aliases",
+            "changes": [
+              {
+                "location": "GroundingGate class",
+                "description": "Takes main_cast + mention_search results, applies min-hit thresholds, returns grounded main cast + low-confidence items"
+              },
+              {
+                "location": "apply_grounding()",
+                "description": "Remove/flag zero-hit aliases; demote/exclude zero-hit characters; attach reasons to pipeline metadata"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Supporting Cast Extraction",
+      "priority": "HIGH",
+      "rationale": "Minor characters still matter for pronunciation and context, but don't need the same accuracy as main cast. Simple NER + filtering is sufficient.",
+      "current_behavior": "All characters go through same complex merge pipeline",
+      "proposed_behavior": "Tiered: main cast gets profile-first treatment, supporting cast gets simple NER with light filtering",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Supporting characters extracted via NER",
+          "steps": [
+            "Run analysis on a novel",
+            "Examine supporting cast (non-main characters)",
+            "Verify minor characters with 3+ mentions are included",
+            "Check that main cast names are excluded (no duplicates)",
+            "Confirm supporting characters have basic profiles (name, role, brief description)"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Supporting cast accuracy is best-effort",
+          "steps": [
+            "Run analysis on a novel with complex minor characters",
+            "Accept that some minor character aliases may not be resolved",
+            "Verify main cast is not affected by supporting cast issues",
+            "Check that supporting characters have lower confidence scores",
+            "Confirm no pollution of main cast from NER false positives"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction_v2/supporting.py",
+            "description": "NEW FILE: Supporting cast extraction",
+            "changes": [
+              {
+                "location": "SupportingCastExtractor class",
+                "description": "Takes full_text, main_cast_names, returns supporting characters"
+              },
+              {
+                "location": "extract_supporting()",
+                "description": "NER extraction, filter main cast, filter low-count, simple profiles"
+              },
+              {
+                "location": "simple_profile()",
+                "description": "Light LLM call for role + brief description, no complex merge logic"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Narrator Detection from Summaries",
+      "priority": "HIGH",
+      "rationale": "Current narrator detection runs early without main cast context and often fails. New approach: run AFTER main cast extraction, use summaries to identify POV.",
+      "current_behavior": "Narrator detected from pronoun density in raw text, before characters known",
+      "proposed_behavior": "Narrator detected from plot_summary + chapter_summaries, matched to main_cast entry",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "First-person narrator correctly identified",
+          "steps": [
+            "Run analysis on The Great Gatsby",
+            "Verify Nick Carraway is marked as narrator",
+            "Check that narrator detection used summaries, not raw pronoun density",
+            "Confirm narrator matches a main cast entry",
+            "Verify narrator's profile includes voice notes for audiobook"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Third-person narratives handled correctly",
+          "steps": [
+            "Run analysis on Pride and Prejudice (third-person)",
+            "Verify no character is incorrectly marked as narrator",
+            "Check that narrative_pov is 'third-person' or 'omniscient'",
+            "Confirm no cascading errors from missing narrator",
+            "Verify protagonists are correctly identified despite no narrator"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Nested/epistolary narratives handled",
+          "steps": [
+            "Run analysis on Frankenstein (nested narrators)",
+            "Verify multiple narrators can be identified (Walton, Victor)",
+            "Check that frame narrative structure is detected",
+            "Confirm each narrator's sections are tracked",
+            "Verify narrator switches don't corrupt character extraction"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/pipeline/character_extraction_v2/narrator.py",
+            "description": "NEW FILE: Narrator detection from summaries",
+            "changes": [
+              {
+                "location": "NarratorDetector class",
+                "description": "Takes plot_summary, chapter_summaries, main_cast, returns narrator info"
+              },
+              {
+                "location": "detect_pov()",
+                "description": "Determine first-person vs third-person from summary language"
+              },
+              {
+                "location": "identify_narrator()",
+                "description": "If first-person, ask LLM 'Who is telling this story?' with main cast context"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "V2 Character Agent",
+      "priority": "CRITICAL",
+      "rationale": "Wire together all v2 components into a new agent that can be used alongside v1 during migration.",
+      "current_behavior": "CharacterAgent uses old extraction pipeline with consensus.py",
+      "proposed_behavior": "CharacterAgentV2 uses summary-driven extraction: main_cast → mentions → grounding → supporting → narrator. It must not introduce a summaries↔characters dependency cycle in the orchestrator.",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "V2 agent produces complete character results",
+          "steps": [
+            "Run analysis with --character-extraction=v2 flag",
+            "Verify CharacterMap is produced with main_cast + supporting_cast",
+            "Check that all required fields are populated (names, aliases, profiles)",
+            "Confirm narrator detection runs and produces result",
+            "Verify output format matches v1 for downstream compatibility"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "V2 agent depends on summaries without creating a cycle",
+          "steps": [
+            "Run analysis with --character-extraction=v2 flag",
+            "Verify orchestrator order is structure → summaries → characters_v2",
+            "Verify SummaryAgent does NOT require v1 characters to run (no summaries↔characters cycle)",
+            "Check that chapter_summaries are passed to character extraction",
+            "Confirm error if summaries not available",
+            "Verify main cast extraction uses summary content"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Grounding gate prevents summary hallucination from becoming character output",
+          "steps": [
+            "Run analysis with --character-extraction=v2 flag",
+            "Verify each main-cast character has >=3 grounded mention hits (canonical+aliases) by default",
+            "Verify characters with 0 hits are demoted/excluded from high-confidence main cast",
+            "Verify ungrounded aliases are removed or explicitly flagged",
+            "Confirm downstream narrator detection and supporting cast are not polluted by ungrounded entities"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "V2 agent significantly simpler than V1",
+          "steps": [
+            "Count lines of code in v2 pipeline files",
+            "Verify total is <500 lines (vs 2500+ in consensus.py alone)",
+            "Check that no complex merge heuristics exist",
+            "Confirm no post-hoc validation fighting LLM decisions",
+            "Verify single prompt for main cast extraction"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/agents/characters_v2.py",
+            "description": "NEW FILE: V2 character agent",
+            "changes": [
+              {
+                "location": "CharacterAgentV2 class",
+                "description": "Inherits from Agent, uses v2 pipeline"
+              },
+              {
+                "location": "run()",
+                "description": "Orchestrate: main_cast → mentions → grounding → supporting → narrator"
+              },
+              {
+                "location": "verify()",
+                "description": "Simple verification: check main cast count, grounding thresholds, narrator validity"
+              }
+            ]
+          },
+          {
+            "path": "src/analyzer.py",
+            "changes": [
+              {
+                "location": "argument parsing",
+                "description": "Add --character-extraction flag with v1/v2 options"
+              },
+              {
+                "location": "agent selection",
+                "description": "Select CharacterAgentV2 when --character-extraction=v2"
+              },
+              {
+                "location": "agent ordering / dependencies",
+                "description": "Ensure v2 mode runs summaries before characters_v2, and update SummaryAgent to not depend on characters"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F6",
+      "name": "CLI Integration and Migration Path",
+      "priority": "MEDIUM",
+      "rationale": "Allow gradual migration from v1 to v2 with ability to compare results.",
+      "current_behavior": "Only v1 character extraction available",
+      "proposed_behavior": "CLI flag to select v1 or v2, comparison script to evaluate both",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "CLI flag selects character extraction version",
+          "steps": [
+            "Run audiobook-prep analyze --character-extraction=v1 book.txt",
+            "Verify v1 pipeline is used",
+            "Run audiobook-prep analyze --character-extraction=v2 book.txt",
+            "Verify v2 pipeline is used",
+            "Check that default remains v1 until v2 is validated"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Comparison script evaluates v1 vs v2",
+          "steps": [
+            "Run scripts/compare_characters.py v1_output.json v2_output.json",
+            "Verify script shows character lists side-by-side",
+            "Check that differences are highlighted (missing, extra, alias differences)",
+            "Confirm script outputs summary statistics",
+            "Verify script can be used in oracle loop for A/B testing"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "scripts/compare_characters.py",
+            "description": "NEW FILE: Compare v1 vs v2 character extraction results",
+            "changes": [
+              {
+                "location": "main()",
+                "description": "Load two analysis.json files, compare character lists"
+              },
+              {
+                "location": "diff_characters()",
+                "description": "Show differences in character names, aliases, profiles"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F7",
+      "name": "Optional Quick Review UI",
+      "priority": "LOW",
+      "rationale": "For users who want to verify main cast before full report generation. Quick 30-second review, not reading the book.",
+      "current_behavior": "No review step - fully automated",
+      "proposed_behavior": "Optional TUI step showing main cast and narrator for quick confirmation",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Quick review shows main cast",
+          "steps": [
+            "Run analysis with --review flag",
+            "Verify TUI displays main cast list after extraction",
+            "Check that user can confirm or flag issues",
+            "Confirm review takes <30 seconds for typical book",
+            "Verify user can skip review with Enter"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Quick review shows narrator",
+          "steps": [
+            "Run analysis with --review flag on first-person novel",
+            "Verify TUI asks 'Is [Character] the narrator? [Y/n]'",
+            "Check that user can correct narrator if wrong",
+            "Confirm correction is applied to final output",
+            "Verify third-person novels skip narrator confirmation"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "src/gui/review.py",
+            "description": "NEW FILE: Quick review TUI",
+            "changes": [
+              {
+                "location": "QuickReview class",
+                "description": "Simple TUI for main cast and narrator confirmation"
+              },
+              {
+                "location": "show_main_cast()",
+                "description": "Display main cast, allow user to flag issues"
+              },
+              {
+                "location": "confirm_narrator()",
+                "description": "Ask user to confirm narrator identification"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Main Cast Extraction from Summaries", "rationale": "Core of new architecture - must work first"},
+    {"feature": "F2", "name": "Mention Search for Main Cast", "rationale": "Completes main cast with mention counts"},
+    {"feature": "F2b", "name": "Grounding Gate (Anti-Hallucination)", "rationale": "Prevents summary hallucinations from becoming character output"},
+    {"feature": "F4", "name": "Narrator Detection from Summaries", "rationale": "Required for complete main cast profiles"},
+    {"feature": "F5", "name": "V2 Character Agent", "rationale": "Wire together into usable agent"},
+    {"feature": "F3", "name": "Supporting Cast Extraction", "rationale": "Complete character list with minor characters"},
+    {"feature": "F6", "name": "CLI Integration and Migration Path", "rationale": "Enable A/B testing against v1"},
+    {"feature": "F7", "name": "Optional Quick Review UI", "rationale": "Enhancement for users who want verification"}
+  ],
+  "verification_plan": {
+    "unit_tests": [
+      "Test main_cast extraction produces valid Character objects",
+      "Test mention_search finds all aliases with word boundaries",
+      "Test grounding gate demotes/excludes zero-hit characters and removes/flags zero-hit aliases",
+      "Test narrator detection distinguishes first-person vs third-person",
+      "Test supporting cast filtering excludes main cast names",
+      "Test CharacterAgentV2.run() produces complete CharacterMap"
+    ],
+    "integration_tests": [
+      {
+        "name": "Gatsby v2 analysis",
+        "steps": [
+          "Run full analysis with --character-extraction=v2",
+          "Verify main cast includes Nick, Gatsby, Daisy, Tom, Jordan",
+          "Check Jay Gatsby aliases include 'Gatsby', 'James Gatz'",
+          "Verify Tom and Daisy are separate characters",
+          "Confirm Nick is identified as narrator"
+        ]
+      },
+      {
+        "name": "Frankenstein v2 analysis",
+        "steps": [
+          "Run full analysis with --character-extraction=v2",
+          "Verify main cast includes Victor, The Creature, Elizabeth",
+          "Check The Creature is NOT named 'Frankenstein'",
+          "Verify The Creature (or equivalent descriptive handle) has aliases like 'the monster' when present and is grounded by mention search",
+          "Verify nested narrators (Walton, Victor) are detected",
+          "Confirm no fragmentation of Alphonse Frankenstein"
+        ]
+      },
+      {
+        "name": "New unpublished text",
+        "steps": [
+          "Run analysis on text not in training data",
+          "Verify main cast extraction works from generated summaries",
+          "Check no hallucinated characters from other works",
+          "Confirm profiles describe characters from THIS text only",
+          "Verify grounding gate rejects any main-cast character with 0 raw-text hits"
+        ]
+      }
+    ],
+    "comparison_tests": [
+      {
+        "name": "V1 vs V2 on oracle loop texts",
+        "steps": [
+          "Run both v1 and v2 on Gatsby, Frankenstein, Monkeys Paw",
+          "Use compare_characters.py to diff results",
+          "Track oracle loop scores for v2",
+          "Goal: v2 scores >= 8.0 on all texts"
+        ]
+      }
+    ],
+    "performance_tests": [
+      "Count LLM calls: v2 should use 20-30 vs v1's 100-200+",
+      "Count lines of code: v2 pipeline should be <500 lines",
+      "Measure wall-clock time: v2 should be faster due to fewer LLM calls"
+    ]
+  },
+  "success_criteria": {
+    "main_cast_accuracy": "95%+ (vs ~70% for v1)",
+    "narrator_detection": "95%+ (vs unreliable for v1)",
+    "code_complexity": "<500 lines total (vs 2500+ in consensus.py alone)",
+    "oracle_loop_convergence": "Reaches 8.0+ (vs stuck at 6.7)",
+    "llm_calls": "20-30 per book (vs 100-200+ for v1)",
+    "grounding": "0 high-confidence main-cast characters with 0 raw-text mention hits"
+  },
+  "affected_files_summary": {
+    "new_files": [
+      "src/pipeline/character_extraction_v2/__init__.py",
+      "src/pipeline/character_extraction_v2/main_cast.py",
+      "src/pipeline/character_extraction_v2/mention_search.py",
+      "src/pipeline/character_extraction_v2/grounding.py",
+      "src/pipeline/character_extraction_v2/supporting.py",
+      "src/pipeline/character_extraction_v2/narrator.py",
+      "src/agents/characters_v2.py",
+      "scripts/compare_characters.py",
+      "src/gui/review.py"
+    ],
+    "modified_files": [
+      "src/analyzer.py",
+      "src/agents/summaries.py"
+    ],
+    "deprecated_files": [
+      "src/pipeline/character_extraction/consensus.py",
+      "src/pipeline/character_extraction/pipeline.py",
+      "src/agents/characters.py"
+    ]
+  }
+}
