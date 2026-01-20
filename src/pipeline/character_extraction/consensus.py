@@ -1146,13 +1146,55 @@ class CharacterConsensusBuilder:
                 # Note: we negate name for alphabetically-first tiebreaker with max()
                 return (mention_count, len(parts), -has_title, 0, name)
 
+            # Helper: Check if a name is ambiguous last-name-only when full names exist
+            def is_ambiguous_lastname_only(name: str) -> bool:
+                """
+                Detect if this is a bare last name that's ambiguous because
+                full names (FirstName LastName or Title LastName) exist in the same component.
+
+                Example: "White" is ambiguous if "Herbert White" or "Mr. White" are also present.
+                This prevents "White" from becoming canonical when it could refer to multiple people.
+                """
+                parts = name.split()
+                # Only applies to single-word names (bare last names)
+                if len(parts) != 1:
+                    return False
+
+                # Check if any member has this as a last name with a first name or title
+                lastname = parts[0].lower()
+                for other in members:
+                    if other == name:
+                        continue
+                    other_parts = other.split()
+                    if len(other_parts) < 2:
+                        continue
+
+                    # Check if other ends with this lastname
+                    other_lastname = other_parts[-1].lower()
+                    if other_lastname == lastname:
+                        # This is a bare lastname with a fuller form present
+                        # Check if the first part is a name (not just a title)
+                        first_part = other_parts[0].rstrip('.').lower()
+
+                        # If it's "Title Lastname", still ambiguous (could be Mr. X vs Mrs. X)
+                        # If it's "FirstName Lastname", also ambiguous (could be John X vs Jane X)
+                        return True
+
+                return False
+
             # Use min on inverted tuple for alphabetical tiebreaker (first alphabetically wins)
             def score_with_alpha_first(name: str) -> tuple:
                 parts = name.split()
                 has_title = 1 if parts and parts[0].rstrip('.').lower() in TITLES else 0
                 mention_count = self._total_mentions_for_name(name, name_groups)
+
+                # Check if this is an ambiguous bare last name
+                is_ambiguous = is_ambiguous_lastname_only(name)
+
                 # Negate values we want to maximize, so min() picks the best
-                return (-mention_count, -len(parts), has_title, name.lower())
+                # NEW: Prioritize non-ambiguous names BEFORE mention count
+                # Priority: 1) Not ambiguous, 2) Mention count, 3) More parts, 4) No title, 5) Alpha
+                return (is_ambiguous, -mention_count, -len(parts), has_title, name.lower())
 
             canonical = min(members, key=score_with_alpha_first)
             aliases = [m for m in members if m != canonical]

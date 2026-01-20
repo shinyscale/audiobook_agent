@@ -260,6 +260,25 @@ After investigation, the root cause is **NOT** just case sensitivity. The real i
 - **Result: FIX DID NOT SOLVE THE PROBLEM**
 - **Root cause identified: Herbert is wrongly merged INTO "White" first**
 
+### Attempt 10 → 11: Fixed canonical name selection to avoid ambiguous bare last names
+- **Root Cause:** `src/pipeline/character_extraction/consensus.py:1150-1157` (canonical selection in `_llm_alias_resolution_pairwise`)
+  - Line 1155: Canonical selection prioritized mention count above all else
+  - "White" (44 mentions) beat "Herbert White" and "Mr. White" even though "White" is ambiguous
+- **Fix Applied:** Added `is_ambiguous_lastname_only()` helper (lines 1162-1186)
+  - Detects bare last names (single-word) that are ambiguous when fuller forms exist in same component
+  - Example: "White" is ambiguous if "Herbert White" or "Mr. White" are also present
+  - Updated scoring tuple (line 1198): prioritizes non-ambiguous names BEFORE mention count
+  - New priority order: 1) Not ambiguous, 2) Mention count, 3) More parts, 4) No title, 5) Alpha
+- **Smoke Test:** PASS
+  - Unit test confirmed "White" is marked as ambiguous when "Herbert White" exists
+  - Canonical selection now prefers "Herbert White" or "Mr. White" over bare "White"
+- **Full Test Suite:** PASS (444 tests passed, 11 skipped)
+- **Expected Impact:**
+  - Critical #1: Herbert should stay separate from "White" entry (FIXED)
+  - Critical #2: "Mr. White" and "White" should merge once Herbert is separate (LIKELY FIXED)
+  - Critical #3: Epithet issues remain (separate LLM prompt issue)
+  - High #4: Pronunciation issues partially downstream of Critical #1 (PARTIALLY FIXED)
+
 ---
 
 ## Score History
@@ -270,42 +289,16 @@ After investigation, the root cause is **NOT** just case sensitivity. The real i
 | 6 | 7.05 | +0.775 | Re-evaluated with consistent rubric |
 | 7-9 | 7.05 | +0.775 | Various fix attempts |
 | 10 | 7.05 | +0.775 | Case sensitivity fix didn't work - deeper issue found |
+| 11 | PENDING | PENDING | Fixed canonical selection - awaiting re-analysis |
 
 *Note: Baseline from inconsistent scoring.
 
 ---
 
-## Analysis: Why the Case Sensitivity Fix Didn't Work
-
-The `.lower()` fix at line 1725 is technically correct - it makes the title check case-insensitive. BUT the merge still doesn't happen because:
-
-**Hypothesis:** The "White" entry already has Herbert's data merged into it by the time "Mr. White" is considered for merging. The system may be:
-1. Looking at the "White" entry and seeing aliases ["Herbert White", "Herbert"]
-2. Deciding "Mr. White" should NOT merge with an entry that represents "Herbert"
-3. This is actually CORRECT behavior given the corrupted state
-
-**Real fix needed:**
-1. Prevent "Herbert White"/"Herbert" from merging into bare "White"
-2. When a first name + last name pattern exists, it should be canonical, not reduced to just last name
-3. "Herbert White" + "Herbert" → canonical should be "Herbert White" or "Herbert"
-4. "Mr. White" + "White" → canonical should be "Mr. White" (title+lastname is more specific)
-
----
-
 ## Next Action
 
-**Phase: awaiting_fix**
+**Phase: awaiting_analysis**
 
-The case sensitivity fix was applied but the real problem is that Herbert is incorrectly merged into "White" before "Mr. White" is considered. Need to:
+Fixed canonical name selection to prefer specific names over ambiguous bare last names. This should resolve Critical #1 (Herbert wrongly merged into "White") and likely Critical #2 (Mr. White + White merge).
 
-1. **FIX CRITICAL #1:** Prevent "FirstName LastName" from merging into bare "LastName" when there are multiple family members with that lastname
-   - "Herbert White" should NOT merge with "White" when "Mr. White" and "Mrs. White" also exist
-   - Instead, "Herbert White" + "Herbert" should create a "Herbert White" or "Herbert" entry
-   - Then "Mr. White" + "White" can correctly merge
-
-2. **Location:** `src/pipeline/character_extraction/consensus.py` - look at how canonical names are chosen when merging, and how family member detection works
-
-3. **Key insight:** The family member blocking logic may need to work BOTH ways:
-   - Currently: Blocks "Mr. White" + "Mrs. White" (correct - different people)
-   - Missing: Block "Herbert White" + "White" when other family members exist
-   - The bare "White" is AMBIGUOUS and should not be chosen as canonical
+Re-run analysis to verify the fix works on the full pipeline.
