@@ -2,13 +2,15 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+- Analysis completed: 2026-01-20 00:41:37
+- Pipeline time: 14m 31s
 
 ## Latest Scores
 - Structure Detection: 9/10
@@ -274,8 +276,26 @@ The attempt 7 fix IS correct and SHOULD work based on code review:
 
 ---
 
+## Pipeline Notes
+
+Attempt 8 re-ran the analysis with the title variant merge fix from attempt 7 (commit f3abbc1).
+
+Pipeline completed successfully:
+- Character Extraction: 7m 8s (49.1% of time)
+- Character Profiles: 4m 1s
+- Chapter Detection: 30.4s
+- Chapter Summaries: 1m 20s
+- Pronunciation Guide: 1m 10s
+
+Output shows:
+- 7 characters detected (including "Mr. White" vs "White" split still present)
+- "White" entry still has aliases: ["Herbert White", "Herbert"]
+- 80 pronunciation entries
+
+The fix needs to be evaluated to determine if the title variant merge is now working correctly.
+
 ## Next Action
 
-**Phase: awaiting_analysis**
+**Phase: awaiting_evaluation**
 
-The attempt 7 fix (commit f3abbc1) has never been tested. Re-run analysis to verify if the title variant merge logic works.
+Evaluate the attempt 8 output to determine if the title variant merge fix resolved the character issues.
