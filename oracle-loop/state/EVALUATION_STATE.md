@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -301,6 +301,7 @@
 | 3 | FAILED | - | NEW: LLM responses truncated |
 | 4 | FAILED | - | SAME truncation error |
 | 5 | 6.275 | baseline | First successful run - character merging issues |
+| 6 | PENDING | - | Analysis complete, awaiting evaluation |
 
 ---
 
@@ -315,6 +316,33 @@
 ### Potential Config Issues
 - `character_llm_chunk_chars` = 5000 (reduced in attempt 5, may be working)
 - Pronunciation word filtering appears to have no common word exclusion list
+
+---
+
+## Attempt 6 Execution Details
+
+### Output Files
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+### Pipeline Performance
+- Total time: 14m 52s
+- Total LLM calls: 53
+- Total tokens: 101,621
+- Bottleneck: Character Extraction (45.9% of time)
+
+### Pipeline Warnings/Errors
+- LLM identity detection failed (server error 500)
+- Failed to parse JSON response for "White" character profile
+- Low confidence profile for "White": 0.30
+- Moral valence classification failed for Sergeant-Major Morris
+
+### Quick Observations (from console output)
+- Still shows "White" separate from "Mr. White"
+- "White" still has aliases ["Herbert White", "Herbert"]
+- "his wife" still separate character entry
+- 80 pronunciation flags (unchanged from attempt 5)
+- Character extraction issues appear unresolved despite prompt improvements
 
 ---
 
