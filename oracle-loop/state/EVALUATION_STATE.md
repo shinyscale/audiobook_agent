@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -155,19 +155,22 @@ Overall = (9 × 0.20) + (5 × 0.25) + (7 × 0.15) + (8 × 0.20) + (4 × 0.10) + 
 | 12 | 7.00 | +0.725 | Partial fix - Herbert correct now |
 | 13 | 7.00 | +0.725 | FIX NOT APPLIED - stale bytecode cache |
 
-## Next Action
+## Pipeline Notes (Attempt 14)
 
-Re-run the analysis. The gender conflict detection code from attempt 13 will now execute properly with the bytecode cache cleared.
+**Analysis completed successfully:**
+- Character Extraction: V2 pipeline (summary-driven)
+- Total runtime: 11m 59s
+- LLM calls: 26 (down from 60 in V1)
+- Tokens: 58,668 (down from 113,112 in V1 - 50% reduction)
+- Characters identified: 7 total (4 from V2 extraction, 3 from chapter summaries)
+- Output files verified at: ../output/monkeys_paw/
 
-**Expected results after attempt 14:**
-- "the old woman" should be a separate character (not alias of "the sergeant-major")
-- "the old man" and "the soldier" may still merge with "the sergeant-major" (all male)
-- Character Extraction should improve from 5/10 to at least 6/10
+**Key differences from attempt 13 (V1):**
+- V2 character extraction used instead of V1 merge heuristics
+- Summaries ran BEFORE character extraction (as required for V2)
+- More efficient: 50% fewer tokens, 57% fewer LLM calls
 
-**Remaining issues after cache fix:**
-- If male epithets still incorrectly merge, need semantic/contextual differentiation beyond gender
-- "White" (30 mentions) orphan entry still needs context-aware disambiguation
-- "his wife" needs relational pronoun resolution
+**Ready for evaluation** to determine if V2 approach resolved character extraction issues.
 
 ## Configuration Audit
 
