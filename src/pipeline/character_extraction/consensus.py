@@ -1628,7 +1628,23 @@ class CharacterConsensusBuilder:
 
             # Check if single word appears in multi-word name
             if single_word in multi_words:
-                # This is likely the same person (full name variant)
+                # Before auto-approving, check if this single-word name is ambiguous
+                # (i.e., multiple people share this last name)
+                # Count how many full names in name_groups have this single word as their last name
+                lastname_count = sum(
+                    1 for name in name_groups.keys()
+                    if len(name.split()) > 1 and name.split()[-1].lower() == single_word.lower()
+                )
+
+                if lastname_count > 1:
+                    # Ambiguous last name - multiple people share it
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"('{single_word}' is ambiguous - shared by {lastname_count} full names)"
+                    )
+                    return False, 0.10  # Reject auto-merge for ambiguous last names
+
+                # Not ambiguous - safe to merge
                 logger.debug(
                     f"Merge accepted: {canonical} <- {alias} "
                     f"(single-word '{single_word}' appears in multi-word name)"
@@ -1641,6 +1657,23 @@ class CharacterConsensusBuilder:
             multi_words = significant1
 
             if single_word in multi_words:
+                # Before auto-approving, check if this single-word name is ambiguous
+                # (i.e., multiple people share this last name)
+                # Count how many full names in name_groups have this single word as their last name
+                lastname_count = sum(
+                    1 for name in name_groups.keys()
+                    if len(name.split()) > 1 and name.split()[-1].lower() == single_word.lower()
+                )
+
+                if lastname_count > 1:
+                    # Ambiguous last name - multiple people share it
+                    logger.debug(
+                        f"Merge rejected: {canonical} <-> {alias} "
+                        f"('{single_word}' is ambiguous - shared by {lastname_count} full names)"
+                    )
+                    return False, 0.10  # Reject auto-merge for ambiguous last names
+
+                # Not ambiguous - safe to merge
                 logger.debug(
                     f"Merge accepted: {canonical} <- {alias} "
                     f"(single-word '{single_word}' appears in multi-word name)"

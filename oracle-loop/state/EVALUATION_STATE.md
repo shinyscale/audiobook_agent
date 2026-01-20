@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -175,6 +175,7 @@ This auto-approves "White" merging with "Herbert White" because "white" appears 
 | 7-9 | Various fix attempts | 7.05 |
 | 10 | Case sensitivity fix | 7.05 |
 | 11 | `is_ambiguous_lastname_only()` in heuristic path | **6.70** - FIX IN WRONG CODE PATH |
+| 12 | Added ambiguity check to `_validate_merge()` in LLM path | PENDING |
 
 ## Score History
 
@@ -187,18 +188,17 @@ This auto-approves "White" merging with "Herbert White" because "white" appears 
 
 ## Next Action
 
-**REQUIRED: Add ambiguity check to `_validate_merge()` in the LLM path**
+**FIX APPLIED:** Added ambiguity check to `_validate_merge()` in the LLM path (lines 1630-1652 and 1659-1681).
 
-The fix must go at lines 1623-1648 in `src/pipeline/character_extraction/consensus.py`.
+The fix now:
+1. Counts how many full names in name_groups have the single word as their last name
+2. If `lastname_count > 1`, rejects the auto-merge (ambiguous last name)
+3. Otherwise, proceeds with auto-approval (unambiguous)
 
-Before auto-approving a merge where a single-word name appears in a multi-word name (line 1630), check:
+This applies to both directions:
+- Single-word vs multi-word (lines 1630-1652)
+- Multi-word vs single-word (lines 1659-1681)
 
-1. Is this single word a LAST NAME (appears at end of multi-word names)?
-2. Are there MULTIPLE full names with this last name?
-3. If yes to both → REJECT the auto-approval, let other validation logic handle it
+**Root cause fixed:** The auto-approval in `_validate_merge()` that was incorrectly merging "White" with "Herbert White" now rejects ambiguous last names.
 
-This is the same logic as `is_ambiguous_lastname_only()` but applied to the correct code path.
-
-**Secondary fix:** Add common English stopword filtering to pronunciation pipeline to eliminate false positives.
-
-Run `PROMPT_fix.md` targeting Critical #1 in `_validate_merge()`.
+Re-run analysis to verify the fix works.
