@@ -6,16 +6,29 @@
 - **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
-## IMPORTANT: Analysis Not Yet Run After Fix
+## BLOCKED: Analysis Not Yet Run After Fix
 
-**The fix from attempt 10→11 has been committed, but analysis has NOT been re-run.**
+**EVALUATION CANNOT PROCEED - analysis.json predates the fix commit.**
 
-Evidence:
-- Fix commit `4a1dfd3` timestamp: `2026-01-20 01:36:41`
-- analysis.json modification time: `2026-01-20 01:25:23`
-- The analysis file is 11 minutes OLDER than the fix commit
+Evidence (verified 2026-01-20):
+- Fix commit `4a1dfd3` timestamp: `2026-01-20 01:36:41` (epoch: 1768898201)
+- analysis.json modification time: `2026-01-20 01:25:23` (epoch: 1768897523)
+- The analysis file is **678 seconds (11+ minutes) OLDER** than the fix commit
 
 **The current analysis.json contains stale data from BEFORE the fix was applied.**
+
+### Action Required
+
+Run the ANALYZE phase to generate fresh output with the fix applied:
+
+```bash
+cd /home/zacharymandrews/Tools/audiobook_agent
+audiobook-prep analyze "Test_Texts/The_Monkey's_Paw.txt" --output output/monkeys_paw/analysis.json --html output/monkeys_paw/report.html
+```
+
+Then re-run EVALUATE.
+
+---
 
 ## Fix Applied in Attempt 11
 
