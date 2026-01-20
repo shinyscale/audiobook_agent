@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 10)
@@ -157,21 +157,27 @@ C. **In narrator detection** (src/pipeline/character_extraction/): Improve the n
 
 Analysis attempt 11 completed.
 
-## Attempt 11 Results
+## Attempt 11 Results (Re-run)
 
 **Pipeline Output:**
-- Runtime: 10m 3s
-- Characters found: 6 total (Berenice, Mad'selle Sallé, Egaeus, servant maiden, menial servant, + 1 more)
+- Runtime: 5m 29s
+- Characters found: 5 total (Berenice, Mad'selle Salle, servant maiden, Egaeus, servant)
 - Chapters: 1 (as expected for short story)
 - Narrator detected: **Berenice** (WRONG - should be Egaeus)
 
-**Critical Issue:**
+**Critical Issue - PERSISTS:**
 The narrator deduplication fix from attempt 11 did NOT work. The pipeline output shows:
 - Berenice has `is_narrator: true`
 - Egaeus has `is_narrator: false`
 
 This is the opposite of the desired outcome. The fix needs re-examination.
 
+**Model Configuration:**
+- Structure: qwen3:30b-instruct
+- Characters: qwen3-next:80b-a3b-instruct-q8_0
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0
+- Pronunciation: qwen3:30b-instruct
+
 ## Output Files
-- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:28)
-- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:28)
+- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:35)
+- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:35)
