@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -165,11 +165,21 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 - JSON: ../output/berenice/analysis.json
 
 ## Pipeline Notes (Attempt 6)
-- **FIX COMPLETE - READY FOR RE-ANALYSIS**
-- Pipeline bug fixed: CLI now correctly infers default_model from agent models
-- Previous attempts failed due to hardcoded "llama3.2" fallback in cli.py
-- Both analyzer.py and cli.py have been fixed
-- Next step: Re-run analysis to verify pipeline works
+- **ANALYSIS COMPLETE** - Run completed successfully in 10m 4s
+- Pipeline ran without errors using explicit model flags
+- Models used:
+  - structure: qwen3:30b-instruct
+  - characters: qwen3-next:80b-a3b-instruct-q8_0
+  - summaries: qwen3-next:80b-a3b-instruct-q8_0
+  - pronunciation: qwen3:30b-instruct
+- Results summary:
+  - 1 chapter detected (expected for short story)
+  - 2 characters found: Berenice, Mad'selle Salle
+  - Narrator detected: Berenice (STILL WRONG - should be Egaeus)
+  - 112 pronunciation flags
+  - Total tokens: 56,079
+- Bottleneck: Character Extraction (56.7% of time, 5m43s)
+- Next phase: Evaluation to score output quality
 
 ## Previous Attempt (Attempt 5)
 - Analysis completed successfully in 10m 9s
