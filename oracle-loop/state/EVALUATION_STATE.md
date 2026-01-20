@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 11
+- **Attempt:** 12
 - **Phase:** awaiting_fix
 - **baseline_score:** 6.275
 
@@ -24,17 +24,60 @@ Overall = (9 × 0.20) + (5 × 0.25) + (6 × 0.15) + (8 × 0.20) + (4 × 0.10) + 
         = 6.85/10
 ```
 
-Adjusted to 6.70 due to critical regression (fix didn't work).
+Adjusted to 6.70 due to no improvement from previous attempt (fix was in wrong code path).
+
+## Evaluation Details
+
+### Structure Detection: 9/10
+- **Expected:** 3 parts (I, II, III)
+- **Actual:** 3 chapters correctly detected
+- **Issue:** Chapter 3 includes Project Gutenberg boilerplate (~2500 words of legal text)
+- This is a minor issue but notable - the back matter detection should strip this
+
+### Character Extraction: 5/10
+- **Expected characters:** Mr. White, Mrs. White, Herbert (son), Sergeant-Major Morris, the stranger (Maw and Meggins representative)
+- **Critical problems:**
+  1. "White" with alias "Herbert White" (43 mentions) - **WRONG**: "White" alone should be Mr. White, Herbert White is his SON
+  2. "Herbert" separate (12 mentions) - should be merged with Herbert White
+  3. "the soldier" has aliases "the old man" and "the old woman" - **COMPLETELY WRONG**:
+     - "the soldier" = Sergeant-Major Morris
+     - "the old man" = Mr. White in Part III
+     - "the old woman" = Mrs. White in Part III
+  4. "his wife" is an orphan entry - should be Mrs. White
+- **Good:** Sergeant-Major Morris correctly has aliases Morris and "the sergeant-major"
+
+### Character Profiles: 6/10
+- Mr. White and Mrs. White have LOW confidence with minimal profiles
+- The "White" entry has profiles that describe an old man with thin grey beard - this is Mr. White's description applied to the wrong character
+- Herbert's profile is reasonable
+- Sergeant-Major Morris has a good detailed profile
+
+### Chapter Summaries: 8/10
+- Part I summary is accurate and comprehensive
+- Part II summary is accurate
+- Part III summary correctly captures events but includes mention of Project Gutenberg legal text contamination
+
+### Pronunciation Guide: 4/10
+- **False positives:** "his" (99 occurrences!), "old" (42), "man" (23), "wife" (15), "woman" (11), "soldier" (5)
+- These common English words should NOT be flagged
+- **Legitimate entries:** "rubicund", "fakir/fakirs", "antimacassar", "bibulous", "condoled" - these ARE useful
+- **Boilerplate contamination:** "GutenbergTM" flagged 57 times, plus legal terms like "MERCHANTABILITY", "PGLAF"
+- Homograph handling (read, wind, house) is actually good
+
+### HTML Presentation: 9/10
+- Navigation works
+- Layout is clean
+- Information is logically organized
 
 ## ROOT CAUSE ANALYSIS: Why Attempt 11 Fix Did Not Work
 
-**CRITICAL FINDING:** The fix in commit 4a1dfd3 was placed in the WRONG code path.
+**The fix was placed in the WRONG code path.**
 
-### What the Fix Did
-Added `is_ambiguous_lastname_only()` function at line 1150 of `consensus.py`, which correctly detects that "White" is ambiguous when "Herbert White" exists.
+### What the Fix Added
+`is_ambiguous_lastname_only()` function at line 1150 of `consensus.py`, which correctly detects ambiguous last names.
 
-### Where the Fix Is Called
-The function is called at line 1192 inside `score_with_alpha_first()`, which is used by `_heuristic_alias_resolution()` at line 1199.
+### Where It's Called
+Line 1192 inside `score_with_alpha_first()`, which is used by `_heuristic_alias_resolution()` at line 1199.
 
 ### Why It Doesn't Work
 The actual analysis uses `_llm_alias_resolution_pairwise()` (LLM path), NOT `_heuristic_alias_resolution()` (heuristic path).
@@ -49,10 +92,9 @@ else:
 
 ### The REAL Bug: `_validate_merge()` lines 1623-1648
 
-In the LLM path, the `_validate_merge()` function has this logic:
+The LLM path calls `_validate_merge()` to validate LLM-proposed merges. Lines 1623-1648 contain:
 
 ```python
-# Lines 1623-1636 in consensus.py
 if is_single_word1 and not is_single_word2:
     single_word = list(significant1)[0]
     multi_words = significant2
@@ -61,60 +103,67 @@ if is_single_word1 and not is_single_word2:
         return True, 0.90  # AUTOMATICALLY APPROVES MERGE
 ```
 
-This means when comparing "White" vs "Herbert White":
-- `single_word = "white"`
-- `multi_words = {"herbert", "white"}`
-- `"white" in {"herbert", "white"}` → **TRUE**
-- Returns `(True, 0.90)` → **Merge accepted!**
-
-The LLM path assumes any single-word name that appears in a multi-word name is "likely the same person". This is WRONG for family names like "White" which could refer to Mr. White, Mrs. White, OR Herbert White.
-
-### The Fix Must Go in `_validate_merge()`
-
-The ambiguity check needs to be added to `_validate_merge()` around line 1623-1648. Before auto-approving based on single-word appearing in multi-word, check if there are MULTIPLE people with that last name.
+This auto-approves "White" merging with "Herbert White" because "white" appears in both names.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **FIX IN WRONG CODE PATH: `_validate_merge()` auto-approves family name merges**
-   - Problem: "White" (single-word) + "Herbert White" (multi-word) auto-merges because "white" appears in both
+1. **`_validate_merge()` auto-approves family name merges (STILL UNFIXED)**
+   - Problem: "White" + "Herbert White" auto-merged because "white" appears in both
    - Location: `src/pipeline/character_extraction/consensus.py` lines 1623-1648
-   - The `is_ambiguous_lastname_only()` fix was added to heuristic path, but LLM path is used
-   - Fix: Add ambiguity check to `_validate_merge()` BEFORE the single-word-in-multi-word auto-approval
+   - Evidence: `is_ambiguous_lastname_only()` fix exists but is in heuristic path, not LLM path
+   - Fix: Add ambiguity check to `_validate_merge()` BEFORE auto-approval at line 1630:
+     ```python
+     if single_word in multi_words:
+         # NEW: Check if this single-word name is ambiguous
+         # (i.e., multiple people share this last name)
+         lastname_count = sum(1 for n in name_groups.keys()
+                             if len(n.split()) > 1 and n.split()[-1].lower() == single_word.lower())
+         if lastname_count > 1:
+             logger.debug(f"Rejecting auto-merge: '{single_word}' shared by {lastname_count} full names")
+             # Don't auto-approve - let other validation logic handle it
+         else:
+             return True, 0.90  # High confidence
+     ```
 
 2. **"the soldier" wrongly merged with "the old man" and "the old woman"**
-   - Problem: `"the soldier" (3 mentions) - aliases: ['the old man', 'the old woman']`
+   - Problem: Three DIFFERENT character references merged into one
    - Evidence: "the soldier" is Morris; "the old man"/"the old woman" are Mr./Mrs. White in Chapter 3
-   - These are THREE DIFFERENT character references
-   - Location: Epithet resolution in `_llm_epithet_resolution()`
-
-3. **"Herbert" and "Herbert White" are falsely split**
-   - Problem: "Herbert" (12 mentions) is separate from "Herbert White" (aliased under "White")
-   - Evidence: These refer to the same person - the son who dies
-   - Downstream of Critical #1 - once "White" stops absorbing "Herbert White", this may self-resolve
+   - Location: Epithet resolution in `_llm_epithet_resolution()` or `_resolve_epithet_groups()`
+   - Fix: Add gender conflict check - "the old man" vs "the old woman" cannot be the same person
 
 ### HIGH
 
-4. **Pronunciation flagging common English words**
-   - Problem: "his", "old", "man", "wife", "woman" all flagged as proper nouns
-   - Root cause: Words from broken character entries being extracted
+3. **"Herbert" and "Herbert White" are falsely split**
+   - Problem: "Herbert" (12 mentions) exists separately from "Herbert White" (aliased under "White")
+   - This is downstream of Critical #1 - once "White" stops absorbing "Herbert White", this should self-resolve
+   - If not, need to ensure first-name-only references merge with full names
+
+4. **Common English words flagged as proper nouns**
+   - Problem: "his" (99x), "old" (42x), "man" (23x), "wife" (15x), "woman" (11x), "soldier" (5x) all flagged
+   - Root cause: Likely extracted from broken character entries ("the old man", "his wife")
    - Location: `src/pipeline/pronunciation/` - character name word extraction
-   - Fix: Add stopword filtering for common English words before flagging
+   - Fix: Add stopword filtering using a common English word list (top 5000-10000 words)
 
 5. **Project Gutenberg boilerplate contamination**
    - Problem: Chapter 3 includes ~2500 words of legal text; "GutenbergTM" flagged 57 times
-   - Location: `src/ingestion/` - front/back matter detection
-   - Fix: Improve boilerplate detection patterns for Project Gutenberg texts
+   - Location: `src/ingestion/` - back matter detection
+   - Fix: Add patterns to detect and strip Project Gutenberg license text
 
 ### MEDIUM
 
-6. **"his wife" is an orphan character entry**
+6. **"his wife" orphan character entry**
    - Should merge with "Mrs. White"
-   - Downstream of epithet handling issues
+   - Downstream of epithet/relational handling issues
 
 7. **Empty relationship fields**
    - All characters have `"relationships": {}`
+   - Not critical for narrator preparation but would be nice
+
+8. **Mr. White and Mrs. White have LOW confidence**
+   - They exist as separate entries but with minimal profiles
+   - May improve once character extraction is fixed
 
 ## Fix History
 
@@ -138,25 +187,18 @@ The ambiguity check needs to be added to `_validate_merge()` around line 1623-16
 
 ## Next Action
 
-**REQUIRED: Move the ambiguity check from heuristic path to `_validate_merge()` in LLM path**
+**REQUIRED: Add ambiguity check to `_validate_merge()` in the LLM path**
 
-The fix needs to be at lines 1623-1648 in `consensus.py`. Before auto-approving a merge where a single-word name appears in a multi-word name, check:
+The fix must go at lines 1623-1648 in `src/pipeline/character_extraction/consensus.py`.
 
-1. Is this single word a LAST NAME (appears at end of the multi-word name)?
-2. Are there OTHER characters in the text with this same last name?
-3. If yes to both → REJECT the auto-approval, let LLM decide
+Before auto-approving a merge where a single-word name appears in a multi-word name (line 1630), check:
 
-Example implementation sketch:
-```python
-# Around line 1623, BEFORE auto-approving single-word-in-multi-word
-if single_word == multi_words[-1]:  # Single word is the LAST name
-    # Check if multiple people share this last name
-    lastname_count = sum(1 for n in name_groups.keys()
-                        if n.split()[-1].lower() == single_word)
-    if lastname_count > 1:
-        # Ambiguous - don't auto-approve
-        logger.debug(f"Rejecting auto-merge: '{single_word}' is shared by {lastname_count} characters")
-        # Let it fall through to chapter overlap checks instead
-```
+1. Is this single word a LAST NAME (appears at end of multi-word names)?
+2. Are there MULTIPLE full names with this last name?
+3. If yes to both → REJECT the auto-approval, let other validation logic handle it
 
-Run `PROMPT_fix.md` targeting the REAL location of the bug.
+This is the same logic as `is_ambiguous_lastname_only()` but applied to the correct code path.
+
+**Secondary fix:** Add common English stopword filtering to pronunciation pipeline to eliminate false positives.
+
+Run `PROMPT_fix.md` targeting Critical #1 in `_validate_merge()`.
