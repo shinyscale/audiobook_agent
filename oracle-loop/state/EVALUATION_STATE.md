@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 12)
@@ -321,13 +321,39 @@ This is a positive sign - the terminal output shows "Egaeus" as narrator. Now ne
    Confirmed narrator: Egaeus (first-person)
 ```
 
+## Attempt 14 - Analysis Complete (Round 3 - Final)
+
+**Analysis Runtime:** 5m 46s
+**Models Used:**
+- Structure: qwen3:30b-instruct
+- Characters: qwen3-next:80b-a3b-instruct-q8_0
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0
+- Pronunciation: qwen3:30b-instruct
+
+**Pipeline Output Summary:**
+- Confirmed narrator: Egaeus (first-person) ✓
+- Found 5 characters (Berenice, Mad'selle Salle, servant maiden, family physician, Egaeus)
+- Generated 1 chapter summary, 1 character profile, 116 pronunciation flags
+- Total tokens: 56,959
+- Bottleneck: Pronunciation Guide (37.4% of time)
+
+**Output Files:**
+- JSON: ../output/berenice/analysis.json (100K)
+- HTML: ../output/berenice/report.html (170K)
+
+**Key Pipeline Message:**
+```
+🎭 Finalizing narrator detection...
+   Confirmed narrator: Egaeus (first-person)
+```
+
 ## Next Action
 
 **Phase:** awaiting_evaluation
 
-Ready for evaluation of attempt 14 output files:
-- JSON: ../output/berenice/analysis.json (97K)
-- HTML: ../output/berenice/report.html (167K)
+Ready for evaluation of attempt 14 output files (output files ready for evaluation):
+- JSON: ../output/berenice/analysis.json (100K)
+- HTML: ../output/berenice/report.html (170K)
 
 Evaluation needed to verify:
 1. Plot summary no longer claims "Berenice recounts" (should say "Egaeus narrates")
