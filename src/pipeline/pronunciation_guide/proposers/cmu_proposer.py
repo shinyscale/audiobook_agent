@@ -35,6 +35,12 @@ COMMON_WORDS_WHITELIST = {
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     'january', 'february', 'march', 'april', 'june', 'july', 'august',
     'september', 'october', 'november', 'december',
+    # Common descriptive words (often appear in character epithets)
+    'old', 'young', 'new', 'little', 'big', 'great', 'small',
+    'man', 'woman', 'boy', 'girl', 'child', 'baby', 'person', 'people',
+    'father', 'mother', 'son', 'daughter', 'brother', 'sister', 'uncle', 'aunt',
+    'husband', 'wife', 'friend', 'stranger', 'gentleman', 'lady', 'maid',
+    'from', 'with', 'about', 'into', 'upon', 'after', 'before',
 }
 
 # Contraction fragments that result from tokenization

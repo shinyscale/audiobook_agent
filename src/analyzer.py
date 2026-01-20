@@ -1110,8 +1110,24 @@ class AudiobookAnalyzer:
                     for alias in char.aliases:
                         existing_names.add(alias.lower())
 
+                # Generic epithets that shouldn't be added as separate characters
+                # These are likely referring to existing characters with different names
+                GENERIC_EPITHETS = {
+                    'the old man', 'the old woman', 'the young man', 'the young woman',
+                    'the boy', 'the girl', 'the child', 'the stranger',
+                    'the husband', 'the wife', 'the father', 'the mother',
+                    'the son', 'the daughter', 'the brother', 'the sister',
+                    'the gentleman', 'the lady', 'an old man', 'an old woman',
+                    'a young man', 'a young woman', 'a stranger',
+                }
+
                 missing_names = []
                 for name in summary_character_names:
+                    # Skip generic epithets - these are likely aliases of existing characters
+                    if name.lower() in GENERIC_EPITHETS:
+                        logger.debug(f"F6: Skipping generic epithet '{name}' (likely alias of existing character)")
+                        continue
+
                     if name.lower() not in existing_names:
                         missing_names.append(name)
 

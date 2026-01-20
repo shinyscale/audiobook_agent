@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -114,6 +114,20 @@ All three part summaries are accurate and useful:
 | 12 | Added ambiguity check to `_validate_merge()` in LLM path | 7.00 | +0.725 |
 | 13 | Gender conflict detection in epithet resolution | 7.00 | Fix didn't execute |
 | 14 | **V2 character extraction (summary-driven)** | **7.60** | **+1.325** |
+| 15 | F6 epithet filtering + pronunciation stopwords | TBD | TBD |
+
+**Attempt 15 Changes:**
+1. **F6 Generic Epithet Filter** (src/analyzer.py:1113-1130)
+   - Root cause: F6 Chapter Summary Reconciliation was creating separate character entries for generic epithets like "the old man", "the old woman" found in summaries
+   - Fix: Added GENERIC_EPITHETS set to skip common descriptive phrases that are likely aliases of existing characters
+   - Impact: Should eliminate the 2 orphan characters (the old man, the old woman)
+   - Smoke test: PASS - "the old man" and "the old woman" correctly filtered out
+
+2. **Pronunciation Stopword Expansion** (src/pipeline/pronunciation_guide/proposers/cmu_proposer.py:21-42)
+   - Root cause: COMMON_WORDS_WHITELIST only had articles and titles, not common descriptive words that appear in character epithets
+   - Fix: Expanded whitelist with common descriptive words: old, young, man, woman, boy, girl, father, mother, son, daughter, etc.
+   - Impact: Should remove ~40+ false positive pronunciation entries for common English words
+   - Smoke test: PASS - common words filtered, proper names still flagged
 
 ## Score History
 
@@ -149,10 +163,11 @@ Total potential: +0.45 points → **8.05/10 PASS**
 
 ## Next Action
 
-Run PROMPT_fix.md to:
-1. Add cross-chapter epithet resolution for "the old man/woman" → established characters
-2. Add pronunciation stopword filtering
-3. Improve Gutenberg boilerplate detection
+**Phase:** awaiting_analysis
+
+Run analysis to verify fixes:
+- Character extraction should now have 5 characters instead of 7 (no "the old man" / "the old woman")
+- Pronunciation should have ~40 fewer entries (no common English words like "old", "man", "woman", "son", "mother", "from")
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
