@@ -186,14 +186,40 @@ Current score: 7.00, need +1.0 point
 **What Actually Happened:** IDENTICAL OUTPUT to attempt 11
 **Result:** Score stayed at 7.00 - FIX HAD NO EFFECT
 
+### Attempt 13
+**Issue Targeted:** Root cause of narrator misidentification (CRITICAL issues #2 and #3)
+
+**Root Cause Identified:**
+The pronoun density heuristic in `src/analyzer.py:_detect_narrator():lines 1974-2026` is fundamentally flawed. It counts first-person pronouns AROUND character mentions, not who is SPEAKING them. In "Berenice," Egaeus (the narrator) constantly says "I looked at Berenice", so Berenice's mention contexts have high pronoun density even though she never speaks.
+
+**Data Flow Trace:**
+1. Step 3.5 (line 830): `_detect_narrator()` incorrectly identifies "Berenice" → `narrator_detected = "Berenice"`
+2. Step 6 (line 1306): Plot summary generated with `narrator_name="Berenice"` → LLM generates plot summary claiming Berenice is narrator
+3. Step 6.5 (line 1332): Narrator detector reads the WRONG plot summary → correctly extracts "Berenice" from it
+4. Step 6.5 (line 1339): `_mark_narrator_in_character_map()` receives "Berenice" → sets Berenice as narrator
+
+**Fix Applied:**
+Disabled the unreliable pronoun density heuristic in Step 3.5. Set `narrator_detected = None` initially, allowing:
+- Plot summary to generate WITHOUT narrator bias
+- Step 6.5 narrator detection to work from unbiased summary
+- Chapter summaries correctly identify "the narrator Egaeus" → plot summary will reflect this → narrator detector will extract "Egaeus"
+
+**Modified:** `src/analyzer.py` lines 828-849 (commented out early narrator detection)
+
+**Smoke Test:** PASS - All 444 tests pass
+
+**Expected Impact:**
+- Character Extraction: 5→8 (+0.75 weighted) - correct narrator identification
+- Character Profiles: 3→7+ (+0.60+ weighted) - correct narrator, correct plot summary, correct voice assignments
+- Total: +1.35+ points → 8.35+ (PASS threshold)
+
 ## Next Action
 
-Phase: `awaiting_fix`
+**Phase:** awaiting_analysis
 
-The fixer must:
-1. **TRACE** where is_narrator is set (not where it's supposed to be fixed)
-2. **VERIFY** the code changes from attempt 12 are actually in the codebase
-3. **IDENTIFY** whether the issue is in character extraction or reconciliation
-4. **FIX** the actual root cause, not a downstream function
-
-Do NOT make more changes to `_mark_narrator_in_character_map()` until understanding why it's not working.
+Re-run analysis to verify:
+1. Plot summary no longer claims "Berenice recounts" (should say "Egaeus narrates")
+2. Egaeus marked with `is_narrator: true`
+3. Berenice marked with `is_narrator: false`
+4. Character profiles use correct narrator voice
+5. Overall score crosses 8.0 threshold

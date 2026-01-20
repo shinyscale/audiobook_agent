@@ -826,22 +826,27 @@ class AudiobookAnalyzer:
             pron_map = None
 
         # Step 3.5: Detect Narrator (before profile generation)
-        # Check if this is a first-person narrative and identify the narrator
-        narrator_detected = self._detect_narrator(doc.text, pipeline_char_map.characters)
-        if narrator_detected:
-            print(f"📖 Detected narrator: {narrator_detected}")
-
-            # Boost confidence for detected narrator
-            # Narrator should have at least "high" confidence (≥ 0.8)
-            for char in pipeline_char_map.characters:
-                if char.canonical_name == narrator_detected:
-                    if char.confidence < 0.8:
-                        logger.info(
-                            f"Boosting narrator confidence: {char.canonical_name} "
-                            f"{char.confidence:.2f} → 0.85"
-                        )
-                        char.confidence = 0.85
-                    break
+        # DISABLED: The pronoun density heuristic is unreliable - it counts first-person
+        # pronouns AROUND character mentions, not who is SPEAKING them. This causes
+        # false positives (e.g., "I looked at Berenice" makes Berenice look like narrator).
+        # Instead, rely on summary-based narrator detection in Step 6.5, which is more accurate.
+        narrator_detected = None
+        # OLD CODE (disabled):
+        # narrator_detected = self._detect_narrator(doc.text, pipeline_char_map.characters)
+        # if narrator_detected:
+        #     print(f"📖 Detected narrator: {narrator_detected}")
+        #
+        #     # Boost confidence for detected narrator
+        #     # Narrator should have at least "high" confidence (≥ 0.8)
+        #     for char in pipeline_char_map.characters:
+        #         if char.canonical_name == narrator_detected:
+        #             if char.confidence < 0.8:
+        #                 logger.info(
+        #                     f"Boosting narrator confidence: {char.canonical_name} "
+        #                     f"{char.confidence:.2f} → 0.85"
+        #                 )
+        #                 char.confidence = 0.85
+        #             break
 
         # NOTE: Character profiles are now generated AFTER summaries (Step 4.5)
         # This allows us to use summary-derived features (F1, F2, F3, F5)
