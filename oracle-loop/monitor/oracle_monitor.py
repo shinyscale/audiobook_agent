@@ -104,11 +104,18 @@ class StateParser:
 
     def parse_evaluation_state(self) -> dict:
         """Parse EVALUATION_STATE.md for current text, attempt, phase, scores."""
-        # Try state/ subdirectory first (oracle-loop structure), then base_dir
-        state_file = self.base_dir / "state" / "EVALUATION_STATE.md"
-        if not state_file.exists():
-            state_file = self.base_dir / "EVALUATION_STATE.md"
-        if not state_file.exists():
+        # Try multiple locations for state file
+        possible_paths = [
+            self.base_dir / "state" / "EVALUATION_STATE.md",
+            self.base_dir / "EVALUATION_STATE.md",
+            self.base_dir.parent / "state" / "EVALUATION_STATE.md",  # if running from monitor/
+        ]
+        state_file = None
+        for path in possible_paths:
+            if path.exists():
+                state_file = path
+                break
+        if not state_file:
             return {}
 
         content = state_file.read_text()
@@ -178,11 +185,18 @@ class StateParser:
 
     def parse_manifest(self) -> dict:
         """Parse manifest.json for overall progress."""
-        # Try state/ subdirectory first (oracle-loop structure), then base_dir
-        manifest_file = self.base_dir / "state" / "manifest.json"
-        if not manifest_file.exists():
-            manifest_file = self.base_dir / "manifest.json"
-        if not manifest_file.exists():
+        # Try multiple locations for manifest file
+        possible_paths = [
+            self.base_dir / "state" / "manifest.json",
+            self.base_dir / "manifest.json",
+            self.base_dir.parent / "state" / "manifest.json",  # if running from monitor/
+        ]
+        manifest_file = None
+        for path in possible_paths:
+            if path.exists():
+                manifest_file = path
+                break
+        if not manifest_file:
             return {}
 
         try:
@@ -776,15 +790,15 @@ class ClaudeActivityPanel(Static):
             'TodoWrite': '✅',
         }
 
-        for activity in activities[-8:]:  # Show last 8 activities
+        for activity in activities[-12:]:  # Show last 12 activities
             icon = tool_icons.get(activity.tool_name, '🔧')
             text.append(f"  {icon} ", style="dim")
             text.append(f"{activity.tool_name:12}", style="cyan")
             text.append("│ ", style="dim")
             # Truncate long descriptions
             desc = activity.description
-            if len(desc) > 45:
-                desc = desc[:42] + "..."
+            if len(desc) > 70:
+                desc = desc[:67] + "..."
             text.append(desc, style="white")
             text.append("\n")
 
@@ -793,8 +807,8 @@ class ClaudeActivityPanel(Static):
             text.append("\n")
             text.append("  Last output: ", style="dim")
             msg = self.state.claude_last_message.replace('\n', ' ')
-            if len(msg) > 60:
-                msg = msg[:57] + "..."
+            if len(msg) > 200:
+                msg = msg[:197] + "..."
             text.append(msg, style="italic white")
 
         return text
@@ -873,7 +887,7 @@ class OracleMonitorApp(App):
 
     ClaudeActivityPanel {
         height: auto;
-        max-height: 14;
+        max-height: 18;
         border: solid $accent;
         padding: 0 1;
         margin: 0 0 1 0;
