@@ -14,7 +14,7 @@ PHASE="${1:-auto}"
 MAX_ITERATIONS="${2:-100}"
 ITERATION=0
 NO_PROGRESS_COUNT=0
-MAX_NO_PROGRESS=3
+MAX_NO_PROGRESS=10
 
 # Directory paths (relative to oracle-loop/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -261,6 +261,10 @@ $CODE_FILES" 2>/dev/null
                     sed -i 's/\*\*Phase:\*\* awaiting_fix/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
                     sed -i 's/\*\*Phase:\*\* awaiting_evaluation/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
                     echo "Reset phase to awaiting_analysis"
+
+                    # Reset no-progress counter since regression revert is a form of progress
+                    NO_PROGRESS_COUNT=0
+                    echo "Reset no-progress counter after regression revert"
                 else
                     echo "Could not find fix commit to revert"
                 fi

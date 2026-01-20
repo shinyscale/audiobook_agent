@@ -36,6 +36,10 @@ from .pipeline.character_extraction import (
     CharacterExtractionPipeline,
     CharacterMap as PipelineCharacterMap,
 )
+from .pipeline.character_extraction.models import (
+    Character,
+    CharacterType,
+)
 from .pipeline.chapter_summary import (
     ChapterSummaryPipeline,
     ChapterSummaryMap,
@@ -1011,6 +1015,76 @@ class AudiobookAnalyzer:
                     logger.info("F5: No compound name tags found")
             except Exception as e:
                 logger.warning(f"F5 tag identity extraction failed: {e}")
+
+        # F6: Reconcile characters from chapter summaries (moved outside llm check)
+        # This must run whenever summaries exist, regardless of whether there's a default LLM client
+        # Add any characters from summary.characters_present that are missing from the character list
+        # This addresses the issue where self-referential narrators (e.g., "My name is X") are missed by NER
+        # but correctly identified in chapter summaries
+        if summary_map:
+            print("🔍 Reconciling characters from chapter summaries...")
+            try:
+                # Collect all unique character names from chapter summaries
+                summary_character_names = set()
+                for summary in summary_map.summaries:
+                    if summary.characters_present:
+                        for name in summary.characters_present:
+                            # Normalize name (strip whitespace, handle case)
+                            normalized_name = name.strip()
+                            if normalized_name:
+                                summary_character_names.add(normalized_name)
+
+                # Find which names from summaries are missing from character list
+                existing_names = set()
+                for char in pipeline_char_map.characters:
+                    existing_names.add(char.canonical_name.lower())
+                    for alias in char.aliases:
+                        existing_names.add(alias.lower())
+
+                missing_names = []
+                for name in summary_character_names:
+                    if name.lower() not in existing_names:
+                        missing_names.append(name)
+
+                if missing_names:
+                    logger.info(f"F6: Found {len(missing_names)} character(s) in summaries but not in character list: {missing_names}")
+
+                    # Create minimal character entries for missing names
+                    # We'll give them medium confidence since they come from LLM summaries
+                    for name in missing_names:
+                        # Find which chapters this character appears in (from summaries)
+                        chapters_present = []
+                        for summary in summary_map.summaries:
+                            if summary.characters_present and name in summary.characters_present:
+                                chapters_present.append(summary.chapter_index)
+
+                        # Create a minimal Character entry
+                        # Use hash of name for ID
+                        import hashlib
+                        char_id = hashlib.md5(name.encode()).hexdigest()[:12]
+
+                        new_character = Character(
+                            id=char_id,
+                            canonical_name=name,
+                            aliases=[],
+                            mentions=[],  # Empty since we don't have mention positions
+                            first_appearance_chapter=min(chapters_present) if chapters_present else 0,
+                            mention_count=len(chapters_present),  # Use chapter count as proxy
+                            chapters_present=chapters_present,
+                            confidence=0.75,  # Medium-high confidence from summary evidence
+                            supporting_strategies=["chapter_summary_reconciliation"],
+                            description="",
+                            character_type=CharacterType.STORY,  # Assume story character
+                        )
+
+                        pipeline_char_map.characters.append(new_character)
+
+                    print(f"   Added {len(missing_names)} character(s) from chapter summaries")
+                    logger.info(f"F6: Added characters: {', '.join(missing_names)}")
+                else:
+                    logger.info("F6: All characters from summaries already in character list")
+            except Exception as e:
+                logger.warning(f"F6 character reconciliation failed: {e}")
 
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length
