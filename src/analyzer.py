@@ -185,26 +185,28 @@ class AudiobookAnalyzer:
             return self._llm_client
 
         try:
+            # Determine default model: prioritize llm_model, then orchestrator_config.default_model, then provider default
+            default_model = self.llm_model or (self.orchestrator_config.default_model if self.orchestrator_config else None)
             if self.llm_provider == "ollama":
                 config = LLMConfig.ollama(
-                    model=self.llm_model or "llama3.2",
+                    model=default_model or "llama3.2",
                     base_url=self.llm_base_url,
                 )
             elif self.llm_provider == "openai":
                 config = LLMConfig.openai(
-                    model=self.llm_model or "gpt-4o-mini",
+                    model=default_model or "gpt-4o-mini",
                     api_key=self.llm_api_key,
                 )
             elif self.llm_provider == "anthropic":
                 config = LLMConfig.anthropic(
-                    model=self.llm_model or "claude-3-5-sonnet-20241022",
+                    model=default_model or "claude-3-5-sonnet-20241022",
                     api_key=self.llm_api_key,
                 )
             elif self.llm_provider == "lm_studio":
                 # LM Studio uses OpenAI-compatible API
                 config = LLMConfig(
                     provider="openai",
-                    model=self.llm_model or "local-model",
+                    model=default_model or "local-model",
                     base_url=self.llm_base_url,
                     api_key="not-needed",
                 )

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -116,6 +116,15 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 4. Low risk of regression - it's additive, not modifying existing logic
 
 ## Fix History
+
+### Attempt 6: PIPELINE BUG FIXED - READY FOR RE-ANALYSIS
+- **What changed:** Fixed LLM health check to use orchestrator_config.default_model instead of hardcoded "llama3.2"
+- **Root cause:** src/analyzer.py:189 - `model=self.llm_model or "llama3.2"` didn't check orchestrator_config.default_model
+- **Fix:** Added `default_model = self.llm_model or (self.orchestrator_config.default_model if self.orchestrator_config else None)`
+- **Smoke test:** PASS - Health check now uses qwen3:30b-instruct (from orchestrator config) instead of llama3.2
+- **Modified:** src/analyzer.py (lines 187-211)
+- **Status:** Ready for re-analysis on berenice attempt 6
+
 
 ### Attempt 1 (Baseline): Score 6.05
 - Initial analysis run
