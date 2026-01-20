@@ -2,17 +2,18 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
+- **Attempt:** 3
 - **Phase:** awaiting_analysis
 - **baseline_score:** null
 
 ## Latest Scores
-FAILED - Pipeline error during character extraction
+FAILED - Pipeline error during character extraction (same error persists after fix)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | FAILED | - | LLM validation error for 'Maw and Meggins' |
+| 2 | FAILED | - | Same error - fix from attempt 1 was insufficient |
 
 ## Pipeline Error Details
 
@@ -62,5 +63,35 @@ FAILED - Pipeline error during character extraction
 **Expected Outcome:**
 LLM should now properly return `{"is_person": false, "is_person_reasoning": "This is a company/business name", ...}` instead of an empty list when encountering organization names.
 
+### Attempt 2 → 3: Fixed LLM response type handling and added explicit examples
+**Root Cause Analysis:**
+- **Symptom:** Pipeline still failed - LLM continued to return `[]` (empty list) instead of JSON object
+- **Data flow trace:**
+  1. Error raised in: `src/pipeline/character_extraction/validator.py:304`
+  2. Invalid type check at: `src/pipeline/character_extraction/validator.py:288`
+  3. JSON parsed by: `src/llm/client.py:_extract_json()` lines 408-439
+  4. **Originates in:** `src/llm/client.py:_extract_json()` line 430 - Returns list when LLM outputs `[]`
+- **Root cause:** The `_extract_json()` function had type annotation `Optional[dict]` but implementation could return lists. When LLM output `[]`, it was successfully parsed as JSON and returned, but validator expected dict. The previous prompt fix wasn't sufficient because the LLM still didn't understand the expected output format.
+- **Confidence:** HIGH
+
+**Fix Applied:**
+- Modified: `src/llm/client.py` and `src/pipeline/character_extraction/validator.py`
+- Changes:
+  1. **Type-safe JSON extraction** (`src/llm/client.py` lines 420-436):
+     - Added `isinstance(parsed, dict)` validation after `json.loads()`
+     - Now returns `None` when LLM outputs a list, triggering retry logic
+  2. **Explicit prompt examples** (`src/pipeline/character_extraction/validator.py` lines 86-98):
+     - Added "IMPORTANT: Always return a JSON object" instruction
+     - Added 3 concrete examples showing exact format for valid character, company rejection, and place rejection
+     - Examples use double-braced `{{}}` syntax for template string safety
+- Category: Code Logic Bug + Prompt Issue - Both type safety AND clearer guidance needed
+- Smoke test:
+  - All 444 unit tests passed
+  - Custom smoke test verified `_extract_json` correctly rejects lists and accepts dicts
+
+**Expected Outcome:**
+1. If LLM still returns `[]`, `_extract_json` will return `None` instead of list, triggering retry
+2. The explicit examples should guide LLM to output proper object format even for rejections
+
 ## Next Action
-Re-run analysis to verify the fix allows the pipeline to complete successfully.
+Re-run analysis to verify the pipeline completes successfully.

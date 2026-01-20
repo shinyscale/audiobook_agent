@@ -83,6 +83,19 @@ Please return JSON with:
 - "alias_candidates": List of other names that might refer to the same person (e.g., "Elizabeth" -> ["Lizzy", "Miss Bennet"])
 - "overall_valid": true/false - Should we include this as a character?
 
+IMPORTANT: Always return a JSON object (not a list or other type), even when rejecting a proposal.
+
+Examples:
+
+For a valid character:
+{{"is_person": true, "is_person_reasoning": "Elizabeth Bennet is a main character", "context_supports": 0.95, "alias_candidates": ["Lizzy", "Miss Bennet"], "overall_valid": true}}
+
+For a company/organization (REJECT):
+{{"is_person": false, "is_person_reasoning": "This is a company or business name, not a person", "context_supports": 0.1, "alias_candidates": [], "overall_valid": false}}
+
+For a place (REJECT):
+{{"is_person": false, "is_person_reasoning": "This is a location or place name, not a person", "context_supports": 0.1, "alias_candidates": [], "overall_valid": false}}
+
 Return ONLY valid JSON."""
 
 

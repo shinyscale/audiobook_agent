@@ -418,7 +418,10 @@ class LLMClient:
         # Try direct parse
         text = text.strip()
         try:
-            return json.loads(text)
+            parsed = json.loads(text)
+            # Validate return type - must be dict
+            if isinstance(parsed, dict):
+                return parsed
         except json.JSONDecodeError:
             pass
 
@@ -427,7 +430,10 @@ class LLMClient:
             match = re.search(pattern, text)
             if match:
                 try:
-                    return json.loads(match.group())
+                    parsed = json.loads(match.group())
+                    # Validate return type - must be dict
+                    if isinstance(parsed, dict):
+                        return parsed
                 except json.JSONDecodeError:
                     continue
 
