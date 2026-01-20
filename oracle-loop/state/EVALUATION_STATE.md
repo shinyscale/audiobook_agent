@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -22,8 +22,9 @@
 | 2 | 5.35 | -0.70 |
 | 3 | 4.85 | -1.20 |
 | 4 | 5.55 | -0.50 |
+| 5 | TBD | TBD |
 
-**Attempt 4 improved from attempt 3 (+0.70) but still below baseline (-0.50).**
+**Attempt 5 analysis completed - awaiting evaluation.**
 
 ## Current Issues (Priority Order)
 
@@ -113,8 +114,16 @@ Add a separate extraction stage specifically for first-person narrators:
 - **Note:** Chapter summary correctly has Egaeus in `characters_present` but he's not in character list
 
 ## Output Files
-- HTML: /home/zacharymandrews/Tools/audiobook_agent/output/berenice/report.html
-- JSON: /home/zacharymandrews/Tools/audiobook_agent/output/berenice/analysis.json
+- HTML: ../output/berenice/report.html
+- JSON: ../output/berenice/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Analysis completed in 10m 30s
+- Total tokens: 55,834
+- Characters found: 2 (Berenice, Mad'selle Salle)
+- Narrator detected: Berenice (WRONG - should be Egaeus)
+- Pronunciation flags: 112
+- **Core issue persists**: Egaeus still not extracted as a character
 
 ## Key Evidence
 
