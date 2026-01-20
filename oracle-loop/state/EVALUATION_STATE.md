@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -117,13 +117,19 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 
 ## Fix History
 
-### Attempt 6: PIPELINE BUG FIXED - READY FOR RE-ANALYSIS
+### Attempt 6 (Part 2): PIPELINE BUG - NEEDS FIX
+- **What happened:** Analysis still failed with same error after first fix
+- **Root cause:** src/cli.py:279 - When per-agent models are specified via CLI flags but --llm-model is not provided, orchestrator_config.default_model is set to "llama3.2"
+- **Fix needed:** Change line 279 to infer default_model from the first specified agent model when --llm-model is not provided
+- **Status:** awaiting_fix
+
+### Attempt 6 (Part 1): INCOMPLETE FIX
 - **What changed:** Fixed LLM health check to use orchestrator_config.default_model instead of hardcoded "llama3.2"
 - **Root cause:** src/analyzer.py:189 - `model=self.llm_model or "llama3.2"` didn't check orchestrator_config.default_model
 - **Fix:** Added `default_model = self.llm_model or (self.orchestrator_config.default_model if self.orchestrator_config else None)`
-- **Smoke test:** PASS - Health check now uses qwen3:30b-instruct (from orchestrator config) instead of llama3.2
+- **Smoke test:** FAILED - Still getting llama3.2 error, but from a different source (cli.py, not analyzer.py)
 - **Modified:** src/analyzer.py (lines 187-211)
-- **Status:** Ready for re-analysis on berenice attempt 6
+- **Status:** Incomplete - discovered second bug in cli.py
 
 
 ### Attempt 1 (Baseline): Score 6.05
@@ -156,18 +162,21 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 - JSON: ../output/berenice/analysis.json
 
 ## Pipeline Notes (Attempt 6)
-- **ANALYSIS FAILED - PIPELINE ERROR**
-- Error: LLM health check failed looking for hardcoded 'llama3.2' model
+- **ANALYSIS FAILED - PIPELINE ERROR (SECOND FAILURE)**
+- Error: LLM health check still failing with 'llama3.2' model not found
 - Full error: `Server error '404' for url 'http://localhost:11434/api/chat': {"error":"model 'llama3.2' not found"}`
-- The health check is using a hardcoded default model instead of respecting the configured agent models
-- Available models include: qwen3:30b-instruct, qwen3-next:80b-a3b-instruct-q8_0 (all configured models exist)
+- Previous fix to analyzer.py line 189 was incomplete
+- The real bug is in src/cli.py:279 - when per-agent models are specified without --llm-model, it defaults to "llama3.2"
 - This is a CODE BUG that needs to be fixed before analysis can proceed
 
 ### Root Cause
-The LLM health check in the codebase is using a hardcoded default model ('llama3.2') instead of using the actual configured models. The health check should either:
-1. Use one of the configured agent models for validation
-2. Skip validation if models are explicitly provided via CLI flags
-3. Make the health check model configurable
+The CLI creates OrchestratorConfig with `default_model=args.llm_model or "llama3.2"` (line 279).
+When per-agent models are specified via CLI flags but no --llm-model flag is provided, the orchestrator_config.default_model is set to "llama3.2" instead of inferring from the specified agent models.
+
+The health check in analyzer.py then uses this default_model value for validation, which fails because llama3.2 is not installed.
+
+### Fix Required
+src/cli.py line 279: When creating OrchestratorConfig with per-agent models specified, set default_model to the first specified agent model instead of "llama3.2".
 
 ## Previous Attempt (Attempt 5)
 - Analysis completed successfully in 10m 9s
