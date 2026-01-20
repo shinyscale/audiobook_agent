@@ -92,7 +92,10 @@ class StateParser:
 
     def parse_evaluation_state(self) -> dict:
         """Parse EVALUATION_STATE.md for current text, attempt, phase, scores."""
-        state_file = self.base_dir / "EVALUATION_STATE.md"
+        # Try state/ subdirectory first (oracle-loop structure), then base_dir
+        state_file = self.base_dir / "state" / "EVALUATION_STATE.md"
+        if not state_file.exists():
+            state_file = self.base_dir / "EVALUATION_STATE.md"
         if not state_file.exists():
             return {}
 
