@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Attempt:** 13
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -204,6 +204,43 @@ The epithet resolution is grouping these incorrectly because:
 | 10 | Case sensitivity fix | 7.05 |
 | 11 | `is_ambiguous_lastname_only()` in heuristic path | 6.70 - fix in wrong code path |
 | 12 | Added ambiguity check to `_validate_merge()` in LLM path | 6.70 - partial fix (Herbert fixed, White/epithet bugs remain) |
+| 13 | **Gender conflict detection in epithet resolution** | **Awaiting analysis** |
+
+### Attempt 13 Details
+
+**Root Cause:** The `_llm_epithet_resolution()` function did not validate gender compatibility after LLM merge decisions. The LLM was merging "the sergeant-major" (male), "the old man" (male), and "the old woman" (female) despite obvious gender conflicts.
+
+**Fix Applied:**
+- Added `_detect_epithet_gender()` helper function in `consensus.py` (after line 2146)
+  - Detects gender from epithets using markers (man/woman, boy/girl, husband/wife, etc.)
+  - Returns "male", "female", or None (ambiguous)
+- Modified `_llm_epithet_resolution()` (lines 2128-2145) to validate gender compatibility
+  - Checks canonical vs alias gender BEFORE accepting LLM merge decision
+  - Blocks merge if genders conflict (male != female)
+  - Logs warning and adds conflicting epithet as separate character instead
+
+**Smoke Test Results:** ✓ PASSED
+- Gender detection: All 7 test cases passed
+  - "the old man" → male ✓
+  - "the old woman" → female ✓
+  - "the sergeant-major" → male ✓
+  - "his wife" → female ✓
+  - Ambiguous cases return None ✓
+- Conflict scenarios: All 4 test cases passed
+  - male vs female → blocked ✓
+  - male vs male → allowed ✓
+  - male vs ambiguous → allowed ✓
+
+**Files Modified:**
+- `src/pipeline/character_extraction/consensus.py`:
+  - Lines 2106-2142: Added gender validation in merge loop
+  - Lines 2148-2190: Added `_detect_epithet_gender()` helper function
+
+**Expected Impact:**
+- "the old man" and "the old woman" will remain separate characters (correct)
+- "the sergeant-major" should remain separate from gender-conflicting epithets
+- This may also help with "his wife" vs "the old woman" distinction (both female, so won't prevent merge based on gender alone)
+- Character Extraction score should improve from 5/10
 
 ## Score History
 

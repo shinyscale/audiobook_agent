@@ -2125,9 +2125,25 @@ class CharacterConsensusBuilder:
                 seen_names.add(matched_canonical)
                 alias_map[matched_canonical] = []
 
+                # Get canonical gender for validation
+                canonical_gender = self._detect_epithet_gender(matched_canonical)
+
                 for alias in aliases:
                     matched_alias = self._find_closest_name(alias, epithet_groups.keys())
                     if not matched_alias or matched_alias in seen_names:
+                        continue
+
+                    # GENDER CONFLICT CHECK: block merge if genders are incompatible
+                    alias_gender = self._detect_epithet_gender(matched_alias)
+                    if canonical_gender and alias_gender and canonical_gender != alias_gender:
+                        logger.warning(
+                            f"Epithet merge BLOCKED due to gender conflict: "
+                            f"'{matched_canonical}' ({canonical_gender}) != '{matched_alias}' ({alias_gender})"
+                        )
+                        # Add alias as separate character instead of merging
+                        if matched_alias not in alias_map:
+                            alias_map[matched_alias] = []
+                            seen_names.add(matched_alias)
                         continue
 
                     alias_map[matched_canonical].append(matched_alias)
@@ -2144,6 +2160,47 @@ class CharacterConsensusBuilder:
         except Exception as e:
             logger.error(f"LLM epithet resolution failed: {e}")
             return {name: [] for name in epithet_groups}
+
+    def _detect_epithet_gender(self, epithet: str) -> str | None:
+        """
+        Detect gender from an epithet phrase.
+
+        Returns:
+            "male" if the epithet contains male gender markers
+            "female" if the epithet contains female gender markers
+            None if gender is ambiguous or not detectable
+        """
+        epithet_lower = epithet.lower()
+
+        # Male markers (ordered by specificity)
+        male_markers = [
+            "man", "men", "boy", "boys", "father", "son", "brother", "husband",
+            "grandfather", "grandson", "uncle", "nephew", "king", "prince",
+            "duke", "lord", "sir", "gentleman", "monk", "priest", "friar",
+            "sergeant-major", "soldier", "warrior", "knight"
+        ]
+
+        # Female markers (ordered by specificity)
+        female_markers = [
+            "woman", "women", "girl", "girls", "mother", "daughter", "sister",
+            "wife", "grandmother", "granddaughter", "aunt", "niece", "queen",
+            "princess", "duchess", "lady", "maiden", "nun", "priestess"
+        ]
+
+        # Check for male markers
+        for marker in male_markers:
+            # Use word boundaries to avoid false matches
+            # e.g., "woman" shouldn't match "man"
+            if f" {marker}" in f" {epithet_lower} " or f"-{marker}" in epithet_lower:
+                return "male"
+
+        # Check for female markers
+        for marker in female_markers:
+            if f" {marker}" in f" {epithet_lower} " or f"-{marker}" in epithet_lower:
+                return "female"
+
+        # No clear gender marker found
+        return None
 
     def _entities_in_death_relationship(
         self,
