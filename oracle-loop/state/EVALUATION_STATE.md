@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -227,6 +227,18 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
 - Increased epithet context size from 140 to 250 chars
 - **Result: ZERO EFFECT - output unchanged**
 
+### Attempt 6 → 7: Fixed title variant merge validation
+- Root cause: `src/pipeline/character_extraction/consensus.py:_validate_merge():1682`
+- Problem: When counting family members with shared last names, the code excluded "Mr. White" and "Mrs. White" because their first word was a title. This caused the substring pre-merge check to never execute.
+- Fix #1: Include title-only names in family member count (line 1682)
+- Fix #2: Add explicit title variant handling (lines 1698-1752) to merge "Mr. White" + "White" while rejecting "Herbert White" + "White"
+- Smoke test: All 179 character-related unit tests PASS
+- Modified: `src/pipeline/character_extraction/consensus.py`
+- **Expected result:**
+  - "Mr. White" and "White" should merge
+  - "Herbert White" should remain separate from father
+  - "his wife" may still be orphaned (different root cause)
+
 ---
 
 ## Score History
@@ -245,17 +257,11 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
 
 ## Next Action
 
-**INVESTIGATE WHY PROMPT CHANGES HAD NO EFFECT:**
+**Phase: awaiting_analysis**
 
-Before making more changes, we need to understand why the attempt 5→6 fix didn't work:
+Re-run the analysis pipeline to verify the character extraction fix. Expected improvements:
+- Character Extraction score should increase (currently 5/10)
+- "Mr. White" and "White" should be merged
+- "Herbert White" should remain separate from his father
 
-1. **Verify prompt is being used**: Add temporary logging to `consensus.py` to print the actual prompt sent to LLM
-2. **Check for caching**: Ensure no LLM response caching bypasses new prompts
-3. **Verify code path**: Confirm the pairwise merge function is being called for "Mr. White" / "White" pair
-
-If prompts ARE being applied correctly and LLM still rejects:
-- Consider heuristic pre-processing: Auto-merge "Title + LastName" with bare "LastName" before LLM
-- Consider different LLM model for merge decisions
-- Consider few-shot examples in prompt
-
-Priority: Fix character extraction first (biggest score impact at 25% weight).
+Note: The "his wife" orphan issue and pronunciation false positives are separate problems that may require additional fixes.

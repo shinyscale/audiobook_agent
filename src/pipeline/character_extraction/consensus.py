@@ -1678,9 +1678,9 @@ class CharacterConsensusBuilder:
                         name_words = re.sub(r'[^\w\s]', '', name.lower()).split()
                         if len(name_words) > 1 and name_words[-1] == shared:
                             # This is a full name with this last name
-                            first_name = name_words[0]
-                            if first_name not in ['mr', 'mrs', 'ms', 'miss', 'dr']:
-                                names_with_lastname.append(name)
+                            # INCLUDE title-only names (Mr. White, Mrs. White) in the count
+                            # to properly detect family members sharing a last name
+                            names_with_lastname.append(name)
 
                 # If multiple DIFFERENT full names share this last name, reject merge
                 if len(names_with_lastname) > 1:
@@ -1696,17 +1696,53 @@ class CharacterConsensusBuilder:
                         first2 = words2[1]
 
                     # If one is just a last name, it's ambiguous - reject
-                    # EXCEPT: Allow if one name is a substring of the other (high-confidence match)
+                    # EXCEPT: Allow if one name is a TITLE + LASTNAME matching the bare lastname
                     if len(words1) == 1 or len(words2) == 1:
-                        # Check for substring relationship - these are almost always valid
-                        norm1 = self._normalize_name(canonical)
-                        norm2 = self._normalize_name(alias)
-                        if norm1 in norm2 or norm2 in norm1:
+                        # Check for title variant: "Mr. Smith" vs "Smith" should merge
+                        # But "John Smith" vs "Smith" should NOT (ambiguous - could be different family member)
+                        titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+
+                        # Determine which is the single-word name and which is multi-word
+                        if len(words1) == 1 and len(words2) > 1:
+                            single_name = canonical
+                            multi_name = alias
+                            multi_words = words2
+                        elif len(words2) == 1 and len(words1) > 1:
+                            single_name = alias
+                            multi_name = canonical
+                            multi_words = words1
+                        else:
+                            # Both are single-word - shouldn't reach here in this branch
+                            logger.debug(
+                                f"Merge rejected: {canonical} <-> {alias} "
+                                f"(ambiguous last name with multiple family members: {names_with_lastname})"
+                            )
+                            return False, 0.2
+
+                        # Check if multi-word name is ONLY title + lastname
+                        # E.g., "Mr. White" (title + lastname) should merge with "White" (lastname)
+                        # But "Herbert White" (firstname + lastname) should NOT merge with "White"
+                        if len(multi_words) == 2 and multi_words[0] in titles:
+                            # Title + lastname pattern - safe to merge
                             logger.debug(
                                 f"Merge accepted: {canonical} <- {alias} "
-                                f"(substring match overrides ambiguous last name check)"
+                                f"(title + lastname variant: '{multi_name}' matches '{single_name}')"
                             )
-                            return True, 0.95  # High confidence for substring matches
+                            return True, 0.95
+
+                        # Check for substring relationship in normalized forms
+                        # (after removing titles)
+                        norm1 = self._normalize_name(canonical)
+                        norm2 = self._normalize_name(alias)
+
+                        # Only merge if normalized forms are IDENTICAL (not just substring)
+                        # This handles "Mr. White" + "White" but rejects "Herbert White" + "White"
+                        if norm1 == norm2:
+                            logger.debug(
+                                f"Merge accepted: {canonical} <- {alias} "
+                                f"(normalized forms identical: '{norm1}' == '{norm2}')"
+                            )
+                            return True, 0.95
 
                         logger.debug(
                             f"Merge rejected: {canonical} <-> {alias} "
