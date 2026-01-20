@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -96,70 +96,84 @@ This means:
 3. The narrator detection picks from the character list, gets Berenice (wrong)
 4. All downstream outputs (plot summary, profiles) are then wrong
 
-## Fix Approach (for attempt 7)
+## Fix Approach (for attempt 9)
 
-**RECOMMENDED: Cross-reference chapter summary characters with character list**
+**CRITICAL: Fix import shadowing in analyzer.py**
 
-The `characters_present` field in chapter summaries includes Egaeus. The fix should:
-1. After character extraction completes, check `characters_present` from all chapter summaries
-2. If a name appears in summaries but not in character list, create a character entry
-3. This is robust because summaries already correctly identify Egaeus
+The root cause is an import conflict where two different `Character` classes exist:
+1. `src.models.Character` (output model) - uses `descriptions` (plural)
+2. `src.pipeline.character_extraction.models.Character` (pipeline model) - uses `description` (singular)
 
-**Implementation outline:**
+Currently, line 39 imports the pipeline Character and shadows the output Character imported on line 18.
+
+**Fix:**
 ```python
-# In character agent or a post-processing step (src/analyzer.py)
-def reconcile_characters_with_summaries(characters, chapter_summaries):
-    character_names = {c.canonical_name.lower() for c in characters}
-    for chapter in chapter_summaries:
-        for name in chapter.characters_present:
-            if name.lower() not in character_names:
-                # Create minimal character entry from summary context
-                new_char = create_character_from_summary(name, chapter)
-                characters.append(new_char)
-                character_names.add(name.lower())
-    return characters
+# Change line 18-19 to use an alias:
+from .models import (
+    ...
+    Character as OutputCharacter,
+    CharacterDescription,
+    ...
+)
+
+# Line 39 remains:
+from .pipeline.character_extraction.models import (
+    Character,  # This is the pipeline Character
+    CharacterType,
+)
+
+# Then update line 2254 to use OutputCharacter:
+characters.append(OutputCharacter(
+    id=pc.id,
+    canonical_name=pc.canonical_name,
+    aliases=pc.aliases,
+    descriptions=descriptions,  # This field exists in OutputCharacter
+    ...
+))
+
+# And line 2272 for low confidence characters:
+characters.append(OutputCharacter(
+    ...
+))
 ```
 
 **Why this approach:**
-1. Uses data already being generated correctly (chapter summaries)
-2. More robust than regex patterns (which failed in attempt 3)
-3. Works for ANY text where summaries correctly identify characters
-4. Low risk of regression - it's additive, not modifying existing logic
-5. Can also pick up "servant maiden" and "family physician"
+1. Fixes the immediate crash by using the correct output model
+2. F6 reconciliation already works correctly (added 3 characters successfully)
+3. Low risk - just clarifies which Character class is used where
+4. Preserves all existing logic
 
-**Alternative approach:** Add explicit self-referential name detection in character extraction
-- Detect patterns like "My name is X", "I am X", "My baptismal name is X"
-- Would require modifying `src/pipeline/character_extraction/`
-- Higher risk of false positives but addresses root cause directly
+**Expected impact:**
+- Analysis will complete successfully
+- Egaeus will be added from chapter summaries (fixes Character Extraction: 2→8+)
+- Narrator detection will correctly identify Egaeus (fixes Character Profiles: 1→8+)
+- Plot summary will be corrected (fixes downstream cascade)
+- servant maiden and family physician will also be added
+
+**Confidence:** VERY HIGH - This is a straightforward import alias fix
 
 ## Fix History
 
-### Attempt 8: F6 FIELD NAME FIX - COMPLETE
+### Attempt 8: F6 FIELD NAME FIX - FAILED (Import Shadowing)
 - **What changed:** Fixed Character object creation in F6 reconciliation to use correct field names
-- **Root cause:** src/analyzer.py:1066-1078 - F6 code was creating Character objects with wrong field names/types
-- **Data flow trace:**
-  1. **Symptom:** Runtime error `Character.__init__() got an unexpected keyword argument 'descriptions'`
-  2. **Analysis runs successfully** until F6 reconciliation creates Character objects
-  3. **F6 executes correctly** and finds 3 characters in summaries not in character list
-  4. **Originates in:** src/analyzer.py:1066-1078 (Character creation in F6 block)
-  5. **Root cause:** Field name/type mismatches with pipeline Character model:
-     - Missing required fields: `mentions`, `chapters_present`, `supporting_strategies`, `character_type`
-     - Used wrong type for `confidence`: ConfidenceLevel enum instead of float
-- **Fix:** Updated Character creation to match pipeline model (src/pipeline/character_extraction/models.py:141-168):
+- **Root cause (assumed):** src/analyzer.py:1066-1078 - F6 code was creating Character objects with wrong field names/types
+- **Fix applied:** Updated Character creation to match pipeline model (src/pipeline/character_extraction/models.py:141-168):
   - Added `mentions=[]` (empty list since summaries don't provide positions)
   - Added `chapters_present=chapters_present` (from summary chapter indices)
   - Changed `confidence` from ConfidenceLevel.MEDIUM to `0.75` (float)
   - Added `supporting_strategies=["chapter_summary_reconciliation"]`
   - Kept `description=""` (will be filled by profile generation)
   - Added `character_type=CharacterType.STORY`
-- **Smoke test:** PASS - analyzer.py imports successfully without errors
-- **Expected impact:** Same as Attempt 7 - all critical issues should be resolved:
-  - Egaeus will be added to character list (fixes Character Extraction: 2→8+)
-  - Correct narrator detection (fixes Character Profiles: 1→8+)
-  - Correct plot summary (fixes downstream cascade)
-  - servant maiden and family physician will also be added
-- **Confidence:** HIGH - Field names now match the pipeline Character dataclass exactly
+- **RESULT:** FAILED - Same error persists
+- **Actual root cause discovered:** Import shadowing in src/analyzer.py
+  - Line 18: `from .models import Character` (output model with `descriptions` plural)
+  - Line 39: `from .pipeline.character_extraction.models import Character` (pipeline model with `description` singular)
+  - Line 39 shadows line 18, so all references to `Character` use the pipeline model
+  - Line 2254-2268: Tries to create output Character but uses pipeline Character class
+  - Error occurs when passing `descriptions=descriptions` to pipeline Character constructor
+- **F6 SUCCESS:** F6 reconciliation executed correctly and added 3 characters ("Egaeus", "servant maiden", "family physician")
 - **Modified:** src/analyzer.py (lines 1066-1078, F6 Character creation)
+- **Next fix:** Use import alias to distinguish OutputCharacter from pipeline Character
 
 ### Attempt 7: F6 RECONCILIATION FIX - FAILED (Runtime Error)
 - **What changed:** Moved F6 character reconciliation outside `if summary_map and llm:` block
@@ -208,15 +222,22 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 - HTML: ../output/berenice/report.html (NOT GENERATED - attempt 7 failed)
 - JSON: ../output/berenice/analysis.json (NOT GENERATED - attempt 7 failed)
 
-## Pipeline Notes (Attempt 7)
-- **ANALYSIS FAILED** - Runtime error during character profile generation
+## Pipeline Notes (Attempt 8)
+- **ANALYSIS FAILED** - Runtime error during final character conversion
 - Error: `Character.__init__() got an unexpected keyword argument 'descriptions'`
-- Root cause: F6 reconciliation code is creating Character objects with invalid field names
-- The F6 reconciliation DID execute (success!) and found 3 missing characters from summaries
+- Root cause: Mismatch between pipeline Character model and output Character model
+- The F6 reconciliation executed correctly and found 3 missing characters from summaries
 - Log shows: "🔍 Reconciling characters from chapter summaries... Added 3 character(s) from chapter summaries"
-- But then failed when trying to create Character objects with wrong field name
-- The field should be `description` (singular), not `descriptions` (plural)
-- Location: src/analyzer.py in the F6 reconciliation code block (around lines 1019-1087)
+- The error occurs during final conversion from pipeline Character to output Character (src/analyzer.py:2254-2268)
+- **Two different Character classes:**
+  1. `src.pipeline.character_extraction.models.Character` (pipeline, uses `description` singular)
+  2. `src.models.Character` (output, uses `descriptions` plural as list of CharacterDescription)
+- **Data flow trace:**
+  1. F6 correctly creates pipeline Character objects with `description=""` field (line 1076)
+  2. Profile generation runs but may not generate profiles for F6-added characters
+  3. Final conversion (line 2254-2268) tries to convert to output Character with `descriptions=descriptions`
+  4. The conversion code expects profiles to exist, but F6 characters may not have them yet
+- Location: src/analyzer.py lines 2254-2268 (final Character conversion)
 
 ## Pipeline Notes (Attempt 6)
 - **ANALYSIS COMPLETE** - Run completed successfully in 10m 4s
