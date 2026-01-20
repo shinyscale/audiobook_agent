@@ -3,84 +3,113 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 16
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.275
 
 ## Latest Scores
 
 - Structure Detection: 8/10 (unchanged)
-- Character Extraction: 8/10 ← IMPROVED from 7/10
+- Character Extraction: 7/10 ← REGRESSED from 8/10 in attempt 15
 - Character Profiles: 7/10 (unchanged)
 - Chapter Summaries: 9/10 (unchanged)
-- Pronunciation Guide: 6/10 ← IMPROVED from 5/10
+- Pronunciation Guide: 7/10 ← IMPROVED from 6/10
 - HTML Presentation: 9/10 (unchanged)
-- **Overall: 7.95/10** (threshold: 8.0)
+- **Overall: 7.80/10** (threshold: 8.0)
 
 ## Score Calculation
 
 ```
-Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + (9 × 0.10)
-        = 1.60 + 2.00 + 1.05 + 1.80 + 0.60 + 0.90
-        = 7.95/10
+Overall = (8 × 0.20) + (7 × 0.25) + (7 × 0.15) + (9 × 0.20) + (7 × 0.10) + (9 × 0.10)
+        = 1.60 + 1.75 + 1.05 + 1.80 + 0.70 + 0.90
+        = 7.80/10
 ```
 
 ## Evaluation Details
 
-### Attempt 15 Results - NEARLY PASSING!
+### Attempt 16 Results - PRONUNCIATION FIX WORKED BUT CHARACTER REGRESSION
 
-**What Attempt 15 Fixed:**
-1. ✅ **"the old man" merged with Mr. White** - F6 filter correctly identified epithet
-2. ✅ **"the old woman" orphan removed** - Character count down from 7 to 6
-3. ✅ **Common words filtered from pronunciation** - "old", "man", "woman", "son" etc. now excluded
-4. ✅ Pronunciation count reasonable (73 entries)
+**What Attempt 16 Fixed:**
+1. ✅ **Project Gutenberg boilerplate stripped** - No more GutenbergTM, eBooks, PGLAF, MERCHANTABILITY in pronunciation
+2. ✅ **Pronunciation count reduced** from 73 to 53 (cleaner list)
+3. ✅ **All summaries remain excellent**
+
+**What Attempt 16 Regressed:**
+1. ❌ **Morris character split** - "Morris" (3 mentions) and "Sergeant-Major Morris" (1 mention) are separate entries, should be merged
+2. ❌ **Missing aliases from attempt 15:**
+   - Mr. White missing "the old man" alias
+   - Herbert White missing "the son" alias
+   - "the monkey's paw" character with aliases "the talisman", "the paw" is GONE entirely
+3. ❌ **Character quality down** from 8/10 to 7/10
 
 **Current Character List (6 characters):**
-1. Mr. White (25 mentions) with alias "the old man" - EXCELLENT
-2. Mrs. White (10 mentions) - Good (no aliases)
-3. Herbert White (15 mentions) with aliases "Herbert", "the son" - EXCELLENT
-4. Sergeant-Major Morris (6 mentions) with alias "Morris" - Good
-5. the monkey's paw (14 mentions) with aliases "the talisman", "the paw" - Good
+1. Mr. White (10 mentions) - NO aliases (had "the old man" in attempt 15)
+2. Mrs. White (10 mentions) - NO aliases (expected)
+3. Herbert White (14 mentions) with alias "Herbert" only (had "the son" in attempt 15)
+4. Morris (3 mentions) - NO aliases ← SHOULD BE MERGED
+5. Sergeant-Major Morris (1 mention) ← SHOULD BE MERGED WITH ABOVE
 6. Stranger from Maw and Meggins (1 mention) - OK
 
-**Character Extraction improved from 7/10 to 8/10** because:
-- The orphan "the old man" is now correctly an alias of Mr. White
-- The orphan "the old woman" entry is gone (though not explicitly aliased to Mrs. White)
-- All major characters properly represented with appropriate aliases
+**Missing from attempt 15:**
+- "the monkey's paw" character (14 mentions) with aliases "the talisman", "the paw"
 
-**Pronunciation Guide improved from 5/10 to 6/10** because:
-- Common English words successfully filtered
-- Proper nouns and unusual words correctly preserved: fakirs, rubicund, Laburnam, antimacassar
+**Pronunciation Guide (53 entries):**
+- ✅ Gutenberg terms eliminated
+- ✅ Legitimate unusual words: fakirs, rubicund, Laburnam, antimacassar, condoling, bibulous
+- Valid homographs present: live, minute, object, present, separate
 
 ## Current Issues (Priority Order)
 
+### CRITICAL
+
+1. **Character regression: Morris split and aliases lost**
+   - Problem: This attempt regressed from attempt 15's character quality
+   - Evidence:
+     - Morris now split into two entries instead of one
+     - "the old man" alias for Mr. White is gone
+     - "the son" alias for Herbert is gone
+     - "the monkey's paw" character entirely missing
+   - Location: The V2 character extraction pipeline may have LLM variance or the Gutenberg stripping affected character context
+   - Root cause: Likely LLM non-determinism in the summary-driven extraction, or the text change from removing boilerplate caused different results
+   - Impact: -1 point (8→7), blocks passing
+
 ### HIGH
 
-1. **Project Gutenberg boilerplate in pronunciation guide**
-   - Problem: "GutenbergTM", "eBooks", "PGLAF", "MERCHANTABILITY" appear in pronunciation list
-   - Evidence: These are legal/trademark terms from the Project Gutenberg license text, not story content
-   - Location: `src/ingestion/` - back matter stripping should catch this
-   - Fix: Add patterns to detect and strip Project Gutenberg license text from ingestion
-   - Impact: +0.5 points to Pronunciation (6→6.5), pushes overall from 7.95 to 8.00
+2. **Morris should be merged with Sergeant-Major Morris**
+   - Problem: Same person listed twice
+   - Evidence: "Morris" and "Sergeant-Major Morris" are the same character - the story introduces him as "Sergeant-Major Morris" then refers to him as just "Morris" throughout
+   - Location: `src/pipeline/character_extraction_v2/` - alias resolution
+   - Fix: The LLM consolidation should recognize "Morris" = "Sergeant-Major Morris"
 
 ### MEDIUM
-
-2. **"the old woman" not explicitly aliased to Mrs. White**
-   - Problem: While the orphan entry is gone, Mrs. White doesn't have "the old woman" as an alias
-   - Evidence: Part III uses "the old woman" to refer to Mrs. White
-   - Location: F6 filter removes the orphan but doesn't add the alias
-   - Fix: F6 filter should add filtered epithets as aliases to matching characters
-   - Impact: Minor polish, doesn't affect score significantly
 
 3. **Chapter titles showing as "null"**
    - Problem: All three chapters have `title: null` instead of "Part I", "Part II", "Part III"
    - Location: `src/pipeline/chapter_detection/` - title extraction
-   - Fix: Improve title regex for "Part X" format
-   - Impact: Would improve Structure from 8 to 9 but not critical
+   - Impact: Would improve Structure from 8 to 9
 
-4. **Homographs flagged but possibly excessive**
-   - Words: does, read, wind, live, present, minute, object, produce, separate, alternate, subject
-   - These are technically correct (multiple pronunciations) but may be noisy
-   - Impact: Debatable - keeping for now as they ARE legitimate pronunciation ambiguities
+4. **Missing epithet aliases ("the old man", "the son")**
+   - Problem: The F6 filter from attempt 15 added epithet aliases, but they're not present now
+   - Evidence: Mr. White should have "the old man", Herbert should have "the son"
+   - Location: May be LLM variance or the F6 filter didn't run
+   - Impact: Polish, minor
+
+## Root Cause Analysis
+
+The regression appears to be due to **LLM non-determinism** in the V2 character extraction pipeline. Even with the same code, re-running the analysis produced different (worse) results:
+
+| Aspect | Attempt 15 | Attempt 16 |
+|--------|-----------|-----------|
+| Characters | 6 | 6 |
+| Morris entries | 1 (merged) | 2 (split) |
+| Mr. White alias "the old man" | ✅ Present | ❌ Missing |
+| Herbert alias "the son" | ✅ Present | ❌ Missing |
+| "the monkey's paw" character | ✅ Present | ❌ Missing |
+| Gutenberg terms in pron | ❌ Present | ✅ Gone |
+
+**Possible causes:**
+1. The Gutenberg text removal changed the input sufficiently that the LLM produced different results
+2. The F6 epithet filter may have a bug or didn't execute
+3. Temperature/sampling variance in the LLM
 
 ## Fix History
 
@@ -94,26 +123,7 @@ Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + 
 | 13 | Gender conflict detection in epithet resolution | 7.00 | Fix didn't execute |
 | 14 | **V2 character extraction (summary-driven)** | **7.60** | **+1.325** |
 | 15 | F6 epithet filtering + pronunciation stopwords | **7.95** | **+1.675** |
-| 16 | Strip Project Gutenberg boilerplate | TBD | TBD |
-
-**Attempt 16 Changes:**
-1. **Project Gutenberg Boilerplate Stripping** (src/ingestion/refine.py:135-174, regions.py:86-88, 63-65)
-   - Root cause: Project Gutenberg eBooks include extensive legal boilerplate (46% of The Monkey's Paw file) that was being analyzed as story content
-   - Data flow: License text → pronunciation extraction → false positives like "GutenbergTM", "eBooks", "PGLAF", "MERCHANTABILITY"
-   - Fix: Added `_strip_gutenberg_boilerplate()` function to refine.py that removes text before "*** START OF THE PROJECT GUTENBERG EBOOK ***" and after "*** END OF THE PROJECT GUTENBERG EBOOK ***" markers
-   - Also added Gutenberg patterns to regions.py FRONT_MATTER_PATTERNS and BACK_MATTER_PATTERNS for defense in depth
-   - Impact: Should eliminate all 4 problematic Gutenberg terms from pronunciation guide, pushing Pronunciation from 6/10 to 7+/10 (+0.10 weighted = 7.95→8.05 overall)
-   - Smoke test: PASS - Successfully removes 19,050 chars (46.4%) of boilerplate from The Monkey's Paw
-   - Test suite: All 461 tests PASS
-
-**Attempt 16 Analysis Run:**
-- Completed in 10m 17s
-- Gutenberg boilerplate removal confirmed: 19,050 chars (46.4%) removed
-- Pronunciation guide: 53 words (down from 73 in attempt 15)
-- Characters: 6 found
-- Output files:
-  - JSON: ../output/monkeys_paw/analysis.json
-  - HTML: ../output/monkeys_paw/report.html
+| 16 | Strip Project Gutenberg boilerplate | **7.80** | **Regression** |
 
 ## Score History
 
@@ -126,34 +136,42 @@ Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + 
 | 12 | 7.00 | +0.725 | Partial fix |
 | 13 | 7.00 | +0.725 | Cache issue |
 | 14 | 7.60 | +1.325 | V2 working! |
-| **15** | **7.95** | **+1.675** | **Nearly passing!** |
-| **16** | TBD | TBD | **Gutenberg fix** |
+| 15 | 7.95 | +1.675 | Nearly passing! |
+| **16** | **7.80** | **+1.525** | **Pron fixed, chars regressed** |
 
 ## Path to 8.0
 
-**Current: 7.95**
-**Needed: +0.05 points**
+**Current: 7.80**
+**Needed: +0.20 points**
 
-The single easiest fix to cross the threshold:
+The fix strategy needs to address the character regression while preserving the pronunciation improvement:
 
-1. **Strip Gutenberg boilerplate from ingestion**: Pronunciation 6→7 (+0.10 weighted)
-   - Location: `src/ingestion/` needs pattern matching for Project Gutenberg license text
-   - Words to exclude: "GutenbergTM", "eBooks", "PGLAF", "MERCHANTABILITY", etc.
+1. **Fix Morris split** (Character 7→8, +0.25 weighted) = 8.05 overall
+   - Ensure "Morris" and "Sergeant-Major Morris" are merged as aliases
+   - Either in the prompt or post-processing
 
-Alternative paths:
-- Fix chapter titles (Structure 8→9, +0.20 weighted) but more complex
-- The Gutenberg fix is simpler and directly addresses the remaining false positives
+2. **Alternative: Improve structure titles** (Structure 8→9, +0.20 weighted) = 8.00 overall
+   - Detect "Part I", "Part II", "Part III" as chapter titles
+   - Easier fix, less risky
+
+**Recommended approach:** Fix the Morris split via deterministic post-processing (not LLM) to avoid further variance.
 
 ## Configuration Audit
 
 - Model: qwen3-next:80b-a3b-instruct-q8_0 for character extraction
-- V2 character extraction (summary-driven) working efficiently
-- LLM calls: 30 total, 64,411 tokens
-- Character Extraction: Only 31.2s (vs 449s in V1 - 93% faster!)
-- All characters have good confidence levels
+- V2 character extraction (summary-driven)
+- LLM calls: 13 total (down from 30 in attempt 15)
+- Character Extraction: 27.2s (efficient)
+- Gutenberg removal: 19,050 chars (46.4%) removed successfully
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis with attempt 16 to verify that the Gutenberg boilerplate stripping successfully removes false positives from the pronunciation guide. Expected score: 8.0+ (PASS).
+Fix the Morris character split. This is likely LLM variance - the same V2 pipeline that correctly merged Morris in attempt 15 failed to do so in attempt 16. Options:
+
+1. **Add deterministic post-merge rule**: If one character's canonical_name contains another's full name (e.g., "Sergeant-Major Morris" contains "Morris"), merge them
+2. **Re-run with explicit merge hints**: Add examples to the consolidation prompt
+3. **Investigate F6 filter**: Check if the epithet filtering from attempt 15 executed
+
+The safest fix is option 1 (deterministic post-processing) since it won't introduce LLM variance.
