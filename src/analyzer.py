@@ -77,6 +77,7 @@ from .pipeline.character_profiling import (
 from .agents import (
     StructureAgent,
     CharacterAgent,
+    CharacterAgentV2,
     SummaryAgent,
     PronunciationAgent,
     AgentContext,
@@ -145,6 +146,7 @@ class AudiobookAnalyzer:
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[str, int, int], None]] = None,
         orchestrator_config: Optional[OrchestratorConfig] = None,
+        character_extraction_version: str = "v1",
     ):
         self.words_per_minute = words_per_minute
         self.min_character_mentions = min_character_mentions
@@ -160,6 +162,7 @@ class AudiobookAnalyzer:
         self.output_dir = Path(output_dir) if output_dir else None
         self.progress_callback = progress_callback
         self.orchestrator_config = orchestrator_config
+        self.character_extraction_version = character_extraction_version
 
         # LLM client (created on first use)
         self._llm_client: Optional[LLMClient] = None
@@ -782,49 +785,57 @@ class AudiobookAnalyzer:
                 print("   ⚠️  Pronunciation guide failed, continuing with empty map")
 
         else:
-            # Step 3 SEQUENTIAL: Character Extraction (using CharacterAgent)
-            print("👥 Extracting characters...")
-            self._write_progress("Character Extraction", self._get_agent_config("characters").model if self._get_agent_config("characters") else None)
-            with self._metrics.stage("Character Extraction") as ctx:
-                # Create agent with agent-specific LLM client
-                # Note: CharacterAgent uses "characters" config key for backwards compat
-                char_llm = self._get_agent_llm_client("characters")
-                char_config = self._get_agent_config("characters")
-                char_config.enable_verification = True
+            # Step 3 SEQUENTIAL: Character Extraction
+            # V2 requires summaries first, so we defer character extraction for v2
+            if self.character_extraction_version == "v2":
+                # V2 mode: defer character extraction until after summaries
+                # Set placeholder - will be populated after Step 4
+                pipeline_char_map = None
+                print("👥 Character extraction (v2): will run after summaries...")
+            else:
+                # V1 mode: run character extraction now
+                print("👥 Extracting characters...")
+                self._write_progress("Character Extraction", self._get_agent_config("characters").model if self._get_agent_config("characters") else None)
+                with self._metrics.stage("Character Extraction") as ctx:
+                    # Create agent with agent-specific LLM client
+                    # Note: CharacterAgent uses "characters" config key for backwards compat
+                    char_llm = self._get_agent_llm_client("characters")
+                    char_config = self._get_agent_config("characters")
+                    char_config.enable_verification = True
 
-                # Set model info from LLM client config (before running agent)
-                if char_llm and char_llm.config:
-                    ctx.set_model(char_llm.config.model, char_llm.config.provider)
+                    # Set model info from LLM client config (before running agent)
+                    if char_llm and char_llm.config:
+                        ctx.set_model(char_llm.config.model, char_llm.config.provider)
 
-                character_agent = CharacterAgent(
-                    llm_client=char_llm,
-                    config=char_config,
-                    tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
-                )
-                char_agent_context = AgentContext(
-                    text=doc.text,
-                    source_file=str(file_path),
-                    chapter_map=chapter_map,
-                )
+                    character_agent = CharacterAgent(
+                        llm_client=char_llm,
+                        config=char_config,
+                        tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
+                    )
+                    char_agent_context = AgentContext(
+                        text=doc.text,
+                        source_file=str(file_path),
+                        chapter_map=chapter_map,
+                    )
 
-                # Run with self-verification
-                character_result = character_agent.run_with_refinement(char_agent_context)
-                pipeline_char_map = character_result.data
+                    # Run with self-verification
+                    character_result = character_agent.run_with_refinement(char_agent_context)
+                    pipeline_char_map = character_result.data
 
-                # Record metrics from agent result
-                ctx.record_items(
-                    total=character_result.total_items,
-                    high_confidence=character_result.high_confidence_count,
-                    medium_confidence=character_result.medium_confidence_count,
-                    low_confidence=character_result.low_confidence_count,
-                )
+                    # Record metrics from agent result
+                    ctx.record_items(
+                        total=character_result.total_items,
+                        high_confidence=character_result.high_confidence_count,
+                        medium_confidence=character_result.medium_confidence_count,
+                        low_confidence=character_result.low_confidence_count,
+                    )
 
-                # Log any issues found during verification
-                if character_result.issues:
-                    for issue in character_result.issues:
-                        logger.info(f"Character issue: {issue}")
+                    # Log any issues found during verification
+                    if character_result.issues:
+                        for issue in character_result.issues:
+                            logger.info(f"Character issue: {issue}")
 
-            print(f"   Found {len(pipeline_char_map.characters)} characters")
+                print(f"   Found {len(pipeline_char_map.characters)} characters")
 
             # pron_map will be set in Step 5 below (sequential mode)
             pron_map = None
@@ -957,6 +968,55 @@ class AudiobookAnalyzer:
         else:
             summary_map = None
             print("   ⚠️  Skipped (no LLM)")
+
+        # Step 4.1: V2 Character Extraction (if v2 mode and summaries available)
+        # V2 uses summaries as the source of truth for main cast extraction
+        if self.character_extraction_version == "v2" and pipeline_char_map is None:
+            if summary_map and len(summary_map.summaries) > 0:
+                print("👥 Extracting characters (v2: summary-driven)...")
+                self._write_progress("Character Extraction V2", self._get_agent_config("characters").model if self._get_agent_config("characters") else None)
+                with self._metrics.stage("Character Extraction V2") as ctx:
+                    char_llm = self._get_agent_llm_client("characters")
+                    char_config = self._get_agent_config("characters")
+
+                    if char_llm and char_llm.config:
+                        ctx.set_model(char_llm.config.model, char_llm.config.provider)
+
+                    # Create V2 agent
+                    character_agent_v2 = CharacterAgentV2(
+                        llm_client=char_llm,
+                        config=char_config,
+                    )
+
+                    # Build context with summaries
+                    # Store summaries result so v2 agent can access it
+                    char_agent_context = AgentContext(
+                        text=doc.text,
+                        source_file=str(file_path),
+                        chapter_map=chapter_map,
+                        previous_results={"summaries": summary_map},
+                    )
+
+                    # Run V2 agent
+                    character_result = character_agent_v2.run(char_agent_context)
+                    pipeline_char_map = character_result.data
+
+                    ctx.record_items(
+                        total=character_result.total_items,
+                        high_confidence=character_result.high_confidence_count,
+                        medium_confidence=character_result.medium_confidence_count,
+                        low_confidence=character_result.low_confidence_count,
+                    )
+
+                    if character_result.issues:
+                        for issue in character_result.issues:
+                            logger.info(f"Character V2 issue: {issue}")
+
+                print(f"   Found {len(pipeline_char_map.characters)} characters (v2)")
+            else:
+                # No summaries available - fall back to empty character map
+                print("   ⚠️  V2 character extraction skipped (no summaries)")
+                pipeline_char_map = PipelineCharacterMap(characters=[], source_file=str(file_path))
 
         # Step 4.5: Summary-Driven Character Merges and Profile Generation (F1, F2, F3, F5)
         # Now that summaries are available, we can apply summary-based character merges

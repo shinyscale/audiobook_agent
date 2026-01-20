@@ -522,7 +522,8 @@
             "Verify v2 pipeline is used",
             "Check that default remains v1 until v2 is validated"
           ],
-          "passes": false
+          "passes": true,
+          "verified_by": "CLI help output shows --character-extraction flag with v1/v2 options"
         },
         {
           "category": "functional",

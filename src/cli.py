@@ -111,6 +111,13 @@ Examples:
         help='Model for pronunciation guide agent'
     )
     analyze_parser.add_argument(
+        '--character-extraction',
+        type=str,
+        choices=['v1', 'v2'],
+        default='v1',
+        help='Character extraction version: v1 (merge heuristics) or v2 (summary-driven)'
+    )
+    analyze_parser.add_argument(
         '--html',
         type=str,
         nargs='?',
@@ -319,6 +326,7 @@ def run_analyze(args):
         write_canonical_md=args.write_canonical_md,
         orchestrator_config=orchestrator_config,
         output_dir=output_dir,
+        character_extraction_version=args.character_extraction,
     )
 
     try:
