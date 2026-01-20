@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -265,9 +265,20 @@ Checked `_config` and `_profiling` sections:
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
+## Pipeline Notes (Attempt 13)
+- Analysis completed successfully in 18m 37s
+- 60 LLM calls, 113,112 tokens processed
+- Character Extraction was bottleneck (40.2% of pipeline time)
+- Warnings during execution:
+  - Server error 500 during LLM identity detection
+  - JSON parse failure for "the sergeant-major" profile
+  - Low confidence (0.30) for "the sergeant-major" profile
+- Found 9 characters (vs 8 in attempt 12)
+- 81 pronunciation flags generated
+
 ## Next Action
 
-Run PROMPT_fix.md to address:
+Run PROMPT_evaluate.md to assess impact of gender conflict detection fix.
 1. **Critical #2 FIRST**: Gender conflict detection for epithets (quick win - "the old man" ≠ "the old woman")
 2. **Critical #1**: Smarter disambiguation for standalone last names when "Mr./Mrs." variants exist
 3. **High #4/#5**: Stopword filtering and Gutenberg boilerplate stripping (can be done independently)
