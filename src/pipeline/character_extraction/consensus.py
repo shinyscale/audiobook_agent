@@ -82,6 +82,12 @@ For each group of handles that refer to the SAME entity:
 1. Pick the most specific/unique handle as canonical (e.g., "the creature" over "the monster")
 2. List all other handles as aliases
 
+CRITICAL WARNINGS:
+- Generic descriptors like "the old man", "the old woman", "the stranger", "the soldier" often refer to DIFFERENT characters
+- Only merge if the contexts CLEARLY show they're the same entity (same role, same scenes, same actions)
+- If contexts show different relationships or different scenes, they are DIFFERENT characters
+- When uncertain, DO NOT merge - leave them separate
+
 Return JSON array:
 ```json
 [
@@ -165,7 +171,12 @@ CONTEXT B:
 
 Rules:
 - Only say same_person=true if there is strong evidence they are the same character (name overlap, title variants, obvious nickname/full-name relationship, or clear contextual cues).
-- If the only overlap is a last name, be VERY cautious (family members/spouses share last names).
+- TITLE VARIANTS: "Mr. Smith" and "Smith" ARE the same person if the contexts match (title + last name = last name alone). Same for Mrs/Miss/Dr/etc.
+- If the only overlap is a last name WITHOUT title explanation, be VERY cautious (family members/spouses share last names). Examples:
+  * "John Smith" vs "Emma Smith" → DIFFERENT (likely family)
+  * "Herbert White" vs "White" → DIFFERENT unless contexts show they're the same person (not father/son)
+  * "Mr. White" vs "White" → SAME (title variant)
+- FAMILY RELATIONSHIPS: Check contexts for parent/child, husband/wife, or sibling relationships. If one name is described as the child/parent/spouse of the other, they are DIFFERENT people.
 - If they never appear in overlapping chapters, be cautious unless it's clearly a full-name/short-name relationship.
 - DEATH/VIOLENCE: If the context shows one name killing, causing the death of, or physically attacking the other with a weapon, they are DIFFERENT people. Example: if the context says "X stabbed Y and Y died" then X and Y are separate characters.
 - ANTAGONISTIC RELATIONSHIP: If the contexts show one name as an antagonist, enemy, or threat to the other, they are likely DIFFERENT people.
@@ -1965,7 +1976,8 @@ class CharacterConsensusBuilder:
         for name, results in sorted_epithets:
             total_mentions = sum(r.proposal.mention_count for r in results)
             chapters_str = self._chapters_for_name(name, epithet_groups, max_chapters=12)
-            context_str = self._format_contexts(results, max_contexts=4, max_chars=140)
+            # Increased context from 140 to 250 chars to capture relationship/scene information
+            context_str = self._format_contexts(results, max_contexts=4, max_chars=250)
 
             epithet_lines.append(f"- {name} ({total_mentions} mentions, chapters: {chapters_str})")
             epithet_lines.append(f"  Context:\n{context_str}")
