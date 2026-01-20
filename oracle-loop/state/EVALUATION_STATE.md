@@ -3,189 +3,277 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
+- **Phase:** awaiting_fix
+- **baseline_score:** 6.275
 
 ## Latest Scores
-Analysis completed successfully - awaiting oracle evaluation
+- Structure Detection: 9/10
+- Character Extraction: 5/10 ← FAILING
+- Character Profiles: 6/10
+- Chapter Summaries: 9/10
+- Pronunciation Guide: 4/10 ← FAILING
+- HTML Presentation: 9/10
+- **Overall: 6.275/10** (threshold: 8.0)
 
-## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
+## Score Breakdown
 
-## Pipeline Results (Attempt 5)
-- **Duration:** 15m 58s
-- **Total tokens:** 102,224
-- **LLM calls:** 55
-- **Structure:** 3 chapters detected (3H confidence)
-- **Characters:** 7 characters found (6H confidence)
-- **Summaries:** 3 chapter summaries (3H confidence)
-- **Profiles:** 4 character profiles (4H confidence)
-- **Pronunciation:** 80 words flagged (27H/53M confidence)
-- **Warnings:** None - pipeline completed without truncation errors
+### Structure Detection: 9/10
+
+**What works:**
+- Correctly identified 3 chapters matching the original's I, II, III structure
+- All chapters have HIGH confidence
+- Word counts and durations are reasonable (1734, 936, 4182 words)
+- Chapter boundaries appear accurate
+
+**Minor issue:**
+- Chapter 3 has unusually high word count (4182) because it includes the Project Gutenberg license text at the end. The chapter summary even mentions: "The chapter contains no reference to Project Gutenberg or its legal terms within the narrative context, and those terms are unrelated to the story's events." This suggests the text wasn't properly cleaned of boilerplate.
+
+### Character Extraction: 5/10 ← CRITICAL ISSUES
+
+**What works:**
+- Mr. White, Mrs. White, Sergeant-Major Morris correctly identified
+- Morris has aliases ["Morris", "the sergeant-major"] ✓
+- "Stranger from Maw and Meggins" correctly identified as separate character
+
+**CRITICAL ISSUES:**
+
+1. **FALSE CHARACTER SPLIT: "White" vs "Mr. White"**
+   - "Mr. White" (10 mentions) and "White" (44 mentions) are listed as SEPARATE characters
+   - "White" entry has aliases: ["Herbert White", "Herbert"]
+   - This is WRONG: "White" when used alone almost always refers to Mr. White (the father), NOT Herbert
+   - Herbert should be his own entry, not merged as an alias of "White"
+   - Evidence in the JSON shows "White" profile has quotes like "For God's sake don't let it in" which is clearly Mr. White (the father) in Chapter 3
+
+2. **HERBERT WHITE IS NOT A MAIN CHARACTER ENTRY**
+   - Herbert White, the son who dies, should be a distinct main character
+   - Instead, "Herbert White" and "Herbert" are listed as aliases of the confusing "White" entry
+   - Herbert is a CRITICAL character - his death is the central tragedy of the story
+
+3. **Nonsensical "the stranger" entry with wrong aliases**
+   - A character entry "the stranger" exists with aliases: ["the old man", "the old woman", "the soldier"]
+   - This is COMPLETELY WRONG:
+     - "the old man" refers to Mr. White in Chapter 3
+     - "the old woman" refers to Mrs. White in Chapter 3
+     - "the soldier" refers to Morris
+   - These should NOT be merged together as they are THREE different people
+
+4. **Orphan entry: "his wife"**
+   - A character entry "his wife" (2 mentions) exists separately
+   - This should be merged with "Mrs. White"
+
+5. **Chapter 3 characters_present is wrong**
+   - Shows: ["the old man", "the old woman"]
+   - Should show: ["Mr. White", "Mrs. White"] (or link to main character entries)
+   - This disconnect suggests the chapter-to-character linking is broken
+
+### Character Profiles: 6/10
+
+**What works:**
+- Mr. White's profile is reasonably accurate: elderly, white-haired, thin grey beard
+- Mrs. White's profile captures her emotional arc well
+- Sergeant-Major Morris has good physical description and personality traits
+- Voice guidance sections are helpful for narrators
+
+**Issues:**
+
+1. **"White" character profile is confused** - Describes an "elderly man with thin grey beard" making wishes... but also lists Herbert as an alias. The profile is a mashup of Mr. White and Herbert details.
+
+2. **Profile says "White" is elderly with grey beard but aliases include young Herbert** - Herbert is clearly NOT elderly; he's the Whites' adult son who works at Maw and Meggins factory.
+
+3. **Missing Herbert's actual profile** - No profile for Herbert White specifically, who should have: young adult, works at factory, playful/light-hearted personality, frivolous humor
+
+4. **Missing relationships** - All relationship fields are empty `{}`. Should include:
+   - Mr. White is married to Mrs. White
+   - Herbert White is son of Mr. and Mrs. White
+   - Morris is old friend of Mr. White (they knew each other 21 years ago)
+
+### Chapter Summaries: 9/10
+
+**What works:**
+- All three chapter summaries are accurate and capture key events
+- Chapter 1: Correctly describes the setup, Morris's arrival, the monkey's paw, the first wish
+- Chapter 2: Accurately captures the Maw and Meggins representative's visit, Herbert's death, the £200 coincidence
+- Chapter 3: Captures the grief, second wish, knocking, third wish, ambiguous ending
+
+**Minor issues:**
+- Chapter 3 summary mentions "The chapter contains no reference to Project Gutenberg..." which is meta-commentary that shouldn't be in a chapter summary
+- Summaries are on the long side but still useful for narrators
+
+### Pronunciation Guide: 4/10 ← CRITICAL ISSUES
+
+**Major problems:**
+
+1. **COMMON WORD FALSE POSITIVES (50%+ of entries)**
+   The pronunciation guide flags these extremely common English words as "proper_noun":
+   - "his" (99 occurrences) - This is a basic pronoun!
+   - "old" (42 occurrences) - Common adjective
+   - "from" (38 occurrences) - Common preposition
+   - "man" (23 occurrences) - Common noun
+   - "wife" (15 occurrences) - Common noun
+   - "woman" (11 occurrences) - Common noun
+   - "soldier" (5 occurrences) - Common noun
+
+2. **Project Gutenberg boilerplate contamination**
+   Many pronunciation entries are from the Gutenberg license, not the story:
+   - "GutenbergTM" (57 occurrences!)
+   - "eBooks" (7 occurrences)
+   - "AS-IS", "MERCHANTABILITY", "nonproprietary", "unenforceability"
+
+   These are legal/technical terms from the appendix, not words a narrator needs help with.
+
+3. **80 pronunciation entries is excessive for a 7000-word short story**
+   - Most are false positives
+   - A reasonable guide would have 10-20 entries max
+
+**What actually IS useful:**
+- "fakir" / "fakirs" - correctly flagged, good IPA /ˈfɑːkɪr/
+- "rubicund" - correctly flagged as unusual
+- "antimacassar" - correctly flagged, useful for narrator
+- "bibulous" - correctly flagged
+- "Laburnam" - correctly flagged (the villa name)
+- Homograph entries (house, read, wind, live, minute, etc.) are legitimate and helpful
+
+### HTML Presentation: 9/10
+
+**What works:**
+- Clean, professional dark theme
+- Tab navigation works (Overview, Chapters, Characters, Pronunciations)
+- Statistics are clearly displayed
+- Performance timing breakdown is helpful
+- Model usage information is transparent
+- Character profiles are well-formatted with collapsible evidence
+- Chapter summaries are readable
+
+**Minor issues:**
+- "started_at" and "ended_at" rows in timing table show empty values
+- Some empty sections (relationships shows "No explicit relationships detected")
+
+---
+
+## Current Issues (Priority Order)
+
+### CRITICAL
+
+1. **False character split and merge: "White" vs "Mr. White" vs Herbert**
+   - Problem: "Mr. White" (father) and "White" are separate entries, with "Herbert" wrongly aliased to "White"
+   - Evidence: The "White" entry (44 mentions) has quotes from the father in Chapter 3 ("For God's sake don't let it in") but lists Herbert as alias
+   - Location: `src/pipeline/character_extraction/consensus.py` - alias merging logic
+   - Fix: "White" alone should merge with "Mr. White" (same person). "Herbert White" / "Herbert" should be a SEPARATE character entry.
+
+2. **Completely wrong "the stranger" character with nonsense aliases**
+   - Problem: Entry "the stranger" has aliases ["the old man", "the old woman", "the soldier"] - these are 3 different people!
+   - Evidence: "the old man" = Mr. White, "the old woman" = Mrs. White, "the soldier" = Morris
+   - Location: `src/pipeline/character_extraction/consensus.py` - LLM merge decision or candidate pairing
+   - Fix: These descriptive references should merge to their correct character entries, not create a new combined entry
+
+3. **Pronunciation flagging common English words**
+   - Problem: Words like "his", "old", "from", "man", "wife", "woman" are flagged as needing pronunciation help
+   - Evidence: "his" has 99 occurrences and is marked as "proper_noun" (it's a pronoun!)
+   - Location: `src/pipeline/pronunciation/` - word filtering logic
+   - Fix: Add common English word frequency filter (top 5000-10000 words should be excluded)
+
+### HIGH
+
+4. **Project Gutenberg boilerplate contamination**
+   - Problem: Legal text from Gutenberg license is analyzed as story content
+   - Evidence: "GutenbergTM" flagged 57 times, Chapter 3 summary mentions it, pronunciation guide full of legal terms
+   - Location: `src/ingestion/refine.py` - text cleaning
+   - Fix: Add Gutenberg license detection and removal during text refinement
+
+5. **Herbert White missing as distinct character**
+   - Problem: Herbert is the victim whose death drives the plot - he should be a main character with his own profile
+   - Evidence: He appears in Chapters 1 and 2, has dialogue, has personality (frivolous, playful)
+   - Location: Character extraction - he's been absorbed into wrong "White" entry
+   - Fix: Resolving CRITICAL #1 should fix this
+
+### MEDIUM
+
+6. **Chapter 3 character linking shows "the old man/woman" instead of actual names**
+   - Problem: `characters_present` for Chapter 3 lists ["the old man", "the old woman"] not ["Mr. White", "Mrs. White"]
+   - Evidence: HTML report shows these descriptive terms instead of character names
+   - Location: Chapter-to-character linking logic
+   - Fix: Resolve character names to canonical entries
+
+7. **Missing relationship data**
+   - Problem: All relationship fields are empty `{}`
+   - Evidence: Mr./Mrs. White are married, Herbert is their son, Morris is old friend - none captured
+   - Location: `src/agents/character_agent.py` or relationship extraction
+   - Fix: May need relationship extraction pass or better prompting
+
+8. **"his wife" orphan character entry**
+   - Problem: "his wife" (2 mentions) exists as separate character
+   - Evidence: Should obviously merge with "Mrs. White"
+   - Location: Character merging logic
+   - Fix: Improve relational descriptor handling to merge "his wife" → "Mrs. White"
+
+### LOW
+
+9. **Chapter summary meta-commentary**
+   - Problem: Chapter 3 summary includes "The chapter contains no reference to Project Gutenberg..."
+   - Evidence: This is LLM meta-commentary, not plot summary
+   - Location: Summary generation prompts
+   - Fix: Add instruction to avoid meta-commentary about text formatting
+
+10. **Timing table empty values**
+    - Problem: "started_at" and "ended_at" rows show no duration
+    - Evidence: HTML report timing section
+    - Location: HTML export template
+    - Fix: Either populate these or hide empty rows
+
+---
+
+## Fix History
+
+### Attempt 1 → 2: Fixed character validation for company names
+- Added "Companies, businesses, or organizations" to VALIDATION_SYSTEM_PROMPT rejection criteria
+- Result: Pipeline still failed with same error
+
+### Attempt 2 → 3: Fixed LLM response type handling and added explicit examples
+- Made `_extract_json()` type-safe (returns None for lists)
+- Added explicit JSON examples to validation prompt
+- Result: NEW error - LLM responses truncated
+
+### Attempt 3 → 4: Applied max_tokens from AgentConfig to LLMConfig
+- Fixed configuration propagation bug
+- Increased default max_tokens to 8192
+- Result: SAME truncation error
+
+### Attempt 4 → 5: Reduced character extraction chunk size
+- Reduced `character_llm_chunk_chars` from 8000 to 5000
+- Result: Pipeline completed successfully (this evaluation)
+
+---
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | FAILED | - | LLM validation error for 'Maw and Meggins' |
-| 2 | FAILED | - | Same error - fix from attempt 1 was insufficient |
-| 3 | FAILED | - | NEW ERROR: LLM responses truncated during parsing |
-| 4 | FAILED | - | SAME truncation error - max_tokens fix didn't resolve issue |
+| 2 | FAILED | - | Same error - fix insufficient |
+| 3 | FAILED | - | NEW: LLM responses truncated |
+| 4 | FAILED | - | SAME truncation error |
+| 5 | 6.275 | baseline | First successful run - character merging issues |
 
-## Pipeline Error Details (Attempt 4)
+---
 
-**Error:** LLM character proposer failed to parse response - JSON truncated mid-response (SAME ERROR AS ATTEMPT 3)
+## Configuration Audit
 
-**Stage:** Character extraction (CharacterAgent) - during character proposer phase
+### Models Used
+- Structure: qwen3:30b-instruct (appropriate)
+- Characters: qwen3-next:80b-a3b-instruct-q8_0 (large model, good)
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0 (good)
+- Pronunciation: qwen3:30b-instruct (appropriate)
 
-**Context:**
-- Multiple LLM proposers (marker proposer, character proposer) are getting truncated responses
-- Example error: Response ends with `"name": "Herbert White", "type": "sto` (truncated mid-word)
-- The fix from attempt 3→4 (applying max_tokens from AgentConfig to LLMConfig) did NOT resolve the issue
-- The truncation is still occurring even though max_tokens should now be properly configured
-- This suggests the issue may NOT be about max_tokens configuration, but something else (model-specific limit? prompt too long? different bottleneck?)
+### Potential Config Issues
+- `character_llm_chunk_chars` = 5000 (reduced in attempt 5, may be working)
+- Pronunciation word filtering appears to have no common word exclusion list
 
-**Pipeline Output Before Failure:**
-- Ingestion: Success (6,996 words extracted)
-- Text refinement: Success (1 front matter region detected)
-- Structure detection: Partial success (Found 2 chapters, but with truncated LLM responses)
-- Character extraction: Failed during character proposer phase
-
-**Models Used:**
-- Structure: qwen3:30b-instruct
-- Characters: qwen3-next:80b-a3b-instruct-q8_0
-- Summaries: qwen3-next:80b-a3b-instruct-q8_0
-- Pronunciation: qwen3:30b-instruct
-
-**Important Discovery:**
-The max_tokens fix didn't resolve the issue, which means the root cause analysis for attempt 3→4 was INCORRECT or INCOMPLETE. The truncation is not simply about the LLMConfig.max_tokens not being applied from AgentConfig.
-
-## Previous Text Completed
-- **berenice:** 8.15/10 in 14 attempts ✓
-
-## Fix History
-
-### Attempt 4 → 5: Reduced character extraction chunk size to prevent response truncation
-
-**Root Cause Analysis:**
-- **Symptom:** Pipeline failed - LLM responses truncated mid-JSON despite max_tokens being set to 32k
-- **Data flow trace:**
-  1. Error appears in: `src/pipeline/character_extraction/proposers/llm.py:174`
-  2. JSON parsing fails in: `src/llm/client.py:_extract_json()`
-  3. Response content is incomplete from: `src/llm/client.py:_query_ollama()`
-  4. Chunk size configured in: `src/agents/config.py:PipelineTuningConfig.character_llm_chunk_chars = 8000`
-  5. **Originates in:** The issue is NOT about `max_tokens` configuration (already at 32k), but about **the amount of data being requested in a single LLM call**
-- **Root cause:** The character proposer processes 8000-character chunks and asks the LLM to return ALL characters found as a JSON array. When many characters appear in a chunk (20-50+ character mentions), the resulting JSON response can be very large. Even with `num_predict=32768` set in Ollama, the responses are being truncated, suggesting:
-  1. The model (qwen3-next:80b) may have internal response length limits regardless of `num_predict`
-  2. Very large JSON responses may hit practical limits in the generation process
-  3. The LLM may struggle to maintain JSON structure over very long outputs
-- **Confidence:** MEDIUM-HIGH (this is the most likely cause given max_tokens is already configured correctly)
-
-**Fix Applied:**
-- Modified: `src/agents/config.py`
-- Changes:
-  - Reduced `character_llm_chunk_chars` from 8000 to 5000 characters
-  - This reduces the amount of text processed per LLM call
-  - Fewer characters per chunk = smaller JSON responses = less likely to hit limits
-  - Trade-off: slightly more LLM calls, but better reliability
-- Category: Configuration Issue - Chunk size too large for reliable response generation
-- Smoke test: Cannot test without running full analysis (Ollama model dependencies)
-
-**Expected Outcome:**
-1. Character extraction LLM calls will process smaller text chunks (5000 chars instead of 8000)
-2. JSON responses will contain fewer characters per call, staying well under truncation limits
-3. The pipeline should complete without truncation errors
-4. Slight increase in processing time due to more LLM calls, but this is acceptable for reliability
-
-### Attempt 3 → 4: Fixed LLM response truncation by applying max_tokens from AgentConfig
-
-**Root Cause Analysis:**
-- **Symptom:** Pipeline failed - LLM responses truncated mid-JSON (e.g., `"name": "Herbert White", "type": "sto`)
-- **Data flow trace:**
-  1. Truncation occurs in: `src/llm/client.py:generate()` when response exceeds max_tokens limit
-  2. max_tokens limit defined in: `src/llm/client.py:LLMConfig.max_tokens = 4096`
-  3. AgentConfig has max_tokens: `src/agents/config.py:AgentConfig.max_tokens = 4096` (default)
-  4. **Originates in:** `src/analyzer.py` lines 284-288 and 350-353 - max_tokens from AgentConfig was NEVER copied to LLMConfig when creating LLM clients for agents
-- **Root cause:** The analyzer creates LLM clients for each agent but only copied `temperature`, `think_mode`, and `context_length` from AgentConfig to LLMConfig. The `max_tokens` field was never copied, so all LLM clients defaulted to 4096 tokens. After the prompt expansion in attempt 2 (adding explicit JSON examples), character extraction responses exceeded 4096 tokens and got truncated mid-JSON.
-- **Confidence:** HIGH
-
-**Fix Applied:**
-- Modified: `src/analyzer.py` and `src/agents/config.py`
-- Changes:
-  1. **Apply max_tokens from AgentConfig** (`src/analyzer.py` lines 286, 326, 334, 355):
-     - Added `config.max_tokens = agent_config.max_tokens` in `_get_agent_llm_client()`
-     - Added `max_tokens = agent_config.max_tokens` extraction and `config.max_tokens = max_tokens` in `_create_llm_client_for_agent()`
-     - Added fallback `max_tokens = 8192` when no orchestrator_config exists
-  2. **Increased default max_tokens** (`src/agents/config.py` line 29):
-     - Changed `max_tokens: int = 4096` to `max_tokens: int = 8192`
-     - Added comment explaining the increase is for larger JSON responses (character extraction with many characters)
-- Category: Code Logic Bug - Configuration value not being propagated from AgentConfig to LLMConfig
-- Smoke test:
-  - All 444 unit tests passed
-  - Config flow tests verified max_tokens properly extracted and applied
-  - Integration tests confirmed analyzer respects custom max_tokens values
-
-**Expected Outcome:**
-1. Character extraction and other agents will now respect the max_tokens setting (8192 by default, or custom value from orchestrator config)
-2. LLM responses should complete without truncation for texts with many characters
-3. The 8192 token limit provides 2x headroom over the previous 4096 limit
-
-### Attempt 1 → 2: Fixed character validation for company names
-**Root Cause Analysis:**
-- **Symptom:** Pipeline failed - LLM returned `[]` (empty list) instead of expected JSON object
-- **Data flow trace:**
-  1. Error raised in: `src/pipeline/character_extraction/validator.py:303`
-  2. **Originates in:** `src/pipeline/character_extraction/validator.py:_llm_validation()` lines 273-303
-- **Root cause:** The VALIDATION_SYSTEM_PROMPT listed rejection categories but did NOT explicitly mention "companies", "organizations", or "businesses". When the LLM encountered "Maw and Meggins" (a company), it was uncertain how to respond and returned an empty list instead of the expected JSON object with `"is_person": false`.
-- **Confidence:** HIGH
-
-**Fix Applied:**
-- Modified: `src/pipeline/character_extraction/validator.py`
-- Changes:
-  1. Added "Companies, businesses, or organizations" to rejection criteria in VALIDATION_SYSTEM_PROMPT (line 60)
-  2. Updated analysis questions to include "company" as a non-person category (lines 75-77)
-  3. Updated JSON field description to include "company" in rejection list (line 80)
-- Category: Prompt Issue - Made rejection criteria more explicit to guide LLM behavior
-- Smoke test: Unit tests passed (12/12 in test_character_agent.py)
-
-**Expected Outcome:**
-LLM should now properly return `{"is_person": false, "is_person_reasoning": "This is a company/business name", ...}` instead of an empty list when encountering organization names.
-
-### Attempt 2 → 3: Fixed LLM response type handling and added explicit examples
-**Root Cause Analysis:**
-- **Symptom:** Pipeline still failed - LLM continued to return `[]` (empty list) instead of JSON object
-- **Data flow trace:**
-  1. Error raised in: `src/pipeline/character_extraction/validator.py:304`
-  2. Invalid type check at: `src/pipeline/character_extraction/validator.py:288`
-  3. JSON parsed by: `src/llm/client.py:_extract_json()` lines 408-439
-  4. **Originates in:** `src/llm/client.py:_extract_json()` line 430 - Returns list when LLM outputs `[]`
-- **Root cause:** The `_extract_json()` function had type annotation `Optional[dict]` but implementation could return lists. When LLM output `[]`, it was successfully parsed as JSON and returned, but validator expected dict. The previous prompt fix wasn't sufficient because the LLM still didn't understand the expected output format.
-- **Confidence:** HIGH
-
-**Fix Applied:**
-- Modified: `src/llm/client.py` and `src/pipeline/character_extraction/validator.py`
-- Changes:
-  1. **Type-safe JSON extraction** (`src/llm/client.py` lines 420-436):
-     - Added `isinstance(parsed, dict)` validation after `json.loads()`
-     - Now returns `None` when LLM outputs a list, triggering retry logic
-  2. **Explicit prompt examples** (`src/pipeline/character_extraction/validator.py` lines 86-98):
-     - Added "IMPORTANT: Always return a JSON object" instruction
-     - Added 3 concrete examples showing exact format for valid character, company rejection, and place rejection
-     - Examples use double-braced `{{}}` syntax for template string safety
-- Category: Code Logic Bug + Prompt Issue - Both type safety AND clearer guidance needed
-- Smoke test:
-  - All 444 unit tests passed
-  - Custom smoke test verified `_extract_json` correctly rejects lists and accepts dicts
-
-**Expected Outcome:**
-1. If LLM still returns `[]`, `_extract_json` will return `None` instead of list, triggering retry
-2. The explicit examples should guide LLM to output proper object format even for rejections
-
-## Diagnostic Notes
-
-~~The fixes from attempts 1-2 may have inadvertently changed behavior that now causes truncation.~~
-
-**RESOLVED:** The truncation was caused by `max_tokens` from `AgentConfig` never being applied to `LLMConfig`. The prompt expansion in attempt 2 (adding explicit JSON examples) increased token usage, pushing responses over the 4096 token limit. Fix in attempt 3→4 now properly applies max_tokens (8192 default) to all agent LLM clients.
+---
 
 ## Next Action
-Re-run analysis to verify the pipeline completes successfully without truncation.
+
+Run PROMPT_fix.md to address:
+1. **Priority 1**: Fix character merging to correctly handle "White" family members
+2. **Priority 2**: Add common English word filter to pronunciation
+3. **Priority 3**: Add Gutenberg license text removal to ingestion
+
+Focus on CRITICAL issues first - character extraction is the biggest score drag (5/10).
