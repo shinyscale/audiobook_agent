@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Output Files
@@ -242,9 +242,17 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 - No new code changes, just re-ran analysis
 - **Result: FIX STILL DOESN'T WORK - period not stripped from "Mr."**
 
-### Attempt 8 → 9: FIX NEEDED
-- **BUG:** Line 1725 checks `multi_words[0] in titles` but 'mr.' ≠ 'mr'
-- **Fix:** Change to `multi_words[0].rstrip('.') in titles`
+### Attempt 8 → 9: Fixed title period stripping bug
+- **Root cause:** `src/pipeline/character_extraction/consensus.py:_validate_merge():line_1725`
+  - Bug: Checks `multi_words[0] in titles` but actual value is `'mr.'` (with period), not `'mr'`
+  - The period is not stripped, so `'mr.' in {'mr', 'mrs', ...}` evaluates to False
+- **Fix:** Changed line 1725 to `multi_words[0].rstrip('.') in titles`
+- **Smoke test:** PASS - Verified 'mr.'.rstrip('.') == 'mr' evaluates to True
+- **Unit tests:** PASS - All 176 character-related tests pass
+- **Modified:** src/pipeline/character_extraction/consensus.py (line 1725)
+- **Expected impact:** This should enable "Mr. White" + "White" to merge correctly
+  - May also fix downstream issues (Herbert wrongly aliased, pronunciation false positives)
+  - Character Extraction score expected to improve from 5/10 to 8-9/10
 
 ---
 
@@ -266,15 +274,10 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 
 ## Next Action
 
-**Phase: awaiting_fix**
+**Phase: awaiting_analysis**
 
-Run PROMPT_fix.md to apply the one-line fix at `consensus.py` line 1725:
-```python
-# Change FROM:
-if len(multi_words) == 2 and multi_words[0] in titles:
-
-# Change TO:
-if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
-```
-
-This should finally enable "Mr. White" + "White" to merge correctly.
+Re-run analysis to test the title period stripping fix. Expected improvements:
+- "Mr. White" + "White" should now merge
+- Herbert White should remain separate (no longer wrongly aliased to "White")
+- "the stranger" / "the old man" / "the old woman" issues may be resolved as downstream effects
+- Pronunciation false positives should decrease as character entries are fixed
