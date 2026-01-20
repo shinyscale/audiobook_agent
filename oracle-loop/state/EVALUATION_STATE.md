@@ -2,284 +2,36 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
-## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
-- Analysis completed: 2026-01-20 01:25:30
-- Pipeline time: 14m 53s
+## IMPORTANT: Analysis Not Yet Run After Fix
 
-## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 5/10 ← FAILING
-- Character Profiles: 6/10
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 4/10 ← FAILING
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.05/10** (threshold: 8.0)
+**The fix from attempt 10→11 has been committed, but analysis has NOT been re-run.**
 
----
+Evidence:
+- Fix commit `4a1dfd3` timestamp: `2026-01-20 01:36:41`
+- analysis.json modification time: `2026-01-20 01:25:23`
+- The analysis file is 11 minutes OLDER than the fix commit
 
-## CRITICAL FINDING: CASE SENSITIVITY FIX DID NOT SOLVE THE PROBLEM
+**The current analysis.json contains stale data from BEFORE the fix was applied.**
 
-**The `.lower()` fix was applied correctly, but "Mr. White" and "White" still did not merge.**
+## Fix Applied in Attempt 11
 
-After investigation, the root cause is **NOT** just case sensitivity. The real issues are:
+**Commit:** `4a1dfd3 - Fix: Prevent ambiguous bare last names from becoming canonical`
 
-### Analysis of Why the Fix Didn't Work
+**What the fix does:**
+- Added `is_ambiguous_lastname_only()` helper function to `src/pipeline/character_extraction/consensus.py`
+- Detects bare last names (single-word) that are ambiguous when fuller forms exist in the same merge component
+- Example: "White" is marked as ambiguous if "Herbert White" or "Mr. White" are also present
+- Updated canonical name selection to prioritize non-ambiguous names BEFORE mention count
+- New priority order: 1) Not ambiguous, 2) Mention count, 3) More parts, 4) No title, 5) Alpha
 
-1. **Herbert White got incorrectly aliased to "White" first**
-   - Current state: "White" (44 mentions) has aliases: ["Herbert White", "Herbert"]
-   - This is WRONG - Herbert is the SON who DIES in Chapter 2
-   - Once Herbert was merged into "White", the system may have avoided merging "Mr. White" because the "White" entry now represents "Herbert" (wrong person)
-
-2. **The title+lastname merge logic may not be triggered**
-   - Even with `.lower()` fixed, the merge may be blocked by other conditions
-   - Need to check: family member blocking, LLM rejection, or ordering issues
-
-3. **Multiple White family members exist**
-   - Mr. White (father), Mrs. White (mother), Herbert White (son)
-   - The system correctly keeps "Mrs. White" separate
-   - But it incorrectly merged Herbert to "White" instead of keeping him separate
-   - And it failed to merge "Mr. White" with "White"
-
-### The CORRECT Merge Should Be:
-- "Mr. White" + "White" → SAME (title variant of father)
-- "Herbert White" + "Herbert" → SAME (first name variant of son)
-- "Mrs. White" → separate entry (mother)
-- Herbert ≠ Mr. White ≠ Mrs. White (different people)
-
-### What Went Wrong:
-- "Herbert White" + "Herbert" were merged into "White" entry
-- This created a "White" entry that represents Herbert (the son)
-- "Mr. White" stayed separate (correctly not merging with Herbert)
-- BUT "Mr. White" should have been the one to merge with "White"
-
----
-
-## Score Breakdown
-
-### Structure Detection: 9/10 ✓
-
-**What works:**
-- Correctly identified 3 chapters matching the original's I, II, III structure
-- All chapters have HIGH confidence
-- Word counts reasonable (1734, 936, 4182 words)
-- Chapter boundaries appear accurate
-
-**Minor issue:**
-- Chapter 3 has unusually high word count (4182) because it includes Project Gutenberg license text
-
-### Character Extraction: 5/10 ← CRITICAL ISSUES
-
-**What works:**
-- Mr. White correctly identified as separate character
-- Mrs. White correctly identified as separate character
-- Sergeant-Major Morris has correct aliases ["Morris", "the sergeant-major"]
-- "Stranger from Maw and Meggins" correctly identified
-- Chapters 1 and 2 characters_present are correct
-
-**CRITICAL ISSUES:**
-
-1. **FALSE CHARACTER SPLIT: "Mr. White" vs "White"** (still not merged after fix!)
-   - "Mr. White" (10 mentions) and "White" (44 mentions) are SEPARATE
-   - The text uses both interchangeably for the father
-   - **FIX APPLIED BUT DID NOT WORK**
-
-2. **HERBERT WHITE WRONGLY ALIASED TO "White"**
-   - "White" entry has aliases: ["Herbert White", "Herbert"]
-   - Herbert is the SON who DIES - he is NOT "White" (the father)
-   - This is the WRONG direction - Herbert should stay separate, Mr. White should merge with White
-
-3. **NONSENSICAL "the stranger" ENTRY**
-   - Character "the stranger" has aliases: ["the old man", "the old woman", "the soldier"]
-   - This is COMPLETELY WRONG:
-     - "the old man" = Mr. White (the father)
-     - "the old woman" = Mrs. White (the mother)
-     - "the soldier" = Sergeant-Major Morris
-   - These are THREE different people merged into one nonsensical entry
-
-4. **ORPHAN ENTRY: "his wife"**
-   - "his wife" (2 mentions) exists as separate character
-   - Should merge with "Mrs. White"
-
-5. **CHAPTER 3 CHARACTERS_PRESENT WRONG**
-   - Shows: ["the old man", "the old woman"]
-   - Should show: ["Mr. White", "Mrs. White"]
-   - Downstream of broken character entries
-
-### Character Profiles: 6/10
-
-**What works:**
-- Mr. White's profile is accurate: elderly, thin grey beard, white-haired
-- Mrs. White's profile captures her emotional arc
-- Sergeant-Major Morris has good physical description (tall, burly, beady-eyed, rubicund)
-
-**Issues:**
-- "White" character profile mixes father and son traits (because Herbert wrongly merged)
-- Missing Herbert's actual profile (wrongly aliased to "White")
-- All relationship fields are empty `{}`
-
-### Chapter Summaries: 9/10 ✓
-
-**What works:**
-- All three chapter summaries are accurate and capture key events
-- Chapter 1: Setup, Morris's arrival, the paw, first wish
-- Chapter 2: Herbert's death, £200 compensation
-- Chapter 3: Grief, second wish, knocking, third wish
-- Appropriate length for narrator preparation
-
-### Pronunciation Guide: 4/10 ← CRITICAL ISSUES
-
-**Major problems:**
-
-1. **COMMON WORD FALSE POSITIVES (8+ entries)**
-   - "his" (99 occurrences) flagged as proper_noun
-   - "old" (42 occurrences) flagged as proper_noun
-   - "from" (38 occurrences) flagged as proper_noun
-   - "man" (23 occurrences) flagged as proper_noun
-   - "wife" (15 occurrences) flagged as proper_noun
-   - "woman" (11 occurrences) flagged as proper_noun
-   - "soldier" (5 occurrences) flagged as proper_noun
-   - "does" (2 occurrences) flagged as proper_noun
-
-2. **Project Gutenberg boilerplate contamination**
-   - "GutenbergTM" (57 occurrences!)
-   - Legal terms from license text analyzed as story content
-
-3. **80 pronunciation entries for a 7000-word story is excessive**
-
-**Root cause:** Words extracted from broken character entries (like "the old man", "the soldier") are being flagged.
-
-**What IS useful:**
-- Actual character names (White, Herbert, Morris, Meggins, Maw)
-- Some genuinely useful entries: rubicund, fakir, Laburnam, antimacassar
-
-### HTML Presentation: 9/10 ✓
-
-**What works:**
-- Clean, professional styling with dark theme
-- Tab navigation functional
-- Character profiles with evidence quotes
-- Chapter summaries with characters present
-- Pronunciation entries with context examples
-- Print styles included
-
----
-
-## Current Issues (Priority Order)
-
-### CRITICAL
-
-1. **Herbert wrongly merged INTO "White" entry**
-   - Problem: "White" (44 mentions) has aliases ["Herbert White", "Herbert"]
-   - Evidence: Herbert is the SON who dies at work in Chapter 2, not the father
-   - Root cause: The merging chose the WRONG canonical name - "Herbert White" should NOT merge with "White"
-   - Location: `src/pipeline/character_extraction/consensus.py` - alias candidate pairing/selection
-   - Fix: When merging "Herbert White" with "Herbert", the canonical should be "Herbert White" or "Herbert", NOT "White"
-   - Impact: Once Herbert is correctly separated, "Mr. White" can merge with "White"
-
-2. **"Mr. White" and "White" still not merged**
-   - Problem: Despite case sensitivity fix, they remain separate
-   - Evidence: "Mr. White" (10 mentions) separate from "White" (44 mentions)
-   - Root cause: May be blocked because "White" now represents Herbert (wrong merge happened first)
-   - Location: `src/pipeline/character_extraction/consensus.py` - `_validate_merge()`
-   - Fix: Fix Herbert first (Critical #1), then this should work
-
-3. **"the stranger" has aliases for 3 different characters**
-   - Problem: ["the old man", "the old woman", "the soldier"] merged as one person
-   - Evidence: These are Mr. White, Mrs. White, and Morris respectively
-   - Root cause: Generic epithets being over-merged
-   - Location: Epithet merging logic
-   - Fix: Epithets like "the old man/woman" should NOT merge with "the stranger" - they're different referents
-
-### HIGH
-
-4. **Pronunciation flagging common English words**
-   - Problem: "his", "old", "from", "man", "wife", "woman" flagged
-   - Root cause: Words from character names (including broken entries) are all flagged
-   - Location: Pronunciation flagging pipeline
-   - Fix: Add common English word filter (top 5000-10000 words)
-   - Note: Partially DOWNSTREAM of character issues
-
-5. **Project Gutenberg boilerplate contamination**
-   - Problem: Legal text analyzed as story content
-   - Evidence: "GutenbergTM" flagged 57 times
-   - Location: `src/ingestion/refine.py`
-   - Fix: Add Gutenberg license detection and removal
-
-### MEDIUM
-
-6. **"his wife" orphan character entry**
-   - Should merge with "Mrs. White"
-   - Location: Relational descriptor handling
-
-7. **Missing relationship data**
-   - All relationship fields empty
-   - Mr./Mrs. White married, Herbert their son, Morris old friend - none captured
-
-8. **Chapter 3 characters_present uses epithet names**
-   - Shows ["the old man", "the old woman"] instead of proper names
-   - Downstream of character extraction issues
-
----
-
-## Fix History
-
-### Attempt 1 → 2: Fixed character validation for company names
-- Result: Pipeline still failed with same error
-
-### Attempt 2 → 3: Fixed LLM response type handling
-- Result: NEW error - LLM responses truncated
-
-### Attempt 3 → 4: Applied max_tokens from AgentConfig
-- Result: SAME truncation error
-
-### Attempt 4 → 5: Reduced character extraction chunk size
-- Result: Pipeline completed successfully
-
-### Attempt 5 → 6: Improved character merging prompts
-- Result: ZERO EFFECT - output unchanged
-
-### Attempt 6 → 7: Fixed title variant merge validation
-- Result: NEVER TESTED - analysis ran before fix
-
-### Attempt 7 → 8: Re-ran analysis to test fix
-- Result: FIX STILL DOESN'T WORK - period not stripped from "Mr."
-
-### Attempt 8 → 9: Fixed title period stripping bug (INCOMPLETE)
-- Result: FIX STILL DOESN'T WORK - need `.lower()` for case-insensitive comparison
-
-### Attempt 9 → 10: Fixed case sensitivity in title check
-- Added `.lower()` to line 1725
-- Smoke test passed
-- Unit tests passed
-- **Result: FIX DID NOT SOLVE THE PROBLEM**
-- **Root cause identified: Herbert is wrongly merged INTO "White" first**
-
-### Attempt 10 → 11: Fixed canonical name selection to avoid ambiguous bare last names
-- **Root Cause:** `src/pipeline/character_extraction/consensus.py:1150-1157` (canonical selection in `_llm_alias_resolution_pairwise`)
-  - Line 1155: Canonical selection prioritized mention count above all else
-  - "White" (44 mentions) beat "Herbert White" and "Mr. White" even though "White" is ambiguous
-- **Fix Applied:** Added `is_ambiguous_lastname_only()` helper (lines 1162-1186)
-  - Detects bare last names (single-word) that are ambiguous when fuller forms exist in same component
-  - Example: "White" is ambiguous if "Herbert White" or "Mr. White" are also present
-  - Updated scoring tuple (line 1198): prioritizes non-ambiguous names BEFORE mention count
-  - New priority order: 1) Not ambiguous, 2) Mention count, 3) More parts, 4) No title, 5) Alpha
-- **Smoke Test:** PASS
-  - Unit test confirmed "White" is marked as ambiguous when "Herbert White" exists
-  - Canonical selection now prefers "Herbert White" or "Mr. White" over bare "White"
-- **Full Test Suite:** PASS (444 tests passed, 11 skipped)
-- **Expected Impact:**
-  - Critical #1: Herbert should stay separate from "White" entry (FIXED)
-  - Critical #2: "Mr. White" and "White" should merge once Herbert is separate (LIKELY FIXED)
-  - Critical #3: Epithet issues remain (separate LLM prompt issue)
-  - High #4: Pronunciation issues partially downstream of Critical #1 (PARTIALLY FIXED)
-
----
+**Expected outcome:**
+- "Herbert White" should become canonical instead of "White" (when Herbert-related names are in the same component)
+- "Mr. White" should be able to merge with "White" once the Herbert issue is resolved
+- This addresses the root cause identified in attempt 10: Herbert was being merged INTO "White" because "White" had the highest mention count despite being ambiguous
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -295,10 +47,75 @@ After investigation, the root cause is **NOT** just case sensitivity. The real i
 
 ---
 
+## Previous Scores (from attempt 10, STALE DATA)
+
+These scores are from BEFORE the fix was applied. Do not use for evaluation.
+
+- Structure Detection: 9/10
+- Character Extraction: 5/10
+- Character Profiles: 6/10
+- Chapter Summaries: 9/10
+- Pronunciation Guide: 4/10
+- HTML Presentation: 9/10
+- **Overall: 7.05/10** (threshold: 8.0)
+
+---
+
+## Known Issues (from attempt 10)
+
+These issues were identified BEFORE the fix. The fix targets Critical #1 and #2.
+
+### CRITICAL
+
+1. **Herbert wrongly merged INTO "White" entry** ← FIX TARGETS THIS
+   - Problem: "White" (44 mentions) has aliases ["Herbert White", "Herbert"]
+   - Evidence: Herbert is the SON who dies at work in Chapter 2, not the father
+   - Root cause: Canonical selection prioritized mention count, choosing ambiguous "White"
+   - **FIX APPLIED:** `is_ambiguous_lastname_only()` now prevents "White" from becoming canonical
+
+2. **"Mr. White" and "White" still not merged** ← FIX SHOULD HELP THIS
+   - Problem: Despite case sensitivity fix, they remain separate
+   - Evidence: "Mr. White" (10 mentions) separate from "White" (44 mentions)
+   - Root cause: May be blocked because "White" now represents Herbert (wrong merge happened first)
+   - **Expected:** Once Herbert is separate, title+lastname merge should work
+
+3. **"the stranger" has aliases for 3 different characters**
+   - Problem: ["the old man", "the old woman", "the soldier"] merged as one person
+   - Evidence: These are Mr. White, Mrs. White, and Morris respectively
+   - Root cause: Generic epithets being over-merged
+   - **FIX DOES NOT ADDRESS THIS** - separate LLM prompt issue
+
+### HIGH
+
+4. **Pronunciation flagging common English words**
+   - Problem: "his", "old", "from", "man", "wife", "woman" flagged
+   - Root cause: Words from character names (including broken entries) are all flagged
+   - **PARTIALLY DOWNSTREAM** of character issues
+
+5. **Project Gutenberg boilerplate contamination**
+   - Problem: Legal text analyzed as story content
+   - Evidence: "GutenbergTM" flagged 57 times
+
+### MEDIUM
+
+6. **"his wife" orphan character entry** - Should merge with "Mrs. White"
+7. **Missing relationship data** - All relationship fields empty
+8. **Chapter 3 characters_present uses epithet names** - Downstream of character issues
+
+---
+
 ## Next Action
 
-**Phase: awaiting_analysis**
+**REQUIRED: Re-run analysis pipeline with the fix applied.**
 
-Fixed canonical name selection to prefer specific names over ambiguous bare last names. This should resolve Critical #1 (Herbert wrongly merged into "White") and likely Critical #2 (Mr. White + White merge).
+The analysis from attempt 10 predates the fix commit. Cannot evaluate until fresh analysis is generated.
 
-Re-run analysis to verify the fix works on the full pipeline.
+Run:
+```bash
+cd /home/zacharymandrews/Tools/audiobook_agent
+audiobook-prep analyze Test_Texts/The_Monkey\'s_Paw.txt --output output/monkeys_paw/analysis.json --html output/monkeys_paw/report.html
+```
+
+Then update this state file with:
+- Output Files section with new timestamps
+- Phase changed to `awaiting_evaluation`
