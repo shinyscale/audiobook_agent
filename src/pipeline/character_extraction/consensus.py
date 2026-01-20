@@ -1722,7 +1722,7 @@ class CharacterConsensusBuilder:
                         # Check if multi-word name is ONLY title + lastname
                         # E.g., "Mr. White" (title + lastname) should merge with "White" (lastname)
                         # But "Herbert White" (firstname + lastname) should NOT merge with "White"
-                        if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
+                        if len(multi_words) == 2 and multi_words[0].rstrip('.').lower() in titles:
                             # Title + lastname pattern - safe to merge
                             logger.debug(
                                 f"Merge accepted: {canonical} <- {alias} "

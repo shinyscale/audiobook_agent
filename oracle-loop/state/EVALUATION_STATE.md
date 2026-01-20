@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Output Files
@@ -265,6 +265,14 @@ This is a **ONE-CHARACTER FIX** (add `.lower()`) that should enable "Mr. White" 
 - **Fix applied:** Changed line 1725 to `multi_words[0].rstrip('.') in titles`
 - **Result: FIX STILL DOESN'T WORK - need `.lower()` for case-insensitive comparison**
 
+### Attempt 9 → 10: Fixed case sensitivity in title check
+- **Root cause:** Line 1725 checked `multi_words[0].rstrip('.') in titles` but set is lowercase
+- **Fix applied:** Added `.lower()` → `multi_words[0].rstrip('.').lower() in titles`
+- **File modified:** `src/pipeline/character_extraction/consensus.py` line 1725
+- **Smoke test:** ✓ PASS - "Mr" now correctly matches lowercase 'mr' in titles set
+- **Unit tests:** ✓ PASS - All 176 character tests pass, 3 skipped
+- **Expected impact:** "Mr. White" and "White" should now merge correctly
+
 ---
 
 ## Score History
@@ -279,6 +287,7 @@ This is a **ONE-CHARACTER FIX** (add `.lower()`) that should enable "Mr. White" 
 | 7 | 7.05 | +0.775 | Fix never tested |
 | 8 | 7.05 | +0.775 | BUG FOUND: period not stripped |
 | 9 | 7.05 | +0.775 | **BUG FOUND: case sensitivity - need .lower()** |
+| 10 | TBD | TBD | Fix applied - awaiting re-analysis |
 
 *Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-9 use integer component scores = 7.05.
 
@@ -286,20 +295,9 @@ This is a **ONE-CHARACTER FIX** (add `.lower()`) that should enable "Mr. White" 
 
 ## Next Action
 
-**Phase: awaiting_fix**
+**Phase: awaiting_analysis**
 
-The fix is a ONE-CHARACTER change at line 1725 of `src/pipeline/character_extraction/consensus.py`:
-
-```python
-# Change FROM:
-if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
-
-# Change TO:
-if len(multi_words) == 2 and multi_words[0].rstrip('.').lower() in titles:
-```
-
-After this fix:
-1. Run analysis again
-2. "Mr. White" and "White" should merge correctly
-3. Herbert should remain separate (as the son)
-4. Character Extraction score should improve significantly
+Case sensitivity fix has been applied. Re-run analysis to verify:
+1. "Mr. White" and "White" should now merge correctly
+2. Herbert should remain separate (as the son)
+3. Character Extraction score should improve significantly
