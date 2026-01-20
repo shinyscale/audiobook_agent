@@ -2,9 +2,22 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- \*\*Phase:\*\* awaiting_evaluation
 - **baseline_score:** 6.05
+
+## Attempt 4 Output Files
+- HTML: ../output/berenice/report.html
+- JSON: ../output/berenice/analysis.json
+- Timestamped: output/Berenice - Poe_20260119_170833/
+
+## Attempt 4 Pipeline Execution
+- Total time: 10m 9s
+- Characters detected: 2 (Berenice, Mad'selle Salle)
+- Narrator detected: Berenice
+- Chapters: 1
+- Pronunciation flags: 112
+- Note: Egaeus still NOT detected despite attempt 3 fix
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
