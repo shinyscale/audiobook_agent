@@ -3,11 +3,26 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** null
 
 ## Latest Scores
-FAILED - LLM responses STILL being truncated mid-JSON (attempt 3→4 fix didn't work)
+Analysis completed successfully - awaiting oracle evaluation
+
+## Output Files
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Results (Attempt 5)
+- **Duration:** 15m 58s
+- **Total tokens:** 102,224
+- **LLM calls:** 55
+- **Structure:** 3 chapters detected (3H confidence)
+- **Characters:** 7 characters found (6H confidence)
+- **Summaries:** 3 chapter summaries (3H confidence)
+- **Profiles:** 4 character profiles (4H confidence)
+- **Pronunciation:** 80 words flagged (27H/53M confidence)
+- **Warnings:** None - pipeline completed without truncation errors
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
