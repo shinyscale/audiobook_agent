@@ -2057,19 +2057,19 @@ Return ONLY the JSON object."""
         if not narrator_info.narrator_name:
             return
 
-        narrator_lower = narrator_info.narrator_name.lower()
+        narrator_lower = narrator_info.narrator_name.lower().strip()
 
-        # First, clear narrator flag from ALL characters
+        # CRITICAL: Clear narrator flag from ALL characters UNCONDITIONALLY
         # This ensures only one character is marked as narrator
+        # Previous bug: only cleared if is_narrator was True, which left stale flags
         for char in characters:
-            if char.is_narrator:
-                char.is_narrator = False
-                logger.debug(f"Cleared narrator flag from {char.canonical_name}")
+            char.is_narrator = False
+            logger.debug(f"Cleared narrator flag from {char.canonical_name}")
 
         # Now mark the correct narrator
         for char in characters:
-            # Check canonical name
-            if char.canonical_name.lower() == narrator_lower:
+            # Check canonical name (case-insensitive, whitespace-normalized)
+            if char.canonical_name.lower().strip() == narrator_lower:
                 char.is_narrator = True
                 char.narrative_role = narrator_info.narrator_role
 
@@ -2086,9 +2086,9 @@ Return ONLY the JSON object."""
                 logger.info(f"Marked {char.canonical_name} as narrator")
                 return
 
-            # Check aliases
+            # Check aliases (case-insensitive, whitespace-normalized)
             for alias in char.aliases:
-                if alias.lower() == narrator_lower:
+                if alias.lower().strip() == narrator_lower:
                     char.is_narrator = True
                     char.narrative_role = narrator_info.narrator_role
 

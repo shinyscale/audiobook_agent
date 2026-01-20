@@ -258,12 +258,12 @@ class StateParser:
             return {}
 
         try:
-            # Check if file was modified recently (within 60 seconds)
+            # Check if file was modified recently (within 10 minutes)
             # If stale, the analysis has completed and we shouldn't show old stage
             import time
             mtime = progress_file.stat().st_mtime
             age_seconds = time.time() - mtime
-            if age_seconds > 60:
+            if age_seconds > 600:  # 10 minutes - covers gaps between LLM calls
                 return {}  # Stale progress file, analysis likely complete
 
             with open(progress_file) as f:
@@ -477,25 +477,36 @@ class StateParser:
         progress_data = self.parse_progress_file()
         state.current_stage = progress_data.get('current_stage', '')
 
-        # Try to get model/tokens from analysis output first (local LLM usage)
+        # Try to get model/tokens from analysis output (local LLM usage)
         analysis_data = self.parse_analysis_output(state.text_name) if state.text_name else {}
 
-        # Always parse log data for Claude activities (even during analysis phase)
+        # Always parse log data for Claude activities
         log_data = self.parse_latest_log()
         state.claude_activities = log_data.get('activities', [])
         state.claude_last_message = log_data.get('last_message', '')
 
-        if analysis_data:
-            # Use analysis output data (from completed/in-progress analysis)
+        # Choose model based on phase
+        # During evaluate/fix phases, show Claude model; during analysis, show local LLM
+        claude_phases = ('awaiting_evaluation', 'evaluate', 'awaiting_fix', 'fix')
+
+        if state.phase in claude_phases and log_data.get('model'):
+            # Show Claude model during evaluate/fix phases
+            state.model = log_data.get('model', '')
+            state.input_tokens = log_data.get('input_tokens', 0)
+            state.output_tokens = log_data.get('output_tokens', 0)
+        elif state.current_stage and progress_data.get('stage_model'):
+            # Show local LLM model during active analysis stage
+            state.model = progress_data.get('stage_model', '')
+            state.input_tokens = analysis_data.get('input_tokens', 0) if analysis_data else 0
+            state.output_tokens = analysis_data.get('output_tokens', 0) if analysis_data else 0
+        elif analysis_data:
+            # Fall back to analysis output data
             state.model = analysis_data.get('model', '')
             state.input_tokens = analysis_data.get('input_tokens', 0)
             state.output_tokens = analysis_data.get('output_tokens', 0)
         else:
-            # Use model from progress file (current stage) if available
-            state.model = progress_data.get('stage_model', '') or eval_state.get('model', '')
-            # Fall back to Claude Code logs for tokens if no analysis data
-            if not state.model:
-                state.model = log_data.get('model', '')
+            # Final fallback to log data
+            state.model = log_data.get('model', '')
             state.input_tokens = log_data.get('input_tokens', 0)
             state.output_tokens = log_data.get('output_tokens', 0)
 
