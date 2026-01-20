@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -154,6 +154,37 @@ characters.append(OutputCharacter(
 
 ## Fix History
 
+### Attempt 9: IMPORT SHADOWING FIX - COMPLETE ✓
+- **What changed:** Fixed import shadowing by aliasing output Character model as OutputCharacter
+- **Root cause:** src/analyzer.py lines 19 and 40 - Two different Character classes imported, second import shadowed the first
+  - Line 19: `from .models import Character` (output model with `descriptions` plural, used in final AnalysisResult)
+  - Line 40: `from .pipeline.character_extraction.models import Character` (pipeline model with `description` singular)
+  - Line 40 shadowed line 19, so all `Character` references used pipeline model
+  - Lines 2254 and 2272: Final conversion tried to create output Character but used pipeline Character class
+  - Error: `Character.__init__() got an unexpected keyword argument 'descriptions'`
+- **Fix applied:**
+  - Line 19: Changed `Character` to `Character as OutputCharacter`
+  - Line 40: Kept `Character` (pipeline model) unchanged
+  - Line 2218: Updated return type annotation `-> list[OutputCharacter]`
+  - Line 2254: Changed `Character(` to `OutputCharacter(`
+  - Line 2272: Changed `Character(` to `OutputCharacter(`
+- **Smoke test:** PASS - Analysis completed successfully in 10m 0s
+- **Results:**
+  - ✓ F6 reconciliation executed: "Added 3 character(s) from chapter summaries"
+  - ✓ Egaeus now appears in character list (was MISSING in attempts 1-8)
+  - ✓ servant maiden now appears in character list
+  - ✓ menial now appears in character list (note: "family physician" became "menial")
+  - ✓ Characters increased from 2 to 5 total
+  - ✗ Narrator still incorrectly identified as Berenice (separate issue - narrator detection logic)
+  - ✗ Egaeus has mention_count=1 (F6 uses chapter count as proxy, but Egaeus is the actual narrator with many mentions)
+- **Expected impact:**
+  - Character Extraction: 2/10 → 6-7/10 (Egaeus now present, but mention count wrong)
+  - Character Profiles: 1/10 → 3-4/10 (Egaeus profile exists but narrator still wrong)
+  - Overall score: 5.55 → estimated 6.5-7.0 (still below 8.0 threshold)
+- **Confidence:** VERY HIGH - Import fix is correct and analysis completed successfully
+- **Modified:** src/analyzer.py (lines 19, 2218, 2254, 2272)
+- **Next issues:** Narrator detection still chooses Berenice over Egaeus (HIGH priority)
+
 ### Attempt 8: F6 FIELD NAME FIX - FAILED (Import Shadowing)
 - **What changed:** Fixed Character object creation in F6 reconciliation to use correct field names
 - **Root cause (assumed):** src/analyzer.py:1066-1078 - F6 code was creating Character objects with wrong field names/types
@@ -219,8 +250,24 @@ characters.append(OutputCharacter(
 - Core issue (missing Egaeus) has persisted through all 6 attempts
 
 ## Output Files
-- HTML: ../output/berenice/report.html (NOT GENERATED - attempt 7 failed)
-- JSON: ../output/berenice/analysis.json (NOT GENERATED - attempt 7 failed)
+- HTML: ../output/berenice/report.html (GENERATED - attempt 9)
+- JSON: ../output/berenice/analysis.json (GENERATED - attempt 9)
+
+## Pipeline Notes (Attempt 9)
+- **ANALYSIS COMPLETE** ✓ - Run completed successfully in 10m 0s
+- Models used:
+  - structure: qwen3:30b-instruct
+  - characters: qwen3-next:80b-a3b-instruct-q8_0
+  - summaries: qwen3-next:80b-a3b-instruct-q8_0
+  - pronunciation: qwen3:30b-instruct
+- Results summary:
+  - 1 chapter detected (expected for short story)
+  - 5 characters found: Berenice (13 mentions), Mad'selle Sallé (1), **Egaeus (1)**, servant maiden (1), menial (1)
+  - Narrator detected: Berenice (WRONG - should be Egaeus)
+  - F6 reconciliation: Successfully added 3 characters from chapter summaries
+  - 115 pronunciation flags
+  - Total tokens: 55,052
+- Bottleneck: Character Extraction (57.2% of time, 5m44s)
 
 ## Pipeline Notes (Attempt 8)
 - **ANALYSIS FAILED** - Runtime error during final character conversion
@@ -273,10 +320,6 @@ The chapter summary correctly identifies Egaeus as narrator and includes him in 
 
 ## Next Action
 
-Re-run analysis with the F6 field name fix. The F6 character reconciliation logic is correct and now the Character creation uses the proper field names from the pipeline model. This should resolve all critical issues:
-- Egaeus will be added from chapter summaries (fixes Character Extraction: 2→8+)
-- Narrator detection will correctly identify Egaeus (fixes Character Profiles: 1→8+)
-- Plot summary will be corrected (fixes downstream cascade)
-- Minor characters (servant maiden, family physician) will also be added
+Re-run evaluation on attempt 9 output. The import shadowing fix has been applied and analysis completed successfully. Egaeus is now in the character list, which should improve scores, but narrator detection still needs correction.
 
-Expected score improvement: 5.55 → 8.5+ (threshold: 8.0)
+Expected score improvement: 5.55 → 6.5-7.0 (progress but may still be below 8.0 threshold due to narrator detection issues)

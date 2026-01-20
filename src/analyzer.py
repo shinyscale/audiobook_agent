@@ -16,7 +16,7 @@ from .models import (
     BookMetadata,
     StructuralElement,
     StructureType,
-    Character,
+    Character as OutputCharacter,
     CharacterDescription,
     PronunciationEntry,
     PronunciationFlag as ModelPronunciationFlag,
@@ -2215,8 +2215,8 @@ Return ONLY the JSON object."""
     def _convert_characters(
         self,
         char_map: PipelineCharacterMap,
-    ) -> list[Character]:
-        """Convert pipeline CharacterMap to list of Character models."""
+    ) -> list[OutputCharacter]:
+        """Convert pipeline CharacterMap to list of OutputCharacter models."""
         characters = []
 
         for pc in char_map.characters:
@@ -2251,7 +2251,7 @@ Return ONLY the JSON object."""
             # Extract evidence from pipeline character
             evidence = getattr(pc, 'profile_evidence', [])
 
-            characters.append(Character(
+            characters.append(OutputCharacter(
                 id=pc.id,
                 canonical_name=pc.canonical_name,
                 aliases=pc.aliases,
@@ -2269,7 +2269,7 @@ Return ONLY the JSON object."""
 
         # Also add low confidence characters (no profiles generated for these)
         for pc in char_map.low_confidence_characters:
-            characters.append(Character(
+            characters.append(OutputCharacter(
                 id=pc.id,
                 canonical_name=pc.canonical_name,
                 aliases=pc.aliases,
