@@ -9,6 +9,33 @@ You are running the audiobook analysis pipeline on a test text as part of an aut
 0c. Read `../AGENTS.md` for operational commands and codebase navigation.
 0d. Read `~/.config/audiobook_prep/gui_settings.json` to get model configuration.
 
+## 0.5 Initialize State for New Text
+
+**IMPORTANT:** If starting a NEW text (different from what's in EVALUATION_STATE.md, or state shows `complete`), update the state file IMMEDIATELY before running analysis:
+
+```markdown
+# Current Evaluation State
+
+## Active Text
+- **Name:** {book_name}
+- **Attempt:** 1
+- **Phase:** awaiting_analysis
+- **baseline_score:** null
+
+## Latest Scores
+(Awaiting first analysis)
+
+## Score History
+| Attempt | Score | Delta from Baseline | Notes |
+|---------|-------|---------------------|-------|
+| (none yet) | - | - | - |
+
+## Notes
+Starting analysis for {book_name}.
+```
+
+This ensures the monitor shows the correct text immediately, not after analysis completes.
+
 ## 1. Run Analysis
 
 If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a fresh start:

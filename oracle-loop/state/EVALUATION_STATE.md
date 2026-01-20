@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** null
 
 ## Latest Scores
@@ -39,5 +39,28 @@ FAILED - Pipeline error during character extraction
 ## Previous Text Completed
 - **berenice:** 8.15/10 in 14 attempts ✓
 
-## Notes
-This is the first attempt on The Monkey's Paw. The pipeline failed during character extraction due to invalid JSON response from the LLM when validating the entity "Maw and Meggins" (a company name, not a character).
+## Fix History
+
+### Attempt 1 → 2: Fixed character validation for company names
+**Root Cause Analysis:**
+- **Symptom:** Pipeline failed - LLM returned `[]` (empty list) instead of expected JSON object
+- **Data flow trace:**
+  1. Error raised in: `src/pipeline/character_extraction/validator.py:303`
+  2. **Originates in:** `src/pipeline/character_extraction/validator.py:_llm_validation()` lines 273-303
+- **Root cause:** The VALIDATION_SYSTEM_PROMPT listed rejection categories but did NOT explicitly mention "companies", "organizations", or "businesses". When the LLM encountered "Maw and Meggins" (a company), it was uncertain how to respond and returned an empty list instead of the expected JSON object with `"is_person": false`.
+- **Confidence:** HIGH
+
+**Fix Applied:**
+- Modified: `src/pipeline/character_extraction/validator.py`
+- Changes:
+  1. Added "Companies, businesses, or organizations" to rejection criteria in VALIDATION_SYSTEM_PROMPT (line 60)
+  2. Updated analysis questions to include "company" as a non-person category (lines 75-77)
+  3. Updated JSON field description to include "company" in rejection list (line 80)
+- Category: Prompt Issue - Made rejection criteria more explicit to guide LLM behavior
+- Smoke test: Unit tests passed (12/12 in test_character_agent.py)
+
+**Expected Outcome:**
+LLM should now properly return `{"is_person": false, "is_person_reasoning": "This is a company/business name", ...}` instead of an empty list when encountering organization names.
+
+## Next Action
+Re-run analysis to verify the fix allows the pipeline to complete successfully.

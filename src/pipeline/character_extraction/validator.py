@@ -57,6 +57,7 @@ CRITICAL: Reject names that refer to:
 - Objects, items, or things (e.g., wine, books, weapons, artifacts)
 - Food or beverages
 - Places or locations
+- Companies, businesses, or organizations
 - Abstract concepts or ideas
 - Titles without names"""
 
@@ -71,12 +72,12 @@ SAMPLE CONTEXTS (where this name appears):
 {contexts}
 
 Analyze the contexts carefully. Ask yourself:
-1. Is "{name}" a PERSON's name, or is it an object/item/place/concept?
-2. If people are talking ABOUT "{name}" (e.g., "the Amontillado", "some Amontillado"), is it something they're discussing rather than someone they're addressing?
-3. Do the contexts show "{name}" performing human actions (speaking, thinking, moving) or being acted upon as an object?
+1. Is "{name}" a PERSON's name, or is it an object/item/place/company/concept?
+2. If people are talking ABOUT "{name}" (e.g., "the wine", "the artifact", "the company"), is it something/somewhere they're discussing rather than someone they're addressing?
+3. Do the contexts show "{name}" performing human actions (speaking, thinking, moving) or being acted upon as an object/organization?
 
 Please return JSON with:
-- "is_person": true/false - Is this a real person/character name (NOT an object, food, drink, place, or concept)?
+- "is_person": true/false - Is this a real person/character name (NOT an object, food, drink, place, company, or concept)?
 - "is_person_reasoning": Brief explanation of why this is or isn't a person
 - "context_supports": 0.0-1.0 - How strongly does the context support this being a character?
 - "alias_candidates": List of other names that might refer to the same person (e.g., "Elizabeth" -> ["Lizzy", "Miss Bennet"])
