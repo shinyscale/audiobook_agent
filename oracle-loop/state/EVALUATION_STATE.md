@@ -3,29 +3,40 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 7
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.275
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes
-- Analysis completed successfully
-- LLM identity detection warning occurred but did not affect pipeline execution
-
 ## Latest Scores
 - Structure Detection: 9/10
-- Character Extraction: 5/10 <- FAILING
+- Character Extraction: 5/10 ← FAILING
 - Character Profiles: 6/10
 - Chapter Summaries: 9/10
-- Pronunciation Guide: 4/10 <- FAILING
+- Pronunciation Guide: 4/10 ← FAILING
 - HTML Presentation: 9/10
 - **Overall: 7.05/10** (threshold: 8.0)
 
+## CRITICAL FINDING: ATTEMPT 7 FIX HAD ZERO EFFECT
+
+The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did not change the output**. The character extraction results are IDENTICAL to attempt 6:
+
+| Issue | Attempt 6 | Attempt 7 | Status |
+|-------|-----------|-----------|--------|
+| "Mr. White" vs "White" split | YES | YES | **UNFIXED** |
+| Herbert aliased to "White" | YES | YES | **UNFIXED** |
+| "the stranger" with 3 different people | YES | YES | **UNFIXED** |
+| "his wife" orphaned | YES | YES | **UNFIXED** |
+| 80 pronunciation entries | YES | YES | **UNFIXED** |
+| Chapter 3 shows "the old man/woman" | YES | YES | **UNFIXED** |
+
+---
+
 ## Score Breakdown
 
-### Structure Detection: 9/10
+### Structure Detection: 9/10 ✓
 
 **What works:**
 - Correctly identified 3 chapters matching the original's I, II, III structure
@@ -34,63 +45,67 @@
 - Chapter boundaries appear accurate
 
 **Minor issue:**
-- Chapter 3 has unusually high word count (4182) because it includes the Project Gutenberg license text at the end
+- Chapter 3 has unusually high word count (4182) because it includes Project Gutenberg license text
 
-### Character Extraction: 5/10 <- CRITICAL ISSUES (UNCHANGED FROM ATTEMPT 5)
+### Character Extraction: 5/10 ← CRITICAL ISSUES
 
 **What works:**
 - Mr. White, Mrs. White, Sergeant-Major Morris correctly identified
 - Morris has aliases ["Morris", "the sergeant-major"] ✓
 - "The stranger from Maw and Meggins" correctly identified as separate character
+- Chapters 1 and 2 characters_present are correct
 
-**CRITICAL ISSUES (NOT FIXED BY ATTEMPT 6):**
+**CRITICAL ISSUES:**
 
 1. **FALSE CHARACTER SPLIT: "White" vs "Mr. White"**
-   - "Mr. White" (10 mentions) and "White" (44 mentions) are STILL listed as SEPARATE characters
-   - The prompt improvements in attempt 5→6 had NO EFFECT
+   - "Mr. White" (10 mentions) and "White" (44 mentions) are SEPARATE characters
+   - These should be merged - the text uses both interchangeably for the father
 
 2. **HERBERT WHITE WRONGLY ALIASED TO "WHITE"**
-   - "White" entry still has aliases: ["Herbert White", "Herbert"]
-   - Herbert should be his own entry - he's the son who dies, not the father
-   - The family relationship detection did NOT work
+   - "White" entry has aliases: ["Herbert White", "Herbert"]
+   - Herbert is the SON who DIES - he is NOT the same as the father
+   - The family relationship detection completely failed
 
-3. **NONSENSICAL "the stranger" ENTRY (UNCHANGED)**
-   - Character entry "the stranger" still has aliases: ["the old man", "the old woman", "the soldier"]
-   - This is COMPLETELY WRONG - these are THREE different people
-   - The epithet alias prompt improvements had NO EFFECT
+3. **NONSENSICAL "the stranger" ENTRY**
+   - Character "the stranger" has aliases: ["the old man", "the old woman", "the soldier"]
+   - This is COMPLETELY WRONG:
+     - "the old man" = Mr. White (the father)
+     - "the old woman" = Mrs. White (the mother)
+     - "the soldier" = Sergeant-Major Morris
+   - These are THREE different people merged into one nonsensical entry
 
-4. **ORPHAN ENTRY: "his wife" (UNCHANGED)**
-   - "his wife" (2 mentions) still exists as separate character
+4. **ORPHAN ENTRY: "his wife"**
+   - "his wife" (2 mentions) exists as separate character
    - Should merge with "Mrs. White"
 
-5. **CHAPTER 3 CHARACTERS_PRESENT STILL WRONG**
+5. **CHAPTER 3 CHARACTERS_PRESENT WRONG**
    - Shows: ["the old man", "the old woman"]
    - Should show: ["Mr. White", "Mrs. White"]
+   - This is downstream of the broken character entries
 
 ### Character Profiles: 6/10
 
 **What works:**
-- Mr. White's profile is accurate: elderly, white-haired, thin grey beard
-- Mrs. White's profile captures her emotional arc well
-- Sergeant-Major Morris has good physical description
+- Mr. White's profile is accurate: elderly, thin grey beard, white-haired
+- Mrs. White's profile captures her emotional arc from skeptic to desperate
+- Sergeant-Major Morris has good physical description (tall, burly, beady-eyed, rubicund)
 
 **Issues:**
-- "White" character profile is confused - describes elderly man but aliases include young Herbert
-- Missing Herbert's actual profile
+- "White" character profile is confused - mixes father and son traits
+- Missing Herbert's actual profile (he's wrongly aliased)
 - All relationship fields are empty `{}`
+- "the stranger" has no useful profile data
 
-### Chapter Summaries: 9/10
+### Chapter Summaries: 9/10 ✓
 
 **What works:**
 - All three chapter summaries are accurate and capture key events
 - Chapter 1: Setup, Morris's arrival, the paw, first wish
-- Chapter 2: Maw and Meggins representative, Herbert's death, £200 coincidence
+- Chapter 2: Maw and Meggins representative, Herbert's death, £200 compensation
 - Chapter 3: Grief, second wish, knocking, third wish
+- Appropriate length for narrator preparation
 
-**Minor issues:**
-- Summaries are on the long side but still useful
-
-### Pronunciation Guide: 4/10 <- CRITICAL ISSUES (UNCHANGED)
+### Pronunciation Guide: 4/10 ← CRITICAL ISSUES
 
 **Major problems:**
 
@@ -105,56 +120,21 @@
 
 2. **Project Gutenberg boilerplate contamination**
    - "GutenbergTM" (57 occurrences!)
-   - "eBooks" (7 occurrences)
-   - Plus "AS-IS", "MERCHANTABILITY", "nonproprietary"
+   - Plus legal terms from license text
 
 3. **80 pronunciation entries for a 7000-word story is excessive**
 
-**What IS useful:**
-- "fakir" / "fakirs" - correctly flagged
-- "rubicund" - correctly flagged
-- "antimacassar" - correctly flagged
-- "bibulous" - correctly flagged
-- "Laburnam" - correctly flagged
-- Homograph entries (house, read, wind, live, minute) are helpful
+**Root cause:** Words from the broken character entries (like "the old man", "the soldier") are being extracted as pronunciation candidates.
 
-### HTML Presentation: 9/10
+**What IS useful:**
+- Actual character names (White, Herbert, Morris, Meggins, Maw, Sergeant-Major)
+
+### HTML Presentation: 9/10 ✓
 
 **What works:**
-- Clean, professional dark theme
-- Tab navigation works
-- Statistics clearly displayed
-- Character profiles well-formatted
-
-**Minor issues:**
-- Empty timing values for "started_at"/"ended_at"
-
----
-
-## CRITICAL FINDING: ATTEMPT 6 FIX HAD ZERO EFFECT
-
-The prompt improvements made in commit `ec42d22` ("Fix: Improve character merging prompts for title variants and family relationships") **did not change the output at all**. The character extraction results are identical to attempt 5:
-
-| Issue | Attempt 5 | Attempt 6 | Status |
-|-------|-----------|-----------|--------|
-| "Mr. White" vs "White" split | YES | YES | UNFIXED |
-| Herbert aliased to "White" | YES | YES | UNFIXED |
-| "the stranger" with 3 different people | YES | YES | UNFIXED |
-| "his wife" orphaned | YES | YES | UNFIXED |
-| 80 pronunciation entries | YES | YES | UNFIXED |
-
-**Root Cause Analysis:**
-
-The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_PROMPT`, but:
-
-1. **The prompts may not be reaching the LLM** - Need to verify the modified prompts are actually being used
-2. **The LLM may be ignoring the guidance** - Even with better prompts, the model may still make wrong decisions
-3. **The issue may be earlier in the pipeline** - Character candidates may not be paired correctly before LLM evaluation
-
-**Investigation needed:** Check if the prompt changes are actually being applied by:
-- Adding logging to verify which prompt text is sent to LLM
-- Checking if there's prompt caching that bypasses changes
-- Verifying the consensus.py changes are in the correct code path
+- Character profiles with evidence quotes
+- Chapter summaries with characters present
+- Pronunciation entries with context examples
 
 ---
 
@@ -162,34 +142,37 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
 
 ### CRITICAL
 
-1. **FIX ATTEMPT HAD NO EFFECT - INVESTIGATE WHY**
-   - Problem: Prompt improvements in consensus.py didn't change output
-   - Evidence: All character issues identical between attempt 5 and 6
-   - Location: Verify `src/pipeline/character_extraction/consensus.py` changes are applied
-   - Fix: Add logging to confirm prompt changes reach LLM, then try different approach
+1. **ATTEMPT 7 FIX HAD NO EFFECT - INVESTIGATE WHY**
+   - Problem: Title variant merge changes in consensus.py didn't change output
+   - Evidence: All character issues identical between attempt 6 and 7
+   - Hypothesis: The changes may not be in the code path being executed, OR the analysis was cached
+   - Fix: FIRST verify the code changes are being executed, THEN try different approach
 
 2. **False character split: "White" vs "Mr. White"**
    - Problem: Same person split into 2 entries (44 + 10 = 54 mentions total)
    - Evidence: The text uses "White" and "Mr. White" interchangeably for the father
-   - Fix: If prompts don't work, try heuristic pre-merge for "Title + LastName" = "LastName"
+   - Location: `src/pipeline/character_extraction/consensus.py` - merge validation
+   - Fix: Need to verify WHY the merge isn't happening
 
 3. **Herbert wrongly aliased to "White" (father)**
    - Problem: Son's name merged as alias of ambiguous "White" entry
-   - Evidence: Herbert is the son who works at Maw and Meggins and dies
-   - Fix: Prevent merging when contexts show parent-child relationship
+   - Evidence: Herbert works at Maw and Meggins and DIES in Chapter 2
+   - Location: `src/pipeline/character_extraction/consensus.py` - family detection
+   - Fix: Prevent merging when one name is a subset AND contexts show different ages/roles
 
 4. **"the stranger" has aliases for 3 different characters**
    - Problem: ["the old man", "the old woman", "the soldier"] are NOT one person
-   - Evidence: "the old man" = Mr. White, "the old woman" = Mrs. White, "the soldier" = Morris
-   - Fix: Generic epithets like "the old man/woman" should NOT create new characters OR merge with other epithets
+   - Evidence: These are generic epithets for Mr. White, Mrs. White, and Morris respectively
+   - Location: Epithet merging logic
+   - Fix: Generic epithets like "the old man/woman" should NOT merge with each other OR with "the stranger"
 
 ### HIGH
 
 5. **Pronunciation flagging common English words**
    - Problem: "his", "old", "from", "man", "wife", "woman" flagged
-   - Root cause: Words from character names (including broken entries like "the old man") are all flagged
-   - Fix: This is DOWNSTREAM of character issues - fixing characters may partially fix this
-   - Additional fix: Add common English word filter (top 5000-10000 words)
+   - Root cause: Words from character names (including broken entries) are all flagged
+   - Fix: Add common English word filter (top 5000-10000 words)
+   - Note: This is partially DOWNSTREAM of character issues
 
 6. **Project Gutenberg boilerplate contamination**
    - Problem: Legal text analyzed as story content
@@ -208,6 +191,11 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
    - Problem: All relationship fields empty
    - Evidence: Mr./Mrs. White married, Herbert their son, Morris old friend - none captured
    - Fix: May need separate relationship extraction pass
+
+9. **Chapter 3 characters_present uses epithet names**
+   - Problem: Shows ["the old man", "the old woman"] instead of proper names
+   - Root cause: Downstream of character extraction issues
+   - Fix: Will be resolved when character extraction is fixed
 
 ---
 
@@ -236,16 +224,28 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
 - **Result: ZERO EFFECT - output unchanged**
 
 ### Attempt 6 → 7: Fixed title variant merge validation
-- Root cause: `src/pipeline/character_extraction/consensus.py:_validate_merge():1682`
-- Problem: When counting family members with shared last names, the code excluded "Mr. White" and "Mrs. White" because their first word was a title. This caused the substring pre-merge check to never execute.
-- Fix #1: Include title-only names in family member count (line 1682)
-- Fix #2: Add explicit title variant handling (lines 1698-1752) to merge "Mr. White" + "White" while rejecting "Herbert White" + "White"
-- Smoke test: All 179 character-related unit tests PASS
-- Modified: `src/pipeline/character_extraction/consensus.py`
-- **Expected result:**
-  - "Mr. White" and "White" should merge
-  - "Herbert White" should remain separate from father
-  - "his wife" may still be orphaned (different root cause)
+- Modified `src/pipeline/character_extraction/consensus.py`
+- Added explicit title variant handling in `_validate_merge()`
+- Fixed family member count to include title-only names
+- All 179 character-related unit tests PASS
+- **Result: ZERO EFFECT - output unchanged**
+
+---
+
+## Root Cause Investigation Required
+
+The last TWO fixes (attempts 6 and 7) have had **ZERO EFFECT** on the output. This means either:
+
+1. **The code path isn't being executed** - The changes may be in a function that isn't called for this data
+2. **The analysis is cached** - Old results may be being reused
+3. **The changes are being overridden** - Later code may be undoing the improvements
+4. **The merge candidates aren't being generated** - The pairs never reach the validation code
+
+**Next fix should:**
+1. Add diagnostic logging to VERIFY the code changes are being executed
+2. Check if there's any caching that needs to be cleared
+3. Trace the actual code path for "Mr. White" + "White" pair processing
+4. Only THEN make additional logic changes
 
 ---
 
@@ -258,18 +258,17 @@ The fix modified the prompt text in `PAIRWISE_ALIAS_PROMPT` and `EPITHET_ALIAS_P
 | 4 | FAILED | - | Same truncation |
 | 5 | 6.275* | baseline | First successful run |
 | 6 | 7.05 | +0.775 | Re-evaluated with consistent rubric; FIX HAD NO EFFECT |
+| 7 | 7.05 | +0.775 | **FIX HAD NO EFFECT** |
 
-*Note: Attempt 5 score of 6.275 appears to use non-integer component scores. Attempt 6 evaluated with integer scores per rubric = 7.05. The underlying issues are identical.
+*Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-7 use integer component scores = 7.05.
 
 ---
 
 ## Next Action
 
-**Phase: awaiting_analysis**
+**Phase: awaiting_fix**
 
-Re-run the analysis pipeline to verify the character extraction fix. Expected improvements:
-- Character Extraction score should increase (currently 5/10)
-- "Mr. White" and "White" should be merged
-- "Herbert White" should remain separate from his father
-
-Note: The "his wife" orphan issue and pronunciation false positives are separate problems that may require additional fixes.
+Run `PROMPT_fix.md` to:
+1. INVESTIGATE why the last two fixes had no effect
+2. Add diagnostic logging to verify code execution
+3. Only after confirming code path, apply targeted fix for character merge issues
