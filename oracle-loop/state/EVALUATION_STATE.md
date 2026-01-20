@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 9 Re-Evaluation)
@@ -144,8 +144,18 @@ The EVALUATION_STATE.md claimed F6 ran and added 3 characters, but the output sh
 - Core issue (missing Egaeus) has persisted through ALL 9 attempts
 
 ## Output Files
-- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 18:37)
-- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 18:37)
+- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:05)
+- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:05)
+
+## Pipeline Notes (Attempt 10)
+- Analysis completed successfully with no errors
+- Models used:
+  - Structure: qwen3:30b-instruct
+  - Characters: qwen3-next:80b-a3b-instruct-q8_0
+  - Summaries: qwen3-next:80b-a3b-instruct-q8_0
+  - Pronunciation: qwen3:30b-instruct
+- Pronunciation flags: 115 total (99 unknown, 7 proper_noun, 6 foreign, 3 homograph)
+- Ready for evaluation to determine if F6 reconciliation is now working
 
 ## Key Evidence
 
