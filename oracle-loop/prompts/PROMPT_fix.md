@@ -40,7 +40,15 @@ BAD: Read entire consensus.py (2500 lines) → wastes 50K+ tokens
 GOOD: Read CODEBASE_SUMMARY.md → grep for function → Read consensus.py:1571-1650
 ```
 
-For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md:
+For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md.
+
+**If using V2 character extraction (--character-extraction=v2):**
+- Main cast issues → `main_cast.py` - `MAIN_CAST_PROMPT`
+- Alias issues → `main_cast.py` - LLM provides aliases directly
+- Hallucinated characters → `grounding.py` - `GroundingGate`
+- Narrator issues → `narrator.py` - `NARRATOR_DETECTION_PROMPT`
+
+**If using V1 character extraction (legacy):**
 - Character merge issues → `consensus.py` lines 1571-1700
 - Narrator issues → `analyzer.py` lines 1986-2076
 - Profile issues → `analyzer.py` lines 1570-1700

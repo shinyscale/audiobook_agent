@@ -65,9 +65,11 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    ```bash
    # Replace {text_file}, {book_name}, and model values from manifest and gui_settings.json
    # Note: {text_file} should be prefixed with ../ since we run from oracle-loop/
+   # Use --character-extraction=v2 for the new summary-driven character extraction
    audiobook-prep analyze ../{text_file} \
      --html ../output/{book_name}/report.html \
      --output ../output/{book_name}/analysis.json \
+     --character-extraction=v2 \
      --structure-model {structure_model} \
      --character-model {character_model} \
      --summary-model {summary_model} \
@@ -79,11 +81,18 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
+     --character-extraction=v2 \
      --structure-model "qwen3:30b-instruct" \
      --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --pronunciation-model "qwen3:30b-instruct"
    ```
+
+   **Note on V2 Character Extraction:**
+   - V2 uses summary-driven approach instead of complex merge heuristics
+   - Requires summaries to run BEFORE character extraction (automatic when using v2)
+   - See `oracle-loop/docs/CODEBASE_SUMMARY.md` for V2 architecture details
+   - To fall back to legacy v1: omit `--character-extraction` flag or use `--character-extraction=v1`
 
 5. Wait for completion (this may take 10-60 minutes depending on text length and model)
 6. Verify output exists:

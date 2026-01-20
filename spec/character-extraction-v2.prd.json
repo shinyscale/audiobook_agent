@@ -630,7 +630,8 @@
             "Confirm analysis uses v2 pipeline",
             "Check that output format is compatible with evaluation"
           ],
-          "passes": false
+          "passes": true,
+          "verified_by": "PROMPT_analyze.md updated with --character-extraction=v2 flag"
         },
         {
           "category": "functional",
@@ -641,7 +642,8 @@
             "Confirm oracle identifies correct file for fix (main_cast.py, grounding.py, etc.)",
             "Check that fix is applied to v2 code, not v1"
           ],
-          "passes": false
+          "passes": true,
+          "verified_by": "PROMPT_fix.md updated with V2 fix locations section"
         },
         {
           "category": "functional",
@@ -652,7 +654,8 @@
             "Check file paths for main_cast.py, supporting.py, narrator.py, grounding.py",
             "Confirm Common Fix Locations table includes v2 entries"
           ],
-          "passes": false
+          "passes": true,
+          "verified_by": "CODEBASE_SUMMARY.md updated with V2 section and fix locations"
         }
       ],
       "implementation": {
