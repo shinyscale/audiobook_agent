@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
-- Analysis completed: 2026-01-20 00:41:37
-- Pipeline time: 14m 31s
+- Analysis completed: 2026-01-20 01:03:26
+- Pipeline time: 14m 46s
 
 ## Latest Scores
 - Structure Detection: 9/10
@@ -272,12 +272,16 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 
 ---
 
+## Pipeline Notes (Attempt 9)
+
+Analysis completed successfully with the following observations from console output:
+- Characters found: "Mr. White" (10 mentions), "White" with aliases ["Herbert White", "Herbert"] (44 mentions)
+- The title period stripping fix did NOT resolve the "Mr. White" / "White" split
+- Characters remain incorrectly separated/merged as in previous attempt
+- Pipeline warnings: "Failed to parse JSON response for White", "Low confidence profile for White: 0.30"
+
 ## Next Action
 
-**Phase: awaiting_analysis**
+**Phase: awaiting_evaluation**
 
-Re-run analysis to test the title period stripping fix. Expected improvements:
-- "Mr. White" + "White" should now merge
-- Herbert White should remain separate (no longer wrongly aliased to "White")
-- "the stranger" / "the old man" / "the old woman" issues may be resolved as downstream effects
-- Pronunciation false positives should decrease as character entries are fixed
+Run full evaluation to verify if the title period fix had any effect on the character extraction issues.
