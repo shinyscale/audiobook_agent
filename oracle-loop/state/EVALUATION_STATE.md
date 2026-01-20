@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -105,6 +105,15 @@ Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + 
    - Impact: Should eliminate all 4 problematic Gutenberg terms from pronunciation guide, pushing Pronunciation from 6/10 to 7+/10 (+0.10 weighted = 7.95→8.05 overall)
    - Smoke test: PASS - Successfully removes 19,050 chars (46.4%) of boilerplate from The Monkey's Paw
    - Test suite: All 461 tests PASS
+
+**Attempt 16 Analysis Run:**
+- Completed in 10m 17s
+- Gutenberg boilerplate removal confirmed: 19,050 chars (46.4%) removed
+- Pronunciation guide: 53 words (down from 73 in attempt 15)
+- Characters: 6 found
+- Output files:
+  - JSON: ../output/monkeys_paw/analysis.json
+  - HTML: ../output/monkeys_paw/report.html
 
 ## Score History
 
