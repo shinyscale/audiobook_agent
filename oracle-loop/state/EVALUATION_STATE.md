@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -192,4 +192,30 @@ The fix strategy needs to address the character regression while preserving the 
 - Will NOT restore missing aliases ("the old man", "the son") - those are LLM variance
 - Will NOT restore "the monkey's paw" character - also LLM variance
 
-**Next Step:** Re-run analysis to verify fix and check if it crosses 8.0 threshold
+## Analysis Results (Attempt 17)
+
+**Output Files:**
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+**Pipeline Performance:**
+- Total time: 11m 56s
+- Total LLM calls: 25 (down from 27 in attempt 16)
+- Total tokens: 50,662
+- Bottleneck: Chapter Summaries (44.9% of time)
+
+**Key Observations:**
+- ✅ 7 characters extracted (6 in previous attempts + 1 from chapter summaries)
+- ✅ "Sergeant-Major Morris" now appears as single character with "Morris" alias (MERGE FIX WORKED!)
+- ✅ Mr. White has "the old man" alias restored
+- ✅ Herbert White has "Herbert" and "the son" aliases restored
+- ✅ "the stranger" character extracted
+- ✅ "the monkey's paw" character present with 6 mentions
+- ✅ Pronunciation guide: 55 entries (clean, no Gutenberg terms)
+- ⚠️ Some LLM warnings: profile generation had issues for some characters ("No passages provided")
+
+**Pipeline Warnings:**
+- LLM identity detection failed (500 error from Ollama) - non-critical
+- Low confidence profile for "the stranger" (0.30) - expected for minor character
+
+**Next Step:** Evaluation phase to verify scores and check if Morris fix pushed us to 8.0+
