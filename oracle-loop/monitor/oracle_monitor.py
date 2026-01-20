@@ -43,6 +43,14 @@ class Commit:
 
 
 @dataclass
+class ClaudeActivity:
+    """Activity from Claude during evaluation/fix phases."""
+    tool_name: str
+    description: str
+    timestamp: str = ""
+
+
+@dataclass
 class OracleState:
     """Combined state from all data sources."""
     # From EVALUATION_STATE.md
@@ -76,6 +84,10 @@ class OracleState:
 
     # Recent commits
     commits: list[Commit] = field(default_factory=list)
+
+    # Claude activity (from iteration logs)
+    claude_activities: list[ClaudeActivity] = field(default_factory=list)
+    claude_last_message: str = ""
 
     # Metadata
     last_updated: datetime = field(default_factory=datetime.now)
@@ -166,7 +178,10 @@ class StateParser:
 
     def parse_manifest(self) -> dict:
         """Parse manifest.json for overall progress."""
-        manifest_file = self.base_dir / "manifest.json"
+        # Try state/ subdirectory first (oracle-loop structure), then base_dir
+        manifest_file = self.base_dir / "state" / "manifest.json"
+        if not manifest_file.exists():
+            manifest_file = self.base_dir / "manifest.json"
         if not manifest_file.exists():
             return {}
 
@@ -212,16 +227,20 @@ class StateParser:
 
     def parse_progress_file(self) -> dict:
         """Parse PROGRESS.json for current analysis stage."""
-        output_dir = self.base_dir / "output"
+        # Try multiple locations for PROGRESS.json
+        possible_paths = [
+            self.base_dir / "output" / "PROGRESS.json",
+            self.base_dir.parent / "output" / "PROGRESS.json",  # oracle-loop structure
+            Path("/home/zacharymandrews/Tools/audiobook_agent/output/PROGRESS.json"),  # absolute fallback
+        ]
 
-        # If output dir doesn't exist, check parent directory (oracle-loop structure)
-        if not output_dir.exists():
-            parent_output = self.base_dir.parent / "output"
-            if parent_output.exists():
-                output_dir = parent_output
+        progress_file = None
+        for path in possible_paths:
+            if path.exists():
+                progress_file = path
+                break
 
-        progress_file = output_dir / "PROGRESS.json"
-        if not progress_file.exists():
+        if not progress_file:
             return {}
 
         try:
@@ -278,7 +297,7 @@ class StateParser:
         }
 
     def parse_latest_log(self) -> dict:
-        """Parse latest log file for model and token usage (Claude Code logs)."""
+        """Parse latest log file for model, token usage, and Claude activities."""
         logs_dir = self.base_dir / "logs"
 
         # If logs dir doesn't exist, check parent directory (oracle-loop structure)
@@ -299,13 +318,17 @@ class StateParser:
         model = ""
         input_tokens = 0
         output_tokens = 0
+        activities = []
+        last_message = ""
 
         try:
             with open(latest_log) as f:
                 for line in f:
                     try:
                         data = json.loads(line.strip())
-                        if data.get('type') == 'assistant':
+                        msg_type = data.get('type')
+
+                        if msg_type == 'assistant':
                             msg = data.get('message', {})
                             if msg.get('model'):
                                 model = msg['model']
@@ -314,6 +337,27 @@ class StateParser:
                             input_tokens += usage.get('cache_read_input_tokens', 0)
                             input_tokens += usage.get('cache_creation_input_tokens', 0)
                             output_tokens += usage.get('output_tokens', 0)
+
+                            # Extract tool calls from content
+                            content = msg.get('content', [])
+                            for block in content:
+                                if block.get('type') == 'tool_use':
+                                    tool_name = block.get('name', 'unknown')
+                                    tool_input = block.get('input', {})
+
+                                    # Create human-readable description
+                                    desc = self._describe_tool_use(tool_name, tool_input)
+                                    activities.append(ClaudeActivity(
+                                        tool_name=tool_name,
+                                        description=desc
+                                    ))
+
+                                elif block.get('type') == 'text':
+                                    # Capture last text message (truncated)
+                                    text = block.get('text', '')
+                                    if text:
+                                        last_message = text[:200] + "..." if len(text) > 200 else text
+
                     except json.JSONDecodeError:
                         continue
         except IOError:
@@ -323,7 +367,51 @@ class StateParser:
             'model': model,
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
+            'activities': activities[-10:],  # Keep last 10 activities
+            'last_message': last_message,
         }
+
+    def _describe_tool_use(self, tool_name: str, tool_input: dict) -> str:
+        """Create human-readable description of a tool use."""
+        if tool_name == 'Read':
+            path = tool_input.get('file_path', '')
+            return f"Reading {Path(path).name}" if path else "Reading file"
+
+        elif tool_name == 'Edit':
+            path = tool_input.get('file_path', '')
+            return f"Editing {Path(path).name}" if path else "Editing file"
+
+        elif tool_name == 'Write':
+            path = tool_input.get('file_path', '')
+            return f"Writing {Path(path).name}" if path else "Writing file"
+
+        elif tool_name == 'Bash':
+            cmd = tool_input.get('command', '')
+            desc = tool_input.get('description', '')
+            if desc:
+                return desc[:50]
+            elif cmd:
+                # Truncate long commands
+                return cmd[:50] + "..." if len(cmd) > 50 else cmd
+            return "Running command"
+
+        elif tool_name == 'Grep':
+            pattern = tool_input.get('pattern', '')
+            return f"Searching for '{pattern[:30]}'" if pattern else "Searching"
+
+        elif tool_name == 'Glob':
+            pattern = tool_input.get('pattern', '')
+            return f"Finding files: {pattern[:30]}" if pattern else "Finding files"
+
+        elif tool_name == 'Task':
+            desc = tool_input.get('description', '')
+            return f"Agent: {desc[:40]}" if desc else "Running agent"
+
+        elif tool_name == 'TodoWrite':
+            return "Updating task list"
+
+        else:
+            return f"{tool_name}"
 
     def check_loop_running(self) -> bool:
         """Check if oracle-loop.sh is currently running."""
@@ -370,6 +458,11 @@ class StateParser:
         # Try to get model/tokens from analysis output first (local LLM usage)
         analysis_data = self.parse_analysis_output(state.text_name) if state.text_name else {}
 
+        # Always parse log data for Claude activities (even during analysis phase)
+        log_data = self.parse_latest_log()
+        state.claude_activities = log_data.get('activities', [])
+        state.claude_last_message = log_data.get('last_message', '')
+
         if analysis_data:
             # Use analysis output data (from completed/in-progress analysis)
             state.model = analysis_data.get('model', '')
@@ -379,7 +472,6 @@ class StateParser:
             # Use model from progress file (current stage) if available
             state.model = progress_data.get('stage_model', '') or eval_state.get('model', '')
             # Fall back to Claude Code logs for tokens if no analysis data
-            log_data = self.parse_latest_log()
             if not state.model:
                 state.model = log_data.get('model', '')
             state.input_tokens = log_data.get('input_tokens', 0)
@@ -653,6 +745,65 @@ class CommitsPanel(Static):
         self.refresh()
 
 
+class ClaudeActivityPanel(Static):
+    """Panel showing Claude's recent activity (tool calls, messages)."""
+
+    def __init__(self, state: OracleState):
+        super().__init__()
+        self.state = state
+
+    def render(self) -> Text:
+        text = Text()
+
+        text.append("CLAUDE ACTIVITY\n", style="bold white")
+
+        activities = self.state.claude_activities
+        if not activities:
+            text.append("  No recent activity", style="dim")
+            if self.state.phase in ('awaiting_analysis', 'running_analysis'):
+                text.append("\n  (Local LLMs running - see STAGE above)", style="dim cyan")
+            return text
+
+        # Show tool icons for each tool type
+        tool_icons = {
+            'Read': '📖',
+            'Edit': '✏️',
+            'Write': '📝',
+            'Bash': '💻',
+            'Grep': '🔍',
+            'Glob': '📂',
+            'Task': '🤖',
+            'TodoWrite': '✅',
+        }
+
+        for activity in activities[-8:]:  # Show last 8 activities
+            icon = tool_icons.get(activity.tool_name, '🔧')
+            text.append(f"  {icon} ", style="dim")
+            text.append(f"{activity.tool_name:12}", style="cyan")
+            text.append("│ ", style="dim")
+            # Truncate long descriptions
+            desc = activity.description
+            if len(desc) > 45:
+                desc = desc[:42] + "..."
+            text.append(desc, style="white")
+            text.append("\n")
+
+        # Show last message snippet if available
+        if self.state.claude_last_message:
+            text.append("\n")
+            text.append("  Last output: ", style="dim")
+            msg = self.state.claude_last_message.replace('\n', ' ')
+            if len(msg) > 60:
+                msg = msg[:57] + "..."
+            text.append(msg, style="italic white")
+
+        return text
+
+    def update_state(self, state: OracleState):
+        self.state = state
+        self.refresh()
+
+
 class FooterInfo(Static):
     """Footer showing last updated time and polling interval."""
 
@@ -720,6 +871,14 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    ClaudeActivityPanel {
+        height: auto;
+        max-height: 14;
+        border: solid $accent;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
     FooterInfo {
         height: 1;
         padding: 0 1;
@@ -749,6 +908,7 @@ class OracleMonitorApp(App):
             yield StatusBar(self.state)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
+            yield ClaudeActivityPanel(self.state)
             yield IssuesPanel(self.state)
             yield CommitsPanel(self.state)
             yield FooterInfo(self.state, self.polling_interval)
@@ -773,6 +933,7 @@ class OracleMonitorApp(App):
             self.query_one(StatusBar).update_state(self.state)
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
+            self.query_one(ClaudeActivityPanel).update_state(self.state)
             self.query_one(IssuesPanel).update_state(self.state)
             self.query_one(CommitsPanel).update_state(self.state)
             self.query_one(FooterInfo).update_state(self.state)

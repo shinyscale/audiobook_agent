@@ -275,8 +275,16 @@ def run_analyze(args):
 
         # Create orchestrator_config if not already created by --auto-optimize or --profile
         if orchestrator_config is None:
+            # Infer default_model from first specified agent model if --llm-model not provided
+            inferred_default = args.llm_model
+            if inferred_default is None:
+                for model in per_agent_models.values():
+                    if model is not None:
+                        inferred_default = model
+                        break
+
             orchestrator_config = OrchestratorConfig(
-                default_model=args.llm_model or "llama3.2",
+                default_model=inferred_default or "llama3.2",
                 default_provider="ollama",
                 context_length=args.context_length,
             )

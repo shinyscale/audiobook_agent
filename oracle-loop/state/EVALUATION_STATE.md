@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -117,11 +117,14 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 
 ## Fix History
 
-### Attempt 6 (Part 2): PIPELINE BUG - NEEDS FIX
-- **What happened:** Analysis still failed with same error after first fix
-- **Root cause:** src/cli.py:279 - When per-agent models are specified via CLI flags but --llm-model is not provided, orchestrator_config.default_model is set to "llama3.2"
-- **Fix needed:** Change line 279 to infer default_model from the first specified agent model when --llm-model is not provided
-- **Status:** awaiting_fix
+### Attempt 6 (Part 2): CLI DEFAULT MODEL FIX - COMPLETE
+- **What changed:** Fixed CLI to infer default_model from first agent model when --llm-model not provided
+- **Root cause:** src/cli.py:279 - `default_model=args.llm_model or "llama3.2"` hardcoded fallback
+- **Fix:** Added logic to iterate through per_agent_models and use first non-None value as inferred_default before falling back to "llama3.2"
+- **Smoke test:** PASSED - Verified that default_model is correctly inferred as "qwen3:30b-instruct" when only agent models specified
+- **Smoke test 2:** PASSED - Verified that explicit --llm-model still takes priority over agent models
+- **Modified:** src/cli.py (lines 273-282)
+- **Status:** Complete - ready for re-analysis
 
 ### Attempt 6 (Part 1): INCOMPLETE FIX
 - **What changed:** Fixed LLM health check to use orchestrator_config.default_model instead of hardcoded "llama3.2"
@@ -162,21 +165,11 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 - JSON: ../output/berenice/analysis.json
 
 ## Pipeline Notes (Attempt 6)
-- **ANALYSIS FAILED - PIPELINE ERROR (SECOND FAILURE)**
-- Error: LLM health check still failing with 'llama3.2' model not found
-- Full error: `Server error '404' for url 'http://localhost:11434/api/chat': {"error":"model 'llama3.2' not found"}`
-- Previous fix to analyzer.py line 189 was incomplete
-- The real bug is in src/cli.py:279 - when per-agent models are specified without --llm-model, it defaults to "llama3.2"
-- This is a CODE BUG that needs to be fixed before analysis can proceed
-
-### Root Cause
-The CLI creates OrchestratorConfig with `default_model=args.llm_model or "llama3.2"` (line 279).
-When per-agent models are specified via CLI flags but no --llm-model flag is provided, the orchestrator_config.default_model is set to "llama3.2" instead of inferring from the specified agent models.
-
-The health check in analyzer.py then uses this default_model value for validation, which fails because llama3.2 is not installed.
-
-### Fix Required
-src/cli.py line 279: When creating OrchestratorConfig with per-agent models specified, set default_model to the first specified agent model instead of "llama3.2".
+- **FIX COMPLETE - READY FOR RE-ANALYSIS**
+- Pipeline bug fixed: CLI now correctly infers default_model from agent models
+- Previous attempts failed due to hardcoded "llama3.2" fallback in cli.py
+- Both analyzer.py and cli.py have been fixed
+- Next step: Re-run analysis to verify pipeline works
 
 ## Previous Attempt (Attempt 5)
 - Analysis completed successfully in 10m 9s
@@ -206,10 +199,4 @@ The chapter summary correctly identifies Egaeus as narrator and includes him in 
 
 ## Next Action
 
-Run PROMPT_fix.md to implement **Approach A**: Cross-reference `characters_present` from chapter summaries with the character list. If a name appears in summaries but not in characters, extract it.
-
-This approach:
-1. Uses data we already have (chapter summaries correctly identify Egaeus)
-2. Is more robust than regex patterns (which failed)
-3. Should work for any first-person narrator who is mentioned by name in summaries
-4. Has low regression risk since it's additive
+Re-run analysis (PROMPT_analyze.md) to verify the pipeline bug fix allows analysis to complete. Once analysis succeeds, the evaluation phase can proceed with scoring the actual character extraction issue (missing Egaeus).
