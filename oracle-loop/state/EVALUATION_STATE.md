@@ -3,33 +3,36 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** null
 
 ## Latest Scores
-FAILED - Pipeline error during character extraction (same error persists after fix)
+FAILED - NEW ERROR: LLM responses being truncated mid-JSON
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | FAILED | - | LLM validation error for 'Maw and Meggins' |
 | 2 | FAILED | - | Same error - fix from attempt 1 was insufficient |
+| 3 | FAILED | - | NEW ERROR: LLM responses truncated during parsing |
 
 ## Pipeline Error Details
 
-**Error:** LLM validation returned invalid JSON for 'Maw and Meggins' after 3 attempts: Invalid JSON: got list
+**Error:** LLM character proposer failed to parse response - JSON truncated mid-response
 
-**Stage:** Character extraction (CharacterAgent)
+**Stage:** Character extraction (CharacterAgent) - earlier than previous failures
 
 **Context:**
-- The LLM validation for entity 'Maw and Meggins' returned a list `[]` instead of an expected object
-- This occurred in 3 consecutive validation attempts
-- Note: "Maw and Meggins" is the name of the company where Herbert White works in the story
-- It's not a character, but a place/organization name
+- Multiple LLM proposers (marker proposer, character proposer) are getting truncated responses
+- Example error: Response ends with `"name": "Herbert White", "type": "sto` (truncated mid-word)
+- This is a DIFFERENT error than attempts 1-2, which failed during validation
+- This error occurs earlier in the pipeline during the proposal phase
 
 **Pipeline Output Before Failure:**
-- Structure detection: Completed successfully (3 chapters found)
-- Character extraction: Failed during LLM validation phase
+- Ingestion: Success (6,996 words extracted)
+- Text refinement: Success (1 front matter region detected)
+- Structure detection: Partial success (Found 2 chapters, but with truncated LLM responses)
+- Character extraction: Failed during character proposer phase (before validation)
 
 **Models Used:**
 - Structure: qwen3:30b-instruct
@@ -93,5 +96,18 @@ LLM should now properly return `{"is_person": false, "is_person_reasoning": "Thi
 1. If LLM still returns `[]`, `_extract_json` will return `None` instead of list, triggering retry
 2. The explicit examples should guide LLM to output proper object format even for rejections
 
+## Diagnostic Notes
+
+The fixes from attempts 1-2 may have inadvertently changed behavior that now causes truncation. Possible causes:
+1. LLM output length limits being hit
+2. Response parsing cutting off valid JSON
+3. Model-specific issue with qwen3-next:80b-a3b-instruct-q8_0
+
+The fact that multiple proposers (marker AND character) are experiencing truncation suggests this is a systemic issue in the LLM client or response handling, not specific to character extraction.
+
 ## Next Action
-Re-run analysis to verify the pipeline completes successfully.
+Investigate LLM response truncation issue. Check:
+1. `src/llm/client.py` for response length handling
+2. `src/pipeline/chapter_detection/llm_marker_proposer.py` for parsing logic
+3. `src/pipeline/character_extraction/llm_character_proposer.py` for parsing logic
+4. Whether recent changes to `_extract_json()` affected response parsing
