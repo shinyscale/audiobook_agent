@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -186,19 +186,24 @@ This auto-approves "White" merging with "Herbert White" because "white" appears 
 | 10 | 7.05 | +0.775 | Case sensitivity fix didn't help |
 | 11 | 6.70 | +0.425 | Regression - fix in wrong code path |
 
+## Output Files
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes - Attempt 12
+- Analysis completed in 18m 4s
+- 58 LLM calls, 110,073 tokens
+- No major pipeline errors
+- Some warnings during profile generation:
+  - LLM identity detection failed (server error 500)
+  - Moral valence classification failed for 3 characters
+  - Low confidence profile for "the sergeant-major" (0.30)
+- Initial observation from console output:
+  - Still seeing "White" as separate character (30 mentions)
+  - Still seeing "Herbert White" with "Herbert" as alias (14 mentions)
+  - This suggests the fix may not have fully resolved the issue
+  - Full evaluation needed to assess impact
+
 ## Next Action
 
-**FIX APPLIED:** Added ambiguity check to `_validate_merge()` in the LLM path (lines 1630-1652 and 1659-1681).
-
-The fix now:
-1. Counts how many full names in name_groups have the single word as their last name
-2. If `lastname_count > 1`, rejects the auto-merge (ambiguous last name)
-3. Otherwise, proceeds with auto-approval (unambiguous)
-
-This applies to both directions:
-- Single-word vs multi-word (lines 1630-1652)
-- Multi-word vs single-word (lines 1659-1681)
-
-**Root cause fixed:** The auto-approval in `_validate_merge()` that was incorrectly merging "White" with "Herbert White" now rejects ambiguous last names.
-
-Re-run analysis to verify the fix works.
+Ready for evaluation phase to assess if the ambiguity check in `_validate_merge()` improved character extraction.
