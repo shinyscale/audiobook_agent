@@ -247,13 +247,33 @@ Modified `src/pipeline/overview/generator.py` lines 201-215 to filter out charac
 - Character Profiles: 3→7+ (+0.60+ weighted)
 - Total: +1.35+ points → 8.35+ (PASS threshold)
 
+## Attempt 14 Analysis Complete
+
+**Analysis Runtime:** 10m 9s
+**Pipeline Output:**
+- Confirmed narrator: Egaeus (first-person) ✓
+- Found 5 characters (Berenice, Mad'selle Salle, Egaeus, family physician, servant maiden)
+- Generated 1 chapter summary, 1 character profile, 116 pronunciation flags
+
+**Output Files:**
+- JSON: ../output/berenice/analysis.json (99K)
+- HTML: ../output/berenice/report.html (169K)
+
+**Key Pipeline Message:**
+```
+🎭 Finalizing narrator detection...
+   Confirmed narrator: Egaeus (first-person)
+```
+
+This is a positive sign - the terminal output shows "Egaeus" as narrator. Now need to verify the actual output files contain the correct data.
+
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify:
+Evaluation needed to verify:
 1. Plot summary no longer claims "Berenice recounts" (should say "Egaeus narrates")
-2. Egaeus marked with `is_narrator: true`
-3. Berenice marked with `is_narrator: false`
+2. Egaeus marked with `is_narrator: true` in analysis.json
+3. Berenice marked with `is_narrator: false` in analysis.json
 4. Character profiles use correct narrator voice
 5. Overall score crosses 8.0 threshold
