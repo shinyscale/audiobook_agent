@@ -69,7 +69,8 @@ get_prompt_file() {
         return
     fi
 
-    local current_phase=$(sed -n 's/.*\*\*Phase:\*\* \([a-z_]*\).*/\1/p' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null | head -1)
+    # Handle both escaped (\*\*) and unescaped (**) asterisks in markdown
+    local current_phase=$(grep -oP '(?<=Phase:\*\* )[a-z_]+|(?<=Phase: )[a-z_]+' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null | head -1)
     current_phase="${current_phase:-analyze}"
 
     case "$current_phase" in
