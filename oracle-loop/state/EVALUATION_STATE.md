@@ -228,24 +228,34 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 - Added explicit title variant handling in `_validate_merge()`
 - Fixed family member count to include title-only names
 - All 179 character-related unit tests PASS
-- **Result: ZERO EFFECT - output unchanged**
+- **Result: NEVER TESTED - analysis.json from 23:43, fix committed at 23:53**
+
+### Attempt 7 → 8: Root cause investigation
+- **Problem:** Attempts 6 and 7 fixes were never tested
+- **Finding:** Analysis ran BEFORE the fix was committed
+- **Action:** No new code changes needed, just re-run analysis
+- Modified: state/EVALUATION_STATE.md (documentation only)
 
 ---
 
-## Root Cause Investigation Required
+## Root Cause Investigation - RESOLVED
 
-The last TWO fixes (attempts 6 and 7) have had **ZERO EFFECT** on the output. This means either:
+**FINDING:** The fix in attempt 7 (commit f3abbc1) was NEVER TESTED.
 
-1. **The code path isn't being executed** - The changes may be in a function that isn't called for this data
-2. **The analysis is cached** - Old results may be being reused
-3. **The changes are being overridden** - Later code may be undoing the improvements
-4. **The merge candidates aren't being generated** - The pairs never reach the validation code
+Timeline analysis:
+- analysis.json modified: Jan 19 23:43:03
+- Fix commit f3abbc1: Jan 19 23:53:52 (10 minutes AFTER analysis)
+- Analyze commit beb319e: Jan 20 00:06:49
 
-**Next fix should:**
-1. Add diagnostic logging to VERIFY the code changes are being executed
-2. Check if there's any caching that needs to be cleared
-3. Trace the actual code path for "Mr. White" + "White" pair processing
-4. Only THEN make additional logic changes
+**The analysis at 23:43 used attempt 6 code, not attempt 7 code.**
+
+The attempt 7 fix IS correct and SHOULD work based on code review:
+- Lines 1725-1731 in consensus.py handle title variant merging
+- For "Mr. White" + "White": multi_words = ["mr", "white"], len==2, words[0]=="mr" (in titles)
+- Should return True, 0.95 immediately
+- BUT THIS CODE HAS NEVER BEEN EXECUTED on this text
+
+**Resolution:** Need to re-run analysis with the existing fix code (no new changes needed).
 
 ---
 
@@ -266,9 +276,6 @@ The last TWO fixes (attempts 6 and 7) have had **ZERO EFFECT** on the output. Th
 
 ## Next Action
 
-**Phase: awaiting_fix**
+**Phase: awaiting_analysis**
 
-Run `PROMPT_fix.md` to:
-1. INVESTIGATE why the last two fixes had no effect
-2. Add diagnostic logging to verify code execution
-3. Only after confirming code path, apply targeted fix for character merge issues
+The attempt 7 fix (commit f3abbc1) has never been tested. Re-run analysis to verify if the title variant merge logic works.
