@@ -3,8 +3,16 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
+
+## Output Files
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes
+- Analysis completed successfully
+- LLM identity detection warning occurred but did not affect pipeline execution
 
 ## Latest Scores
 - Structure Detection: 9/10
