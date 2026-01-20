@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 5
+- **Attempt:** 6
 - **Phase:** awaiting_fix
 - **baseline_score:** 6.05
 
@@ -146,7 +146,21 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 - HTML: ../output/berenice/report.html
 - JSON: ../output/berenice/analysis.json
 
-## Pipeline Notes (Attempt 5)
+## Pipeline Notes (Attempt 6)
+- **ANALYSIS FAILED - PIPELINE ERROR**
+- Error: LLM health check failed looking for hardcoded 'llama3.2' model
+- Full error: `Server error '404' for url 'http://localhost:11434/api/chat': {"error":"model 'llama3.2' not found"}`
+- The health check is using a hardcoded default model instead of respecting the configured agent models
+- Available models include: qwen3:30b-instruct, qwen3-next:80b-a3b-instruct-q8_0 (all configured models exist)
+- This is a CODE BUG that needs to be fixed before analysis can proceed
+
+### Root Cause
+The LLM health check in the codebase is using a hardcoded default model ('llama3.2') instead of using the actual configured models. The health check should either:
+1. Use one of the configured agent models for validation
+2. Skip validation if models are explicitly provided via CLI flags
+3. Make the health check model configurable
+
+## Previous Attempt (Attempt 5)
 - Analysis completed successfully in 10m 9s
 - Found 2 characters (Berenice, Mad'selle Salle)
 - Narrator detected as: Berenice
