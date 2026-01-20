@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 9
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.275
 
 ## Output Files
@@ -13,36 +13,47 @@
 - Pipeline time: 14m 46s
 
 ## Latest Scores
-- Structure Detection: 9/10
+- Structure Detection: 9/10 ✓
 - Character Extraction: 5/10 ← FAILING
 - Character Profiles: 6/10
-- Chapter Summaries: 9/10
+- Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 4/10 ← FAILING
-- HTML Presentation: 9/10
+- HTML Presentation: 9/10 ✓
 - **Overall: 7.05/10** (threshold: 8.0)
 
 ---
 
-## CRITICAL FINDING: BUG IN TITLE VARIANT DETECTION
+## CRITICAL FINDING: CASE SENSITIVITY BUG IN TITLE CHECK
 
-**ROOT CAUSE IDENTIFIED:** The title variant merge fix at line 1725 of `consensus.py` has a bug.
+**ROOT CAUSE IDENTIFIED:** The fix at line 1725 strips the period but does NOT convert to lowercase.
 
-The code checks:
 ```python
-titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
-if len(multi_words) == 2 and multi_words[0] in titles:
-```
-
-But for "Mr. White", `multi_words[0]` is `'mr.'` (with a period), NOT `'mr'`.
-
-**The period is not stripped**, so `'mr.' in {'mr', 'mrs', ...}` is **FALSE**.
-
-**Fix needed:** Change line 1725 to:
-```python
+# Current (BROKEN):
+titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}  # lowercase
 if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
+#                            'Mr' is NOT in {'mr', 'mrs', ...} ← FAILS
+
+# Fixed:
+if len(multi_words) == 2 and multi_words[0].rstrip('.').lower() in titles:
+#                            'mr' IS in {'mr', 'mrs', ...} ← WORKS
 ```
 
-This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" merge.
+**Proof:**
+```python
+>>> multi_words = ['Mr.', 'White']
+>>> titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+>>> multi_words[0].rstrip('.') in titles
+False  # 'Mr' is not in lowercase set
+>>> multi_words[0].rstrip('.').lower() in titles
+True   # 'mr' IS in lowercase set
+```
+
+**Fix needed:** Change line 1725 in `src/pipeline/character_extraction/consensus.py`:
+```python
+if len(multi_words) == 2 and multi_words[0].rstrip('.').lower() in titles:
+```
+
+This is a **ONE-CHARACTER FIX** (add `.lower()`) that should enable "Mr. White" + "White" to merge.
 
 ---
 
@@ -72,7 +83,7 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 1. **FALSE CHARACTER SPLIT: "White" vs "Mr. White"**
    - "Mr. White" (10 mentions) and "White" (44 mentions) are SEPARATE characters
    - These should be merged - the text uses both interchangeably for the father
-   - **ROOT CAUSE:** Period not stripped from "Mr." in title variant check (line 1725)
+   - **ROOT CAUSE:** Case sensitivity - `'Mr'` not in `{'mr', ...}` at line 1725
 
 2. **HERBERT WHITE WRONGLY ALIASED TO "WHITE"**
    - "White" entry has aliases: ["Herbert White", "Herbert"]
@@ -122,7 +133,7 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 
 **Major problems:**
 
-1. **COMMON WORD FALSE POSITIVES (50%+ of entries)**
+1. **COMMON WORD FALSE POSITIVES (8 entries)**
    - "his" (99 occurrences) flagged as proper_noun
    - "old" (42 occurrences) flagged as proper_noun
    - "from" (38 occurrences) flagged as proper_noun
@@ -130,6 +141,7 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
    - "wife" (15 occurrences) flagged as proper_noun
    - "woman" (11 occurrences) flagged as proper_noun
    - "soldier" (5 occurrences) flagged as proper_noun
+   - "does" (2 occurrences) flagged as proper_noun
 
 2. **Project Gutenberg boilerplate contamination**
    - "GutenbergTM" (57 occurrences!)
@@ -141,13 +153,17 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 
 **What IS useful:**
 - Actual character names (White, Herbert, Morris, Meggins, Maw, Sergeant-Major)
+- Some useful entries: rubicund, fakir, Laburnam, antimacassar
 
 ### HTML Presentation: 9/10 ✓
 
 **What works:**
+- Clean, professional styling with dark theme
+- Tab navigation functional
 - Character profiles with evidence quotes
 - Chapter summaries with characters present
 - Pronunciation entries with context examples
+- Print styles included
 
 ---
 
@@ -155,12 +171,12 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 
 ### CRITICAL
 
-1. **Title variant merge bug - period not stripped**
-   - Problem: Line 1725 checks `multi_words[0] in titles` but `'mr.'` ≠ `'mr'`
-   - Evidence: Debug confirms `'mr.'` is the actual value, not `'mr'`
+1. **Title variant merge bug - case sensitivity**
+   - Problem: Line 1725 checks `multi_words[0].rstrip('.') in titles` but set is lowercase
+   - Evidence: `'Mr'` is not in `{'mr', 'mrs', ...}` because case doesn't match
    - Location: `src/pipeline/character_extraction/consensus.py` line 1725
-   - Fix: Change `multi_words[0] in titles` to `multi_words[0].rstrip('.') in titles`
-   - Impact: This ONE-LINE FIX should enable "Mr. White" + "White" to merge
+   - Fix: Add `.lower()` → `multi_words[0].rstrip('.').lower() in titles`
+   - Impact: This ONE-CHARACTER FIX should enable "Mr. White" + "White" to merge
 
 2. **Herbert wrongly aliased to "White" (father)**
    - Problem: Son's name merged as alias of ambiguous "White" entry
@@ -242,17 +258,12 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 - No new code changes, just re-ran analysis
 - **Result: FIX STILL DOESN'T WORK - period not stripped from "Mr."**
 
-### Attempt 8 → 9: Fixed title period stripping bug
-- **Root cause:** `src/pipeline/character_extraction/consensus.py:_validate_merge():line_1725`
-  - Bug: Checks `multi_words[0] in titles` but actual value is `'mr.'` (with period), not `'mr'`
-  - The period is not stripped, so `'mr.' in {'mr', 'mrs', ...}` evaluates to False
-- **Fix:** Changed line 1725 to `multi_words[0].rstrip('.') in titles`
-- **Smoke test:** PASS - Verified 'mr.'.rstrip('.') == 'mr' evaluates to True
-- **Unit tests:** PASS - All 176 character-related tests pass
-- **Modified:** src/pipeline/character_extraction/consensus.py (line 1725)
-- **Expected impact:** This should enable "Mr. White" + "White" to merge correctly
-  - May also fix downstream issues (Herbert wrongly aliased, pronunciation false positives)
-  - Character Extraction score expected to improve from 5/10 to 8-9/10
+### Attempt 8 → 9: Fixed title period stripping bug (INCOMPLETE)
+- **Problem found:** `src/pipeline/character_extraction/consensus.py:_validate_merge():line_1725`
+  - Bug: Code strips period but doesn't convert to lowercase
+  - `'Mr'` is not in `{'mr', 'mrs', ...}` because of case mismatch
+- **Fix applied:** Changed line 1725 to `multi_words[0].rstrip('.') in titles`
+- **Result: FIX STILL DOESN'T WORK - need `.lower()` for case-insensitive comparison**
 
 ---
 
@@ -266,22 +277,29 @@ This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" mer
 | 5 | 6.275* | baseline | First successful run |
 | 6 | 7.05 | +0.775 | Re-evaluated with consistent rubric |
 | 7 | 7.05 | +0.775 | Fix never tested |
-| 8 | 7.05 | +0.775 | **BUG FOUND: period not stripped in title check** |
+| 8 | 7.05 | +0.775 | BUG FOUND: period not stripped |
+| 9 | 7.05 | +0.775 | **BUG FOUND: case sensitivity - need .lower()** |
 
-*Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-8 use integer component scores = 7.05.
+*Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-9 use integer component scores = 7.05.
 
 ---
 
-## Pipeline Notes (Attempt 9)
-
-Analysis completed successfully with the following observations from console output:
-- Characters found: "Mr. White" (10 mentions), "White" with aliases ["Herbert White", "Herbert"] (44 mentions)
-- The title period stripping fix did NOT resolve the "Mr. White" / "White" split
-- Characters remain incorrectly separated/merged as in previous attempt
-- Pipeline warnings: "Failed to parse JSON response for White", "Low confidence profile for White: 0.30"
-
 ## Next Action
 
-**Phase: awaiting_evaluation**
+**Phase: awaiting_fix**
 
-Run full evaluation to verify if the title period fix had any effect on the character extraction issues.
+The fix is a ONE-CHARACTER change at line 1725 of `src/pipeline/character_extraction/consensus.py`:
+
+```python
+# Change FROM:
+if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
+
+# Change TO:
+if len(multi_words) == 2 and multi_words[0].rstrip('.').lower() in titles:
+```
+
+After this fix:
+1. Run analysis again
+2. "Mr. White" and "White" should merge correctly
+3. Herbert should remain separate (as the son)
+4. Character Extraction score should improve significantly
