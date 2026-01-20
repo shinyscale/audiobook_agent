@@ -45,6 +45,10 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
     # Track refinement stats
     original_len = len(text)
 
+    # === Remove Project Gutenberg boilerplate ===
+    text, gutenberg_warnings = _strip_gutenberg_boilerplate(text)
+    warnings.extend(gutenberg_warnings)
+
     # === Format-agnostic cleaning ===
 
     # Unicode normalization (NFKC - compatibility decomposition + canonical composition)
@@ -130,6 +134,49 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
         regions=regions,
         glossary=glossary_result,
     )
+
+
+def _strip_gutenberg_boilerplate(text: str) -> tuple[str, list[str]]:
+    """
+    Remove Project Gutenberg license text from beginning and end of document.
+
+    Project Gutenberg eBooks have legal boilerplate that should not be included
+    in analysis. This function detects and removes:
+    - Header boilerplate (before "*** START OF" marker)
+    - License text (after "*** END OF" marker)
+
+    Args:
+        text: The full document text
+
+    Returns:
+        Tuple of (cleaned text, list of warnings about removed sections)
+    """
+    warnings = []
+    original_length = len(text)
+
+    # Pattern 1: Remove everything AFTER the "*** END OF THE PROJECT GUTENBERG EBOOK ***" marker
+    end_pattern = r'\*\*\*\s*END\s+OF\s+(THE\s+)?PROJECT\s+GUTENBERG\s+EBOOK.*?\*\*\*.*$'
+    match = re.search(end_pattern, text, re.IGNORECASE | re.DOTALL)
+    if match:
+        # Remove everything from this marker to the end
+        removed_end = len(text) - match.start()
+        text = text[:match.start()]
+        warnings.append(f"Removed {removed_end} chars of Gutenberg license boilerplate from end")
+
+    # Pattern 2: Remove everything BEFORE the "*** START OF THE PROJECT GUTENBERG EBOOK ***" marker
+    start_pattern = r'\*\*\*\s*START\s+OF\s+(THE\s+)?PROJECT\s+GUTENBERG\s+EBOOK.*?\*\*\*'
+    match = re.search(start_pattern, text, re.IGNORECASE)
+    if match:
+        # Remove everything up to and including this marker
+        text = text[match.end():]
+        warnings.append(f"Removed {match.end()} chars of Gutenberg header boilerplate from beginning")
+
+    # Report total reduction
+    if len(text) != original_length:
+        reduction = original_length - len(text)
+        warnings.append(f"Total Gutenberg boilerplate removed: {reduction} chars ({reduction/original_length*100:.1f}%)")
+
+    return text, warnings
 
 
 def _dehyphenate(text: str) -> tuple[str, int]:

@@ -60,6 +60,10 @@ class DocumentRegion:
 # Patterns for detecting front matter
 # Each tuple: (compiled_pattern, label, confidence)
 FRONT_MATTER_PATTERNS = [
+    # Project Gutenberg header boilerplate
+    (re.compile(r"\*\*\*\s*START\s+OF\s+(THE\s+)?PROJECT\s+GUTENBERG", re.IGNORECASE), "gutenberg_header", 0.99),
+    (re.compile(r"The\s+Project\s+Gutenberg\s+eBook", re.IGNORECASE), "gutenberg_header", 0.95),
+
     # Copyright notices
     (re.compile(r"(?im)^\s*(copyright|©|copr\.)\s*(\d{4}|by)", re.MULTILINE), "copyright_page", 0.95),
     (re.compile(r"(?im)^\s*all\s+rights\s+reserved", re.MULTILINE), "copyright_page", 0.95),
@@ -83,6 +87,10 @@ FRONT_MATTER_PATTERNS = [
 
 # Patterns for detecting back matter
 BACK_MATTER_PATTERNS = [
+    # Project Gutenberg license boilerplate
+    (re.compile(r"\*\*\*\s*END\s+OF\s+(THE\s+)?PROJECT\s+GUTENBERG", re.IGNORECASE), "gutenberg_license", 0.99),
+    (re.compile(r"Project\s+Gutenberg.*License", re.IGNORECASE), "gutenberg_license", 0.95),
+
     # Author info
     (re.compile(r"(?im)^\s*about\s+the\s+author", re.MULTILINE), "about_author", 0.95),
     (re.compile(r"(?im)^\s*author'?s?\s+note", re.MULTILINE), "author_note", 0.9),

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 15
-- **Phase:** awaiting_fix
+- **Attempt:** 16
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.275
 
 ## Latest Scores
@@ -94,6 +94,17 @@ Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + 
 | 13 | Gender conflict detection in epithet resolution | 7.00 | Fix didn't execute |
 | 14 | **V2 character extraction (summary-driven)** | **7.60** | **+1.325** |
 | 15 | F6 epithet filtering + pronunciation stopwords | **7.95** | **+1.675** |
+| 16 | Strip Project Gutenberg boilerplate | TBD | TBD |
+
+**Attempt 16 Changes:**
+1. **Project Gutenberg Boilerplate Stripping** (src/ingestion/refine.py:135-174, regions.py:86-88, 63-65)
+   - Root cause: Project Gutenberg eBooks include extensive legal boilerplate (46% of The Monkey's Paw file) that was being analyzed as story content
+   - Data flow: License text → pronunciation extraction → false positives like "GutenbergTM", "eBooks", "PGLAF", "MERCHANTABILITY"
+   - Fix: Added `_strip_gutenberg_boilerplate()` function to refine.py that removes text before "*** START OF THE PROJECT GUTENBERG EBOOK ***" and after "*** END OF THE PROJECT GUTENBERG EBOOK ***" markers
+   - Also added Gutenberg patterns to regions.py FRONT_MATTER_PATTERNS and BACK_MATTER_PATTERNS for defense in depth
+   - Impact: Should eliminate all 4 problematic Gutenberg terms from pronunciation guide, pushing Pronunciation from 6/10 to 7+/10 (+0.10 weighted = 7.95→8.05 overall)
+   - Smoke test: PASS - Successfully removes 19,050 chars (46.4%) of boilerplate from The Monkey's Paw
+   - Test suite: All 461 tests PASS
 
 ## Score History
 
@@ -107,6 +118,7 @@ Overall = (8 × 0.20) + (8 × 0.25) + (7 × 0.15) + (9 × 0.20) + (6 × 0.10) + 
 | 13 | 7.00 | +0.725 | Cache issue |
 | 14 | 7.60 | +1.325 | V2 working! |
 | **15** | **7.95** | **+1.675** | **Nearly passing!** |
+| **16** | TBD | TBD | **Gutenberg fix** |
 
 ## Path to 8.0
 
@@ -133,9 +145,6 @@ Alternative paths:
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Run PROMPT_fix.md to address Gutenberg boilerplate filtering. This single fix should push the score from 7.95 to 8.00+, achieving PASS status.
-
-**Recommended fix:**
-Add Project Gutenberg license text detection to `src/ingestion/refine.py` or the text preprocessing stage to strip legal boilerplate before analysis.
+Re-run analysis with attempt 16 to verify that the Gutenberg boilerplate stripping successfully removes false positives from the pronunciation guide. Expected score: 8.0+ (PASS).
