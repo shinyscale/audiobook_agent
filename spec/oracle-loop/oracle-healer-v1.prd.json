@@ -1,0 +1,431 @@
+{
+  "prd": {
+    "title": "Oracle-Healer: Self-Healing Wrapper for Oracle Loop",
+    "version": "1.0",
+    "status": "Draft",
+    "priority": "High",
+    "target": "Create resilient wrapper that auto-recovers from oracle-loop failures"
+  },
+  "executive_summary": "The oracle-loop can fail for various infrastructure reasons (state file corruption, parsing failures, missing files) that require manual intervention. The Oracle-Healer is a wrapper script that catches these failures, spawns Claude to diagnose and fix the issue, then automatically restarts the loop. This enables truly autonomous operation with minimal human oversight.",
+  "problem_statement": {
+    "assessment": "Oracle Loop Requires Manual Recovery",
+    "whats_improved": [
+      "Oracle loop three-phase cycle works correctly",
+      "No-progress guardrail detects stuck loops",
+      "Regression detection and auto-revert implemented",
+      "State tracking via markdown files functional"
+    ],
+    "core_problem": "Infrastructure Failures Stop the Loop",
+    "current_failures": [
+      {
+        "issue": "State file parsing failures",
+        "example": "Escaped asterisks (\\*\\*Phase:\\*\\*) cause phase detection regex to fail",
+        "root_cause": "Claude sometimes escapes markdown when writing state files",
+        "impact": "Loop defaults to 'analyze' phase, triggers no-progress guardrail after 3 iterations"
+      },
+      {
+        "issue": "No automatic recovery mechanism",
+        "example": "When loop exits with code 1, it stays stopped until human restarts",
+        "root_cause": "oracle-loop.sh is designed to exit on unrecoverable errors",
+        "impact": "Autonomous improvement halts, requiring manual investigation and restart"
+      },
+      {
+        "issue": "Missing diagnostic context",
+        "example": "When failure occurs, error message is brief and logs are not analyzed",
+        "root_cause": "No structured failure context is captured for diagnosis",
+        "impact": "Manual debugging required to understand what went wrong"
+      },
+      {
+        "issue": "No escalation path",
+        "example": "If same failure repeats, loop keeps trying the same fix",
+        "root_cause": "No tracking of recovery attempts or failure patterns",
+        "impact": "Could burn tokens on repeated failed recovery attempts"
+      }
+    ]
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Wrapper Script (oracle-healer.sh)",
+      "priority": "CRITICAL",
+      "rationale": "Core infrastructure that catches failures and orchestrates recovery",
+      "current_behavior": "No wrapper exists; oracle-loop.sh exits on failure and stays stopped",
+      "proposed_behavior": "Wrapper runs oracle-loop.sh, catches exit code 1, spawns Claude for diagnosis, restarts on successful fix",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Wrapper catches oracle-loop failures",
+          "steps": [
+            "Start oracle-healer.sh",
+            "Simulate oracle-loop.sh exiting with code 1",
+            "Verify wrapper detects failure and captures exit code",
+            "Verify wrapper does not exit immediately"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper captures failure context",
+          "steps": [
+            "Trigger oracle-loop failure",
+            "Verify HEALER_FAILURE_CONTEXT.md is created",
+            "Check file contains failure type, exit code, timestamp",
+            "Check file contains last 100 lines of log"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper spawns Claude for diagnosis",
+          "steps": [
+            "Trigger oracle-loop failure",
+            "Verify Claude is invoked with PROMPT_diagnose.md",
+            "Check diagnostic log is created in logs/ directory",
+            "Verify Claude has access to failure context"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper restarts on successful fix",
+          "steps": [
+            "Trigger oracle-loop failure",
+            "Have Claude write HEALER_STATUS.md with ready_to_restart: true",
+            "Verify wrapper restarts oracle-loop.sh",
+            "Check loop continues from correct phase"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper escalates on failed fix",
+          "steps": [
+            "Trigger oracle-loop failure",
+            "Have Claude write HEALER_STATUS.md with ready_to_restart: false",
+            "Verify wrapper outputs escalation message",
+            "Check wrapper exits with code 1"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop/oracle-healer.sh",
+            "description": "Main wrapper script",
+            "changes": [
+              {
+                "location": "new file",
+                "description": "Create ~120 line bash script with: main loop, failure detection, context capture, Claude invocation, status checking, restart logic"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "name": "Failure Type Detection",
+      "priority": "HIGH",
+      "rationale": "Different failure types require different diagnostic approaches",
+      "current_behavior": "All failures treated identically as generic errors",
+      "proposed_behavior": "Categorize failures into types: no_progress, missing_manifest, missing_prompt, claude_error, unknown",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Detects no-progress guardrail failure",
+          "steps": [
+            "Trigger no-progress guardrail in oracle-loop",
+            "Check HEALER_FAILURE_CONTEXT.md",
+            "Verify failure_type is 'no_progress'"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Detects missing manifest failure",
+          "steps": [
+            "Delete or corrupt manifest.json",
+            "Run oracle-loop.sh",
+            "Check failure_type is 'missing_manifest'"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Detects missing prompt failure",
+          "steps": [
+            "Delete a prompt file",
+            "Run oracle-loop.sh",
+            "Check failure_type is 'missing_prompt'"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Detects Claude CLI error",
+          "steps": [
+            "Simulate Claude returning non-zero exit code",
+            "Check failure_type is 'claude_error'"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Falls back to unknown for unrecognized errors",
+          "steps": [
+            "Trigger unexpected error type",
+            "Check failure_type is 'unknown'"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop/oracle-healer.sh",
+            "description": "Failure type detection logic",
+            "changes": [
+              {
+                "location": "lines ~65-80",
+                "description": "grep log for known error patterns and set FAILURE_TYPE accordingly"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "name": "Diagnostic Prompt (PROMPT_diagnose.md)",
+      "priority": "CRITICAL",
+      "rationale": "Claude needs structured guidance to investigate and fix infrastructure failures",
+      "current_behavior": "No diagnostic prompt exists",
+      "proposed_behavior": "Prompt instructs Claude to: read failure context, diagnose by type, apply minimal fix, signal status",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Prompt guides no_progress diagnosis",
+          "steps": [
+            "Trigger no_progress failure",
+            "Run diagnostic prompt",
+            "Verify Claude checks phase detection regex",
+            "Verify Claude checks for escaped asterisks"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Prompt guides missing_manifest diagnosis",
+          "steps": [
+            "Trigger missing_manifest failure",
+            "Run diagnostic prompt",
+            "Verify Claude checks if file exists",
+            "Verify Claude attempts to restore from git"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Prompt enforces HEALER_STATUS.md output",
+          "steps": [
+            "Run diagnostic prompt for any failure",
+            "Verify HEALER_STATUS.md is created",
+            "Check file contains ready_to_restart field",
+            "Check file contains fix_applied or escalation_reason"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Prompt constrains Claude to meta-fixes only",
+          "steps": [
+            "Run diagnostic prompt",
+            "Verify Claude does NOT modify src/ files",
+            "Check only state files, oracle-loop.sh, or prompts modified"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop/prompts/PROMPT_diagnose.md",
+            "description": "Diagnostic prompt for Claude",
+            "changes": [
+              {
+                "location": "new file",
+                "description": "Create ~100 line markdown prompt with: failure context reading, type-specific diagnosis steps, fix constraints, status output requirements"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "name": "Recovery Attempt Limiting",
+      "priority": "HIGH",
+      "rationale": "Prevent infinite recovery loops that burn tokens without progress",
+      "current_behavior": "No recovery attempt tracking exists",
+      "proposed_behavior": "Track recovery attempts, exit after 3 consecutive failed recoveries",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Tracks recovery attempt count",
+          "steps": [
+            "Trigger failure that cannot be auto-fixed",
+            "Verify counter increments after each recovery attempt",
+            "Check counter displayed in healer output"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Exits after max recovery attempts",
+          "steps": [
+            "Set MAX_RECOVERY_ATTEMPTS=3",
+            "Trigger unfixable failure 4 times",
+            "Verify healer exits after 3rd recovery attempt",
+            "Check 'MANUAL INTERVENTION REQUIRED' message displayed"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Counter resets after successful loop run",
+          "steps": [
+            "Trigger failure, successfully recover",
+            "Run oracle-loop to completion (or next failure)",
+            "Verify counter is reset to 0"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop/oracle-healer.sh",
+            "description": "Recovery attempt limiting",
+            "changes": [
+              {
+                "location": "lines ~10-15, ~50-60",
+                "description": "Add RECOVERY_ATTEMPTS counter, MAX_RECOVERY_ATTEMPTS constant, exit condition when exceeded"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "name": "Status Signaling (HEALER_STATUS.md)",
+      "priority": "HIGH",
+      "rationale": "Wrapper needs structured way to know if Claude's fix succeeded",
+      "current_behavior": "No status signaling mechanism exists",
+      "proposed_behavior": "Claude writes HEALER_STATUS.md with ready_to_restart, fix_applied/escalation_reason, confidence",
+      "user_stories": [
+        {
+          "category": "functional",
+          "description": "Wrapper reads ready_to_restart field",
+          "steps": [
+            "Have Claude write HEALER_STATUS.md with ready_to_restart: true",
+            "Verify wrapper parses field correctly",
+            "Check wrapper proceeds to restart"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper handles missing status file",
+          "steps": [
+            "Ensure HEALER_STATUS.md does not exist",
+            "Run wrapper's status check logic",
+            "Verify wrapper attempts restart anyway (optimistic)"
+          ],
+          "passes": false
+        },
+        {
+          "category": "functional",
+          "description": "Wrapper displays escalation reason",
+          "steps": [
+            "Have Claude write HEALER_STATUS.md with ready_to_restart: false",
+            "Include escalation_reason: 'Cannot auto-fix API rate limit'",
+            "Verify wrapper displays this reason to user"
+          ],
+          "passes": false
+        }
+      ],
+      "implementation": {
+        "files": [
+          {
+            "path": "oracle-loop/oracle-healer.sh",
+            "description": "Status file parsing",
+            "changes": [
+              {
+                "location": "lines ~90-110",
+                "description": "Read HEALER_STATUS.md, extract ready_to_restart and escalation_reason, handle missing file"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "implementation_order": [
+    {"feature": "F1", "name": "Wrapper Script", "rationale": "Core infrastructure, everything depends on this"},
+    {"feature": "F2", "name": "Failure Type Detection", "rationale": "Enables targeted diagnosis"},
+    {"feature": "F3", "name": "Diagnostic Prompt", "rationale": "Claude needs instructions to fix issues"},
+    {"feature": "F4", "name": "Recovery Attempt Limiting", "rationale": "Safety guard against infinite loops"},
+    {"feature": "F5", "name": "Status Signaling", "rationale": "Wrapper-Claude communication protocol"}
+  ],
+  "verification_plan": {
+    "infrastructure_tests": [
+      {
+        "name": "No-progress recovery test",
+        "command": "Corrupt EVALUATION_STATE.md with escaped asterisks, run oracle-healer.sh",
+        "expected": "Healer detects no_progress, Claude fixes asterisks, loop restarts"
+      },
+      {
+        "name": "Missing manifest recovery test",
+        "command": "Temporarily remove manifest.json, run oracle-healer.sh",
+        "expected": "Healer detects missing_manifest, Claude restores from git, loop restarts"
+      },
+      {
+        "name": "Max recovery attempts test",
+        "command": "Create unfixable error, run oracle-healer.sh",
+        "expected": "Healer exits after 3 recovery attempts with MANUAL INTERVENTION REQUIRED"
+      },
+      {
+        "name": "Successful recovery resets counter",
+        "command": "Trigger recoverable failure, let healer fix, trigger another failure",
+        "expected": "Counter resets to 0 after successful recovery"
+      }
+    ],
+    "integration_tests": [
+      {
+        "name": "End-to-end recovery",
+        "command": "Run oracle-healer.sh with healthy state",
+        "expected": "Oracle-loop runs normally, healer only intervenes on failure"
+      },
+      {
+        "name": "Escalation path works",
+        "command": "Trigger failure Claude cannot fix",
+        "expected": "HEALER_STATUS.md contains ready_to_restart: false, wrapper exits"
+      }
+    ],
+    "success_metrics": [
+      "Oracle-healer can recover from no-progress failures",
+      "Oracle-healer can recover from missing state files",
+      "Oracle-healer escalates appropriately after max attempts",
+      "Oracle-healer does not interfere with normal loop operation",
+      "Diagnostic logs capture sufficient context for debugging"
+    ]
+  },
+  "affected_files_summary": [
+    "oracle-loop/oracle-healer.sh (CREATE - main wrapper script ~120 lines)",
+    "oracle-loop/prompts/PROMPT_diagnose.md (CREATE - diagnostic prompt ~100 lines)",
+    "oracle-loop/state/HEALER_STATUS.md (RUNTIME - created by Claude during diagnosis)",
+    "oracle-loop/state/HEALER_FAILURE_CONTEXT.md (RUNTIME - created by wrapper on failure)"
+  ]
+}
