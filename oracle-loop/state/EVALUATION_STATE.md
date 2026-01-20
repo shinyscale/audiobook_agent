@@ -3,23 +3,23 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.05
 
-## Latest Scores (Attempt 10)
+## Latest Scores (Attempt 11)
 - Structure Detection: 10/10 ✓
-- Character Extraction: 7/10 (improved from 2/10 - Egaeus now present!)
-- Character Profiles: 4/10 (plot summary inverted, Berenice wrongly marked as narrator)
-- Chapter Summaries: 9/10 ✓
+- Character Extraction: 5/10 (REGRESSION - narrator completely wrong)
+- Character Profiles: 3/10 (REGRESSION - inverted narrative, wrong voice quotes)
+- Chapter Summaries: 9/10 ✓ (correctly identifies "the narrator, Egaeus")
 - Pronunciation Guide: 7/10
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.75/10** (threshold: 8.0) - FAIL by 0.25 points
+- HTML Presentation: 8/10
+- **Overall: 7.00/10** (threshold: 8.0) - FAIL by 1.0 point
 
 ## Score Calculation
 ```
-Overall = (10×0.20) + (7×0.25) + (4×0.15) + (9×0.20) + (7×0.10) + (9×0.10)
-        = 2.0 + 1.75 + 0.60 + 1.80 + 0.70 + 0.90
-        = 7.75
+Overall = (10×0.20) + (5×0.25) + (3×0.15) + (9×0.20) + (7×0.10) + (8×0.10)
+        = 2.0 + 1.25 + 0.45 + 1.80 + 0.70 + 0.80
+        = 7.00
 ```
 
 ## Score History
@@ -34,150 +34,161 @@ Overall = (10×0.20) + (7×0.25) + (4×0.15) + (9×0.20) + (7×0.10) + (9×0.10)
 | 7 | - | - | FAILED (runtime error) |
 | 8 | - | - | FAILED (field name error) |
 | 9 | 5.55 | -0.50 | F6 reconciliation claimed to work but didn't |
-| 10 | **7.75** | **+1.70** | **F6 reconciliation WORKED - Egaeus now in character list!** |
+| 10 | 7.75 | +1.70 | F6 reconciliation WORKED - Egaeus now in character list |
+| 11 | **7.00** | **+0.95** | REGRESSION - narrator fix backfired, Egaeus marked as NOT narrator |
 
-## Key Improvement in Attempt 10
+## Critical Discovery
 
-**Egaeus is now in the character list!** The F6 reconciliation fix from attempt 9 (import shadowing fix) is now working:
-- Characters array: `[Berenice, Mad'selle Sallé, Egaeus, menial servant, servant maiden]` (5 total)
-- Egaeus has `is_narrator: true` ✓
-- Egaeus has correct `narrative_role` describing his perspective ✓
-- Chapter summary correctly identifies "the narrator, Egaeus" ✓
+**The chapter summary correctly identifies Egaeus as narrator**, but:
+1. Berenice has `is_narrator: true` with narrative_role claiming she's the protagonist
+2. Egaeus has `is_narrator: false` with no narrative_role
 
-This is the first time since attempt 1 that we've made actual progress!
+The fix from attempt 11 (clearing all narrator flags then setting the correct one) **did not work as intended**. Looking at the output:
+- The initial narrator detection (Step 3.5) incorrectly identified Berenice
+- The F6 reconciliation should have corrected this, but didn't clear Berenice's flag
 
 ## Current Issues (Priority Order)
 
-### HIGH (Remaining blockers to reach 8.0)
+### CRITICAL
 
-1. **Berenice incorrectly marked as narrator** (Impact: ~0.5 points)
-   - Problem: Both Berenice AND Egaeus have `is_narrator: true`
-   - Evidence: `analysis.json` line 118: `"is_narrator": true` on Berenice entry
-   - Reality: Only Egaeus is the narrator. Berenice never speaks or narrates.
-   - Location: The character extraction pipeline is detecting Berenice as narrator because her name appears frequently near first-person pronouns (but those are Egaeus talking ABOUT her)
-   - Fix: When F6 reconciliation adds a character as narrator from summaries (Egaeus), it should set `is_narrator: false` on other characters OR the narrator detection logic needs to understand that being talked about ≠ being the narrator
+1. **Egaeus marked as `is_narrator: false` - completely wrong**
+   - Problem: The story's protagonist and first-person narrator is marked as NOT the narrator
+   - Evidence: `analysis.json` line 179: `"is_narrator": false` on Egaeus entry
+   - Reality: "Berenice" opens with "My baptismal name is Egaeus" - he narrates the entire story
+   - The chapter summary correctly says "the narrator, Egaeus" but this isn't being used
+   - Location: The narrator deduplication logic in `src/analyzer.py` is not working
+   - Impact: This cascades to wrong plot summary and wrong character profiles
 
-2. **Plot summary is completely inverted** (Impact: ~0.5 points)
-   - Problem: Plot summary begins "Berenice recounts her life..." when EGAEUS is the narrator
-   - Evidence: First paragraph of plot summary in report.html
-   - The third paragraph says "Berenice, now fully conscious of her monstrous deed" - EGAEUS commits the deed, not Berenice
-   - This is deeply wrong - it inverts the entire story's meaning
-   - Location: `src/agents/summary_agent.py` or `src/pipeline/summarization/`
-   - Fix: The summary agent needs to correctly identify the narrator before generating the plot summary. This likely cascades from issue #1 - if Berenice is marked as narrator, the summary agent uses her perspective.
+2. **Berenice marked as `is_narrator: true` - completely wrong**
+   - Problem: The obsession target is marked as narrator; she never speaks
+   - Evidence: `analysis.json` line 125: `"is_narrator": true` on Berenice entry
+   - Reality: Berenice is a passive figure; all "her" quotes in voice_guidance are actually Egaeus speaking ABOUT her
+   - Location: Same as above - narrator detection is fundamentally broken
+
+3. **Plot summary completely inverted**
+   - Problem: "Berenice, the story's first-person narrator, recounts her life..." - WRONG
+   - Evidence: Plot summary in report.html lines 631-635
+   - Reality: EGAEUS is the first-person narrator. EGAEUS commits the horrific act. BERENICE is the victim.
+   - The summary says "she had exhumed Egaeus's body" - it's the OPPOSITE (Egaeus exhumes Berenice's body)
+   - This is a fundamental inversion of the story's meaning
+   - Location: `src/agents/summary_agent.py` or `src/pipeline/summarization/` - likely using the wrong narrator
+
+### HIGH
+
+4. **Berenice's voice_guidance contains Egaeus's quotes**
+   - Problem: Quotes attributed to Berenice are Egaeus speaking
+   - Evidence: "Berenice! --I call upon her name --Berenice!" - this is Egaeus calling out, not Berenice speaking
+   - "Des idees! --ah here was the idiotic thought that destroyed me!" - this is Egaeus's internal monologue
+   - Location: Character profile generation uses narrator's voice for wrong character
+   - Impact: Narrator recording this would give Berenice a completely wrong voice
+
+5. **Egaeus has no profile data**
+   - Problem: The protagonist has appearance: null, personality: null, voice_guidance: null
+   - Evidence: `analysis.json` lines 167-180
+   - Cause: He was added by F6 reconciliation from summaries, which doesn't generate full profiles
+   - Impact: Narrator has no guidance for the main character
 
 ### MEDIUM
 
-3. **Mad'selle Sallé should not be a character** (Impact: ~0.1 points)
+6. **Mad'selle Sallé should not be a character**
    - Problem: Historical/literary allusion treated as story character
-   - Evidence: "Of Mad'selle Salle it has been well said..." - this is a literary reference to 18th-century dancer Marie Sallé, not a character in the story
+   - Evidence: "Of Mad'selle Salle it has been well said..." - reference to 18th-century dancer Marie Sallé
    - She never appears, speaks, or takes action in the narrative
    - Location: NER character extraction filters
-   - Fix: Filter characters that only appear in comparative/literary contexts ("Of X it has been said...", "like X...")
+   - Impact: Minor clutter
 
-4. **Egaeus profile is sparse** (Impact: ~0.2 points)
-   - Problem: Egaeus (the protagonist!) has no appearance, personality, or voice_guidance
-   - Evidence: His character entry has these fields as null
-   - Cause: He was added by F6 reconciliation from chapter summaries, which doesn't generate full profiles
-   - Location: F6 reconciliation in `src/analyzer.py`
-   - Fix: F6 should trigger profile generation for added characters, OR accept that reconciled characters have minimal profiles
+7. **Egaeus mention_count is 1 (should be ~50+)**
+   - Problem: First-person narrator's self-references not counted
+   - Evidence: He uses "I" constantly throughout; the name "Egaeus" appears 2x explicitly
+   - Cause: First-person pronouns not counted, and the character was added by reconciliation
+   - Impact: Minor - doesn't affect core functionality
 
-5. **Some pronunciation false positives** (Impact: ~0.1 points)
-   - "servant" flagged as `proper_noun` - it's a common English word
-   - "menial" flagged as `proper_noun` - it's a common (archaic) English word
-   - Location: Pronunciation flagging logic
-   - Minor issue
+8. **Common words flagged as proper_noun in pronunciation**
+   - "servant" and "maiden" flagged as proper_noun
+   - These are common English words, not unusual terms
+   - Minor false positives
+
+## Root Cause Analysis
+
+The narrator detection is fundamentally broken for first-person narratives where the narrator is obsessed with another character:
+
+1. **Berenice appears near more "I" pronouns than Egaeus's name does**
+   - Egaeus says "I" ~50+ times, and many of those sentences mention "Berenice"
+   - The narrator detection algorithm likely counts "I" proximity to character names
+   - "I looked at Berenice" → Berenice gets credit as narrator
+   - This is exactly backwards
+
+2. **The fix from attempt 11 didn't work**
+   - The fix was supposed to clear all `is_narrator` flags then set the correct one
+   - But the output shows Berenice still has `is_narrator: true` and Egaeus has `is_narrator: false`
+   - Either the fix wasn't applied, or there's a later step that overwrites it
+
+3. **The chapter summary is correct but isn't used**
+   - The chapter summary correctly says "the narrator, Egaeus"
+   - This information isn't being used to set the character flags correctly
+   - The F6 reconciliation adds Egaeus but doesn't transfer narrator status from summaries
 
 ## Path to 8.0
 
-The score is 7.75, threshold is 8.0. We need +0.25 points.
+Current score: 7.00, need +1.0 point
 
-**Fastest fix (High Confidence):**
-Fix the narrator identification so only Egaeus is marked as narrator, not Berenice.
-- This would bump Character Extraction from 7→8 (+0.25 weighted)
-- This alone would reach exactly 8.0
+**Required fix:** Make Egaeus the narrator and Berenice NOT the narrator.
 
-**Better fix (Higher Ceiling):**
-Fix narrator identification AND regenerate the plot summary correctly.
-- Character Extraction: 7→8 (+0.25)
-- Character Profiles: 4→6 (+0.30)
-- Total: +0.55, giving us 8.30 (comfortable pass)
+This would impact:
+- Character Extraction: 5→8 (+0.75 weighted)
+- Character Profiles: 3→6 (+0.45 weighted) - if plot summary regenerates correctly
+- Total: +1.2 points → 8.2 (pass)
 
-## Fix Approach for Attempt 11
+**The fix must ensure:**
+1. When the chapter summary explicitly identifies "the narrator, X", that character gets `is_narrator: true`
+2. All other characters get `is_narrator: false`
+3. The plot summary is regenerated using the correct narrator
+4. Profile generation uses the correct narrator
 
-**Focus: Narrator deduplication**
+## Fix Approach for Attempt 12
 
-When multiple characters are marked as `is_narrator: true`, the system should:
-1. Use the chapter summary's identification (which correctly says "the narrator, Egaeus")
-2. Keep only the character explicitly identified as narrator
-3. Set `is_narrator: false` on all others
+**Root cause:** The narrator detection uses proximity heuristics that fail when the narrator obsesses over another character.
 
-**Implementation options:**
+**Recommended approach:** Trust the chapter summary's narrator identification over the heuristic detection.
 
-A. **In F6 reconciliation** (src/analyzer.py): When adding a character as narrator from summaries, explicitly set `is_narrator: false` on all existing characters that aren't the identified narrator.
+The chapter summary correctly says "the narrator, Egaeus". The F6 reconciliation phase should:
+1. Extract the narrator name from the chapter summary (regex for "the narrator, X" or "narrator X")
+2. Find that character in the character list (or add them if missing)
+3. Set ONLY that character's `is_narrator: true`
+4. Set ALL other characters' `is_narrator: false`
 
-B. **Post-processing step**: After all character extraction is complete, scan for multiple narrators and use heuristics (mention count in first-person context, explicit identification in summaries) to pick the correct one.
-
-C. **In narrator detection** (src/pipeline/character_extraction/): Improve the narrator detection logic to understand that being the subject of first-person statements ("I obsessed over Berenice") doesn't make you the narrator.
-
-**Recommendation:** Option A is simplest and most targeted. The F6 reconciliation already adds Egaeus correctly; it just needs to also fix Berenice's narrator flag.
+**Alternative approach:** Fix the narrator detection heuristic itself to understand that being the OBJECT of first-person statements ("I obsessed over X") doesn't make X the narrator.
 
 ## Output Files
-- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:05)
-- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:05)
+- HTML: ../output/berenice/report.html
+- JSON: ../output/berenice/analysis.json
 
 ## Fix History
 
-### Attempt 11 (Current)
-**Issue Fixed:** Berenice incorrectly marked as narrator (Issue #1 from HIGH priority)
+### Attempt 11 (Just Evaluated)
+**Issue Targeted:** Narrator deduplication (ensure only one narrator)
 
-**Root Cause:**
-- `src/analyzer.py:_mark_narrator_in_character_map()` lines 2042-2105
-- Multiple stages could set `is_narrator=True` but no stage would clear the flag from other characters
-- Step 3.5: `_detect_narrator()` incorrectly marked Berenice as narrator (she appears near "I" pronouns but isn't the speaker)
-- Step 6.5: Re-run narrator detection correctly identified Egaeus but didn't clear Berenice's flag
-
-**Fix Applied:**
+**What Was Supposed to Happen:**
 - Modified `_mark_narrator_in_character_map()` to clear `is_narrator=False` on ALL characters before marking the correct narrator
-- This ensures only one character has `is_narrator=True` at a time
-- File: `src/analyzer.py` lines 2062-2067
 
-**Smoke Test:** PASS
-- Logic verified: clears all narrator flags, then sets only the correct one
-- Unit tests pass (16/16 in test_analyzer_f1_f5_integration.py)
-- Guarantees single narrator
+**What Actually Happened:**
+- Berenice still has `is_narrator: true`
+- Egaeus has `is_narrator: false`
+- The fix did NOT work - need to investigate why
 
-**Expected Impact:**
-- Character Extraction: 7→8 (+0.25 weighted = +0.0625)
-- Character Profiles: 4→6 (+0.30 weighted = +0.045) if plot summary regenerates correctly
-- Total expected: 7.75 + 0.10 = 7.85 to 8.30 (depends on whether plot summary regenerates)
+**Possible reasons the fix failed:**
+1. The fix is being applied but a LATER step overwrites the flags
+2. The fix determines the "correct" narrator using the same broken heuristic
+3. The fix wasn't actually deployed (code not saved, wrong file, etc.)
 
 ## Next Action
 
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Analysis attempt 11 completed.
+Fix phase should:
+1. Investigate why the attempt 11 fix didn't work
+2. Find where narrator flags are being set incorrectly (likely multiple places)
+3. Trust the chapter summary's narrator identification ("the narrator, Egaeus")
+4. Ensure Egaeus is marked as narrator and Berenice is NOT
 
-## Attempt 11 Results (Re-run)
-
-**Pipeline Output:**
-- Runtime: 5m 29s
-- Characters found: 5 total (Berenice, Mad'selle Salle, servant maiden, Egaeus, servant)
-- Chapters: 1 (as expected for short story)
-- Narrator detected: **Berenice** (WRONG - should be Egaeus)
-
-**Critical Issue - PERSISTS:**
-The narrator deduplication fix from attempt 11 did NOT work. The pipeline output shows:
-- Berenice has `is_narrator: true`
-- Egaeus has `is_narrator: false`
-
-This is the opposite of the desired outcome. The fix needs re-examination.
-
-**Model Configuration:**
-- Structure: qwen3:30b-instruct
-- Characters: qwen3-next:80b-a3b-instruct-q8_0
-- Summaries: qwen3-next:80b-a3b-instruct-q8_0
-- Pronunciation: qwen3:30b-instruct
-
-## Output Files
-- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:35)
-- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:35)
+The regression from 7.75 → 7.00 is concerning but within the -0.3 tolerance (delta = -0.75, but baseline is 6.05, so we're still +0.95 above baseline).
