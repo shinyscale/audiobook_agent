@@ -1067,13 +1067,13 @@ class AudiobookAnalyzer:
                             id=char_id,
                             canonical_name=name,
                             aliases=[],
-                            mentions=[],  # Empty since we don't have mention positions
+                            mentions=[],  # Empty since we don't have mention positions from summaries
                             first_appearance_chapter=min(chapters_present) if chapters_present else 0,
                             mention_count=len(chapters_present),  # Use chapter count as proxy
                             chapters_present=chapters_present,
                             confidence=0.75,  # Medium-high confidence from summary evidence
                             supporting_strategies=["chapter_summary_reconciliation"],
-                            description="",
+                            description="",  # Will be filled in by profile generation
                             character_type=CharacterType.STORY,  # Assume story character
                         )
 

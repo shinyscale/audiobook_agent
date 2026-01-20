@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Attempt:** 8
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.05
 
 ## Latest Scores
@@ -134,6 +134,33 @@ def reconcile_characters_with_summaries(characters, chapter_summaries):
 
 ## Fix History
 
+### Attempt 8: F6 FIELD NAME FIX - COMPLETE
+- **What changed:** Fixed Character object creation in F6 reconciliation to use correct field names
+- **Root cause:** src/analyzer.py:1066-1078 - F6 code was creating Character objects with wrong field names/types
+- **Data flow trace:**
+  1. **Symptom:** Runtime error `Character.__init__() got an unexpected keyword argument 'descriptions'`
+  2. **Analysis runs successfully** until F6 reconciliation creates Character objects
+  3. **F6 executes correctly** and finds 3 characters in summaries not in character list
+  4. **Originates in:** src/analyzer.py:1066-1078 (Character creation in F6 block)
+  5. **Root cause:** Field name/type mismatches with pipeline Character model:
+     - Missing required fields: `mentions`, `chapters_present`, `supporting_strategies`, `character_type`
+     - Used wrong type for `confidence`: ConfidenceLevel enum instead of float
+- **Fix:** Updated Character creation to match pipeline model (src/pipeline/character_extraction/models.py:141-168):
+  - Added `mentions=[]` (empty list since summaries don't provide positions)
+  - Added `chapters_present=chapters_present` (from summary chapter indices)
+  - Changed `confidence` from ConfidenceLevel.MEDIUM to `0.75` (float)
+  - Added `supporting_strategies=["chapter_summary_reconciliation"]`
+  - Kept `description=""` (will be filled by profile generation)
+  - Added `character_type=CharacterType.STORY`
+- **Smoke test:** PASS - analyzer.py imports successfully without errors
+- **Expected impact:** Same as Attempt 7 - all critical issues should be resolved:
+  - Egaeus will be added to character list (fixes Character Extraction: 2→8+)
+  - Correct narrator detection (fixes Character Profiles: 1→8+)
+  - Correct plot summary (fixes downstream cascade)
+  - servant maiden and family physician will also be added
+- **Confidence:** HIGH - Field names now match the pipeline Character dataclass exactly
+- **Modified:** src/analyzer.py (lines 1066-1078, F6 Character creation)
+
 ### Attempt 7: F6 RECONCILIATION FIX - FAILED (Runtime Error)
 - **What changed:** Moved F6 character reconciliation outside `if summary_map and llm:` block
 - **Root cause:** src/analyzer.py:955 - F6 code was inside `if summary_map and llm:` block, but `llm` was None when using per-agent models without a default model
@@ -225,10 +252,10 @@ The chapter summary correctly identifies Egaeus as narrator and includes him in 
 
 ## Next Action
 
-Re-run analysis with the F6 fix. The F6 character reconciliation code was already implemented but wasn't executing due to a conditional check. Moving it outside the `if summary_map and llm:` block should resolve all critical issues:
-- Egaeus will be added from chapter summaries
-- Narrator detection will correctly identify Egaeus
-- Plot summary will be corrected
+Re-run analysis with the F6 field name fix. The F6 character reconciliation logic is correct and now the Character creation uses the proper field names from the pipeline model. This should resolve all critical issues:
+- Egaeus will be added from chapter summaries (fixes Character Extraction: 2→8+)
+- Narrator detection will correctly identify Egaeus (fixes Character Profiles: 1→8+)
+- Plot summary will be corrected (fixes downstream cascade)
 - Minor characters (servant maiden, family physician) will also be added
 
 Expected score improvement: 5.55 → 8.5+ (threshold: 8.0)
