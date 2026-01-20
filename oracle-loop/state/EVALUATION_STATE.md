@@ -325,6 +325,10 @@ This is a positive sign - the terminal output shows "Egaeus" as narrator. Now ne
 
 **Phase:** awaiting_evaluation
 
+Ready for evaluation of attempt 14 output files:
+- JSON: ../output/berenice/analysis.json (97K)
+- HTML: ../output/berenice/report.html (167K)
+
 Evaluation needed to verify:
 1. Plot summary no longer claims "Berenice recounts" (should say "Egaeus narrates")
 2. Egaeus marked with `is_narrator: true` in analysis.json
