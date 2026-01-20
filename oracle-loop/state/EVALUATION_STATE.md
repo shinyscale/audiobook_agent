@@ -267,6 +267,34 @@ Modified `src/pipeline/overview/generator.py` lines 201-215 to filter out charac
 
 This is a positive sign - the terminal output shows "Egaeus" as narrator. Now need to verify the actual output files contain the correct data.
 
+## Attempt 14 - Analysis Complete
+
+**Analysis Runtime:** 5m 44s
+**Models Used:**
+- Structure: qwen3:30b-instruct
+- Characters: qwen3-next:80b-a3b-instruct-q8_0
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0
+- Pronunciation: qwen3:30b-instruct
+
+**Pipeline Output Summary:**
+- Confirmed narrator: Egaeus (first-person) ✓
+- Found 5 characters (Berenice, Mad'selle Salle, Egaeus, menial, servant maiden)
+- Generated 1 chapter summary, 1 character profile, 115 pronunciation flags
+- Total tokens: 56,803
+- Bottleneck: Pronunciation Guide (35.8% of time)
+
+**Output Files:**
+- JSON: ../output/berenice/analysis.json (99K)
+- HTML: ../output/berenice/report.html (169K)
+
+**Key Pipeline Message:**
+```
+🎭 Finalizing narrator detection...
+   Confirmed narrator: Egaeus (first-person)
+```
+
+This is a positive sign - the terminal output shows "Egaeus" as narrator. Now need to verify the actual output files contain the correct data.
+
 ## Next Action
 
 **Phase:** awaiting_evaluation
