@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.05
 
 ## Latest Scores (Attempt 11)
@@ -159,9 +159,20 @@ The chapter summary correctly says "the narrator, Egaeus". The F6 reconciliation
 
 **Alternative approach:** Fix the narrator detection heuristic itself to understand that being the OBJECT of first-person statements ("I obsessed over X") doesn't make X the narrator.
 
-## Output Files
+## Output Files (Attempt 12)
 - HTML: ../output/berenice/report.html
 - JSON: ../output/berenice/analysis.json
+- Analysis completed in: 10m 3s
+- Total tokens: 55,905
+
+## Pipeline Notes (Attempt 12)
+- Structure agent: "No valid proposals - returning single chapter" (expected for short story)
+- Character extraction: "Detected narrator: Berenice" (STILL WRONG - same issue as attempt 11)
+- Final confirmation: "Confirmed narrator: Berenice (first-person)" (STILL WRONG)
+- **CRITICAL ISSUE**: The fix from attempt 11 (unconditional clearing of narrator flags) did NOT work
+- Berenice still has `is_narrator: true` at analysis.json:120
+- Egaeus still has `is_narrator: false` at analysis.json:174
+- The narrator detection is happening BEFORE the F6 reconciliation, and the reconciliation is not correcting it
 
 ## Fix History
 
