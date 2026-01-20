@@ -3,14 +3,22 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.275
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
-- Analysis completed: 2026-01-20 01:03:26
-- Pipeline time: 14m 46s
+- Analysis completed: 2026-01-20 01:25:30
+- Pipeline time: 14m 53s
+
+## Pipeline Notes
+- LLM identity detection server error (500) - didn't affect analysis
+- "White" character JSON parse failure with low confidence (0.30)
+- Sergeant-Major Morris moral valence classification failed
+- Total tokens: 102,044
+- Characters found: 7 (Mr. White, White, Mrs. White, Morris, his wife, + 2 more)
+- **NOTE: "Mr. White" and "White" STILL SEPARATE - case sensitivity fix may not have worked**
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
