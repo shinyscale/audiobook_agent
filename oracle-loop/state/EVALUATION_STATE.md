@@ -153,6 +153,25 @@ C. **In narrator detection** (src/pipeline/character_extraction/): Improve the n
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify fix and measure score improvement.
+Analysis attempt 11 completed.
+
+## Attempt 11 Results
+
+**Pipeline Output:**
+- Runtime: 10m 3s
+- Characters found: 6 total (Berenice, Mad'selle Sallé, Egaeus, servant maiden, menial servant, + 1 more)
+- Chapters: 1 (as expected for short story)
+- Narrator detected: **Berenice** (WRONG - should be Egaeus)
+
+**Critical Issue:**
+The narrator deduplication fix from attempt 11 did NOT work. The pipeline output shows:
+- Berenice has `is_narrator: true`
+- Egaeus has `is_narrator: false`
+
+This is the opposite of the desired outcome. The fix needs re-examination.
+
+## Output Files
+- HTML: ../output/berenice/report.html (timestamp: 2026-01-19 20:28)
+- JSON: ../output/berenice/analysis.json (timestamp: 2026-01-19 20:28)
