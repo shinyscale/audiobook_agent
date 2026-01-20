@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.275
 
 ## Output Files
@@ -21,18 +21,28 @@
 - HTML Presentation: 9/10
 - **Overall: 7.05/10** (threshold: 8.0)
 
-## CRITICAL FINDING: ATTEMPT 7 FIX HAD ZERO EFFECT
+---
 
-The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did not change the output**. The character extraction results are IDENTICAL to attempt 6:
+## CRITICAL FINDING: BUG IN TITLE VARIANT DETECTION
 
-| Issue | Attempt 6 | Attempt 7 | Status |
-|-------|-----------|-----------|--------|
-| "Mr. White" vs "White" split | YES | YES | **UNFIXED** |
-| Herbert aliased to "White" | YES | YES | **UNFIXED** |
-| "the stranger" with 3 different people | YES | YES | **UNFIXED** |
-| "his wife" orphaned | YES | YES | **UNFIXED** |
-| 80 pronunciation entries | YES | YES | **UNFIXED** |
-| Chapter 3 shows "the old man/woman" | YES | YES | **UNFIXED** |
+**ROOT CAUSE IDENTIFIED:** The title variant merge fix at line 1725 of `consensus.py` has a bug.
+
+The code checks:
+```python
+titles = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}
+if len(multi_words) == 2 and multi_words[0] in titles:
+```
+
+But for "Mr. White", `multi_words[0]` is `'mr.'` (with a period), NOT `'mr'`.
+
+**The period is not stripped**, so `'mr.' in {'mr', 'mrs', ...}` is **FALSE**.
+
+**Fix needed:** Change line 1725 to:
+```python
+if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
+```
+
+This is a ONE-LINE FIX that should finally resolve the "Mr. White" / "White" merge.
 
 ---
 
@@ -54,7 +64,7 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 **What works:**
 - Mr. White, Mrs. White, Sergeant-Major Morris correctly identified
 - Morris has aliases ["Morris", "the sergeant-major"] ✓
-- "The stranger from Maw and Meggins" correctly identified as separate character
+- "Stranger from Maw and Meggins" correctly identified as separate character
 - Chapters 1 and 2 characters_present are correct
 
 **CRITICAL ISSUES:**
@@ -62,6 +72,7 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 1. **FALSE CHARACTER SPLIT: "White" vs "Mr. White"**
    - "Mr. White" (10 mentions) and "White" (44 mentions) are SEPARATE characters
    - These should be merged - the text uses both interchangeably for the father
+   - **ROOT CAUSE:** Period not stripped from "Mr." in title variant check (line 1725)
 
 2. **HERBERT WHITE WRONGLY ALIASED TO "WHITE"**
    - "White" entry has aliases: ["Herbert White", "Herbert"]
@@ -144,39 +155,34 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 
 ### CRITICAL
 
-1. **ATTEMPT 7 FIX HAD NO EFFECT - INVESTIGATE WHY**
-   - Problem: Title variant merge changes in consensus.py didn't change output
-   - Evidence: All character issues identical between attempt 6 and 7
-   - Hypothesis: The changes may not be in the code path being executed, OR the analysis was cached
-   - Fix: FIRST verify the code changes are being executed, THEN try different approach
+1. **Title variant merge bug - period not stripped**
+   - Problem: Line 1725 checks `multi_words[0] in titles` but `'mr.'` ≠ `'mr'`
+   - Evidence: Debug confirms `'mr.'` is the actual value, not `'mr'`
+   - Location: `src/pipeline/character_extraction/consensus.py` line 1725
+   - Fix: Change `multi_words[0] in titles` to `multi_words[0].rstrip('.') in titles`
+   - Impact: This ONE-LINE FIX should enable "Mr. White" + "White" to merge
 
-2. **False character split: "White" vs "Mr. White"**
-   - Problem: Same person split into 2 entries (44 + 10 = 54 mentions total)
-   - Evidence: The text uses "White" and "Mr. White" interchangeably for the father
-   - Location: `src/pipeline/character_extraction/consensus.py` - merge validation
-   - Fix: Need to verify WHY the merge isn't happening
-
-3. **Herbert wrongly aliased to "White" (father)**
+2. **Herbert wrongly aliased to "White" (father)**
    - Problem: Son's name merged as alias of ambiguous "White" entry
    - Evidence: Herbert works at Maw and Meggins and DIES in Chapter 2
    - Location: `src/pipeline/character_extraction/consensus.py` - family detection
-   - Fix: Prevent merging when one name is a subset AND contexts show different ages/roles
+   - Fix: After fixing #1, "Mr. White" + "White" merge will leave Herbert separate
 
-4. **"the stranger" has aliases for 3 different characters**
+3. **"the stranger" has aliases for 3 different characters**
    - Problem: ["the old man", "the old woman", "the soldier"] are NOT one person
    - Evidence: These are generic epithets for Mr. White, Mrs. White, and Morris respectively
    - Location: Epithet merging logic
-   - Fix: Generic epithets like "the old man/woman" should NOT merge with each other OR with "the stranger"
+   - Fix: Generic epithets like "the old man/woman" should NOT merge with "the stranger"
 
 ### HIGH
 
-5. **Pronunciation flagging common English words**
+4. **Pronunciation flagging common English words**
    - Problem: "his", "old", "from", "man", "wife", "woman" flagged
    - Root cause: Words from character names (including broken entries) are all flagged
    - Fix: Add common English word filter (top 5000-10000 words)
    - Note: This is partially DOWNSTREAM of character issues
 
-6. **Project Gutenberg boilerplate contamination**
+5. **Project Gutenberg boilerplate contamination**
    - Problem: Legal text analyzed as story content
    - Evidence: "GutenbergTM" flagged 57 times
    - Location: `src/ingestion/refine.py`
@@ -184,17 +190,17 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 
 ### MEDIUM
 
-7. **"his wife" orphan character entry**
+6. **"his wife" orphan character entry**
    - Problem: Should merge with "Mrs. White"
    - Location: Relational descriptor handling
    - Fix: "his wife" → "Mrs. White" when in same context
 
-8. **Missing relationship data**
+7. **Missing relationship data**
    - Problem: All relationship fields empty
    - Evidence: Mr./Mrs. White married, Herbert their son, Morris old friend - none captured
    - Fix: May need separate relationship extraction pass
 
-9. **Chapter 3 characters_present uses epithet names**
+8. **Chapter 3 characters_present uses epithet names**
    - Problem: Shows ["the old man", "the old woman"] instead of proper names
    - Root cause: Downstream of character extraction issues
    - Fix: Will be resolved when character extraction is fixed
@@ -232,32 +238,13 @@ The title variant merge fix in commit `ec42d22` + `d926574` + `f3abbc1` **did no
 - All 179 character-related unit tests PASS
 - **Result: NEVER TESTED - analysis.json from 23:43, fix committed at 23:53**
 
-### Attempt 7 → 8: Root cause investigation
-- **Problem:** Attempts 6 and 7 fixes were never tested
-- **Finding:** Analysis ran BEFORE the fix was committed
-- **Action:** No new code changes needed, just re-run analysis
-- Modified: state/EVALUATION_STATE.md (documentation only)
+### Attempt 7 → 8: Re-ran analysis to test fix
+- No new code changes, just re-ran analysis
+- **Result: FIX STILL DOESN'T WORK - period not stripped from "Mr."**
 
----
-
-## Root Cause Investigation - RESOLVED
-
-**FINDING:** The fix in attempt 7 (commit f3abbc1) was NEVER TESTED.
-
-Timeline analysis:
-- analysis.json modified: Jan 19 23:43:03
-- Fix commit f3abbc1: Jan 19 23:53:52 (10 minutes AFTER analysis)
-- Analyze commit beb319e: Jan 20 00:06:49
-
-**The analysis at 23:43 used attempt 6 code, not attempt 7 code.**
-
-The attempt 7 fix IS correct and SHOULD work based on code review:
-- Lines 1725-1731 in consensus.py handle title variant merging
-- For "Mr. White" + "White": multi_words = ["mr", "white"], len==2, words[0]=="mr" (in titles)
-- Should return True, 0.95 immediately
-- BUT THIS CODE HAS NEVER BEEN EXECUTED on this text
-
-**Resolution:** Need to re-run analysis with the existing fix code (no new changes needed).
+### Attempt 8 → 9: FIX NEEDED
+- **BUG:** Line 1725 checks `multi_words[0] in titles` but 'mr.' ≠ 'mr'
+- **Fix:** Change to `multi_words[0].rstrip('.') in titles`
 
 ---
 
@@ -269,33 +256,25 @@ The attempt 7 fix IS correct and SHOULD work based on code review:
 | 3 | FAILED | - | Response truncation |
 | 4 | FAILED | - | Same truncation |
 | 5 | 6.275* | baseline | First successful run |
-| 6 | 7.05 | +0.775 | Re-evaluated with consistent rubric; FIX HAD NO EFFECT |
-| 7 | 7.05 | +0.775 | **FIX HAD NO EFFECT** |
+| 6 | 7.05 | +0.775 | Re-evaluated with consistent rubric |
+| 7 | 7.05 | +0.775 | Fix never tested |
+| 8 | 7.05 | +0.775 | **BUG FOUND: period not stripped in title check** |
 
-*Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-7 use integer component scores = 7.05.
+*Note: Attempt 5 baseline of 6.275 from inconsistent scoring. Attempt 6-8 use integer component scores = 7.05.
 
 ---
 
-## Pipeline Notes
-
-Attempt 8 re-ran the analysis with the title variant merge fix from attempt 7 (commit f3abbc1).
-
-Pipeline completed successfully:
-- Character Extraction: 7m 8s (49.1% of time)
-- Character Profiles: 4m 1s
-- Chapter Detection: 30.4s
-- Chapter Summaries: 1m 20s
-- Pronunciation Guide: 1m 10s
-
-Output shows:
-- 7 characters detected (including "Mr. White" vs "White" split still present)
-- "White" entry still has aliases: ["Herbert White", "Herbert"]
-- 80 pronunciation entries
-
-The fix needs to be evaluated to determine if the title variant merge is now working correctly.
-
 ## Next Action
 
-**Phase: awaiting_evaluation**
+**Phase: awaiting_fix**
 
-Evaluate the attempt 8 output to determine if the title variant merge fix resolved the character issues.
+Run PROMPT_fix.md to apply the one-line fix at `consensus.py` line 1725:
+```python
+# Change FROM:
+if len(multi_words) == 2 and multi_words[0] in titles:
+
+# Change TO:
+if len(multi_words) == 2 and multi_words[0].rstrip('.') in titles:
+```
+
+This should finally enable "Mr. White" + "White" to merge correctly.
