@@ -26,8 +26,8 @@ class AgentConfig:
 
     # Model parameters
     temperature: float = 0.3
-    max_tokens: int = 8192  # Increased from 4096 to handle larger JSON responses (e.g., character extraction with many characters)
-    context_length: int = 32768  # Context window size (num_ctx for Ollama)
+    max_tokens: int = 32768  # 32k - large enough for complex JSON responses without truncation
+    context_length: int = 65536  # Context window size (num_ctx for Ollama) - 64k for larger models
 
     # Behavior
     enable_verification: bool = True
@@ -68,7 +68,7 @@ class PipelineTuningConfig:
     chapter_narrative_chunk_overlap_chars: int = 2000
 
     # Character extraction - LLM chunk size and mention context window (characters)
-    character_llm_chunk_chars: int = 8000
+    character_llm_chunk_chars: int = 5000  # Reduced from 8000 to avoid LLM response truncation with large JSON arrays
     character_mention_context_chars: int = 250  # Increased from 200 to 250 to capture death scenes where both entities appear (e.g., "fell prostrate in death the Prince Prospero... seizing the mummer" = 221 chars)
 
     # Chapter summaries - chunk sizes in words

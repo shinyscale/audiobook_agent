@@ -167,7 +167,9 @@ class LLMCharacterProposer(BaseCharacterProposer):
         
         if result is None:
             # JSON parsing failure - fail fast instead of returning empty list
-            error_msg = f"LLM character proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}"
+            # Show more of the response (first 2000 chars) to diagnose truncation issues
+            preview = response.content[:2000] if response.content else 'empty response'
+            error_msg = f"LLM character proposer failed to parse response: {preview}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 

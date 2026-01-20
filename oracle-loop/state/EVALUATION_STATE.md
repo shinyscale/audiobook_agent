@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** null
 
 ## Latest Scores
@@ -49,6 +49,38 @@ The max_tokens fix didn't resolve the issue, which means the root cause analysis
 - **berenice:** 8.15/10 in 14 attempts ✓
 
 ## Fix History
+
+### Attempt 4 → 5: Reduced character extraction chunk size to prevent response truncation
+
+**Root Cause Analysis:**
+- **Symptom:** Pipeline failed - LLM responses truncated mid-JSON despite max_tokens being set to 32k
+- **Data flow trace:**
+  1. Error appears in: `src/pipeline/character_extraction/proposers/llm.py:174`
+  2. JSON parsing fails in: `src/llm/client.py:_extract_json()`
+  3. Response content is incomplete from: `src/llm/client.py:_query_ollama()`
+  4. Chunk size configured in: `src/agents/config.py:PipelineTuningConfig.character_llm_chunk_chars = 8000`
+  5. **Originates in:** The issue is NOT about `max_tokens` configuration (already at 32k), but about **the amount of data being requested in a single LLM call**
+- **Root cause:** The character proposer processes 8000-character chunks and asks the LLM to return ALL characters found as a JSON array. When many characters appear in a chunk (20-50+ character mentions), the resulting JSON response can be very large. Even with `num_predict=32768` set in Ollama, the responses are being truncated, suggesting:
+  1. The model (qwen3-next:80b) may have internal response length limits regardless of `num_predict`
+  2. Very large JSON responses may hit practical limits in the generation process
+  3. The LLM may struggle to maintain JSON structure over very long outputs
+- **Confidence:** MEDIUM-HIGH (this is the most likely cause given max_tokens is already configured correctly)
+
+**Fix Applied:**
+- Modified: `src/agents/config.py`
+- Changes:
+  - Reduced `character_llm_chunk_chars` from 8000 to 5000 characters
+  - This reduces the amount of text processed per LLM call
+  - Fewer characters per chunk = smaller JSON responses = less likely to hit limits
+  - Trade-off: slightly more LLM calls, but better reliability
+- Category: Configuration Issue - Chunk size too large for reliable response generation
+- Smoke test: Cannot test without running full analysis (Ollama model dependencies)
+
+**Expected Outcome:**
+1. Character extraction LLM calls will process smaller text chunks (5000 chars instead of 8000)
+2. JSON responses will contain fewer characters per call, staying well under truncation limits
+3. The pipeline should complete without truncation errors
+4. Slight increase in processing time due to more LLM calls, but this is acceptable for reliability
 
 ### Attempt 3 → 4: Fixed LLM response truncation by applying max_tokens from AgentConfig
 

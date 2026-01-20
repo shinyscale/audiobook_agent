@@ -388,8 +388,8 @@ class LLMClient:
 
         return cleaned.strip()
 
-    def query_json(self, prompt: str, system: Optional[str] = None) -> tuple[Optional[dict], LLMResponse]:
-        """Query LLM and parse response as JSON."""
+    def query_json(self, prompt: str, system: Optional[str] = None) -> tuple[Optional[Union[dict, list]], LLMResponse]:
+        """Query LLM and parse response as JSON (dict or list)."""
         response = self.query(prompt, system)
 
         if not response.success:
@@ -398,15 +398,17 @@ class LLMClient:
         parsed = self._extract_json(response.content)
 
         # Record JSON parse failure if metrics context available
-        # This includes both parse failures (None) and wrong-shape results (e.g., array instead of object)
         if self.metrics and self.metrics.current_stage:
-            if parsed is None or not isinstance(parsed, dict):
+            if parsed is None:
                 self.metrics.current_stage.record_json_failure()
 
         return parsed, response
 
-    def _extract_json(self, text: str) -> Optional[dict]:
-        """Extract JSON from LLM response, handling common formats."""
+    def _extract_json(self, text: str) -> Optional[Union[dict, list]]:
+        """Extract JSON from LLM response, handling common formats.
+
+        Returns either a dict or list, depending on what the LLM returned.
+        """
         # Remove thinking tags (various reasoning models)
         text = self._clean_thinking_tags(text)
 
@@ -419,8 +421,8 @@ class LLMClient:
         text = text.strip()
         try:
             parsed = json.loads(text)
-            # Validate return type - must be dict
-            if isinstance(parsed, dict):
+            # Accept both dict and list
+            if isinstance(parsed, (dict, list)):
                 return parsed
         except json.JSONDecodeError:
             pass
@@ -431,13 +433,13 @@ class LLMClient:
             if match:
                 try:
                     parsed = json.loads(match.group())
-                    # Validate return type - must be dict
-                    if isinstance(parsed, dict):
+                    # Accept both dict and list
+                    if isinstance(parsed, (dict, list)):
                         return parsed
                 except json.JSONDecodeError:
                     continue
 
-        # Try to repair common JSON issues
+        # Try to repair common JSON issues (for dicts only)
         repaired = self._repair_json(text)
         if repaired:
             return repaired

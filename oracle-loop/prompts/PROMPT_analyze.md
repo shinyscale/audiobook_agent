@@ -6,8 +6,9 @@ You are running the audiobook analysis pipeline on a test text as part of an aut
 
 0a. Read `state/EVALUATION_STATE.md` to understand current state.
 0b. Read `state/manifest.json` to identify the current active text.
-0c. Read `../AGENTS.md` for operational commands and codebase navigation.
-0d. Read `~/.config/audiobook_prep/gui_settings.json` to get model configuration.
+0c. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").
+0d. Read `../AGENTS.md` for operational commands and codebase navigation.
+0e. Read `~/.config/audiobook_prep/gui_settings.json` to get model configuration.
 
 ## 0.5 Initialize State for New Text
 

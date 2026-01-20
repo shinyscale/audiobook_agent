@@ -12,8 +12,8 @@ from datetime import datetime
 from typing import Optional
 
 from textual.app import App, ComposeResult
-from textual.containers import Container
-from textual.widgets import Header, Footer, Static
+from textual.containers import Container, VerticalScroll
+from textual.widgets import Header, Footer, Static, Input
 from textual.binding import Binding
 from textual.reactive import reactive
 from rich.text import Text
@@ -840,6 +840,8 @@ class ClaudeActivityPanel(Static):
         self.refresh()
 
 
+
+
 class FooterInfo(Static):
     """Footer showing last updated time and polling interval."""
 
@@ -878,7 +880,7 @@ class OracleMonitorApp(App):
     }
 
     ScorePanel {
-        height: 10;
+        height: 8;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -893,7 +895,7 @@ class OracleMonitorApp(App):
 
     IssuesPanel {
         height: auto;
-        max-height: 10;
+        max-height: 6;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -901,7 +903,7 @@ class OracleMonitorApp(App):
 
     CommitsPanel {
         height: auto;
-        max-height: 8;
+        max-height: 6;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -909,7 +911,7 @@ class OracleMonitorApp(App):
 
     ClaudeActivityPanel {
         height: auto;
-        max-height: 18;
+        max-height: 10;
         border: solid $accent;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -919,12 +921,22 @@ class OracleMonitorApp(App):
         height: 1;
         padding: 0 1;
     }
+
+    #user-notes-input {
+        margin: 0 0 1 0;
+        border: solid $warning;
+    }
+
+    VerticalScroll {
+        height: 100%;
+    }
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("p", "toggle_pause", "Pause"),
-        Binding("r", "refresh", "Refresh"),
+        Binding("q", "quit", "Quit", show=True),
+        Binding("p", "toggle_pause", "Pause", show=True),
+        Binding("r", "refresh", "Refresh", show=True),
+        Binding("n", "focus_notes", "Notes", show=True),
     ]
 
     paused = reactive(False)
@@ -936,20 +948,46 @@ class OracleMonitorApp(App):
         self.parser = StateParser(self.base_dir)
         self.state = self.parser.get_state()
         self.title = "Oracle Loop Monitor"
+        self.notes_file = self.base_dir / "state" / "USER_NOTES.md"
 
     def compose(self) -> ComposeResult:
         yield Header()
 
-        with Container():
+        with VerticalScroll():
             yield StatusBar(self.state)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
             yield ClaudeActivityPanel(self.state)
             yield IssuesPanel(self.state)
             yield CommitsPanel(self.state)
+            yield Input(placeholder="Send note to Claude (press Enter)...", id="user-notes-input")
             yield FooterInfo(self.state, self.polling_interval)
 
         yield Footer()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle user notes submission."""
+        if event.input.id == "user-notes-input":
+            content = event.value.strip()
+            if content:
+                self._save_notes(content)
+                event.input.value = ""
+                self.notify(f"Note sent to Claude", title="Saved")
+
+    def _save_notes(self, content: str) -> None:
+        """Save notes to USER_NOTES.md."""
+        try:
+            notes_content = f"""# User Notes for Oracle Loop
+
+---
+
+## Current Notes
+
+{content}
+"""
+            self.notes_file.write_text(notes_content)
+        except Exception:
+            pass
 
     def on_mount(self):
         """Start polling when mounted."""
@@ -990,6 +1028,14 @@ class OracleMonitorApp(App):
         """Manual refresh."""
         self._poll_state()
         self.notify("Refreshed")
+
+    def action_focus_notes(self):
+        """Focus the notes input."""
+        try:
+            notes_input = self.query_one("#user-notes-input", Input)
+            notes_input.focus()
+        except Exception:
+            pass
 
 
 def run_oracle_monitor(base_dir: Path = None, polling_interval: float = 2.0):

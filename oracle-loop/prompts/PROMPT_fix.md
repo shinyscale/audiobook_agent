@@ -5,10 +5,11 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 ## 0. Orient
 
 0a. Read `state/EVALUATION_STATE.md` to understand current issues and their priorities.
-0b. Read `docs/output_quality.md` to understand the quality criteria.
-0c. Read `../AGENTS.md` for codebase navigation and commands.
-0d. Read `../CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
-0e. **CRITICAL:** Read `docs/ATTEMPT_1_SUMMARY.md` to understand what approaches have already been tried and FAILED.
+0b. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").
+0c. Read `docs/output_quality.md` to understand the quality criteria.
+0d. Read `../AGENTS.md` for codebase navigation and commands.
+0e. Read `../CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
+0f. **CRITICAL:** Read `docs/ATTEMPT_1_SUMMARY.md` to understand what approaches have already been tried and FAILED.
 
 > **DO NOT RETRY FAILED APPROACHES:** The summary documents approaches that had ZERO impact or caused regressions. Before implementing any fix, check if a similar approach was already tried. If so, you MUST try a DIFFERENT approach.
 

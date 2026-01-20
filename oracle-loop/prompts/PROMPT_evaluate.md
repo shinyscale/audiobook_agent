@@ -7,9 +7,10 @@ You are the oracle in an autonomous improvement loop for an audiobook narrator p
 ## 0. Orient
 
 0a. Read `state/EVALUATION_STATE.md` to understand current state and which text is being evaluated.
-0b. Read `docs/output_quality.md` to understand the full evaluation rubric.
-0c. Read `../AGENTS.md` if you need to understand the tool's capabilities.
-0d. Read `docs/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
+0b. Read `state/USER_NOTES.md` for any instructions from the user (if it exists and has content other than "(No notes)").
+0c. Read `docs/output_quality.md` to understand the full evaluation rubric.
+0d. Read `../AGENTS.md` if you need to understand the tool's capabilities.
+0e. Read `docs/ATTEMPT_1_SUMMARY.md` to understand what fixes have already been tried and failed.
 
 ## 1. Load the Output
 
