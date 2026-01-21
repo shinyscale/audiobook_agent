@@ -217,6 +217,27 @@ class CharacterAgentV2(Agent):
             f"{len(supporting_cast)} supporting after last-name merge"
         )
 
+        # STEP 5.6: Merge within supporting cast (last-name-only, spelling variants)
+        supporting_cast, supp_aliases_added = self._merge_within_supporting_cast(
+            supporting_cast
+        )
+
+        # Re-search mentions for supporting characters that gained new aliases
+        if supp_aliases_added:
+            logger.info(f"Re-searching mentions for {len(supp_aliases_added)} supporting chars with new aliases")
+            for char_id in supp_aliases_added:
+                char = next((c for c in supporting_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.6 complete: {len(supporting_cast)} supporting after within-supporting merge"
+        )
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast
@@ -818,7 +839,14 @@ class CharacterAgentV2(Agent):
                 ).ratio()
 
                 if similarity >= 0.85:  # 85% similar
-                    matches.append((main_idx, "fuzzy"))
+                    matches.append((main_idx, "fuzzy_lastname"))
+                    continue
+
+                # Check first name match (if main_name has multiple parts)
+                if len(main_name_parts) >= 2:
+                    main_firstname = main_name_parts[0].strip('.,;:')
+                    if supp_name.lower() == main_firstname.lower():
+                        matches.append((main_idx, "exact_firstname"))
 
             # Only merge if there's exactly ONE match
             # (avoids merging when multiple characters share a surname)
@@ -845,6 +873,150 @@ class CharacterAgentV2(Agent):
         ]
 
         return main_cast, updated_supporting, chars_with_new_aliases
+
+    def _merge_within_supporting_cast(
+        self,
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge characters within supporting cast that are variants of each other.
+
+        Handles two patterns:
+        1. Last-name-only → Full name: "Wolfshiem" (20 mentions) → alias of "Meyer Wolfshiem"
+        2. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
+
+        This is similar to _merge_within_main_cast but for supporting characters.
+
+        Returns:
+            Tuple of (updated_supporting_cast, char_ids_with_new_aliases)
+        """
+        from difflib import SequenceMatcher
+
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Pass 1: Merge last-name-only characters
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or ' ' in char_name:
+                continue  # Skip empty or multi-word names
+
+            # This is a single-word name (potential last name)
+            # Check if it matches the last word of any OTHER supporting character
+
+            matches = []
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or ' ' not in other_name:
+                    continue  # Only match against multi-word names
+
+                # Check last name match
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip('.,;:')
+
+                # Exact last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                    continue
+
+                # Fuzzy last name match (handles Wolfsheim/Wolfshiem)
+                similarity = SequenceMatcher(
+                    None,
+                    char_name.lower(),
+                    other_lastname.lower()
+                ).ratio()
+
+                if similarity >= 0.85:
+                    matches.append((other_idx, "fuzzy_lastname"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = supporting_cast[other_idx]
+
+                # Add single-word name as alias to the full name character
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within supporting cast: '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                # Mark single-word character for removal
+                chars_to_remove.add(idx)
+
+        # Pass 2: Merge spelling variants (e.g., "Meyer Wolfsheim" ↔ "Meyer Wolfshiem")
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name:
+                continue
+
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx <= idx or other_idx in chars_to_remove:
+                    continue  # Only check each pair once
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name:
+                    continue
+
+                # Check if names are very similar (spelling variants)
+                similarity = SequenceMatcher(
+                    None,
+                    char_name.lower(),
+                    other_name.lower()
+                ).ratio()
+
+                if similarity >= 0.85:  # 85% similar
+                    # Merge the one with FEWER mentions into the one with MORE mentions
+                    if char.mention_count >= other_char.mention_count:
+                        # Merge other → char
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within supporting cast: '{other_name}' "
+                                f"({other_char.mention_count} mentions) → '{char_name}' "
+                                f"({char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            char.aliases.append(other_name)
+                            # Also merge other's existing aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Merge char → other
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within supporting cast: '{char_name}' "
+                                f"({char.mention_count} mentions) → '{other_name}' "
+                                f"({other_char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also merge char's existing aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast)
+            if idx not in chars_to_remove
+        ]
+
+        return updated_supporting, chars_with_new_aliases
 
     def _convert_to_pipeline_characters(
         self,
