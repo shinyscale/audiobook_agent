@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -117,7 +117,20 @@ The fix needs to either:
 **Files modified:** `src/agents/characters_v2.py`
 **Result:** Partial success - Baker/Carraway merges working, Wilson/Wolfsheim not working
 
+### Attempt 2 Fix - Within-main-cast merging (CRITICAL #1, #2)
+**Files modified:** `src/agents/characters_v2.py`
+**Root cause:** The `_merge_lastname_aliases()` function only merges supporting cast → main cast. Both "Wilson" and "George B. Wilson" were in main cast, so they weren't merged. Same for Wolfsheim variants.
+**Fix implemented:** Added new `_merge_within_main_cast()` method that runs BEFORE supporting cast extraction:
+  - Pass 1: Merges last-name-only and first-name-only characters to full-name characters
+  - Pass 2: Merges spelling variants (handles Wolfsheim ↔ Wolfshiem via fuzzy matching)
+  - Pass 3: Re-runs last-name matching after Pass 2 removes ambiguous matches
+**Smoke test:** PASS
+  - Wilson (65) + George (8) → George B. Wilson aliases
+  - Wolfshiem (20) + Meyer Wolfsheim (2) → Meyer Wolfshiem aliases
+  - Test suite: 192 passed, 1 failed (line count check only)
+
 ## Next Action
-Run PROMPT_fix.md to:
-1. Debug why Wilson and Wolfsheim aren't being merged (CRITICAL #1, #2)
-2. The merge logic may need to apply to supporting cast characters too, not just main→supporting merges
+**Phase:** awaiting_analysis
+Re-run analysis on gatsby (attempt 3) to verify:
+1. Wilson variants are merged (CRITICAL #1)
+2. Wolfsheim variants are merged (CRITICAL #2)

@@ -2,6 +2,12 @@
 
 You are the oracle in an autonomous improvement loop for an audiobook narrator preparation tool. Your job is to assess the quality of the HTML output against known literary works and provide structured, actionable feedback.
 
+> **⚠️ V2 PIPELINE IS ACTIVE**
+>
+> Output was generated using V2 character extraction. When documenting issues for the fix phase:
+> - Reference V2 files (`src/pipeline/character_extraction_v2/`) not V1
+> - Historical attempts before monkeys_paw #14 used V1 and may not be relevant
+
 > **NOTE ON NOVEL-SPECIFIC CONTENT:** CLAUDE.md says "NEVER include examples from specific novels in prompts or validation logic" - this applies to the **analysis pipeline code** (src/pipeline/*, src/agents/*), NOT to evaluation. As the oracle, you NEED ground truth data (expected characters, chapter counts, aliases, pronunciation entries, etc.) to evaluate against. All novel-specific expected results in this file and manifest.json are correct and necessary. The goal is: make GENERIC code changes to achieve SPECIFIC correct results on test texts.
 
 ## 0. Orient

@@ -2,6 +2,17 @@
 
 An automated improvement loop for the audiobook-prep analysis pipeline. The oracle loop iteratively runs analysis, evaluates quality against a rubric, and attempts fixes until the output meets quality thresholds.
 
+> **⚠️ V1 → V2 Pipeline Transition Warning**
+>
+> Earlier oracle loop attempts (before **monkeys_paw attempt 14**) used the **V1 character extraction pipeline** (`src/pipeline/character_extraction/`). Starting with attempt 14, the loop switched to the **V2 character extraction pipeline** (`src/pipeline/character_extraction_v2/`).
+>
+> **Until further notice**, when reading logs, analyzing attempts, or making fixes:
+> - Focus on **V2 pipeline files** in `src/pipeline/character_extraction_v2/`
+> - Use the V2 agent at `src/agents/characters_v2.py`
+> - Historical attempt summaries from V1 may not be relevant to current issues
+>
+> See `docs/CODEBASE_SUMMARY.md` for V2 file locations and fix patterns.
+
 ## Overview
 
 The oracle loop is a development tool (not part of the main audiobook-prep package) that:

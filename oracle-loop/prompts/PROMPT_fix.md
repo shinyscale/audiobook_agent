@@ -2,6 +2,15 @@
 
 You are fixing issues identified in the evaluation phase of an autonomous improvement loop for an audiobook narrator preparation tool.
 
+> **⚠️ V2 PIPELINE IS ACTIVE**
+>
+> The oracle loop now uses **V2 character extraction**. When fixing character-related issues:
+> - **USE:** `src/pipeline/character_extraction_v2/` (main_cast.py, grounding.py, narrator.py, supporting.py)
+> - **USE:** `src/agents/characters_v2.py`
+> - **DO NOT MODIFY:** `src/pipeline/character_extraction/consensus.py` or other V1 files
+>
+> Historical attempts before monkeys_paw #14 used V1 and may not be relevant.
+
 ## 0. Orient
 
 **Context Budget:** You have a limited context budget. Be efficient:

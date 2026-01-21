@@ -151,6 +151,24 @@ class CharacterAgentV2(Agent):
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
 
+        # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
+        logger.info("V2 Step 3.5: Merging within main cast")
+        main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
+
+        # Re-search mentions for characters that gained new aliases
+        if within_main_aliases_added:
+            logger.info(f"Re-searching mentions for {len(within_main_aliases_added)} characters with new aliases")
+            for char_id in within_main_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(f"V2 Step 3.5 complete: {len(main_cast)} main cast after within-cast merge")
+
         # STEP 4: Detect narrator (F4)
         logger.info("V2 Step 4: Detecting narrator")
         narrator_detector = NarratorDetector(self.llm)
@@ -497,6 +515,212 @@ class CharacterAgentV2(Agent):
             name = re.sub(f"^{title}\\s+", "", name, flags=re.IGNORECASE)
 
         return name.strip()
+
+    def _merge_within_main_cast(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge characters within main cast that are variants of each other.
+
+        Handles three patterns:
+        1. Last-name-only → Full name: "Wilson" (65 mentions) → alias of "George B. Wilson"
+        2. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
+        3. First-name-only → Full name: "George" → alias of "George B. Wilson"
+
+        Returns:
+            Tuple of (updated_main_cast, char_ids_with_new_aliases)
+        """
+        from difflib import SequenceMatcher
+
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Pass 1: Merge last-name-only characters
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or ' ' in char_name:
+                continue  # Skip empty or multi-word names
+
+            # This is a single-word name (potential last name or first name)
+            # Check if it matches the last word of any OTHER main cast character
+
+            matches = []
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or ' ' not in other_name:
+                    continue  # Only match against multi-word names
+
+                # Check last name match
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip('.,;:')
+
+                # Exact last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                    continue
+
+                # Fuzzy last name match (handles Wolfsheim/Wolfshiem)
+                similarity = SequenceMatcher(
+                    None,
+                    char_name.lower(),
+                    other_lastname.lower()
+                ).ratio()
+
+                if similarity >= 0.85:
+                    matches.append((other_idx, "fuzzy_lastname"))
+                    continue
+
+                # Check first name match (if other_name has multiple parts)
+                if len(other_parts) >= 2:
+                    other_firstname = other_parts[0].strip('.,;:')
+                    if char_name.lower() == other_firstname.lower():
+                        matches.append((other_idx, "exact_firstname"))
+
+            # Merge if exactly ONE match (avoids ambiguity like "Wilson" matching both George and Myrtle)
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = main_cast[other_idx]
+
+                # Add single-word name as alias to the full name character
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within main cast: '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                # Mark single-word character for removal
+                chars_to_remove.add(idx)
+
+        # Pass 2: Merge spelling variants (e.g., "Meyer Wolfsheim" ↔ "Meyer Wolfshiem")
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name:
+                continue
+
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx <= idx or other_idx in chars_to_remove:
+                    continue  # Only check each pair once
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name:
+                    continue
+
+                # Check if names are very similar (spelling variants)
+                similarity = SequenceMatcher(
+                    None,
+                    char_name.lower(),
+                    other_name.lower()
+                ).ratio()
+
+                if similarity >= 0.85:  # 85% similar
+                    # Merge the one with FEWER mentions into the one with MORE mentions
+                    if char.mention_count >= other_char.mention_count:
+                        # Merge other → char
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within main cast: '{other_name}' "
+                                f"({other_char.mention_count} mentions) → '{char_name}' "
+                                f"({char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            char.aliases.append(other_name)
+                            # Also merge other's existing aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Merge char → other
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within main cast: '{char_name}' "
+                                f"({char.mention_count} mentions) → '{other_name}' "
+                                f"({other_char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also merge char's existing aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters from Pass 2
+        updated_main_cast = [
+            char for idx, char in enumerate(main_cast)
+            if idx not in chars_to_remove
+        ]
+
+        # Pass 3: Re-run last-name matching after spelling variants are merged
+        # This handles cases like "Wolfshiem" which initially had ambiguous matches,
+        # but after Pass 2 merging has only one match remaining
+        chars_to_remove_pass3 = set()
+
+        for idx, char in enumerate(updated_main_cast):
+            char_name = char.canonical_name.strip()
+            if not char_name or ' ' in char_name:
+                continue  # Skip empty or multi-word names
+
+            # Check if this single-word name now has exactly ONE match
+            matches = []
+            for other_idx, other_char in enumerate(updated_main_cast):
+                if other_idx == idx:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or ' ' not in other_name:
+                    continue
+
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip('.,;:')
+
+                # Exact or fuzzy last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                else:
+                    similarity = SequenceMatcher(
+                        None,
+                        char_name.lower(),
+                        other_lastname.lower()
+                    ).ratio()
+                    if similarity >= 0.85:
+                        matches.append((other_idx, "fuzzy_lastname"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = updated_main_cast[other_idx]
+
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within main cast (Pass 3): '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                chars_to_remove_pass3.add(idx)
+
+        # Remove Pass 3 merged characters
+        final_main_cast = [
+            char for idx, char in enumerate(updated_main_cast)
+            if idx not in chars_to_remove_pass3
+        ]
+
+        return final_main_cast, chars_with_new_aliases
 
     def _merge_lastname_aliases(
         self,

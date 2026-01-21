@@ -2,6 +2,17 @@
 
 Pre-computed summary of codebase structure to minimize exploration overhead.
 
+> **⚠️ IMPORTANT: V2 Pipeline is Active**
+>
+> As of **monkeys_paw attempt 14**, the oracle loop uses the **V2 character extraction pipeline**.
+> Earlier attempts (1-13) used the V1 pipeline and those logs/summaries may not be relevant.
+>
+> **When making fixes, focus on V2 files:**
+> - `src/pipeline/character_extraction_v2/` (main_cast.py, grounding.py, narrator.py, etc.)
+> - `src/agents/characters_v2.py`
+>
+> **Do NOT modify V1 files** (`src/pipeline/character_extraction/consensus.py`, etc.) unless explicitly instructed.
+
 ## Key Directories
 
 | Directory | Purpose | Key Files |

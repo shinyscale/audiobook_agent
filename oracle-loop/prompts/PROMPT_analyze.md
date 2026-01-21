@@ -2,6 +2,11 @@
 
 You are running the audiobook analysis pipeline on a test text as part of an autonomous improvement loop.
 
+> **⚠️ V2 PIPELINE IS ACTIVE**
+>
+> Always use `--character-extraction=v2` when running analysis.
+> This is the active pipeline; V1 attempts (before monkeys_paw #14) used legacy code.
+
 ## 0. Orient
 
 **Context Budget:** You have a limited context budget. Be efficient:
