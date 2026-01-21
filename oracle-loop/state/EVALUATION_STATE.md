@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -31,6 +31,52 @@
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Attempt 10 Analysis
+
+### What Completed
+- **Ingestion:** 51,257 words, 19KB Gutenberg boilerplate removed
+- **Structure:** 8 chapters detected (still only 8 chapters!)
+- **Summaries:** 8 summaries generated
+- **Characters (v2):** 37 characters extracted (down from 99!)
+- **Profiles:** 17 profiles for 18 eligible characters (11H/0M/7L confidence)
+- **Pronunciation:** 578 entries (506 "unknown" = 87.5%)
+
+### Profiling Data
+```
+Chapter Detection: 41 LLM calls, 0 retries, 8 items
+Chapter Summaries: 43 LLM calls, 0 retries, 8 items
+Character Extraction V2: 2 LLM calls, 0 retries, 19 items
+Character Profiles: 42 LLM calls, 0 retries, 18 items (11H/0M/7L confidence)
+Pronunciation Guide: 21 LLM calls, 0 retries, 578 items
+```
+
+### Pipeline Duration
+- Total: 55m 58s
+- Bottleneck: Character Profiles (21m 42s = 38.8% of time)
+
+### Observations
+1. **Character count IMPROVED:** 37 characters (down from 99 in attempt 9)
+   - Initial extraction: 19 characters (was 21 in attempt 9)
+   - Added from summaries: 18 characters (was 78 in attempt 9)
+   - The min_mentions threshold increase (3→5) helped significantly
+
+2. **Profile generation IMPROVED:** 42 LLM calls completed (was only 3 in attempt 9)
+   - 11 high confidence, 7 low confidence
+   - Some JSON parse failures noted (Nick, Daisy, Tom, Wilson, McKee, Sloane)
+   - Ollama was stable this time
+
+3. **Structure UNCHANGED:** Still only 8 chapters detected
+   - Chapter detection deferred in attempt 10 fix
+   - Still missing chapters III and V
+
+4. **Daisy split status:** Need to check evaluation
+   - Daisy Buchanan appears in character list with aliases (Daisy Fay, Daisy)
+   - Improved MAIN_CAST_PROMPT may have helped
+
+5. **Pronunciation:** Slightly worse (87.5% unknown vs 76% in attempt 9)
+   - Total entries: 578 (down from 635)
+   - Unknown: 506 entries
 
 ## Attempt 9 Analysis
 
