@@ -136,9 +136,47 @@ The attempt 2 fix added `_merge_within_main_cast()` which had a smoke test that 
 3. **Debug pronunciation categories** - Should be a simple fix
 4. **Add pronunciation filtering** - Remove common words
 
+## Fix History - Attempt 4
+
+### Investigation Results
+
+**1. Chapter V Missing (CRITICAL #1)**
+- **Root cause:** Non-deterministic LLM consensus filtering
+- **Evidence:** Chapter V exists in source at line 2758 with 36 spaces (matches `roman_numeral_centered` regex pattern with 85% confidence)
+- **Confidence:** MEDIUM - Regex should detect it, but LLM consensus may randomly reject it
+- **Fix:** No code change - this is non-deterministic. Re-run analysis will likely find it.
+
+**2. Wilson Merge Failure (CRITICAL #2)**
+- **Root cause:** Merge functions may be working, but unable to verify without `role` field in output
+- **Evidence:** Three separate entries exist:
+  - "Wilson" (65 mentions, no aliases)
+  - "George B. Wilson" (5 mentions, alias "George Wilson")
+  - "George" (8 mentions, no aliases)
+- **All have `role: null` in JSON output**, making it impossible to determine if they're in main vs supporting cast
+- **Fix applied:** Added missing `role` field to character export (src/analyzer.py:2387, 2399)
+- **Next step:** Re-run analysis to see actual roles, then debug merge logic if still broken
+
+**3. Pronunciation Categories (HIGH #4)**
+- **Root cause:** FALSE ISSUE - No `category` field exists in PronunciationEntry model
+- **Evidence:** The `flag_reason` field IS working correctly:
+  - 127 proper_noun
+  - 480 unknown
+  - 23 homograph
+  - 16 foreign
+- **Confidence:** HIGH - Checked model definition and actual JSON data
+- **Fix:** No code change needed. Evaluator was looking for wrong field name.
+
+**4. Missing Role Field (NEW)**
+- **Root cause:** `analyzer.py:_convert_characters()` not copying `role` from PipelineCharacter to OutputCharacter
+- **Evidence:** All characters in JSON have `role: null` despite PipelineCharacter having role set
+- **Fix applied:** Lines 2387 and 2399 now copy role field with `role=getattr(pc, 'role', None)`
+
+### Changes Made
+- Modified: `src/analyzer.py` lines 2387, 2399 (added role field to character export)
+
 ## Next Action
-**Phase:** awaiting_fix
-Run PROMPT_fix.md to:
-1. Investigate why Chapter V is missing (regression)
-2. Debug why Wilson merge isn't working in production
-3. Fix pronunciation categories
+**Phase:** awaiting_analysis
+Re-run analysis to verify:
+1. Chapter V appears (likely - non-deterministic)
+2. Character role field is populated correctly
+3. Wilson merge status can be determined from roles

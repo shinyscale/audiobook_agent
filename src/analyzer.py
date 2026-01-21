@@ -2384,6 +2384,7 @@ Return ONLY the JSON object."""
                 appearance=getattr(pc, 'appearance', None),
                 personality=getattr(pc, 'personality', None),
                 voice_guidance=getattr(pc, 'voice_guidance', None),
+                role=getattr(pc, 'role', None),
             ))
 
         # Also add low confidence characters (no profiles generated for these)
@@ -2395,6 +2396,7 @@ Return ONLY the JSON object."""
                 first_appearance_chapter=pc.first_appearance_chapter,
                 mention_count=pc.mention_count,
                 confidence=ConfidenceLevel.LOW,
+                role=getattr(pc, 'role', None),
             ))
 
         return characters
