@@ -380,15 +380,6 @@ class StateParser:
                         input_tokens += usage.get('cache_creation_input_tokens', 0)
                         output_tokens += usage.get('output_tokens', 0)
 
-                        # Estimate timestamp based on position in file
-                        # Later lines are more recent (closer to mtime)
-                        progress = line_num / max(total_lines, 1)
-                        # Estimate session started ~30 min before last write
-                        session_duration_sec = 1800  # 30 minutes estimate
-                        seconds_ago = int(session_duration_sec * (1 - progress))
-                        activity_time = log_mtime - timedelta(seconds=seconds_ago)
-                        timestamp_str = activity_time.strftime("%H:%M:%S")
-
                         # Extract tool calls from content
                         content = msg.get('content', [])
                         for block in content:
@@ -401,7 +392,7 @@ class StateParser:
                                 activities.append(ClaudeActivity(
                                     tool_name=tool_name,
                                     description=desc,
-                                    timestamp=timestamp_str
+                                    timestamp=""  # Will be set below for recent activities
                                 ))
 
                             elif block.get('type') == 'text':
@@ -417,11 +408,23 @@ class StateParser:
         except IOError:
             pass
 
+        # Assign timestamps to the final batch of activities we return
+        # Use the log file's modification time for recent activities
+        recent_activities = activities[-10:]
+        mtime_str = log_mtime.strftime("%H:%M:%S")
+        for i, activity in enumerate(recent_activities):
+            # Most recent activities get the file mtime
+            # Older ones in the batch get "earlier" indicator
+            if i >= len(recent_activities) - 3:
+                activity.timestamp = mtime_str
+            else:
+                activity.timestamp = "earlier"
+
         return {
             'model': model,
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
-            'activities': activities[-10:],  # Keep last 10 activities
+            'activities': recent_activities,
             'last_message': last_message,
             'thinking_texts': thinking_texts[-10:],  # Keep last 10 text blocks
         }
