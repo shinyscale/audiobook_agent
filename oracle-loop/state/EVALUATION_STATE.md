@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -151,10 +151,24 @@ The core problem is **LLM non-determinism** for structure detection. Across 6 at
 - Analysis ran for 60m 6s
 - Only 3 characters got profiles (Dan Cody, Catherine, Wolfshiem)
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 7
+- **Root Cause Identified:** `apply_profile_to_config()` in `src/system/profiles.py` was creating new AgentConfig objects with default temperature=0.3, overriding the recommended temperature=0.0 from RECOMMENDED_AGENT_MODELS for structure and characters agents
+- **FIX APPLIED:** Modified `apply_profile_to_config()` to preserve temperature, think_mode, and system_prompt from RECOMMENDED_AGENT_MODELS when applying hardware profile
+  - Modified: `src/system/profiles.py` lines 182-213
+  - Structure agent now uses temperature=0.0 (was 0.3)
+  - Characters agent now uses temperature=0.0 (was 0.3)
+  - This should eliminate non-determinism in chapter detection and profile generation
+- **Smoke Test:** PASS - Verified configuration correctly applies temperature=0.0 to structure/characters agents
+- **Expected Impact:**
+  - Structure: +3 points (5→8) from deterministic chapter detection = +0.60 overall
+  - Profiles: +4 points (4→8) from deterministic profile LLM calls = +0.60 overall
+  - Total expected: 6.15 + 1.20 = 7.35 (still 0.65 short of 8.0)
+- **Known Remaining Issues:**
+  - Chapter I title null (HIGH - worth ~0.20)
+  - "Narrator" as separate character (HIGH - worth ~0.10)
+  - Wilson surname ambiguity (MEDIUM)
 
-Run PROMPT_fix.md to:
-1. Set temperature=0.0 for structure agent to eliminate non-determinism
-2. Add detailed logging to profile extraction to debug why main cast fails
-3. Verify the mention_results fix is actually being used during profile generation
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify temperature fix eliminates non-determinism and improves structure/profile scores.
