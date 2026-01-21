@@ -94,6 +94,7 @@ class Character(BaseModel):
     # Metadata (secondary info - less prominent in output)
     first_appearance_chapter: Optional[int] = None
     mention_count: int = 0
+    mentions: list["CharacterMention"] = Field(default_factory=list)  # Actual mention objects for profile generation
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
     # Narrator role detection
