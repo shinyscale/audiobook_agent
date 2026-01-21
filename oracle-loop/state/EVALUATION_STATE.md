@@ -166,9 +166,11 @@ Still need ~0.35 more to reach 8.0
 - **Not addressing in this attempt** - focus on profile fix which has higher impact
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify profile fix:
-1. Main cast appearance/personality data should be populated (not "unknown" or null)
-2. Expected score improvement: +3 on Profiles (5→8) = +0.45 overall → 7.15/10
-3. Structure may still have issues (non-deterministic), but profile fix is systematic
+Analysis completed successfully:
+- Pipeline ran for 60m 6s
+- Detected 8 chapters (potential improvement from 10 in attempt 5)
+- Generated 17 profiles for 18 eligible characters
+- Output files written to ../output/gatsby/
+- Some LLM errors noted during profile generation (JSON parse failures for a few characters)
