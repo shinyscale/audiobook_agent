@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -208,5 +208,33 @@ Debug and fix the Character model field mismatch in V2 pipeline.
 **Analysis:**
 The temperature=0.0 fix was successfully applied in attempt 7, but the V2 character extraction bug is still blocking completion. This is a code defect, not a configuration issue.
 
-## Next Action
-**Phase:** awaiting_fix
+## Attempt 9 Analysis Result
+**PARTIAL SUCCESS** - Pipeline completed but with major issues
+
+**Completion time:** 23m 44s
+
+**Pipeline Progress:**
+- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
+- ✅ Structure: Success (8 chapters detected - still missing Chapter V)
+- ✅ Summaries: Success (8 summaries generated)
+- ⚠️ Characters (v2): Completed but extracted 99 characters (seems high)
+- ❌ Profiles: **FAILED** - Only 1 profile generated for 18 eligible characters due to Ollama connection failures
+- ✅ Pronunciation: Success (635 entries flagged)
+- ⚠️ Overview: Plot summary generation failed due to LLM errors
+
+**Critical Issues:**
+1. **Ollama stability during profile generation** - Nearly all profile generation calls failed with "Connection refused" errors after the summaries completed
+2. **Structure still shows 8 chapters** - Chapter V remains missing despite temperature=0.0 fix
+3. **Character count explosion** - 99 total characters extracted (was ~21 before reconciliation, then 78 added from summaries)
+4. **Profile generation cascade failure** - Only Nick Carraway got a profile; all others failed
+
+**Positive Findings:**
+- V2 character extraction completed without the field mismatch error (fix from attempts 7-8 worked)
+- Pipeline ran to completion for the first time since attempt 6
+- Analysis time improved significantly (23m vs 60m in attempt 6)
+
+**Next Action:**
+Needs evaluation to determine if Ollama instability is a transient issue or if the profile generation needs error handling improvements.
+
+## Notes
+Attempt 9 completed with partial success. The Character model field mismatch from attempts 7-8 was resolved, but new issues emerged with Ollama stability during the profile generation phase.
