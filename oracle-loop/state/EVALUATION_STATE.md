@@ -146,10 +146,29 @@ Still need ~0.35 more to reach 8.0
 - **SUCCESSFUL FIX:** Added common first names to pronunciation whitelist
 - **REGRESSION:** Structure now worse (Chapter IV split)
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 6
+- **CRITICAL FIX:** Update `mention_results` dict after re-searching characters with new aliases
+  - **Root cause identified:** In `characters_v2.py`, after merging aliases, the code re-searches mentions but only updates `char.mention_count`, NOT the `mention_results` dict
+  - This meant `_convert_to_pipeline_characters()` used OLD mention data with fewer mentions
+  - Profile generation at `analyzer.py:1257` samples from `char.mentions[:10]`, which was empty/incomplete
+  - **Fix:** Added `mention_results[char.id] = result` at lines 167, 214, and 237 (after each re-search)
+  - **Impact:** Main cast (Nick, Gatsby, Tom, Jordan) should now have full mention lists → rich profile data
+  - **Confidence:** HIGH - directly addresses data flow gap
+  - **Files modified:** `src/agents/characters_v2.py`
+  - **Smoke test:** Unit tests pass (15/16, only line count test fails - non-critical)
 
-Before making new fixes for attempt 6:
-1. Check git diff from attempt 4 to attempt 5 - identify what caused the structure regression
-2. Consider reverting attempt 5 code changes if they introduced the regression
-3. Debug why profile extraction isn't working for main cast despite passing mentions
+## Current Issues After Fix
+
+### Structure Issue (Non-Deterministic)
+- Chapter IV split regression occurred with NO code changes to structure detection (between attempts 4→5)
+- Likely LLM non-determinism with temperature=0.3 on structure agent
+- May resolve on re-run, or may require temperature=0.0 for perfect consistency
+- **Not addressing in this attempt** - focus on profile fix which has higher impact
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify profile fix:
+1. Main cast appearance/personality data should be populated (not "unknown" or null)
+2. Expected score improvement: +3 on Profiles (5→8) = +0.45 overall → 7.15/10
+3. Structure may still have issues (non-deterministic), but profile fix is systematic

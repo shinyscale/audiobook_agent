@@ -163,6 +163,8 @@ class CharacterAgentV2(Agent):
                 if char:
                     result = searcher.search_character(char)
                     char.mention_count = result.total_mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
                     if result.chapter_distribution:
                         chapters = sorted(result.chapter_distribution.keys())
                         char.first_appearance_chapter = chapters[0]
@@ -208,6 +210,8 @@ class CharacterAgentV2(Agent):
                 if char:
                     result = searcher.search_character(char)
                     char.mention_count = result.total_mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
                     if result.chapter_distribution:
                         chapters = sorted(result.chapter_distribution.keys())
                         char.first_appearance_chapter = chapters[0]
@@ -230,6 +234,8 @@ class CharacterAgentV2(Agent):
                 if char:
                     result = searcher.search_character(char)
                     char.mention_count = result.total_mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
                     if result.chapter_distribution:
                         chapters = sorted(result.chapter_distribution.keys())
                         char.first_appearance_chapter = chapters[0]
