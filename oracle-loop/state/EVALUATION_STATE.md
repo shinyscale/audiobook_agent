@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -28,13 +28,15 @@
 - JSON: ../output/gatsby/analysis.json
 
 ## Pipeline Notes (Attempt 5 Analysis)
-- Analysis completed in 59m 27s
-- 154 LLM calls, 485,570 tokens
+- Analysis completed in 61m 17s
+- 153 LLM calls, 492,644 tokens
 - **WARNINGS:**
-  - JSON parsing failures for profiles: Daisy Buchanan, Tom Buchanan, Michaelis, McKee (confidence 0.30)
+  - JSON parsing failures for profiles: Tom Buchanan, Jordan Baker, Myrtle Wilson, George Wilson, McKee, Sloane (confidence 0.30)
   - LLM identity detection server error (500)
-  - 116 characters detected (up from previous attempts)
-  - 650 pronunciation flags (down from 663 in attempt 4)
+  - Moral valence classification failed for Myrtle Wilson, Klipspringer, Doctor T. J. Eckleburg
+  - No passages provided for Wilson, Michaelis, McKee, Sloane, Lucille, Meyer Wolfshiem, Narrator
+  - 120 characters detected (was 116 in previous analysis)
+  - 659 pronunciation flags (down from 663 in attempt 4)
 
 ## What Improved in Attempt 4
 
