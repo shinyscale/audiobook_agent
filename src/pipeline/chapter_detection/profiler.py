@@ -237,10 +237,41 @@ class DocumentProfiler:
             prev = val
         return result
 
+    def _find_valid_roman_sequence_length(self, roman_entries: list[TOCEntry]) -> int:
+        """Find how many entries at the start form a valid Roman sequence.
+
+        Returns the count of entries that form a strictly increasing sequence
+        starting from a low value (1-3). Stops when the sequence is broken
+        (e.g., by duplicate "I" entries from prose text).
+        """
+        if not roman_entries:
+            return 0
+
+        values = [self._roman_to_int(e.title.strip()) for e in roman_entries]
+
+        # Must start from 1-3
+        if values[0] > 3:
+            return 0
+
+        valid_length = 1
+        prev = values[0]
+
+        for val in values[1:]:
+            if val > prev:
+                valid_length += 1
+                prev = val
+            else:
+                break  # Sequence broken
+
+        return valid_length
+
     def _is_valid_roman_sequence(self, entries: list[TOCEntry]) -> bool:
         """Check if entries form a valid Roman numeral sequence starting from I.
 
-        F9: Validates that Roman numerals are sequential (I, II, III, IV, V, etc.)
+        Returns True if the FIRST several entries form a valid Roman sequence,
+        even if later entries (from prose) break the pattern. This handles
+        cases where the TOC region captures prose text like "I went to..."
+        which creates duplicate "I" entries.
         """
         roman_pattern = re.compile(r'^[IVXLCDM]+$')
         roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
@@ -248,21 +279,11 @@ class DocumentProfiler:
         if len(roman_entries) < 3:
             return False
 
-        # Check sequence
-        values = [self._roman_to_int(e.title.strip()) for e in roman_entries]
+        # Find the longest valid sequence starting from index 0
+        valid_length = self._find_valid_roman_sequence_length(roman_entries)
 
-        # Must start from 1 or thereabouts
-        if values[0] > 3:  # Allow starting from I, II, or III
-            return False
-
-        # Check for sequential progression (allowing gaps)
-        prev = 0
-        for val in values:
-            if val <= prev:  # Must be increasing
-                return False
-            prev = val
-
-        return True
+        # Need at least 3 sequential entries to consider it a valid TOC
+        return valid_length >= 3
 
     def _validate_toc_entries(self, entries: list[TOCEntry]) -> list[TOCEntry]:
         """Validate and filter TOC entries for consistency.
@@ -277,10 +298,15 @@ class DocumentProfiler:
         roman_pattern = re.compile(r'^[IVXLCDM]+$')
         roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
 
-        if self._is_valid_roman_sequence(roman_entries):
-            logger.info(f"TOC validation: detected valid Roman numeral sequence, "
-                        f"keeping {len(roman_entries)} of {len(entries)} entries")
-            return roman_entries
+        if len(roman_entries) >= 3:
+            # Find the valid sequence length (handles prose "I" duplicates)
+            valid_count = self._find_valid_roman_sequence_length(roman_entries)
+            if valid_count >= 3:
+                logger.info(
+                    f"TOC validation: detected valid Roman numeral sequence, "
+                    f"keeping {valid_count} of {len(entries)} entries"
+                )
+                return roman_entries[:valid_count]
 
         # Check for "Chapter N" pattern with sequential numbers
         chapter_pattern = re.compile(r'^chapter\s+(\d+)', re.IGNORECASE)
