@@ -3,23 +3,24 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Latest Scores
-- Structure Detection: 8/10 (+2 from attempt 1)
-- Character Extraction: 6/10 (+1 from attempt 1)
-- Character Profiles: 7/10 (-1 from attempt 1)
-- Chapter Summaries: 9/10 (+1 from attempt 1)
-- Pronunciation Guide: 6/10 (unchanged)
-- HTML Presentation: 9/10 (+1 from attempt 1)
-- **Overall: 7.45/10** (threshold: 8.0, +0.80 from attempt 1)
+- Structure Detection: 7/10 (-1 from attempt 2, missing Chapter V)
+- Character Extraction: 6/10 (unchanged - merges still not working)
+- Character Profiles: 7/10 (unchanged)
+- Chapter Summaries: 9/10 (unchanged, but missing Ch V summary)
+- Pronunciation Guide: 4/10 (-2 from attempt 2, categories all null again)
+- HTML Presentation: 8/10 (-1 from attempt 2)
+- **Overall: 6.95/10** (threshold: 8.0, -0.50 from attempt 2, REGRESSION)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.65 | - | First evaluation |
 | 2 | 7.45 | +0.80 | Structure fixed (9 chapters), some character merges working |
+| 3 | 6.95 | +0.30 | REGRESSION: lost chapter V, pronunciation categories null |
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
@@ -29,119 +30,115 @@
 
 ### CRITICAL
 
-1. **False character split: Wilson variants**
-   - Problem: "Wilson" (65 mentions), "George B. Wilson" (5 mentions), and "George" (8 mentions) are STILL listed separately
-   - Evidence: These all refer to George Wilson, the garage owner. The text uses "Wilson" as his common reference.
-   - Note: The fix from attempt 1 was supposed to address this but it didn't work
-   - Root cause investigation: The `_merge_lastname_aliases()` fix may not be running, OR Wilson isn't being detected as a main cast character (he may be in supporting cast)
-   - Location: `src/agents/characters_v2.py` - check if `_merge_lastname_aliases()` is actually being called and applied
-   - Fix: Debug why Wilson variants aren't merging - likely because Wilson is in supporting cast, not main cast, and the merge logic only applies to main cast
+1. **Missing Chapter V - Structure Regression**
+   - Problem: Only 8 chapters detected (I, II, III, IV, VI, VII, VIII, IX). Chapter V is missing.
+   - Evidence: `jq '.structure | length'` returns 8, and titles show gap: null, II, III, IV, VI, VII, VIII, IX
+   - Impact: -1 point on Structure score, also missing summary for Ch V
+   - Location: `src/pipeline/chapter_detection.py` or chapter detection agent
+   - Root cause: Unknown - this worked in attempt 2. May be a flaky detection issue or model difference.
+   - Fix: Debug why Chapter V is not being detected. Check if roman numeral "V" is being parsed correctly.
 
-2. **False character split: Wolfsheim variants (THREE entries)**
-   - Problem: "Wolfshiem" (20 mentions), "Meyer Wolfshiem" (4 mentions), and "Meyer Wolfsheim" (2 mentions) are all separate
-   - Evidence: Same character - the gangster associate of Gatsby. This is WORSE than attempt 1 (had 2 entries before, now has 3)
-   - Root cause: Spelling variants (Wolfshiem vs Wolfsheim) creating separate entries, AND first-name+last-name vs last-name-only split
-   - Location: `src/agents/characters_v2.py` - fuzzy matching may not be working or threshold too high
-   - Fix: Lower fuzzy match threshold OR run merge logic across ALL characters (not just main cast to supporting cast)
+2. **False character split: Wilson variants (STILL NOT FIXED)**
+   - Problem: "Wilson" (65 mentions), "George B. Wilson" (5 mentions), and "George" (8 mentions) are STILL 3 separate entries
+   - Evidence: These all refer to George Wilson, the garage owner. They should merge to one entry with 78 mentions.
+   - Note: The fix from attempt 2 was supposed to address this - smoke test showed success but production run failed
+   - Root cause: The `_merge_within_main_cast()` function may not be running in production, OR there's a logic error specific to the Wilson case
+   - Location: `src/agents/characters_v2.py` - `_merge_within_main_cast()` method
+   - Fix: Debug why Wilson isn't being merged. Check: (1) Is the function being called? (2) Is Wilson in main cast? (3) Is the matching logic correct?
+
+3. **False character split: Wolfsheim variants (PARTIAL PROGRESS)**
+   - Problem: "Wolfshiem" (20 mentions) and "Meyer Wolfshiem" (4 mentions) are still 2 separate entries
+   - Evidence: Same character. Attempt 2 had 3 entries (Wolfshiem, Meyer Wolfshiem, Meyer Wolfsheim), now 2.
+   - Progress: Went from 3 entries to 2, so SOME merging is working
+   - Location: `src/agents/characters_v2.py` - fuzzy matching or first-name merge logic
+   - Fix: The "Meyer Wolfsheim" → "Meyer Wolfshiem" merge worked (spelling variant). The "Wolfshiem" → "Meyer Wolfshiem" merge did NOT work (last-name only to full name).
 
 ### HIGH
 
-3. **Physical descriptions missing for main characters**
-   - Problem: All main characters show `appearance.summary: "unknown"`
-   - Evidence: Gatsby is described in the text as "an elegant young roughneck" with a tan, pink suit, etc. Daisy has a "low, thrilling voice." Tom is described as having "a great pack of muscle."
-   - Location: Character profiling in `src/pipeline/character_extraction_v2/`
-   - Fix: Ensure appearance extraction is functioning and pulling from chapter text
-
-4. **Relationships field empty for all characters**
-   - Problem: All characters have `relationships: {}` when clear relationships exist
-   - Evidence: Tom is Daisy's husband, Gatsby is Daisy's former lover, Jordan is Nick's romantic interest, Myrtle is Tom's mistress, George is Myrtle's husband
-   - Location: Relationship extraction in character profiling
-   - Fix: Check if relationship extraction is implemented or if it's using the wrong output field
-
-5. **Pronunciation categories all null**
-   - Problem: Every entry shows `category: null` instead of proper_noun, foreign, homograph, etc.
-   - Evidence: `jq '.pronunciations[0].category'` returns `null` for all entries
+4. **Pronunciation categories all null (REGRESSION)**
+   - Problem: All 646 pronunciation entries have `category: null`
+   - Evidence: `jq '.pronunciations | group_by(.category)' returns all null`
+   - Impact: -2 points from attempt 2
+   - Note: EVALUATION_STATE.md for attempt 2 mentioned "Pronunciation categories properly set (no longer all null)" - but this was from attempt 3 pre-analysis notes, not post-analysis evaluation
    - Location: `src/pipeline/pronunciation.py` or `src/agents/pronunciation_agent.py`
-   - Fix: Ensure category assignment logic is running
+   - Fix: Check if category assignment is implemented. If so, debug why it's not running.
+
+5. **Pronunciation false positives (646 entries, many common words)**
+   - Problem: Common words incorrectly flagged: "Tom", "Daisy", "who", "eyes", "their", "men", "Two", "Egg", "Nick", "East"
+   - Evidence: First 15 entries include these trivial words
+   - Location: `src/pipeline/pronunciation.py`
+   - Fix: Add filtering for common English words and common first names
 
 ### MEDIUM
 
-6. **Pronunciation false positives (671 entries)**
-   - Problem: Common words incorrectly flagged: "Tom", "Daisy", "West", "Egg", "Don", "eyes", "girls", "butler"
-   - Evidence: These are standard English words that any narrator would know
-   - Location: `src/pipeline/pronunciation.py`
-   - Fix: Add filtering for common English words and common character first names
-
-7. **Two chapters have null titles**
-   - Problem: Chapters 1 and 5 show `title: null` instead of roman numerals
-   - Evidence: `structure[0].title = null`, `structure[4].title = null`
+6. **Chapter I has null title**
+   - Problem: Chapter 1 shows `title: null` instead of "I"
+   - Evidence: `jq '.structure[0].title'` returns `null`
    - Location: Chapter title extraction in `src/pipeline/chapter_detection.py`
    - Fix: Ensure roman numeral chapters get the numeral as title when no other title exists
 
-8. **Myrtle Wilson not merged with George B. Wilson as separate people correctly**
-   - Note: This is actually CORRECT behavior - they are different people (husband and wife). The issue is "Wilson", "George B. Wilson", and "George" should all be the same person (the husband).
+7. **Relationships field empty for all characters**
+   - Problem: All characters have `relationships: {}` when clear relationships exist
+   - Evidence: Tom is Daisy's husband, Gatsby is Daisy's former lover, etc.
+   - Location: Relationship extraction in character profiling
+   - Fix: Check if relationship extraction is implemented
 
-## What Worked in Attempt 1 Fix
+8. **Main cast appearance.summary often "unknown"**
+   - Problem: Nick Carraway and other main cast have `appearance.summary: "unknown"`
+   - Evidence: `jq '.characters[0].appearance.summary'` returns "unknown"
+   - Note: Supporting characters DO have appearance details now (Wolfshiem, Wilson)
+   - Location: Character profiling pipeline
+   - Fix: Ensure appearance extraction runs for main cast, not just supporting cast
 
-The following merges ARE working:
-- ✅ "Carraway" → merged with "Nick Carraway"
-- ✅ "Baker" → merged with "Jordan Baker"
-- ✅ "Mr. Gatsby" - appears to not be a separate entry anymore
+## What Worked
 
-The following merges are NOT working:
-- ❌ "Wilson" is NOT merged with "George B. Wilson"
-- ❌ "George" is NOT merged with "George B. Wilson"
-- ❌ "Wolfshiem" / "Meyer Wolfshiem" / "Meyer Wolfsheim" - three separate entries
+- Main character merges: Nick+Carraway, Jordan+Baker, Gatsby aliases ✅
+- Chapter summaries are excellent (1200-2800 chars each) ✅
+- Supporting cast profiles have details now (Wolfshiem, Wilson) ✅
+- Nick correctly identified as narrator ✅
+- Wolfsheim spelling variants partially merged (3→2 entries) ✅
 
-## Root Cause Hypothesis
+## What Didn't Work
 
-The `_merge_lastname_aliases()` function likely only runs for characters that made it into the "main cast" list. Wilson and Wolfsheim are probably in the supporting cast, so the merge logic doesn't apply to them.
+- Wilson variants NOT merged (was supposed to be fixed in attempt 2)
+- Wolfsheim first-name merge NOT working (Wolfshiem → Meyer Wolfshiem)
+- Chapter V missing (regression from attempt 2)
+- Pronunciation categories all null (regression or never worked)
 
-The fix needs to either:
-1. Promote Wilson and Wolfsheim to main cast (they appear many times)
-2. OR apply the same merge logic to supporting cast characters
-3. OR run a second pass that merges within supporting cast characters
+## Root Cause Analysis
+
+The attempt 2 fix added `_merge_within_main_cast()` which had a smoke test that passed. However:
+
+1. **Wilson not merging**: The function may not be handling the case where "Wilson" is in supporting cast but "George B. Wilson" is in main cast. Check class membership.
+
+2. **Wolfsheim partial merge**: The spelling variant merge (Wolfsheim→Wolfshiem) worked, but the first-name-to-full-name merge (Wolfshiem→Meyer Wolfshiem) didn't. This suggests Pass 1 of the merge function isn't working for this case.
+
+3. **Chapter V missing**: This is a NEW regression. Something changed in chapter detection. May be model-specific (different model used?) or input-specific.
+
+4. **Pronunciation categories**: This may never have been implemented, or the fix was in a different branch/not merged.
 
 ## Pipeline Notes
 
 ### Attempt 3
-- Analysis completed successfully in 56m 36s
+- Analysis completed in 56m 20s
 - Used V2 character extraction (summary-driven)
-- Found 8 chapters, 105 characters, 646 pronunciation flags
+- Found 8 chapters (should be 9), 105 characters, 646 pronunciation flags
 - Character count: 105 (down from 120 in attempt 2 - showing more merges worked!)
-- Pipeline warnings: No passages provided for character profiling (LLM identity detection failed with 500 error)
-- Pronunciation categories properly set (no longer all null)
-- Models used: qwen3:30b-instruct (structure/pronunciation), qwen3-next:80b-a3b-instruct-q8_0 (characters/summaries)
+- Models: qwen3:30b-instruct (structure/pronunciation), qwen3-next:80b-a3b-instruct-q8_0 (characters/summaries)
 
 ### Attempt 2
-- Analysis completed successfully
-- Used V2 character extraction (summary-driven)
-- Found 9 chapters (fixed from 11), 120 characters, 671 pronunciation flags
-- Character count: 120 (down from 123 in attempt 1 - showing some merges worked)
-- Key aliases observed: "Carraway" merged with "Nick Carraway", "Baker" merged with "Jordan Baker"
+- Found 9 chapters (correct), 120 characters, 671 pronunciation flags
 
-## Fix History
+## Fix Priority for Attempt 4
 
-### Attempt 1 Fix - Last-name alias merging
-**Files modified:** `src/agents/characters_v2.py`
-**Result:** Partial success - Baker/Carraway merges working, Wilson/Wolfsheim not working
-
-### Attempt 2 Fix - Within-main-cast merging (CRITICAL #1, #2)
-**Files modified:** `src/agents/characters_v2.py`
-**Root cause:** The `_merge_lastname_aliases()` function only merges supporting cast → main cast. Both "Wilson" and "George B. Wilson" were in main cast, so they weren't merged. Same for Wolfsheim variants.
-**Fix implemented:** Added new `_merge_within_main_cast()` method that runs BEFORE supporting cast extraction:
-  - Pass 1: Merges last-name-only and first-name-only characters to full-name characters
-  - Pass 2: Merges spelling variants (handles Wolfsheim ↔ Wolfshiem via fuzzy matching)
-  - Pass 3: Re-runs last-name matching after Pass 2 removes ambiguous matches
-**Smoke test:** PASS
-  - Wilson (65) + George (8) → George B. Wilson aliases
-  - Wolfshiem (20) + Meyer Wolfsheim (2) → Meyer Wolfshiem aliases
-  - Test suite: 192 passed, 1 failed (line count check only)
+1. **Debug Chapter V detection** - Critical regression, impacts structure and summaries
+2. **Debug Wilson merge** - The smoke test passed but production didn't work
+3. **Debug pronunciation categories** - Should be a simple fix
+4. **Add pronunciation filtering** - Remove common words
 
 ## Next Action
-**Phase:** awaiting_evaluation
-Evaluate attempt 3 results to verify:
-1. Wilson variants are merged (CRITICAL #1)
-2. Wolfsheim variants are merged (CRITICAL #2)
-3. Chapter count is correct (8 vs 9 in attempt 2)
-4. Character count reduction (105 vs 120 indicates more merging)
+**Phase:** awaiting_fix
+Run PROMPT_fix.md to:
+1. Investigate why Chapter V is missing (regression)
+2. Debug why Wilson merge isn't working in production
+3. Fix pronunciation categories
