@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -23,6 +23,8 @@
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+- Quality: output/gatsby_20260120_184425/quality.md
+- Output Dir: output/gatsby_20260120_184425
 
 ## Current Issues (Priority Order)
 
@@ -105,6 +107,23 @@
     - Fix: Ensure homographs get IPA for each pronunciation variant
 
 ## Pipeline Notes
+
+### Attempt 2 (Current)
+- Analysis completed successfully in 58m 10s
+- Used V2 character extraction (summary-driven)
+- Found 9 chapters, 120 characters, 671 pronunciation flags
+- 2 low-confidence character profiles (Nick Carraway, Tom Buchanan)
+- Chapter Summaries stage had the most time (22m56s, 39.4% of time)
+- Warnings/Errors observed:
+  - LLM server 500 errors during identity detection
+  - "No passages provided" for multiple character profiles
+  - Failed JSON parse for Nick Carraway and Tom Buchanan profiles
+  - StructureAgent: 2 errors found but refinement not yet implemented
+  - TOC validation warning: 87 entries seems too many
+- Character count reduction: 123 → 120 (3 fewer, showing merge logic is working)
+- Key aliases observed: "Carraway" merged with "Nick Carraway", "Baker" merged with "Jordan Baker"
+
+### Attempt 1
 - Analysis completed successfully in 64m 15s
 - Used V2 character extraction (summary-driven)
 - Found 11 chapters, 123 characters, 675 pronunciation flags
