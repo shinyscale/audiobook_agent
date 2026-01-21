@@ -168,7 +168,31 @@ The core problem is **LLM non-determinism** for structure detection. Across 6 at
   - "Narrator" as separate character (HIGH - worth ~0.10)
   - Wilson surname ambiguity (MEDIUM)
 
-## Next Action
-**Phase:** awaiting_analysis
+## Attempt 7 Analysis Result
+**FAILED** - Pipeline crashed during character extraction (v2)
 
-Re-run analysis to verify temperature fix eliminates non-determinism and improves structure/profile scores.
+**Error:** `"Character" object has no field "mentions"`
+
+**Pipeline Progress:**
+- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
+- ✅ Structure: Success (9 chapters detected! Temperature fix worked!)
+- ✅ Summaries: Success (9 summaries generated)
+- ❌ Characters (v2): **CRASHED** - Field mismatch error
+
+**Positive Findings:**
+- Structure now detects **9 chapters** (was 8 in attempt 6) - temperature=0.0 fix appears to work!
+- No more Chapter V missing issue
+
+**New Critical Issue:**
+The V2 character extraction pipeline has a bug where the `Character` Pydantic model is missing a `mentions` field that the extraction code is trying to access. This is blocking all analysis.
+
+**Root Cause:**
+- Location: `src/pipeline/character_extraction_v2/` or `src/models.py`
+- Error occurs during "Extracting characters (v2: summary-driven)" phase
+- The code is trying to set/access a `mentions` field on a Character object, but the model doesn't have this field
+
+**Next Action:**
+Debug and fix the Character model field mismatch in V2 pipeline.
+
+## Next Action
+**Phase:** awaiting_fix
