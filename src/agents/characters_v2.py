@@ -240,7 +240,7 @@ class CharacterAgentV2(Agent):
 
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
-            main_cast, supporting_cast
+            main_cast, supporting_cast, mention_results
         )
 
         # Calculate confidence breakdown
@@ -1022,20 +1022,44 @@ class CharacterAgentV2(Agent):
         self,
         main_cast: list[Character],
         supporting_cast: list[Character],
+        mention_results: dict = None,
     ) -> list[PipelineCharacter]:
         """Convert model Characters to pipeline Characters for output compatibility."""
         result = []
+        mention_results = mention_results or {}
 
         for char in main_cast:
+            # Get mention data if available
+            mention_info = mention_results.get(char.id)
+
+            # Convert mentions from models.CharacterMention to pipeline.CharacterMention
+            mentions_list = []
+            if mention_info:
+                from ..pipeline.character_extraction.models import CharacterMention as PipelineMention
+                for m in mention_info.mentions:
+                    pipeline_mention = PipelineMention(
+                        text=m.name_form,
+                        position=m.position,
+                        chapter_index=m.chapter_index or 0,
+                        context=m.context,
+                        in_dialogue=False,  # V2 doesn't track this
+                        is_agentive=False,  # V2 doesn't track this
+                    )
+                    mentions_list.append(pipeline_mention)
+
+            chapters_present = (
+                list(mention_info.chapter_distribution.keys()) if mention_info and mention_info.chapter_distribution else []
+            )
+
             # Convert model.Character to pipeline Character
             pc = PipelineCharacter(
                 id=char.id,
                 canonical_name=char.canonical_name,
                 aliases=char.aliases,
-                mentions=[],  # Mentions are tracked separately in v2
+                mentions=mentions_list,  # Use actual mentions from search
                 first_appearance_chapter=char.first_appearance_chapter or 0,
                 mention_count=char.mention_count,
-                chapters_present=[],  # Filled from mention search
+                chapters_present=chapters_present,
                 confidence=0.85 if char.confidence.value == "high" else 0.6,
                 supporting_strategies=["v2_summary_extraction"],
                 description=self._get_description_text(char),
@@ -1046,11 +1070,13 @@ class CharacterAgentV2(Agent):
             result.append(pc)
 
         for char in supporting_cast:
+            # Supporting cast doesn't have mention search results (uses NER counts)
+            # So mentions list remains empty for them
             pc = PipelineCharacter(
                 id=char.id,
                 canonical_name=char.canonical_name,
                 aliases=char.aliases,
-                mentions=[],
+                mentions=[],  # Supporting uses NER, not mention search
                 first_appearance_chapter=char.first_appearance_chapter or 0,
                 mention_count=char.mention_count,
                 chapters_present=[],

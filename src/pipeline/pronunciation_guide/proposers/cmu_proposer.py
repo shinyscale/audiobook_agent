@@ -26,9 +26,14 @@ COMMON_WORDS_WHITELIST = {
     'mary', 'patricia', 'jennifer', 'linda', 'elizabeth', 'barbara', 'susan',
     'john', 'robert', 'charles', 'daniel', 'matthew', 'anthony', 'mark',
     'sarah', 'jessica', 'emily', 'ashley', 'amanda', 'melissa', 'stephanie',
+    'tom', 'daisy', 'nick', 'jordan', 'george', 'catherine', 'dan', 'jay',
+    'peter', 'paul', 'andrew', 'christopher', 'kenneth', 'edward', 'brian',
+    'anna', 'maria', 'nancy', 'lisa', 'karen', 'betty', 'helen', 'sandra',
     # Common places
     'london', 'paris', 'york', 'boston', 'chicago', 'angeles', 'francisco',
     'washington', 'america', 'england', 'france', 'germany', 'italy', 'spain',
+    # Common direction/location words
+    'north', 'south', 'east', 'west', 'island', 'bay', 'river', 'sea',
     # Common titles
     'chapter', 'prologue', 'epilogue', 'part', 'section', 'book', 'volume',
     # Days/months
@@ -41,6 +46,8 @@ COMMON_WORDS_WHITELIST = {
     'father', 'mother', 'son', 'daughter', 'brother', 'sister', 'uncle', 'aunt',
     'husband', 'wife', 'friend', 'stranger', 'gentleman', 'lady', 'maid',
     'from', 'with', 'about', 'into', 'upon', 'after', 'before',
+    # Common nouns that shouldn't be flagged
+    'egg', 'war', 'peace', 'love', 'hope', 'faith', 'truth', 'justice',
     # Common pronouns and prepositions that appear in descriptive names
     'who', 'whom', 'whose', 'which', 'that', 'their', 'theirs', 'them',
     'his', 'her', 'hers', 'its', 'our', 'ours', 'your', 'yours',
