@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -118,6 +118,14 @@ The attempt 2 fix added `_merge_within_main_cast()` which had a smoke test that 
 4. **Pronunciation categories**: This may never have been implemented, or the fix was in a different branch/not merged.
 
 ## Pipeline Notes
+
+### Attempt 4
+- Analysis completed in 58m 22s
+- Used V2 character extraction (summary-driven)
+- Found 9 chapters (correct!), 116 characters, 663 pronunciation flags
+- Models: qwen3:30b-instruct (structure/pronunciation), qwen3-next:80b-a3b-instruct-q8_0 (characters/summaries)
+- Some LLM profiling failures occurred (LLM identity detection failed, parsing errors for Tom Buchanan, Mr. McKee, Meyer Wolfshiem)
+- Chapter V detection appears to be working again (9 chapters detected)
 
 ### Attempt 3
 - Analysis completed in 56m 20s
