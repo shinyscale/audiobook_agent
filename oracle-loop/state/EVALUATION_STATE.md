@@ -3,17 +3,17 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 6
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Latest Scores
-- Structure Detection: 6/10 (REGRESSION -2: Chapter IV now split into two entries)
+- Structure Detection: 5/10 (REGRESSION: Chapter V now MISSING entirely)
 - Character Extraction: 7/10 (unchanged)
-- Character Profiles: 5/10 (unchanged - main cast appearances still "unknown")
-- Chapter Summaries: 8/10 (quality good, but structure issues affect mapping)
-- Pronunciation Guide: 6/10 (+1: whitelist fix worked, common names removed)
+- Character Profiles: 4/10 (REGRESSION: fix didn't work, main cast still blank)
+- Chapter Summaries: 7/10 (quality good but missing Chapter V)
+- Pronunciation Guide: 6/10 (whitelist working)
 - HTML Presentation: 8/10 (unchanged)
-- **Overall: 6.70/10** (threshold: 8.0, REGRESSION -0.50 from attempt 4)
+- **Overall: 6.15/10** (threshold: 8.0, REGRESSION -0.55 from attempt 5)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -22,106 +22,105 @@
 | 2 | 7.45 | +0.80 | Structure fixed (9 chapters), some character merges working |
 | 3 | 6.95 | +0.30 | REGRESSION: lost chapter V, pronunciation categories null |
 | 4 | 7.20 | +0.55 | Chapter V back, Wolfsheim merged, pronunciation categories work |
-| 5 | 6.70 | +0.05 | REGRESSION: Chapter IV now split, profile fix didn't work |
+| 5 | 6.70 | +0.05 | REGRESSION: Chapter IV split, profile fix didn't work |
+| 6 | 6.15 | -0.50 | REGRESSION: Chapter V MISSING, profiles still broken |
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## What Changed in Attempt 5
-
-### What Worked
-1. **Pronunciation whitelist expanded** - Common first names (Tom, Daisy, Nick, Jordan, etc.) and direction words (East, West) no longer flagged. Score improved from 5/10 to 6/10.
+## What Changed in Attempt 6
 
 ### What Failed
-1. **Profile fix DID NOT WORK** - Main cast (Nick, Gatsby, Daisy, Tom, Jordan) still have `appearance.summary: "unknown"` and empty relationships. Only 6 supporting characters have appearance data (Dan Cody, Klipspringer, Eckleburg, Catherine, Wilson, Wolfsheim).
-2. **Structure REGRESSED** - Now detecting 10 chapters instead of 9. Chapter IV is split into two entries (indices 3 and 4). Chapter V's summary is merged with end of Chapter IV at index 5.
+1. **Profile fix DID NOT WORK** - Despite updating `mention_results` dict after alias merges, main cast (Nick, Gatsby, Daisy, Tom, Jordan) still have `appearance.summary: "unknown"` or `appearance: null`. Only 3 supporting characters (Dan Cody, Catherine, Wolfshiem) have appearance data.
 
-### Structure Analysis
-```
-Index 0 (title: null): Chapter I content ✓
-Index 1 (title: II): Chapter II content ✓
-Index 2 (title: III): Chapter III content ✓
-Index 3 (title: IV): Chapter IV guest list section
-Index 4 (title: null): Chapter IV car ride section (SPLIT!)
-Index 5 (title: null): Chapter IV ending + Chapter V content (MERGED!)
-Index 6 (title: VI): Chapter VI content ✓
-Index 7 (title: VII): Chapter VII content ✓
-Index 8 (title: VIII): Chapter VIII content ✓
-Index 9 (title: IX): Chapter IX content ✓
-```
+2. **Structure REGRESSED FURTHER** - Now detecting 8 chapters instead of 9. Chapter V is COMPLETELY MISSING:
+   - Titles: null, II, III, IV, VI, VII, VIII, IX
+   - Chapter V (Gatsby-Daisy reunion at Nick's house) is not detected at all
+   - This is worse than attempt 5 which had Chapter IV split but still 9 chapter-like entries
+
+### LLM Non-Determinism
+The structure issues have been non-deterministic across attempts:
+- Attempt 2: 9 chapters ✓
+- Attempt 3: Chapter V missing ✗
+- Attempt 4: 9 chapters ✓
+- Attempt 5: Chapter IV split (10 entries)
+- Attempt 6: Chapter V missing (8 entries) ✗
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Chapter IV Split / Chapter V Title Missing**
-   - Problem: Chapter IV is detected as two separate chapters (indices 3 and 4)
-   - Evidence: Index 3 has guest list, index 4 has car ride, both are Chapter IV
-   - Impact: Structure score dropped from 8/10 to 6/10
+1. **Chapter V MISSING from structure**
+   - Problem: Only 8 chapters detected. Sequence is I, II, III, IV, VI, VII, VIII, IX
+   - Evidence: Chapter V (Gatsby's reunion with Daisy at Nick's house) is completely absent
+   - Impact: Structure score 5/10, Summaries lose 1 chapter (11% of book)
    - Location: `src/pipeline/chapter_detection.py` or structure agent
-   - Root cause: Likely the section break between guest list and car ride is triggering false chapter detection
-   - Fix: Investigate why Chapter IV is being split; may need to improve section break handling
+   - Root cause: LLM non-determinism with temperature > 0
+   - Fix: Set `temperature=0.0` for structure agent to ensure deterministic chapter detection
 
 2. **Character Profiles STILL Empty for Main Cast**
-   - Problem: Nick, Gatsby, Daisy, Tom, Jordan all have `appearance.summary: "unknown"` and `relationships: {}`
-   - Evidence: Only 6 supporting characters have appearance data (Cody, Klipspringer, Eckleburg, Catherine, Wilson, Wolfsheim)
-   - Impact: Profile score stuck at 5/10 (worth 0.75 overall points)
-   - Location: `src/pipeline/character_extraction_v2/` profile extraction phase
-   - Previous fix: Attempt 5 modified `_convert_to_pipeline_characters()` to pass mentions - THIS DID NOT WORK
-   - Debug needed: Check if mentions are actually being passed, and why profile extraction still fails for main cast
-   - Hypothesis: Main cast may be handled by a different code path that bypasses profile extraction
+   - Problem: Nick, Gatsby, Daisy, Tom, Jordan all have `appearance.summary: "unknown"` or `appearance: null`
+   - Evidence: Only 3 supporting characters have appearance data (Cody, Catherine, Wolfshiem)
+   - Impact: Profile score 4/10 (worth 0.60 overall points)
+   - Location: Profile generation in `src/pipeline/character_extraction_v2/`
+   - Previous fix: Attempt 6 modified `mention_results` dict updates - THIS DID NOT WORK
+   - Debug needed: The fix may have been correct but profile LLM calls may be failing for main characters
+   - Check: Look at `_profiling` for profile generation errors/retries
 
 ### HIGH
 
-3. **Chapter I and V Title Null**
-   - Problem: Chapters I (index 0) and V (index 4/5) have `title: null` instead of roman numerals
-   - Evidence: Other chapters (II, III, IV, VI, VII, VIII, IX) have correct titles
-   - Location: `src/pipeline/chapter_detection.py` - title extraction
-   - Fix: Ensure all detected chapters get their roman numeral titles
+3. **Chapter I Title is Null**
+   - Problem: First chapter has `title: null` instead of "I"
+   - Evidence: Other chapters (II, III, IV, VI, VII, VIII, IX) have titles
+   - Location: `src/pipeline/chapter_detection.py` - title extraction for first chapter
+   - Fix: Ensure first detected chapter gets its roman numeral title
+
+4. **"Narrator" as Separate Character**
+   - Problem: "Narrator" (5 mentions) listed as separate character
+   - Evidence: Nick Carraway is correctly marked as `is_narrator: true`
+   - Location: `src/pipeline/character_extraction_v2/` - filter generic "Narrator"
+   - Fix: Add "Narrator" to character exclusion list
 
 ### MEDIUM
 
-4. **"Narrator" as Separate Character**
-   - Problem: "Narrator" (5 mentions) listed as separate character with role "supporting"
-   - Evidence: Nick Carraway is correctly marked as `is_narrator: true`
-   - Location: `src/pipeline/character_extraction_v2/` - should filter generic "Narrator" references
-   - Fix: Filter out "Narrator" as a character name
-
 5. **Wilson Surname Ambiguity**
-   - Problem: "Wilson" (65 mentions) separate from George Wilson (14) and Myrtle Wilson (23)
-   - Note: May be intentionally correct - "Wilson" in text is genuinely ambiguous
-   - Impact: Minor, does not significantly affect score
+   - Problem: "Wilson" (65 mentions) separate from George B. Wilson (14) and Myrtle Wilson (23)
+   - Note: May be intentionally correct - "Wilson" in text often genuinely ambiguous
+   - Impact: Minor
 
-6. **Buchanan Surname Not Merged**
-   - Problem: "Buchanan" (4 mentions) as separate entry
-   - Impact: Very minor
-
-7. **Pronunciation Unknown Category Still Large**
-   - Problem: 474 entries with flag_reason "unknown" (72% of total)
+6. **Pronunciation Unknown Category (76%)**
+   - Problem: 481 entries (76%) have flag_reason "unknown"
    - Location: `src/pipeline/pronunciation_guide/` - categorization logic
    - Fix: Improve categorization to reduce "unknown" entries
 
 ## Path to 8.0
 
-**Current: 6.70/10, Need: 8.0/10, Gap: 1.30 points**
+**Current: 6.15/10, Need: 8.0/10, Gap: 1.85 points**
 
-This is a larger gap than attempt 4 due to regression. Focus on:
+This is the largest gap so far due to compounding regressions.
 
 | Fix | Effort | Estimated Impact |
 |-----|--------|------------------|
-| Fix Chapter IV split | MEDIUM | +2 on Structure (6→8) = +0.40 overall |
-| Fix main cast profiles | HIGH | +3 on Profiles (5→8) = +0.45 overall |
-| Fix chapter titles (I, V) | LOW | +0.5 on Structure = +0.10 overall |
+| Fix Chapter V detection (deterministic) | MEDIUM | +3 on Structure (5→8) = +0.60 overall |
+| Fix chapter I title | LOW | +1 on Structure (8→9) = +0.20 overall |
+| Fix main cast profiles | HIGH | +4 on Profiles (4→8) = +0.60 overall |
 
-If structure fixed: 6.70 + 0.50 = 7.20
-If structure + profiles fixed: 7.20 + 0.45 = 7.65
-Still need ~0.35 more to reach 8.0
+If structure fixed: 6.15 + 0.80 = 6.95
+If structure + profiles fixed: 6.95 + 0.60 = 7.55
+Still need ~0.45 more to reach 8.0
 
-**Recommended focus for Attempt 6:**
-1. **REVERT the structure regression** - investigate why Chapter IV is now split (wasn't in attempt 4)
-2. **Debug profile extraction** - the attempt 5 fix didn't work; need deeper investigation
-3. Consider if previous working version should be restored
+**Root Cause Analysis:**
+
+The core problem is **LLM non-determinism** for structure detection. Across 6 attempts:
+- Sometimes we get 9 chapters (correct)
+- Sometimes Chapter IV splits
+- Sometimes Chapter V disappears
+
+**Recommended Fix for Attempt 7:**
+1. **Set temperature=0.0 for structure agent** - Eliminate non-determinism
+2. **Debug profile extraction** - Add logging to understand why main cast profiles fail
+3. Consider using a stronger model for structure detection if available
 
 ## Fix History
 
@@ -144,33 +143,18 @@ Still need ~0.35 more to reach 8.0
 ### Attempt 5
 - **FAILED FIX:** Modified `_convert_to_pipeline_characters()` to pass mentions - did not improve profiles
 - **SUCCESSFUL FIX:** Added common first names to pronunciation whitelist
-- **REGRESSION:** Structure now worse (Chapter IV split)
+- **REGRESSION:** Structure worse (Chapter IV split)
 
 ### Attempt 6
-- **CRITICAL FIX:** Update `mention_results` dict after re-searching characters with new aliases
-  - **Root cause identified:** In `characters_v2.py`, after merging aliases, the code re-searches mentions but only updates `char.mention_count`, NOT the `mention_results` dict
-  - This meant `_convert_to_pipeline_characters()` used OLD mention data with fewer mentions
-  - Profile generation at `analyzer.py:1257` samples from `char.mentions[:10]`, which was empty/incomplete
-  - **Fix:** Added `mention_results[char.id] = result` at lines 167, 214, and 237 (after each re-search)
-  - **Impact:** Main cast (Nick, Gatsby, Tom, Jordan) should now have full mention lists → rich profile data
-  - **Confidence:** HIGH - directly addresses data flow gap
-  - **Files modified:** `src/agents/characters_v2.py`
-  - **Smoke test:** Unit tests pass (15/16, only line count test fails - non-critical)
-
-## Current Issues After Fix
-
-### Structure Issue (Non-Deterministic)
-- Chapter IV split regression occurred with NO code changes to structure detection (between attempts 4→5)
-- Likely LLM non-determinism with temperature=0.3 on structure agent
-- May resolve on re-run, or may require temperature=0.0 for perfect consistency
-- **Not addressing in this attempt** - focus on profile fix which has higher impact
+- **FAILED FIX:** Updated `mention_results` dict after alias merges - did not improve profiles
+- **REGRESSION:** Structure worse (Chapter V now missing entirely)
+- Analysis ran for 60m 6s
+- Only 3 characters got profiles (Dan Cody, Catherine, Wolfshiem)
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Analysis completed successfully:
-- Pipeline ran for 60m 6s
-- Detected 8 chapters (potential improvement from 10 in attempt 5)
-- Generated 17 profiles for 18 eligible characters
-- Output files written to ../output/gatsby/
-- Some LLM errors noted during profile generation (JSON parse failures for a few characters)
+Run PROMPT_fix.md to:
+1. Set temperature=0.0 for structure agent to eliminate non-determinism
+2. Add detailed logging to profile extraction to debug why main cast fails
+3. Verify the mention_results fix is actually being used during profile generation
