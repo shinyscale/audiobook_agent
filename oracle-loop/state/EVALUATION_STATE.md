@@ -3,17 +3,17 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 9
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Latest Scores
-- Structure Detection: 5/10 (REGRESSION: Chapter V now MISSING entirely)
-- Character Extraction: 7/10 (unchanged)
-- Character Profiles: 4/10 (REGRESSION: fix didn't work, main cast still blank)
-- Chapter Summaries: 7/10 (quality good but missing Chapter V)
-- Pronunciation Guide: 6/10 (whitelist working)
-- HTML Presentation: 8/10 (unchanged)
-- **Overall: 6.15/10** (threshold: 8.0, REGRESSION -0.55 from attempt 5)
+- Structure Detection: 4/10 ← CRITICAL (Chapter III AND V missing, only 8 chapters)
+- Character Extraction: 5/10 ← CRITICAL (Daisy split into 3 entries, 99 total chars)
+- Character Profiles: 3/10 ← CRITICAL (0 characters have appearance data)
+- Chapter Summaries: 7/10 (Quality good but missing 2 chapters)
+- Pronunciation Guide: 5/10 (76% "unknown" categorization, no improvement)
+- HTML Presentation: 8/10 (Functional)
+- **Overall: 5.10/10** (threshold: 8.0)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -24,103 +24,179 @@
 | 4 | 7.20 | +0.55 | Chapter V back, Wolfsheim merged, pronunciation categories work |
 | 5 | 6.70 | +0.05 | REGRESSION: Chapter IV split, profile fix didn't work |
 | 6 | 6.15 | -0.50 | REGRESSION: Chapter V MISSING, profiles still broken |
+| 7 | - | - | Pipeline crashed (Character model field mismatch) |
+| 8 | - | - | Pipeline crashed (same error) |
+| 9 | 5.10 | -1.55 | MAJOR REGRESSION: 2 chapters missing, character explosion, 0 profiles |
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## What Changed in Attempt 6
+## Attempt 9 Analysis
+
+### What Completed
+- **Ingestion:** 51,257 words, 19KB Gutenberg boilerplate removed
+- **Structure:** 8 chapters detected (missing Chapter III AND V)
+- **Summaries:** 8 summaries generated (quality is good for the chapters that exist)
+- **Characters (v2):** 99 characters extracted (WAY too many - was ~21 before reconciliation)
+- **Profiles:** 3 LLM calls for 18 eligible characters - 17 LOW confidence (Ollama failures)
+- **Pronunciation:** 635 entries (481 "unknown" = 76%)
 
 ### What Failed
-1. **Profile fix DID NOT WORK** - Despite updating `mention_results` dict after alias merges, main cast (Nick, Gatsby, Daisy, Tom, Jordan) still have `appearance.summary: "unknown"` or `appearance: null`. Only 3 supporting characters (Dan Cody, Catherine, Wolfshiem) have appearance data.
+1. **Chapter Detection** - Only 8 chapters detected:
+   - Chapter I → title: null
+   - Chapter II → "II"
+   - Chapter III → "Section Introduction" (WRONG - not chapter V content, this appears to be Chapter III content)
+   - Chapter IV → "IV"
+   - Chapter V → MISSING ENTIRELY
+   - Chapter VI → "VI"
+   - ... through IX
 
-2. **Structure REGRESSED FURTHER** - Now detecting 8 chapters instead of 9. Chapter V is COMPLETELY MISSING:
-   - Titles: null, II, III, IV, VI, VII, VIII, IX
-   - Chapter V (Gatsby-Daisy reunion at Nick's house) is not detected at all
-   - This is worse than attempt 5 which had Chapter IV split but still 9 chapter-like entries
+2. **Character Explosion** - 99 total characters instead of ~25-30 expected:
+   - V2 pipeline extracted 21 characters initially (reasonable)
+   - Then 78 additional characters were added from summaries
+   - This suggests summary-driven character extraction is adding too many minor/incidental references
 
-### LLM Non-Determinism
-The structure issues have been non-deterministic across attempts:
-- Attempt 2: 9 chapters ✓
-- Attempt 3: Chapter V missing ✗
-- Attempt 4: 9 chapters ✓
-- Attempt 5: Chapter IV split (10 entries)
-- Attempt 6: Chapter V missing (8 entries) ✗
+3. **Daisy Split** - Three separate Daisy entries:
+   - "Daisy" (179 mentions) - main entry, no aliases
+   - "Daisy Buchanan" (3 mentions) - not merged
+   - "Daisy Fay" (1 mention) - not merged
+   - These should ALL be the same character with "Daisy Buchanan" as canonical name
+
+4. **Profile Generation Cascade Failure** - Only 1 profile generated (Nick Carraway, partial):
+   - 17 of 18 eligible characters got LOW confidence
+   - Only 3 LLM calls succeeded out of expected 18
+   - Profiling data shows: `json_parse_failures: 1`
+   - Ollama connection issues during profile phase
+
+### Profiling Data
+```
+Chapter Detection: 40 LLM calls, 0 retries, 8 items
+Chapter Summaries: 44 LLM calls, 0 retries, 8 items
+Character Extraction V2: 2 LLM calls, 0 retries, 21 items
+Character Profiles: 3 LLM calls (!), 1 json_parse_failure, 18 items (17 LOW confidence)
+Pronunciation Guide: 0 LLM calls, 635 items
+```
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Chapter V MISSING from structure**
-   - Problem: Only 8 chapters detected. Sequence is I, II, III, IV, VI, VII, VIII, IX
-   - Evidence: Chapter V (Gatsby's reunion with Daisy at Nick's house) is completely absent
-   - Impact: Structure score 5/10, Summaries lose 1 chapter (11% of book)
-   - Location: `src/pipeline/chapter_detection.py` or structure agent
-   - Root cause: LLM non-determinism with temperature > 0
-   - Fix: Set `temperature=0.0` for structure agent to ensure deterministic chapter detection
+1. **Structure: Chapters III and V Missing**
+   - Problem: Only 8 chapters detected. Chapter III labeled "Section Introduction", Chapter V completely absent
+   - Evidence: Gatsby has exactly 9 chapters (I-IX). Output shows: null, II, "Section Introduction", IV, VI, VII, VIII, IX
+   - Impact: -6 points on Structure (4/10), -1 point on Summaries (missing content)
+   - Location: `src/pipeline/chapter_detection.py` - chapter title/number extraction
+   - Analysis: "Section Introduction" title suggests LLM is misinterpreting chapter headings
+   - Fix: The chapter detection needs stricter enforcement of roman numeral sequence. If chapters I, II, IV are detected, III must exist between II and IV.
 
-2. **Character Profiles STILL Empty for Main Cast**
-   - Problem: Nick, Gatsby, Daisy, Tom, Jordan all have `appearance.summary: "unknown"` or `appearance: null`
-   - Evidence: Only 3 supporting characters have appearance data (Cody, Catherine, Wolfshiem)
-   - Impact: Profile score 4/10 (worth 0.60 overall points)
+2. **Character Extraction: Daisy Split into 3 Entries**
+   - Problem: Daisy Buchanan appears as 3 separate characters:
+     - "Daisy" (179 mentions, no aliases)
+     - "Daisy Buchanan" (3 mentions, no aliases)
+     - "Daisy Fay" (1 mention, no aliases)
+   - Evidence: These are the same person - Daisy Fay is her maiden name, Daisy Buchanan her married name
+   - Impact: -3 points on Character Extraction (5/10)
+   - Location: `src/pipeline/character_extraction_v2/` - alias merging logic
+   - Fix: Improve alias resolution to merge "FirstName" with "FirstName LastName" variants
+
+3. **Character Count Explosion: 99 Characters**
+   - Problem: 99 total characters when ~25-30 expected for Gatsby
+   - Evidence: V2 extraction found 21 initially (reasonable), then summary reconciliation added 78 more
+   - Impact: Bloated character list, difficult for narrator to use, dilutes main cast
+   - Location: `src/pipeline/character_extraction_v2/` - summary-driven character extraction
+   - Fix: Apply stricter filtering to summary-extracted characters (minimum mentions threshold)
+
+4. **Profile Generation: 0 Successful Profiles**
+   - Problem: Only Nick Carraway has partial profile (personality/voice but appearance="unknown")
+   - Evidence: Profiling shows only 3/18 LLM calls completed, 17 LOW confidence
+   - Impact: -7 points on Profiles (3/10 → should be 8+)
    - Location: Profile generation in `src/pipeline/character_extraction_v2/`
-   - Previous fix: Attempt 6 modified `mention_results` dict updates - THIS DID NOT WORK
-   - Debug needed: The fix may have been correct but profile LLM calls may be failing for main characters
-   - Check: Look at `_profiling` for profile generation errors/retries
+   - Root cause: Ollama instability during profile generation phase
+   - Fix: Add retry logic with exponential backoff, or run profile generation as separate phase that can be retried
 
 ### HIGH
 
-3. **Chapter I Title is Null**
+5. **Chapter I Title is Null**
    - Problem: First chapter has `title: null` instead of "I"
-   - Evidence: Other chapters (II, III, IV, VI, VII, VIII, IX) have titles
-   - Location: `src/pipeline/chapter_detection.py` - title extraction for first chapter
-   - Fix: Ensure first detected chapter gets its roman numeral title
+   - Evidence: Other chapters (II, IV, VI-IX) have titles
+   - Impact: -1 point on Structure
+   - Location: `src/pipeline/chapter_detection.py`
+   - Fix: Ensure first detected chapter gets roman numeral title
 
-4. **"Narrator" as Separate Character**
-   - Problem: "Narrator" (5 mentions) listed as separate character
-   - Evidence: Nick Carraway is correctly marked as `is_narrator: true`
-   - Location: `src/pipeline/character_extraction_v2/` - filter generic "Narrator"
-   - Fix: Add "Narrator" to character exclusion list
+6. **"Nick (narrator)" as Separate Entry**
+   - Problem: "Nick (narrator)" (1 mention) listed separately from "Nick Carraway"
+   - Evidence: Nick Carraway is correctly marked `is_narrator: true`
+   - Location: `src/pipeline/character_extraction_v2/` - needs deduplication
+   - Fix: Filter out "Character (role)" style entries when canonical entry exists
 
 ### MEDIUM
 
-5. **Wilson Surname Ambiguity**
-   - Problem: "Wilson" (65 mentions) separate from George B. Wilson (14) and Myrtle Wilson (23)
-   - Note: May be intentionally correct - "Wilson" in text often genuinely ambiguous
-   - Impact: Minor
+7. **Pronunciation: 76% "Unknown" Category**
+   - Problem: 481 of 635 entries (76%) have `flag_reason: "unknown"`
+   - Distribution: proper_noun: 114, homograph: 23, foreign: 17, unknown: 481
+   - Location: `src/pipeline/pronunciation_guide/`
+   - Fix: Improve categorization logic
 
-6. **Pronunciation Unknown Category (76%)**
-   - Problem: 481 entries (76%) have flag_reason "unknown"
-   - Location: `src/pipeline/pronunciation_guide/` - categorization logic
-   - Fix: Improve categorization to reduce "unknown" entries
+8. **Wilson Surname Ambiguity**
+   - Problem: "Wilson" (65 mentions) separate from George B. Wilson and Myrtle Wilson
+   - Note: May be intentional - "Wilson" often genuinely ambiguous in text
+   - Impact: Minor
 
 ## Path to 8.0
 
-**Current: 6.15/10, Need: 8.0/10, Gap: 1.85 points**
+**Current: 5.10/10, Need: 8.0/10, Gap: 2.9 points**
 
-This is the largest gap so far due to compounding regressions.
+This is the worst score yet due to compounding regressions.
 
 | Fix | Effort | Estimated Impact |
 |-----|--------|------------------|
-| Fix Chapter V detection (deterministic) | MEDIUM | +3 on Structure (5→8) = +0.60 overall |
-| Fix chapter I title | LOW | +1 on Structure (8→9) = +0.20 overall |
-| Fix main cast profiles | HIGH | +4 on Profiles (4→8) = +0.60 overall |
+| Fix chapter detection (all 9 chapters) | HIGH | +5 on Structure (4→9) = +1.0 overall |
+| Fix Daisy merge + char explosion | HIGH | +3 on Characters (5→8) = +0.75 overall |
+| Fix profile generation (retry logic) | MEDIUM | +5 on Profiles (3→8) = +0.75 overall |
+| Total expected | | 5.10 + 2.5 = 7.6 |
 
-If structure fixed: 6.15 + 0.80 = 6.95
-If structure + profiles fixed: 6.95 + 0.60 = 7.55
-Still need ~0.45 more to reach 8.0
+**Still need ~0.4 more - may require pronunciation improvement**
 
-**Root Cause Analysis:**
+## Root Cause Analysis
 
-The core problem is **LLM non-determinism** for structure detection. Across 6 attempts:
-- Sometimes we get 9 chapters (correct)
-- Sometimes Chapter IV splits
-- Sometimes Chapter V disappears
+### Structure Non-Determinism
+Despite setting temperature=0.0 in attempt 7, structure detection remains unstable:
+- Attempt 7: 9 chapters (temp fix applied but pipeline crashed)
+- Attempt 8: 11 chapters (crashed again)
+- Attempt 9: 8 chapters (Chapter III mislabeled, V missing)
 
-**Recommended Fix for Attempt 7:**
-1. **Set temperature=0.0 for structure agent** - Eliminate non-determinism
-2. **Debug profile extraction** - Add logging to understand why main cast profiles fail
-3. Consider using a stronger model for structure detection if available
+The temperature fix alone is insufficient. Need deterministic chapter title validation.
+
+### Character V2 Pipeline Issues
+1. Initial extraction (21 chars) is reasonable
+2. Summary reconciliation adds too many characters (78!)
+3. Alias merging is not connecting Daisy variants
+4. Profile generation has no retry mechanism for Ollama failures
+
+### Ollama Instability
+Profile generation failed catastrophically:
+- 3 LLM calls completed out of expected 18
+- 17 LOW confidence items
+- 1 JSON parse failure
+- This suggests Ollama crashed or became unresponsive mid-pipeline
+
+## Recommended Fix for Attempt 10
+
+**Priority 1: Structure Detection**
+- Add validation to enforce roman numeral sequence
+- If chapters I, II, IV, VI exist, chapters III and V MUST be inferred/detected
+- Add post-processing to verify chapter count matches expected (9 for Gatsby)
+
+**Priority 2: Character Merging**
+- Fix Daisy split: "Daisy" + "Daisy Buchanan" + "Daisy Fay" → "Daisy Buchanan"
+- Filter summary-extracted characters more aggressively (require 3+ mentions?)
+- Remove "Character (role)" duplicate entries
+
+**Priority 3: Profile Generation Resilience**
+- Add retry logic for Ollama failures
+- Consider running profile generation as a separate, retriable phase
+- Fall back to simpler profiles if LLM fails repeatedly
 
 ## Fix History
 
@@ -152,89 +228,26 @@ The core problem is **LLM non-determinism** for structure detection. Across 6 at
 - Only 3 characters got profiles (Dan Cody, Catherine, Wolfshiem)
 
 ### Attempt 7
-- **Root Cause Identified:** `apply_profile_to_config()` in `src/system/profiles.py` was creating new AgentConfig objects with default temperature=0.3, overriding the recommended temperature=0.0 from RECOMMENDED_AGENT_MODELS for structure and characters agents
-- **FIX APPLIED:** Modified `apply_profile_to_config()` to preserve temperature, think_mode, and system_prompt from RECOMMENDED_AGENT_MODELS when applying hardware profile
-  - Modified: `src/system/profiles.py` lines 182-213
-  - Structure agent now uses temperature=0.0 (was 0.3)
-  - Characters agent now uses temperature=0.0 (was 0.3)
-  - This should eliminate non-determinism in chapter detection and profile generation
-- **Smoke Test:** PASS - Verified configuration correctly applies temperature=0.0 to structure/characters agents
-- **Expected Impact:**
-  - Structure: +3 points (5→8) from deterministic chapter detection = +0.60 overall
-  - Profiles: +4 points (4→8) from deterministic profile LLM calls = +0.60 overall
-  - Total expected: 6.15 + 1.20 = 7.35 (still 0.65 short of 8.0)
-- **Known Remaining Issues:**
-  - Chapter I title null (HIGH - worth ~0.20)
-  - "Narrator" as separate character (HIGH - worth ~0.10)
-  - Wilson surname ambiguity (MEDIUM)
+- **FIX APPLIED:** Modified `apply_profile_to_config()` to preserve temperature=0.0
+- **RESULT:** Pipeline crashed - Character model missing "mentions" field
 
-## Attempt 7 Analysis Result
-**FAILED** - Pipeline crashed during character extraction (v2)
+### Attempt 8
+- **FIX APPLIED:** Added `mentions` field to Character model
+- **RESULT:** Pipeline crashed - same error (fix didn't apply properly)
 
-**Error:** `"Character" object has no field "mentions"`
-
-**Pipeline Progress:**
-- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
-- ✅ Structure: Success (9 chapters detected! Temperature fix worked!)
-- ✅ Summaries: Success (9 summaries generated)
-- ❌ Characters (v2): **CRASHED** - Field mismatch error
-
-**Positive Findings:**
-- Structure now detects **9 chapters** (was 8 in attempt 6) - temperature=0.0 fix appears to work!
-- No more Chapter V missing issue
-
-**New Critical Issue:**
-The V2 character extraction pipeline has a bug where the `Character` Pydantic model is missing a `mentions` field that the extraction code is trying to access. This is blocking all analysis.
-
-**Root Cause:**
-- Location: `src/pipeline/character_extraction_v2/` or `src/models.py`
-- Error occurs during "Extracting characters (v2: summary-driven)" phase
-- The code is trying to set/access a `mentions` field on a Character object, but the model doesn't have this field
-
-**Next Action:**
-Debug and fix the Character model field mismatch in V2 pipeline.
-
-## Attempt 8 Analysis Result
-**FAILED** - Same error as attempt 7
-
-**Error:** `"Character" object has no field "mentions"`
-
-**Pipeline Progress:**
-- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
-- ✅ Structure: Success (11 chapters detected - note: was 9 in partial attempt 7)
-- ✅ Summaries: Success (11 summaries generated)
-- ❌ Characters (v2): **CRASHED** - Field mismatch error (same as attempt 7)
-
-**Analysis:**
-The temperature=0.0 fix was successfully applied in attempt 7, but the V2 character extraction bug is still blocking completion. This is a code defect, not a configuration issue.
-
-## Attempt 9 Analysis Result
-**PARTIAL SUCCESS** - Pipeline completed but with major issues
-
-**Completion time:** 23m 44s
-
-**Pipeline Progress:**
-- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
-- ✅ Structure: Success (8 chapters detected - still missing Chapter V)
-- ✅ Summaries: Success (8 summaries generated)
-- ⚠️ Characters (v2): Completed but extracted 99 characters (seems high)
-- ❌ Profiles: **FAILED** - Only 1 profile generated for 18 eligible characters due to Ollama connection failures
-- ✅ Pronunciation: Success (635 entries flagged)
-- ⚠️ Overview: Plot summary generation failed due to LLM errors
-
-**Critical Issues:**
-1. **Ollama stability during profile generation** - Nearly all profile generation calls failed with "Connection refused" errors after the summaries completed
-2. **Structure still shows 8 chapters** - Chapter V remains missing despite temperature=0.0 fix
-3. **Character count explosion** - 99 total characters extracted (was ~21 before reconciliation, then 78 added from summaries)
-4. **Profile generation cascade failure** - Only Nick Carraway got a profile; all others failed
-
-**Positive Findings:**
-- V2 character extraction completed without the field mismatch error (fix from attempts 7-8 worked)
-- Pipeline ran to completion for the first time since attempt 6
-- Analysis time improved significantly (23m vs 60m in attempt 6)
-
-**Next Action:**
-Needs evaluation to determine if Ollama instability is a transient issue or if the profile generation needs error handling improvements.
+### Attempt 9
+- **FIX APPLIED:** Confirmed `mentions` field added to Character model
+- **RESULT:** Pipeline completed but with major regressions
+- Structure: 8 chapters (missing III and V)
+- Characters: 99 total (explosion from summary reconciliation)
+- Profiles: 0 successful (Ollama instability)
 
 ## Notes
-Attempt 9 completed with partial success. The Character model field mismatch from attempts 7-8 was resolved, but new issues emerged with Ollama stability during the profile generation phase.
+
+Attempt 9 represents the worst performance yet. The Character model fix allowed the pipeline to complete, but revealed:
+1. Structure detection is still non-deterministic despite temperature=0.0
+2. V2 character extraction adds too many characters from summaries
+3. Alias merging for Daisy is completely broken
+4. Profile generation has no resilience to Ollama failures
+
+The next fix attempt needs to focus on robustness and validation rather than just temperature settings.
