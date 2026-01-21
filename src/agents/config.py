@@ -166,14 +166,14 @@ RECOMMENDED_AGENT_MODELS = {
     "structure": {
         "description": "Fast model for pattern recognition and chapter detection",
         "models": ["qwen2.5:14b", "qwen2.5:7b", "llama3.2", "mistral", "gpt-oss:20b"],
-        "temperature": 0.2,  # Low for consistency
+        "temperature": 0.0,  # Zero for deterministic chapter detection
         "think_mode": False,  # Disable reasoning for speed
         "system_prompt": "You are a document structure analyzer. Extract chapter boundaries and titles from text. Return ONLY valid JSON. No commentary or explanation.",
     },
     "characters": {
         "description": "Deep narrative model for character understanding",
         "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "gpt-oss:120b"],
-        "temperature": 0.3,
+        "temperature": 0.0,  # Zero for deterministic character extraction
         "think_mode": False,  # JSON extraction doesn't benefit from reasoning chains
         "system_prompt": "You are a literary analyst extracting character information for audiobook narration. Identify characters, aliases, and relationships. Return ONLY valid JSON with no additional text.",
     },
@@ -187,7 +187,7 @@ RECOMMENDED_AGENT_MODELS = {
     "pronunciation": {
         "description": "Phonetically-aware model for pronunciation",
         "models": ["qwen2.5:14b", "qwen2.5:32b", "llama3.2", "llama3.1:8b"],
-        "temperature": 0.2,  # Low for accuracy
+        "temperature": 0.0,  # Zero for deterministic pronunciation detection
         "think_mode": False,  # Phonetic analysis is pattern-based
         "system_prompt": "You are a pronunciation expert for audiobook narration. Identify words requiring special pronunciation guidance (names, places, foreign words). Return ONLY valid JSON.",
     },

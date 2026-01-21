@@ -225,6 +225,8 @@ class MentionSearcher:
 
             if result:
                 char.mention_count = result.total_mentions
+                # Transfer actual mentions for profile generation
+                char.mentions = result.mentions
 
                 # Set first/last appearance chapters
                 if result.chapter_distribution:
