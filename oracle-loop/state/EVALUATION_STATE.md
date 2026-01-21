@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -241,6 +241,27 @@ Profile generation failed catastrophically:
 - Structure: 8 chapters (missing III and V)
 - Characters: 99 total (explosion from summary reconciliation)
 - Profiles: 0 successful (Ollama instability)
+
+### Attempt 10
+- **ROOT CAUSE ANALYSIS COMPLETED:**
+  1. **Structure:** Chapters III (pos 58148) and V (pos 121448) exist in text but detection finds 8 boundaries, with false positives in middle of Chapter III. Complex issue in consensus builder - deferred.
+  2. **Daisy split:** LLM in `MAIN_CAST_PROMPT` returned "Daisy", "Daisy Buchanan", "Daisy Fay" as separate characters instead of one character with aliases. `_merge_same_firstname_variants` should have caught this but didn't (unclear why - needs further investigation).
+  3. **Character explosion:** Supporting cast extraction uses `min_mentions=3`, too low for a novel like Gatsby (51K words). Results in 84 supporting chars.
+  4. **Profile failures:** Ollama made only 3 LLM calls for 18 characters, indicating crash/hang. Needs retry logic.
+
+- **FIXES APPLIED:**
+  1. **MAIN_CAST_PROMPT:** Added explicit rule #3 about maiden/married names being the SAME character. Added concrete examples (Elizabeth Bennet/Darcy) showing how to handle name variants as aliases.
+  2. **Supporting cast threshold:** Increased `min_mentions` from 3 to 5 in `characters_v2.py` line 203 to reduce noise from incidental characters.
+
+- **FIXES DEFERRED:**
+  1. **Chapter detection:** Too complex for this iteration - requires debugging consensus builder and proposal clustering
+  2. **Profile generation retry:** Deferred - needs Ollama monitoring infrastructure
+
+- **Modified files:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (lines 38-77: improved prompt)
+  - `src/agents/characters_v2.py` (line 203: min_mentions 3→5)
+
+- **Smoke test:** PASSED - Prompt includes maiden/married guidance, min_mentions updated
 
 ## Notes
 

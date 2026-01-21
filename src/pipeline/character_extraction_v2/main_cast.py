@@ -38,13 +38,16 @@ TASK: Identify the 10-15 most important characters based on the chapter summarie
 IMPORTANT RULES:
 1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
 2. For each character, provide their canonical name and ALL aliases/variants used in the story
-3. Unnamed characters referenced by recurring descriptive handles (e.g., "the creature", "the stranger")
+3. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
+   these are the SAME character - use one as canonical and list the other as an alias
+4. A full name and a first-name-only reference (e.g., "Elizabeth Bennet" and "Elizabeth") are usually the SAME person
+   - include the shorter form as an alias
+5. Unnamed characters referenced by recurring descriptive handles (e.g., "the creature", "the stranger")
    ARE valid main cast entries - use their most distinctive recurring handle as the canonical name
-4. DO NOT invent proper names that are not supported by the summaries
-5. Characters who share a last name but have different first names are typically DIFFERENT people
-   (e.g., spouses, siblings, parent/child)
-6. A full name and a first-name-only reference may be the same person - include both as aliases if so
-7. Titles and honorifics (Mr., Mrs., Dr., Lord) with a name are aliases of the underlying character
+6. DO NOT invent proper names that are not supported by the summaries
+7. Characters who share a last name but have DIFFERENT first names are typically DIFFERENT people
+   (e.g., spouses, siblings, parent/child) - do NOT merge these
+8. Titles and honorifics (Mr., Mrs., Dr., Lord) with a name are aliases of the underlying character
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -65,7 +68,31 @@ Return a JSON array of character objects:
 ]
 ```
 
-For unnamed characters, set is_unnamed to true and use the descriptive handle:
+EXAMPLES:
+
+Character with maiden/married name variants (SAME person - one entry):
+```json
+{{
+  "canonical_name": "Elizabeth Bennet",
+  "aliases": ["Elizabeth", "Lizzy", "Miss Bennet", "Elizabeth Darcy"],
+  "role": "protagonist",
+  "description": "Spirited young woman who marries Mr. Darcy",
+  "is_unnamed": false
+}}
+```
+
+Character with first-name-only references (SAME person - one entry):
+```json
+{{
+  "canonical_name": "Fitzwilliam Darcy",
+  "aliases": ["Mr. Darcy", "Darcy"],
+  "role": "protagonist",
+  "description": "Wealthy gentleman who falls in love with Elizabeth",
+  "is_unnamed": false
+}}
+```
+
+Unnamed character (descriptive handle):
 ```json
 {{
   "canonical_name": "the creature",

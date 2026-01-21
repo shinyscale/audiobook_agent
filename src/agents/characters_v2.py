@@ -200,7 +200,7 @@ class CharacterAgentV2(Agent):
         main_cast_names = self._collect_all_names(main_cast)
         supporting_extractor = SupportingCastExtractor(
             context.text,
-            min_mentions=3,
+            min_mentions=5,  # Increased from 3 to reduce noise from incidental characters
         )
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
