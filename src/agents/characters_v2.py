@@ -151,6 +151,13 @@ class CharacterAgentV2(Agent):
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
 
+        # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
+        # This must run BEFORE the main merge to avoid the ambiguity problem where
+        # "Daisy" matches multiple full names and gets skipped
+        logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
+        main_cast = self._merge_same_firstname_variants(main_cast)
+        logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
+
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
         logger.info("V2 Step 3.5: Merging within main cast")
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
@@ -548,6 +555,115 @@ class CharacterAgentV2(Agent):
             name = re.sub(f"^{title}\\s+", "", name, flags=re.IGNORECASE)
 
         return name.strip()
+
+    def _merge_same_firstname_variants(
+        self,
+        main_cast: list[Character],
+    ) -> list[Character]:
+        """
+        Pre-merge characters that share the same first name but have different last names.
+
+        This handles cases like:
+        - "Daisy" + "Daisy Buchanan" + "Daisy Fay" → all same person (maiden/married name)
+
+        Unlike the Wilson case (George Wilson vs Myrtle Wilson = different people with
+        different first names), same-first-name variants are likely the same person.
+
+        The key insight: When multiple matches share the SAME first name, they're
+        probably the same person. When matches have DIFFERENT first names (like
+        George Wilson vs Myrtle Wilson), they're different people.
+
+        Returns:
+            Updated list with same-firstname variants merged
+        """
+        if len(main_cast) <= 1:
+            return main_cast
+
+        # Group multi-word names by their first name (lowercase)
+        firstname_to_fullnames: dict[str, list[int]] = {}
+        single_word_names: dict[str, int] = {}  # first_name_lower -> index
+
+        for idx, char in enumerate(main_cast):
+            name = char.canonical_name.strip()
+            if not name:
+                continue
+
+            parts = name.split()
+            first_name = parts[0].lower()
+
+            if len(parts) == 1:
+                # Single-word name (potential first-name-only reference)
+                single_word_names[first_name] = idx
+            else:
+                # Multi-word name (full name)
+                if first_name not in firstname_to_fullnames:
+                    firstname_to_fullnames[first_name] = []
+                firstname_to_fullnames[first_name].append(idx)
+
+        chars_to_remove = set()
+
+        # For each first name that has multiple full-name variants, merge them
+        for first_name, indices in firstname_to_fullnames.items():
+            if len(indices) < 2:
+                continue
+
+            # Multiple full names share the same first name (e.g., "Daisy Buchanan", "Daisy Fay")
+            # These are likely the same person with maiden/married names
+            chars_in_group = [(idx, main_cast[idx]) for idx in indices]
+
+            # Find the canonical entry: prefer the one with most mentions
+            canonical_idx = max(indices, key=lambda i: main_cast[i].mention_count)
+            canonical_char = main_cast[canonical_idx]
+
+            logger.info(
+                f"Same-firstname merge: '{first_name}' has {len(indices)} variants, "
+                f"using '{canonical_char.canonical_name}' as canonical"
+            )
+
+            # Merge others into canonical
+            for idx in indices:
+                if idx == canonical_idx:
+                    continue
+                other = main_cast[idx]
+
+                # Add other's canonical name as alias
+                if other.canonical_name not in canonical_char.aliases:
+                    logger.info(
+                        f"  Merging '{other.canonical_name}' → '{canonical_char.canonical_name}' as alias"
+                    )
+                    canonical_char.aliases.append(other.canonical_name)
+
+                # Merge other's aliases too
+                for alias in other.aliases:
+                    if alias not in canonical_char.aliases and alias != canonical_char.canonical_name:
+                        canonical_char.aliases.append(alias)
+
+                # Accumulate mention count
+                canonical_char.mention_count += other.mention_count
+
+                chars_to_remove.add(idx)
+
+            # If there's a single-word name matching this first name, merge it too
+            if first_name in single_word_names:
+                single_idx = single_word_names[first_name]
+                if single_idx not in chars_to_remove:
+                    single_char = main_cast[single_idx]
+                    if single_char.canonical_name not in canonical_char.aliases:
+                        logger.info(
+                            f"  Also merging first-name-only '{single_char.canonical_name}' → "
+                            f"'{canonical_char.canonical_name}' as alias"
+                        )
+                        canonical_char.aliases.append(single_char.canonical_name)
+                    canonical_char.mention_count += single_char.mention_count
+                    chars_to_remove.add(single_idx)
+
+        # Build result list
+        result = [c for i, c in enumerate(main_cast) if i not in chars_to_remove]
+
+        if chars_to_remove:
+            logger.info(f"Same-firstname merge: removed {len(chars_to_remove)} duplicate entries")
+
+        return result
 
     def _merge_within_main_cast(
         self,

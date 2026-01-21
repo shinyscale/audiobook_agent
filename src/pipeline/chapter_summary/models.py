@@ -35,8 +35,9 @@ class ChapterSummary:
     secondary_tones: list[ToneType] # Other tones present
     dialogue_density: DialogueDensity  # How much dialogue vs narrative
 
-    # Character information
-    characters_present: list[str]   # Character names appearing in chapter
+    # Character information (new split format)
+    active_characters: list[str]    # Characters who appear "on stage" - speak, act, interact
+    mentioned_characters: list[str] # Characters referenced but not present (talked about, historical)
     pov_character: Optional[str]    # Point-of-view character if applicable
 
     # Technical info
@@ -45,6 +46,11 @@ class ChapterSummary:
 
     # Generation metadata
     confidence: float
+
+    @property
+    def characters_present(self) -> list[str]:
+        """Backward compatibility: return active_characters (the ones who appear in the chapter)."""
+        return self.active_characters
 
     def to_dict(self) -> dict:
         return {
@@ -55,7 +61,8 @@ class ChapterSummary:
             "primary_tone": self.primary_tone,
             "secondary_tones": self.secondary_tones,
             "dialogue_density": self.dialogue_density,
-            "characters_present": self.characters_present,
+            "active_characters": self.active_characters,
+            "mentioned_characters": self.mentioned_characters,
             "pov_character": self.pov_character,
             "word_count": self.word_count,
             "estimated_duration_minutes": self.estimated_duration_minutes,
@@ -64,6 +71,15 @@ class ChapterSummary:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChapterSummary":
+        # Handle backward compatibility: old format had 'characters_present'
+        if "active_characters" not in data and "characters_present" in data:
+            # Migrate old format: treat all characters_present as active
+            data["active_characters"] = data.pop("characters_present")
+            data["mentioned_characters"] = []
+        elif "active_characters" not in data:
+            data["active_characters"] = []
+        if "mentioned_characters" not in data:
+            data["mentioned_characters"] = []
         return cls(**data)
 
 

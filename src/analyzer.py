@@ -1087,21 +1087,28 @@ class AudiobookAnalyzer:
 
         # F6: Reconcile characters from chapter summaries (moved outside llm check)
         # This must run whenever summaries exist, regardless of whether there's a default LLM client
-        # Add any characters from summary.characters_present that are missing from the character list
+        # Add any characters from summary.active_characters that are missing from the character list
         # This addresses the issue where self-referential narrators (e.g., "My name is X") are missed by NER
         # but correctly identified in chapter summaries
+        #
+        # IMPORTANT: We ONLY use active_characters (characters who appear "on stage"), NOT mentioned_characters.
+        # mentioned_characters are people referenced but not present (historical figures, guest lists, etc.)
+        # Adding mentioned_characters would cause character count explosion (e.g., party guests in Gatsby Ch.4)
         if summary_map:
             print("🔍 Reconciling characters from chapter summaries...")
             try:
                 # Collect all unique character names from chapter summaries
+                # Use active_characters (new format) with fallback to characters_present (old format via property)
                 summary_character_names = set()
                 for summary in summary_map.summaries:
-                    if summary.characters_present:
-                        for name in summary.characters_present:
-                            # Normalize name (strip whitespace, handle case)
-                            normalized_name = name.strip()
-                            if normalized_name:
-                                summary_character_names.add(normalized_name)
+                    # active_characters = characters who appear and act in the chapter
+                    # The property characters_present returns active_characters for backward compatibility
+                    active_chars = getattr(summary, 'active_characters', None) or summary.characters_present or []
+                    for name in active_chars:
+                        # Normalize name (strip whitespace, handle case)
+                        normalized_name = name.strip()
+                        if normalized_name:
+                            summary_character_names.add(normalized_name)
 
                 # Find which names from summaries are missing from character list
                 existing_names = set()
@@ -1140,7 +1147,8 @@ class AudiobookAnalyzer:
                         # Find which chapters this character appears in (from summaries)
                         chapters_present = []
                         for summary in summary_map.summaries:
-                            if summary.characters_present and name in summary.characters_present:
+                            active_chars = getattr(summary, 'active_characters', None) or summary.characters_present or []
+                            if name in active_chars:
                                 chapters_present.append(summary.chapter_index)
 
                         # Create a minimal Character entry

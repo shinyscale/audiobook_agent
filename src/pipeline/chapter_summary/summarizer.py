@@ -103,6 +103,15 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
 {length_guidance}
 
+CRITICAL CHARACTER DISTINCTION:
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+
+Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
+or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
+
 Return a JSON response matching this example format exactly:
 
 ```json
@@ -117,7 +126,8 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
   "dialogue_density": "high",
@@ -161,6 +171,15 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - If something is vague or unclear in the text, say so rather than guessing
 {length_guidance}
 
+CRITICAL CHARACTER DISTINCTION:
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+
+Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
+or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
+
 Return a JSON response matching this example format exactly:
 
 ```json
@@ -175,7 +194,8 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
   "dialogue_density": "high",
@@ -506,7 +526,7 @@ class ChapterSummarizer:
         for c in chunks:
             all_events.extend(c.key_events)
 
-        # Deduplicate characters
+        # Deduplicate characters (fallback treats all as active since we don't have the distinction)
         all_chars = set()
         for c in chunks:
             all_chars.update(c.characters_mentioned)
@@ -525,7 +545,8 @@ class ChapterSummarizer:
             primary_tone=primary_tone,
             secondary_tones=[],
             dialogue_density="medium",
-            characters_present=list(all_chars),
+            active_characters=list(all_chars),  # Fallback: treat all as active
+            mentioned_characters=[],
             pov_character=None,
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,
@@ -553,6 +574,15 @@ class ChapterSummarizer:
         if dialogue not in ["high", "medium", "low"]:
             dialogue = "medium"
 
+        # Handle new active/mentioned character format with backward compatibility
+        if "active_characters" in result:
+            active_characters = result.get("active_characters", [])
+            mentioned_characters = result.get("mentioned_characters", [])
+        else:
+            # Old format: all characters_present treated as active
+            active_characters = result.get("characters_present", [])
+            mentioned_characters = []
+
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
@@ -561,7 +591,8 @@ class ChapterSummarizer:
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,
-            characters_present=result.get("characters_present", []),
+            active_characters=active_characters,
+            mentioned_characters=mentioned_characters,
             pov_character=result.get("pov_character"),
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,  # ~150 wpm narration
@@ -583,7 +614,8 @@ class ChapterSummarizer:
             primary_tone="reflective",
             secondary_tones=[],
             dialogue_density="medium",
-            characters_present=[],
+            active_characters=[],
+            mentioned_characters=[],
             pov_character=None,
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,

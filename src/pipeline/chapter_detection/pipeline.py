@@ -227,11 +227,39 @@ class ChapterDetectionPipeline:
         """Generate proposals from all available strategies."""
         proposals = []
 
-        # Always run regex proposer
-        logger.info("Running regex proposer...")
-        regex_proposals = self.regex_proposer.propose(text, profile)
-        proposals.extend(regex_proposals)
-        logger.info(f"Regex proposer found {len(regex_proposals)} proposals")
+        # Try TOC-guided detection first (most reliable when TOC exists)
+        if profile.table_of_contents and profile.table_of_contents.entries:
+            logger.info("Running TOC-guided detection...")
+            toc_proposals = self.regex_proposer.propose_from_toc(text, profile)
+            expected_count = len(profile.table_of_contents.entries)
+
+            if len(toc_proposals) == expected_count:
+                # Found all expected chapters - use these exclusively
+                logger.info(
+                    f"TOC-guided: found all {expected_count} expected chapters, "
+                    f"using TOC-guided proposals exclusively"
+                )
+                return toc_proposals
+            elif len(toc_proposals) >= expected_count * 0.8:
+                # Found most chapters (80%+) - use TOC-guided but fall through for extras
+                logger.info(
+                    f"TOC-guided: found {len(toc_proposals)}/{expected_count} chapters, "
+                    f"using as primary proposals"
+                )
+                proposals.extend(toc_proposals)
+            else:
+                # TOC-guided didn't find enough - fall back to standard detection
+                logger.info(
+                    f"TOC-guided: found only {len(toc_proposals)}/{expected_count} chapters, "
+                    f"falling back to standard detection"
+                )
+
+        # Always run regex proposer (unless we already have all TOC-guided proposals)
+        if not proposals or len(proposals) < len(profile.table_of_contents.entries if profile.table_of_contents else []):
+            logger.info("Running regex proposer...")
+            regex_proposals = self.regex_proposer.propose(text, profile)
+            proposals.extend(regex_proposals)
+            logger.info(f"Regex proposer found {len(regex_proposals)} proposals")
 
         # Run LLM proposers if available
         if self.llm_marker_proposer:
