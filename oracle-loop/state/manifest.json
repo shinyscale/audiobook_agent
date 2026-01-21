@@ -45,9 +45,11 @@
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
-      "attempts": 0,
+      "attempts": 2,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": 6.65,
+      "last_score": 7.45,
+      "regression_detected": false
     },
     {
       "name": "i_have_no_mouth",
