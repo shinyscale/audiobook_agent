@@ -171,8 +171,28 @@ The attempt 2 fix added `_merge_within_main_cast()` which had a smoke test that 
 - **Evidence:** All characters in JSON have `role: null` despite PipelineCharacter having role set
 - **Fix applied:** Lines 2387 and 2399 now copy role field with `role=getattr(pc, 'role', None)`
 
+**5. Pronunciation False Positives (HIGH #5)**
+- **Root cause:** V2 character extraction creates descriptive character names (e.g., "The man who bought a hydroplane", "Two sober men and their wives"). CharacterProposer splits these names and flags each word individually, including common words.
+- **Evidence:**
+  - "who" (114 occurrences) comes from "The man who bought a hydroplane"
+  - "eyes" (88 occurrences) comes from "the eyes of Doctor T. J. Eckleburg" and "Owl Eyes"
+  - "their" (56 occurrences) comes from "Two sober men and their wives"
+  - "men" (42 occurrences) comes from "Two sober men and their wives"
+  - "Two" (72 occurrences) comes from "Two sober men and their wives"
+- **Location:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` - COMMON_WORDS_WHITELIST
+- **Confidence:** HIGH
+- **Fix applied:** Expanded COMMON_WORDS_WHITELIST from 115 to 162 entries, adding:
+  - Common pronouns: who, whom, whose, which, that, their, theirs, them, his, her, hers, its, our, ours, your, yours
+  - Common body parts: eyes, eye, face, hand, hands, hair, head, voice
+  - Common numbers: one, two, three, four, five, six, seven, eight, nine, ten, first, second, third
+  - Common quantifiers: many, several, few, some, all, both
+  - Common plural forms: men, women, boys, girls, children, babies, people, husbands, wives, friends, strangers, gentlemen, ladies
+- **Smoke test:** PASS - Verified all 5 problematic words now in whitelist
+- **Test suite:** 16/16 pronunciation tests passed
+
 ### Changes Made
-- Modified: `src/analyzer.py` lines 2387, 2399 (added role field to character export)
+- Modified: `src/analyzer.py` lines 2387, 2399 (added role field to character export) - commit 90ffc51
+- Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (expanded COMMON_WORDS_WHITELIST from 115 to 162 entries)
 
 ## Next Action
 **Phase:** awaiting_analysis
@@ -180,3 +200,4 @@ Re-run analysis to verify:
 1. Chapter V appears (likely - non-deterministic)
 2. Character role field is populated correctly
 3. Wilson merge status can be determined from roles
+4. Pronunciation false positives reduced (estimated 600+ → 450-500 entries)

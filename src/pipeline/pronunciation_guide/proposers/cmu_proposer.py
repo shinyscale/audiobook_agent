@@ -41,6 +41,17 @@ COMMON_WORDS_WHITELIST = {
     'father', 'mother', 'son', 'daughter', 'brother', 'sister', 'uncle', 'aunt',
     'husband', 'wife', 'friend', 'stranger', 'gentleman', 'lady', 'maid',
     'from', 'with', 'about', 'into', 'upon', 'after', 'before',
+    # Common pronouns and prepositions that appear in descriptive names
+    'who', 'whom', 'whose', 'which', 'that', 'their', 'theirs', 'them',
+    'his', 'her', 'hers', 'its', 'our', 'ours', 'your', 'yours',
+    # Common body parts and descriptive terms
+    'eyes', 'eye', 'face', 'hand', 'hands', 'hair', 'head', 'voice',
+    # Common numbers and quantifiers (appearing in descriptive names)
+    'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+    'first', 'second', 'third', 'many', 'several', 'few', 'some', 'all', 'both',
+    # Common plural forms of descriptive words
+    'men', 'women', 'boys', 'girls', 'children', 'babies', 'people',
+    'husbands', 'wives', 'friends', 'strangers', 'gentlemen', 'ladies',
 }
 
 # Contraction fragments that result from tokenization
