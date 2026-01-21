@@ -27,6 +27,15 @@
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
+## Pipeline Notes (Attempt 5 Analysis)
+- Analysis completed in 59m 27s
+- 154 LLM calls, 485,570 tokens
+- **WARNINGS:**
+  - JSON parsing failures for profiles: Daisy Buchanan, Tom Buchanan, Michaelis, McKee (confidence 0.30)
+  - LLM identity detection server error (500)
+  - 116 characters detected (up from previous attempts)
+  - 650 pronunciation flags (down from 663 in attempt 4)
+
 ## What Improved in Attempt 4
 
 1. ✅ **Chapter V Detection Fixed** - 9 chapters now detected correctly (was 8 in attempt 3)
@@ -147,8 +156,4 @@ If all three: 7.75 + 0.125 = 7.875 (very close!)
   - Smoke test: PASS - test_character_proposer_with_index now correctly excludes Nick/Daisy
 
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run analysis to verify fixes:
-1. Main cast appearance data should be populated (was "unknown")
-2. Pronunciation entries should exclude common first names (Tom, Nick, Daisy, etc.)
-3. Expected score improvement: +0.45 (profiles) + 0.10 (pronunciation) = +0.55 → 7.75/10
+**Phase:** awaiting_evaluation
