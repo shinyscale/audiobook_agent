@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -104,6 +104,15 @@ The fix needs to either:
 
 ## Pipeline Notes
 
+### Attempt 3
+- Analysis completed successfully in 56m 36s
+- Used V2 character extraction (summary-driven)
+- Found 8 chapters, 105 characters, 646 pronunciation flags
+- Character count: 105 (down from 120 in attempt 2 - showing more merges worked!)
+- Pipeline warnings: No passages provided for character profiling (LLM identity detection failed with 500 error)
+- Pronunciation categories properly set (no longer all null)
+- Models used: qwen3:30b-instruct (structure/pronunciation), qwen3-next:80b-a3b-instruct-q8_0 (characters/summaries)
+
 ### Attempt 2
 - Analysis completed successfully
 - Used V2 character extraction (summary-driven)
@@ -130,7 +139,9 @@ The fix needs to either:
   - Test suite: 192 passed, 1 failed (line count check only)
 
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run analysis on gatsby (attempt 3) to verify:
+**Phase:** awaiting_evaluation
+Evaluate attempt 3 results to verify:
 1. Wilson variants are merged (CRITICAL #1)
 2. Wolfsheim variants are merged (CRITICAL #2)
+3. Chapter count is correct (8 vs 9 in attempt 2)
+4. Character count reduction (105 vs 120 indicates more merging)
