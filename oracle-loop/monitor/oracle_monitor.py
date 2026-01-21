@@ -8,7 +8,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from textual.app import App, ComposeResult
@@ -40,6 +40,7 @@ class Commit:
     """A git commit."""
     hash: str
     message: str
+    timestamp: str = ""  # Relative time like "2 hours ago"
 
 
 @dataclass
@@ -218,10 +219,11 @@ class StateParser:
         }
 
     def parse_git_log(self, count: int = 5) -> list[Commit]:
-        """Get recent git commits."""
+        """Get recent git commits with timestamps."""
         try:
+            # Format: hash|relative_time|subject
             result = subprocess.run(
-                ['git', 'log', '--oneline', f'-{count}'],
+                ['git', 'log', f'--format=%h|%ar|%s', f'-{count}'],
                 capture_output=True,
                 text=True,
                 cwd=self.base_dir,
@@ -233,8 +235,14 @@ class StateParser:
             commits = []
             for line in result.stdout.strip().split('\n'):
                 if line:
-                    parts = line.split(' ', 1)
-                    if len(parts) >= 2:
+                    parts = line.split('|', 2)
+                    if len(parts) >= 3:
+                        commits.append(Commit(
+                            hash=parts[0],
+                            timestamp=parts[1],
+                            message=parts[2]
+                        ))
+                    elif len(parts) == 2:
                         commits.append(Commit(hash=parts[0], message=parts[1]))
             return commits
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
@@ -347,47 +355,65 @@ class StateParser:
         last_message = ""
         thinking_texts = []  # Collect Claude's text/reasoning blocks
 
+        # Get log file modification time for timestamp estimation
         try:
-            with open(latest_log) as f:
-                for line in f:
-                    try:
-                        data = json.loads(line.strip())
-                        msg_type = data.get('type')
+            log_mtime = datetime.fromtimestamp(latest_log.stat().st_mtime)
+        except OSError:
+            log_mtime = datetime.now()
 
-                        if msg_type == 'assistant':
-                            msg = data.get('message', {})
-                            if msg.get('model'):
-                                model = msg['model']
-                            usage = msg.get('usage', {})
-                            input_tokens += usage.get('input_tokens', 0)
-                            input_tokens += usage.get('cache_read_input_tokens', 0)
-                            input_tokens += usage.get('cache_creation_input_tokens', 0)
-                            output_tokens += usage.get('output_tokens', 0)
+        try:
+            lines = latest_log.read_text().strip().split('\n')
+            total_lines = len(lines)
 
-                            # Extract tool calls from content
-                            content = msg.get('content', [])
-                            for block in content:
-                                if block.get('type') == 'tool_use':
-                                    tool_name = block.get('name', 'unknown')
-                                    tool_input = block.get('input', {})
+            for line_num, line in enumerate(lines):
+                try:
+                    data = json.loads(line.strip())
+                    msg_type = data.get('type')
 
-                                    # Create human-readable description
-                                    desc = self._describe_tool_use(tool_name, tool_input)
-                                    activities.append(ClaudeActivity(
-                                        tool_name=tool_name,
-                                        description=desc
-                                    ))
+                    if msg_type == 'assistant':
+                        msg = data.get('message', {})
+                        if msg.get('model'):
+                            model = msg['model']
+                        usage = msg.get('usage', {})
+                        input_tokens += usage.get('input_tokens', 0)
+                        input_tokens += usage.get('cache_read_input_tokens', 0)
+                        input_tokens += usage.get('cache_creation_input_tokens', 0)
+                        output_tokens += usage.get('output_tokens', 0)
 
-                                elif block.get('type') == 'text':
-                                    # Capture text blocks for thinking panel
-                                    text = block.get('text', '')
-                                    if text and len(text.strip()) > 10:  # Skip trivial texts
-                                        thinking_texts.append(text)
-                                        # Also keep last message for backwards compatibility
-                                        last_message = text[:200] + "..." if len(text) > 200 else text
+                        # Estimate timestamp based on position in file
+                        # Later lines are more recent (closer to mtime)
+                        progress = line_num / max(total_lines, 1)
+                        # Estimate session started ~30 min before last write
+                        session_duration_sec = 1800  # 30 minutes estimate
+                        seconds_ago = int(session_duration_sec * (1 - progress))
+                        activity_time = log_mtime - timedelta(seconds=seconds_ago)
+                        timestamp_str = activity_time.strftime("%H:%M:%S")
 
-                    except json.JSONDecodeError:
-                        continue
+                        # Extract tool calls from content
+                        content = msg.get('content', [])
+                        for block in content:
+                            if block.get('type') == 'tool_use':
+                                tool_name = block.get('name', 'unknown')
+                                tool_input = block.get('input', {})
+
+                                # Create human-readable description
+                                desc = self._describe_tool_use(tool_name, tool_input)
+                                activities.append(ClaudeActivity(
+                                    tool_name=tool_name,
+                                    description=desc,
+                                    timestamp=timestamp_str
+                                ))
+
+                            elif block.get('type') == 'text':
+                                # Capture text blocks for thinking panel
+                                text = block.get('text', '')
+                                if text and len(text.strip()) > 10:  # Skip trivial texts
+                                    thinking_texts.append(text)
+                                    # Also keep last message for backwards compatibility
+                                    last_message = text[:200] + "..." if len(text) > 200 else text
+
+                except json.JSONDecodeError:
+                    continue
         except IOError:
             pass
 
@@ -797,10 +823,17 @@ class CommitsPanel(Static):
         for commit in self.state.commits:
             text.append(commit.hash, style="yellow")
             text.append(" │ ", style="dim")
+            # Show timestamp if available
+            if commit.timestamp:
+                # Pad timestamp to fixed width for alignment
+                ts = commit.timestamp[:15].ljust(15)
+                text.append(ts, style="dim cyan")
+                text.append(" │ ", style="dim")
             # Truncate long messages
             msg = commit.message
-            if len(msg) > 80:
-                msg = msg[:77] + "..."
+            max_msg_len = 60 if commit.timestamp else 80
+            if len(msg) > max_msg_len:
+                msg = msg[:max_msg_len - 3] + "..."
             text.append(msg, style="white")
             text.append("\n")
 
@@ -845,12 +878,16 @@ class ClaudeActivityPanel(Static):
         for activity in activities[-12:]:  # Show last 12 activities
             icon = tool_icons.get(activity.tool_name, '🔧')
             text.append(f"  {icon} ", style="dim")
+            # Show timestamp if available
+            if activity.timestamp:
+                text.append(f"{activity.timestamp} ", style="dim cyan")
             text.append(f"{activity.tool_name:12}", style="cyan")
             text.append("│ ", style="dim")
-            # Truncate long descriptions
+            # Truncate long descriptions (shorter if timestamp shown)
             desc = activity.description
-            if len(desc) > 70:
-                desc = desc[:67] + "..."
+            max_desc_len = 55 if activity.timestamp else 70
+            if len(desc) > max_desc_len:
+                desc = desc[:max_desc_len - 3] + "..."
             text.append(desc, style="white")
             text.append("\n")
 
