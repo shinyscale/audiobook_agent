@@ -409,16 +409,23 @@ class StateParser:
             pass
 
         # Assign timestamps to the final batch of activities we return
-        # Use the log file's modification time for recent activities
-        recent_activities = activities[-10:]
+        # Use the log file's modification time and estimate earlier timestamps
+        recent_activities = activities[-12:]
         mtime_str = log_mtime.strftime("%H:%M:%S")
+
+        # Estimate timestamps based on position in the activity list
+        # Assume roughly 10-30 seconds per activity on average
         for i, activity in enumerate(recent_activities):
-            # Most recent activities get the file mtime
-            # Older ones in the batch get "earlier" indicator
+            # Most recent activities (last 3) get the current file mtime
             if i >= len(recent_activities) - 3:
                 activity.timestamp = mtime_str
             else:
-                activity.timestamp = "earlier"
+                # Estimate earlier timestamps by subtracting time from mtime
+                # Newer items are closer to the end, so older items get larger offsets
+                offset_index = len(recent_activities) - 3 - i
+                offset_seconds = offset_index * 20  # ~20 seconds per activity estimate
+                estimated_time = log_mtime - timedelta(seconds=offset_seconds)
+                activity.timestamp = estimated_time.strftime("%H:%M:%S")
 
         return {
             'model': model,
