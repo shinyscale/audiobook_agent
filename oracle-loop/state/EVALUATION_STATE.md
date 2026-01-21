@@ -194,5 +194,19 @@ The V2 character extraction pipeline has a bug where the `Character` Pydantic mo
 **Next Action:**
 Debug and fix the Character model field mismatch in V2 pipeline.
 
+## Attempt 8 Analysis Result
+**FAILED** - Same error as attempt 7
+
+**Error:** `"Character" object has no field "mentions"`
+
+**Pipeline Progress:**
+- ✅ Ingestion: Success (51,257 words, 19KB Gutenberg boilerplate removed)
+- ✅ Structure: Success (11 chapters detected - note: was 9 in partial attempt 7)
+- ✅ Summaries: Success (11 summaries generated)
+- ❌ Characters (v2): **CRASHED** - Field mismatch error (same as attempt 7)
+
+**Analysis:**
+The temperature=0.0 fix was successfully applied in attempt 7, but the V2 character extraction bug is still blocking completion. This is a code defect, not a configuration issue.
+
 ## Next Action
 **Phase:** awaiting_fix
