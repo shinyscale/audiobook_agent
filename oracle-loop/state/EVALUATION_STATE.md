@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -112,7 +112,50 @@
 - Character Profiles stage had the most time (1728s) and was flagged as quality concern
 
 ## Fix History
-(none yet)
+
+### Attempt 1 - Fix character false splits (CRITICAL #1-5)
+**Date:** 2026-01-20
+**Issues addressed:**
+- #1: Wilson variants (Wilson / George B. Wilson / George)
+- #2: Baker variants (Baker / Jordan Baker)
+- #3: Carraway variants (Carraway / Nick Carraway)
+- #4: Wolfshiem/Wolfsheim spelling variants
+- #5: Mr. Gatsby / Jay Gatsby
+
+**Root cause:**
+- V2 character extraction uses summary-driven main cast extraction
+- LLM provides first-name aliases ("Nick", "Jordan") but NOT last-name-only aliases
+- Supporting cast extractor (NER-based) finds last-name-only references as separate characters
+- Filter in `src/pipeline/character_extraction_v2/supporting.py:113-115` only checks exact matches against main cast names/aliases
+- Since "Wilson", "Baker", "Carraway" weren't in main cast aliases, they became separate supporting characters
+
+**Fix implemented:**
+- Added `_merge_lastname_aliases()` method in `src/agents/characters_v2.py` (Step 5.5)
+- Deterministic post-processing after supporting cast extraction
+- For each single-word supporting character name:
+  - Check if it matches the last name of any main cast character
+  - If exactly ONE match found, merge as alias (avoids false positives for family members)
+  - Also handles fuzzy matches (85% similarity) for spelling variants like Wolfshiem/Wolfsheim
+- For title + name patterns (e.g., "Mr. Gatsby"):
+  - Strip title and check against main cast canonical names and aliases
+  - Merge as alias if match found
+- Re-run mention search for characters that gained new aliases to update mention counts
+
+**Files modified:**
+- `src/agents/characters_v2.py`: Added `_merge_lastname_aliases()` and `_strip_title()` methods
+
+**Smoke test:** PASS
+- Verified "Carraway" merges with "Nick Carraway"
+- Verified "Baker" merges with "Jordan Baker"
+- Verified "Wilson" merges with "George B. Wilson"
+- Verified "Wolfshiem" merges with "Meyer Wolfsheim" (fuzzy match)
+- Verified "Mr. Gatsby" merges with "Jay Gatsby" (title stripping)
+- Supporting cast correctly reduced from 6 to 1 test character
+
+**Expected impact:**
+- Should fix 5 CRITICAL false splits
+- Estimated improvement: +2-3 points on Character Extraction (from 5/10 toward 7-8/10)
+- Estimated overall score improvement: +0.6 to +1.0 points (from 6.65 toward 7.25-7.65)
 
 ## Next Action
-Run PROMPT_fix.md to address character false splits (Critical #1-5) as highest priority. These account for the majority of the Character Extraction score penalty. Fixing alias merging for LastName-only entries to FirstName-LastName entries could recover ~2 points on Character Extraction, pushing overall score from 6.65 toward 7.5+.
+Set phase to `awaiting_analysis` to re-run analysis and verify the fix works on the full Gatsby text.

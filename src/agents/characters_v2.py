@@ -177,6 +177,28 @@ class CharacterAgentV2(Agent):
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
 
+        # STEP 5.5: Merge last-name-only supporting characters as aliases
+        main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
+            main_cast, supporting_cast
+        )
+
+        # Re-search mentions for characters that gained new aliases
+        if aliases_added:
+            logger.info(f"Re-searching mentions for {len(aliases_added)} characters with new aliases")
+            for char_id in aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.5 complete: {len(main_cast)} main cast, "
+            f"{len(supporting_cast)} supporting after last-name merge"
+        )
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast
@@ -446,6 +468,159 @@ class CharacterAgentV2(Agent):
         # Match as a complete word (with word boundaries or punctuation)
         pattern = r'(?:^|[\s\-\.])'  + escaped + r'(?:$|[\s\-\.])'
         return bool(re.search(pattern, longer_name))
+
+    def _strip_title(self, name: str) -> str:
+        """
+        Strip honorific titles from a name.
+
+        Examples:
+        - "Mr. Gatsby" → "Gatsby"
+        - "Mrs. Wilson" → "Wilson"
+        - "Dr. Jekyll" → "Jekyll"
+        """
+        import re
+
+        # List of common titles
+        titles = [
+            r"\bMr\.",
+            r"\bMrs\.",
+            r"\bMs\.",
+            r"\bMiss\b",
+            r"\bDr\.",
+            r"\bLord\b",
+            r"\bLady\b",
+            r"\bSir\b",
+        ]
+
+        # Remove any leading title
+        for title in titles:
+            name = re.sub(f"^{title}\\s+", "", name, flags=re.IGNORECASE)
+
+        return name.strip()
+
+    def _merge_lastname_aliases(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], list[Character], set[str]]:
+        """
+        Merge last-name-only supporting characters as aliases of main cast.
+
+        Common pattern: "Wilson" (65 mentions) should be an alias of "George B. Wilson"
+        when there's only one Wilson in the main cast.
+
+        Also handles title variants like "Mr. Gatsby" → alias of "Jay Gatsby"
+
+        Returns:
+            Tuple of (updated_main_cast, updated_supporting_cast, char_ids_with_new_aliases)
+        """
+        import re
+        from difflib import SequenceMatcher
+
+        if not supporting_cast:
+            return main_cast, supporting_cast, set()
+
+        supporting_to_remove = set()
+        chars_with_new_aliases = set()
+
+        for supp_idx, supp_char in enumerate(supporting_cast):
+            supp_name = supp_char.canonical_name.strip()
+
+            # Skip if empty
+            if not supp_name:
+                continue
+
+            # Check for title + name pattern (e.g., "Mr. Gatsby")
+            title_stripped = self._strip_title(supp_name)
+            if title_stripped != supp_name:
+                # This is a title + name - check if it matches any main cast canonical or alias
+                for main_idx, main_char in enumerate(main_cast):
+                    # Check canonical name
+                    if title_stripped.lower() == main_char.canonical_name.lower():
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging title variant '{supp_name}' → "
+                                f"'{main_char.canonical_name}' as alias"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+                    # Check aliases
+                    for alias in main_char.aliases:
+                        if title_stripped.lower() == alias.lower():
+                            if supp_name not in main_char.aliases:
+                                logger.info(
+                                    f"Merging title variant '{supp_name}' → "
+                                    f"'{main_char.canonical_name}' (matches alias '{alias}')"
+                                )
+                                main_char.aliases.append(supp_name)
+                                chars_with_new_aliases.add(main_char.id)
+                            supporting_to_remove.add(supp_idx)
+                            break
+
+                # If we processed this as a title variant, skip last-name processing
+                if supp_idx in supporting_to_remove:
+                    continue
+
+            # Only process single-word names (potential last names)
+            if ' ' in supp_name:
+                continue
+
+            # Check if this could be a last name of any main cast character
+            matches = []
+
+            for main_idx, main_char in enumerate(main_cast):
+                # Extract last name from main character's canonical name
+                main_name_parts = main_char.canonical_name.strip().split()
+
+                if not main_name_parts:
+                    continue
+
+                # Get last word as potential surname
+                main_lastname = main_name_parts[-1].strip('.,;:')
+
+                # Check for exact match (case-insensitive)
+                if supp_name.lower() == main_lastname.lower():
+                    matches.append((main_idx, "exact"))
+                    continue
+
+                # Check for fuzzy match (handles Wolfsheim/Wolfshiem)
+                similarity = SequenceMatcher(
+                    None,
+                    supp_name.lower(),
+                    main_lastname.lower()
+                ).ratio()
+
+                if similarity >= 0.85:  # 85% similar
+                    matches.append((main_idx, "fuzzy"))
+
+            # Only merge if there's exactly ONE match
+            # (avoids merging when multiple characters share a surname)
+            if len(matches) == 1:
+                main_idx, match_type = matches[0]
+                main_char = main_cast[main_idx]
+
+                # Check if already an alias
+                if supp_name not in main_char.aliases:
+                    logger.info(
+                        f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ '{main_char.canonical_name}' as alias ({match_type} match)"
+                    )
+                    main_char.aliases.append(supp_name)
+                    chars_with_new_aliases.add(main_char.id)
+
+                # Mark for removal from supporting cast
+                supporting_to_remove.add(supp_idx)
+
+        # Remove merged characters from supporting cast
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast)
+            if idx not in supporting_to_remove
+        ]
+
+        return main_cast, updated_supporting, chars_with_new_aliases
 
     def _convert_to_pipeline_characters(
         self,
