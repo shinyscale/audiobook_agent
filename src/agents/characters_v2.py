@@ -495,17 +495,6 @@ class CharacterAgentV2(Agent):
                 removed_count += 1
                 continue
 
-            # Check if it matches the identified narrator's name with "(narrator)" suffix
-            # E.g., "Nick Carraway (narrator)" should be filtered
-            if narrator_name and canonical_lower.startswith(narrator_name.lower()):
-                if "(" in canonical_lower and "narrator" in canonical_lower:
-                    logger.info(
-                        f"Filtering narrator variant '{char.canonical_name}' "
-                        f"(matches narrator '{narrator_name}' with suffix)"
-                    )
-                    removed_count += 1
-                    continue
-
             filtered.append(char)
 
         if removed_count > 0:
@@ -920,20 +909,84 @@ class CharacterAgentV2(Agent):
         """
         Merge characters within main cast that are variants of each other.
 
-        Handles three patterns:
-        1. Last-name-only → Full name: "Wilson" (65 mentions) → alias of "George B. Wilson"
-        2. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
-        3. First-name-only → Full name: "George" → alias of "George B. Wilson"
+        Handles four patterns:
+        1. Middle initial variants: "George B. Wilson" → alias of "George Wilson"
+        2. Last-name-only → Full name: "Wilson" (65 mentions) → alias of "George B. Wilson"
+        3. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
+        4. First-name-only → Full name: "George" → alias of "George B. Wilson"
 
         Returns:
             Tuple of (updated_main_cast, char_ids_with_new_aliases)
         """
         from difflib import SequenceMatcher
+        import re
 
         chars_to_remove = set()
         chars_with_new_aliases = set()
 
-        # Pass 1: Merge last-name-only characters
+        # Pass 0: Merge middle initial variants
+        # "George B. Wilson" (1 mention) → alias of "George Wilson" (91 mentions)
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or ' ' not in char_name:
+                continue  # Skip empty or single-word names
+
+            # Check if this name has a middle initial pattern: "FirstName I. LastName"
+            # Middle initial pattern: single letter followed by period
+            middle_initial_pattern = r'^(\w+)\s+([A-Z]\.)\s+(.+)$'
+            match = re.match(middle_initial_pattern, char_name)
+            if not match:
+                continue  # Not a middle initial pattern
+
+            firstname = match.group(1)
+            middle_initial = match.group(2)
+            lastname = match.group(3)
+
+            # Construct the name without middle initial
+            name_without_middle = f"{firstname} {lastname}"
+
+            # Check if this matches any other character
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if other_name.lower() == name_without_middle.lower():
+                    # Found a match! Merge the one with FEWER mentions into the one with MORE
+                    if char.mention_count <= other_char.mention_count:
+                        # Current char (with middle initial) has fewer mentions → make it alias
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging middle initial variant: '{char_name}' ({char.mention_count} mentions) "
+                                f"→ '{other_char.canonical_name}' ({other_char.mention_count} mentions) as alias"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also transfer char's aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                    else:
+                        # Other char (without middle initial) has fewer mentions → make it alias
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging middle initial variant: '{other_char.canonical_name}' ({other_char.mention_count} mentions) "
+                                f"→ '{char_name}' ({char.mention_count} mentions) as alias"
+                            )
+                            char.aliases.append(other_name)
+                            # Also transfer other's aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    break  # Only merge with first match
+
+        # Pass 1: Merge last-name-only and title-variant characters
         for idx, char in enumerate(main_cast):
             if idx in chars_to_remove:
                 continue
@@ -943,7 +996,7 @@ class CharacterAgentV2(Agent):
                 continue  # Skip empty or multi-word names
 
             # This is a single-word name (potential last name or first name)
-            # Check if it matches the last word of any OTHER main cast character
+            # Check if it matches the last word OR title-stripped version of any OTHER main cast character
 
             matches = []
             for other_idx, other_char in enumerate(main_cast):
@@ -954,7 +1007,14 @@ class CharacterAgentV2(Agent):
                 if not other_name or ' ' not in other_name:
                     continue  # Only match against multi-word names
 
-                # Check last name match
+                # First check: exact match with title-stripped version
+                # E.g., "Sloane" matches "Mr. Sloane" after stripping "Mr."
+                other_title_stripped = self._strip_title(other_name)
+                if char_name.lower() == other_title_stripped.lower():
+                    matches.append((other_idx, "exact_title_stripped"))
+                    continue
+
+                # Second check: last name match
                 other_parts = other_name.split()
                 other_lastname = other_parts[-1].strip('.,;:')
 

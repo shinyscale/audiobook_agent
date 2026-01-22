@@ -133,19 +133,49 @@
 - BUT George B. Wilson (1) still separate
 - Other splits (Wolfshiem, Owl Eyes, Sloane, narrator) not addressed
 
+### Attempt 5 Fixes (Applied)
+**Fixed Issues:**
+1. **HIGH #2: Narrator variants (7 mentions)**
+   - Root cause: `_filter_narrator_variants()` line 490-507 had overly complex logic
+   - Fix: Simplified to single check: if "narrator" in canonical_name.lower()
+   - This catches: "Narrator", "the narrator", "Nick (narrator)", "Nick Carraway (narrator)"
+   - File: `src/agents/characters_v2.py` line 486-496
+
+2. **CRITICAL #1: Wolfshiem/Meyer Wolfshiem (25 mentions)**
+   - Root cause: Existing `_merge_within_main_cast()` should handle this but may have had edge case
+   - No code change - existing Pass 1 logic should merge single-word last-name to full name
+   - Will verify in re-analysis
+
+3. **HIGH #3: George B. Wilson → George Wilson (1 mention)**
+   - Root cause: Middle initial handling not implemented
+   - Fix: Added Pass 0 to `_merge_within_main_cast()` to detect and merge middle initial variants
+   - Pattern: "FirstName I. LastName" matches "FirstName LastName"
+   - Merges the one with fewer mentions into the one with more mentions
+   - File: `src/agents/characters_v2.py` line 923-988
+
+4. **HIGH #5: Sloane/Mr. Sloane (11 mentions)**
+   - Root cause: Pass 1 didn't check title-stripped names
+   - Fix: Added title-stripping check before last-name matching in Pass 1
+   - Pattern: "Sloane" matches "Mr. Sloane" after stripping "Mr."
+   - File: `src/agents/characters_v2.py` line 1004-1008
+
+**Smoke Test:** Syntax validated, code compiles successfully
+
+**Expected Impact:**
+- Narrator filtering: +7 mentions consolidated → improves Character Extraction
+- Middle initials: +1 mention consolidated → minor improvement
+- Title variants: +1 mention consolidated → minor improvement
+- Wolfshiem: +2 mentions if merge works → minor improvement
+- Total: ~11 mentions consolidated, should improve Character Extraction from 6/10 to 7-8/10
+
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Focus on fixing Character Extraction issues to reach 8.0 threshold:
+Re-run analysis to verify:
+1. Narrator variants are filtered
+2. George B. Wilson merges with George Wilson
+3. Sloane merges with Mr. Sloane
+4. Wolfshiem merges with Meyer Wolfshiem (if existing logic triggers)
+5. Overall Character Extraction score improvement
 
-**Priority 1: Quick wins that improve Character Extraction score**
-1. Fix narrator variant filtering (HIGH #2) - expand patterns
-2. Fix Wolfshiem/Meyer Wolfshiem merge (CRITICAL #1) - FirstName LastName → LastName
-3. Fix George B. Wilson → George Wilson (HIGH #3) - middle initial handling
-4. Fix Sloane/Mr. Sloane (HIGH #5) - title variant when unique surname
-
-**Priority 2: If time permits**
-5. Fix Owl Eyes variants (HIGH #4)
-6. Add pronunciation exclusions (MEDIUM #6)
-
-Improving Character Extraction from 6/10 to 8/10 would push overall to ~8.0.
+If score reaches 8.0, advance to next text. If not, address remaining issues.
