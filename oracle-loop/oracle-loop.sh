@@ -354,8 +354,9 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
             echo "Checkpoint check: new_score=$NEW_SCORE, known_good=$KNOWN_GOOD_SCORE"
 
             # Create checkpoint for this evaluation (records the commit and score)
+            # Note: || true prevents set -e from killing script when no src/ files changed
             CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null)
-            create_checkpoint "$CURRENT_COMMIT" "$NEW_SCORE" "$CURRENT_TEXT" "$CURRENT_ATTEMPT"
+            create_checkpoint "$CURRENT_COMMIT" "$NEW_SCORE" "$CURRENT_TEXT" "$CURRENT_ATTEMPT" || true
 
             # Check if score improved - if so, update known-good baseline
             if [ "$(echo "$NEW_SCORE > $KNOWN_GOOD_SCORE" | bc -l 2>/dev/null)" = "1" ]; then

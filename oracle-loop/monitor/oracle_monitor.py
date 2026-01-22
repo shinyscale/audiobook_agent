@@ -21,13 +21,14 @@ from rich.text import Text
 
 # Stage order mapping for display purposes
 # This defines the expected execution order of pipeline stages
+# Note: In V2 mode, Character Extraction V2 runs AFTER summaries
 STAGE_ORDER = {
     "Chapter Detection": 1,
-    "Character Extraction": 2,
-    "Character Extraction V2": 2,  # Alternative to V1, same position
+    "Character Extraction": 2,  # V1 mode, or runs in parallel with Pronunciation
     "Chapter Summaries": 3,
-    "Character Profiles": 4,
-    "Pronunciation Guide": 5,
+    "Character Extraction V2": 4,  # V2 mode: runs after summaries for evidence
+    "Character Profiles": 5,
+    "Pronunciation Guide": 6,  # Sequential mode (may be 2 if parallel)
 }
 
 
