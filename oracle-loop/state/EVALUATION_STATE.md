@@ -3,174 +3,122 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 2)
-- Analysis completed in 11m 33s
-- Total tokens: 50,260 across 24 LLM calls
-- Bottleneck: Chapter Summaries (47.6% of time)
-- WARNING: The bug is STILL present - "Mr. White" is an alias of "Mrs. White"
-  - Analysis output shows: `Mrs. White (aka White, Mr. White) - 36 mentions`
-  - JSON confirms: character "Mrs. White" has aliases `["White", "Mr. White"]`
-  - The fix to `_are_different_titled_people()` in `characters_v2.py` did NOT resolve the issue
-  - This suggests the merge is happening in a different location or the logic isn't being applied correctly
-
 ## Latest Scores
 - Structure Detection: 9/10
-- Character Extraction: 4/10 ← FAILING (unchanged)
-- Character Profiles: 5/10 ← FAILING (unchanged)
+- Character Extraction: 4/10 ← FAILING
+- Character Profiles: 6/10
 - Chapter Summaries: 8/10
-- Pronunciation Guide: 6/10
+- Pronunciation Guide: 7/10
 - HTML Presentation: 9/10
-- **Overall: 6.65/10** (threshold: 8.0)
+- **Overall: 6.90/10** (threshold: 8.0)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.65 | 0.00 | Baseline - Mr. White missing (merged with Mrs. White) |
-| 2 | 6.65 | 0.00 | Fix failed - Mrs. White still merged as alias of Mr. White |
+| 2 | 6.90 | +0.25 | Improved IPA, but character merge bug PERSISTS |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False character merge: Mrs. White merged into Mr. White (FIX FAILED)**
-   - Problem: Mrs. White is listed as an alias of Mr. White, but they are husband and wife (DIFFERENT people)
-   - Evidence: `analysis.json` shows Mr. White's aliases as `["White", "Mrs. White"]`
-   - This is the SAME bug as attempt 1, just merged in the opposite direction
-   - **Root cause analysis**: The fix in `main_cast.py` added a rule about different titles, but the LLM is still merging them. This suggests:
-     - Either the rule isn't being parsed correctly by the LLM
-     - Or the merge is happening in a different stage (alias deduplication?)
-     - Or the prompt changes weren't sufficient
-   - Location: Need to investigate entire V2 pipeline:
-     - `src/pipeline/character_extraction_v2/main_cast.py` (extraction stage)
-     - `src/pipeline/character_extraction_v2/alias_deduplication.py` (if exists)
-     - `src/pipeline/character_extraction_v2/merge.py` (if exists)
-   - Fix: Need deeper investigation - the prompt fix alone is insufficient
+1. **False character merge: Mr. White merged into Mrs. White (ROOT CAUSE FOUND)**
+   - Problem: Mrs. White's aliases include "Mr. White" - they are husband and wife (DIFFERENT people)
+   - Evidence: `analysis.json` shows `"aliases": ["White", "Mr. White"]` for Mrs. White
+   - **ROOT CAUSE IDENTIFIED:**
+     - Previous fix added `_are_different_titled_people()` check to `_merge_title_variants()` only
+     - But the actual merge happens in `_merge_within_main_cast()` Pass 2 (lines 816-872)
+     - Pass 2 uses fuzzy spelling match with 85% threshold
+     - "Mr. White" vs "Mrs. White" has 95% similarity → exceeds threshold → MERGED
+     - The `_are_different_titled_people()` check is NOT called in Pass 2
+   - Location: `src/agents/characters_v2.py` lines 840-871 (`_merge_within_main_cast` Pass 2)
+   - Fix: Add `_are_different_titled_people()` check before fuzzy merge at line 840
 
 ### HIGH
-2. **Chapter 3 uses generic character references instead of names**
-   - Problem: Chapter 3's `characters_present` lists "old man" and "old woman" instead of "Mr. White" and "Mrs. White"
-   - Evidence: `jq '.structure[2].characters_present'` returns `["old man", "old woman"]`
-   - This is downstream of the character extraction issue - the system creates separate "old man"/"old woman" characters instead of linking to Mr./Mrs. White
-   - Likely cause: Chapter 3 summary uses these generic terms, and character linking can't map them to proper characters
-   - Location: Character presence detection or summary character extraction
-   - Fix: May resolve if character extraction is fixed properly, OR need explicit alias handling for descriptive references
+2. **Spurious characters: "old man" and "old woman" exist as separate entries**
+   - Problem: These generic descriptors should not be characters - they refer to Mr. and Mrs. White in Chapter 3
+   - Evidence: Both have `mention_count: 1`, no aliases, appear only in Part III's `characters_present`
+   - Location: Main cast extraction accepting generic noun phrases as character names
+   - Fix: Filter out generic descriptors like "old man", "old woman", "stranger", "visitor" during extraction
 
-3. **Spurious characters: "old man" and "old woman" exist as separate character entries**
-   - Problem: These should not be separate characters - they refer to Mr. White and Mrs. White in Chapter 3
-   - Evidence: Both have `mention_count: 1` and no aliases
-   - These are creating noise in the character list
-   - Location: Main cast extraction or character deduplication
-   - Fix: Either prevent extraction of generic descriptors as characters, or merge them with canonical characters
+3. **Chapter 3 uses generic references instead of named characters**
+   - Problem: Part III's `characters_present` lists "old man" and "old woman" instead of "Mr. White" and "Mrs. White"
+   - Evidence: `structure[2].characters_present = ["old man", "old woman"]`
+   - Likely cause: Downstream of character extraction issue - if spurious characters are removed, this may self-correct
+   - May also need character presence detection improvement
 
 ### MEDIUM
-4. **Pronunciation guide missing IPA for all entries**
-   - Problem: All 53 pronunciation entries have `ipa: null`
-   - Evidence: `jq '.pronunciations[:5] | .[].ipa'` returns all nulls
-   - Location: `src/pipeline/pronunciation_detection.py` or IPA generation logic
-   - Fix: Enable IPA generation or check why it's not being populated
-
-5. **Missing key pronunciation terms**
-   - Problem: "fakir" (Indian holy man who enchanted the paw) and "rubicund" (describing Morris) are not flagged
-   - These are genuinely unusual words a narrator would need help with
-   - Location: Pronunciation detection word list or rules
-
-6. **Chapter titles are null**
+4. **Chapter titles are null**
    - Problem: Structure entries have `title: null` instead of "I", "II", "III"
    - Evidence: The original text uses Roman numerals for part divisions
-   - Minor issue but worth fixing for completeness
    - Location: Chapter detection regex or title extraction
+   - Fix: Improve Roman numeral title detection
+
+5. **Some pronunciation false positives remain**
+   - Problem: Common words flagged unnecessarily: "house", "slushy", "out-of-the-way"
+   - Evidence: These are standard English words that don't need pronunciation help
+   - Location: Pronunciation detection filtering
+   - Fix: Add common word filter or improve detection criteria
 
 ### LOW
-7. **Some unnecessary pronunciation flags (false positives)**
-   - "to-night" (archaic spelling, pronounced normally)
-   - "slushy" (common English word)
-   - "out-of-the-way" (common phrase)
-   - "house" (extremely common word)
-   - These clutter the pronunciation guide
+6. **Empty relationships section in character profiles**
+   - Problem: Character profiles have `"relationships": {}`
+   - Evidence: Mrs. White should have husband relationship to Mr. White, mother to Herbert
+   - Lower priority since fixing character merge would enable proper relationship detection
 
-## Investigation Required
+## Investigation Summary
 
-**The prompt fix from attempt 1 did not work.** Before the next fix attempt, investigate:
+### Why the Previous Fix Failed
 
-1. **Where is the merge actually happening?**
-   - Is it in main_cast.py extraction, or in a later deduplication/merge stage?
-   - Check the V2 pipeline stages in order:
-     ```
-     src/pipeline/character_extraction_v2/
-     ├── __init__.py
-     ├── main_cast.py        ← extraction (fix was here)
-     ├── ??? deduplication   ← could be re-merging after extraction
-     └── ??? merge           ← could be combining characters
-     ```
+**Attempt 1 Fix:** Modified `main_cast.py` prompt rules about title+surname characters
+- Result: LLM extraction may have been correct, but post-processing re-merged them
 
-2. **Check the raw LLM output from main_cast.py**
-   - Did the LLM correctly output Mr. White and Mrs. White as separate characters?
-   - Or did the prompt changes not affect the LLM behavior?
+**Attempt 2 Fix:** Added `_are_different_titled_people()` check to `_merge_title_variants()`
+- Result: Fix was in WRONG LOCATION - that function checks name containment, not fuzzy spelling
+- The actual merge happens via FUZZY SPELLING MATCH in `_merge_within_main_cast()` Pass 2
 
-3. **Check for post-processing that might be re-merging**
-   - Are there alias deduplication rules that use surname matching?
-   - Is there fuzzy matching that's too aggressive?
+### Data Flow Trace (Corrected)
+1. LLM correctly extracts Mr. White and Mrs. White as separate characters
+2. `_merge_title_variants()` runs - characters survive (fix works here but wasn't needed here)
+3. `_merge_same_firstname_variants()` runs - characters survive (no first name match)
+4. `_merge_within_main_cast()` Pass 1 runs - characters survive (different name lengths)
+5. **`_merge_within_main_cast()` Pass 2 runs - MERGES characters** because:
+   - `SequenceMatcher("mr. white", "mrs. white").ratio() = 0.95`
+   - 0.95 >= 0.85 threshold
+   - No `_are_different_titled_people()` check exists here
+6. Mrs. White (more mentions) absorbs Mr. White as alias
+
+### Correct Fix Location
+File: `src/agents/characters_v2.py`
+Function: `_merge_within_main_cast()`
+Lines: 840-871 (Pass 2: spelling variant merge)
+
+Add the same safety check that exists in `_merge_title_variants()`:
+```python
+# Around line 840, before the similarity >= 0.85 check:
+if similarity >= 0.85:
+    # SAFETY CHECK: Don't merge if both have different title prefixes
+    if self._are_different_titled_people(char_name, other_name):
+        continue  # Skip - they're different people
+    # ... rest of merge logic
+```
 
 ## Fix History
 
-### Attempt 1 - Fix 1: Title-based character distinction (FAILED)
-**Issue:** CRITICAL - False character merge: Mr. White merged into Mrs. White
-**Root Cause (believed):**
-- File: `src/pipeline/character_extraction_v2/main_cast.py`
-- Problem: Prompt didn't explicitly prevent title+surname merging
+### Attempt 1 - Fix 1: Title-based character distinction in prompts (FAILED)
+- Modified `main_cast.py` prompt rules
+- Result: Didn't prevent post-processing merge
 
-**Fix Applied:**
-- Modified `main_cast.py` prompt rules:
-  - Added new rule 8: "Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr. + Surname) are DIFFERENT people"
-  - Clarified old rule (now 9): Titles with FULL names are aliases
-  - Added example showing Mr. Smith and Mrs. Smith as separate characters
-
-**Smoke Test:** PASS - But smoke test may not have been representative
-
-**Result: FIX FAILED**
-- The same bug persists, just merged in opposite direction (Mrs. White → Mr. White instead of Mr. White → Mrs. White)
-- The prompt changes were insufficient or the merge is happening elsewhere
-
-### Attempt 2 - Fix 1: Block title-variant merge in post-processing
-**Issue:** CRITICAL - False character merge: Mrs. White merged into Mr. White
-
-**Root Cause (CONFIRMED):**
-- File: `src/agents/characters_v2.py`
-- Function: `_merge_title_variants()` lines 441-529
-- Problem: Post-processing step merges characters when one name contains another as a word
-  - Both "Mr. White" and "Mrs. White" contain the word "White"
-  - The function doesn't distinguish between:
-    - "Sergeant-Major Morris" + "Morris" → SHOULD merge (same person)
-    - "Mr. White" + "Mrs. White" → SHOULD NOT merge (different people with different titles)
-
-**Data Flow Trace:**
-1. Summaries → MainCastExtractor → LLM correctly extracts TWO separate characters (Mr. White, Mrs. White)
-2. `_merge_title_variants()` runs at line 124
-3. Function compares all pairs and merges "Mr. White" and "Mrs. White" because both contain "White"
-4. Result: Mrs. White becomes an alias of Mr. White
-
-**Fix Applied:**
-- Added new helper function `_are_different_titled_people()` (lines 568-621)
-  - Detects when two names have DIFFERENT honorific titles (Mr./Mrs./Miss/Ms./Dr.)
-  - Returns True if titles differ and stripped names match (e.g., "Mr. White" + "Mrs. White")
-- Modified `_merge_title_variants()` to call this check before merging (lines 473, 495)
-  - If check returns True, skip the merge (they're different people)
-  - Otherwise, allow merge as before
-
-**Smoke Test:** PASS
-- Code compiles successfully
-- Logic verified: "Mr. White" + "Mrs. White" → blocked from merging
-- Logic verified: "Sergeant-Major Morris" + "Morris" → allowed to merge
-
-**Test Results:** 342/345 tests pass (3 pre-existing failures unrelated to this fix)
-
-**Confidence:** HIGH - This fix targets the exact code location where the merge occurs
+### Attempt 2 - Fix 1: Block title-variant merge in post-processing (WRONG LOCATION)
+- Added `_are_different_titled_people()` to `_merge_title_variants()`
+- Result: Fix works but was placed in wrong function - the merge happens elsewhere
+- Tests passed (342/345) but bug persisted
 
 ## Next Action
-Re-run analysis to verify fix resolves the character merge issue. Phase set to `awaiting_analysis`.
+Run PROMPT_fix.md to add `_are_different_titled_people()` check to `_merge_within_main_cast()` Pass 2 at line 840.
