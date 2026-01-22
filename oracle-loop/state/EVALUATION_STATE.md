@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Output Files
@@ -12,8 +12,8 @@
 
 ## Latest Scores
 - Structure Detection: 9/10
-- Character Extraction: 4/10 ← FAILING
-- Character Profiles: 5/10 ← FAILING
+- Character Extraction: 4/10 ← FAILING (unchanged)
+- Character Profiles: 5/10 ← FAILING (unchanged)
 - Chapter Summaries: 8/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 9/10
@@ -23,44 +23,52 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.65 | 0.00 | Baseline - Mr. White missing (merged with Mrs. White) |
+| 2 | 6.65 | 0.00 | Fix failed - Mrs. White still merged as alias of Mr. White |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False character merge: Mr. White merged into Mrs. White**
-   - Problem: Mr. White (the protagonist who makes all 3 wishes) is listed as an alias of Mrs. White
-   - Evidence: In analysis.json, Mrs. White's aliases array contains "Mr. White"
-   - This is catastrophic - Mr. White is the primary actor: he rescues the paw, makes all wishes, is haunted by the face in the fire, makes the crucial third wish
-   - The system incorrectly treated "Mr. White" and "Mrs. White" as aliases because they share the surname "White"
-   - Location: `src/pipeline/character_extraction_v2/` - alias resolution logic
-   - Fix: Characters with different titles (Mr./Mrs./Miss/Dr.) before the same surname should NEVER be merged - these typically represent different people (spouses, siblings)
+1. **False character merge: Mrs. White merged into Mr. White (FIX FAILED)**
+   - Problem: Mrs. White is listed as an alias of Mr. White, but they are husband and wife (DIFFERENT people)
+   - Evidence: `analysis.json` shows Mr. White's aliases as `["White", "Mrs. White"]`
+   - This is the SAME bug as attempt 1, just merged in the opposite direction
+   - **Root cause analysis**: The fix in `main_cast.py` added a rule about different titles, but the LLM is still merging them. This suggests:
+     - Either the rule isn't being parsed correctly by the LLM
+     - Or the merge is happening in a different stage (alias deduplication?)
+     - Or the prompt changes weren't sufficient
+   - Location: Need to investigate entire V2 pipeline:
+     - `src/pipeline/character_extraction_v2/main_cast.py` (extraction stage)
+     - `src/pipeline/character_extraction_v2/alias_deduplication.py` (if exists)
+     - `src/pipeline/character_extraction_v2/merge.py` (if exists)
+   - Fix: Need deeper investigation - the prompt fix alone is insufficient
 
 ### HIGH
-2. **Chapter 3 character references use generic terms instead of names**
-   - Problem: Chapter 3's `characters_present` lists "the old man" and "the old woman" instead of "Mr. White" and "Mrs. White"
-   - Evidence: `jq '.structure[2].characters_present'` returns `["the old man", "the old woman"]`
-   - This is related to the character extraction issue - if Mr. White doesn't exist as a character, the system can't link "the old man" to him
-   - Location: Character linking in summary generation or character presence detection
-   - Fix: After fixing character extraction, verify character linking in summaries uses canonical names
+2. **Chapter 3 uses generic character references instead of names**
+   - Problem: Chapter 3's `characters_present` lists "old man" and "old woman" instead of "Mr. White" and "Mrs. White"
+   - Evidence: `jq '.structure[2].characters_present'` returns `["old man", "old woman"]`
+   - This is downstream of the character extraction issue - the system creates separate "old man"/"old woman" characters instead of linking to Mr./Mrs. White
+   - Likely cause: Chapter 3 summary uses these generic terms, and character linking can't map them to proper characters
+   - Location: Character presence detection or summary character extraction
+   - Fix: May resolve if character extraction is fixed properly, OR need explicit alias handling for descriptive references
 
-3. **Missing character: The stranger from Maw and Meggins**
-   - Problem: The man who delivers news of Herbert's death is not extracted as a character
-   - Evidence: He's mentioned in the chapter 2 summary and chapter 2's characters_present lists "The stranger", but he has no character entry
-   - He's a minor character but appears in multiple paragraphs with dialogue
-   - Location: Character extraction threshold or filtering
-   - Fix: May resolve automatically once core extraction is fixed, or may need threshold adjustment
+3. **Spurious characters: "old man" and "old woman" exist as separate character entries**
+   - Problem: These should not be separate characters - they refer to Mr. White and Mrs. White in Chapter 3
+   - Evidence: Both have `mention_count: 1` and no aliases
+   - These are creating noise in the character list
+   - Location: Main cast extraction or character deduplication
+   - Fix: Either prevent extraction of generic descriptors as characters, or merge them with canonical characters
 
 ### MEDIUM
 4. **Pronunciation guide missing IPA for all entries**
-   - Problem: All 52 pronunciation entries have `ipa: null`
+   - Problem: All 53 pronunciation entries have `ipa: null`
    - Evidence: `jq '.pronunciations[:5] | .[].ipa'` returns all nulls
-   - Location: `src/pipeline/pronunciation_detection.py` or related
+   - Location: `src/pipeline/pronunciation_detection.py` or IPA generation logic
    - Fix: Enable IPA generation or check why it's not being populated
 
 5. **Missing key pronunciation terms**
    - Problem: "fakir" (Indian holy man who enchanted the paw) and "rubicund" (describing Morris) are not flagged
    - These are genuinely unusual words a narrator would need help with
-   - Location: Pronunciation detection rules or word list
+   - Location: Pronunciation detection word list or rules
 
 6. **Chapter titles are null**
    - Problem: Structure entries have `title: null` instead of "I", "II", "III"
@@ -69,61 +77,55 @@
    - Location: Chapter detection regex or title extraction
 
 ### LOW
-7. **Some unnecessary pronunciation flags**
+7. **Some unnecessary pronunciation flags (false positives)**
    - "to-night" (archaic spelling, pronounced normally)
    - "slushy" (common English word)
    - "out-of-the-way" (common phrase)
-   - These are false positives that clutter the pronunciation guide
+   - "house" (extremely common word)
+   - These clutter the pronunciation guide
 
-## Pipeline Notes
-**Attempt 2:** Analysis completed successfully in 10m 59s using V2 character extraction.
+## Investigation Required
 
-### Key Statistics:
-- 3,954 words analyzed
-- 3 chapters detected
-- 6 characters extracted (V2 summary-driven approach)
-- 3 character profiles generated
-- 53 pronunciation flags
-- 24 LLM calls total (49,480 tokens)
+**The prompt fix from attempt 1 did not work.** Before the next fix attempt, investigate:
 
-### Stage Timings:
-- Chapter Detection: 21.6s (8 LLM calls, 13,064 tokens)
-- Chapter Summaries: 5m 21s (3 LLM calls, 9,244 tokens) - **bottleneck: 48.7% of time**
-- Character Extraction V2: 25.7s (2 LLM calls, 2,822 tokens)
-- Character Profiles: 3m 37s (9 LLM calls, 19,761 tokens)
-- Pronunciation Guide: 48.9s (2 LLM calls, 4,589 tokens)
+1. **Where is the merge actually happening?**
+   - Is it in main_cast.py extraction, or in a later deduplication/merge stage?
+   - Check the V2 pipeline stages in order:
+     ```
+     src/pipeline/character_extraction_v2/
+     ├── __init__.py
+     ├── main_cast.py        ← extraction (fix was here)
+     ├── ??? deduplication   ← could be re-merging after extraction
+     └── ??? merge           ← could be combining characters
+     ```
 
-### Warnings:
-- Moral valence classification failed for Mr. White and Sergeant-Major Morris
-- Analysis summary shows "Mr. White (aka White, Mrs. White)" - needs verification if Mrs. White is incorrectly merged
+2. **Check the raw LLM output from main_cast.py**
+   - Did the LLM correctly output Mr. White and Mrs. White as separate characters?
+   - Or did the prompt changes not affect the LLM behavior?
+
+3. **Check for post-processing that might be re-merging**
+   - Are there alias deduplication rules that use surname matching?
+   - Is there fuzzy matching that's too aggressive?
 
 ## Fix History
 
 ### Attempt 1 - Fix 1: Title-based character distinction
 **Issue:** CRITICAL - False character merge: Mr. White merged into Mrs. White
-**Root Cause:**
+**Root Cause (believed):**
 - File: `src/pipeline/character_extraction_v2/main_cast.py`
-- Function: `MAIN_CAST_PROMPT` (lines 48-50)
-- Problem: Contradictory prompt instructions - line 50 said "Titles and honorifics with a name are aliases" without excluding cases where title+surname is the only distinguishing feature
-- This caused the LLM to treat "Mr. White" and "Mrs. White" as aliases despite earlier guidance about different first names
+- Problem: Prompt didn't explicitly prevent title+surname merging
 
 **Fix Applied:**
 - Modified `main_cast.py` prompt rules:
   - Added new rule 8: "Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr. + Surname) are DIFFERENT people"
-  - Clarified old rule (now 9): Titles with FULL names (e.g., "Mr. John Smith" vs "John Smith") are aliases
+  - Clarified old rule (now 9): Titles with FULL names are aliases
   - Added example showing Mr. Smith and Mrs. Smith as separate characters
-- Files modified: `src/pipeline/character_extraction_v2/main_cast.py`
 
-**Smoke Test:** PASS
-- Ran main cast extraction on monkeys_paw summaries
-- Result: Mr. White and Mrs. White correctly extracted as separate characters
-- Aliases: Mr. White=['father', 'husband'], Mrs. White=['mother', 'wife']
-- No cross-references between the two characters
+**Smoke Test:** PASS - But smoke test may not have been representative
 
-**Expected Impact:**
-- Should fix Character Extraction score (currently 4/10)
-- May improve Character Profiles score (currently 5/10)
-- May fix HIGH issue #2 (Chapter 3 character references) if it was caused by missing Mr. White
+**Result: FIX FAILED**
+- The same bug persists, just merged in opposite direction (Mrs. White → Mr. White instead of Mr. White → Mrs. White)
+- The prompt changes were insufficient or the merge is happening elsewhere
 
 ## Next Action
-Re-run analysis on monkeys_paw to verify the fix resolves the critical character merge issue and improves the overall score above 8.0 threshold.
+Run PROMPT_fix.md with deeper investigation into the V2 character extraction pipeline to find where the merge is actually occurring. The prompt-only fix was insufficient.
