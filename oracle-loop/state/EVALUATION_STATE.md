@@ -3,12 +3,20 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 11m 21s
+- V2 character extraction used (summary-driven)
+- **4 characters extracted:** Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris
+- Fix verification: Mr. White and Mrs. White are now SEPARATE characters ✓
+- Some LLM API errors occurred during profile generation (500 errors, low confidence for 2 profiles)
+- Output also saved to: output/The_Monkey's_Paw_20260121_233618/
 
 ## Latest Scores
 - Structure Detection: 9/10
