@@ -628,7 +628,7 @@ class AudiobookAnalyzer:
 
                     pronunciation_pipeline = PronunciationGuidePipeline(
                         llm_client=pron_llm,
-                        progress_callback=self._wrap_progress("pronunciation"),
+                        progress_callback=self._wrap_progress("Pronunciation Guide"),
                     )
                     pron_map, _ = pronunciation_pipeline.run(
                         doc.text, chapter_map, None, source_file=str(file_path)
@@ -942,7 +942,7 @@ class AudiobookAnalyzer:
 
                 summary_pipeline = ChapterSummaryPipeline(
                     llm_client=summary_llm,
-                    progress_callback=self._wrap_progress("summaries"),
+                    progress_callback=self._wrap_progress("Chapter Summaries"),
                     parallel_chapters=parallel_summaries,
                     max_workers=max_workers,
                     llm_client_factory=summary_llm_factory if parallel_summaries else None,
@@ -1344,7 +1344,7 @@ class AudiobookAnalyzer:
 
                 pronunciation_pipeline = PronunciationGuidePipeline(
                     llm_client=pron_llm,
-                    progress_callback=self._wrap_progress("pronunciation"),
+                    progress_callback=self._wrap_progress("Pronunciation Guide"),
                 )
                 pron_map, _ = pronunciation_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
