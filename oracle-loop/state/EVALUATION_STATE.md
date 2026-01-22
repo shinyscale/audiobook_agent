@@ -3,17 +3,17 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.65
 
 ## Latest Scores
-- Structure Detection: 4/10 <- CRITICAL (still 8 chapters, I+II merged)
-- Character Extraction: 5/10 <- HIGH (Klipspringer/McKee false merge, duplicates, role-based entries)
-- Character Profiles: 5/10 (Jay Gatsby profile is null, appearance="unknown" for all)
-- Chapter Summaries: 6/10 (good quality but misaligned due to structure)
-- Pronunciation Guide: 4/10 (86% "unknown" categorization)
+- Structure Detection: 5/10 ← (I+II now separated, but IV split into 2)
+- Character Extraction: 6/10 ← (Klipspringer/McKee fixed, but duplicates and role entries remain)
+- Character Profiles: 4/10 ← CRITICAL (Tom, Jordan have NULL profiles)
+- Chapter Summaries: 6/10 (good quality but misaligned due to IV split)
+- Pronunciation Guide: 3/10 ← CRITICAL (88% "unknown" categorization)
 - HTML Presentation: 8/10 (functional)
-- **Overall: 5.20/10** (threshold: 8.0)
+- **Overall: 5.40/10** (threshold: 8.0)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -30,190 +30,181 @@
 | 10 | 5.20 | -1.45 | Daisy merge FIXED, characters reduced 99->37, profiles exist but broken |
 | 11 | 5.20 | -1.45 | Structure fix did NOT work in full pipeline (8 chapters) |
 | 12 | 5.20 | -1.45 | Structure fix STILL not working (TOC-guided failed to find 'I') |
-| 13 | - | - | Detected 10 chapters (vs 8 in #12, expected 9) - awaiting evaluation |
+| 13 | 5.40 | -1.25 | I+II separated ✓, IV split ✗, Klipspringer/McKee fixed ✓, profiles regressed |
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Last Updated: 2026-01-21 20:48
+- Last Updated: 2026-01-21
 
 ## Analysis Summary (Attempt 13)
 
-### Pipeline Run Results
+### Key Changes from Attempt 12
+**Improvements:**
+- Chapters I and II are NOW CORRECTLY SEPARATED (was merged before)
+- Klipspringer and McKee are NOW SEPARATE characters (was incorrectly merged)
+- Character count reduced to 41 (down from higher numbers in earlier attempts)
 
-**Analysis completed:** 2026-01-21 20:48
-**Duration:** 69m 8s
-**V2 Character Extraction:** Enabled
-**Models Used:**
-- Structure: qwen3:30b-instruct
-- Characters: qwen3-next:80b-a3b-instruct-q8_0
-- Summaries: qwen3-next:80b-a3b-instruct-q8_0
-- Pronunciation: qwen3:30b-instruct
+**Regressions:**
+- Chapter IV incorrectly split into 2 parts (763 words + 4693 words)
+- Tom Buchanan profile is completely NULL
+- Jordan Baker profile is completely NULL
+- Pronunciation 88% "unknown" (worse than earlier attempts)
 
-**Chapter Detection:**
-- **10 chapters detected** (unexpected - was 8 in attempt 12, expected 9)
-- Need to examine actual chapter boundaries in analysis.json
+### Structure Analysis (10 chapters detected, expected 9)
 
-**Character Count:** 41 characters extracted (vs 39 in attempt 12)
+| # | Title | Words | Content | Status |
+|---|-------|-------|---------|--------|
+| 1 | (null) | 5037 | Chapter I - Nick's arrival, Buchanan dinner | ✓ Correct |
+| 2 | II | 4280 | Chapter II - Valley of ashes, Myrtle's party | ✓ Correct |
+| 3 | III | 5734 | Chapter III - Gatsby's party, meeting Gatsby | ✓ Correct |
+| 4 | IV | 763 | **ONLY party guest list intro** | ✗ SPLIT |
+| 5 | (null) | 4693 | **Rest of Ch IV** - Gatsby bio, Wolfsheim, Jordan backstory | ✗ SPLIT |
+| 6 | V | 4233 | Chapter V - Gatsby/Daisy reunion | ✓ Correct |
+| 7 | VI | 4036 | Chapter VI - Gatsby's past revealed | ✓ Correct |
+| 8 | VII | 8766 | Chapter VII - Plaza confrontation | ✓ Correct |
+| 9 | (null) | 4530 | Chapter VIII - Gatsby's vigil, Wilson's search | Missing title |
+| 10 | (null) | 5225 | Chapter IX - Aftermath, funeral | Missing title |
 
-**Pronunciation:** 580 words flagged
+**Root Cause of IV Split:** The chapter detection is incorrectly identifying a boundary within Chapter IV, likely at the transition between the guest list preamble and the narrative proper.
 
-**Warnings from Log:**
-- `TOC-guided: could not find 'I' in text after position 5042` (same as attempt 12)
-- `StructureAgent: 1 errors found but refinement not yet implemented`
-- JSON parse failures for several character profiles (Tom Buchanan, Jordan Baker, Myrtle Wilson, Sloane)
-- Low confidence profiles (0.30) for multiple characters
-- Moral valence classification failures
+### Character Duplicates Identified
 
-**Pipeline Profile:**
-- Chapter Detection: 6m1s (48 LLM calls)
-- Chapter Summaries: 28m4s (47 LLM calls) - bottleneck at 40.6% of time
-- Character Extraction V2: 1m18s (2 LLM calls)
-- Character Profiles: 23m40s (41 LLM calls)
-- Pronunciation Guide: 9m35s (21 LLM calls)
+| Primary | Duplicates | Should Merge |
+|---------|------------|--------------|
+| Wolfshiem (20) | Meyer Wolfsheim (1), Meyer Wolfshiem (1) | Yes - spelling variants |
+| Sloane (10) | Mr. Sloane (1) | Yes |
+| Klipspringer (8) | Mr. Klipspringer (1) | Yes |
+| Nick Carraway | Narrator (4), The narrator (1), the narrator (2) | Yes - narrator is Nick |
+| Owl Eyes? | The drunken man with owl-eyed spectacles (1), The man with owl-eyed glasses (1) | Yes - same character |
 
-**Quality Concerns:**
-- 4 low-confidence character profiles
-- Structure detection showing 10 chapters instead of expected 9 (need to verify if this is correct or a new issue)
-
-### Root Cause Analysis: Why Structure Fix Keeps Failing
-
-The TOC-guided bypass log message shows it's trying to find chapter markers but failing:
-```
-TOC-guided: could not find 'I' in text after position 5042
-```
-
-**The Problem:** The code is looking for a standalone "I" in the text, but in The Great Gatsby, the chapter markers appear as Roman numerals on their own lines. The search is likely failing because:
-1. The text might have "I" followed immediately by a newline or other character
-2. The search position (5042) may be calculated incorrectly
-3. The regex/search pattern may not match the actual format in the text
-
-**What Attempt 2 Got Right:** At attempt 2, the system achieved 9 chapters. Something changed between then and now that broke structure detection.
+### Role-Based Entries to Filter (11 entries)
+- Butler, Gatsby's butler, Chauffeur, Gardener, The detective
+- Lutheran minister, New York reporter, The postman, Servants
+- Chorus girl, Unnamed drunk driver
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Structure: Chapters I and II still merged**
-   - Problem: First chapter has 9,317 words covering both Ch I AND Ch II
-   - Evidence: Chapter 1 summary describes BOTH dinner at Buchanans AND valley of ashes/Myrtle's party
-   - Expected: 9 chapters with ~4,000-6,000 words each
-   - Impact: -4 points on Structure, -2 points on Summaries (misalignment)
-   - Location: `src/pipeline/chapter_detection/` - the TOC-guided bypass is failing
-   - Root Cause: `"TOC-guided: could not find 'I' in text after position 5042"` - the search for chapter "I" is failing
-   - Fix: Debug WHY the search fails - check the actual text format at the expected chapter boundary
+1. **Chapter IV incorrectly split into 2 parts**
+   - Problem: 10 chapters detected instead of 9; Ch IV split at guest list boundary
+   - Evidence: Chapter 4 = 763 words (guest list only), Chapter 5 = 4693 words (rest of Ch IV)
+   - Location: `src/pipeline/chapter_detection/` - boundary detection
+   - Fix: Adjust boundary detection to not split on guest list section break
 
-2. **False alias: Klipspringer merged with McKee**
-   - Problem: "Mr. McKee" entry has aliases ["McKee", "Mr. Klipspringer", "Klipspringer"]
-   - Evidence: McKee is photographer at Myrtle's party (Ch II). Klipspringer is "the boarder" at Gatsby's mansion who plays piano (Ch V, Ch IX).
-   - Impact: Major factual error - two completely different characters merged
-   - Location: `src/pipeline/character_extraction_v2/` - alias detection is incorrectly grouping these
-   - Fix: Add validation that aliases should appear in similar contexts (same chapters, same scenes)
+2. **Tom Buchanan profile is NULL**
+   - Problem: Major character (194 mentions) has personality=null, appearance=null
+   - Evidence: `jq` shows completely null profile despite being 2nd most mentioned character
+   - Location: `src/pipeline/character_extraction_v2/` - profile generation
+   - Root Cause: Likely JSON parse failure during profile extraction (noted in logs)
+
+3. **Jordan Baker profile is NULL**
+   - Problem: Major character (98 mentions) has personality=null, appearance=null
+   - Evidence: Same issue as Tom - profile fields completely null
+   - Location: Same as above
 
 ### HIGH
 
-3. **Jay Gatsby profile is NULL**
-   - Problem: The protagonist's profile fields are null (personality=null, appearance=null)
-   - Evidence: `jq` query shows Jay Gatsby has null profile despite being main character with 268 mentions
-   - Impact: -1.5 points on Profiles
-   - Location: Profile generation in character extraction V2 - likely JSON parse failure
+4. **Pronunciation 88% uncategorized**
+   - Problem: 508/580 entries (88%) have flag_reason="unknown"
+   - Evidence: Only 36 proper_noun, 23 homograph, 13 foreign categorized
+   - Impact: Pronunciation guide nearly useless for narrator
+   - Location: `src/pipeline/pronunciation_guide/`
+   - Fix: Debug why categorization is failing for most entries
 
-4. **Character duplicates: Wilson/George Wilson**
-   - Problem: "Wilson" (65 mentions) and "George Wilson" (14 mentions) listed separately
-   - Evidence: Both refer to George Wilson, the garage owner
-   - Impact: Inflates character list, confuses narrator
-   - Location: `src/pipeline/character_extraction_v2/` - need to merge "LastName" with "FirstName LastName"
+5. **Wolfshiem spelling variants not merged**
+   - Problem: "Wolfshiem" (20), "Meyer Wolfsheim" (1), "Meyer Wolfshiem" (1) separate
+   - Evidence: All refer to Meyer Wolfsheim/Wolfshiem (Fitzgerald uses variant spellings)
+   - Location: `src/pipeline/character_extraction_v2/` - alias/fuzzy matching
+   - Fix: Add spelling variant detection (Levenshtein distance or similar)
 
-5. **Character duplicates: Sloane/Mr. Sloane**
-   - Problem: "Sloane" (10 mentions) and "Mr. Sloane" (1 mention) listed separately
-   - Evidence: Same person - the man who rides horses with Tom
+6. **Character duplicates: Sloane, Klipspringer**
+   - Problem: "Sloane" (10) / "Mr. Sloane" (1) and "Klipspringer" (8) / "Mr. Klipspringer" (1)
+   - Evidence: Same characters, different formality
+   - Location: `src/pipeline/character_extraction_v2/`
+   - Fix: Merge "Name" with "Mr./Mrs. Name" patterns
+
+7. **Narrator entries not merged with Nick**
+   - Problem: "Narrator" (4) + "The narrator" (1) + "the narrator" (2) separate from Nick Carraway
+   - Evidence: Nick IS the narrator - these should be aliases or merged
    - Location: `src/pipeline/character_extraction_v2/`
 
-6. **Narrator entries not merged with Nick**
-   - Problem: "Narrator" (4), "The narrator" (1), "the narrator" (1) exist separately from Nick Carraway
-   - Evidence: Nick IS the narrator in first-person narrative
+8. **Owl Eyes duplicated**
+   - Problem: "The drunken man with owl-eyed spectacles" and "The man with owl-eyed glasses" separate
+   - Evidence: Both refer to "Owl Eyes" - the recognizable minor character
    - Location: `src/pipeline/character_extraction_v2/`
-
-7. **Owl Eyes duplicated**
-   - Problem: "Owl Eyes (the library patron)" and "Man with owl-eyed glasses" are separate entries
-   - Evidence: Same person - the bespectacled man at Gatsby's party who appears at the funeral
-   - Location: `src/pipeline/character_extraction_v2/`
-
-8. **Role-based entries in character list (14+ false positives)**
-   - Problem: Generic roles listed as characters: Butler, The butler, Chauffeur, Gardener, Detective, elevator boy, Lutheran minister, Policeman, New York reporter, The drunken driver, The sobbing singer, Woman in brown riding-habit, Pale well-dressed negro, The second man in the car
-   - Evidence: These are role descriptions, not named characters
-   - Impact: Dilutes character list, unprofessional for narrator
-   - Location: `src/pipeline/character_extraction_v2/supporting_cast.py` - need stronger role filtering
 
 ### MEDIUM
 
-9. **Appearance consistently "unknown"**
-   - Problem: All main characters have appearance="unknown"
-   - Evidence: Tom Buchanan is described in detail in Ch I ("hulking...two arrogant eyes"), yet appearance is "unknown"
-   - Location: Profile generation prompts in V2
+9. **11 role-based entries in character list**
+   - Problem: Generic roles listed as characters (Butler, Chauffeur, etc.)
+   - Evidence: These have 1 mention each and are role descriptions, not named characters
+   - Location: `src/pipeline/character_extraction_v2/supporting_cast.py`
+   - Fix: Strengthen role-based filtering
 
-10. **Pronunciation 86% "unknown"**
-    - Problem: 505/586 entries have flag_reason="unknown"
-    - Evidence: Only 81 properly categorized (39 proper_noun, 23 homograph, 19 foreign)
-    - Impact: Pronunciation guide is nearly useless
-    - Location: `src/pipeline/pronunciation_guide/`
+10. **Chapters VIII and IX missing titles**
+    - Problem: Chapters 9 and 10 have null titles (should be "VIII" and "IX")
+    - Evidence: Structure shows null instead of Roman numerals
+    - Location: `src/pipeline/chapter_detection/` - title extraction
 
-11. **Chapter titles partially missing**
-    - Problem: Chapters 1, 7, 8 have title=null; others have Roman numerals
-    - Evidence: Structure shows null, III, IV, V, VI, VII, null, null
-    - Location: Title extraction in chapter detection
+11. **Appearance consistently "unknown"**
+    - Problem: All characters have appearance="unknown" or null
+    - Evidence: Even Tom Buchanan (described in detail in Ch I) has unknown appearance
+    - Location: Profile generation prompts in V2
 
 ## Path to 8.0
 
-**Current: 5.20/10, Need: 8.0/10, Gap: 2.8 points**
+**Current: 5.40/10, Need: 8.0/10, Gap: 2.6 points**
 
 | Priority | Fix | Estimated Impact |
 |----------|-----|------------------|
-| P0 | **Debug TOC-guided search failure** - Why can't it find "I"? | Structure 4->9 = +1.0 overall |
-| P0 | Fix chapter alignment when structure is fixed | Summaries 6->8 = +0.4 overall |
-| P1 | Fix Klipspringer/McKee false merge | Characters +0.25 |
-| P1 | Fix Gatsby profile parse failure | Profiles +0.3 |
-| P1 | Merge Wilson/George Wilson, Sloane/Mr. Sloane | Characters +0.25 |
-| P1 | Merge Narrator entries with Nick | Characters +0.1 |
-| P1 | Filter role-based entries | Characters 5->7 = +0.5 overall |
+| P0 | **Fix Chapter IV split** | Structure 5->9 = +0.8 overall |
+| P0 | **Fix Tom/Jordan NULL profiles** | Profiles 4->7 = +0.45 overall |
+| P1 | Fix pronunciation categorization | Pronunciation 3->7 = +0.4 overall |
+| P1 | Merge Wolfshiem variants | Characters +0.1 |
+| P1 | Merge Sloane, Klipspringer duplicates | Characters +0.1 |
+| P1 | Filter role-based entries | Characters 6->7.5 = +0.4 overall |
+| P2 | Merge narrator entries with Nick | Characters +0.05 |
 | P2 | Fix appearance detection | Profiles +0.15 |
-| P2 | Fix pronunciation categorization | Pronunciation 4->6 = +0.2 overall |
-| **Total** | | **5.20 + 3.15 = ~8.35** |
+| P2 | Fix missing chapter titles | Structure +0.1 |
+| **Total** | | **5.40 + 2.55 = ~7.95** |
+
+**NOTE:** This score (5.40) is below baseline (6.65) by 1.25 points. The fix phase should consider reverting if the changes caused this regression. However, some improvements were made (I+II separation, Klipspringer/McKee fix), so selective revert may be needed.
 
 ## Fix History
 
-### Attempt 11 - Structure Fix Applied but Failed
-- **APPLIED**: TOC extraction fix, TOC-guided bypass, hard boundary preservation
-- **LOCAL VERIFICATION**: Passed (9 chapters)
-- **FULL PIPELINE**: Failed (8 chapters, I+II merged)
-- **STATUS**: Need to debug why full pipeline doesn't use the fix
+### Attempt 13 - Mixed Results
+- **FIXED**: Chapters I and II are now correctly separated
+- **FIXED**: Klipspringer and McKee are now separate characters
+- **REGRESSED**: Chapter IV incorrectly split into 2 parts
+- **REGRESSED**: Tom Buchanan and Jordan Baker profiles are NULL
+- **REGRESSED**: Pronunciation categorization worse (88% unknown)
 
-### Attempt 12 - Structure Fix Still Failing
-- **LOG MESSAGE**: `"TOC-guided: could not find 'I' in text after position 5042"`
-- **DIAGNOSIS**: The TOC-guided code IS running, but failing to find chapter "I" in the text
-- **LIKELY CAUSE**: Text format mismatch - the actual text may have different formatting than expected
+### Previous Attempts Summary
+- Attempt 2 was best (7.45) with correct 9-chapter structure
+- Multiple attempts since have tried to fix structure but caused other regressions
+- Profile generation has been unstable - sometimes works, sometimes NULL
 
 ## Next Action
 
+**REGRESSION DETECTED:** Score 5.40 < baseline 6.65 - 0.3
+
 Run PROMPT_fix.md with focus on:
 
-1. **DEBUG THE TOC-GUIDED FAILURE**
-   - Look at the actual gatsby.txt around position 5042
-   - Check what character/pattern the TOC-guided search is looking for
-   - Check if there's a whitespace/encoding issue
-   - Add debug logging to print what it's actually searching for vs what's in the text
+1. **Investigate Chapter IV split root cause**
+   - Why is the chapter boundary being placed within Chapter IV?
+   - Check what boundary detection sees at the guest list section
 
-2. **DO NOT attempt more character/profile fixes until structure is resolved** - it's the foundation for everything else
+2. **Fix Tom/Jordan NULL profiles**
+   - Check JSON parse errors in log for these characters
+   - Ensure profile generation doesn't fail silently
 
-3. Once structure is fixed, address:
-   - Klipspringer/McKee false merge (CRITICAL)
-   - Gatsby profile null (HIGH)
-   - Character duplicates (HIGH)
-   - Role-based filtering (HIGH)
+3. **Fix pronunciation categorization regression**
+   - Was 86% unknown in attempt 12, now 88% - getting worse
+   - Check if categorization logic changed
 
-## Notes
-
-- Best score was attempt 2 (7.45/10) with correct 9-chapter detection
-- Score has regressed significantly since then (now 5.20)
-- The TOC-guided fix IS being triggered but failing to find chapter markers
-- Need to examine the actual text format in gatsby.txt to understand why
+4. **Consider selective revert if needed**
+   - Some changes helped (I+II, Klipspringer/McKee)
+   - Some changes hurt (IV split, profiles, pronunciation)
+   - May need to preserve good changes while reverting bad ones
