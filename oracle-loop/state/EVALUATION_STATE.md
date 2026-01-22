@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** analysis_in_progress
 - **baseline_score:** 6.65
 
 ## Latest Scores
