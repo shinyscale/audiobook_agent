@@ -333,7 +333,7 @@ class AudiobookAnalyzer:
             provider = self.llm_provider
             base_url = self.llm_base_url
             model = self.llm_model
-            temperature = 0.3
+            temperature = 0.7  # Model-recommended default
             max_tokens = 8192  # Default for agents when no config
             think_mode = False
             context_length = self.llm_context_length
@@ -2595,7 +2595,7 @@ Return ONLY the JSON object."""
                 config_dict["agents"][agent_name] = {
                     "model": self.llm_model or "default",
                     "provider": self.llm_provider,
-                    "temperature": 0.3,
+                    "temperature": 0.7,
                     "context_length": self.llm_context_length,
                     "max_tokens": 4096,
                     "think_mode": False,

@@ -213,12 +213,12 @@ def apply_profile_to_config(
                 agent_name,
                 AgentConfig(
                     model=selected_model,
-                    temperature=agent_recommendations.get("temperature", 0.3),
+                    temperature=agent_recommendations.get("temperature", 0.7),
                     think_mode=agent_recommendations.get("think_mode", False),
                     system_prompt=agent_recommendations.get("system_prompt"),
                 ),
             )
-            logger.debug(f"Set {agent_name} agent to use {selected_model} with temperature={agent_recommendations.get('temperature', 0.3)}")
+            logger.debug(f"Set {agent_name} agent to use {selected_model} with temperature={agent_recommendations.get('temperature', 0.7)}")
 
 
 def format_specs_display(specs: SystemSpecs, profile: HardwareProfile) -> str:

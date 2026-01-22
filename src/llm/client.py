@@ -26,7 +26,7 @@ class LLMConfig:
     model: str
     base_url: Optional[str] = None  # For Ollama/LM Studio
     api_key: Optional[str] = None
-    temperature: float = 0.3
+    temperature: float = 0.7  # Model-recommended default for local LLMs
     max_tokens: int = 4096
     context_length: int = 32768  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = None  # Reasoning control: False, True, "low", "medium", "high"

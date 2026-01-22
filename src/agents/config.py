@@ -25,7 +25,7 @@ class AgentConfig:
     api_key: Optional[str] = None
 
     # Model parameters
-    temperature: float = 0.3
+    temperature: float = 0.7  # Model-recommended default for local LLMs
     max_tokens: int = 32768  # 32k - large enough for complex JSON responses without truncation
     context_length: int = 65536  # Context window size (num_ctx for Ollama) - 64k for larger models
 
@@ -166,28 +166,28 @@ RECOMMENDED_AGENT_MODELS = {
     "structure": {
         "description": "Fast model for pattern recognition and chapter detection",
         "models": ["qwen2.5:14b", "qwen2.5:7b", "llama3.2", "mistral", "gpt-oss:20b"],
-        "temperature": 0.0,  # Zero for deterministic chapter detection
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Disable reasoning for speed
         "system_prompt": "You are a document structure analyzer. Extract chapter boundaries and titles from text. Return ONLY valid JSON. No commentary or explanation.",
     },
     "characters": {
         "description": "Deep narrative model for character understanding",
         "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "gpt-oss:120b"],
-        "temperature": 0.0,  # Zero for deterministic character extraction
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # JSON extraction doesn't benefit from reasoning chains
         "system_prompt": "You are a literary analyst extracting character information for audiobook narration. Identify characters, aliases, and relationships. Return ONLY valid JSON with no additional text.",
     },
     "summaries": {
         "description": "Narrative-focused model for story comprehension",
         "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "llama3.2"],
-        "temperature": 0.4,  # Slightly higher for natural language
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Summaries should be direct
         "system_prompt": "You are a literary analyst creating chapter summaries for audiobook narration preparation. Your summaries should help a narrator understand plot, tone, and character presence. Return ONLY valid JSON.",
     },
     "pronunciation": {
         "description": "Phonetically-aware model for pronunciation",
         "models": ["qwen2.5:14b", "qwen2.5:32b", "llama3.2", "llama3.1:8b"],
-        "temperature": 0.0,  # Zero for deterministic pronunciation detection
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Phonetic analysis is pattern-based
         "system_prompt": "You are a pronunciation expert for audiobook narration. Identify words requiring special pronunciation guidance (names, places, foreign words). Return ONLY valid JSON.",
     },
@@ -234,7 +234,7 @@ def create_optimized_config(
                 model=selected_model,
                 provider=provider,
                 base_url=base_url,
-                temperature=recommendations.get("temperature", 0.3),
+                temperature=recommendations.get("temperature", 0.7),
                 think_mode=recommendations.get("think_mode", False),
                 system_prompt=recommendations.get("system_prompt"),
             ))
