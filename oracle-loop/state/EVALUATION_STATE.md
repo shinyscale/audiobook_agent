@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Output Files
@@ -76,15 +76,26 @@
    - These are false positives that clutter the pronunciation guide
 
 ## Pipeline Notes
-Analysis completed successfully in 10m 11s using V2 character extraction.
+**Attempt 2:** Analysis completed successfully in 10m 59s using V2 character extraction.
 
 ### Key Statistics:
 - 3,954 words analyzed
 - 3 chapters detected
-- 3 characters extracted (V2 summary-driven approach)
+- 6 characters extracted (V2 summary-driven approach)
 - 3 character profiles generated
-- 52 pronunciation flags
-- 22 LLM calls total (45,106 tokens)
+- 53 pronunciation flags
+- 24 LLM calls total (49,480 tokens)
+
+### Stage Timings:
+- Chapter Detection: 21.6s (8 LLM calls, 13,064 tokens)
+- Chapter Summaries: 5m 21s (3 LLM calls, 9,244 tokens) - **bottleneck: 48.7% of time**
+- Character Extraction V2: 25.7s (2 LLM calls, 2,822 tokens)
+- Character Profiles: 3m 37s (9 LLM calls, 19,761 tokens)
+- Pronunciation Guide: 48.9s (2 LLM calls, 4,589 tokens)
+
+### Warnings:
+- Moral valence classification failed for Mr. White and Sergeant-Major Morris
+- Analysis summary shows "Mr. White (aka White, Mrs. White)" - needs verification if Mrs. White is incorrectly merged
 
 ## Fix History
 
