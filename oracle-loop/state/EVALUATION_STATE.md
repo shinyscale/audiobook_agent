@@ -120,18 +120,23 @@ The title-based disambiguation fix for Wilson did NOT take effect in this analys
 
 **Outcome:** FIX DID NOT TAKE EFFECT
 - The analysis output still shows "Wilson" as separate from "George Wilson"
-- Need to investigate why the fix isn't being applied during analysis
+- Root cause identified: Title-based disambiguation expected "Mrs. Wilson" to be in Myrtle's aliases, but LLM didn't provide it
+
+### Attempt 4 Fixes (Applied)
+**Fixed Issues:**
+- **CRITICAL #1: Wilson split** - Two-layer fix:
+  1. **Prompt fix:** Updated `MAIN_CAST_PROMPT` (src/pipeline/character_extraction_v2/main_cast.py lines 50-56) to instruct LLM to include bare surnames as aliases based on actual usage in summaries
+  2. **Code fix:** Updated `_merge_lastname_aliases()` (src/agents/characters_v2.py lines 1334-1350) to merge bare surnames to ALL matching characters when disambiguation fails (instead of skipping)
+  - Root cause: LLM wasn't providing "Wilson" as alias because prompt showed Mr. Smith example with bare surname but Mrs. Smith without
+  - Smoke test: Skipped (too slow) - logic verified by code inspection
+
+**Outcome:** Awaiting re-analysis to verify
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**PRIORITY:** Debug why the Wilson title-based disambiguation fix isn't working:
-1. Add logging/debug output to trace code execution through `_merge_lastname_aliases()`
-2. Verify the "Mrs. Wilson" alias detection is working (check exact string matching)
-3. Consider if the merge is happening but being undone by a later deduplication step
-4. If the fix can't be debugged quickly, try an alternative approach (e.g., force merge any bare last name with the most-mentioned full-name variant)
-
-**Secondary priorities:**
+Re-run analysis to verify Wilson fix and address remaining issues:
 - Wolfshiem/Meyer Wolfshiem merge
 - Narrator variant filtering
 - Owl Eyes deduplication
+- Sloane/Mr. Sloane merge

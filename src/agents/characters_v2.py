@@ -1332,11 +1332,22 @@ class CharacterAgentV2(Agent):
 
                     supporting_to_remove.add(supp_idx)
                 else:
-                    # Can't safely disambiguate - skip merge
-                    logger.debug(
-                        f"Skipping merge of '{supp_name}' - {len(matches)} characters share this surname "
-                        f"and title-based disambiguation failed"
+                    # Can't disambiguate - merge to ALL matching characters
+                    # (This means bare "Wilson" becomes alias for both George and Myrtle)
+                    # Rationale: If we can't tell which character a bare surname refers to,
+                    # both family members should get credit for those mentions
+                    logger.info(
+                        f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ ALL {len(matches)} characters with this surname (disambiguation failed)"
                     )
+                    for main_idx, match_type in matches:
+                        main_char = main_cast[main_idx]
+                        if supp_name not in main_char.aliases:
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                            logger.debug(f"  Added '{supp_name}' as alias to '{main_char.canonical_name}'")
+
+                    supporting_to_remove.add(supp_idx)
 
         # Remove merged characters from supporting cast
         updated_supporting = [

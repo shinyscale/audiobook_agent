@@ -50,6 +50,9 @@ IMPORTANT RULES:
 8. Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr. + Surname) are DIFFERENT people
    - "Mr. Smith" and "Mrs. Smith" are two separate characters (typically spouses)
    - Create separate character entries for each
+   - When the summaries show bare surname references (e.g., "Smith did X"), determine from context which character
+     is being referred to and include that bare surname as an alias for that character
+   - If the bare surname is used ambiguously for multiple family members, include it as an alias for ALL applicable characters
 9. Titles and honorifics with a FULL name (e.g., "Mr. John Smith" vs "John Smith") are aliases of the same character
 
 CHAPTER SUMMARIES:
@@ -106,12 +109,15 @@ Spouses with title+surname only (DIFFERENT people - separate entries):
 }},
 {{
   "canonical_name": "Mrs. Smith",
-  "aliases": [],
+  "aliases": ["Smith"],
   "role": "supporting",
   "description": "The mother of the family",
   "is_unnamed": false
 }}
 ```
+
+Note: In this example, both characters have "Smith" as an alias because the bare surname is used for both in the text.
+If the text only uses "Smith" for one character, only that character should have it as an alias.
 
 Unnamed character (descriptive handle):
 ```json
