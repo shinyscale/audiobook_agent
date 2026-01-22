@@ -1784,6 +1784,37 @@ class AudiobookAnalyzer:
             ]
             total_mentions = len(all_mentions)
 
+        # Special case: First-person narrators often have few name mentions but "speak" throughout
+        # If this is a narrator with very few mentions, sample broadly across the text
+        is_narrator = getattr(character, 'is_narrator', False)
+        if is_narrator and total_mentions < 3:
+            logger.info(f"Narrator {character.canonical_name} has only {total_mentions} name mentions - sampling broadly across text")
+            # Sample 10 passages evenly distributed through the text
+            text_len = len(full_text)
+            num_samples = 10
+            step = text_len // (num_samples + 1)
+
+            def _chapter_for_pos(pos: int) -> int:
+                if chapter_map is None:
+                    return 0
+                for ch in chapter_map.chapters:
+                    if ch.start_position <= pos < ch.end_position:
+                        return ch.index
+                return 0
+
+            all_mentions = [
+                CharacterMention(
+                    text=getattr(character, "canonical_name", "") or "",
+                    position=step * (i + 1),
+                    chapter_index=_chapter_for_pos(step * (i + 1)),
+                    context="",
+                    in_dialogue=False,
+                )
+                for i in range(num_samples)
+            ]
+            total_mentions = len(all_mentions)
+            logger.info(f"Generated {total_mentions} synthetic mentions for narrator profile")
+
         # Sample up to 10 mentions, distributed across the narrative
         if total_mentions <= 10:
             sampled_mentions = all_mentions

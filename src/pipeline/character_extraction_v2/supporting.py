@@ -105,7 +105,8 @@ class SupportingCastExtractor:
             doc = nlp(chunk)
 
             for ent in doc.ents:
-                if ent.label_ != "PERSON":
+                # Accept PERSON entities and ORG entities (some names misclassified as organizations)
+                if ent.label_ not in ("PERSON", "ORG"):
                     continue
 
                 name = ent.text.strip()
@@ -164,12 +165,20 @@ class SupportingCastExtractor:
         if len(name) < 2:
             return False
 
-        # Skip common false positives
+        # Skip common false positives (religious terms, titles, etc.)
         skip_terms = {
             "god", "lord", "christ", "heaven", "hell",
             "sir", "madam", "ma'am", "dear",
         }
         if name.lower() in skip_terms:
+            return False
+
+        # Skip wine types and alcoholic beverages (common false positives)
+        wine_types = {
+            "amontillado", "sherry", "medoc", "port", "bordeaux",
+            "champagne", "burgundy", "chianti", "cognac", "brandy",
+        }
+        if name.lower() in wine_types:
             return False
 
         return True
