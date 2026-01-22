@@ -468,6 +468,11 @@ class CharacterAgentV2(Agent):
                 # Check if one name fully contains the other as a word
                 # "Sergeant-Major Morris" contains "Morris"
                 if self._name_contains_other(name1_lower, name2_lower):
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" and "Mrs. White" are DIFFERENT people)
+                    if self._are_different_titled_people(char1.canonical_name, char2.canonical_name):
+                        continue  # Skip this merge - they're different people
+
                     # Merge char2 into char1
                     logger.info(
                         f"Merging title variant: '{char2.canonical_name}' → "
@@ -486,6 +491,10 @@ class CharacterAgentV2(Agent):
                     skip_indices.add(j)
 
                 elif self._name_contains_other(name2_lower, name1_lower):
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    if self._are_different_titled_people(char1.canonical_name, char2.canonical_name):
+                        continue  # Skip this merge - they're different people
+
                     # Merge char1 into char2
                     logger.info(
                         f"Merging title variant: '{char1.canonical_name}' → "
@@ -555,6 +564,61 @@ class CharacterAgentV2(Agent):
             name = re.sub(f"^{title}\\s+", "", name, flags=re.IGNORECASE)
 
         return name.strip()
+
+    def _are_different_titled_people(self, name1: str, name2: str) -> bool:
+        """
+        Check if two names represent different people with different title prefixes.
+
+        This prevents merging "Mr. White" with "Mrs. White" (husband and wife),
+        while still allowing "Sergeant-Major Morris" to merge with "Morris".
+
+        Rules:
+        - If both names start with DIFFERENT honorific titles (Mr./Mrs./Miss/Ms./Dr.)
+          AND the stripped names are identical → they are DIFFERENT people
+        - Otherwise, allow the merge
+
+        Examples:
+        - "Mr. White" + "Mrs. White" → True (different people)
+        - "Mr. Smith" + "Dr. Smith" → True (different people)
+        - "Sergeant-Major Morris" + "Morris" → False (same person)
+        - "Mr. White" + "White" → False (same person)
+
+        Returns:
+            True if they're different titled people (DON'T merge)
+            False if they're the same person or safe to merge
+        """
+        import re
+
+        # Honorific titles that indicate distinct individuals when different
+        honorific_prefixes = [
+            r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.)\s+",
+        ]
+
+        # Extract titles and stripped names
+        title1 = None
+        title2 = None
+        stripped1 = name1
+        stripped2 = name2
+
+        for pattern in honorific_prefixes:
+            match1 = re.match(pattern, name1, flags=re.IGNORECASE)
+            if match1:
+                title1 = match1.group(1).lower()
+                stripped1 = re.sub(pattern, "", name1, flags=re.IGNORECASE).strip()
+
+            match2 = re.match(pattern, name2, flags=re.IGNORECASE)
+            if match2:
+                title2 = match2.group(1).lower()
+                stripped2 = re.sub(pattern, "", name2, flags=re.IGNORECASE).strip()
+
+        # If both have honorific titles AND titles are different AND stripped names are the same
+        # → they are different people (e.g., Mr. White vs Mrs. White)
+        if title1 and title2:
+            if title1 != title2 and stripped1.lower() == stripped2.lower():
+                return True  # Different titled people - DON'T merge
+
+        # Otherwise, safe to merge
+        return False
 
     def _merge_same_firstname_variants(
         self,

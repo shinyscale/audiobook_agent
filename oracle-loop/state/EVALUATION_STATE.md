@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Output Files
@@ -109,7 +109,7 @@
 
 ## Fix History
 
-### Attempt 1 - Fix 1: Title-based character distinction
+### Attempt 1 - Fix 1: Title-based character distinction (FAILED)
 **Issue:** CRITICAL - False character merge: Mr. White merged into Mrs. White
 **Root Cause (believed):**
 - File: `src/pipeline/character_extraction_v2/main_cast.py`
@@ -127,5 +127,40 @@
 - The same bug persists, just merged in opposite direction (Mrs. White → Mr. White instead of Mr. White → Mrs. White)
 - The prompt changes were insufficient or the merge is happening elsewhere
 
+### Attempt 2 - Fix 1: Block title-variant merge in post-processing
+**Issue:** CRITICAL - False character merge: Mrs. White merged into Mr. White
+
+**Root Cause (CONFIRMED):**
+- File: `src/agents/characters_v2.py`
+- Function: `_merge_title_variants()` lines 441-529
+- Problem: Post-processing step merges characters when one name contains another as a word
+  - Both "Mr. White" and "Mrs. White" contain the word "White"
+  - The function doesn't distinguish between:
+    - "Sergeant-Major Morris" + "Morris" → SHOULD merge (same person)
+    - "Mr. White" + "Mrs. White" → SHOULD NOT merge (different people with different titles)
+
+**Data Flow Trace:**
+1. Summaries → MainCastExtractor → LLM correctly extracts TWO separate characters (Mr. White, Mrs. White)
+2. `_merge_title_variants()` runs at line 124
+3. Function compares all pairs and merges "Mr. White" and "Mrs. White" because both contain "White"
+4. Result: Mrs. White becomes an alias of Mr. White
+
+**Fix Applied:**
+- Added new helper function `_are_different_titled_people()` (lines 568-621)
+  - Detects when two names have DIFFERENT honorific titles (Mr./Mrs./Miss/Ms./Dr.)
+  - Returns True if titles differ and stripped names match (e.g., "Mr. White" + "Mrs. White")
+- Modified `_merge_title_variants()` to call this check before merging (lines 473, 495)
+  - If check returns True, skip the merge (they're different people)
+  - Otherwise, allow merge as before
+
+**Smoke Test:** PASS
+- Code compiles successfully
+- Logic verified: "Mr. White" + "Mrs. White" → blocked from merging
+- Logic verified: "Sergeant-Major Morris" + "Morris" → allowed to merge
+
+**Test Results:** 342/345 tests pass (3 pre-existing failures unrelated to this fix)
+
+**Confidence:** HIGH - This fix targets the exact code location where the merge occurs
+
 ## Next Action
-Run PROMPT_fix.md with deeper investigation into the V2 character extraction pipeline to find where the merge is actually occurring. The prompt-only fix was insufficient.
+Re-run analysis to verify fix resolves the character merge issue. Phase set to `awaiting_analysis`.
