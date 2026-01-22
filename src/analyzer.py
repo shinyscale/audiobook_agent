@@ -174,6 +174,9 @@ class AudiobookAnalyzer:
 
         # Metrics collector for profiling
         self._metrics = MetricsCollector()
+        # Set output dir for heartbeat file (used by oracle-monitor)
+        if self.output_dir:
+            self._metrics.set_output_dir(str(self.output_dir))
         self._last_profiling_report: Optional[ProfilingReport] = None
 
         # Halt report (set if pipeline halted due to validation failure)

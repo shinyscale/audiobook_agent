@@ -124,6 +124,21 @@ class OracleState:
     # Loop status
     loop_running: bool = False
 
+    # Heartbeat data (real-time analysis activity)
+    heartbeat_age_seconds: Optional[float] = None  # Seconds since last heartbeat
+    heartbeat_activity: str = ""  # Last activity type (llm_call, stage_started, etc.)
+    heartbeat_stage: str = ""  # Current stage from heartbeat
+    heartbeat_stage_elapsed: float = 0.0  # Seconds in current stage
+    heartbeat_total_elapsed: float = 0.0  # Total analysis time
+    heartbeat_llm_calls: int = 0  # LLM calls in current stage
+
+    # Process status
+    analysis_running: bool = False  # Is audiobook-prep analyze process running
+    analysis_pid: Optional[int] = None  # PID of analysis process
+
+    # Recent stderr output
+    recent_stderr: list[str] = field(default_factory=list)
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -511,6 +526,46 @@ class StateParser:
         else:
             return f"{tool_name}"
 
+    def parse_heartbeat(self) -> dict:
+        """Parse HEARTBEAT.json for real-time analysis activity."""
+        import time
+
+        # Try multiple locations for heartbeat file
+        possible_paths = [
+            Path("/home/zacharymandrews/Tools/audiobook_agent/output/HEARTBEAT.json"),
+            self.base_dir / "output" / "HEARTBEAT.json",
+            self.base_dir.parent / "output" / "HEARTBEAT.json",
+        ]
+
+        heartbeat_file = None
+        for path in possible_paths:
+            if path.exists():
+                heartbeat_file = path
+                break
+
+        if not heartbeat_file:
+            return {}
+
+        try:
+            with open(heartbeat_file) as f:
+                data = json.load(f)
+
+            # Calculate age of heartbeat
+            unix_time = data.get('unix_time', 0)
+            age_seconds = time.time() - unix_time if unix_time else None
+
+            return {
+                'heartbeat_age_seconds': age_seconds,
+                'heartbeat_activity': data.get('activity', ''),
+                'heartbeat_stage': data.get('stage', ''),
+                'heartbeat_stage_elapsed': data.get('stage_elapsed_seconds', 0.0),
+                'heartbeat_total_elapsed': data.get('total_elapsed_seconds', 0.0),
+                'heartbeat_llm_calls': data.get('llm_calls_this_stage', 0),
+                'heartbeat_model': data.get('model', ''),
+            }
+        except (json.JSONDecodeError, IOError, OSError):
+            return {}
+
     def check_loop_running(self) -> bool:
         """Check if oracle-loop.sh is currently running."""
         try:
@@ -522,6 +577,68 @@ class StateParser:
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
+
+    def check_analysis_running(self) -> tuple[bool, Optional[int]]:
+        """Check if audiobook-prep analysis is currently running.
+
+        Returns:
+            Tuple of (is_running, pid or None)
+        """
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'audiobook-prep analyze'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pid = int(result.stdout.strip().split()[0])
+                return True, pid
+            return False, None
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            return False, None
+
+    def get_recent_stderr(self, lines: int = 8) -> list[str]:
+        """Get recent stderr lines from task output files.
+
+        Looks for the most recently modified .output file in Claude's task dir.
+        """
+        task_dir = Path("/tmp/claude/-home-zacharymandrews-Tools-audiobook-agent-oracle-loop/tasks")
+        if not task_dir.exists():
+            return []
+
+        try:
+            # Find most recently modified output file
+            output_files = list(task_dir.glob("*.output"))
+            if not output_files:
+                return []
+
+            latest = max(output_files, key=lambda p: p.stat().st_mtime)
+
+            # Check if file is recent (within 10 minutes)
+            import time
+            age = time.time() - latest.stat().st_mtime
+            if age > 600:
+                return []
+
+            # Read last N lines
+            content = latest.read_text()
+            all_lines = content.strip().split('\n')
+
+            # Filter to stderr lines and clean up
+            stderr_lines = []
+            for line in all_lines[-lines*2:]:  # Read more, filter down
+                # Skip empty lines and non-stderr
+                if not line.strip():
+                    continue
+                # Remove [stderr] prefix if present
+                if line.startswith('[stderr] '):
+                    line = line[9:]
+                stderr_lines.append(line)
+
+            return stderr_lines[-lines:]
+        except (IOError, OSError):
+            return []
 
     def get_state(self) -> OracleState:
         """Get combined state from all sources."""
@@ -601,6 +718,29 @@ class StateParser:
         # Check if loop is running
         state.loop_running = self.check_loop_running()
 
+        # Check if analysis process is running
+        state.analysis_running, state.analysis_pid = self.check_analysis_running()
+
+        # Get recent stderr output
+        state.recent_stderr = self.get_recent_stderr(8)
+
+        # Parse heartbeat for real-time activity (more reliable than PROGRESS.json)
+        heartbeat = self.parse_heartbeat()
+        if heartbeat:
+            state.heartbeat_age_seconds = heartbeat.get('heartbeat_age_seconds')
+            state.heartbeat_activity = heartbeat.get('heartbeat_activity', '')
+            state.heartbeat_stage = heartbeat.get('heartbeat_stage', '')
+            state.heartbeat_stage_elapsed = heartbeat.get('heartbeat_stage_elapsed', 0.0)
+            state.heartbeat_total_elapsed = heartbeat.get('heartbeat_total_elapsed', 0.0)
+            state.heartbeat_llm_calls = heartbeat.get('heartbeat_llm_calls', 0)
+
+            # Use heartbeat data for current_stage if fresher than PROGRESS.json
+            if state.heartbeat_age_seconds is not None and state.heartbeat_age_seconds < 30:
+                if heartbeat.get('heartbeat_stage'):
+                    state.current_stage = heartbeat['heartbeat_stage']
+                if heartbeat.get('heartbeat_model'):
+                    state.model = heartbeat['heartbeat_model']
+
         state.last_updated = datetime.now()
 
         return state
@@ -670,6 +810,71 @@ class StatusBar(Static):
             text.append("STAGE: ", style="bold cyan")
             order_prefix = get_stage_order(self.state.current_stage)
             text.append(f"{order_prefix}{self.state.current_stage}", style="bold yellow")
+
+            # Show stage elapsed time from heartbeat
+            if self.state.heartbeat_stage_elapsed > 0:
+                elapsed = self.state.heartbeat_stage_elapsed
+                if elapsed >= 60:
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    text.append(f" ({mins}m {secs}s)", style="dim cyan")
+                else:
+                    text.append(f" ({int(elapsed)}s)", style="dim cyan")
+
+            # Show LLM calls in current stage
+            if self.state.heartbeat_llm_calls > 0:
+                text.append(f"  [{self.state.heartbeat_llm_calls} LLM calls]", style="dim")
+
+        # Show heartbeat status (activity indicator)
+        text.append("\n")
+        if self.state.heartbeat_age_seconds is not None:
+            age = self.state.heartbeat_age_seconds
+            text.append("HEARTBEAT: ", style="bold cyan")
+            if age < 5:
+                text.append("●", style="bold green")
+                text.append(f" {age:.0f}s ago", style="green")
+            elif age < 30:
+                text.append("●", style="bold yellow")
+                text.append(f" {age:.0f}s ago", style="yellow")
+            elif age < 120:
+                text.append("●", style="bold red")
+                text.append(f" {age:.0f}s ago (stale)", style="red")
+            else:
+                mins = int(age // 60)
+                text.append("○", style="dim red")
+                text.append(f" {mins}m ago (inactive)", style="dim red")
+
+            # Show total analysis time if available
+            if self.state.heartbeat_total_elapsed > 0:
+                total = self.state.heartbeat_total_elapsed
+                text.append("  │  ", style="dim")
+                text.append("TOTAL TIME: ", style="bold cyan")
+                if total >= 3600:
+                    hours = int(total // 3600)
+                    mins = int((total % 3600) // 60)
+                    text.append(f"{hours}h {mins}m", style="white")
+                elif total >= 60:
+                    mins = int(total // 60)
+                    secs = int(total % 60)
+                    text.append(f"{mins}m {secs}s", style="white")
+                else:
+                    text.append(f"{int(total)}s", style="white")
+        else:
+            text.append("HEARTBEAT: ", style="bold cyan")
+            text.append("○", style="dim")
+            text.append(" no data", style="dim")
+
+        # Show analysis process status
+        text.append("  │  ", style="dim")
+        text.append("ANALYSIS: ", style="bold cyan")
+        if self.state.analysis_running:
+            text.append("●", style="bold green")
+            text.append(f" running", style="green")
+            if self.state.analysis_pid:
+                text.append(f" (PID {self.state.analysis_pid})", style="dim")
+        else:
+            text.append("○", style="dim")
+            text.append(" not running", style="dim")
 
         return text
 
@@ -887,6 +1092,48 @@ class CommitsPanel(Static):
                 msg = msg[:max_msg_len - 3] + "..."
             text.append(msg, style="white")
             text.append("\n")
+
+        return text
+
+    def update_state(self, state: OracleState):
+        self.state = state
+        self.refresh()
+
+
+class StderrPanel(Static):
+    """Panel showing recent stderr output from analysis."""
+
+    def __init__(self, state: OracleState):
+        super().__init__()
+        self.state = state
+
+    def render(self) -> Text:
+        text = Text()
+
+        text.append("RECENT OUTPUT\n", style="bold white")
+
+        if not self.state.recent_stderr:
+            text.append("  No recent output", style="dim")
+            if self.state.analysis_running:
+                text.append("\n  (analysis running, waiting for output...)", style="dim cyan")
+            return text
+
+        for line in self.state.recent_stderr:
+            # Color code based on content
+            line_lower = line.lower()
+            if 'error' in line_lower or 'fail' in line_lower:
+                style = "red"
+            elif 'warning' in line_lower:
+                style = "yellow"
+            elif 'low confidence' in line_lower:
+                style = "yellow"
+            else:
+                style = "dim white"
+
+            # Truncate long lines
+            if len(line) > 90:
+                line = line[:87] + "..."
+            text.append(f"  {line}\n", style=style)
 
         return text
 
@@ -1146,7 +1393,7 @@ class OracleMonitorApp(App):
 
     StatusBar {
         height: auto;
-        max-height: 6;
+        max-height: 8;
         border: solid $primary;
         padding: 0 1;
         margin: 0 0 1 0;
@@ -1170,6 +1417,14 @@ class OracleMonitorApp(App):
         height: auto;
         max-height: 9;
         border: solid $success;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    StderrPanel {
+        height: auto;
+        max-height: 10;
+        border: solid $warning;
         padding: 0 1;
         margin: 0 0 1 0;
     }
@@ -1247,6 +1502,7 @@ class OracleMonitorApp(App):
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
             yield OllamaActivityPanel(self.state)
+            yield StderrPanel(self.state)
             yield ClaudeActivityPanel(self.state)
             yield ClaudeThinkingPanel(self.state)
             yield IssuesPanel(self.state)
@@ -1299,6 +1555,7 @@ class OracleMonitorApp(App):
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
             self.query_one(OllamaActivityPanel).update_state(self.state)
+            self.query_one(StderrPanel).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)
             self.query_one(ClaudeThinkingPanel).update_state(self.state)
             self.query_one(IssuesPanel).update_state(self.state)
