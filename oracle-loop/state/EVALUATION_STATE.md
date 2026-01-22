@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -168,14 +168,13 @@
 - Wolfshiem: +2 mentions if merge works → minor improvement
 - Total: ~11 mentions consolidated, should improve Character Extraction from 6/10 to 7-8/10
 
-## Next Action
-**Phase:** awaiting_analysis
-
-Re-run analysis to verify:
-1. Narrator variants are filtered
-2. George B. Wilson merges with George Wilson
-3. Sloane merges with Mr. Sloane
-4. Wolfshiem merges with Meyer Wolfshiem (if existing logic triggers)
-5. Overall Character Extraction score improvement
-
-If score reaches 8.0, advance to next text. If not, address remaining issues.
+## Pipeline Notes (Attempt 5)
+- Analysis completed successfully in 57m 25s
+- Output files: ../output/gatsby/analysis.json, ../output/gatsby/report.html
+- Total characters detected: 42 (vs 18 pre-merge)
+- Notable warnings:
+  - Several JSON parsing errors for character profiles (Tom Buchanan, Myrtle Wilson, Meyer Wolfsheim)
+  - Low confidence profiles (0.30) for some characters
+  - Pronunciation guide: 585 entries (506 unknown, 37 proper nouns, 23 homographs, 19 foreign)
+- V2 character extraction with summary-driven merge applied
+- Key fixes tested: narrator filtering, middle initial handling, title variant merging
