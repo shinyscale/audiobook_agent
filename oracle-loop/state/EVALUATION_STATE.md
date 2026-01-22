@@ -3,8 +3,18 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.80
+
+## Output Files
+- HTML: ../output/gatsby/report.html
+- JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 54m 50s
+- 44 characters extracted (v2 pipeline)
+- Some LLM errors during profile generation (500 errors, JSON parse failures)
+- Quality concerns: 4 low-confidence character profiles (Tom Buchanan, Myrtle Wilson, Mr. Sloane, McKee)
 
 ## Latest Scores
 - Structure Detection: 7/10
