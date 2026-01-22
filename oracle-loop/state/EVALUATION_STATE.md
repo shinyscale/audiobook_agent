@@ -3,12 +3,20 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.80
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 59m 24s
+- Found 40 characters (19 eligible for profiles, 18 profiles generated)
+- Some LLM errors during character profiling (server EOF errors, JSON parse failures)
+- Low confidence profiles for Daisy Buchanan, Tom Buchanan, Klipspringer (0.30)
+- 585 pronunciation entries flagged
+- V2 character extraction used with summary-driven approach
 
 ## Latest Scores
 - Structure Detection: 8/10
