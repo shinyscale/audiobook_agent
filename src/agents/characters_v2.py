@@ -162,6 +162,13 @@ class CharacterAgentV2(Agent):
         logger.info("V2 Step 3.5: Merging within main cast")
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
 
+        # STEP 3.6: Deduplicate alias-canonical conflicts
+        # Handles cases like "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical with alias "Myrtle Wilson")
+        logger.info("V2 Step 3.6: Deduplicating alias-canonical conflicts")
+        main_cast, alias_dedupe_aliases_added = self._deduplicate_alias_canonical_conflicts(main_cast)
+        if alias_dedupe_aliases_added:
+            within_main_aliases_added.update(alias_dedupe_aliases_added)
+
         # Re-search mentions for characters that gained new aliases
         if within_main_aliases_added:
             logger.info(f"Re-searching mentions for {len(within_main_aliases_added)} characters with new aliases")
@@ -205,6 +212,15 @@ class CharacterAgentV2(Agent):
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
+
+        # STEP 5.1: Filter narrator-related entries from supporting cast
+        # Handles cases where NER picks up "narrator", "the narrator", etc.
+        supporting_cast = self._filter_narrator_variants(
+            supporting_cast, narrator_info.narrator_name
+        )
+        logger.info(
+            f"V2 Step 5.1 complete: {len(supporting_cast)} supporting after narrator filter"
+        )
 
         # STEP 5.5: Merge last-name-only supporting characters as aliases
         main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
@@ -437,6 +453,65 @@ class CharacterAgentV2(Agent):
             names.add(char.canonical_name)
             names.update(char.aliases)
         return names
+
+    def _filter_narrator_variants(
+        self,
+        supporting_cast: list[Character],
+        narrator_name: str | None,
+    ) -> list[Character]:
+        """
+        Filter out narrator-related entries from supporting cast.
+
+        Removes entries like:
+        - "Narrator"
+        - "the narrator"
+        - "The Narrator"
+        - "Nick Carraway (narrator)"
+
+        These are descriptive references that should not be separate characters.
+
+        Args:
+            supporting_cast: List of supporting characters
+            narrator_name: The identified narrator's name (if any)
+
+        Returns:
+            Filtered list with narrator variants removed
+        """
+        if not supporting_cast:
+            return supporting_cast
+
+        filtered = []
+        removed_count = 0
+
+        for char in supporting_cast:
+            canonical_lower = char.canonical_name.lower()
+
+            # Check if canonical name contains "narrator" (case-insensitive)
+            if "narrator" in canonical_lower:
+                logger.info(
+                    f"Filtering narrator variant '{char.canonical_name}' "
+                    f"({char.mention_count} mentions) from supporting cast"
+                )
+                removed_count += 1
+                continue
+
+            # Check if it matches the identified narrator's name with "(narrator)" suffix
+            # E.g., "Nick Carraway (narrator)" should be filtered
+            if narrator_name and canonical_lower.startswith(narrator_name.lower()):
+                if "(" in canonical_lower and "narrator" in canonical_lower:
+                    logger.info(
+                        f"Filtering narrator variant '{char.canonical_name}' "
+                        f"(matches narrator '{narrator_name}' with suffix)"
+                    )
+                    removed_count += 1
+                    continue
+
+            filtered.append(char)
+
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} narrator variant(s) from supporting cast")
+
+        return filtered
 
     def _merge_title_variants(self, characters: list[Character]) -> list[Character]:
         """
@@ -728,6 +803,115 @@ class CharacterAgentV2(Agent):
             logger.info(f"Same-firstname merge: removed {len(chars_to_remove)} duplicate entries")
 
         return result
+
+    def _deduplicate_alias_canonical_conflicts(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Deduplicate characters where one character's alias matches another's canonical name.
+
+        Example: "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical, alias="Myrtle Wilson")
+        → These are the SAME person, merge them
+
+        This handles cases where the LLM extracted both a character and a variant reference
+        as separate characters, but correctly noted one as an alias of the other.
+
+        Returns:
+            Tuple of (updated_main_cast, char_ids_with_new_aliases)
+        """
+        if len(main_cast) <= 1:
+            return main_cast, set()
+
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Build a map of canonical_name -> character index
+        canonical_map = {char.canonical_name.lower(): idx for idx, char in enumerate(main_cast)}
+
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            # Check if any of this character's aliases match another character's canonical name
+            for alias in char.aliases:
+                alias_lower = alias.lower()
+
+                # Does this alias match another character's canonical name?
+                if alias_lower in canonical_map:
+                    other_idx = canonical_map[alias_lower]
+
+                    # Skip if it's the same character (alias matches own canonical name)
+                    if other_idx == idx:
+                        continue
+
+                    # Skip if already marked for removal
+                    if other_idx in chars_to_remove:
+                        continue
+
+                    other_char = main_cast[other_idx]
+
+                    # MERGE: The character whose canonical name appears as an alias
+                    # should be merged INTO the character that has it as an alias
+                    #
+                    # Example: "Mrs. Wilson" has alias "Myrtle Wilson"
+                    # → Merge "Myrtle Wilson" INTO "Mrs. Wilson"
+                    #
+                    # BUT: We want to keep the one with MORE mentions as canonical
+                    if char.mention_count >= other_char.mention_count:
+                        # Keep current char, merge other into it
+                        logger.info(
+                            f"Alias-canonical conflict: merging '{other_char.canonical_name}' "
+                            f"({other_char.mention_count} mentions) → '{char.canonical_name}' "
+                            f"({char.mention_count} mentions) - alias match"
+                        )
+
+                        # Add other's canonical name as alias (if not already there)
+                        if other_char.canonical_name not in char.aliases:
+                            char.aliases.append(other_char.canonical_name)
+
+                        # Merge other's aliases too
+                        for other_alias in other_char.aliases:
+                            if (other_alias not in char.aliases and
+                                other_alias.lower() != char.canonical_name.lower()):
+                                char.aliases.append(other_alias)
+
+                        chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Keep other char, merge current into it
+                        logger.info(
+                            f"Alias-canonical conflict: merging '{char.canonical_name}' "
+                            f"({char.mention_count} mentions) → '{other_char.canonical_name}' "
+                            f"({other_char.mention_count} mentions) - alias match"
+                        )
+
+                        # Add current's canonical name as alias (if not already there)
+                        if char.canonical_name not in other_char.aliases:
+                            other_char.aliases.append(char.canonical_name)
+
+                        # Merge current's aliases too
+                        for curr_alias in char.aliases:
+                            if (curr_alias not in other_char.aliases and
+                                curr_alias.lower() != other_char.canonical_name.lower()):
+                                other_char.aliases.append(curr_alias)
+
+                        chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters
+        updated_main_cast = [
+            char for idx, char in enumerate(main_cast)
+            if idx not in chars_to_remove
+        ]
+
+        if chars_to_remove:
+            logger.info(
+                f"Alias-canonical deduplication: removed {len(chars_to_remove)} duplicate entries"
+            )
+
+        return updated_main_cast, chars_with_new_aliases
 
     def _merge_within_main_cast(
         self,

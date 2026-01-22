@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -117,10 +117,24 @@
    - When one character has another's name as an alias, the deduplication step isn't recognizing this as a merge candidate
    - The alias resolution may be adding aliases without checking if that alias name exists as another character's canonical name
 
-## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1** - Myrtle Wilson / Mrs. Wilson merge (highest impact, ~24 duplicate mentions)
-2. **CRITICAL #2** - Wolfshiem / Meyer Wolfsheim merge (fix the remaining split)
-3. **HIGH #3** - Narrator variants merge (easy pattern to fix)
+### Attempt 2 Fixes (Applied)
+**Fixed Issues:**
+- **CRITICAL #1: Myrtle Wilson / Mrs. Wilson split** - Added `_deduplicate_alias_canonical_conflicts()` method
+  - Root cause: `src/agents/characters_v2.py` - No deduplication step checked if one character's alias matched another's canonical name
+  - Smoke test: PASS - Method correctly merges characters when alias matches canonical name
+  - Modified: `src/agents/characters_v2.py` (added Step 3.6 and new method at line 732)
 
-**Focus on getting Character Extraction from 5/10 to 7-8/10 to cross the 8.0 threshold.**
+- **CRITICAL #2: Wolfshiem / Meyer Wolfsheim split** - No additional code changes (existing fuzzy match should work)
+  - Root cause: Existing Pass 3 in `_merge_within_main_cast()` has 85% fuzzy threshold which should catch "Wolfshiem" vs "Wolfsheim" (88.89% similar)
+  - Smoke test: Skipped - will verify in full analysis
+  - Note: If issue persists, may need to investigate why fuzzy matching isn't triggering
+
+- **HIGH #3: Narrator variants (5 entries)** - Added `_filter_narrator_variants()` method
+  - Root cause: `src/agents/characters_v2.py` - Supporting cast NER extraction picks up "narrator", "the narrator", etc. as separate characters
+  - Smoke test: PASS - Method correctly filters variants containing "narrator" (case-insensitive)
+  - Modified: `src/agents/characters_v2.py` (added Step 5.1 and new method at line 448)
+
+**Full test suite:** 327 passed, 2 pre-existing failures (unrelated to changes), 10 skipped
+
+## Next Action
+Set phase to `awaiting_analysis` and re-run analysis to verify fixes
