@@ -81,6 +81,26 @@ except ImportError:
     HAS_SYSTEM_DETECTION = False
 
 
+# Stage order mapping for display purposes
+# This defines the expected execution order of pipeline stages
+STAGE_ORDER = {
+    "Chapter Detection": 1,
+    "Character Extraction": 2,
+    "Character Extraction V2": 2,  # Alternative to V1, same position
+    "Chapter Summaries": 3,
+    "Character Profiles": 4,
+    "Pronunciation Guide": 5,
+}
+
+
+def get_stage_order(stage_name: str) -> str:
+    """Get the order prefix for a stage name."""
+    order = STAGE_ORDER.get(stage_name)
+    if order:
+        return f"{order}. "
+    return ""
+
+
 def make_combobox_auto_expand(combobox: "ttk.Combobox"):
     """Make combobox dropdown expand to fit longest value.
 
@@ -248,7 +268,8 @@ class ProgressWindow:
         """Update all widgets based on snapshot."""
         # Stage name
         if snapshot.current_stage_name:
-            self.stage_label.config(text=f"Analyzing: {snapshot.current_stage_name}")
+            order_prefix = get_stage_order(snapshot.current_stage_name)
+            self.stage_label.config(text=f"Analyzing: {order_prefix}{snapshot.current_stage_name}")
 
         # Progress bar
         if snapshot.progress_percentage:
@@ -358,14 +379,16 @@ class ProgressWindow:
 
         # Build table
         lines = []
-        lines.append("Stage                   Time    Items  Confidence")
-        lines.append("─" * 55)
+        lines.append("Stage                       Time    Items  Confidence")
+        lines.append("─" * 59)
 
         # Completed stages
         for stage in snapshot.completed_stages:
             time_str = self._format_duration(stage.duration_seconds)
+            order_prefix = get_stage_order(stage.stage_name)
+            stage_display = f"{order_prefix}{stage.stage_name}"
             lines.append(
-                f"✓ {stage.stage_name:<21} {time_str:>7} {stage.items_processed:>5}  "
+                f"✓ {stage_display:<25} {time_str:>7} {stage.items_processed:>5}  "
                 f"{stage.confidence_summary}"
             )
 
@@ -378,8 +401,10 @@ class ProgressWindow:
                 snapshot.current_stage_medium_confidence,
                 snapshot.current_stage_low_confidence
             )
+            order_prefix = get_stage_order(snapshot.current_stage_name)
+            stage_display = f"{order_prefix}{snapshot.current_stage_name}"
             lines.append(
-                f"→ {snapshot.current_stage_name:<21} {time_str:>7} {items:>5}  "
+                f"→ {stage_display:<25} {time_str:>7} {items:>5}  "
                 f"{h}H/{m}M/{l}L"
             )
 
