@@ -4,52 +4,52 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": true,
-      "attempts": 4,
-      "final_score": 8.80,
-      "baseline_score": 6.10,
-      "last_score": 8.80,
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "last_score": null,
       "regression_detected": false
     },
     {
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": true,
-      "attempts": 23,
-      "final_score": 8.025,
-      "baseline_score": 6.75,
-      "last_score": 8.025,
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "last_score": null,
       "regression_detected": false
     },
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": true,
-      "attempts": 14,
-      "final_score": 8.15,
-      "baseline_score": 6.05,
-      "last_score": 8.15,
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "last_score": null,
       "regression_detected": false
     },
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": true,
-      "attempts": 17,
-      "final_score": 8.05,
-      "baseline_score": 6.275,
-      "last_score": 8.05,
+      "complete": false,
+      "attempts": 0,
+      "final_score": null,
+      "baseline_score": null,
+      "last_score": null,
       "regression_detected": false
     },
     {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
-      "attempts": 12,
+      "attempts": 0,
       "final_score": null,
-      "baseline_score": 6.65,
-      "last_score": 5.20,
-      "regression_detected": true
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "i_have_no_mouth",
@@ -57,7 +57,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "frankenstein",
@@ -65,7 +67,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "dracula",
@@ -73,7 +77,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "one_hundred_years_of_solitude",
@@ -81,7 +87,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "east_of_eden",
@@ -89,7 +97,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "don_quixote",
@@ -97,7 +107,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     },
     {
       "name": "flowers_for_algernon",
@@ -105,7 +117,9 @@
       "complete": false,
       "attempts": 0,
       "final_score": null,
-      "baseline_score": null
+      "baseline_score": null,
+      "last_score": null,
+      "regression_detected": false
     }
   ]
 }

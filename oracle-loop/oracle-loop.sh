@@ -47,6 +47,141 @@ fi
 
 THRESHOLD=$(jq -r '.quality_threshold' "$STATE_DIR/manifest.json")
 
+# === CHECKPOINT SYSTEM ===
+# Ensures checkpoints.json exists
+init_checkpoints() {
+    if [ ! -f "$STATE_DIR/checkpoints.json" ]; then
+        echo '{"checkpoints": [], "known_good_baseline": {}}' > "$STATE_DIR/checkpoints.json"
+    fi
+}
+
+# Create a checkpoint after evaluating code changes
+create_checkpoint() {
+    local COMMIT="$1"
+    local SCORE="$2"
+    local TEXT="$3"
+    local ATTEMPT="$4"
+
+    # Only checkpoint if src/ files changed
+    local SRC_FILES=$(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null | grep "^src/" || true)
+    [ -z "$SRC_FILES" ] && return 1
+
+    local CHECKPOINT_ID="cp-$(date +%Y%m%d%H%M%S)"
+    local DESCRIPTION=$(git log --format="%s" -1 "$COMMIT")
+    local TIMESTAMP=$(git log --format="%aI" -1 "$COMMIT")
+
+    jq --arg id "$CHECKPOINT_ID" \
+       --arg commit "$COMMIT" \
+       --arg ts "$TIMESTAMP" \
+       --argjson attempt "$ATTEMPT" \
+       --arg text "$TEXT" \
+       --argjson score "$SCORE" \
+       --arg files "$SRC_FILES" \
+       --arg desc "$DESCRIPTION" \
+       '.checkpoints += [{
+         "id": $id, "commit": $commit, "timestamp": $ts,
+         "attempt": $attempt, "text": $text, "score_after": $score,
+         "files_changed": ($files | split("\n")), "description": $desc,
+         "is_known_good": false
+       }]' "$STATE_DIR/checkpoints.json" > "$STATE_DIR/checkpoints.tmp" && \
+       mv "$STATE_DIR/checkpoints.tmp" "$STATE_DIR/checkpoints.json"
+
+    echo "Created checkpoint $CHECKPOINT_ID for $TEXT (score: $SCORE)"
+}
+
+# Get known-good commit for a text
+get_known_good_checkpoint() {
+    local TEXT="$1"
+    jq -r ".known_good_baseline[\"$TEXT\"].commit // empty" "$STATE_DIR/checkpoints.json" 2>/dev/null
+}
+
+# Get known-good score for a text
+get_known_good_score() {
+    local TEXT="$1"
+    jq -r ".known_good_baseline[\"$TEXT\"].score // empty" "$STATE_DIR/checkpoints.json" 2>/dev/null
+}
+
+# Mark checkpoint as known-good (called when score improves)
+mark_checkpoint_good() {
+    local TEXT="$1"
+    local COMMIT="$2"
+    local SCORE="$3"
+
+    jq --arg text "$TEXT" --arg commit "$COMMIT" --argjson score "$SCORE" \
+       '.known_good_baseline[$text] = {"commit": $commit, "score": $score}' \
+       "$STATE_DIR/checkpoints.json" > "$STATE_DIR/checkpoints.tmp" && \
+       mv "$STATE_DIR/checkpoints.tmp" "$STATE_DIR/checkpoints.json"
+
+    # Create a git tag for easy reference
+    git tag -f "known-good-$TEXT" "$COMMIT" 2>/dev/null || true
+    echo "Marked $COMMIT as known-good for $TEXT (score: $SCORE)"
+}
+
+# Revert all src/ changes since known-good commit
+revert_to_known_good() {
+    local TEXT="$1"
+    local NEW_SCORE="$2"
+
+    local KNOWN_GOOD=$(get_known_good_checkpoint "$TEXT")
+    local KNOWN_GOOD_SCORE=$(get_known_good_score "$TEXT")
+
+    if [ -z "$KNOWN_GOOD" ]; then
+        echo "No known-good checkpoint for $TEXT, cannot revert"
+        return 1
+    fi
+
+    echo ""
+    echo "========================================"
+    echo "  REVERTING TO KNOWN-GOOD STATE"
+    echo "========================================"
+    echo "  Text: $TEXT"
+    echo "  Current score: $NEW_SCORE"
+    echo "  Known-good score: $KNOWN_GOOD_SCORE"
+    echo "  Known-good commit: $KNOWN_GOOD"
+    echo "========================================"
+
+    # Find all src/ files that changed since known-good
+    local CHANGED_FILES=$(git diff --name-only "$KNOWN_GOOD" HEAD -- "src/" 2>/dev/null || true)
+
+    if [ -z "$CHANGED_FILES" ]; then
+        echo "No src/ files changed since known-good commit"
+        return 1
+    fi
+
+    echo ""
+    echo "Files to revert:"
+    echo "$CHANGED_FILES"
+    echo ""
+
+    # Restore each file from known-good commit
+    for file in $CHANGED_FILES; do
+        if git show "$KNOWN_GOOD:$file" > /dev/null 2>&1; then
+            git checkout "$KNOWN_GOOD" -- "$file" 2>/dev/null || true
+            echo "  Restored: $file"
+        else
+            echo "  Skipped (new file): $file"
+        fi
+    done
+
+    # Commit the revert
+    git add -A
+    git commit -m "Auto-revert: Regression detected, reverting to known-good ($NEW_SCORE < $KNOWN_GOOD_SCORE)
+
+Reverted src/ files to commit: $KNOWN_GOOD
+Text: $TEXT
+Score regression: $NEW_SCORE vs $KNOWN_GOOD_SCORE
+
+Files reverted:
+$CHANGED_FILES" 2>/dev/null || true
+
+    echo ""
+    echo "Reverted to known-good state"
+    return 0
+}
+
+# Initialize checkpoint system
+init_checkpoints
+
 echo ""
 echo "========================================"
 echo "  Audiobook Analysis Oracle Loop"
@@ -202,71 +337,55 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
         NO_PROGRESS_COUNT=0
     fi
 
-    # Check for regression after evaluation phase
+    # Check for regression after evaluation phase and manage checkpoints
     if [ "$PROMPT_FILE" = "$PROMPTS_DIR/PROMPT_evaluate.md" ]; then
-        # Extract new score and baseline from EVALUATION_STATE.md
+        # Extract score and attempt info from EVALUATION_STATE.md
         NEW_SCORE=$(sed -n 's/.*\*\*Overall: \([0-9.]*\).*/\1/p' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null | head -1)
         NEW_SCORE="${NEW_SCORE:-0}"
-        BASELINE=$(sed -n 's/.*\*\*baseline_score:\*\* \([0-9.]*\).*/\1/p' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null | head -1)
-        BASELINE="${BASELINE:-0}"
+        CURRENT_ATTEMPT=$(sed -n 's/.*\*\*Attempt:\*\* \([0-9]*\).*/\1/p' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null | head -1)
+        CURRENT_ATTEMPT="${CURRENT_ATTEMPT:-1}"
 
-        if [ -n "$BASELINE" ] && [ "$BASELINE" != "0" ] && [ -n "$NEW_SCORE" ] && [ "$NEW_SCORE" != "0" ]; then
-            DIFF=$(echo "$NEW_SCORE - $BASELINE" | bc 2>/dev/null || echo "0")
+        # Get known-good score for comparison (or use 0 if none)
+        KNOWN_GOOD_SCORE=$(get_known_good_score "$CURRENT_TEXT")
+        KNOWN_GOOD_SCORE="${KNOWN_GOOD_SCORE:-0}"
+
+        if [ -n "$NEW_SCORE" ] && [ "$NEW_SCORE" != "0" ]; then
             echo ""
-            echo "Regression check: new_score=$NEW_SCORE, baseline=$BASELINE, diff=$DIFF"
+            echo "Checkpoint check: new_score=$NEW_SCORE, known_good=$KNOWN_GOOD_SCORE"
 
-            if [ "$(echo "$DIFF < -0.3" | bc -l 2>/dev/null)" = "1" ]; then
-                echo ""
-                echo "========================================"
-                echo "  REGRESSION DETECTED!"
-                echo "========================================"
-                echo "  New score: $NEW_SCORE"
-                echo "  Baseline:  $BASELINE"
-                echo "  Diff:      $DIFF (threshold: -0.3)"
-                echo "========================================"
-                echo ""
-                echo "Reverting last fix..."
+            # Create checkpoint for this evaluation (records the commit and score)
+            CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null)
+            create_checkpoint "$CURRENT_COMMIT" "$NEW_SCORE" "$CURRENT_TEXT" "$CURRENT_ATTEMPT"
 
-                # Get the last commit that was a fix
-                LAST_FIX=$(git log --oneline -1 --grep="^Fix:" 2>/dev/null | cut -d' ' -f1)
-                if [ -n "$LAST_FIX" ]; then
-                    # Revert only the code changes, not state files
-                    # First, get list of files changed in that commit (excluding state/)
-                    CODE_FILES=$(git diff-tree --no-commit-id --name-only -r "$LAST_FIX" 2>/dev/null | grep -v "^oracle-loop/state/" || true)
+            # Check if score improved - if so, update known-good baseline
+            if [ "$(echo "$NEW_SCORE > $KNOWN_GOOD_SCORE" | bc -l 2>/dev/null)" = "1" ]; then
+                echo "Score improved! Updating known-good baseline."
+                mark_checkpoint_good "$CURRENT_TEXT" "$CURRENT_COMMIT" "$NEW_SCORE"
+            # Check for regression (score dropped significantly from known-good)
+            elif [ "$KNOWN_GOOD_SCORE" != "0" ]; then
+                DIFF=$(echo "$NEW_SCORE - $KNOWN_GOOD_SCORE" | bc 2>/dev/null || echo "0")
 
-                    if [ -n "$CODE_FILES" ]; then
-                        echo "Reverting code files from $LAST_FIX:"
-                        echo "$CODE_FILES"
+                if [ "$(echo "$DIFF < -0.3" | bc -l 2>/dev/null)" = "1" ]; then
+                    echo ""
+                    echo "========================================"
+                    echo "  REGRESSION DETECTED!"
+                    echo "========================================"
+                    echo "  New score:       $NEW_SCORE"
+                    echo "  Known-good:      $KNOWN_GOOD_SCORE"
+                    echo "  Diff:            $DIFF (threshold: -0.3)"
+                    echo "========================================"
 
-                        # Restore each code file to its state before the fix commit
-                        for file in $CODE_FILES; do
-                            if [ -f "$file" ]; then
-                                git checkout "$LAST_FIX^" -- "$file" 2>/dev/null || true
-                            fi
-                        done
+                    # Revert to known-good state
+                    if revert_to_known_good "$CURRENT_TEXT" "$NEW_SCORE"; then
+                        # Update phase to awaiting_analysis to re-run with reverted code
+                        sed -i 's/\*\*Phase:\*\* awaiting_fix/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
+                        sed -i 's/\*\*Phase:\*\* awaiting_evaluation/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
+                        echo "Reset phase to awaiting_analysis"
 
-                        git add -A
-                        git commit -m "Auto-revert: Fix caused regression ($NEW_SCORE < $BASELINE)
-
-Reverted code from commit: $LAST_FIX
-Score drop: $DIFF points
-Files reverted:
-$CODE_FILES" 2>/dev/null
-                        echo "Reverted code changes from commit $LAST_FIX"
-                    else
-                        echo "No code files to revert in $LAST_FIX"
+                        # Reset no-progress counter since regression revert is progress
+                        NO_PROGRESS_COUNT=0
+                        echo "Reset no-progress counter after regression revert"
                     fi
-
-                    # Update phase to awaiting_analysis to re-run with reverted code
-                    sed -i 's/\*\*Phase:\*\* awaiting_fix/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
-                    sed -i 's/\*\*Phase:\*\* awaiting_evaluation/\*\*Phase:\*\* awaiting_analysis/' "$STATE_DIR/EVALUATION_STATE.md" 2>/dev/null
-                    echo "Reset phase to awaiting_analysis"
-
-                    # Reset no-progress counter since regression revert is a form of progress
-                    NO_PROGRESS_COUNT=0
-                    echo "Reset no-progress counter after regression revert"
-                else
-                    echo "Could not find fix commit to revert"
                 fi
             fi
         fi
