@@ -19,6 +19,26 @@ from textual.reactive import reactive
 from rich.text import Text
 
 
+# Stage order mapping for display purposes
+# This defines the expected execution order of pipeline stages
+STAGE_ORDER = {
+    "Chapter Detection": 1,
+    "Character Extraction": 2,
+    "Character Extraction V2": 2,  # Alternative to V1, same position
+    "Chapter Summaries": 3,
+    "Character Profiles": 4,
+    "Pronunciation Guide": 5,
+}
+
+
+def get_stage_order(stage_name: str) -> str:
+    """Get the order prefix for a stage name."""
+    order = STAGE_ORDER.get(stage_name)
+    if order:
+        return f"{order}. "
+    return ""
+
+
 @dataclass
 class Score:
     """Individual category score."""
@@ -628,7 +648,8 @@ class StatusBar(Static):
         if self.state.current_stage:
             text.append("\n")
             text.append("STAGE: ", style="bold cyan")
-            text.append(self.state.current_stage, style="bold yellow")
+            order_prefix = get_stage_order(self.state.current_stage)
+            text.append(f"{order_prefix}{self.state.current_stage}", style="bold yellow")
 
         return text
 
