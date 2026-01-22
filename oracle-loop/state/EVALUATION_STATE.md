@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -129,10 +129,23 @@
 
 **Outcome:** Fix implemented and tested - addresses 65-mention character split
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 60m 12s
+- V2 character extraction used with summary-driven approach
+- Pipeline profiling: Character Profiles was bottleneck (43.8% of time)
+- Quality concerns: 5 low-confidence character profiles
+- Models used:
+  - Structure: qwen3:30b-instruct
+  - Characters: qwen3-next:80b-a3b-instruct-q8_0
+  - Summaries: qwen3-next:80b-a3b-instruct-q8_0
+  - Pronunciation: qwen3:30b-instruct
+- Characters extracted: 40 total (18 from initial extraction + 22 from chapter summaries)
+- Minor warnings during profile generation (some JSON parse failures, low confidence scores)
 
-Re-run analysis to verify fix. Expected improvements:
-- "Wilson" should now be an alias of "George Wilson"
-- Character extraction score should improve (currently 6.5/10)
+## Next Action
+**Phase:** awaiting_evaluation
+
+Ready for evaluation. Expected verification:
+- "Wilson" should now be an alias of "George Wilson" (fix from attempt 3)
+- Character extraction score should improve (was 6.5/10)
 - Overall score should approach or exceed 8.0 threshold
