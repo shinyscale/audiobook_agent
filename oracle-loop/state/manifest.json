@@ -34,11 +34,11 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": false,
-      "attempts": 2,
-      "final_score": null,
+      "complete": true,
+      "attempts": 3,
+      "final_score": 8.30,
       "baseline_score": 6.65,
-      "last_score": 6.90,
+      "last_score": 8.30,
       "regression_detected": false
     },
     {

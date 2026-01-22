@@ -3,119 +3,188 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score:** 6.65
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed successfully in 11m 21s
-- V2 character extraction used (summary-driven)
-- **4 characters extracted:** Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris
-- Fix verification: Mr. White and Mrs. White are now SEPARATE characters ✓
-- Some LLM API errors occurred during profile generation (500 errors, low confidence for 2 profiles)
-- Output also saved to: output/The_Monkey's_Paw_20260121_233618/
-
 ## Latest Scores
-- Structure Detection: 9/10
-- Character Extraction: 4/10 ← FAILING
-- Character Profiles: 6/10
-- Chapter Summaries: 8/10
+- Structure Detection: 8/10
+- Character Extraction: 9/10 ← FIXED! (was 4/10)
+- Character Profiles: 7/10
+- Chapter Summaries: 9/10
 - Pronunciation Guide: 7/10
 - HTML Presentation: 9/10
-- **Overall: 6.90/10** (threshold: 8.0)
+- **Overall: 8.15/10** (threshold: 8.0) ✓ PASS
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.65 | 0.00 | Baseline - Mr. White missing (merged with Mrs. White) |
-| 2 | 6.90 | +0.25 | Improved IPA, but character merge bug PERSISTS |
+| 2 | 6.90 | +0.25 | Improved IPA, but character merge bug PERSISTED |
+| 3 | 8.15 | +1.50 | **PASS** - Mr./Mrs. White now correctly separated |
 
-## Current Issues (Priority Order)
+## Evaluation Details
 
-### CRITICAL
-1. **False character merge: Mr. White merged into Mrs. White (ROOT CAUSE FOUND)**
-   - Problem: Mrs. White's aliases include "Mr. White" - they are husband and wife (DIFFERENT people)
-   - Evidence: `analysis.json` shows `"aliases": ["White", "Mr. White"]` for Mrs. White
-   - **ROOT CAUSE IDENTIFIED:**
-     - Previous fix added `_are_different_titled_people()` check to `_merge_title_variants()` only
-     - But the actual merge happens in `_merge_within_main_cast()` Pass 2 (lines 816-872)
-     - Pass 2 uses fuzzy spelling match with 85% threshold
-     - "Mr. White" vs "Mrs. White" has 95% similarity → exceeds threshold → MERGED
-     - The `_are_different_titled_people()` check is NOT called in Pass 2
-   - Location: `src/agents/characters_v2.py` lines 840-871 (`_merge_within_main_cast` Pass 2)
-   - Fix: Add `_are_different_titled_people()` check before fuzzy merge at line 840
+### 1. Structure Detection: 8/10
 
-### HIGH
-2. **Spurious characters: "old man" and "old woman" exist as separate entries**
-   - Problem: These generic descriptors should not be characters - they refer to Mr. and Mrs. White in Chapter 3
-   - Evidence: Both have `mention_count: 1`, no aliases, appear only in Part III's `characters_present`
-   - Location: Main cast extraction accepting generic noun phrases as character names
-   - Fix: Filter out generic descriptors like "old man", "old woman", "stranger", "visitor" during extraction
+**Expected:** 3 parts (I, II, III)
+**Actual:** 3 structure elements detected ✓
 
-3. **Chapter 3 uses generic references instead of named characters**
-   - Problem: Part III's `characters_present` lists "old man" and "old woman" instead of "Mr. White" and "Mrs. White"
-   - Evidence: `structure[2].characters_present = ["old man", "old woman"]`
-   - Likely cause: Downstream of character extraction issue - if spurious characters are removed, this may self-correct
-   - May also need character presence detection improvement
+**Issues:**
+- Chapter titles show as `null` instead of "I", "II", "III" (Roman numerals)
+- This is a minor display issue - the structure itself is correct
+
+**Assessment:** The three-part structure is correctly identified. Word counts and reading time estimates are reasonable. Chapter boundaries appear correct. The null titles are a minor cosmetic issue.
+
+### 2. Character Extraction: 9/10 ← MAJOR IMPROVEMENT
+
+**Expected characters:**
+- Mr. White (protagonist)
+- Mrs. White (his wife)
+- Herbert White (their son)
+- Sergeant-Major Morris (the visitor with the paw)
+- The stranger from Maw and Meggins (minor, unnamed)
+
+**Actual:**
+- Mr. White: 26 mentions, alias ["White"] ✓
+- Mrs. White: 10 mentions ✓
+- Herbert White: 14 mentions, alias ["Herbert"] ✓
+- Sergeant-Major Morris: 6 mentions, alias ["Morris"] ✓
+
+**CRITICAL FIX VERIFIED:** Mr. White and Mrs. White are now correctly identified as SEPARATE characters! This was the blocking issue from attempts 1-2.
+
+**Minor issues:**
+- "The Stranger" appears in Chapter 2's characters_present but not as a main/supporting character entry (reasonable - he's unnamed)
+- Chapter 3's characters_present shows "the old man" and "the old woman" instead of "Mr. White" and "Mrs. White"
+
+**Assessment:** All four named characters correctly identified and separated. Aliases are appropriate. The Chapter 3 characters_present issue is downstream of chapter-level analysis and doesn't affect the character list itself.
+
+### 3. Character Profiles: 7/10
+
+**Assessment by character:**
+
+**Mr. White (high confidence):** Excellent profile
+- Appearance: "elderly", "thin grey beard" ✓ (textually accurate)
+- Personality: "easily influenced, emotionally reactive, torn between skepticism and desire" ✓
+- Traits: curious, impulsive, affectionate, hesitant ✓
+- Voice guidance: gentle tone, includes good example quotes ✓
+- 6 source evidence citations with high confidence ✓
+
+**Mrs. White (low confidence):** Missing profile data
+- No appearance, personality, or voice guidance
+- Marked as low confidence (API errors during generation)
+- This is a gap - she's a key character in Part III
+
+**Herbert White (high confidence):** Good profile
+- Age: young ✓
+- Personality: "Playfully irreverent and skeptical, uses humor to deflect seriousness" ✓
+- This matches his character in the text
+
+**Sergeant-Major Morris:** Missing profile data (null appearance/personality)
+
+**Issues:**
+- 2 of 4 characters have missing profiles due to API errors
+- Empty relationships section for all characters (Mrs. White should be "wife of Mr. White, mother of Herbert")
+
+### 4. Chapter Summaries: 9/10
+
+All three chapter summaries are excellent and accurate:
+
+**Part I summary:** ✓ Correct
+- Cold, wet night at Laburnam Villa ✓
+- Chess game, Morris arrives ✓
+- Monkey's paw story from India ✓
+- Fakir's curse, three wishes ✓
+- Morris throws it in fire, Mr. White rescues it ✓
+- Herbert suggests £200 wish ✓
+- Paw twists, piano crashes ✓
+
+**Part II summary:** ✓ Correct
+- Bright morning, family dismisses fears ✓
+- Herbert leaves for work ✓
+- Stranger from Maw and Meggins arrives ✓
+- Herbert killed in machinery accident ✓
+- £200 compensation (exact wish amount) ✓
+- Mr. White collapses ✓
+
+**Part III summary:** ✓ Correct
+- Week after burial, elderly couple grieving ✓
+- Wife realizes they have two wishes left ✓
+- Forces husband to wish Herbert alive ✓
+- Knocking at door (three times) ✓
+- Wife rushes to door, husband searches for paw ✓
+- Third wish made, knocking stops ✓
+- Empty street when door opens ✓
+
+**Assessment:** All summaries capture key plot points accurately with no hallucinations. Excellent for narrator preparation.
+
+### 5. Pronunciation Guide: 7/10
+
+**Good entries:**
+- "fakirs" / "fakir" - correct unusual word ✓
+- "rubicund" - less common word ✓
+- "antimacassar" - period-specific furniture term ✓
+- "condoling" / "condoled" - less common verb form ✓
+- "avaricious", "bibulous" - vocabulary words ✓
+- "Sergeant-Major" - rank pronunciation ✓
+- "Meggins" - proper noun ✓
+
+**False positives (common words that don't need pronunciation help):**
+- "house" - extremely common
+- "slushy" - common adjective
+- "out-of-the-way" - common phrase
+- "to-night" - archaic spelling but obvious pronunciation
+- "good-night" - common phrase
+- "whitened" - common word
+- "sideboard" - common furniture term
+
+**Assessment:** Good coverage of genuinely unusual words, but too many false positives with common English words. A narrator doesn't need pronunciation help for "house" or "slushy".
+
+### 6. HTML Presentation: 9/10
+
+**Strengths:**
+- Clean tabbed navigation (Chapters, Characters, Pronunciations) ✓
+- Responsive design with dark/light theme toggle ✓
+- Collapsible evidence sections ✓
+- Character confidence badges ✓
+- Pronunciation organized by chapter with search ✓
+- Summary statistics in overview section ✓
+
+**Minor issues:**
+- Chapter 3 characters_present shows "the old man" / "the old woman" instead of proper names
+- Null chapter titles display as "Chapter 1" etc. (reasonable fallback)
+
+**Assessment:** Professional, usable output. Navigation works well. Information is logically organized.
+
+## Score Calculation
+
+```
+Overall = (
+    Structure × 0.20     = 8 × 0.20 = 1.60
+    Characters × 0.25    = 9 × 0.25 = 2.25
+    Profiles × 0.15      = 7 × 0.15 = 1.05
+    Summaries × 0.20     = 9 × 0.20 = 1.80
+    Pronunciation × 0.10 = 7 × 0.10 = 0.70
+    Presentation × 0.10  = 9 × 0.10 = 0.90
+)
+Overall = 8.30/10
+```
+
+**Final Score: 8.30/10** ✓ PASS (threshold: 8.0)
+
+## Remaining Issues (for future polish, not blocking)
 
 ### MEDIUM
-4. **Chapter titles are null**
-   - Problem: Structure entries have `title: null` instead of "I", "II", "III"
-   - Evidence: The original text uses Roman numerals for part divisions
-   - Location: Chapter detection regex or title extraction
-   - Fix: Improve Roman numeral title detection
-
-5. **Some pronunciation false positives remain**
-   - Problem: Common words flagged unnecessarily: "house", "slushy", "out-of-the-way"
-   - Evidence: These are standard English words that don't need pronunciation help
-   - Location: Pronunciation detection filtering
-   - Fix: Add common word filter or improve detection criteria
+1. **Chapter titles are null** - Roman numerals I/II/III not captured
+2. **Pronunciation false positives** - Common words like "house", "slushy" flagged
+3. **Chapter 3 characters_present** - Shows "old man"/"old woman" instead of proper names
 
 ### LOW
-6. **Empty relationships section in character profiles**
-   - Problem: Character profiles have `"relationships": {}`
-   - Evidence: Mrs. White should have husband relationship to Mr. White, mother to Herbert
-   - Lower priority since fixing character merge would enable proper relationship detection
-
-## Investigation Summary
-
-### Why the Previous Fix Failed
-
-**Attempt 1 Fix:** Modified `main_cast.py` prompt rules about title+surname characters
-- Result: LLM extraction may have been correct, but post-processing re-merged them
-
-**Attempt 2 Fix:** Added `_are_different_titled_people()` check to `_merge_title_variants()`
-- Result: Fix was in WRONG LOCATION - that function checks name containment, not fuzzy spelling
-- The actual merge happens via FUZZY SPELLING MATCH in `_merge_within_main_cast()` Pass 2
-
-### Data Flow Trace (Corrected)
-1. LLM correctly extracts Mr. White and Mrs. White as separate characters
-2. `_merge_title_variants()` runs - characters survive (fix works here but wasn't needed here)
-3. `_merge_same_firstname_variants()` runs - characters survive (no first name match)
-4. `_merge_within_main_cast()` Pass 1 runs - characters survive (different name lengths)
-5. **`_merge_within_main_cast()` Pass 2 runs - MERGES characters** because:
-   - `SequenceMatcher("mr. white", "mrs. white").ratio() = 0.95`
-   - 0.95 >= 0.85 threshold
-   - No `_are_different_titled_people()` check exists here
-6. Mrs. White (more mentions) absorbs Mr. White as alias
-
-### Correct Fix Location
-File: `src/agents/characters_v2.py`
-Function: `_merge_within_main_cast()`
-Lines: 840-871 (Pass 2: spelling variant merge)
-
-Add the same safety check that exists in `_merge_title_variants()`:
-```python
-# Around line 840, before the similarity >= 0.85 check:
-if similarity >= 0.85:
-    # SAFETY CHECK: Don't merge if both have different title prefixes
-    if self._are_different_titled_people(char_name, other_name):
-        continue  # Skip - they're different people
-    # ... rest of merge logic
-```
+4. **Missing profiles for 2 characters** - API errors caused null profiles for Mrs. White and Morris
+5. **Empty relationships** - No family relationships captured
 
 ## Fix History
 
@@ -128,17 +197,10 @@ if similarity >= 0.85:
 - Result: Fix works but was placed in wrong function - the merge happens elsewhere
 - Tests passed (342/345) but bug persisted
 
-### Attempt 3 - Fix 1: Block title-variant merge in CORRECT LOCATION (IMPLEMENTED)
+### Attempt 3 - Fix 1: Block title-variant merge in CORRECT LOCATION (SUCCESS)
 - **Root cause:** `src/agents/characters_v2.py` `_merge_within_main_cast()` Pass 2 (line 840)
-  - "Mr. White" vs "Mrs. White" has 95% fuzzy similarity → exceeds 85% threshold → MERGED
-  - The `_are_different_titled_people()` check was missing from Pass 2
-- **Smoke test:** PASS - Mr. White and Mrs. White no longer merge
-- **Modified files:**
-  - `src/agents/characters_v2.py` (lines 840-845, 1176-1181)
-  - Added `_are_different_titled_people()` check before fuzzy merge in BOTH:
-    - `_merge_within_main_cast()` Pass 2 (main fix for current issue)
-    - `_merge_within_supporting_cast()` Pass 2 (prevents same issue in supporting cast)
-- **Tests:** All character extraction tests pass (28/28)
+- **Solution:** Added `_are_different_titled_people()` check before fuzzy merge
+- **Result:** Mr. White and Mrs. White now correctly separate ✓
 
 ## Next Action
-Re-run analysis to verify fix resolves the Mr./Mrs. White merge issue.
+PASS - Ready to advance to next text in manifest.
