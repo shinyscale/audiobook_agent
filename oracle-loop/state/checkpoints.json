@@ -1,4 +1,21 @@
 {
   "checkpoints": [],
-  "known_good_baseline": {}
+  "known_good_baseline": {
+    "cask_of_amontillado": {
+      "commit": "98b2749806ca195d6e77de6835cbbcec1d1be60d",
+      "score": 8.1
+    },
+    "masque_of_red_death": {
+      "commit": "44eaa550b5e9000ff9ee2344329bf96ff612b64b",
+      "score": 8.05
+    },
+    "berenice": {
+      "commit": "46bd06f4ee31c7d5f94e6f69c5908af69aaf0618",
+      "score": 8.2
+    },
+    "monkeys_paw": {
+      "commit": "cdb344b2f11a364a32d8e42a070fc47bdc6e4db3",
+      "score": 6.65
+    }
+  }
 }

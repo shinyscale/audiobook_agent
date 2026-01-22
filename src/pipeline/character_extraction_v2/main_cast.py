@@ -47,7 +47,10 @@ IMPORTANT RULES:
 6. DO NOT invent proper names that are not supported by the summaries
 7. Characters who share a last name but have DIFFERENT first names are typically DIFFERENT people
    (e.g., spouses, siblings, parent/child) - do NOT merge these
-8. Titles and honorifics (Mr., Mrs., Dr., Lord) with a name are aliases of the underlying character
+8. Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr. + Surname) are DIFFERENT people
+   - "Mr. Smith" and "Mrs. Smith" are two separate characters (typically spouses)
+   - Create separate character entries for each
+9. Titles and honorifics with a FULL name (e.g., "Mr. John Smith" vs "John Smith") are aliases of the same character
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -88,6 +91,24 @@ Character with first-name-only references (SAME person - one entry):
   "aliases": ["Mr. Darcy", "Darcy"],
   "role": "protagonist",
   "description": "Wealthy gentleman who falls in love with Elizabeth",
+  "is_unnamed": false
+}}
+```
+
+Spouses with title+surname only (DIFFERENT people - separate entries):
+```json
+{{
+  "canonical_name": "Mr. Smith",
+  "aliases": ["Smith"],
+  "role": "protagonist",
+  "description": "The father of the family",
+  "is_unnamed": false
+}},
+{{
+  "canonical_name": "Mrs. Smith",
+  "aliases": [],
+  "role": "supporting",
+  "description": "The mother of the family",
   "is_unnamed": false
 }}
 ```

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Output Files
@@ -87,13 +87,32 @@ Analysis completed successfully in 10m 11s using V2 character extraction.
 - 22 LLM calls total (45,106 tokens)
 
 ## Fix History
-(No fixes yet - this is attempt 1)
+
+### Attempt 1 - Fix 1: Title-based character distinction
+**Issue:** CRITICAL - False character merge: Mr. White merged into Mrs. White
+**Root Cause:**
+- File: `src/pipeline/character_extraction_v2/main_cast.py`
+- Function: `MAIN_CAST_PROMPT` (lines 48-50)
+- Problem: Contradictory prompt instructions - line 50 said "Titles and honorifics with a name are aliases" without excluding cases where title+surname is the only distinguishing feature
+- This caused the LLM to treat "Mr. White" and "Mrs. White" as aliases despite earlier guidance about different first names
+
+**Fix Applied:**
+- Modified `main_cast.py` prompt rules:
+  - Added new rule 8: "Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr. + Surname) are DIFFERENT people"
+  - Clarified old rule (now 9): Titles with FULL names (e.g., "Mr. John Smith" vs "John Smith") are aliases
+  - Added example showing Mr. Smith and Mrs. Smith as separate characters
+- Files modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+**Smoke Test:** PASS
+- Ran main cast extraction on monkeys_paw summaries
+- Result: Mr. White and Mrs. White correctly extracted as separate characters
+- Aliases: Mr. White=['father', 'husband'], Mrs. White=['mother', 'wife']
+- No cross-references between the two characters
+
+**Expected Impact:**
+- Should fix Character Extraction score (currently 4/10)
+- May improve Character Profiles score (currently 5/10)
+- May fix HIGH issue #2 (Chapter 3 character references) if it was caused by missing Mr. White
 
 ## Next Action
-Run PROMPT_fix.md to address the CRITICAL character merge issue. The Mr./Mrs. title distinction must be respected during alias resolution - characters with different titles before the same surname are almost always different people.
-
-**Root Cause Analysis:**
-The V2 character extraction pipeline appears to merge characters too aggressively based on shared surnames. The alias resolution needs to:
-1. Check for title prefixes (Mr., Mrs., Miss, Ms., Dr., etc.)
-2. Treat different titles + same surname as DIFFERENT characters (not aliases)
-3. This is a common pattern: Mr. and Mrs. Smith, Dr. and Mrs. Watson, etc.
+Re-run analysis on monkeys_paw to verify the fix resolves the critical character merge issue and improves the overall score above 8.0 threshold.
