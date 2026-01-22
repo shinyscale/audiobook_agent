@@ -103,6 +103,13 @@ class OracleState:
     output_tokens: int = 0
     current_stage: str = ""  # Current analysis stage (e.g., "Chapter Detection")
 
+    # Ollama/local LLM activity (from PROGRESS.json during analysis)
+    ollama_llm_calls: int = 0
+    ollama_items_processed: int = 0
+    ollama_items_total: Optional[int] = None
+    ollama_avg_latency_ms: float = 0.0
+    ollama_last_latency_ms: float = 0.0
+
     # Recent commits
     commits: list[Commit] = field(default_factory=list)
 
@@ -269,7 +276,7 @@ class StateParser:
             return []
 
     def parse_progress_file(self) -> dict:
-        """Parse PROGRESS.json for current analysis stage."""
+        """Parse PROGRESS.json for current analysis stage and LLM metrics."""
         # Try multiple locations for PROGRESS.json
         possible_paths = [
             self.base_dir / "output" / "PROGRESS.json",
@@ -302,6 +309,12 @@ class StateParser:
                 'stage_model': data.get('model', ''),
                 'input_tokens': data.get('input_tokens', 0),
                 'output_tokens': data.get('output_tokens', 0),
+                # New fields for Ollama activity panel
+                'llm_calls': data.get('llm_calls', 0),
+                'items_processed': data.get('items_processed', 0),
+                'items_total': data.get('items_total'),
+                'avg_latency_ms': data.get('avg_latency_ms', 0.0),
+                'last_latency_ms': data.get('last_latency_ms', 0.0),
             }
         except (json.JSONDecodeError, IOError, OSError):
             return {}
@@ -539,6 +552,13 @@ class StateParser:
         # Parse progress file for current stage (real-time during analysis)
         progress_data = self.parse_progress_file()
         state.current_stage = progress_data.get('current_stage', '')
+
+        # Populate Ollama activity metrics from progress data
+        state.ollama_llm_calls = progress_data.get('llm_calls', 0)
+        state.ollama_items_processed = progress_data.get('items_processed', 0)
+        state.ollama_items_total = progress_data.get('items_total')
+        state.ollama_avg_latency_ms = progress_data.get('avg_latency_ms', 0.0)
+        state.ollama_last_latency_ms = progress_data.get('last_latency_ms', 0.0)
 
         # Try to get model/tokens from analysis output (local LLM usage)
         analysis_data = self.parse_analysis_output(state.text_name) if state.text_name else {}
@@ -875,6 +895,103 @@ class CommitsPanel(Static):
         self.refresh()
 
 
+class OllamaActivityPanel(Static):
+    """Panel showing local LLM (Ollama) activity during analysis."""
+
+    def __init__(self, state: OracleState):
+        super().__init__()
+        self.state = state
+
+    def render(self) -> Text:
+        text = Text()
+
+        text.append("OLLAMA ACTIVITY\n", style="bold white")
+
+        # Only show when we have an active analysis stage
+        if not self.state.current_stage:
+            text.append("  No active analysis", style="dim")
+            if self.state.phase in ('awaiting_evaluation', 'evaluate', 'awaiting_fix', 'fix'):
+                text.append("\n  (Claude is working - see Claude Activity below)", style="dim cyan")
+            return text
+
+        # Stage progress with item counts
+        stage_order = get_stage_order(self.state.current_stage)
+        text.append(f"  Stage: ", style="cyan")
+        text.append(f"{stage_order}{self.state.current_stage}", style="bold yellow")
+
+        # Item progress (e.g., "5/9 chapters")
+        if self.state.ollama_items_total:
+            pct = (self.state.ollama_items_processed / self.state.ollama_items_total) * 100
+            text.append(f"  [{self.state.ollama_items_processed}/{self.state.ollama_items_total}]", style="white")
+            text.append(f" {pct:.0f}%", style="cyan")
+        elif self.state.ollama_items_processed > 0:
+            text.append(f"  [{self.state.ollama_items_processed} processed]", style="white")
+
+        text.append("\n")
+
+        # Progress bar (if we have total)
+        if self.state.ollama_items_total and self.state.ollama_items_total > 0:
+            pct = self.state.ollama_items_processed / self.state.ollama_items_total
+            filled = int(pct * 40)
+            empty = 40 - filled
+            text.append("  ")
+            text.append("█" * filled, style="green")
+            text.append("░" * empty, style="dim")
+            text.append("\n")
+
+        # LLM metrics
+        text.append("\n")
+        text.append("  LLM Calls: ", style="cyan")
+        text.append(f"{self.state.ollama_llm_calls}", style="white")
+        text.append("  │  ", style="dim")
+
+        # Token throughput
+        text.append("Tokens: ", style="cyan")
+        text.append(f"{format_tokens(self.state.input_tokens)} in", style="white")
+        text.append(" / ", style="dim")
+        text.append(f"{format_tokens(self.state.output_tokens)} out", style="white")
+        text.append("\n")
+
+        # Latency metrics
+        text.append("  Last Latency: ", style="cyan")
+        if self.state.ollama_last_latency_ms > 0:
+            # Format latency nicely
+            latency = self.state.ollama_last_latency_ms
+            if latency >= 1000:
+                text.append(f"{latency/1000:.1f}s", style="white")
+            else:
+                text.append(f"{latency:.0f}ms", style="white")
+        else:
+            text.append("--", style="dim")
+
+        text.append("  │  ", style="dim")
+
+        text.append("Avg Latency: ", style="cyan")
+        if self.state.ollama_avg_latency_ms > 0:
+            avg_latency = self.state.ollama_avg_latency_ms
+            if avg_latency >= 1000:
+                text.append(f"{avg_latency/1000:.1f}s", style="white")
+            else:
+                text.append(f"{avg_latency:.0f}ms", style="white")
+        else:
+            text.append("--", style="dim")
+
+        # Model name
+        if self.state.model:
+            text.append("\n")
+            text.append("  Model: ", style="cyan")
+            model_name = self.state.model.split('/')[-1] if self.state.model else "(none)"
+            if len(model_name) > 40:
+                model_name = model_name[:37] + "..."
+            text.append(model_name, style="white")
+
+        return text
+
+    def update_state(self, state: OracleState):
+        self.state = state
+        self.refresh()
+
+
 class ClaudeActivityPanel(Static):
     """Panel showing Claude's recent activity (tool calls, messages)."""
 
@@ -1049,6 +1166,14 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    OllamaActivityPanel {
+        height: auto;
+        max-height: 9;
+        border: solid $success;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
     IssuesPanel {
         height: auto;
         max-height: 6;
@@ -1121,6 +1246,7 @@ class OracleMonitorApp(App):
             yield StatusBar(self.state)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
+            yield OllamaActivityPanel(self.state)
             yield ClaudeActivityPanel(self.state)
             yield ClaudeThinkingPanel(self.state)
             yield IssuesPanel(self.state)
@@ -1172,6 +1298,7 @@ class OracleMonitorApp(App):
             self.query_one(StatusBar).update_state(self.state)
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
+            self.query_one(OllamaActivityPanel).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)
             self.query_one(ClaudeThinkingPanel).update_state(self.state)
             self.query_one(IssuesPanel).update_state(self.state)

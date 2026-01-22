@@ -42,6 +42,11 @@ class AgentConfig:
     think_mode: Optional[Union[bool, str]] = False  # False, True, "low", "medium", "high"
     system_prompt: Optional[str] = None  # Agent-specific system prompt override
 
+    # Additional sampling parameters (Qwen3 recommended: top_p=0.8, top_k=20)
+    top_p: Optional[float] = None  # Nucleus sampling threshold
+    top_k: Optional[int] = None  # Top-k sampling limit
+    presence_penalty: Optional[float] = None  # 0-2, reduces repetition
+
     def get_api_key(self) -> Optional[str]:
         """Get API key from config or environment."""
         if self.api_key:
@@ -158,10 +163,12 @@ class OrchestratorConfig:
 # These are suggestions based on model characteristics
 # Models are listed in preference order - first available will be used
 #
-# NOTE: We favor qwen2.5 and llama3 over qwen3 because:
-# - qwen3 variants may use "reasoning mode" which outputs <think> tags
-# - Reasoning models may use training knowledge instead of analyzing provided text
-# - This causes unreliable results, especially for famous novels
+# NOTE on Qwen3 Instruct models:
+# - Qwen3-30B-A3B-Instruct-2507 and Qwen3-Next-80B-A3B-Instruct are NON-THINKING
+# - They do NOT produce <think> tags (different from base Qwen3 models)
+# - LLMClient auto-applies when model contains "qwen3":
+#   top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+# - We still favor qwen2.5 and llama3 for stability, but Qwen3 Instruct variants are viable
 RECOMMENDED_AGENT_MODELS = {
     "structure": {
         "description": "Fast model for pattern recognition and chapter detection",

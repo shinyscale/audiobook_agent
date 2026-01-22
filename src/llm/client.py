@@ -30,6 +30,11 @@ class LLMConfig:
     max_tokens: int = 4096
     context_length: int = 32768  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = None  # Reasoning control: False, True, "low", "medium", "high"
+    # Additional sampling parameters
+    # Qwen3 auto-applies: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+    top_p: Optional[float] = None  # Nucleus sampling threshold
+    top_k: Optional[int] = None  # Top-k sampling limit
+    presence_penalty: Optional[float] = None  # 0-2, reduces repetition
 
     @classmethod
     def ollama(cls, model: str = "llama3.2", base_url: str = "http://localhost:11434") -> "LLMConfig":
@@ -163,15 +168,40 @@ class LLMClient:
         messages.append({"role": "user", "content": prompt})
 
         url = f"{self.config.base_url}/api/chat"
+
+        # Auto-apply Qwen3 recommended settings if not explicitly set
+        # Qwen3 Instruct: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+        model_lower = self.config.model.lower()
+        if "qwen3" in model_lower:
+            if self.config.top_p is None:
+                self.config.top_p = 0.8
+            if self.config.top_k is None:
+                self.config.top_k = 20
+            # Increase max_tokens if at default (4096) - Qwen3 recommends 16384
+            if self.config.max_tokens <= 4096:
+                self.config.max_tokens = 16384
+            # Moderate presence_penalty reduces repetition (0-2 range, 1.0 is balanced)
+            if self.config.presence_penalty is None:
+                self.config.presence_penalty = 1.0
+
+        # Build options dict, only including optional params if set
+        options = {
+            "temperature": self.config.temperature,
+            "num_predict": self.config.max_tokens,
+            "num_ctx": self.config.context_length,
+        }
+        if self.config.top_p is not None:
+            options["top_p"] = self.config.top_p
+        if self.config.top_k is not None:
+            options["top_k"] = self.config.top_k
+        if self.config.presence_penalty is not None:
+            options["presence_penalty"] = self.config.presence_penalty
+
         body = {
             "model": self.config.model,
             "messages": messages,
             "stream": False,
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": self.config.max_tokens,
-                "num_ctx": self.config.context_length,
-            },
+            "options": options,
         }
 
         # Add think parameter if specified (Ollama API expects it at top level)

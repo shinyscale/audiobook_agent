@@ -290,6 +290,14 @@ class AudiobookAnalyzer:
                     config.think = agent_config.think_mode
                     config.context_length = agent_config.context_length or self.orchestrator_config.context_length
 
+                    # Sampling parameters (Qwen3 recommended: top_p=0.8, top_k=20)
+                    if agent_config.top_p is not None:
+                        config.top_p = agent_config.top_p
+                    if agent_config.top_k is not None:
+                        config.top_k = agent_config.top_k
+                    if agent_config.presence_penalty is not None:
+                        config.presence_penalty = agent_config.presence_penalty
+
                     client = LLMClient(config, metrics=self._metrics)
                     self._agent_llm_clients[agent_name] = client
                     logger.info(f"Created agent-specific LLM client for {agent_name}: {agent_config.model}")
@@ -329,6 +337,10 @@ class AudiobookAnalyzer:
             max_tokens = agent_config.max_tokens
             think_mode = agent_config.think_mode
             context_length = agent_config.context_length or self.orchestrator_config.context_length
+            # Sampling parameters (Qwen3 recommended: top_p=0.8, top_k=20)
+            top_p = agent_config.top_p
+            top_k = agent_config.top_k
+            presence_penalty = agent_config.presence_penalty
         else:
             provider = self.llm_provider
             base_url = self.llm_base_url
@@ -337,6 +349,9 @@ class AudiobookAnalyzer:
             max_tokens = 8192  # Default for agents when no config
             think_mode = False
             context_length = self.llm_context_length
+            top_p = None
+            top_k = None
+            presence_penalty = None
 
         try:
             if provider == "ollama":
@@ -358,6 +373,14 @@ class AudiobookAnalyzer:
             config.max_tokens = max_tokens
             config.think = think_mode
             config.context_length = context_length
+
+            # Sampling parameters (Qwen3 recommended: top_p=0.8, top_k=20)
+            if top_p is not None:
+                config.top_p = top_p
+            if top_k is not None:
+                config.top_k = top_k
+            if presence_penalty is not None:
+                config.presence_penalty = presence_penalty
 
             return LLMClient(config, metrics=self._metrics)
         except Exception as e:
@@ -1577,15 +1600,36 @@ class AudiobookAnalyzer:
             # Get cumulative token counts from metrics
             input_tokens = 0
             output_tokens = 0
+            llm_calls = 0
+            items_processed = 0
+            items_total = None
+            avg_latency_ms = 0.0
+            last_latency_ms = 0.0
+
             if self._metrics:
                 # Sum completed stages
                 for s in self._metrics._stages:
                     input_tokens += s.tokens_prompt
                     output_tokens += s.tokens_completion
+                    llm_calls += s.llm_calls
+
                 # Add current stage (if any)
                 if self._metrics._current_context:
-                    input_tokens += self._metrics._current_context._metrics.tokens_prompt
-                    output_tokens += self._metrics._current_context._metrics.tokens_completion
+                    ctx_metrics = self._metrics._current_context._metrics
+                    input_tokens += ctx_metrics.tokens_prompt
+                    output_tokens += ctx_metrics.tokens_completion
+                    llm_calls += ctx_metrics.llm_calls
+                    items_processed = ctx_metrics.items_processed
+                    items_total = ctx_metrics.items_total
+                    last_latency_ms = ctx_metrics.last_latency_ms
+                    avg_latency_ms = ctx_metrics.avg_latency_ms
+
+                # Also check stage info for real-time items progress
+                stage_info = self._metrics._current_stage_info
+                if stage_info.get('items_processed'):
+                    items_processed = stage_info['items_processed']
+                if stage_info.get('items_total'):
+                    items_total = stage_info['items_total']
 
             progress_data = {
                 "stage": stage,
@@ -1593,6 +1637,11 @@ class AudiobookAnalyzer:
                 "timestamp": datetime.now().isoformat(),
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
+                "llm_calls": llm_calls,
+                "items_processed": items_processed,
+                "items_total": items_total,
+                "avg_latency_ms": round(avg_latency_ms, 1),
+                "last_latency_ms": round(last_latency_ms, 1),
             }
             with open(progress_file, 'w') as f:
                 json.dump(progress_data, f)
@@ -1608,7 +1657,7 @@ class AudiobookAnalyzer:
 
         def wrapped(substage: str, current: int, total: int):
             # Update metrics (always, for real-time progress tracking)
-            self._metrics.update_stage_progress(items_processed=current)
+            self._metrics.update_stage_progress(items_processed=current, items_total=total)
 
             # Update PROGRESS.json for real-time monitoring
             self._write_progress(stage, stage_model)
