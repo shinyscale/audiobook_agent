@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -33,6 +33,40 @@
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+- Last Updated: 2026-01-21 19:12
+
+## Analysis Summary (Attempt 12)
+
+### Pipeline Run Results
+
+**Analysis completed:** 2026-01-21 19:12
+**V2 Character Extraction:** Enabled
+**Models Used:**
+- Structure: qwen3:30b-instruct
+- Characters: qwen3-next:80b-a3b-instruct-q8_0
+- Summaries: qwen3-next:80b-a3b-instruct-q8_0
+- Pronunciation: qwen3:30b-instruct
+
+**Chapter Detection:**
+```
+Chapter 1: null    - 9,317 words (I+II still merged)
+Chapter 2: III     - 5,734 words
+Chapter 3: IV      - 5,456 words
+Chapter 4: V       - 4,233 words
+Chapter 5: VI      - 4,036 words
+Chapter 6: VII     - 8,766 words
+Chapter 7: null    - 4,530 words (VIII)
+Chapter 8: null    - 5,225 words (IX)
+```
+
+**Character Count:** 39 characters extracted
+
+**Warning from Log:**
+- `TOC-guided: could not find 'I' in text after position 5042`
+
+This indicates the TOC-guided bypass attempted to run but failed to locate chapter I, falling back to the standard detection which merged I+II again.
+
+---
 
 ## Analysis Summary (Attempt 11)
 
