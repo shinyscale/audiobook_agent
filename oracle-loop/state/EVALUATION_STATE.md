@@ -2,13 +2,23 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.7
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 7m 46s
+- V2 character extraction active
+- Found 2 characters: Fortunato (14 mentions), Montresor (1 mention)
+- No pipeline errors or warnings
+- Awaiting evaluation to verify fixes for:
+  - Issue 1: Amontillado false positive (should be resolved)
+  - Issue 2: Missing Luchresi (should be resolved)
+  - Issue 3: Montresor missing profile (should be resolved)
 
 ## Latest Scores
 - Structure Detection: 9/10
