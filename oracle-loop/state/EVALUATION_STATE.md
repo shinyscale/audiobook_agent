@@ -3,12 +3,22 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 11m 33s
+- Total tokens: 50,260 across 24 LLM calls
+- Bottleneck: Chapter Summaries (47.6% of time)
+- WARNING: The bug is STILL present - "Mr. White" is an alias of "Mrs. White"
+  - Analysis output shows: `Mrs. White (aka White, Mr. White) - 36 mentions`
+  - JSON confirms: character "Mrs. White" has aliases `["White", "Mr. White"]`
+  - The fix to `_are_different_titled_people()` in `characters_v2.py` did NOT resolve the issue
+  - This suggests the merge is happening in a different location or the logic isn't being applied correctly
 
 ## Latest Scores
 - Structure Detection: 9/10
