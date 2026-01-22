@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -12,89 +12,90 @@
 
 ## Latest Scores
 - Structure Detection: 8/10
-- Character Extraction: 6.5/10 ← PRIMARY ISSUE (improved from 5/10)
+- Character Extraction: 5/10 ← CRITICAL REGRESSION (down from 6.5)
 - Character Profiles: 8/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 7.50/10** (threshold: 8.0)
+- **Overall: 7.25/10** (threshold: 8.0)
 
-## Progress From Previous Attempt
-**FIXED in Attempt 3:**
-- ✅ Myrtle Wilson / Mrs. Wilson - NOW MERGED (single entry with "Myrtle" alias)
-- ✅ McKee - NOW MERGED (Mr. McKee with "McKee" alias)
-- ✅ Owl Eyes partially improved - has aliases "the man with owl-eyed glasses" and "Owl-Eyes"
+## ⚠️ REGRESSION ALERT
 
-**Score improved from 7.25 to 7.50 (+0.25)**
+**Score dropped from 7.50 (attempt 2) to 7.25 (attempt 3)**
+
+The title-based disambiguation fix for Wilson did NOT take effect in this analysis run:
+- "Wilson" (65 mentions) still exists as separate entry
+- "George Wilson" (14 mentions) still exists as separate entry
+- Expected: "Wilson" should be an alias of "George Wilson"
+
+**Root cause investigation needed:**
+1. Was the fix actually deployed to the code used for this analysis?
+2. Is there a logic error in the title-based disambiguation?
+3. Is the fix being bypassed by another code path?
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **"Wilson" standalone entry with 65 mentions - MAJOR SPLIT**
-   - Problem: "Wilson" (65 mentions) exists separately from "George Wilson" (14) and "Myrtle Wilson" (23)
-   - Evidence: Most "Wilson" mentions in the text refer to George Wilson (at the garage, after Myrtle's death). This is a SIGNIFICANT character split affecting 65 mentions
-   - Location: V2 character extraction - likely NER is extracting bare "Wilson" as separate entity
-   - Fix: "Wilson" should be merged with "George Wilson" as an alias - in context of the novel, bare "Wilson" almost always refers to George (the garage owner who kills Gatsby)
-   - Impact: This is the single biggest issue - 65 missed associations
+1. **Wilson split - FIX DID NOT WORK (65 mentions lost)**
+   - Problem: "Wilson" (65 mentions), "George Wilson" (14), and "Wilson (referenced in actions)" (1) remain as 3 separate entries
+   - Evidence: Sanity check shows all three still separate after fix was supposedly applied
+   - Expected: "Wilson" should be alias of "George Wilson" (per title-based disambiguation fix)
+   - Investigation needed: Check if `_merge_lastname_aliases()` title disambiguation code is being reached
+   - Location: `src/agents/characters_v2.py:1275-1342`
+   - Fix: Debug why the title-based merge isn't triggering. Likely causes:
+     - Code path not being executed
+     - Condition not matching (check "Mrs. Wilson" alias detection)
+     - Merge happening but then undone by later step
 
-2. **Wolfshiem / Meyer Wolfshiem still split**
-   - Problem: "Wolfshiem" (23 mentions) and "Meyer Wolfshiem" (2 mentions) remain separate
-   - Evidence: Same character - Meyer Wolfshiem, Gatsby's gangster associate
-   - Location: V2 alias resolution - fuzzy matching should catch this but isn't
-   - Fix: Need to check why fuzzy match (88.89% similar) isn't triggering merge between "Wolfshiem" and "Wolfsheim" variant, plus need first-name-to-full-name merge
-   - Note: The text actually spells it "Wolfshiem" (without the 's'), so this may be a matching issue
+2. **Wolfshiem / Meyer Wolfshiem split (25 mentions total)**
+   - Problem: "Wolfshiem" (23) and "Meyer Wolfshiem" (2) remain separate
+   - Evidence: Same character - the gangster associate of Gatsby
+   - Location: V2 alias resolution in `characters_v2.py`
+   - Fix: First-name + last-name should merge with bare last-name
 
 ### HIGH
-3. **Narrator variants still split (2 entries)**
-   - Problem: "Narrator" (5 mentions) and "Nick (narrator)" (1 mention) exist separately from "Nick Carraway"
-   - Evidence: All refer to the same person - the first-person narrator Nick Carraway
-   - Location: V2 narrator filtering - the `_filter_narrator_variants()` method added in attempt 2 isn't catching all cases
-   - Fix: Filter should also catch "Nick (narrator)" pattern and any standalone "Narrator" entries when a narrator is already identified
+3. **Narrator variants still split (7 extra mentions)**
+   - Problem: "the narrator" (1) and "Narrator" (6) exist separately from "Nick Carraway" (34)
+   - Evidence: All refer to Nick Carraway, the first-person narrator
+   - Location: `_filter_narrator_variants()` in `characters_v2.py`
+   - Fix: Expand filter to catch "the narrator" (lowercase 'the'), "Narrator" (capitalized), and "Nick (narrator)" pattern
 
-4. **Owl-eyed man STILL has 3 entries (down from earlier but not fully merged)**
-   - Problem: "Owl Eyes" (3 mentions, has good aliases), "Man with owl-eyed glasses" (1), and "Owl-Eyed Man" (1) are separate
-   - Evidence: All refer to the same minor character - the bespectacled man at Gatsby's party and funeral
-   - Location: V2 deduplication - "Man with owl-eyed glasses" IS an alias of "Owl Eyes" but also exists as separate entry
-   - Fix: When a character has an alias that matches another character's canonical name, they should be merged (similar to the alias-canonical conflict fix)
+4. **Owl Eyes split (3 entries → should be 1)**
+   - Problem: "Owl-eyed man" (1) and "Owl Eyes (the intoxicated man with owl-eyed spectacles)" (1) exist separately
+   - Evidence: Same character - the bespectacled man at Gatsby's party
+   - Location: V2 deduplication
+   - Fix: Improve "owl" keyword matching to merge these variants
 
-5. **Sloane / Mr. Sloane split**
-   - Problem: "Sloane" (10 mentions) and "Mr. Sloane" (1 mention) are separate
-   - Evidence: Same character - the man who visits Gatsby with Tom
-   - Location: V2 title-variant merging
-   - Fix: "Mr. LastName" should merge with "LastName" when context suggests same person
+5. **Sloane / Mr. Sloane split (11 mentions total)**
+   - Problem: "Sloane" (10) and "Mr. Sloane" (1) remain separate
+   - Evidence: Same character - Tom's acquaintance who visits Gatsby
+   - Location: Title-variant merging in V2
+   - Fix: "Mr. LastName" should merge with bare "LastName"
 
 ### MEDIUM
-6. **Excessive pronunciation entries (585)**
-   - Problem: 585 entries includes many common English words
-   - Evidence: Sample includes "Butler", "Chauffeur", "glasses", "Gardener", "minister", "nurse", "Orchestra"
+6. **Excessive pronunciation entries (582)**
+   - Problem: Too many false positives including common English words
+   - Evidence: Contains "Butler", "Chauffeur", "Doctor", "Gardener", "minister", "drunk", "brown"
    - Location: Pronunciation agent filtering
-   - Fix: Improve common word filtering; job titles and common nouns should be excluded
+   - Fix: Add exclusion list for common occupational titles and basic adjectives
 
 7. **Chapter titles missing for I and V**
-   - Problem: Chapters I and V have null titles instead of Roman numerals
-   - Evidence: Structure shows: null, II, III, IV, null, null, VI, VII, VIII, IX
+   - Problem: Chapters show as null instead of Roman numerals
+   - Evidence: Structure list shows "None" for chapters 1 and 5
    - Location: Structure agent chapter detection
    - Fix: Improve Roman numeral extraction
 
 ### LOW
-8. **Henry C. Gatz / Gatz ambiguity**
-   - Problem: "Wilson" (65) could include some "Gatz" references meant for Gatsby's father vs James Gatz (Gatsby's birth name)
-   - Evidence: Context-dependent - already handled as alias of Jay Gatsby ("James Gatz")
-   - Location: May need context-aware disambiguation
-   - Fix: Low priority - current handling is acceptable
-
-9. **Mrs. McKee separate entry**
-   - Problem: "Mrs. McKee" (1 mention) is separate from Mr. McKee entries
-   - Evidence: This is CORRECT - she is a distinct character (Mr. McKee's wife)
-   - Location: N/A
-   - Fix: No fix needed - correctly identified as separate
+8. **Minor character name variants**
+   - Various minor characters have slight name variations not merged
+   - Low impact - doesn't affect main character recognition
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.80 | - | Initial evaluation - multiple character splits |
 | 2 | 7.25 | +0.45 | Improvement but critical issues remain |
-| 3 | 7.50 | +0.70 | Myrtle/McKee fixed, Wilson split discovered |
+| 3 | 7.25 | +0.45 | ⚠️ Wilson fix did NOT work - regression from 7.50 expected |
 
 ## Fix History
 
@@ -111,41 +112,26 @@
 - **CRITICAL #1: Myrtle Wilson / Mrs. Wilson split** - Added `_deduplicate_alias_canonical_conflicts()` method
 - **HIGH #3: Narrator variants (5 entries)** - Added `_filter_narrator_variants()` method
 
-**Outcome:** Partial success - Myrtle/McKee fixed, but narrator fix didn't catch all variants
+**Outcome:** Partial success - Myrtle/McKee fixed
 
-### Attempt 3 Fixes (Applied)
+### Attempt 3 Fixes (Applied but NOT WORKING)
 **Fixed Issues:**
-- **CRITICAL #1: Wilson (65 mentions) split from George Wilson (14 mentions)**
-  - Root cause: `_merge_lastname_aliases()` in `src/agents/characters_v2.py:1275-1291`
-    - When multiple main cast characters share a surname (George Wilson + Myrtle Wilson), the method refused to merge bare "Wilson" with either (safety check)
-    - Analysis of text shows: bare "Wilson" appears 77 times, "George Wilson" 3 times, "Myrtle Wilson" 5 times, "Mrs. Wilson" 19 times
-    - "Mrs. Wilson" already merged with "Myrtle Wilson", so bare "Wilson" primarily refers to George
-  - Fix: Added title-based disambiguation logic (lines 1292-1342)
-    - When multiple surname matches exist, check which characters have "Mrs. [LastName]" as alias
-    - Merge bare last name with character that does NOT have the female title variant
-    - This correctly identifies: "Wilson" → "George Wilson" (not "Myrtle Wilson" who has "Mrs. Wilson")
-  - Smoke test: PASS - confirmed "Wilson" merges with "George Wilson" when "Myrtle Wilson" has "Mrs. Wilson" alias
-  - Modified: `src/agents/characters_v2.py:1275-1342`
+- **Wilson split** - Added title-based disambiguation (lines 1292-1342)
 
-**Outcome:** Fix implemented and tested - addresses 65-mention character split
-
-## Pipeline Notes (Attempt 3)
-- Analysis completed successfully in 60m 12s
-- V2 character extraction used with summary-driven approach
-- Pipeline profiling: Character Profiles was bottleneck (43.8% of time)
-- Quality concerns: 5 low-confidence character profiles
-- Models used:
-  - Structure: qwen3:30b-instruct
-  - Characters: qwen3-next:80b-a3b-instruct-q8_0
-  - Summaries: qwen3-next:80b-a3b-instruct-q8_0
-  - Pronunciation: qwen3:30b-instruct
-- Characters extracted: 40 total (18 from initial extraction + 22 from chapter summaries)
-- Minor warnings during profile generation (some JSON parse failures, low confidence scores)
+**Outcome:** FIX DID NOT TAKE EFFECT
+- The analysis output still shows "Wilson" as separate from "George Wilson"
+- Need to investigate why the fix isn't being applied during analysis
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Ready for evaluation. Expected verification:
-- "Wilson" should now be an alias of "George Wilson" (fix from attempt 3)
-- Character extraction score should improve (was 6.5/10)
-- Overall score should approach or exceed 8.0 threshold
+**PRIORITY:** Debug why the Wilson title-based disambiguation fix isn't working:
+1. Add logging/debug output to trace code execution through `_merge_lastname_aliases()`
+2. Verify the "Mrs. Wilson" alias detection is working (check exact string matching)
+3. Consider if the merge is happening but being undone by a later deduplication step
+4. If the fix can't be debugged quickly, try an alternative approach (e.g., force merge any bare last name with the most-mentioned full-name variant)
+
+**Secondary priorities:**
+- Wolfshiem/Meyer Wolfshiem merge
+- Narrator variant filtering
+- Owl Eyes deduplication
