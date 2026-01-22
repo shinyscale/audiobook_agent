@@ -838,6 +838,11 @@ class CharacterAgentV2(Agent):
                 ).ratio()
 
                 if similarity >= 0.85:  # 85% similar
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" vs "Mrs. White" are different people)
+                    if self._are_different_titled_people(char_name, other_name):
+                        continue  # Skip - they're different people
+
                     # Merge the one with FEWER mentions into the one with MORE mentions
                     if char.mention_count >= other_char.mention_count:
                         # Merge other → char
@@ -1169,6 +1174,11 @@ class CharacterAgentV2(Agent):
                 ).ratio()
 
                 if similarity >= 0.85:  # 85% similar
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" vs "Mrs. White" are different people)
+                    if self._are_different_titled_people(char_name, other_name):
+                        continue  # Skip - they're different people
+
                     # Merge the one with FEWER mentions into the one with MORE mentions
                     if char.mention_count >= other_char.mention_count:
                         # Merge other → char

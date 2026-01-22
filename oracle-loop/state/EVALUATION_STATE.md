@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.65
 
 ## Output Files
@@ -120,5 +120,17 @@ if similarity >= 0.85:
 - Result: Fix works but was placed in wrong function - the merge happens elsewhere
 - Tests passed (342/345) but bug persisted
 
+### Attempt 3 - Fix 1: Block title-variant merge in CORRECT LOCATION (IMPLEMENTED)
+- **Root cause:** `src/agents/characters_v2.py` `_merge_within_main_cast()` Pass 2 (line 840)
+  - "Mr. White" vs "Mrs. White" has 95% fuzzy similarity → exceeds 85% threshold → MERGED
+  - The `_are_different_titled_people()` check was missing from Pass 2
+- **Smoke test:** PASS - Mr. White and Mrs. White no longer merge
+- **Modified files:**
+  - `src/agents/characters_v2.py` (lines 840-845, 1176-1181)
+  - Added `_are_different_titled_people()` check before fuzzy merge in BOTH:
+    - `_merge_within_main_cast()` Pass 2 (main fix for current issue)
+    - `_merge_within_supporting_cast()` Pass 2 (prevents same issue in supporting cast)
+- **Tests:** All character extraction tests pass (28/28)
+
 ## Next Action
-Run PROMPT_fix.md to add `_are_different_titled_people()` check to `_merge_within_main_cast()` Pass 2 at line 840.
+Re-run analysis to verify fix resolves the Mr./Mrs. White merge issue.
