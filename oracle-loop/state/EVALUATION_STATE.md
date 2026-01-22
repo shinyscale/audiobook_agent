@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -140,11 +140,33 @@ However, narrator variants still appear in output. Possible causes:
 - Added title-stripping check in Pass 1
 - **Outcome:** Wolfshiem merged correctly; narrator filter, Sloane, Owl-eyed still broken
 
+### Attempt 6 Fixes (Applied - AWAITING ANALYSIS)
+1. **Final narrator filter (CRITICAL #1)**
+   - Root cause: Filter at Step 5.1 only applied to supporting_cast after initial NER, but narrator variants could be in main_cast or re-added during merges
+   - Fix: Added Step 5.7 - apply `_filter_narrator_variants()` to BOTH main_cast and supporting_cast after all merges complete (line 282-288)
+   - Modified: `src/agents/characters_v2.py`
+   - Expected impact: Remove all 5 narrator variant entries (7 mentions) → +0.5 Character Extraction score
+
+2. **Reverse title-stripping for Sloane merge (HIGH #2)**
+   - Root cause: `_merge_lastname_aliases()` only checked if supporting_cast name had title (e.g., "Mr. Gatsby" → "Gatsby"). Didn't check reverse case where main_cast has title (e.g., "Mr. Sloane" main, "Sloane" supporting)
+   - Fix: Added reverse check in `_merge_lastname_aliases()` before existing title check (lines 1289-1306) - strips title from main_cast name and checks if supporting name matches
+   - Modified: `src/agents/characters_v2.py:_merge_lastname_aliases()`
+   - Expected impact: Merge "Sloane" into "Mr. Sloane" → recover 10 mentions → +0.3 Character Extraction score
+
+3. **Parenthetical clarifications filter (HIGH #5, MEDIUM #9)**
+   - Root cause: LLM main_cast extraction creating "Wilson (referenced in actions)" and "Daisy Buchanan (referenced in attempts to contact)" - these are descriptive references, not character names
+   - Fix: Added `_filter_parenthetical_clarifications()` method (lines 520-574) with regex pattern to match "(referenced|mentioned|who|described|seen) ...". Called at Step 1.4 after main_cast extraction (lines 123-125)
+   - Modified: `src/agents/characters_v2.py`
+   - Expected impact: Remove 2 bogus entries → minor Character Extraction improvement
+
+**Smoke test results:**
+- Narrator filter: Verified `_filter_narrator_variants()` correctly filters all "narrator" variants ✓
+- Title stripping: Verified `_strip_title("Mr. Sloane")` → "Sloane" ✓
+- Parenthetical filter: Regex pattern validated against test cases ✓
+
 ## Next Action
-Run PROMPT_fix.md to:
-1. Move narrator filter to run on FINAL merged list (CRITICAL #1)
-2. Debug why Sloane merge isn't working (HIGH #2)
-3. Add parenthetical entry filter for "(referenced in...)" entries (HIGH #5)
+**Phase:** awaiting_analysis
+Run PROMPT_analyze.md to re-evaluate with these fixes applied.
 
 ## Strategic Note
 To cross the 8.0 threshold from 7.50, we need approximately +0.50 points. The most impactful fixes:

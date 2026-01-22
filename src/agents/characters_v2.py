@@ -120,6 +120,10 @@ class CharacterAgentV2(Agent):
         characters = main_cast_extractor.profiles_to_characters(profiles)
         logger.info(f"V2 Step 1 complete: {len(characters)} main cast candidates")
 
+        # STEP 1.4: Filter parenthetical clarifications (descriptive references, not real characters)
+        characters = self._filter_parenthetical_clarifications(characters)
+        logger.info(f"V2 Step 1.4 complete: {len(characters)} after parenthetical filter")
+
         # STEP 1.5: Merge title-variant characters (deterministic post-processing)
         characters = self._merge_title_variants(characters)
         logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
@@ -271,6 +275,17 @@ class CharacterAgentV2(Agent):
 
         logger.info(
             f"V2 Step 5.6 complete: {len(supporting_cast)} supporting after within-supporting merge"
+        )
+
+        # STEP 5.7: Final narrator filter on ALL characters (main + supporting)
+        # This catches any narrator variants that survived earlier processing or were
+        # added during merge operations
+        main_cast = self._filter_narrator_variants(main_cast, narrator_info.narrator_name)
+        supporting_cast = self._filter_narrator_variants(
+            supporting_cast, narrator_info.narrator_name
+        )
+        logger.info(
+            f"V2 Step 5.7 complete: {len(main_cast)} main, {len(supporting_cast)} supporting after final narrator filter"
         )
 
         # Build final CharacterMap
@@ -499,6 +514,58 @@ class CharacterAgentV2(Agent):
 
         if removed_count > 0:
             logger.info(f"Removed {removed_count} narrator variant(s) from supporting cast")
+
+        return filtered
+
+    def _filter_parenthetical_clarifications(
+        self,
+        characters: list[Character],
+    ) -> list[Character]:
+        """
+        Filter out characters with parenthetical clarifications in their names.
+
+        These are typically descriptive references, not actual character names:
+        - "Wilson (referenced in actions)"
+        - "Daisy Buchanan (referenced in attempts to contact)"
+        - "The butler (who serves)"
+
+        Args:
+            characters: List of characters to filter
+
+        Returns:
+            Filtered list with parenthetical entries removed
+        """
+        import re
+
+        if not characters:
+            return characters
+
+        filtered = []
+        removed_count = 0
+
+        # Pattern to match parenthetical clarifications
+        # Matches: "(referenced in...)", "(who...)", "(mentioned in...)", etc.
+        parenthetical_pattern = re.compile(
+            r'\([^)]*(?:referenced|mentioned|who|described|seen)\s+[^)]*\)',
+            re.IGNORECASE
+        )
+
+        for char in characters:
+            canonical_name = char.canonical_name
+
+            # Check if name contains parenthetical clarification
+            if parenthetical_pattern.search(canonical_name):
+                logger.info(
+                    f"Filtering parenthetical clarification '{canonical_name}' "
+                    f"({char.mention_count} mentions) - likely descriptive reference, not character name"
+                )
+                removed_count += 1
+                continue
+
+            filtered.append(char)
+
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} character(s) with parenthetical clarifications")
 
         return filtered
 
@@ -1217,6 +1284,27 @@ class CharacterAgentV2(Agent):
 
             # Skip if empty
             if not supp_name:
+                continue
+
+            # REVERSE CHECK: Check if supporting name matches main cast name after stripping title from main
+            # E.g., "Sloane" (supporting) should match "Mr. Sloane" (main) → merge supporting as alias
+            for main_idx, main_char in enumerate(main_cast):
+                main_title_stripped = self._strip_title(main_char.canonical_name)
+                if main_title_stripped != main_char.canonical_name:
+                    # Main has a title - check if supporting name matches when title is stripped
+                    if supp_name.lower() == main_title_stripped.lower():
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging bare name '{supp_name}' → "
+                                f"titled main cast '{main_char.canonical_name}' as alias (reverse title check)"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+            # If we processed this in reverse check, skip remaining checks
+            if supp_idx in supporting_to_remove:
                 continue
 
             # Check for title + name pattern (e.g., "Mr. Gatsby")
