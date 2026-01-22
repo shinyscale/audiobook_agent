@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.65
 
 ## Latest Scores
@@ -30,17 +30,19 @@
 | 10 | 5.20 | -1.45 | Daisy merge FIXED, characters reduced 99->37, profiles exist but broken |
 | 11 | 5.20 | -1.45 | Structure fix did NOT work in full pipeline (8 chapters) |
 | 12 | 5.20 | -1.45 | Structure fix STILL not working (TOC-guided failed to find 'I') |
+| 13 | - | - | Detected 10 chapters (vs 8 in #12, expected 9) - awaiting evaluation |
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Last Updated: 2026-01-21 19:12
+- Last Updated: 2026-01-21 20:48
 
-## Analysis Summary (Attempt 12)
+## Analysis Summary (Attempt 13)
 
 ### Pipeline Run Results
 
-**Analysis completed:** 2026-01-21 19:12
+**Analysis completed:** 2026-01-21 20:48
+**Duration:** 69m 8s
 **V2 Character Extraction:** Enabled
 **Models Used:**
 - Structure: qwen3:30b-instruct
@@ -49,23 +51,30 @@
 - Pronunciation: qwen3:30b-instruct
 
 **Chapter Detection:**
-```
-Chapter 1: null    - 9,317 words (I+II still merged)
-Chapter 2: III     - 5,734 words
-Chapter 3: IV      - 5,456 words
-Chapter 4: V       - 4,233 words
-Chapter 5: VI      - 4,036 words
-Chapter 6: VII     - 8,766 words
-Chapter 7: null    - 4,530 words (VIII)
-Chapter 8: null    - 5,225 words (IX)
-```
+- **10 chapters detected** (unexpected - was 8 in attempt 12, expected 9)
+- Need to examine actual chapter boundaries in analysis.json
 
-**Character Count:** 39 characters extracted
+**Character Count:** 41 characters extracted (vs 39 in attempt 12)
 
-**Warning from Log:**
-- `TOC-guided: could not find 'I' in text after position 5042`
+**Pronunciation:** 580 words flagged
 
-This indicates the TOC-guided bypass attempted to run but failed to locate chapter I in the text after the expected position.
+**Warnings from Log:**
+- `TOC-guided: could not find 'I' in text after position 5042` (same as attempt 12)
+- `StructureAgent: 1 errors found but refinement not yet implemented`
+- JSON parse failures for several character profiles (Tom Buchanan, Jordan Baker, Myrtle Wilson, Sloane)
+- Low confidence profiles (0.30) for multiple characters
+- Moral valence classification failures
+
+**Pipeline Profile:**
+- Chapter Detection: 6m1s (48 LLM calls)
+- Chapter Summaries: 28m4s (47 LLM calls) - bottleneck at 40.6% of time
+- Character Extraction V2: 1m18s (2 LLM calls)
+- Character Profiles: 23m40s (41 LLM calls)
+- Pronunciation Guide: 9m35s (21 LLM calls)
+
+**Quality Concerns:**
+- 4 low-confidence character profiles
+- Structure detection showing 10 chapters instead of expected 9 (need to verify if this is correct or a new issue)
 
 ### Root Cause Analysis: Why Structure Fix Keeps Failing
 
