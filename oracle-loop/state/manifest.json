@@ -45,10 +45,10 @@
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
-      "attempts": 0,
+      "attempts": 2,
       "final_score": null,
-      "baseline_score": null,
-      "last_score": null,
+      "baseline_score": 6.80,
+      "last_score": 7.25,
       "regression_detected": false
     },
     {

@@ -2,135 +2,125 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1
-- **Phase:** awaiting_evaluation
+- **Attempt:** 2
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.80
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## Pipeline Notes
-- Analysis completed in 54m 50s
-- 44 characters extracted (v2 pipeline)
-- Some LLM errors during profile generation (500 errors, JSON parse failures)
-- Quality concerns: 4 low-confidence character profiles (Tom Buchanan, Myrtle Wilson, Mr. Sloane, McKee)
-
 ## Latest Scores
-- Structure Detection: 7/10
+- Structure Detection: 8/10
 - Character Extraction: 5/10 ← PRIMARY ISSUE
-- Character Profiles: 7/10
+- Character Profiles: 8/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
-- HTML Presentation: 7/10
-- **Overall: 6.80/10** (threshold: 8.0)
+- HTML Presentation: 8/10
+- **Overall: 7.25/10** (threshold: 8.0)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False character split: Wilson / George B. Wilson**
-   - Problem: "Wilson" (65 mentions) and "George B. Wilson" (14 mentions) are listed as separate characters
-   - Evidence: These refer to the same person - George Wilson, the garage owner. Text uses "Wilson" as short form
-   - Location: V2 character extraction alias resolution (`src/pipeline/character_extraction_v2/`)
-   - Fix: Improve alias detection for LastName matching "FirstName LastName" patterns
+1. **False character split: Myrtle Wilson / Mrs. Wilson**
+   - Problem: "Myrtle Wilson" (23 mentions) and "Mrs. Wilson" (24 mentions, with alias "Myrtle Wilson") are SEPARATE entries
+   - Evidence: These are the SAME person - George Wilson's wife who has an affair with Tom
+   - Location: V2 character extraction - the alias resolution is creating both entries instead of merging them
+   - Fix: When "Mrs. Wilson" has "Myrtle Wilson" as an alias, they should be merged into a single entry, not kept separate
+   - Root cause hint: The alias field contains "Myrtle Wilson" but they weren't merged during deduplication
 
-2. **False character split: Wolfshiem/Wolfsheim (3 entries)**
-   - Problem: "Wolfshiem" (23 mentions), "Meyer Wolfsheim" (1 mention), and "Meyer Wolfshiem" (1 mention) are THREE separate entries
-   - Evidence: Same character - Meyer Wolfshiem/Wolfsheim, the gangster. Text uses variant spellings
-   - Location: V2 fuzzy matching in alias resolution
-   - Fix: Improve spelling variant detection (ei/ie variations, FirstName LastName matching)
-
-3. **False character split: Owl-eyed man (3 entries)**
-   - Problem: "the man with owl-eyed glasses" (3), "Man with owl-eyed glasses" (1), and "Owl-eyed man" (1) are separate
-   - Evidence: Same minor character - the owl-eyed man at Gatsby's party
-   - Location: V2 normalization/deduplication
-   - Fix: Case-insensitive matching for descriptive character names
-
-4. **False positive: Oxford listed as character**
-   - Problem: "Oxford" (6 mentions) is listed as a character
-   - Evidence: Oxford refers to Oxford University, not a person. Gatsby claims he attended there
-   - Location: V2 character extraction NER filtering
-   - Fix: Add educational institutions to exclusion list or improve context-based filtering
+2. **False character split: Wolfshiem / Meyer Wolfsheim (still present)**
+   - Problem: "Wolfshiem" (23 mentions) and "Meyer Wolfsheim" (2 mentions) are separate entries
+   - Evidence: Same character - Meyer Wolfshiem/Wolfsheim, Gatsby's gangster associate
+   - Location: V2 alias resolution - the attempt 1 fix did not work
+   - Fix: The multi-word to single-word merge needs to be re-examined; possibly the fix wasn't applied correctly or a different code path is being taken
 
 ### HIGH
-5. **False character split: Narrator variants (4 entries)**
-   - Problem: "Nick Carraway" (34), "Narrator" (4), "the narrator" (1), and "Nick (narrator)" (2) are separate
-   - Evidence: All refer to Nick Carraway, the first-person narrator
-   - Location: V2 narrator detection / alias resolution
-   - Fix: Merge narrator references with identified narrator character
+3. **Narrator variants split into 5 entries**
+   - Problem: Five separate entries all refer to Nick Carraway as narrator:
+     - "Nick Carraway" (34 mentions, is_narrator: true) ✓
+     - "Narrator" (1 mention, is_narrator: false)
+     - "the narrator" (1 mention, is_narrator: false)
+     - "The Narrator" (1 mention, is_narrator: false)
+     - "Nick Carraway (narrator)" (1 mention, is_narrator: false)
+   - Evidence: All refer to the same person - the first-person narrator
+   - Location: V2 narrator detection and alias resolution
+   - Fix: Characters with canonical names containing "narrator" (case-insensitive) should be merged with the identified narrator character
 
-6. **False character split: Mr. Gatsby**
-   - Problem: "Mr. Gatsby" (1 mention) is separate from "Jay Gatsby" (268 mentions)
-   - Evidence: Same person - the title "Mr." should be recognized as an alias pattern
-   - Location: V2 alias resolution for title variants
-   - Fix: Already partially works (Mr. Buchanan → Tom Buchanan), but missed for Gatsby
+4. **Owl-eyed man still split (2 entries remain)**
+   - Problem: "Man with owl-eyed glasses" (1) and "Owl-Eyed Man" (1) are separate
+   - Evidence: Same minor character - the bespectacled man at Gatsby's party and funeral
+   - Location: V2 normalization - the attempt 1 fix did not fully resolve this
+   - Fix: Need case-insensitive matching and handling of "Man with X" vs "X Man" patterns
 
-7. **False character split: McKee / Mr. McKee**
+5. **McKee / Mr. McKee split**
    - Problem: "McKee" (16) and "Mr. McKee" (1) are separate entries
    - Evidence: Same person - the photographer at Myrtle's party
    - Location: V2 title-variant merging
-   - Fix: Title variant matching should apply consistently
+   - Fix: "Mr. LastName" should merge with "LastName" when they appear in similar contexts
 
-8. **False character split: Sloane / Mr. Sloane**
-   - Problem: "Sloane" (10) and "Mr. Sloane" (1) are separate entries
-   - Evidence: Same person - visitor with Tom at Gatsby's
-   - Location: V2 title-variant merging
+6. **Gatz / Henry C. Gatz split**
+   - Problem: "Gatz" (6 mentions) and "Henry C. Gatz" (1) are separate entries
+   - Evidence: Both refer to Gatsby's father who appears at the funeral
+   - Location: V2 alias resolution for shared last names
+   - Fix: This is tricky because "Gatz" could be confused with James Gatz (Gatsby's birth name) - need context-aware merging
 
 ### MEDIUM
-9. **Structure: Chapter titles incorrect**
-   - Problem: Chapter I has null title, Chapter V labeled "Section 1", numbering inconsistent
-   - Evidence: Chapter list shows: null, II, III, Section 1, IV, VI, VII, VIII, IX
+7. **Excessive pronunciation entries (585)**
+   - Problem: 585 entries includes many common English words
+   - Evidence: Sample includes "Butler", "Chauffeur", "glasses", "Gardener", "minister", "boarder"
+   - Location: Pronunciation agent filtering thresholds
+   - Fix: Improve common word filtering; these are not unusual enough to flag
+
+8. **Chapter titles missing for I and V**
+   - Problem: Chapters I and V have null titles instead of Roman numerals
+   - Evidence: Structure shows: null, II, III, IV, null, VI, VII, VIII, IX
    - Location: Structure agent chapter detection
-   - Fix: Improve Roman numeral extraction for first chapter, handle edge cases
+   - Fix: Improve Roman numeral extraction for edge cases
 
-10. **Pronunciation: Excessive false positives**
-    - Problem: 587 entries includes common words like "butler", "chauffeur", "glasses", "brown"
-    - Evidence: These are standard English words that narrators don't need pronunciation help for
-    - Location: Pronunciation agent filtering
-    - Fix: Improve common word filtering, raise threshold for flagging
+### LOW
+9. **Wilson single-mention entry**
+   - Problem: "Wilson" (1 mention) exists separately from "George Wilson" (14)
+   - Evidence: Likely refers to George Wilson given context
+   - Location: V2 low-mention-count character handling
+   - Fix: Consider merging or filtering characters with very low mention counts that match existing character last names
 
-11. **Character profiles: Raw JSON visible in HTML**
-    - Problem: Some character profile sections show unrendered JSON in the HTML output
-    - Evidence: Gatsby profile shows raw JSON for appearance/personality fields
-    - Location: HTML template rendering
-    - Fix: Ensure all profile fields are properly rendered
+10. **Mrs. McKee separate entry**
+    - Problem: "Mrs. McKee" (1 mention) is separate from McKee entries
+    - Evidence: This is actually a different character (Mr. McKee's wife), so may be CORRECT
+    - Location: N/A - verify this is intentional
+    - Fix: Possibly no fix needed - need to verify she's a distinct character
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.80 | - | Initial evaluation - multiple character splits |
+| 2 | 7.25 | +0.45 | Improvement but critical issues remain |
 
 ## Fix History
 
-### Attempt 1 Fixes
+### Attempt 1 Fixes (Applied)
 **Fixed Issues:**
-- **CRITICAL #2: Wolfshiem/Wolfsheim (3 entries)**
-  - Root cause: `characters_v2.py:_merge_lastname_aliases()` line 943+ only merged supporting→main for single-word names, not multi-word supporting→single-word main
-  - Fix: Added reverse pass to merge multi-word supporting characters with single-word main cast characters when last names match
-  - Smoke test: PASS - "Meyer Wolfshiem" (supporting) now merges with "Wolfshiem" (main) as alias
-  - Modified: `src/agents/characters_v2.py` lines 1069-1138
+- **CRITICAL #2: Wolfshiem/Wolfsheim (3 entries)** - Added reverse pass to merge multi-word supporting→single-word main
+- **CRITICAL #3: Owl-eyed man (3 entries)** - Added "the" prefix stripping in supporting→main merge
+- **CRITICAL #4: Oxford listed as character** - Added institution exclusion list
 
-- **CRITICAL #3: Owl-eyed man (3 entries)**
-  - Root cause: `characters_v2.py:_merge_lastname_aliases()` line 976+ didn't handle "the X" ↔ "X" normalization
-  - Fix: Added "the" prefix stripping in supporting→main merge to match "Owl-eyed man" with "the owl-eyed man" alias
-  - Smoke test: PASS - Both "Owl-eyed man" and "Man with owl-eyed glasses" now merge with main character
-  - Modified: `src/agents/characters_v2.py` lines 1011-1052
+**Outcome:** Partial success - score improved from 6.80 to 7.25, but:
+- Wolfshiem still has 2 entries (down from 3)
+- Owl-eyed man still has 2 entries (down from 3)
+- NEW issue: Myrtle Wilson / Mrs. Wilson split emerged
 
-- **CRITICAL #4: Oxford listed as character**
-  - Root cause: `supporting.py:_is_valid_name()` line 158+ didn't exclude educational institutions
-  - Fix: Added institution exclusion list (Oxford, Cambridge, Harvard, Yale, etc.)
-  - Modified: `src/pipeline/character_extraction_v2/supporting.py` lines 188-194
-
-**NOT Fixed (deferred):**
-- **CRITICAL #1: Wilson / George B. Wilson**
-  - Reason: Genuine ambiguity - "Wilson" matches both "George B. Wilson" and "Myrtle Wilson" last names
-  - Code correctly avoids merge to prevent incorrect family member merging
-  - Would require context-aware LLM analysis to resolve safely
-  - Accepting minor quality impact rather than risk false merges
+### What Likely Went Wrong
+1. The Wolfshiem fix may have only addressed one merge direction or a specific edge case
+2. The owl-eyed fix may have been case-sensitive when it should be case-insensitive
+3. The Mrs. Wilson / Myrtle Wilson issue suggests that:
+   - When one character has another's name as an alias, the deduplication step isn't recognizing this as a merge candidate
+   - The alias resolution may be adding aliases without checking if that alias name exists as another character's canonical name
 
 ## Next Action
-Re-run analysis via PROMPT_analyze.md to verify fixes and measure score improvement
+Run PROMPT_fix.md to address:
+1. **CRITICAL #1** - Myrtle Wilson / Mrs. Wilson merge (highest impact, ~24 duplicate mentions)
+2. **CRITICAL #2** - Wolfshiem / Meyer Wolfsheim merge (fix the remaining split)
+3. **HIGH #3** - Narrator variants merge (easy pattern to fix)
 
-**Expected improvements:**
-- Character Extraction: 5/10 → 7-8/10 (fixed 3 of 4 CRITICAL splits)
-- Overall: 6.80/10 → 7.5-8.0/10 (if other categories hold)
+**Focus on getting Character Extraction from 5/10 to 7-8/10 to cross the 8.0 threshold.**
