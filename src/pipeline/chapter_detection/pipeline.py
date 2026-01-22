@@ -11,12 +11,14 @@ Supports checkpointing for save/resume functionality.
 """
 
 import hashlib
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Callable
 import logging
 
 from .models import (
+    Chapter,
     ChapterMap,
     PipelineCheckpoint,
     ChapterProposal,
@@ -184,6 +186,38 @@ class ChapterDetectionPipeline:
                 checkpoint.stage = "validation"
                 self._save_checkpoint(checkpoint, save_path)
 
+            # Stage 2.5: TOC-guided bypass
+            # If all proposals are from TOC-guided and we found the expected count,
+            # bypass validation/consensus for reliability
+            if (
+                checkpoint.proposals
+                and all(p.strategy == "toc_guided" for p in checkpoint.proposals)
+                and checkpoint.document_profile.table_of_contents
+                and len(checkpoint.proposals) == len(checkpoint.document_profile.table_of_contents.entries)
+            ):
+                logger.info(
+                    f"TOC-guided complete: {len(checkpoint.proposals)} chapters found - "
+                    f"bypassing validation/consensus for reliability"
+                )
+                self._report_progress("Building chapter map from TOC", 0.9)
+                checkpoint.chapter_map = self._build_chapter_map_from_toc(
+                    checkpoint.proposals, text, checkpoint.document_profile
+                )
+                checkpoint.stage = "complete"
+                self._save_checkpoint(checkpoint, save_path)
+
+                self._report_progress("Complete", 1.0)
+
+                checkpoint.chapter_map.pipeline_metadata.update({
+                    "completed_at": datetime.now().isoformat(),
+                    "llm_enabled": self.llm is not None,
+                    "proposal_count": len(checkpoint.proposals),
+                    "validation_count": 0,
+                    "toc_guided_bypass": True,
+                })
+
+                return checkpoint.chapter_map
+
             # Stage 3: Validation
             if checkpoint.stage == "validation" or checkpoint.validations is None:
                 self._report_progress("Validating proposals", 0.6)
@@ -239,6 +273,12 @@ class ChapterDetectionPipeline:
                     f"TOC-guided: found all {expected_count} expected chapters, "
                     f"using TOC-guided proposals exclusively"
                 )
+                # Log proposal details for debugging
+                for p in sorted(toc_proposals, key=lambda x: x.position):
+                    logger.info(
+                        f"  TOC-guided proposal: '{p.title}' at position {p.position} "
+                        f"(hard_boundary={p.is_hard_boundary})"
+                    )
                 return toc_proposals
             elif len(toc_proposals) >= expected_count * 0.8:
                 # Found most chapters (80%+) - use TOC-guided but fall through for extras
@@ -282,6 +322,98 @@ class ChapterDetectionPipeline:
 
         logger.info(f"Total proposals: {len(proposals)}")
         return proposals
+
+    def _build_chapter_map_from_toc(
+        self,
+        proposals: list[ChapterProposal],
+        text: str,
+        profile: DocumentProfile,
+    ) -> ChapterMap:
+        """
+        Build ChapterMap directly from TOC-guided proposals.
+
+        This bypasses validation and consensus when TOC-guided detection
+        found all expected chapters - providing maximum reliability.
+        """
+        # Sort proposals by position
+        sorted_proposals = sorted(proposals, key=lambda p: p.position)
+
+        chapters = []
+        total_words = 0
+
+        for i, proposal in enumerate(sorted_proposals):
+            start = proposal.position
+
+            # End is start of next chapter or end of text
+            if i + 1 < len(sorted_proposals):
+                end = sorted_proposals[i + 1].position
+            else:
+                end = len(text)
+
+            # Count words
+            chapter_text = text[start:end]
+            word_count = len(chapter_text.split())
+            total_words += word_count
+
+            # Clean the title (remove redundant "Chapter X:" prefixes)
+            cleaned_title = self._clean_chapter_title(proposal.title)
+
+            chapters.append(Chapter(
+                index=i + 1,
+                title=cleaned_title,
+                start_position=start,
+                end_position=end,
+                word_count=word_count,
+                confidence=1.0,  # Maximum confidence for TOC-guided
+                toc_validated=True,
+            ))
+
+        logger.info(f"Built ChapterMap from TOC: {len(chapters)} chapters, {total_words:,} words")
+
+        return ChapterMap(
+            chapters=chapters,
+            low_confidence_boundaries=[],  # No low-confidence when TOC-guided
+            document_profile=profile,
+            total_word_count=total_words,
+            toc_agreement_score=1.0,  # Perfect agreement - we used TOC
+            pipeline_metadata={
+                "toc_guided_bypass": True,
+                "chapter_count": len(chapters),
+            },
+        )
+
+    def _clean_chapter_title(self, title: Optional[str]) -> Optional[str]:
+        """Clean chapter title by removing redundant 'Chapter X:' prefixes."""
+        if not title:
+            return None
+
+        # Check if title is "Chapter" followed by standalone Roman numeral
+        match = re.match(
+            r'^(?:Chapter|CHAPTER)\s+([IVXLC]+)\s*$',
+            title,
+            re.IGNORECASE
+        )
+        if match:
+            return match.group(1)
+
+        # If title starts with "Chapter N:" extract just the subtitle
+        match = re.match(
+            r'^(?:Chapter|CHAPTER)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*[:\-—–]\s*(.+)$',
+            title,
+            re.IGNORECASE
+        )
+        if match:
+            return match.group(1).strip()
+
+        # If title is JUST "Chapter N" with no subtitle, return None
+        if re.match(r'^(?:Chapter|CHAPTER)\s+(?:\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$', title, re.IGNORECASE):
+            return None
+
+        # Preserve standalone Roman numerals
+        if re.match(r'^[IVXLC]+$', title.strip()):
+            return title.strip()
+
+        return title
 
     def _hash_text(self, text: str) -> str:
         """Create a hash of the text for checkpoint verification."""

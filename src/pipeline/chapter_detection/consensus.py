@@ -131,11 +131,34 @@ class ConsensusBuilder:
         """
         logger.info(f"ConsensusBuilder: received {len(validations)} validations")
 
-        # 1. Filter to valid proposals
-        valid_proposals = [v for v in validations if v.is_valid]
-        invalid_count = len(validations) - len(valid_proposals)
-        if invalid_count > 0:
-            logger.info(f"ConsensusBuilder: filtered {invalid_count} invalid proposals")
+        # 1. Filter to valid proposals, BUT preserve hard boundaries
+        # Hard boundaries (explicit markers like "Chapter I") should never be rejected
+        # even if LLM validation gives them low scores
+        valid_proposals = []
+        preserved_hard_boundaries = 0
+        rejected_count = 0
+
+        for v in validations:
+            is_hard = getattr(v.proposal, 'is_hard_boundary', False)
+
+            if v.is_valid:
+                valid_proposals.append(v)
+            elif is_hard:
+                # Preserve hard boundary even though validation marked it invalid
+                logger.info(
+                    f"ConsensusBuilder: PRESERVING hard boundary despite invalid validation: "
+                    f"'{v.proposal.title}' at {v.proposal.position} (score={v.overall_score:.2f})"
+                )
+                valid_proposals.append(v)
+                preserved_hard_boundaries += 1
+            else:
+                rejected_count += 1
+
+        if rejected_count > 0 or preserved_hard_boundaries > 0:
+            logger.info(
+                f"ConsensusBuilder: filtered {rejected_count} invalid proposals, "
+                f"preserved {preserved_hard_boundaries} hard boundaries"
+            )
 
         if not valid_proposals:
             logger.warning("No valid proposals - returning single chapter")
@@ -150,7 +173,11 @@ class ConsensusBuilder:
 
         # 2. Cluster by position
         clusters = self._cluster_proposals(valid_proposals)
-        logger.info(f"ConsensusBuilder: formed {len(clusters)} clusters")
+        hard_boundary_count = sum(1 for c in clusters if c.is_hard_boundary)
+        logger.info(
+            f"ConsensusBuilder: formed {len(clusters)} clusters "
+            f"({hard_boundary_count} hard boundaries)"
+        )
         for i, c in enumerate(sorted(clusters, key=lambda x: x.center_position)):
             logger.debug(
                 f"  Cluster {i}: pos={c.center_position}, title='{c.best_title}', "
@@ -300,9 +327,9 @@ class ConsensusBuilder:
             # F10: Hard boundaries get maximum score
             if cluster.is_hard_boundary:
                 cluster.combined_score = 1.0
-                logger.debug(
-                    f"Hard boundary at {cluster.center_position}: '{cluster.best_title}' "
-                    f"- assigned maximum score"
+                logger.info(
+                    f"Hard boundary BOOST: '{cluster.best_title}' at {cluster.center_position} "
+                    f"-> score=1.0"
                 )
                 continue  # Skip other scoring adjustments for hard boundaries
 
