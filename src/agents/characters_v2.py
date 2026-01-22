@@ -1272,9 +1272,9 @@ class CharacterAgentV2(Agent):
                     if supp_name.lower() == main_firstname.lower():
                         matches.append((main_idx, "exact_firstname"))
 
-            # Only merge if there's exactly ONE match
-            # (avoids merging when multiple characters share a surname)
+            # Handle merging based on match count
             if len(matches) == 1:
+                # Exactly one match - straightforward merge
                 main_idx, match_type = matches[0]
                 main_char = main_cast[main_idx]
 
@@ -1289,6 +1289,54 @@ class CharacterAgentV2(Agent):
 
                 # Mark for removal from supporting cast
                 supporting_to_remove.add(supp_idx)
+
+            elif len(matches) > 1:
+                # Multiple characters share this surname
+                # Use title-based disambiguation: if one character has "Mrs. [LastName]" as alias,
+                # merge bare last name with a character that does NOT have that female title
+                # (This handles cases like George Wilson vs Myrtle Wilson in Gatsby)
+
+                # Find which characters have gendered title variants
+                matches_with_mrs = []
+                matches_without_mrs = []
+
+                for main_idx, match_type in matches:
+                    main_char = main_cast[main_idx]
+
+                    # Check if this character has "Mrs. [LastName]" as alias
+                    has_mrs_variant = any(
+                        alias.lower().startswith("mrs.") and
+                        supp_name.lower() in alias.lower()
+                        for alias in main_char.aliases
+                    )
+
+                    if has_mrs_variant:
+                        matches_with_mrs.append((main_idx, match_type))
+                    else:
+                        matches_without_mrs.append((main_idx, match_type))
+
+                # If we have exactly ONE match WITHOUT the Mrs. title, merge with that one
+                # (This means bare "Wilson" → "George Wilson", not "Myrtle Wilson" who has "Mrs. Wilson")
+                if len(matches_without_mrs) == 1:
+                    main_idx, match_type = matches_without_mrs[0]
+                    main_char = main_cast[main_idx]
+
+                    if supp_name not in main_char.aliases:
+                        logger.info(
+                            f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                            f"→ '{main_char.canonical_name}' as alias (title-disambiguated {match_type} match, "
+                            f"{len(matches)} total surname matches)"
+                        )
+                        main_char.aliases.append(supp_name)
+                        chars_with_new_aliases.add(main_char.id)
+
+                    supporting_to_remove.add(supp_idx)
+                else:
+                    # Can't safely disambiguate - skip merge
+                    logger.debug(
+                        f"Skipping merge of '{supp_name}' - {len(matches)} characters share this surname "
+                        f"and title-based disambiguation failed"
+                    )
 
         # Remove merged characters from supporting cast
         updated_supporting = [

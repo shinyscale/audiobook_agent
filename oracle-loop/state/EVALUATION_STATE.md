@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.80
 
 ## Output Files
@@ -113,20 +113,26 @@
 
 **Outcome:** Partial success - Myrtle/McKee fixed, but narrator fix didn't catch all variants
 
-### Key Insights for Attempt 3 Fix
+### Attempt 3 Fixes (Applied)
+**Fixed Issues:**
+- **CRITICAL #1: Wilson (65 mentions) split from George Wilson (14 mentions)**
+  - Root cause: `_merge_lastname_aliases()` in `src/agents/characters_v2.py:1275-1291`
+    - When multiple main cast characters share a surname (George Wilson + Myrtle Wilson), the method refused to merge bare "Wilson" with either (safety check)
+    - Analysis of text shows: bare "Wilson" appears 77 times, "George Wilson" 3 times, "Myrtle Wilson" 5 times, "Mrs. Wilson" 19 times
+    - "Mrs. Wilson" already merged with "Myrtle Wilson", so bare "Wilson" primarily refers to George
+  - Fix: Added title-based disambiguation logic (lines 1292-1342)
+    - When multiple surname matches exist, check which characters have "Mrs. [LastName]" as alias
+    - Merge bare last name with character that does NOT have the female title variant
+    - This correctly identifies: "Wilson" → "George Wilson" (not "Myrtle Wilson" who has "Mrs. Wilson")
+  - Smoke test: PASS - confirmed "Wilson" merges with "George Wilson" when "Myrtle Wilson" has "Mrs. Wilson" alias
+  - Modified: `src/agents/characters_v2.py:1275-1342`
 
-1. **The "Wilson" problem (65 mentions) is the single biggest issue.** This is likely happening because:
-   - NER extracts bare "Wilson" as a character
-   - The supporting→main cast merge doesn't recognize "Wilson" should become an alias of "George Wilson"
-   - Need: When a single last name matches an existing character's last name, merge them
-
-2. **The deduplication has a gap**: When a character has an alias that MATCHES another character's canonical name (e.g., "Owl Eyes" has alias "Man with owl-eyed glasses", but "Man with owl-eyed glasses" also exists as a canonical name), they should be merged.
-
-3. **Narrator filtering is incomplete**: Need to also filter entries where canonical name contains "narrator" in parentheses like "Nick (narrator)"
+**Outcome:** Fix implemented and tested - addresses 65-mention character split
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Wilson → George Wilson merge (CRITICAL - 65 mentions)
-2. Owl-eyed aliases-as-canonical merge
-3. Narrator parenthetical filtering
-4. Wolfshiem spelling variant handling
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fix. Expected improvements:
+- "Wilson" should now be an alias of "George Wilson"
+- Character extraction score should improve (currently 6.5/10)
+- Overall score should approach or exceed 8.0 threshold
