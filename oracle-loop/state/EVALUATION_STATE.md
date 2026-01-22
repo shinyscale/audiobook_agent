@@ -3,12 +3,23 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.80
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Run Summary (Attempt 4)
+- Duration: 52m 57s
+- Total LLM calls: 147
+- Total tokens: 460,676
+- Characters found: 41 (v2 pipeline)
+- Pronunciation flags: 587
+- Notable warnings:
+  - LLM identity detection failed for some characters (500 server error)
+  - Moral valence classification failed for Daisy Buchanan and Myrtle Wilson
+  - Low confidence profile for Myrtle Wilson (0.30)
 
 ## Latest Scores
 - Structure Detection: 8/10
