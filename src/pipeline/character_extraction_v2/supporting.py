@@ -181,6 +181,14 @@ class SupportingCastExtractor:
         if name.lower() in wine_types:
             return False
 
+        # Skip educational institutions (common false positives)
+        institutions = {
+            "oxford", "cambridge", "harvard", "yale", "princeton",
+            "stanford", "mit", "eton", "westminster",
+        }
+        if name.lower() in institutions:
+            return False
+
         return True
 
     def _to_characters(

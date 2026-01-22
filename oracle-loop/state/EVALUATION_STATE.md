@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.80
 
 ## Latest Scores
@@ -91,14 +91,36 @@
 | 1 | 6.80 | - | Initial evaluation - multiple character splits |
 
 ## Fix History
-(none yet)
+
+### Attempt 1 Fixes
+**Fixed Issues:**
+- **CRITICAL #2: Wolfshiem/Wolfsheim (3 entries)**
+  - Root cause: `characters_v2.py:_merge_lastname_aliases()` line 943+ only merged supporting→main for single-word names, not multi-word supporting→single-word main
+  - Fix: Added reverse pass to merge multi-word supporting characters with single-word main cast characters when last names match
+  - Smoke test: PASS - "Meyer Wolfshiem" (supporting) now merges with "Wolfshiem" (main) as alias
+  - Modified: `src/agents/characters_v2.py` lines 1069-1138
+
+- **CRITICAL #3: Owl-eyed man (3 entries)**
+  - Root cause: `characters_v2.py:_merge_lastname_aliases()` line 976+ didn't handle "the X" ↔ "X" normalization
+  - Fix: Added "the" prefix stripping in supporting→main merge to match "Owl-eyed man" with "the owl-eyed man" alias
+  - Smoke test: PASS - Both "Owl-eyed man" and "Man with owl-eyed glasses" now merge with main character
+  - Modified: `src/agents/characters_v2.py` lines 1011-1052
+
+- **CRITICAL #4: Oxford listed as character**
+  - Root cause: `supporting.py:_is_valid_name()` line 158+ didn't exclude educational institutions
+  - Fix: Added institution exclusion list (Oxford, Cambridge, Harvard, Yale, etc.)
+  - Modified: `src/pipeline/character_extraction_v2/supporting.py` lines 188-194
+
+**NOT Fixed (deferred):**
+- **CRITICAL #1: Wilson / George B. Wilson**
+  - Reason: Genuine ambiguity - "Wilson" matches both "George B. Wilson" and "Myrtle Wilson" last names
+  - Code correctly avoids merge to prevent incorrect family member merging
+  - Would require context-aware LLM analysis to resolve safely
+  - Accepting minor quality impact rather than risk false merges
 
 ## Next Action
-Run PROMPT_fix.md to address character extraction issues (Critical #1-4, High #5-8)
+Re-run analysis via PROMPT_analyze.md to verify fixes and measure score improvement
 
-Primary focus: The V2 character extraction pipeline has significant alias resolution gaps:
-1. LastName ↔ "FirstName LastName" matching (Wilson, Wolfshiem)
-2. Case-insensitive deduplication for descriptive names (owl-eyed man)
-3. Title variant merging consistency (Mr. X → X)
-4. Spelling variant detection (ei/ie)
-5. Place/institution filtering (Oxford)
+**Expected improvements:**
+- Character Extraction: 5/10 → 7-8/10 (fixed 3 of 4 CRITICAL splits)
+- Overall: 6.80/10 → 7.5-8.0/10 (if other categories hold)

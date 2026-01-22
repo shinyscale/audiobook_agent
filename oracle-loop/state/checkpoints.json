@@ -14,8 +14,12 @@
       "score": 8.2
     },
     "monkeys_paw": {
-      "commit": "026a89c57f824c58213651f13ad07678ad299994",
-      "score": 6.90
+      "commit": "438a820f8f203c83ae1519943a51c5582b0d26e2",
+      "score": 8.15
+    },
+    "gatsby": {
+      "commit": "b49ce7bd13c7bc6fc8338fe5c8d82d04cea9bc4d",
+      "score": 6.80
     }
   }
 }

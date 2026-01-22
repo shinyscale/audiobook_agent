@@ -953,6 +953,9 @@ class CharacterAgentV2(Agent):
 
         Also handles title variants like "Mr. Gatsby" → alias of "Jay Gatsby"
 
+        NEW: Also handles reverse case where main_cast has single-word name and
+        supporting_cast has full name (e.g., "Wolfshiem" in main, "Meyer Wolfshiem" in supporting)
+
         Returns:
             Tuple of (updated_main_cast, updated_supporting_cast, char_ids_with_new_aliases)
         """
@@ -1005,6 +1008,46 @@ class CharacterAgentV2(Agent):
                 # If we processed this as a title variant, skip last-name processing
                 if supp_idx in supporting_to_remove:
                     continue
+
+            # Check for "the X" → "X" normalization (e.g., "Owl-eyed man" vs "the owl-eyed man")
+            # Strip leading "the " for comparison
+            supp_name_normalized = re.sub(r'^the\s+', '', supp_name, flags=re.IGNORECASE).strip()
+
+            # Check against main cast canonical names and aliases
+            for main_idx, main_char in enumerate(main_cast):
+                # Normalize main canonical name
+                main_canonical_normalized = re.sub(r'^the\s+', '', main_char.canonical_name, flags=re.IGNORECASE).strip()
+
+                # Check canonical name (with and without "the")
+                if (supp_name_normalized.lower() == main_canonical_normalized.lower() or
+                    supp_name.lower() == main_char.canonical_name.lower()):
+                    if supp_name not in main_char.aliases:
+                        logger.info(
+                            f"Merging 'the' variant '{supp_name}' → "
+                            f"'{main_char.canonical_name}' as alias"
+                        )
+                        main_char.aliases.append(supp_name)
+                        chars_with_new_aliases.add(main_char.id)
+                    supporting_to_remove.add(supp_idx)
+                    break
+
+                # Check aliases
+                for alias in main_char.aliases:
+                    alias_normalized = re.sub(r'^the\s+', '', alias, flags=re.IGNORECASE).strip()
+                    if (supp_name_normalized.lower() == alias_normalized.lower() or
+                        supp_name.lower() == alias.lower()):
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging 'the' variant '{supp_name}' → "
+                                f"'{main_char.canonical_name}' (matches alias '{alias}')"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+                if supp_idx in supporting_to_remove:
+                    break
 
             # Only process single-word names (potential last names)
             if ' ' in supp_name:
@@ -1069,7 +1112,74 @@ class CharacterAgentV2(Agent):
             if idx not in supporting_to_remove
         ]
 
-        return main_cast, updated_supporting, chars_with_new_aliases
+        # REVERSE PASS: Check if any MULTI-WORD supporting characters should merge
+        # with SINGLE-WORD main cast characters (e.g., "Wolfshiem" main + "Meyer Wolfshiem" supporting)
+        # This handles cases where NER extracted the full name but summaries only mentioned last name
+        reverse_supporting_to_remove = set()
+
+        for main_idx, main_char in enumerate(main_cast):
+            main_name = main_char.canonical_name.strip()
+
+            # Only process single-word main cast names
+            if not main_name or ' ' in main_name:
+                continue
+
+            # Check if this matches any multi-word supporting character's last name
+            matches = []
+
+            for supp_idx, supp_char in enumerate(updated_supporting):
+                if supp_idx in reverse_supporting_to_remove:
+                    continue
+
+                supp_name = supp_char.canonical_name.strip()
+
+                # Only match against multi-word names
+                if not supp_name or ' ' not in supp_name:
+                    continue
+
+                # Extract last name from supporting character
+                supp_parts = supp_name.split()
+                supp_lastname = supp_parts[-1].strip('.,;:')
+
+                # Check for exact match
+                if main_name.lower() == supp_lastname.lower():
+                    matches.append((supp_idx, supp_name, "exact"))
+                    continue
+
+                # Check for fuzzy match (handles spelling variants)
+                similarity = SequenceMatcher(
+                    None,
+                    main_name.lower(),
+                    supp_lastname.lower()
+                ).ratio()
+
+                if similarity >= 0.85:
+                    matches.append((supp_idx, supp_name, "fuzzy"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                supp_idx, supp_name, match_type = matches[0]
+                supp_char = updated_supporting[supp_idx]
+
+                # Add supporting full name as alias to main cast character
+                if supp_name not in main_char.aliases:
+                    logger.info(
+                        f"Merging full-name supporting char '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ '{main_char.canonical_name}' ({main_char.mention_count} mentions) as alias ({match_type} match)"
+                    )
+                    main_char.aliases.append(supp_name)
+                    chars_with_new_aliases.add(main_char.id)
+
+                # Mark for removal from supporting cast
+                reverse_supporting_to_remove.add(supp_idx)
+
+        # Remove reverse-merged characters
+        final_supporting = [
+            char for idx, char in enumerate(updated_supporting)
+            if idx not in reverse_supporting_to_remove
+        ]
+
+        return main_cast, final_supporting, chars_with_new_aliases
 
     def _merge_within_supporting_cast(
         self,
