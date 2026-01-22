@@ -3,110 +3,99 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.80
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## Pipeline Run Summary (Attempt 4)
-- Duration: 52m 57s
-- Total LLM calls: 147
-- Total tokens: 460,676
-- Characters found: 41 (v2 pipeline)
-- Pronunciation flags: 587
-- Notable warnings:
-  - LLM identity detection failed for some characters (500 server error)
-  - Moral valence classification failed for Daisy Buchanan and Myrtle Wilson
-  - Low confidence profile for Myrtle Wilson (0.30)
-
 ## Latest Scores
 - Structure Detection: 8/10
-- Character Extraction: 5/10 ← CRITICAL REGRESSION (down from 6.5)
+- Character Extraction: 6/10
 - Character Profiles: 8/10
 - Chapter Summaries: 9/10
 - Pronunciation Guide: 6/10
 - HTML Presentation: 8/10
-- **Overall: 7.25/10** (threshold: 8.0)
+- **Overall: 7.50/10** (threshold: 8.0)
 
-## ⚠️ REGRESSION ALERT
+## Progress Notes
 
-**Score dropped from 7.50 (attempt 2) to 7.25 (attempt 3)**
+**Wilson Fix PARTIALLY Worked:**
+- Both George Wilson (91 mentions) and Myrtle Wilson (100 mentions) now have "Wilson" as alias
+- "George B. Wilson" (1 mention) still separate - should be alias of George Wilson
+- Net improvement in mention consolidation
 
-The title-based disambiguation fix for Wilson did NOT take effect in this analysis run:
-- "Wilson" (65 mentions) still exists as separate entry
-- "George Wilson" (14 mentions) still exists as separate entry
-- Expected: "Wilson" should be an alias of "George Wilson"
-
-**Root cause investigation needed:**
-1. Was the fix actually deployed to the code used for this analysis?
-2. Is there a logic error in the title-based disambiguation?
-3. Is the fix being bypassed by another code path?
+**Still Failing:**
+- Multiple character splits remain (Wolfshiem, Owl Eyes, Sloane, narrator variants)
+- Pronunciation has too many false positives (587 entries)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Wilson split - FIX DID NOT WORK (65 mentions lost)**
-   - Problem: "Wilson" (65 mentions), "George Wilson" (14), and "Wilson (referenced in actions)" (1) remain as 3 separate entries
-   - Evidence: Sanity check shows all three still separate after fix was supposedly applied
-   - Expected: "Wilson" should be alias of "George Wilson" (per title-based disambiguation fix)
-   - Investigation needed: Check if `_merge_lastname_aliases()` title disambiguation code is being reached
-   - Location: `src/agents/characters_v2.py:1275-1342`
-   - Fix: Debug why the title-based merge isn't triggering. Likely causes:
-     - Code path not being executed
-     - Condition not matching (check "Mrs. Wilson" alias detection)
-     - Merge happening but then undone by later step
-
-2. **Wolfshiem / Meyer Wolfshiem split (25 mentions total)**
+1. **Wolfshiem / Meyer Wolfshiem split (25 mentions total)**
    - Problem: "Wolfshiem" (23) and "Meyer Wolfshiem" (2) remain separate
-   - Evidence: Same character - the gangster associate of Gatsby
-   - Location: V2 alias resolution in `characters_v2.py`
-   - Fix: First-name + last-name should merge with bare last-name
+   - Evidence: Same character - Gatsby's gangster associate who fixed 1919 World Series
+   - Location: V2 alias resolution in `src/agents/characters_v2.py`
+   - Fix: First-name + last-name should merge with bare last-name when names match
 
 ### HIGH
-3. **Narrator variants still split (7 extra mentions)**
-   - Problem: "the narrator" (1) and "Narrator" (6) exist separately from "Nick Carraway" (34)
+2. **Narrator variants still split (7 extra mentions across 4 entries)**
+   - Problem: "Narrator" (4), "Nick (narrator)" (1), "the narrator" (1), "Nick Carraway (narrator)" (1) exist separately from "Nick Carraway" (34)
    - Evidence: All refer to Nick Carraway, the first-person narrator
-   - Location: `_filter_narrator_variants()` in `characters_v2.py`
-   - Fix: Expand filter to catch "the narrator" (lowercase 'the'), "Narrator" (capitalized), and "Nick (narrator)" pattern
+   - Location: `_filter_narrator_variants()` in `src/agents/characters_v2.py`
+   - Fix: Expand filter patterns:
+     - Match "narrator" case-insensitively
+     - Match patterns like "Name (narrator)"
+     - Match "the narrator" with lowercase "the"
 
-4. **Owl Eyes split (3 entries → should be 1)**
-   - Problem: "Owl-eyed man" (1) and "Owl Eyes (the intoxicated man with owl-eyed spectacles)" (1) exist separately
-   - Evidence: Same character - the bespectacled man at Gatsby's party
-   - Location: V2 deduplication
-   - Fix: Improve "owl" keyword matching to merge these variants
+3. **George B. Wilson should merge with George Wilson**
+   - Problem: "George B. Wilson" (1) is separate from "George Wilson" (91)
+   - Evidence: Same person - full name with middle initial vs. common usage
+   - Location: V2 name matching
+   - Fix: "FirstName MiddleInitial. LastName" should match "FirstName LastName"
+
+4. **Owl Eyes split (2 entries → should be 1)**
+   - Problem: "Man with owl-eyed glasses" (1) and "The man with owl-eyed spectacles (Owl Eyes)" (1)
+   - Evidence: Same character - the bespectacled man at Gatsby's party/funeral
+   - Location: V2 deduplication - should detect "owl-eyed" / "owl eyes" as same
+   - Fix: Add fuzzy matching for hyphenated variants (owl-eyed ↔ owl eyes)
 
 5. **Sloane / Mr. Sloane split (11 mentions total)**
    - Problem: "Sloane" (10) and "Mr. Sloane" (1) remain separate
-   - Evidence: Same character - Tom's acquaintance who visits Gatsby
+   - Evidence: Same character - Tom's acquaintance who visits Gatsby in Chapter 6
    - Location: Title-variant merging in V2
-   - Fix: "Mr. LastName" should merge with bare "LastName"
+   - Fix: "Mr. LastName" should merge with bare "LastName" when no other LastName exists
 
 ### MEDIUM
-6. **Excessive pronunciation entries (582)**
+6. **Excessive pronunciation entries (587)**
    - Problem: Too many false positives including common English words
-   - Evidence: Contains "Butler", "Chauffeur", "Doctor", "Gardener", "minister", "drunk", "brown"
+   - Evidence: Contains "yellow", "week", "use", "star", "Postman", "Reporter", "Servants", "City"
    - Location: Pronunciation agent filtering
-   - Fix: Add exclusion list for common occupational titles and basic adjectives
+   - Fix: Add exclusion list for:
+     - Common occupational titles (postman, reporter, butler, gardener, chauffeur)
+     - Common adjectives/nouns (yellow, star, week, city)
+     - Basic service roles (servants)
 
 7. **Chapter titles missing for I and V**
    - Problem: Chapters show as null instead of Roman numerals
-   - Evidence: Structure list shows "None" for chapters 1 and 5
+   - Evidence: Structure list shows "None" for chapters 1 and 5 (should be "I" and "V")
    - Location: Structure agent chapter detection
    - Fix: Improve Roman numeral extraction
 
-### LOW
-8. **Minor character name variants**
-   - Various minor characters have slight name variations not merged
-   - Low impact - doesn't affect main character recognition
+8. **Myrtle Wilson profile has JSON rendering bug**
+   - Problem: Raw JSON appears in profile-body div instead of formatted text
+   - Evidence: Line 2136 in report.html shows unescaped JSON
+   - Location: HTML export template
+   - Fix: Ensure profile body is properly escaped/formatted
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.80 | - | Initial evaluation - multiple character splits |
 | 2 | 7.25 | +0.45 | Improvement but critical issues remain |
-| 3 | 7.25 | +0.45 | ⚠️ Wilson fix did NOT work - regression from 7.50 expected |
+| 3 | 7.25 | +0.45 | Wilson fix did not take effect |
+| 4 | 7.50 | +0.70 | Wilson fix partially worked; other splits remain |
 
 ## Fix History
 
@@ -133,21 +122,30 @@ The title-based disambiguation fix for Wilson did NOT take effect in this analys
 - The analysis output still shows "Wilson" as separate from "George Wilson"
 - Root cause identified: Title-based disambiguation expected "Mrs. Wilson" to be in Myrtle's aliases, but LLM didn't provide it
 
-### Attempt 4 Fixes (Applied)
+### Attempt 4 Fixes (Applied - PARTIAL SUCCESS)
 **Fixed Issues:**
 - **CRITICAL #1: Wilson split** - Two-layer fix:
-  1. **Prompt fix:** Updated `MAIN_CAST_PROMPT` (src/pipeline/character_extraction_v2/main_cast.py lines 50-56) to instruct LLM to include bare surnames as aliases based on actual usage in summaries
-  2. **Code fix:** Updated `_merge_lastname_aliases()` (src/agents/characters_v2.py lines 1334-1350) to merge bare surnames to ALL matching characters when disambiguation fails (instead of skipping)
-  - Root cause: LLM wasn't providing "Wilson" as alias because prompt showed Mr. Smith example with bare surname but Mrs. Smith without
-  - Smoke test: Skipped (too slow) - logic verified by code inspection
+  1. **Prompt fix:** Updated `MAIN_CAST_PROMPT` to instruct LLM to include bare surnames as aliases
+  2. **Code fix:** Updated `_merge_lastname_aliases()` to merge bare surnames to ALL matching characters when disambiguation fails
 
-**Outcome:** Awaiting re-analysis to verify
+**Outcome:** PARTIAL SUCCESS
+- Wilson is now an alias on both George Wilson (91) and Myrtle Wilson (100)
+- BUT George B. Wilson (1) still separate
+- Other splits (Wolfshiem, Owl Eyes, Sloane, narrator) not addressed
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis to verify Wilson fix and address remaining issues:
-- Wolfshiem/Meyer Wolfshiem merge
-- Narrator variant filtering
-- Owl Eyes deduplication
-- Sloane/Mr. Sloane merge
+Focus on fixing Character Extraction issues to reach 8.0 threshold:
+
+**Priority 1: Quick wins that improve Character Extraction score**
+1. Fix narrator variant filtering (HIGH #2) - expand patterns
+2. Fix Wolfshiem/Meyer Wolfshiem merge (CRITICAL #1) - FirstName LastName → LastName
+3. Fix George B. Wilson → George Wilson (HIGH #3) - middle initial handling
+4. Fix Sloane/Mr. Sloane (HIGH #5) - title variant when unique surname
+
+**Priority 2: If time permits**
+5. Fix Owl Eyes variants (HIGH #4)
+6. Add pronunciation exclusions (MEDIUM #6)
+
+Improving Character Extraction from 6/10 to 8/10 would push overall to ~8.0.
