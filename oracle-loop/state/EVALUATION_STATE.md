@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
@@ -140,40 +140,70 @@
 - Root issue is upstream: Egaeus never entered main_cast, so no passages were collected
 - Score unchanged at 6.85/10
 
-## Pipeline Notes
-- Analysis completed successfully in ~27m
-- Multi-model competitive consensus active (3 models)
-- Competitive stages: characters, structure, summaries
-- Agent model: qwen2.5:32b
-- Key warnings:
-  - "No passages provided for Egaeus, returning UNCERTAIN"
-  - "LLM batch enrichment failed: failed to parse JSON"
+## Pipeline Notes - Attempt 2
+- **Status:** FAILED - Pipeline crashed before completing analysis
+- **Duration:** Immediate failure during initialization
+- **Error:** `'CompetitorModelConfig' object has no attribute 'split'`
+- **Competitive config:** multi mode with 3 models across all stages
+- **Command used:**
+  ```bash
+  audiobook-prep analyze "../Test_Texts/Berenice - Poe.txt" \
+    --html ../output/berenice/report.html \
+    --output ../output/berenice/analysis.json \
+    --competitive-model "qwen3:30b-instruct:0.5" \
+    --competitive-model "deepseek-r1:32b:0.7" \
+    --competitive-model "gemma3:27b:0.9" \
+    --competitive-all \
+    --structure-model "qwen2.5:32b" \
+    --character-model "qwen2.5:32b" \
+    --summary-model "qwen2.5:32b" \
+    --pronunciation-model "qwen2.5:32b"
+  ```
+
+**Output before crash:**
+```
+structure agent: qwen2.5:32b
+characters agent: qwen2.5:32b
+summaries agent: qwen2.5:32b
+pronunciation agent: qwen2.5:32b
+Multi-model consensus: ENABLED (3 diverse models)
+  Mode: neutral (model diversity provides natural variation)
+  Stages: characters, structure, summaries
+  - qwen3:30b-instruct @ 0.5
+  - deepseek-r1:32b @ 0.7
+  - gemma3:27b @ 0.9
+Error during analysis: 'CompetitorModelConfig' object has no attribute 'split'
+```
+
+**Analysis:**
+- The competitive models were parsed and displayed correctly in the startup message
+- Error occurred during the actual analysis phase, not during argument parsing
+- Suggests the bug is in code that consumes `CompetitorModelConfig` objects, not in CLI parsing
+- Likely location: Code that processes competitive models for consensus voting
+- Recent commit `f4b04b8` "Fix: Ensure competitive stage flags are actually passed to CLI" may have introduced this regression
 
 ## Next Action
 Phase: awaiting_fix
 
-**Critical Pipeline Error - Attempt 2:**
-Pipeline crashed with: `'CompetitorModelConfig' object has no attribute 'split'`
-- Error occurred when passing `--competitive-model` flags
-- External change detection rule in commit `f4b04b8` may have introduced regression
-- Location: Likely in CLI argument parsing for competitive models
+**Critical Blocker:**
+Pipeline cannot run with multi-model competitive consensus due to `CompetitorModelConfig.split()` AttributeError.
 
-**Pipeline Failure Details:**
-- Command used: `--competitive-model "qwen3:30b-instruct:0.5" --competitive-model "deepseek-r1:32b:0.7" --competitive-model "gemma3:27b:0.9" --competitive-all`
-- Error: `'CompetitorModelConfig' object has no attribute 'split'`
-- This suggests the code is trying to call `.split()` on a `CompetitorModelConfig` object instead of a string
-- Recent commit `f4b04b8`: "Fix: Ensure competitive stage flags are actually passed to CLI"
+**Required Fix:**
+Find code that calls `.split()` on `CompetitorModelConfig` objects and update it to handle the proper object type instead of treating it as a string.
+
+**Testing Strategy:**
+After fix, re-run attempt 2 with same competitive configuration to verify the crash is resolved.
 
 **Priority for next fix attempt:**
-Fix the `CompetitorModelConfig.split()` AttributeError in CLI argument parsing.
+1. **IMMEDIATE BLOCKER:** Fix `CompetitorModelConfig.split()` AttributeError
+   - Prevents pipeline from running with multi-model competitive consensus
+   - Error occurs during analysis phase after models are configured
+   - Need to find code calling `.split()` on CompetitorModelConfig objects
 
-**Secondary Priority (after pipeline runs):**
-Fix CRITICAL #1 - Main cast extraction must detect first-person narrators who rarely name themselves.
-
-Recommended approach:
-1. In `main_cast.py`, add detection for first-person narratives (high "I"/"my"/"me" frequency)
-2. When first-person detected, check summaries for "[character name] is the narrator" patterns
-3. Inject identified narrator into main cast with elevated mention count and narrator flag
-4. Ensure F6-injected characters (like current Egaeus) also get profile enrichment
-
-This will solve issues #1, #2, and #4 together - getting Egaeus properly recognized, flagged as narrator, and enriched with profile data.
+2. **After pipeline runs:** Fix CRITICAL #1 - Main cast extraction must detect first-person narrators
+   - Recommended approach:
+     a. In `main_cast.py`, add detection for first-person narratives (high "I"/"my"/"me" frequency)
+     b. When first-person detected, check summaries for "[character name] is the narrator" patterns
+     c. Inject identified narrator into main cast with elevated mention count and narrator flag
+     d. Ensure F6-injected characters (like current Egaeus) also get profile enrichment
+   - This will solve issues #1, #2, and #4 together
