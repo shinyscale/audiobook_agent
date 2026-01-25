@@ -117,6 +117,7 @@
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | AttributeError in early narrator detection | src/pipeline/character_extraction_v2/narrator.py | Fixed crash, but detection still fails (no input) |
+| 2 | First-person narrator not detected by main cast | src/pipeline/character_extraction_v2/main_cast.py | Awaiting analysis |
 
 ### Fix Details - Attempt 1
 
@@ -136,6 +137,42 @@
 - Root issue is upstream: Egaeus never entered main_cast, so no passages were collected
 - Score unchanged at 6.85/10
 
+### Fix Details - Attempt 2
+
+**Issue:** First-person narrator "Egaeus" not detected by main cast extraction
+
+**Root Cause Analysis:**
+1. Plot summary correctly states: "the narrator, Egaeus" in first-person retrospective style ✓
+2. Main cast extraction FAILED to extract Egaeus despite having explicit prompt rule (lines 94-99) and example (lines 195-206)
+3. F6 reconciliation found "Egaeus" in summaries and created minimal entry with hash ID `d013867632e5`
+4. F6 filters "the narrator" as SIMPLE_EPITHET so Egaeus gets no alias
+5. Egaeus has empty mentions list → Early narrator detection fails: "No passages provided for Egaeus"
+6. Profile enrichment only processes `main_cast_*` IDs, so Egaeus gets no profile
+
+**Root cause confidence:** HIGH - LLM failed to extract narrator from plot summary despite explicit prompting
+
+**Fix Location:** `src/pipeline/character_extraction_v2/main_cast.py`
+
+**Changes:**
+1. **Pattern detection enhancement** (lines 1063-1093 in `_detect_patterns()`):
+   - Added narrator pattern detection using regex for "the narrator, [Name]", "narrated by [Name]", etc.
+   - Checks for first-person indicators in plot summary
+   - Creates `narrator_names` hint that gets injected into LLM prompt as CRITICAL PATTERN
+
+2. **Safety net injection** (new method `_ensure_narrator_present()` at line 1292):
+   - Post-extraction check: if narrator was detected but NOT in LLM output, inject them
+   - Creates MainCastProfile with role="protagonist", alias="the narrator"
+   - Also upgrades existing characters to protagonist if detected as narrator
+
+**Expected Impact:**
+- Egaeus will be extracted as `main_cast_*` ID (not F6 hash)
+- Will receive profile enrichment
+- Will have passages for narrator detection
+- Should be marked as is_narrator=true
+- Solves CRITICAL issues #1 and #2
+
+**Smoke Test:** Code compiles successfully, dual-layer approach (LLM hint + safety net)
+
 ## Pipeline Notes
 - Analysis completed successfully in ~27m
 - Multi-model competitive consensus active (3 models)
@@ -146,15 +183,6 @@
   - "LLM batch enrichment failed: failed to parse JSON"
 
 ## Next Action
-Phase: awaiting_fix
+Phase: awaiting_analysis
 
-**Priority for next fix attempt:**
-Fix CRITICAL #1 - Main cast extraction must detect first-person narrators who rarely name themselves.
-
-Recommended approach:
-1. In `main_cast.py`, add detection for first-person narratives (high "I"/"my"/"me" frequency)
-2. When first-person detected, check summaries for "[character name] is the narrator" patterns
-3. Inject identified narrator into main cast with elevated mention count and narrator flag
-4. Ensure F6-injected characters (like current Egaeus) also get profile enrichment
-
-This will solve issues #1, #2, and #4 together - getting Egaeus properly recognized, flagged as narrator, and enriched with profile data.
+Re-run analysis with fix to verify Egaeus is now properly detected as narrator with full profile.
