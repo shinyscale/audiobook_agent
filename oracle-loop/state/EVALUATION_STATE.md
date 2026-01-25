@@ -152,7 +152,22 @@
 ## Next Action
 Phase: awaiting_fix
 
+**Critical Pipeline Error - Attempt 2:**
+Pipeline crashed with: `'CompetitorModelConfig' object has no attribute 'split'`
+- Error occurred when passing `--competitive-model` flags
+- External change detection rule in commit `f4b04b8` may have introduced regression
+- Location: Likely in CLI argument parsing for competitive models
+
+**Pipeline Failure Details:**
+- Command used: `--competitive-model "qwen3:30b-instruct:0.5" --competitive-model "deepseek-r1:32b:0.7" --competitive-model "gemma3:27b:0.9" --competitive-all`
+- Error: `'CompetitorModelConfig' object has no attribute 'split'`
+- This suggests the code is trying to call `.split()` on a `CompetitorModelConfig` object instead of a string
+- Recent commit `f4b04b8`: "Fix: Ensure competitive stage flags are actually passed to CLI"
+
 **Priority for next fix attempt:**
+Fix the `CompetitorModelConfig.split()` AttributeError in CLI argument parsing.
+
+**Secondary Priority (after pipeline runs):**
 Fix CRITICAL #1 - Main cast extraction must detect first-person narrators who rarely name themselves.
 
 Recommended approach:
