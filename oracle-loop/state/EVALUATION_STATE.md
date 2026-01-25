@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.25
 - **Competitive Mode:** multi
 
@@ -76,16 +76,33 @@ Key observations:
 - All 4 "characters" came from main_cast pipeline (3) and F6 reconciliation (1)
 
 ## Fix History
-(None yet - first attempt)
+
+### Attempt 2 Fixes
+
+1. **Character fragmentation (Critical #1)** - Fixed article normalization in F6 reconciliation
+   - Root cause: `analyzer.py:1236-1266` - `_normalize_name_for_matching()` stripped titles but not articles ("the ", "a ", "an ")
+   - Smoke test: PASS - "masked figure" and "the masked figure" now normalize to the same string
+   - Modified: `src/analyzer.py`
+
+2. **Character merge logic (Critical #2)** - Added alias-based deduplication
+   - Root cause: `main_cast.py:1041-1162` - `merge_descriptive_entities()` only used semantic clusters, missed alias-based matches
+   - Fix: If Profile A has alias "X" and Profile B has canonical "X" or "the X", they now merge
+   - Smoke test: PASS - "masked figure" (alias: "Red Death") now merges with "the Red Death"
+   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+3. **Pronunciation false positives (High #3)** - Skip word-splitting for descriptive character handles
+   - Root cause: `character_proposer.py:54-102` - split all character names into words, flagging common words
+   - Fix: Detect descriptive handles (names starting with articles or all-lowercase) and skip word-splitting
+   - Smoke test: PASS - "the Red Death" and "masked figure" no longer flag individual words
+   - Modified: `src/pipeline/pronunciation_guide/proposers/character_proposer.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| - | - | - | - |
+| 2 | Critical #1: Article normalization | analyzer.py | Smoke test PASS |
+| 2 | Critical #2: Alias-based merge | main_cast.py | Smoke test PASS |
+| 2 | High #3: Descriptive handle filtering | character_proposer.py | Smoke test PASS |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Character fragmentation (Critical #1) - normalize articles in deduplication
-2. Character merge logic (Critical #2) - handle identity reveals
-3. Pronunciation false positives (High #3) - add common word filtering
+Re-run analysis to verify fixes (Phase: awaiting_analysis)

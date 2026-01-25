@@ -1234,8 +1234,15 @@ class AudiobookAnalyzer:
                             summary_character_names.add(normalized_name)
 
                 def _normalize_name_for_matching(name: str) -> str:
-                    """Normalize name for existence checking - strip common titles and initials."""
+                    """Normalize name for existence checking - strip articles, titles, and initials."""
                     normalized = name.strip().lower()
+
+                    # Strip leading articles (the, a, an)
+                    # This prevents false duplicates like "masked figure" vs "the masked figure"
+                    for article in ["the ", "a ", "an "]:
+                        if normalized.startswith(article):
+                            normalized = normalized[len(article):].strip()
+                            break  # Only strip one article
 
                     # Strip common titles/honorifics
                     TITLES = [

@@ -1091,6 +1091,75 @@ class MainCastExtractor:
         merge_groups: list[list[MainCastProfile]] = []
         processed = set()
 
+        # FIRST: Alias-based merging
+        # If Profile A has alias "X" and Profile B has canonical "X" or "the X", merge them
+        # This handles identity reveals like "masked figure" (alias: "Red Death") + "the Red Death"
+        def normalize_for_alias_match(name: str) -> str:
+            """Strip articles for alias matching."""
+            normalized = name.lower().strip()
+            for article in ["the ", "a ", "an "]:
+                if normalized.startswith(article):
+                    return normalized[len(article):].strip()
+            return normalized
+
+        alias_merge_pairs: list[tuple[MainCastProfile, MainCastProfile]] = []
+        for i, profile_a in enumerate(profiles):
+            for profile_b in profiles[i + 1:]:
+                # Normalize names for comparison
+                canonical_a_norm = normalize_for_alias_match(profile_a.canonical_name)
+                canonical_b_norm = normalize_for_alias_match(profile_b.canonical_name)
+
+                # Check if A's canonical matches any of B's aliases (or vice versa)
+                aliases_b_norm = [normalize_for_alias_match(a) for a in profile_b.aliases]
+                aliases_a_norm = [normalize_for_alias_match(a) for a in profile_a.aliases]
+
+                should_merge = False
+                if canonical_a_norm in aliases_b_norm:
+                    # A's canonical name appears in B's aliases
+                    should_merge = True
+                    logger.info(
+                        f"ALIAS MERGE: '{profile_a.canonical_name}' matches alias in '{profile_b.canonical_name}' "
+                        f"(aliases: {profile_b.aliases})"
+                    )
+                elif canonical_b_norm in aliases_a_norm:
+                    # B's canonical name appears in A's aliases
+                    should_merge = True
+                    logger.info(
+                        f"ALIAS MERGE: '{profile_b.canonical_name}' matches alias in '{profile_a.canonical_name}' "
+                        f"(aliases: {profile_a.aliases})"
+                    )
+
+                if should_merge:
+                    alias_merge_pairs.append((profile_a, profile_b))
+                    processed.add(profile_a.canonical_name)
+                    processed.add(profile_b.canonical_name)
+
+        # Group alias merge pairs into merge groups
+        if alias_merge_pairs:
+            # Build groups from pairs (handle transitive merges)
+            alias_groups: list[set[str]] = []
+            for profile_a, profile_b in alias_merge_pairs:
+                # Find existing group containing either profile
+                found_group = None
+                for group in alias_groups:
+                    if profile_a.canonical_name in group or profile_b.canonical_name in group:
+                        found_group = group
+                        break
+
+                if found_group:
+                    found_group.add(profile_a.canonical_name)
+                    found_group.add(profile_b.canonical_name)
+                else:
+                    alias_groups.append({profile_a.canonical_name, profile_b.canonical_name})
+
+            # Convert name sets to profile lists
+            profile_by_name = {p.canonical_name: p for p in profiles}
+            for name_group in alias_groups:
+                profile_group = [profile_by_name[name] for name in name_group if name in profile_by_name]
+                if len(profile_group) >= 2:
+                    merge_groups.append(profile_group)
+
+        # SECOND: Semantic cluster merging (original logic)
         for cluster in semantic_clusters:
             group = []
             for profile in the_profiles:

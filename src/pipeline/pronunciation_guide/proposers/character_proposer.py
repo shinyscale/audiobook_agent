@@ -50,7 +50,39 @@ class CharacterProposer(BasePronunciationProposer):
         proposals = []
         seen_words = set()
 
+        def is_descriptive_handle(name: str) -> bool:
+            """
+            Check if this is a descriptive character handle (not a proper name).
+
+            Descriptive handles use common English words and should not have
+            individual words flagged for pronunciation.
+
+            Examples: "the Red Death", "masked figure", "the creature"
+            """
+            name_lower = name.lower().strip()
+
+            # Starts with article (the, a, an)
+            if name_lower.startswith(("the ", "a ", "an ")):
+                return True
+
+            # Common descriptive patterns (all lowercase, no proper nouns)
+            # Check if all words are lowercase common words
+            words = name.split()
+            if len(words) >= 2 and all(w[0].islower() or w.lower() in self.whitelist for w in words):
+                return True
+
+            return False
+
         for name in character_names:
+            # For descriptive handles, don't split into individual words
+            # (prevents flagging common words like "death", "figure", "masked")
+            if is_descriptive_handle(name):
+                logger.debug(
+                    f"Skipping word-split for descriptive handle: '{name}' "
+                    "(would flag common words unnecessarily)"
+                )
+                continue
+
             # Split multi-word names and process each word
             words = name.split()
 
