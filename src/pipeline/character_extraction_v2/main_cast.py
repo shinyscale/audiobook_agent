@@ -523,11 +523,6 @@ class MainCastExtractor:
         # when they refer to the same unnamed character. Merge these programmatically.
         profiles = self.merge_descriptive_entities(profiles)
 
-        # POST-PROCESSING: Ensure detected narrators are present
-        # If pattern detection found a named first-person narrator, ensure they're in the main cast
-        if pattern_hints and pattern_hints.get("narrator_names"):
-            profiles = self._ensure_narrator_present(profiles, pattern_hints["narrator_names"])
-
         # Optional: Additional competitive LLM verification when enabled
         # Uses multiple LLMs to vote on each alias for extra confidence
         if self._use_competitive_consensus():
@@ -1060,38 +1055,6 @@ class MainCastExtractor:
                     "are DIFFERENT characters. Same person with/without title are aliases."
                 )
 
-        # Pattern 4: Detect named first-person narrator
-        # Look for patterns like "the narrator, [Name]" or "narrated by [Name]"
-        narrator_patterns = [
-            r'\bthe narrator,\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',  # "the narrator, Egaeus"
-            r'\bnarrated by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',  # "narrated by Victor"
-            r'\bnarrator\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b',  # "narrator Egaeus"
-            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s+(?:who |the )?narrates?\b',  # "Egaeus, who narrates"
-            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:recounts|reflects|tells)\b',  # "Egaeus recounts"
-        ]
-
-        narrator_names = []
-        for pattern in narrator_patterns:
-            matches = re.findall(pattern, full_text)
-            if matches:
-                narrator_names.extend(matches)
-
-        # Also check narrative_style in plot summary for first-person
-        first_person_indicators = [
-            'first-person', 'first person', 'first-person retrospective',
-            'personal narrative', 'autobiographical'
-        ]
-        is_first_person = any(indicator in full_text.lower() for indicator in first_person_indicators)
-
-        if narrator_names and is_first_person:
-            unique_narrators = sorted(list(set(narrator_names)))
-            hints["narrator_names"] = unique_narrators
-            hints["pattern_guidance"].append(
-                f"🎭 CRITICAL PATTERN: First-person narrator(s) identified: {', '.join(unique_narrators)}. "
-                f"These character(s) MUST be extracted as main cast with role='protagonist' "
-                f"even if their name appears only once. They speak every line of narration!"
-            )
-
         # Clean up empty entries
         hints = {k: v for k, v in hints.items() if v}
 
@@ -1288,83 +1251,6 @@ class MainCastExtractor:
                 final_profiles.append(profile)
 
         return final_profiles
-
-    def _ensure_narrator_present(
-        self,
-        profiles: list[MainCastProfile],
-        narrator_names: list[str],
-    ) -> list[MainCastProfile]:
-        """
-        Ensure that detected narrators are present in the main cast.
-
-        If pattern detection found a named first-person narrator (e.g., "the narrator, Egaeus"),
-        but the LLM failed to extract them, inject them into the main cast.
-
-        This is a safety net for cases where:
-        - The narrator's name appears only once in the plot summary
-        - The LLM missed the extraction despite explicit prompting
-        - The narrator would otherwise be added by F6 with minimal data
-
-        Args:
-            profiles: List of MainCastProfile objects from LLM extraction
-            narrator_names: List of narrator names detected in pattern analysis
-
-        Returns:
-            Updated profiles with narrator injected if missing
-        """
-        # Check which narrators are already in the profiles
-        existing_names = set()
-        for profile in profiles:
-            existing_names.add(profile.canonical_name.lower())
-            for alias in profile.aliases:
-                existing_names.add(alias.lower())
-
-        # Inject missing narrators
-        added_count = 0
-        for narrator_name in narrator_names:
-            if narrator_name.lower() not in existing_names:
-                logger.warning(
-                    f"NARRATOR INJECTION: '{narrator_name}' was identified as first-person narrator "
-                    f"but not extracted by LLM. Injecting as main cast protagonist."
-                )
-
-                # Create narrator profile
-                narrator_profile = MainCastProfile(
-                    canonical_name=narrator_name,
-                    aliases=["the narrator"],
-                    role="protagonist",
-                    description=f"The first-person narrator of the story",
-                    is_unnamed=False,
-                )
-
-                profiles.append(narrator_profile)
-                added_count += 1
-            else:
-                # Narrator exists - ensure they have role="protagonist" and "the narrator" alias
-                for profile in profiles:
-                    if (
-                        profile.canonical_name.lower() == narrator_name.lower()
-                        or narrator_name.lower() in [a.lower() for a in profile.aliases]
-                    ):
-                        # Upgrade to protagonist if not already
-                        if profile.role != "protagonist":
-                            logger.info(
-                                f"Upgrading '{profile.canonical_name}' from {profile.role} to protagonist (detected as narrator)"
-                            )
-                            profile.role = "protagonist"
-
-                        # Add "the narrator" alias if missing
-                        if "the narrator" not in [a.lower() for a in profile.aliases]:
-                            logger.info(
-                                f"Adding 'the narrator' alias to '{profile.canonical_name}'"
-                            )
-                            profile.aliases.append("the narrator")
-                        break
-
-        if added_count > 0:
-            logger.info(f"Injected {added_count} narrator(s) into main cast: {narrator_names}")
-
-        return profiles
 
     def competitive_verify_aliases(
         self,
