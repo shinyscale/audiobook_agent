@@ -1,5 +1,11 @@
 {
   "quality_threshold": 8.0,
+  "competitive_mode": "none",
+  "competitive_models": [
+    "qwen3:30b-instruct:0.5:strict",
+    "deepseek-r1:32b:0.7:contextual",
+    "gemma3:27b:0.9:inclusive"
+  ],
   "texts": [
     {
       "name": "cask_of_amontillado",

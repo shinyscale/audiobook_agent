@@ -27,6 +27,7 @@ You are running the audiobook analysis pipeline on a test text as part of an aut
 - **Attempt:** 1
 - **Phase:** awaiting_analysis
 - **baseline_score:** null
+- **Competitive Mode:** {competitive_mode}
 
 ## Latest Scores
 (Awaiting first analysis)
@@ -61,22 +62,48 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    - `agent_models.summaries` → `--summary-model`
    - `agent_models.pronunciation` → `--pronunciation-model`
 
-4. Run the full analysis pipeline with explicit model flags:
+4. Check competitive consensus mode from `state/manifest.json`:
+   - `competitive_mode: "none"` → No competitive flags (baseline behavior)
+   - `competitive_mode: "single"` → Add `--competitive-consensus` (same model, 3 temperatures)
+   - `competitive_mode: "multi"` → Add `--competitive-model` for each entry in `competitive_models` array
+
+   **Format for multi mode:** Each entry in `competitive_models` is `"model:temp:strategy"`:
+   - `qwen3:30b-instruct:0.5:strict` → `--competitive-model "qwen3:30b-instruct:0.5:strict"`
+   - `deepseek-r1:32b:0.7:contextual` → `--competitive-model "deepseek-r1:32b:0.7:contextual"`
+   - etc.
+
+5. Run the full analysis pipeline with explicit model flags:
    ```bash
    # Replace {text_file}, {book_name}, and model values from manifest and gui_settings.json
    # Note: {text_file} should be prefixed with ../ since we run from oracle-loop/
-   # Use --competitive-consensus for multi-LLM voting on merge decisions
+   # Add competitive flags based on competitive_mode setting
    audiobook-prep analyze ../{text_file} \
      --html ../output/{book_name}/report.html \
      --output ../output/{book_name}/analysis.json \
-     --competitive-consensus \
+     {competitive_flags} \
      --structure-model {structure_model} \
      --character-model {character_model} \
      --summary-model {summary_model} \
      --pronunciation-model {pronunciation_model}
    ```
 
-   Example using models from gui_settings.json:
+   Where `{competitive_flags}` is determined by `competitive_mode`:
+   - **"none"**: (empty - no flags)
+   - **"single"**: `--competitive-consensus`
+   - **"multi"**: Multiple `--competitive-model` flags, one per entry in `competitive_models`
+
+   **Example with mode "none" (baseline):**
+   ```bash
+   audiobook-prep analyze ../Test_Texts/gatsby.txt \
+     --html ../output/gatsby/report.html \
+     --output ../output/gatsby/analysis.json \
+     --structure-model "qwen3:30b-instruct" \
+     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --pronunciation-model "qwen3:30b-instruct"
+   ```
+
+   **Example with mode "single":**
    ```bash
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
@@ -88,19 +115,37 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
      --pronunciation-model "qwen3:30b-instruct"
    ```
 
+   **Example with mode "multi":**
+   ```bash
+   audiobook-prep analyze ../Test_Texts/gatsby.txt \
+     --html ../output/gatsby/report.html \
+     --output ../output/gatsby/analysis.json \
+     --competitive-model "qwen3:30b-instruct:0.5:strict" \
+     --competitive-model "deepseek-r1:32b:0.7:contextual" \
+     --competitive-model "gemma3:27b:0.9:inclusive" \
+     --structure-model "qwen3:30b-instruct" \
+     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --pronunciation-model "qwen3:30b-instruct"
+   ```
+
    **Note on Character Extraction:**
    - Uses summary-driven approach for character extraction
    - Summaries run automatically before character extraction
    - See `oracle-loop/docs/CODEBASE_SUMMARY.md` for architecture details
 
-   **Note on Competitive Consensus:**
-   - `--competitive-consensus` runs 3 LLMs with different temperatures (0.5, 0.7, 0.9) and prompts
+   **Note on Competitive Consensus Modes:**
+   - **"none"**: No competitive consensus (baseline behavior, single model decides)
+   - **"single"**: `--competitive-consensus` runs the same model 3x at different temperatures (0.5, 0.7, 0.9)
+   - **"multi"**: `--competitive-model` runs diverse models (qwen3, deepseek-r1, gemma3) for true model diversity
+
+   For both "single" and "multi" modes:
    - Each merge/alias decision requires 2/3 (supermajority) agreement
    - This prevents single-LLM hallucinations from causing false merges
    - Particularly effective for preventing errors like "Mr. McKee" aliased to "Mr. Sloane"
 
-5. Wait for completion (this may take 10-60 minutes depending on text length and model)
-6. Verify output exists:
+6. Wait for completion (this may take 10-60 minutes depending on text length and model)
+7. Verify output exists:
    - `../output/{book_name}/report.html`
    - `../output/{book_name}/analysis.json`
 
@@ -118,6 +163,7 @@ Example update:
 - **Name:** gatsby
 - **Attempt:** 1
 - **Phase:** awaiting_evaluation
+- **Competitive Mode:** multi
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
