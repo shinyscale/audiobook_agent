@@ -720,6 +720,24 @@ class AudiobookAnalyzer:
         # Start metrics collection
         self._metrics.start_analysis()
 
+        # Reset consensus collector for this analysis
+        from .pipeline.consensus_collector import consensus_collector
+        consensus_collector.reset()
+        if self.orchestrator_config and self.orchestrator_config.competitive:
+            cc = self.orchestrator_config.competitive
+            consensus_collector.configure(
+                enabled=cc.enabled,
+                mode="multi" if cc.competitor_models else ("single" if cc.enabled else "none"),
+                models=[m.split(":")[0] for m in (cc.competitor_models or [])],
+                stages=[
+                    s for s, enabled in [
+                        ("characters", cc.competitive_consensus),
+                        ("structure", cc.competitive_structure),
+                        ("summaries", cc.competitive_summaries),
+                    ] if enabled
+                ],
+            )
+
         # Clear debug logs for this run (avoid cumulative logs across runs)
         log_dir = Path.home() / ".audiobook-prep"
         llm_log = log_dir / "llm.log"
@@ -1960,6 +1978,12 @@ class AudiobookAnalyzer:
         # Convert glossary if present
         glossary_map = self._convert_glossary(doc)
 
+        # Build consensus log from collected votes
+        from .pipeline.consensus_collector import consensus_collector
+        from .models import ConsensusLog
+        consensus_log_data = consensus_collector.build_log()
+        consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -1968,6 +1992,7 @@ class AudiobookAnalyzer:
             glossary=glossary_map,
             overview=overview,
             raw_text=doc.text,
+            consensus_log=consensus_log,
             warnings=warnings,
             low_confidence_items=low_confidence,
         )

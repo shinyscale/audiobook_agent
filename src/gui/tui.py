@@ -104,6 +104,81 @@ class PronunciationTable(DataTable):
             )
 
 
+class ConsensusTable(DataTable):
+    """Table of consensus voting decisions."""
+
+    def __init__(self, result: AnalysisResult):
+        super().__init__()
+        self.result = result
+        self.cursor_type = "row"
+        self._votes = []  # Store vote records for detail view
+        self._populate()
+
+    def _populate(self):
+        self.add_columns("Type", "Subject", "Votes", "Outcome")
+
+        if not self.result.consensus_log:
+            self.add_row("—", "No consensus voting recorded", "—", "—", key="none")
+            return
+
+        log = self.result.consensus_log
+        idx = 0
+
+        # Add alias votes
+        for vote in log.alias_votes:
+            vote_str = f"{vote.get('yes_count', 0)}/{vote.get('vote_count', 0)}"
+            outcome = vote.get("outcome", "unknown")
+            outcome_icon = "✓" if outcome == "accepted" else "✗"
+            self._votes.append(vote)
+            self.add_row(
+                "Alias",
+                f"{vote.get('subject', '')} → {vote.get('context', '')}",
+                vote_str,
+                f"{outcome_icon} {outcome}",
+                key=f"alias_{idx}",
+            )
+            idx += 1
+
+        # Add boundary votes
+        for vote in log.boundary_votes:
+            vote_str = f"{vote.get('yes_count', 0)}/{vote.get('vote_count', 0)}"
+            outcome = vote.get("outcome", "unknown")
+            outcome_icon = "✓" if outcome == "accepted" else "✗"
+            self._votes.append(vote)
+            self.add_row(
+                "Boundary",
+                vote.get("subject", "")[:40],
+                vote_str,
+                f"{outcome_icon} {outcome}",
+                key=f"boundary_{idx}",
+            )
+            idx += 1
+
+        # Add summary votes
+        for vote in log.summary_votes:
+            self._votes.append(vote)
+            self.add_row(
+                "Summary",
+                vote.get("subject", "")[:40],
+                f"{vote.get('vote_count', 0)} models",
+                "✓ merged",
+                key=f"summary_{idx}",
+            )
+            idx += 1
+
+    def get_vote_by_key(self, key: str) -> dict | None:
+        """Get vote record by row key."""
+        try:
+            parts = key.split("_")
+            if len(parts) >= 2:
+                idx = int(parts[-1])
+                if 0 <= idx < len(self._votes):
+                    return self._votes[idx]
+        except (ValueError, IndexError):
+            pass
+        return None
+
+
 class DetailPanel(Static):
     """Panel showing details of selected item."""
 
@@ -180,12 +255,59 @@ class DetailPanel(Static):
 """
         self.update(Markdown(content))
 
+    def show_consensus(self, vote: dict):
+        """Display consensus vote details."""
+        vote_type = vote.get("vote_type", "unknown")
+        subject = vote.get("subject", "Unknown")
+        context = vote.get("context", "")
+        votes = vote.get("votes", [])
+        threshold = vote.get("threshold", 0.67)
+        outcome = vote.get("outcome", "unknown")
+        reason = vote.get("reason", "")
+
+        yes_count = vote.get("yes_count", sum(votes) if votes else 0)
+        vote_count = vote.get("vote_count", len(votes) if votes else 0)
+        vote_ratio = yes_count / vote_count if vote_count > 0 else 0
+
+        outcome_emoji = "✅" if outcome == "accepted" else "❌" if outcome == "rejected" else "🔄"
+
+        votes_str = ", ".join(["Yes" if v else "No" for v in votes]) if votes else "N/A"
+
+        content = f"""## {outcome_emoji} {vote_type.title()} Vote
+
+**Subject:** {subject}
+{"**Context:** " + context if context else ""}
+
+### Voting Results
+- **Votes:** {yes_count}/{vote_count} ({vote_ratio:.0%})
+- **Threshold:** {threshold:.0%}
+- **Outcome:** {outcome.upper()}
+
+### Individual Votes
+{votes_str}
+
+{f"**Reason:** {reason}" if reason else ""}
+"""
+        self.update(Markdown(content))
+
     def show_welcome(self, result: AnalysisResult):
         """Display welcome/overview."""
         hours = int(result.metadata.estimated_total_duration_minutes // 60)
         mins = int(result.metadata.estimated_total_duration_minutes % 60)
 
         chapter_count = sum(1 for e in result.structure if e.type == StructureType.CHAPTER)
+
+        # Consensus info
+        consensus_info = ""
+        if result.consensus_log and result.consensus_log.enabled:
+            log = result.consensus_log
+            consensus_info = f"""
+### Consensus Voting
+- **Mode:** {log.mode}
+- **Models:** {', '.join(log.models) if log.models else 'N/A'}
+- **Stages:** {', '.join(log.stages) if log.stages else 'N/A'}
+- **Total Votes:** {log.total_votes} ({log.accepted_count} accepted, {log.rejected_count} rejected)
+"""
 
         content = f"""## {result.metadata.title or "Untitled"}
 {"_by " + result.metadata.author + "_" if result.metadata.author else ""}
@@ -196,11 +318,12 @@ class DetailPanel(Static):
 - **Chapters:** {chapter_count}
 - **Characters:** {len(result.characters)}
 - **Pronunciation Flags:** {len(result.pronunciations)}
-
+{consensus_info}
 ### Navigation
 - Use the **Structure** tab to browse chapters
 - Use the **Characters** tab to see character details
 - Use the **Pronunciation** tab to review flagged words
+- Use the **Consensus** tab to review voting decisions
 
 Select an item from any tab to see details here.
 """
@@ -270,6 +393,8 @@ class AudiobookPrepApp(App):
                         yield CharacterTable(self.result)
                     with TabPane("Pronunciation", id="tab-pron"):
                         yield PronunciationTable(self.result)
+                    with TabPane("Consensus", id="tab-consensus"):
+                        yield ConsensusTable(self.result)
 
             with ScrollableContainer(id="main"):
                 yield DetailPanel()
@@ -305,6 +430,12 @@ class AudiobookPrepApp(App):
                 if pron.word == word:
                     self.query_one(DetailPanel).show_pronunciation(pron)
                     break
+
+        elif isinstance(table, ConsensusTable):
+            # Get vote record by key
+            vote = table.get_vote_by_key(event.row_key.value)
+            if vote:
+                self.query_one(DetailPanel).show_consensus(vote)
 
     def action_toggle_sidebar(self):
         """Toggle sidebar visibility."""

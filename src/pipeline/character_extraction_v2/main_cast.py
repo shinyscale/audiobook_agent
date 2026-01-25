@@ -85,19 +85,26 @@ IMPORTANT RULES:
     - These are the SAME person - use their current/primary name as canonical
     - List the former name as an alias
     - Look for phrases like "was born as", "formerly known as", "real name", "originally named", etc.
-14. **FIRST-PERSON NARRATORS**: If the summaries refer to "the narrator" or "unnamed narrator" but DO NOT provide their name:
+14. **UNNAMED FIRST-PERSON NARRATORS**: If the summaries refer to "the narrator" or "unnamed narrator" but DO NOT provide their name:
     - **YOU MUST STILL CREATE A CHARACTER ENTRY** for the narrator
     - Use "the narrator" as the canonical name
     - Include ALL descriptive terms used for the narrator as aliases (e.g., "the protagonist", "our narrator")
     - Set role="protagonist" if they are the main character
     - IMPORTANT: The narrator IS a character who appears throughout the story - include them even if their proper name is not in the summaries
     - The downstream grounding step will find their actual name mentions in the text if they exist
+15. **NAMED FIRST-PERSON NARRATORS**: If the summaries identify a narrator BY NAME (e.g., "the narrator, Egaeus" or "narrated by Victor"):
+    - **CRITICAL**: Extract that character as a main cast entry with role="protagonist"
+    - Include "the narrator" as an alias
+    - Even if their proper name only appears ONCE in the summaries, first-person narrators are the MOST IMPORTANT character
+    - They speak every line of narration - their importance cannot be measured by name mentions alone
+    - Look for patterns like: "the narrator, [Name]", "[Name] recounts", "[Name] reflects", "narrated by [Name]"
 
 **REMINDER BEFORE YOU BEGIN:**
 - Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 5)
 - Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 6)
 - **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 9)
 - Re-read the "Unnamed character (descriptive handle)" example below - this pattern is COMMON in literature
+- **CRITICAL: Named first-person narrators MUST be extracted as protagonist** even if their name appears only once (Rules 14-15)
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -185,6 +192,18 @@ Character with family relationship descriptors (SAME person - one entry):
 }}
 ```
 
+Named first-person narrator (CRITICAL - always extract even with single name mention):
+```json
+{{
+  "canonical_name": "Egaeus",
+  "aliases": ["the narrator"],
+  "role": "protagonist",
+  "description": "The first-person narrator who tells the story of his obsession with Berenice",
+  "is_unnamed": false
+}}
+```
+Note: Even though "Egaeus" appears only once in the summaries ("the narrator, Egaeus"), he is the MOST IMPORTANT character because every word of narration is spoken in his voice.
+
 Extract the main cast now:"""
 
 
@@ -271,6 +290,9 @@ class MainCastExtractor:
         self.llm = llm_client
         self.competitive_config = competitive_config
         self._competitor_clients: list[tuple[LLMClient, str]] = []
+
+        # Collect vote records for consensus logging
+        self.vote_records: list[dict] = []
 
         # Initialize competitive LLM clients if enabled
         if (
@@ -1293,6 +1315,18 @@ class MainCastExtractor:
                     else 0.67
                 )
                 vote_ratio = sum(votes) / len(votes) if votes else 0
+                outcome = "accepted" if vote_ratio >= threshold else "rejected"
+
+                # Record vote for consensus log
+                from ..consensus_collector import consensus_collector
+                consensus_collector.record_vote(
+                    vote_type="alias",
+                    subject=alias,
+                    context=profile.canonical_name,
+                    votes=votes,
+                    threshold=threshold,
+                    outcome=outcome,
+                )
 
                 if vote_ratio >= threshold:
                     verified_aliases.append(alias)

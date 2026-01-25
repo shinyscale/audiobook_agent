@@ -254,6 +254,9 @@ class ChapterSummarizer:
         self.summary_length = summary_length
         self.competitive_config = competitive_config
 
+        # Collect vote records for consensus logging
+        self.vote_records: list[dict] = []
+
         # Initialize competitor clients if competitive summaries is enabled
         self._competitor_clients: list[LLMClient] = []
         if self._use_competitive_summaries():
@@ -525,6 +528,18 @@ class ChapterSummarizer:
         logger.info(
             f"Competitive summary merged: {len(consensus_events)} events, "
             f"{len(consensus_active)} active chars, {len(consensus_mentioned)} mentioned chars"
+        )
+
+        # Record vote statistics for consensus log
+        from ..consensus_collector import consensus_collector
+        consensus_collector.record_vote(
+            vote_type="summary_merge",
+            subject=f"Chapter {chapter_index}: {title}",
+            context=f"{num_models} models",
+            votes=[],  # Summary merges use counts not individual votes
+            threshold=threshold,
+            outcome="merged",
+            reason=f"{len(consensus_events)} events, {len(consensus_active)} active chars agreed on by {min_votes}+ models",
         )
 
         return ChapterSummary(

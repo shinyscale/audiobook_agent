@@ -148,6 +148,9 @@ class ConsensusBuilder:
         self.min_chapter_words = min_chapter_words
         self.competitive_config = competitive_config
 
+        # Collect vote records for consensus logging
+        self.vote_records: list[dict] = []
+
         # Initialize competitor clients if competitive structure is enabled
         self._competitor_clients: list[LLMClient] = []
         if self._use_competitive_structure():
@@ -244,6 +247,18 @@ class ConsensusBuilder:
             votes = self._vote_on_boundary(cluster.best_title, pos, text_before, text_at)
 
             vote_ratio = sum(votes) / len(votes) if votes else 0
+            outcome = "accepted" if vote_ratio >= threshold else "rejected"
+
+            # Record vote for consensus log
+            from ..consensus_collector import consensus_collector
+            consensus_collector.record_vote(
+                vote_type="boundary",
+                subject=f"Position {pos}: {cluster.best_title or '(no title)'}",
+                context=f"text_at: {text_at[:50]}...",
+                votes=votes,
+                threshold=threshold,
+                outcome=outcome,
+            )
 
             if vote_ratio >= threshold:
                 validated_clusters.append(cluster)

@@ -135,6 +135,10 @@ class NarratorDetector:
             logger.warning(f"Narrator detection failed: {response.error}")
             return self._fallback_detection(chapter_summaries)
 
+        logger.info(
+            f"Narrator detection LLM result: pov={result.get('pov')}, "
+            f"narrator_name={result.get('narrator_name')}, is_nested={result.get('is_nested')}"
+        )
         return self._parse_result(result, main_cast)
 
     def _get_description(self, char) -> str:
@@ -169,6 +173,13 @@ class NarratorDetector:
         narrator_id = None
         if narrator_name:
             narrator_id = self._match_to_character(narrator_name, main_cast)
+            if narrator_id:
+                logger.info(f"Narrator '{narrator_name}' matched to character ID: {narrator_id}")
+            else:
+                logger.warning(
+                    f"Narrator '{narrator_name}' identified but NOT found in main_cast. "
+                    f"Available characters: {[c.canonical_name for c in main_cast]}"
+                )
 
         # Match nested narrators to characters
         nested_ids = []

@@ -335,6 +335,10 @@ def setup_pipeline_logging(level: str = "INFO", to_file: bool = True) -> None:
         "src.pipeline.chapter_detection.consensus",
         "src.pipeline.character_extraction.consensus",
         "src.ingestion.pdf_spacing",
+        # Competitive consensus loggers
+        "src.pipeline.character_extraction_v2.main_cast",
+        "src.pipeline.character_extraction_v2.narrator",
+        "src.pipeline.chapter_summary.summarizer",
     ]
 
     for logger_name in pipeline_loggers:
@@ -357,6 +361,10 @@ def disable_pipeline_logging() -> None:
         "src.pipeline.chapter_detection.consensus",
         "src.pipeline.character_extraction.consensus",
         "src.ingestion.pdf_spacing",
+        # Competitive consensus loggers
+        "src.pipeline.character_extraction_v2.main_cast",
+        "src.pipeline.character_extraction_v2.narrator",
+        "src.pipeline.chapter_summary.summarizer",
     ]
 
     for logger_name in pipeline_loggers:

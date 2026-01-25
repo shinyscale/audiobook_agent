@@ -200,6 +200,40 @@ class BookMetadata(BaseModel):
     words_per_minute: int = 150  # Default narration pace
 
 
+class ConsensusVoteRecord(BaseModel):
+    """Record of a single consensus voting decision."""
+
+    vote_type: str  # "alias", "boundary", "summary_event", "summary_character"
+    subject: str  # What was being voted on (e.g., alias name, boundary position)
+    context: Optional[str] = None  # Additional context (e.g., canonical name for alias)
+    votes: list[bool] = Field(default_factory=list)  # Individual model votes
+    vote_count: int = 0  # Total votes cast
+    yes_count: int = 0  # Votes in favor
+    threshold: float = 0.67  # Required threshold for acceptance
+    outcome: str = "unknown"  # "accepted", "rejected", "skipped"
+    reason: Optional[str] = None  # Explanation of outcome
+
+
+class ConsensusLog(BaseModel):
+    """Log of all consensus voting decisions during analysis."""
+
+    # Competitive consensus configuration
+    enabled: bool = False
+    mode: str = "none"  # "none", "single", "multi"
+    models: list[str] = Field(default_factory=list)  # Model names used
+    stages: list[str] = Field(default_factory=list)  # Stages with consensus enabled
+
+    # Voting records by category
+    alias_votes: list[ConsensusVoteRecord] = Field(default_factory=list)
+    boundary_votes: list[ConsensusVoteRecord] = Field(default_factory=list)
+    summary_votes: list[ConsensusVoteRecord] = Field(default_factory=list)
+
+    # Summary statistics
+    total_votes: int = 0
+    accepted_count: int = 0
+    rejected_count: int = 0
+
+
 class AnalysisResult(BaseModel):
     """Complete analysis result for a book."""
 
@@ -214,6 +248,9 @@ class AnalysisResult(BaseModel):
 
     # Raw text preserved for reference
     raw_text: Optional[str] = None
+
+    # Consensus voting log (multi-model competitive consensus)
+    consensus_log: Optional[ConsensusLog] = None
 
     # Analysis notes and warnings
     warnings: list[str] = Field(default_factory=list)
