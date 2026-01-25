@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.25
 - **Competitive Mode:** multi
 
@@ -68,12 +68,13 @@
 - JSON: ../output/masque_of_red_death/analysis.json
 
 ## Pipeline Notes
-Analysis completed in 20m 31s.
+Analysis completed in 25m 7s (Attempt 2).
 
 Key observations:
-- This is a SHORT STORY (~2,500 words), not a novel - character count should be minimal (2 distinct entities: Prospero and the Red Death/masked figure)
-- Warning in logs: "Early narrator detection failed: 'Character' object has no attribute 'descriptions'" - may indicate model issue
-- All 4 "characters" came from main_cast pipeline (3) and F6 reconciliation (1)
+- Found 4 characters: Prince Prospero, the Red Death, the courtiers, the musicians
+- 69 pronunciation flags (63 unknown, 4 homograph, 2 proper_noun)
+- Warning persists: "Early narrator detection failed: 'Character' object has no attribute 'descriptions'"
+- Multi-model competitive consensus used for characters, structure, summaries stages
 
 ## Fix History
 
