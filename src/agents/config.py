@@ -125,12 +125,16 @@ class CompetitiveConfig:
     # Which stages use competitive approach
     competitive_proposer: bool = False  # Not yet implemented
     competitive_validation: bool = False  # Not yet implemented
-    competitive_consensus: bool = True  # Most impactful - merge decisions
+    competitive_consensus: bool = True  # Most impactful - character merge decisions
+    competitive_structure: bool = False  # Structure detection boundary voting
+    competitive_summaries: bool = False  # Chapter summary generation (Phase 3)
 
     # Voting thresholds
     proposer_pool_strategy: str = "weighted"  # "union", "intersection", "weighted"
     validation_vote_threshold: float = 0.5  # Majority for validation
-    consensus_merge_threshold: float = 0.67  # Supermajority (2/3) for merges
+    consensus_merge_threshold: float = 0.67  # Supermajority (2/3) for character merges
+    structure_vote_threshold: float = 0.67  # Supermajority (2/3) for boundary decisions
+    summary_consensus_strategy: str = "union"  # "union", "intersection", "best" for summaries
 
     # Minimum text length to enable competitive mode (skip for small texts)
     min_text_length_chars: int = 10000

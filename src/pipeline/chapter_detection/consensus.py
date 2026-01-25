@@ -2,14 +2,17 @@
 Consensus builder for chapter detection.
 
 Stage 4: Reconcile proposals from multiple strategies into a final chapter map.
+
+Supports competitive multi-model consensus for boundary validation when enabled.
 """
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from ..llm import LLMClient
+from ..llm import LLMClient, LLMConfig
 from .models import (
     Chapter,
     ChapterBoundary,
@@ -17,6 +20,9 @@ from .models import (
     DocumentProfile,
     ValidationResult,
 )
+
+if TYPE_CHECKING:
+    from ...agents.config import CompetitiveConfig
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,39 @@ Only mark chapters as invalid if they clearly don't fit the pattern.
 Return ONLY valid JSON."""
 
 
+# Prompt for competitive boundary validation
+BOUNDARY_VALIDATION_SYSTEM = """You are a document structure analyst determining whether a text position marks a chapter boundary.
+
+Analyze the text around the proposed boundary and determine if it's a real chapter/section start."""
+
+BOUNDARY_VALIDATION_PROMPT = """Is this a valid chapter/section boundary?
+
+PROPOSED BOUNDARY:
+- Title: {title}
+- Position: {position}
+
+TEXT BEFORE (last 200 chars):
+{text_before}
+
+TEXT AT BOUNDARY (500 chars):
+{text_at}
+
+A valid chapter boundary typically has:
+1. A chapter heading (Chapter 1, I, ONE, Part I, etc.)
+2. Clear visual separation from previous content
+3. A new narrative section starting
+
+Return JSON:
+{{
+  "is_valid_boundary": true/false,
+  "confidence": 0.0-1.0,
+  "boundary_type": "chapter" | "part" | "section" | "scene" | null,
+  "reason": "brief explanation"
+}}
+
+Return ONLY valid JSON."""
+
+
 @dataclass
 class ProposalCluster:
     """A cluster of proposals that refer to the same boundary."""
@@ -80,6 +119,8 @@ class ConsensusBuilder:
     3. Select high-confidence boundaries
     4. Flag low-confidence for review
     5. Build final chapter map
+
+    Supports competitive multi-model consensus for boundary validation when enabled.
     """
 
     def __init__(
@@ -89,6 +130,7 @@ class ConsensusBuilder:
         high_confidence_threshold: float = 0.7,
         low_confidence_threshold: float = 0.4,
         min_chapter_words: int = 300,
+        competitive_config: Optional["CompetitiveConfig"] = None,
     ):
         """
         Args:
@@ -97,12 +139,19 @@ class ConsensusBuilder:
             high_confidence_threshold: Score above this = auto-accept
             low_confidence_threshold: Score below this = reject
             min_chapter_words: Minimum words per chapter
+            competitive_config: Optional config for multi-model consensus
         """
         self.llm = llm_client
         self.position_threshold = position_threshold
         self.high_confidence_threshold = high_confidence_threshold
         self.low_confidence_threshold = low_confidence_threshold
         self.min_chapter_words = min_chapter_words
+        self.competitive_config = competitive_config
+
+        # Initialize competitor clients if competitive structure is enabled
+        self._competitor_clients: list[LLMClient] = []
+        if self._use_competitive_structure():
+            self._init_competitor_clients()
 
         # Strategy weights for scoring
         self.strategy_weights = {
@@ -111,6 +160,148 @@ class ConsensusBuilder:
             "llm_narrative": 0.7,
             "toc_match": 1.2,  # TOC match is strong signal
         }
+
+    def _use_competitive_structure(self) -> bool:
+        """Check if competitive structure detection should be used."""
+        return (
+            self.competitive_config is not None
+            and self.competitive_config.enabled
+            and self.competitive_config.competitive_structure
+            and self.llm is not None
+        )
+
+    def _init_competitor_clients(self) -> None:
+        """Initialize LLM clients for competitive boundary voting."""
+        if not self.llm or not self.competitive_config:
+            return
+
+        base_config = self.llm.config
+
+        # Get competitor configurations
+        competitor_configs = self.competitive_config.get_competitor_configs(
+            base_model=base_config.model,
+            base_provider=base_config.provider,
+            base_url=base_config.base_url,
+            base_api_key=base_config.api_key,
+        )
+
+        logger.info(
+            f"ConsensusBuilder: Initializing competitive structure with {len(competitor_configs)} competitors"
+        )
+
+        for comp_config in competitor_configs:
+            logger.info(f"  Competitor: {comp_config.model} @ {comp_config.temperature}")
+
+            new_config = LLMConfig(
+                provider=comp_config.provider,
+                model=comp_config.model,
+                base_url=comp_config.base_url or base_config.base_url,
+                api_key=comp_config.get_api_key() or base_config.api_key,
+                temperature=comp_config.temperature,
+                max_tokens=base_config.max_tokens,
+                context_length=base_config.context_length,
+            )
+            client = LLMClient(new_config)
+            self._competitor_clients.append(client)
+
+    def _competitive_boundary_validation(
+        self,
+        clusters: list["ProposalCluster"],
+        text: str,
+    ) -> list["ProposalCluster"]:
+        """
+        Use multiple LLMs to vote on whether each boundary is valid.
+
+        Requires supermajority (2/3) agreement to keep a boundary.
+        """
+        if not self._competitor_clients:
+            return clusters
+
+        logger.info(f"Running competitive boundary validation on {len(clusters)} boundaries")
+
+        validated_clusters = []
+        threshold = (
+            self.competitive_config.structure_vote_threshold
+            if self.competitive_config
+            else 0.67
+        )
+
+        for cluster in clusters:
+            # Hard boundaries (explicit markers) skip voting
+            if cluster.is_hard_boundary:
+                logger.debug(
+                    f"Skipping vote for hard boundary at {cluster.center_position}: '{cluster.best_title}'"
+                )
+                validated_clusters.append(cluster)
+                continue
+
+            # Get context around the boundary
+            pos = cluster.center_position
+            text_before = text[max(0, pos - 200) : pos]
+            text_at = text[pos : min(len(text), pos + 500)]
+
+            # Vote on this boundary
+            votes = self._vote_on_boundary(cluster.best_title, pos, text_before, text_at)
+
+            vote_ratio = sum(votes) / len(votes) if votes else 0
+
+            if vote_ratio >= threshold:
+                validated_clusters.append(cluster)
+                logger.debug(
+                    f"Boundary ACCEPTED at {pos}: '{cluster.best_title}' "
+                    f"({sum(votes)}/{len(votes)} votes, {vote_ratio:.0%})"
+                )
+            else:
+                logger.info(
+                    f"Boundary REJECTED at {pos}: '{cluster.best_title}' "
+                    f"({sum(votes)}/{len(votes)} votes, {vote_ratio:.0%} < {threshold:.0%})"
+                )
+
+        return validated_clusters
+
+    def _vote_on_boundary(
+        self,
+        title: Optional[str],
+        position: int,
+        text_before: str,
+        text_at: str,
+    ) -> list[bool]:
+        """
+        Have multiple LLMs vote on whether a boundary is valid.
+
+        Returns:
+            List of boolean votes (True = valid boundary, False = invalid)
+        """
+        prompt = BOUNDARY_VALIDATION_PROMPT.format(
+            title=title or "(no title)",
+            position=position,
+            text_before=text_before,
+            text_at=text_at,
+        )
+
+        def query_competitor(client: LLMClient) -> bool:
+            try:
+                result, response = client.query_json(prompt, system=BOUNDARY_VALIDATION_SYSTEM)
+                if not response.success or result is None or not isinstance(result, dict):
+                    return False
+
+                is_valid = bool(result.get("is_valid_boundary", False))
+                confidence = float(result.get("confidence", 0.0) or 0.0)
+
+                # Only count as YES if valid AND confidence >= 0.6
+                return is_valid and confidence >= 0.6
+            except Exception as e:
+                logger.warning(f"Competitive boundary vote failed: {e}")
+                return False
+
+        # Execute all competitors in parallel
+        votes = []
+        with ThreadPoolExecutor(max_workers=len(self._competitor_clients)) as executor:
+            futures = [executor.submit(query_competitor, client) for client in self._competitor_clients]
+            for future in as_completed(futures):
+                votes.append(future.result())
+
+        return votes
 
     def build_consensus(
         self,
@@ -164,6 +355,16 @@ class ConsensusBuilder:
             logger.debug(
                 f"  [{c.center_position}] '{c.best_title}' -> score={c.combined_score:.2f}"
             )
+
+        # 3.5. Competitive boundary validation (if enabled)
+        if self._use_competitive_structure():
+            pre_competitive_count = len(scored_clusters)
+            scored_clusters = self._competitive_boundary_validation(scored_clusters, text)
+            if len(scored_clusters) != pre_competitive_count:
+                logger.info(
+                    f"ConsensusBuilder: Competitive validation removed "
+                    f"{pre_competitive_count - len(scored_clusters)} clusters"
+                )
 
         # 4. Validate chapter sequence with LLM (removes out-of-order chapters)
         if self.llm:

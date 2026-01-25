@@ -138,10 +138,21 @@ Examples:
         action="append",
         metavar="SPEC",
         help="Add competitor model for multi-model consensus. Format: model[:temp][:style][@provider]. "
-        "Style: strict, contextual, inclusive. Examples: "
-        "'qwen3:30b:0.5:strict', 'llama3.1:70b:0.9:inclusive@ollama'. "
+        "Style: strict, contextual, inclusive, neutral. Examples: "
+        "'qwen3:30b:0.5', 'llama3.1:70b:0.9@ollama'. "
         "Repeatable (use multiple flags for multiple competitors). "
         "Implies --competitive-consensus.",
+    )
+    analyze_parser.add_argument(
+        "--competitive-structure",
+        action="store_true",
+        help="Enable competitive multi-LLM consensus for structure detection. "
+        "Multiple models vote on chapter boundaries (2/3 agreement required).",
+    )
+    analyze_parser.add_argument(
+        "--competitive-all",
+        action="store_true",
+        help="Enable competitive consensus for all stages: characters, structure, summaries.",
     )
 
     # Specs command (show system specs)
@@ -307,9 +318,20 @@ def run_analyze(args):
     if orchestrator_config:
         orchestrator_config.context_length = args.context_length
 
-    # Handle competitive consensus flags (--competitive-consensus and --competitive-model)
+    # Handle competitive consensus flags
     competitive_models_specified = getattr(args, "competitive_model", None)
-    if args.competitive_consensus or competitive_models_specified:
+    competitive_all = getattr(args, "competitive_all", False)
+    competitive_structure = getattr(args, "competitive_structure", False) or competitive_all
+
+    # Enable competitive mode if any competitive flag is set
+    any_competitive = (
+        args.competitive_consensus
+        or competitive_models_specified
+        or competitive_all
+        or competitive_structure
+    )
+
+    if any_competitive:
         from .agents.config import CompetitiveConfig, CompetitorModelConfig, OrchestratorConfig
 
         # Create orchestrator_config if not already created
@@ -328,15 +350,28 @@ def run_analyze(args):
                 if parsed:
                     competitor_configs.append(parsed)
 
+        # Determine which stages to enable
+        enable_consensus = args.competitive_consensus or competitive_all or bool(competitive_models_specified)
+        enable_structure = competitive_structure
+
         # Enable competitive consensus
         orchestrator_config.competitive = CompetitiveConfig(
             enabled=True,
             num_competitors=len(competitor_configs) if competitor_configs else 3,
             temperature_range=(0.5, 0.9),
-            competitive_consensus=True,
+            competitive_consensus=enable_consensus,
+            competitive_structure=enable_structure,
             consensus_merge_threshold=0.67,  # 2/3 supermajority
+            structure_vote_threshold=0.67,  # 2/3 supermajority
             competitor_models=competitor_configs,
         )
+
+        # Log enabled stages
+        enabled_stages = []
+        if enable_consensus:
+            enabled_stages.append("characters")
+        if enable_structure:
+            enabled_stages.append("structure")
 
         if competitor_configs:
             # Check if multi-model (different models)
@@ -346,14 +381,17 @@ def run_analyze(args):
             if is_multi_model:
                 print(f"   Multi-model consensus: ENABLED ({len(competitor_configs)} diverse models)")
                 print("     Mode: neutral (model diversity provides natural variation)")
+                print(f"     Stages: {', '.join(enabled_stages)}")
                 for cfg in competitor_configs:
                     print(f"     - {cfg.model} @ {cfg.temperature}")
             else:
                 print(f"   Single-model consensus: ENABLED ({len(competitor_configs)} temperatures)")
+                print(f"     Stages: {', '.join(enabled_stages)}")
                 for cfg in competitor_configs:
                     print(f"     - {cfg.model} @ {cfg.temperature} ({cfg.prompt_style})")
         else:
-            print("   Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)")
+            print(f"   Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)")
+            print(f"     Stages: {', '.join(enabled_stages)}")
 
     # Enable per-run output directories by default
     output_dir = Path("output")

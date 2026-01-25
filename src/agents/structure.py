@@ -21,7 +21,7 @@ from .base import (
     VerificationLevel,
     VerificationResult,
 )
-from .config import AgentConfig, PipelineTuningConfig
+from .config import AgentConfig, CompetitiveConfig, PipelineTuningConfig
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ class StructureAgent(Agent):
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
         tuning: Optional[PipelineTuningConfig] = None,
+        competitive_config: Optional[CompetitiveConfig] = None,
     ):
         """
         Initialize the StructureAgent.
@@ -81,10 +82,12 @@ class StructureAgent(Agent):
         Args:
             llm_client: LLM client for the pipeline and verification
             config: Agent configuration (model, thresholds, etc.)
+            competitive_config: Optional config for multi-model boundary voting
         """
         self._llm_client = llm_client
         self._config = config or AgentConfig()
         self._tuning = tuning
+        self._competitive_config = competitive_config
         self._pipeline: Optional[ChapterDetectionPipeline] = None
 
     @property
@@ -110,6 +113,7 @@ class StructureAgent(Agent):
                 llm_marker_chunk_overlap=t.chapter_marker_chunk_overlap_chars,
                 llm_narrative_chunk_size=t.chapter_narrative_chunk_chars,
                 llm_narrative_chunk_overlap=t.chapter_narrative_chunk_overlap_chars,
+                competitive_config=self._competitive_config,
             )
         return self._pipeline
 
@@ -395,6 +399,7 @@ class StructureAgent(Agent):
 def create_structure_agent(
     llm_client: Optional[LLMClient] = None,
     config: Optional[AgentConfig] = None,
+    competitive_config: Optional[CompetitiveConfig] = None,
 ) -> StructureAgent:
     """
     Factory function to create a StructureAgent.
@@ -402,8 +407,13 @@ def create_structure_agent(
     Args:
         llm_client: LLM client for detection and verification
         config: Agent configuration
+        competitive_config: Optional config for multi-model boundary voting
 
     Returns:
         Configured StructureAgent
     """
-    return StructureAgent(llm_client=llm_client, config=config)
+    return StructureAgent(
+        llm_client=llm_client,
+        config=config,
+        competitive_config=competitive_config,
+    )

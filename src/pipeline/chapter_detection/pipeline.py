@@ -14,9 +14,12 @@ import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from ..llm import LLMClient, create_client
+
+if TYPE_CHECKING:
+    from ...agents.config import CompetitiveConfig
 from .consensus import ConsensusBuilder
 from .models import (
     ChapterMap,
@@ -57,12 +60,14 @@ class ChapterDetectionPipeline:
         llm_marker_chunk_overlap: int = 1000,
         llm_narrative_chunk_size: int = 20000,
         llm_narrative_chunk_overlap: int = 2000,
+        competitive_config: Optional["CompetitiveConfig"] = None,
     ):
         """
         Args:
             llm_client: Optional LLM client for enhanced detection
             checkpoint_dir: Directory to save checkpoints
             progress_callback: Optional callback(stage_name, progress_percent)
+            competitive_config: Optional config for multi-model boundary voting
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
@@ -72,7 +77,10 @@ class ChapterDetectionPipeline:
         self.profiler = DocumentProfiler(llm_client=llm_client)
         self.regex_proposer = RegexProposer()
         self.validator = ProposalValidator(llm_client=llm_client)
-        self.consensus_builder = ConsensusBuilder(llm_client=llm_client)
+        self.consensus_builder = ConsensusBuilder(
+            llm_client=llm_client,
+            competitive_config=competitive_config,
+        )
 
         # LLM proposers (only if LLM available)
         if llm_client:

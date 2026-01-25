@@ -827,6 +827,11 @@ class AudiobookAnalyzer:
                 llm_client=structure_llm,
                 config=structure_config,
                 tuning=(self.orchestrator_config.tuning if self.orchestrator_config else None),
+                competitive_config=(
+                    self.orchestrator_config.competitive
+                    if self.orchestrator_config and self.orchestrator_config.competitive
+                    else None
+                ),
             )
             agent_context = AgentContext(
                 text=doc.text,

@@ -72,6 +72,11 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    - `deepseek-r1:32b:0.7` → `--competitive-model "deepseek-r1:32b:0.7"`
    - etc.
 
+   **Competitive stages:** Check `competitive_stages` array to add stage-specific flags:
+   - `"characters"` in array → implies `--competitive-consensus`
+   - `"structure"` in array → add `--competitive-structure`
+   - `"summaries"` in array → add `--competitive-summaries` (Phase 3, not yet implemented)
+
    **Note:** In multi-model mode, prompt style (strict/contextual/inclusive) is automatically
    set to "neutral" for all models. Different model architectures provide natural diversity,
    so artificial prompt bias is unnecessary.
