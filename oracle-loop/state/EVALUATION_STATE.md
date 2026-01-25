@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.1
 - **Competitive Mode:** multi
 
@@ -24,6 +24,16 @@
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Completed successfully in 18m 10s
+- Multi-model competitive consensus enabled (3 models: qwen3:30b, deepseek-r1:32b, gemma3:27b)
+- Competitive stages: characters, structure, summaries
+- **Montresor detected!** Narrator confirmed as first-person
+- 3 characters found (up from 2 in attempt 1)
+- 1 character added from chapter summaries (likely Montresor)
+- Warning: "Early narrator detection failed: 'Character' object has no attribute 'descriptions'" (non-fatal)
+- Warning: "LLM batch enrichment failed: failed to parse JSON" (non-fatal)
 
 ## Current Issues (Priority Order)
 
