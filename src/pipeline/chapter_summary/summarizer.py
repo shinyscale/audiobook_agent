@@ -3,15 +3,22 @@ Chapter summarizer with chunking support for long chapters.
 
 Handles breaking long chapters into manageable chunks for LLM processing,
 then consolidating chunk summaries into cohesive chapter summaries.
+
+Supports competitive multi-model consensus for summary generation when enabled.
 """
 
 import logging
 import re
-from typing import Optional
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import TYPE_CHECKING, Optional
 
 from ..chapter_detection.scene_breaks import find_scene_breaks
-from ..llm import LLMClient
+from ..llm import LLMClient, LLMConfig
 from .models import ChapterSummary, ChunkSummary
+
+if TYPE_CHECKING:
+    from ...agents.config import CompetitiveConfig
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +223,8 @@ class ChapterSummarizer:
 
     For chapters under the chunk threshold, generates summary directly.
     For longer chapters, breaks into chunks, summarizes each, then consolidates.
+
+    Supports competitive multi-model consensus for summary generation when enabled.
     """
 
     def __init__(
@@ -225,6 +234,7 @@ class ChapterSummarizer:
         chunk_overlap: int = CHUNK_OVERLAP,
         known_characters: Optional[list[str]] = None,
         summary_length: str = "standard",
+        competitive_config: Optional["CompetitiveConfig"] = None,
     ):
         """
         Args:
@@ -233,12 +243,62 @@ class ChapterSummarizer:
             chunk_overlap: Words of overlap between chunks
             known_characters: List of known character names for reference
             summary_length: Length preference - "brief" (2-3 sentences), "standard" (4-6 sentences), "detailed" (6-8 sentences)
+            competitive_config: Optional config for multi-model consensus
         """
         self.llm = llm_client
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.known_characters = known_characters or []
         self.summary_length = summary_length
+        self.competitive_config = competitive_config
+
+        # Initialize competitor clients if competitive summaries is enabled
+        self._competitor_clients: list[LLMClient] = []
+        if self._use_competitive_summaries():
+            self._init_competitor_clients()
+
+    def _use_competitive_summaries(self) -> bool:
+        """Check if competitive summary generation should be used."""
+        return (
+            self.competitive_config is not None
+            and self.competitive_config.enabled
+            and self.competitive_config.competitive_summaries
+            and self.llm is not None
+        )
+
+    def _init_competitor_clients(self) -> None:
+        """Initialize LLM clients for competitive summary generation."""
+        if not self.llm or not self.competitive_config:
+            return
+
+        base_config = self.llm.config
+
+        # Get competitor configurations
+        competitor_configs = self.competitive_config.get_competitor_configs(
+            base_model=base_config.model,
+            base_provider=base_config.provider,
+            base_url=base_config.base_url,
+            base_api_key=base_config.api_key,
+        )
+
+        logger.info(
+            f"ChapterSummarizer: Initializing competitive summaries with {len(competitor_configs)} competitors"
+        )
+
+        for comp_config in competitor_configs:
+            logger.info(f"  Competitor: {comp_config.model} @ {comp_config.temperature}")
+
+            new_config = LLMConfig(
+                provider=comp_config.provider,
+                model=comp_config.model,
+                base_url=comp_config.base_url or base_config.base_url,
+                api_key=comp_config.get_api_key() or base_config.api_key,
+                temperature=comp_config.temperature,
+                max_tokens=base_config.max_tokens,
+                context_length=base_config.context_length,
+            )
+            client = LLMClient(new_config)
+            self._competitor_clients.append(client)
 
     def _get_length_guidance(self) -> str:
         """Get length guidance text based on summary_length setting.
@@ -279,12 +339,207 @@ class ChapterSummarizer:
 
         logger.info(f"Summarizing chapter {chapter_index}: {word_count} words")
 
+        # Use competitive mode if enabled and we have competitor clients
+        if self._use_competitive_summaries() and self._competitor_clients:
+            return self._competitive_summarize_chapter(
+                chapter_text, chapter_index, title, word_count
+            )
+
         # Short chapter: summarize directly
         if word_count <= self.chunk_size * 1.2:  # Allow 20% buffer before chunking
             return self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
 
         # Long chapter: chunk and consolidate
         return self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
+
+    def _competitive_summarize_chapter(
+        self,
+        chapter_text: str,
+        chapter_index: int,
+        title: str,
+        word_count: int,
+    ) -> ChapterSummary:
+        """
+        Summarize using multiple models and merge results.
+
+        Strategy:
+        - key_events: Union with voting (keep events with 2+ votes)
+        - active_characters: Intersection (2/3 must agree)
+        - mentioned_characters: Intersection (2/3 must agree)
+        - summary: Select best summary based on consensus-event overlap
+        """
+        logger.info(f"Running competitive summary for chapter {chapter_index}")
+
+        # Prepare prompt based on chapter length
+        if word_count <= self.chunk_size * 1.2:
+            prompt = SINGLE_CHAPTER_PROMPT.format(
+                chapter_title=title,
+                word_count=word_count,
+                text=chapter_text,
+                length_guidance=self._get_length_guidance(),
+            )
+            system = SINGLE_CHAPTER_SYSTEM
+        else:
+            # For long chapters, use chunk-consolidate approach for each model
+            # but that's expensive; instead, just use single prompt with truncated text
+            # (models can handle longer context now)
+            prompt = SINGLE_CHAPTER_PROMPT.format(
+                chapter_title=title,
+                word_count=word_count,
+                text=chapter_text[:50000],  # Truncate for safety
+                length_guidance=self._get_length_guidance(),
+            )
+            system = SINGLE_CHAPTER_SYSTEM
+
+        def query_competitor(client: LLMClient) -> Optional[dict]:
+            try:
+                result, response = client.query_json(prompt, system=system)
+                if response.success and result and isinstance(result, dict):
+                    return result
+                return None
+            except Exception as e:
+                logger.warning(f"Competitive summary generation failed: {e}")
+                return None
+
+        # Execute all competitors in parallel
+        results: list[dict] = []
+        with ThreadPoolExecutor(max_workers=len(self._competitor_clients)) as executor:
+            futures = [executor.submit(query_competitor, client) for client in self._competitor_clients]
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        logger.info(f"Competitive summary: {len(results)}/{len(self._competitor_clients)} models succeeded")
+
+        if not results:
+            # All failed - fall back to single model
+            logger.warning("All competitive models failed, falling back to single model")
+            if word_count <= self.chunk_size * 1.2:
+                return self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
+            else:
+                return self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
+
+        # Merge results using consensus
+        return self._merge_competitive_summaries(results, chapter_index, title, word_count)
+
+    def _merge_competitive_summaries(
+        self,
+        results: list[dict],
+        chapter_index: int,
+        title: str,
+        word_count: int,
+    ) -> ChapterSummary:
+        """Merge summaries from multiple models using voting."""
+        num_models = len(results)
+        threshold = self.competitive_config.consensus_merge_threshold if self.competitive_config else 0.67
+        min_votes = max(1, int(num_models * threshold))
+
+        # Merge key_events with voting
+        event_counts: Counter = Counter()
+        for result in results:
+            events = result.get("key_events", [])
+            for event in events:
+                # Normalize event for comparison (lowercase, strip)
+                normalized = event.lower().strip()
+                event_counts[normalized] += 1
+
+        # Keep events with enough votes, preserve original casing from first occurrence
+        event_originals: dict[str, str] = {}
+        for result in results:
+            for event in result.get("key_events", []):
+                normalized = event.lower().strip()
+                if normalized not in event_originals:
+                    event_originals[normalized] = event
+
+        consensus_events = [
+            event_originals[norm]
+            for norm, count in event_counts.most_common()
+            if count >= min_votes
+        ]
+
+        # Merge characters with voting (intersection approach)
+        active_char_counts: Counter = Counter()
+        mentioned_char_counts: Counter = Counter()
+        for result in results:
+            for char in result.get("active_characters", []):
+                active_char_counts[char.strip()] += 1
+            for char in result.get("mentioned_characters", []):
+                mentioned_char_counts[char.strip()] += 1
+
+        consensus_active = [char for char, count in active_char_counts.items() if count >= min_votes]
+        consensus_mentioned = [char for char, count in mentioned_char_counts.items() if count >= min_votes]
+
+        # Select best summary based on overlap with consensus events
+        best_summary = ""
+        best_score = -1
+        for result in results:
+            summary = result.get("summary", "")
+            events = result.get("key_events", [])
+            # Score = number of events that made it to consensus
+            score = sum(
+                1 for e in events
+                if e.lower().strip() in [ce.lower().strip() for ce in consensus_events]
+            )
+            if score > best_score or (score == best_score and len(summary) > len(best_summary)):
+                best_score = score
+                best_summary = summary
+
+        # Merge tones (majority vote)
+        tone_counts: Counter = Counter()
+        for result in results:
+            tone = result.get("primary_tone", "reflective")
+            if tone in self._valid_tones():
+                tone_counts[tone] += 1
+        primary_tone = tone_counts.most_common(1)[0][0] if tone_counts else "reflective"
+
+        # Secondary tones - any tone mentioned by 2+ models
+        secondary_tone_counts: Counter = Counter()
+        for result in results:
+            for tone in result.get("secondary_tones", []):
+                if tone in self._valid_tones():
+                    secondary_tone_counts[tone] += 1
+        secondary_tones = [
+            tone for tone, count in secondary_tone_counts.items()
+            if count >= min_votes and tone != primary_tone
+        ]
+
+        # Dialogue density - majority vote
+        dialogue_counts: Counter = Counter()
+        for result in results:
+            density = result.get("dialogue_density", "medium")
+            if density in ["high", "medium", "low"]:
+                dialogue_counts[density] += 1
+        dialogue_density = dialogue_counts.most_common(1)[0][0] if dialogue_counts else "medium"
+
+        # POV character - majority vote
+        pov_counts: Counter = Counter()
+        for result in results:
+            pov = result.get("pov_character")
+            if pov:
+                pov_counts[pov] += 1
+        pov_character = pov_counts.most_common(1)[0][0] if pov_counts else None
+
+        logger.info(
+            f"Competitive summary merged: {len(consensus_events)} events, "
+            f"{len(consensus_active)} active chars, {len(consensus_mentioned)} mentioned chars"
+        )
+
+        return ChapterSummary(
+            chapter_index=chapter_index,
+            chapter_title=title,
+            summary=best_summary,
+            key_events=consensus_events,
+            primary_tone=primary_tone,
+            secondary_tones=secondary_tones,
+            dialogue_density=dialogue_density,
+            active_characters=consensus_active,
+            mentioned_characters=consensus_mentioned,
+            pov_character=pov_character,
+            word_count=word_count,
+            estimated_duration_minutes=word_count / 150,
+            confidence=0.9,  # Higher confidence for consensus
+        )
 
     def _summarize_short_chapter(
         self,

@@ -1047,6 +1047,11 @@ class AudiobookAnalyzer:
                         if self.orchestrator_config
                         else 200
                     ),
+                    competitive_config=(
+                        self.orchestrator_config.competitive
+                        if self.orchestrator_config and self.orchestrator_config.competitive
+                        else None
+                    ),
                 )
                 summary_map, _ = summary_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)

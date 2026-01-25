@@ -3,6 +3,7 @@ Chapter summary pipeline orchestrator.
 
 Coordinates the full chapter summarization workflow with checkpointing.
 Supports parallel chapter summarization for faster processing.
+Supports competitive multi-model consensus for summary generation when enabled.
 """
 
 import hashlib
@@ -12,7 +13,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from ..chapter_detection.models import ChapterMap as ChapterDetectionMap
 from ..character_extraction.models import CharacterMap as CharacterExtractionMap
@@ -23,6 +24,9 @@ from .models import (
     SummaryPipelineCheckpoint,
 )
 from .summarizer import ChapterSummarizer
+
+if TYPE_CHECKING:
+    from ...agents.config import CompetitiveConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,7 @@ class ChapterSummaryPipeline:
         llm_client_factory: Optional[Callable[[], LLMClient]] = None,
         summarizer_chunk_size_words: int = 2500,
         summarizer_chunk_overlap_words: int = 200,
+        competitive_config: Optional["CompetitiveConfig"] = None,
     ):
         """
         Args:
@@ -57,6 +62,7 @@ class ChapterSummaryPipeline:
             parallel_chapters: Whether to summarize chapters in parallel
             max_workers: Max threads for parallel summarization
             llm_client_factory: Factory function to create new LLM clients for parallel execution
+            competitive_config: Optional config for multi-model consensus
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
@@ -67,6 +73,7 @@ class ChapterSummaryPipeline:
         self._progress_lock = threading.Lock()  # Thread-safe progress reporting
         self.summarizer_chunk_size_words = summarizer_chunk_size_words
         self.summarizer_chunk_overlap_words = summarizer_chunk_overlap_words
+        self.competitive_config = competitive_config
 
     def run(
         self,
@@ -103,6 +110,7 @@ class ChapterSummaryPipeline:
             known_characters=known_characters,
             chunk_size=self.summarizer_chunk_size_words,
             chunk_overlap=self.summarizer_chunk_overlap_words,
+            competitive_config=self.competitive_config,
         )
 
         # Initialize or validate checkpoint
@@ -247,6 +255,7 @@ class ChapterSummaryPipeline:
                         known_characters=known_characters,
                         chunk_size=self.summarizer_chunk_size_words,
                         chunk_overlap=self.summarizer_chunk_overlap_words,
+                        competitive_config=self.competitive_config,
                     )
                 else:
                     thread_summarizer = summarizer

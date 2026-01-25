@@ -150,6 +150,12 @@ Examples:
         "Multiple models vote on chapter boundaries (2/3 agreement required).",
     )
     analyze_parser.add_argument(
+        "--competitive-summaries",
+        action="store_true",
+        help="Enable competitive multi-LLM consensus for chapter summaries. "
+        "Multiple models generate summaries; events/characters use voting (2/3 agreement).",
+    )
+    analyze_parser.add_argument(
         "--competitive-all",
         action="store_true",
         help="Enable competitive consensus for all stages: characters, structure, summaries.",
@@ -322,6 +328,7 @@ def run_analyze(args):
     competitive_models_specified = getattr(args, "competitive_model", None)
     competitive_all = getattr(args, "competitive_all", False)
     competitive_structure = getattr(args, "competitive_structure", False) or competitive_all
+    competitive_summaries = getattr(args, "competitive_summaries", False) or competitive_all
 
     # Enable competitive mode if any competitive flag is set
     any_competitive = (
@@ -329,6 +336,7 @@ def run_analyze(args):
         or competitive_models_specified
         or competitive_all
         or competitive_structure
+        or competitive_summaries
     )
 
     if any_competitive:
@@ -353,6 +361,7 @@ def run_analyze(args):
         # Determine which stages to enable
         enable_consensus = args.competitive_consensus or competitive_all or bool(competitive_models_specified)
         enable_structure = competitive_structure
+        enable_summaries = competitive_summaries
 
         # Enable competitive consensus
         orchestrator_config.competitive = CompetitiveConfig(
@@ -361,6 +370,7 @@ def run_analyze(args):
             temperature_range=(0.5, 0.9),
             competitive_consensus=enable_consensus,
             competitive_structure=enable_structure,
+            competitive_summaries=enable_summaries,
             consensus_merge_threshold=0.67,  # 2/3 supermajority
             structure_vote_threshold=0.67,  # 2/3 supermajority
             competitor_models=competitor_configs,
@@ -372,6 +382,8 @@ def run_analyze(args):
             enabled_stages.append("characters")
         if enable_structure:
             enabled_stages.append("structure")
+        if enable_summaries:
+            enabled_stages.append("summaries")
 
         if competitor_configs:
             # Check if multi-model (different models)

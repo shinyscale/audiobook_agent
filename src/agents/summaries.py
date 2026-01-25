@@ -25,7 +25,7 @@ from .base import (
     VerificationLevel,
     VerificationResult,
 )
-from .config import AgentConfig, PipelineTuningConfig
+from .config import AgentConfig, CompetitiveConfig, PipelineTuningConfig
 from .validation import (
     UpstreamValidationIssue,
     UpstreamValidationResult,
@@ -88,6 +88,7 @@ class SummaryAgent(Agent):
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
         tuning: Optional[PipelineTuningConfig] = None,
+        competitive_config: Optional[CompetitiveConfig] = None,
     ):
         """
         Initialize the SummaryAgent.
@@ -95,10 +96,12 @@ class SummaryAgent(Agent):
         Args:
             llm_client: LLM client for summarization and verification
             config: Agent configuration (model, thresholds, etc.)
+            competitive_config: Optional config for multi-model consensus
         """
         self._llm_client = llm_client
         self._config = config or AgentConfig()
         self._tuning = tuning
+        self._competitive_config = competitive_config
         self._pipeline: Optional[ChapterSummaryPipeline] = None
 
     @property
@@ -256,6 +259,7 @@ class SummaryAgent(Agent):
                 llm_client=self._llm_client,
                 summarizer_chunk_size_words=t.summary_chunk_words,
                 summarizer_chunk_overlap_words=t.summary_chunk_overlap_words,
+                competitive_config=self._competitive_config,
             )
         return self._pipeline
 
@@ -587,6 +591,7 @@ class SummaryAgent(Agent):
 def create_summary_agent(
     llm_client: Optional[LLMClient] = None,
     config: Optional[AgentConfig] = None,
+    competitive_config: Optional[CompetitiveConfig] = None,
 ) -> SummaryAgent:
     """
     Factory function to create a SummaryAgent.
@@ -594,8 +599,13 @@ def create_summary_agent(
     Args:
         llm_client: LLM client for summarization and verification
         config: Agent configuration
+        competitive_config: Optional config for multi-model consensus
 
     Returns:
         Configured SummaryAgent
     """
-    return SummaryAgent(llm_client=llm_client, config=config)
+    return SummaryAgent(
+        llm_client=llm_client,
+        config=config,
+        competitive_config=competitive_config,
+    )

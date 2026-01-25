@@ -75,7 +75,9 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    **Competitive stages:** Check `competitive_stages` array to add stage-specific flags:
    - `"characters"` in array → implies `--competitive-consensus`
    - `"structure"` in array → add `--competitive-structure`
-   - `"summaries"` in array → add `--competitive-summaries` (Phase 3, not yet implemented)
+   - `"summaries"` in array → add `--competitive-summaries`
+
+   Or use `--competitive-all` to enable all stages at once.
 
    **Note:** In multi-model mode, prompt style (strict/contextual/inclusive) is automatically
    set to "neutral" for all models. Different model architectures provide natural diversity,
