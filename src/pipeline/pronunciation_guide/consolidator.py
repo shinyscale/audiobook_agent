@@ -4,17 +4,17 @@ Pronunciation consolidator.
 Merges proposals from different strategies into final pronunciation entries.
 """
 
-from collections import defaultdict
-from typing import Optional
 import hashlib
 import logging
+from collections import defaultdict
+from typing import Optional
 
 from .models import (
-    PronunciationProposal,
     PronunciationEnrichment,
     PronunciationEntry,
-    PronunciationMap,
     PronunciationFlag,
+    PronunciationMap,
+    PronunciationProposal,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,9 +88,7 @@ class PronunciationConsolidator:
         entries.sort(key=lambda e: (not e.is_character_name, -e.occurrence_count))
         low_confidence.sort(key=lambda e: -e.occurrence_count)
 
-        logger.info(
-            f"Consolidated {len(entries)} entries, {len(low_confidence)} low confidence"
-        )
+        logger.info(f"Consolidated {len(entries)} entries, {len(low_confidence)} low confidence")
 
         return PronunciationMap(
             entries=entries,
@@ -146,8 +144,7 @@ class PronunciationConsolidator:
             PronunciationFlag.UNKNOWN: 5,
         }
         flag_reason = min(
-            (p.flag_reason for p in proposals),
-            key=lambda f: flag_priority.get(f, 99)
+            (p.flag_reason for p in proposals), key=lambda f: flag_priority.get(f, 99)
         )
 
         # Collect homograph options if any

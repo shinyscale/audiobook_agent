@@ -9,7 +9,7 @@ Provides a tkinter dialog for viewing pronunciation entries with:
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import scrolledtext, ttk
 from typing import Callable, Optional
 
 from ..models import PronunciationEntry
@@ -174,7 +174,9 @@ class PronunciationDialog:
         # Update navigation
         self.occurrence_label.config(text=f"{self.current_occurrence + 1} of {total}")
         self.prev_btn.config(state=tk.NORMAL if self.current_occurrence > 0 else tk.DISABLED)
-        self.next_btn.config(state=tk.NORMAL if self.current_occurrence < total - 1 else tk.DISABLED)
+        self.next_btn.config(
+            state=tk.NORMAL if self.current_occurrence < total - 1 else tk.DISABLED
+        )
 
         if not mentions:
             self.context_text.config(state=tk.NORMAL)

@@ -7,18 +7,17 @@ This includes:
 """
 
 from .back_matter import (
-    BackMatterRegion,
     BackMatterDetector,
+    BackMatterRegion,
     detect_back_matter,
     is_in_back_matter,
 )
-
 from .normalization import (
+    extract_base_name,
+    is_possessive,
+    names_match,
     normalize_name,
     normalize_names_list,
-    names_match,
-    is_possessive,
-    extract_base_name,
 )
 
 __all__ = [

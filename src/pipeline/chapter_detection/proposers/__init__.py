@@ -5,8 +5,8 @@ Each proposer implements a different strategy for finding chapter boundaries.
 """
 
 from .base import BaseProposer
-from .regex import RegexProposer
 from .llm import LLMMarkerProposer, LLMNarrativeProposer
+from .regex import RegexProposer
 
 __all__ = [
     "BaseProposer",

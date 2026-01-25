@@ -1,18 +1,19 @@
 """
-Character extraction pipeline using multi-agent consensus.
+Character extraction models and utilities.
+
+The v1 pipeline has been removed. Use character_extraction_v2 for the active pipeline.
+This module now only exports shared models used across the codebase.
 """
 
 from .models import (
-    CharacterMention,
-    CharacterProposal,
-    CharacterValidationResult,
     Character,
     CharacterMap,
+    CharacterMention,
     CharacterPipelineCheckpoint,
+    CharacterProposal,
+    CharacterType,
+    CharacterValidationResult,
 )
-from .pipeline import CharacterExtractionPipeline, extract_characters
-from .validator import CharacterValidator
-from .consensus import CharacterConsensusBuilder
 
 __all__ = [
     "CharacterMention",
@@ -21,8 +22,5 @@ __all__ = [
     "Character",
     "CharacterMap",
     "CharacterPipelineCheckpoint",
-    "CharacterExtractionPipeline",
-    "CharacterValidator",
-    "CharacterConsensusBuilder",
-    "extract_characters",
+    "CharacterType",
 ]

@@ -7,11 +7,11 @@ This module provides the foundation for creating task-specific agents that can:
 - Refine low-confidence results
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Generic, TypeVar, TYPE_CHECKING
-import logging
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 if TYPE_CHECKING:
     from .validation import UpstreamValidationResult
@@ -19,14 +19,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Type variable for agent-specific result data
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ConfidenceLevel(Enum):
     """Confidence levels for agent outputs."""
-    HIGH = "high"      # >= 0.7
+
+    HIGH = "high"  # >= 0.7
     MEDIUM = "medium"  # 0.4 - 0.7
-    LOW = "low"        # < 0.4
+    LOW = "low"  # < 0.4
 
 
 class VerificationLevel(Enum):
@@ -51,9 +52,10 @@ class VerificationLevel(Enum):
         - Validates against known works (Gatsby, Frankenstein)
         - Removed in production runtime
     """
+
     STRUCTURAL = "structural"  # Heuristics, no LLM needed
     SELF_CHECK = "self_check"  # Local LLM, book-agnostic prompts
-    ORACLE = "oracle"          # Claude, used only in development
+    ORACLE = "oracle"  # Claude, used only in development
 
 
 @dataclass
@@ -64,6 +66,7 @@ class AgentContext:
     Contains the document text, any previously computed results from
     upstream agents, and metadata about the analysis.
     """
+
     # Document content
     text: str
     source_file: str = ""
@@ -90,6 +93,7 @@ class AgentContext:
 @dataclass
 class ConfidenceItem:
     """A single item with its confidence score."""
+
     item: Any
     confidence: float
     issues: list[str] = field(default_factory=list)
@@ -112,6 +116,7 @@ class AgentResult(Generic[T]):
     Contains the primary result data, confidence information, and any
     issues or warnings discovered during processing.
     """
+
     # The primary result data (type depends on agent)
     data: T
 
@@ -146,9 +151,9 @@ class AgentResult(Generic[T]):
             return 1.0
         # Weight: high=1.0, medium=0.6, low=0.2
         weighted = (
-            self.high_confidence_count * 1.0 +
-            self.medium_confidence_count * 0.6 +
-            self.low_confidence_count * 0.2
+            self.high_confidence_count * 1.0
+            + self.medium_confidence_count * 0.6
+            + self.low_confidence_count * 0.2
         )
         return weighted / self.total_items
 
@@ -161,6 +166,7 @@ class AgentResult(Generic[T]):
 @dataclass
 class VerificationIssue:
     """A specific issue found during verification."""
+
     description: str
     severity: str = "warning"  # "error", "warning", "info"
     item_index: Optional[int] = None
@@ -174,6 +180,7 @@ class VerificationResult:
 
     Used to determine if refinement is needed.
     """
+
     passed: bool
     issues: list[VerificationIssue] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
@@ -260,8 +267,8 @@ class Agent(ABC):
             UpstreamValidationResult indicating if agent can proceed
         """
         from .validation import (
-            UpstreamValidationResult,
             UpstreamValidationIssue,
+            UpstreamValidationResult,
             ValidationSeverity,
         )
 
@@ -278,16 +285,17 @@ class Agent(ABC):
                     has_fallback = True
 
                 if not has_fallback:
-                    issues.append(UpstreamValidationIssue(
-                        agent_name=dep_name,
-                        issue_type="missing_result",
-                        description=f"Required upstream result '{dep_name}' not found",
-                        severity=ValidationSeverity.CRITICAL,
-                    ))
+                    issues.append(
+                        UpstreamValidationIssue(
+                            agent_name=dep_name,
+                            issue_type="missing_result",
+                            description=f"Required upstream result '{dep_name}' not found",
+                            severity=ValidationSeverity.CRITICAL,
+                        )
+                    )
 
         has_blocking = any(
-            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR)
-            for i in issues
+            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR) for i in issues
         )
 
         return UpstreamValidationResult(
@@ -375,17 +383,21 @@ class Agent(ABC):
 
         # Default: flag low confidence items
         if result.low_confidence_count > 0:
-            issues.append(VerificationIssue(
-                description=f"{result.low_confidence_count} items have low confidence",
-                severity="warning",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=f"{result.low_confidence_count} items have low confidence",
+                    severity="warning",
+                )
+            )
 
         # Default: propagate any issues from the result
         for issue in result.issues:
-            issues.append(VerificationIssue(
-                description=issue,
-                severity="warning",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=issue,
+                    severity="warning",
+                )
+            )
 
         return issues
 

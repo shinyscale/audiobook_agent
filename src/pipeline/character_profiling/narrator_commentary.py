@@ -12,7 +12,6 @@ from typing import Optional
 
 from ..llm import LLMClient
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -20,35 +19,35 @@ logger = logging.getLogger(__name__)
 # These patterns identify sentences that MAY contain authorial voice
 NARRATOR_PATTERNS = [
     # Direct authorial asides
-    r'\bI believe\b',
-    r'\bthe reader\b',
-    r'\bone must\b',
-    r'\bin truth\b',
-    r'\bit must be said\b',
-    r'\bit should be said\b',
-    r'\blet it be said\b',
+    r"\bI believe\b",
+    r"\bthe reader\b",
+    r"\bone must\b",
+    r"\bin truth\b",
+    r"\bit must be said\b",
+    r"\bit should be said\b",
+    r"\blet it be said\b",
     # Judgment patterns
-    r'\bthere are .* born\b',
-    r'\bthere was .* about\b',
-    r'\bsuch .* are\b',
-    r'\bsuch .* was\b',
+    r"\bthere are .* born\b",
+    r"\bthere was .* about\b",
+    r"\bsuch .* are\b",
+    r"\bsuch .* was\b",
     # Foreshadowing patterns
-    r'\blittle did .* know\b',
-    r'\bwhat .* did not know\b',
-    r'\bif .* had known\b',
-    r'\bas we shall see\b',
-    r'\bas .* would discover\b',
+    r"\blittle did .* know\b",
+    r"\bwhat .* did not know\b",
+    r"\bif .* had known\b",
+    r"\bas we shall see\b",
+    r"\bas .* would discover\b",
     # Omniscient observations
-    r'\bin all .* life\b',
-    r'\bno one knew\b',
-    r'\bno one could\b',
-    r'\bnever .* had\b',
-    r'\bperhaps .* was\b',
+    r"\bin all .* life\b",
+    r"\bno one knew\b",
+    r"\bno one could\b",
+    r"\bnever .* had\b",
+    r"\bperhaps .* was\b",
     # Direct characterization
-    r'\bwas the sort of\b',
-    r'\bwas not the kind\b',
-    r'\bhad always been\b',
-    r'\bwould always be\b',
+    r"\bwas the sort of\b",
+    r"\bwas not the kind\b",
+    r"\bhad always been\b",
+    r"\bwould always be\b",
 ]
 
 # Compile patterns for efficiency
@@ -58,6 +57,7 @@ COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in NARRATOR_PATTERNS]
 @dataclass
 class NarratorComment:
     """A narrator commentary about a character."""
+
     quote: str
     character_name: str
     chapter_index: int
@@ -90,6 +90,7 @@ class NarratorComment:
 @dataclass
 class NarratorCommentaryResult:
     """Result of narrator commentary detection."""
+
     comments: list[NarratorComment] = field(default_factory=list)
     has_significant_commentary: bool = False
     narrative_voice_notes: str = ""
@@ -228,9 +229,7 @@ class NarratorCommentaryDetector:
                     comments_by_character[comment.character_name] = []
                 comments_by_character[comment.character_name].append(comment)
 
-        has_significant = len(comments) >= 3 or any(
-            c.comment_type == "judgment" for c in comments
-        )
+        has_significant = len(comments) >= 3 or any(c.comment_type == "judgment" for c in comments)
 
         voice_notes = self._generate_voice_notes(comments)
 
@@ -260,8 +259,8 @@ class NarratorCommentaryDetector:
                 seen_positions.add(pos)
 
                 # Extract surrounding context (sentence/paragraph)
-                start = max(0, text.rfind('.', max(0, pos - 200), pos) + 1)
-                end = text.find('.', pos, pos + 300)
+                start = max(0, text.rfind(".", max(0, pos - 200), pos) + 1)
+                end = text.find(".", pos, pos + 300)
                 if end == -1:
                     end = min(len(text), pos + 300)
                 else:
@@ -277,12 +276,14 @@ class NarratorCommentaryDetector:
                             chapter_idx = idx + 1
                             break
 
-                candidates.append({
-                    "text": passage,
-                    "position": pos,
-                    "chapter_index": chapter_idx,
-                    "pattern": pattern.pattern,
-                })
+                candidates.append(
+                    {
+                        "text": passage,
+                        "position": pos,
+                        "chapter_index": chapter_idx,
+                        "pattern": pattern.pattern,
+                    }
+                )
 
         return candidates[:20]  # Limit to 20 candidates
 
@@ -292,9 +293,7 @@ class NarratorCommentaryDetector:
         character_names: list[str],
     ) -> list[NarratorComment]:
         """Classify candidates using LLM."""
-        passages_text = "\n\n".join(
-            f"[Passage {i}]\n{c['text']}" for i, c in enumerate(candidates)
-        )
+        passages_text = "\n\n".join(f"[Passage {i}]\n{c['text']}" for i, c in enumerate(candidates))
         names_text = ", ".join(character_names[:20])  # Limit names
 
         prompt = NARRATOR_COMMENTARY_PROMPT.format(
@@ -318,14 +317,16 @@ class NarratorCommentaryDetector:
                 continue
 
             candidate = candidates[idx]
-            comments.append(NarratorComment(
-                quote=candidate["text"],
-                character_name=item.get("character_name", ""),
-                chapter_index=candidate["chapter_index"],
-                position=candidate["position"],
-                comment_type=item.get("comment_type", "observation"),
-                sentiment=item.get("sentiment", "neutral"),
-            ))
+            comments.append(
+                NarratorComment(
+                    quote=candidate["text"],
+                    character_name=item.get("character_name", ""),
+                    chapter_index=candidate["chapter_index"],
+                    position=candidate["position"],
+                    comment_type=item.get("comment_type", "observation"),
+                    sentiment=item.get("sentiment", "neutral"),
+                )
+            )
 
         return comments
 
@@ -370,14 +371,16 @@ class NarratorCommentaryDetector:
                     sentiment = "positive"
                     break
 
-            comments.append(NarratorComment(
-                quote=candidate["text"],
-                character_name=associated_char,
-                chapter_index=candidate["chapter_index"],
-                position=candidate["position"],
-                comment_type=comment_type,
-                sentiment=sentiment,
-            ))
+            comments.append(
+                NarratorComment(
+                    quote=candidate["text"],
+                    character_name=associated_char,
+                    chapter_index=candidate["chapter_index"],
+                    position=candidate["position"],
+                    comment_type=comment_type,
+                    sentiment=sentiment,
+                )
+            )
 
         return comments
 

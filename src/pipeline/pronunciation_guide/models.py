@@ -4,16 +4,17 @@ Data models for pronunciation guide pipeline.
 These models track words needing pronunciation attention for audiobook narrators.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
-from datetime import datetime
 import json
-from pathlib import Path
+from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Literal, Optional
 
 
 class PronunciationFlag(str, Enum):
     """Why a word was flagged for pronunciation review."""
+
     PROPER_NOUN = "proper_noun"
     FOREIGN = "foreign"
     HOMOGRAPH = "homograph"
@@ -24,10 +25,11 @@ class PronunciationFlag(str, Enum):
 @dataclass
 class PronunciationMention:
     """A single occurrence of a word in the text."""
-    word_form: str          # Exact text found (preserves case)
-    position: int           # Character offset in full document
-    chapter_index: int      # Which chapter (1-indexed)
-    context: str            # Surrounding text (~100 chars)
+
+    word_form: str  # Exact text found (preserves case)
+    position: int  # Character offset in full document
+    chapter_index: int  # Which chapter (1-indexed)
+    context: str  # Surrounding text (~100 chars)
 
     def to_dict(self) -> dict:
         return {
@@ -45,11 +47,12 @@ class PronunciationMention:
 @dataclass
 class PronunciationProposal:
     """A proposed word needing pronunciation attention."""
-    strategy: str           # "cmu", "foreign", "homograph", "character"
-    word: str               # Canonical form of the word
+
+    strategy: str  # "cmu", "foreign", "homograph", "character"
+    word: str  # Canonical form of the word
     flag_reason: PronunciationFlag
     mentions: list[PronunciationMention]
-    confidence: float       # 0.0 - 1.0
+    confidence: float  # 0.0 - 1.0
     language_hint: Optional[str] = None  # e.g., "French", "German"
     homograph_options: Optional[list[str]] = None  # For homographs
     reasoning: Optional[str] = None
@@ -91,10 +94,11 @@ class PronunciationProposal:
 @dataclass
 class PronunciationEnrichment:
     """Enrichment data for a pronunciation entry (from LLM)."""
+
     word: str
-    ipa: Optional[str] = None           # IPA notation
+    ipa: Optional[str] = None  # IPA notation
     phonetic_spelling: Optional[str] = None  # Lay-person spelling
-    notes: Optional[str] = None         # Context-sensitive notes
+    notes: Optional[str] = None  # Context-sensitive notes
     confidence: float = 0.0
 
     def to_dict(self) -> dict:
@@ -114,13 +118,14 @@ class PronunciationEnrichment:
 @dataclass
 class PronunciationEntry:
     """Final pronunciation entry for narrator reference."""
+
     id: str
-    word: str                           # Canonical spelling
+    word: str  # Canonical spelling
     flag_reason: PronunciationFlag
     occurrence_count: int
     first_position: int
-    chapters_present: list[int]         # Chapters where word appears
-    context_examples: list[str]         # Up to 3 context examples
+    chapters_present: list[int]  # Chapters where word appears
+    context_examples: list[str]  # Up to 3 context examples
 
     # Pronunciation guidance
     ipa: Optional[str] = None
@@ -133,7 +138,7 @@ class PronunciationEntry:
     # Metadata
     supporting_strategies: list[str] = field(default_factory=list)
     confidence: float = 0.5
-    is_character_name: bool = False     # Flagged for priority
+    is_character_name: bool = False  # Flagged for priority
 
     def to_dict(self) -> dict:
         return {
@@ -176,13 +181,14 @@ class PronunciationEntry:
 @dataclass
 class PronunciationMap:
     """Final output: complete pronunciation guide for the document."""
+
     entries: list[PronunciationEntry]
     low_confidence_entries: list[PronunciationEntry]  # Need review
 
     # Statistics
     total_flagged_words: int
     total_occurrences: int
-    by_category: dict[str, int]         # PronunciationFlag -> count
+    by_category: dict[str, int]  # PronunciationFlag -> count
 
     # Character names (for prioritization)
     character_names: list[str]
@@ -204,7 +210,9 @@ class PronunciationMap:
     def from_dict(cls, data: dict) -> "PronunciationMap":
         return cls(
             entries=[PronunciationEntry.from_dict(e) for e in data["entries"]],
-            low_confidence_entries=[PronunciationEntry.from_dict(e) for e in data["low_confidence_entries"]],
+            low_confidence_entries=[
+                PronunciationEntry.from_dict(e) for e in data["low_confidence_entries"]
+            ],
             total_flagged_words=data["total_flagged_words"],
             total_occurrences=data["total_occurrences"],
             by_category=data["by_category"],
@@ -279,7 +287,9 @@ class PronunciationMap:
             lines.append("")
 
         # Homographs section
-        homograph_entries = [e for e in self.entries if e.flag_reason == PronunciationFlag.HOMOGRAPH]
+        homograph_entries = [
+            e for e in self.entries if e.flag_reason == PronunciationFlag.HOMOGRAPH
+        ]
         if homograph_entries:
             lines.append("## Homographs (Context-Dependent)")
             lines.append("| Word | Pronunciations |")
@@ -303,9 +313,12 @@ class PronunciationMap:
             lines.append("")
 
         # Other Unusual Words
-        other_entries = [e for e in self.entries
-                         if e.flag_reason not in (PronunciationFlag.HOMOGRAPH, PronunciationFlag.FOREIGN)
-                         and not e.is_character_name]
+        other_entries = [
+            e
+            for e in self.entries
+            if e.flag_reason not in (PronunciationFlag.HOMOGRAPH, PronunciationFlag.FOREIGN)
+            and not e.is_character_name
+        ]
         if other_entries:
             lines.append("## Other Unusual Words")
             lines.append("| Word | IPA | Phonetic | Category |")
@@ -336,6 +349,7 @@ class PronunciationMap:
             New PronunciationMap with filtered entries
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         def is_in_body(entry: PronunciationEntry) -> bool:
@@ -346,8 +360,9 @@ class PronunciationMap:
         filtered_low_conf = [e for e in self.low_confidence_entries if is_in_body(e)]
 
         # Count filtered
-        removed_count = (len(self.entries) - len(filtered_entries)) + \
-                        (len(self.low_confidence_entries) - len(filtered_low_conf))
+        removed_count = (len(self.entries) - len(filtered_entries)) + (
+            len(self.low_confidence_entries) - len(filtered_low_conf)
+        )
 
         if removed_count > 0:
             logger.info(f"Filtered {removed_count} pronunciation entries from front/back matter")
@@ -376,6 +391,7 @@ class PronunciationMap:
 @dataclass
 class PronunciationPipelineCheckpoint:
     """Checkpoint for save/resume capability."""
+
     stage: Literal["proposal", "enrichment", "consolidation", "complete"]
     timestamp: str
     source_file: str
@@ -405,7 +421,9 @@ class PronunciationPipelineCheckpoint:
             "text_hash": self.text_hash,
             "proposals": [p.to_dict() for p in self.proposals] if self.proposals else None,
             "enrichments": enrichments_dict,
-            "pronunciation_map": self.pronunciation_map.to_dict() if self.pronunciation_map else None,
+            "pronunciation_map": (
+                self.pronunciation_map.to_dict() if self.pronunciation_map else None
+            ),
             "enriched_words": self.enriched_words,
             "errors": self.errors,
             "warnings": self.warnings,
@@ -415,16 +433,26 @@ class PronunciationPipelineCheckpoint:
     def from_dict(cls, data: dict) -> "PronunciationPipelineCheckpoint":
         enrichments = None
         if data.get("enrichments"):
-            enrichments = {k: PronunciationEnrichment.from_dict(v) for k, v in data["enrichments"].items()}
+            enrichments = {
+                k: PronunciationEnrichment.from_dict(v) for k, v in data["enrichments"].items()
+            }
 
         return cls(
             stage=data["stage"],
             timestamp=data["timestamp"],
             source_file=data["source_file"],
             text_hash=data["text_hash"],
-            proposals=[PronunciationProposal.from_dict(p) for p in data["proposals"]] if data.get("proposals") else None,
+            proposals=(
+                [PronunciationProposal.from_dict(p) for p in data["proposals"]]
+                if data.get("proposals")
+                else None
+            ),
             enrichments=enrichments,
-            pronunciation_map=PronunciationMap.from_dict(data["pronunciation_map"]) if data.get("pronunciation_map") else None,
+            pronunciation_map=(
+                PronunciationMap.from_dict(data["pronunciation_map"])
+                if data.get("pronunciation_map")
+                else None
+            ),
             enriched_words=data.get("enriched_words", []),
             errors=data.get("errors", []),
             warnings=data.get("warnings", []),

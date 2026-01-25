@@ -14,6 +14,7 @@ from typing import Callable, Optional
 @dataclass
 class ParagraphBoundary:
     """A paragraph boundary in the document (Feature F26)."""
+
     start: int
     end: int
     chapter_index: int
@@ -22,6 +23,7 @@ class ParagraphBoundary:
 @dataclass
 class WordOccurrence:
     """Single occurrence of a word in the document."""
+
     position: int
     original_form: str
     chapter_index: int
@@ -77,7 +79,7 @@ class WordIndex:
         This enables paragraph-based context extraction (F27).
         """
         # Pattern for paragraph separators: 2+ newlines or newline + whitespace indent
-        para_separator = re.compile(r'\n\s*\n+|\n(?=[ \t]{2,})')
+        para_separator = re.compile(r"\n\s*\n+|\n(?=[ \t]{2,})")
 
         current_pos = 0
         para_idx = 0
@@ -89,11 +91,13 @@ class WordIndex:
             # Only add non-empty paragraphs
             if para_end > para_start:
                 chapter_idx = self._get_chapter(para_start)
-                self.paragraphs.append(ParagraphBoundary(
-                    start=para_start,
-                    end=para_end,
-                    chapter_index=chapter_idx,
-                ))
+                self.paragraphs.append(
+                    ParagraphBoundary(
+                        start=para_start,
+                        end=para_end,
+                        chapter_index=chapter_idx,
+                    )
+                )
                 para_idx += 1
 
             current_pos = match.end()
@@ -101,11 +105,13 @@ class WordIndex:
         # Handle last paragraph (after last separator)
         if current_pos < len(self.full_text):
             chapter_idx = self._get_chapter(current_pos)
-            self.paragraphs.append(ParagraphBoundary(
-                start=current_pos,
-                end=len(self.full_text),
-                chapter_index=chapter_idx,
-            ))
+            self.paragraphs.append(
+                ParagraphBoundary(
+                    start=current_pos,
+                    end=len(self.full_text),
+                    chapter_index=chapter_idx,
+                )
+            )
 
     def _get_paragraph_index(self, position: int) -> Optional[int]:
         """F26: Get the paragraph index for a given position."""
@@ -124,7 +130,7 @@ class WordIndex:
         """F26: Get the text of a paragraph by index."""
         para = self.get_paragraph(paragraph_index)
         if para:
-            return self.full_text[para.start:para.end].strip()
+            return self.full_text[para.start : para.end].strip()
         return None
 
     def _build_index(self) -> None:
@@ -152,12 +158,14 @@ class WordIndex:
             if word_lower not in self.word_positions:
                 self.word_positions[word_lower] = []
 
-            self.word_positions[word_lower].append(WordOccurrence(
-                position=position,
-                original_form=word,
-                chapter_index=chapter_idx,
-                paragraph_index=paragraph_idx,  # F26
-            ))
+            self.word_positions[word_lower].append(
+                WordOccurrence(
+                    position=position,
+                    original_form=word,
+                    chapter_index=chapter_idx,
+                    paragraph_index=paragraph_idx,  # F26
+                )
+            )
 
     def _get_chapter(self, position: int) -> int:
         """Determine which chapter a position falls in (O(n) for n chapters)."""
@@ -191,11 +199,7 @@ class WordIndex:
         Returns:
             Dict of matching word -> list of occurrences
         """
-        return {
-            word: occs
-            for word, occs in self.word_positions.items()
-            if predicate(word)
-        }
+        return {word: occs for word, occs in self.word_positions.items() if predicate(word)}
 
     def get_unique_word_count(self) -> int:
         """Get count of unique words in document."""
@@ -229,7 +233,7 @@ class WordIndex:
         start = max(0, position - window)
         end = min(len(self.full_text), position + word_length + window)
         context = self.full_text[start:end]
-        context = ' '.join(context.split())  # Normalize whitespace
+        context = " ".join(context.split())  # Normalize whitespace
 
         if start > 0:
             context = "..." + context
@@ -261,12 +265,14 @@ class WordIndex:
             return None
 
         para = self.paragraphs[para_idx]
-        para_text = self.full_text[para.start:para.end].strip()
+        para_text = self.full_text[para.start : para.end].strip()
 
         # Calculate word offset within paragraph
         word_offset = position - para.start
         # Adjust for stripped whitespace at start
-        leading_ws = len(self.full_text[para.start:para.end]) - len(self.full_text[para.start:para.end].lstrip())
+        leading_ws = len(self.full_text[para.start : para.end]) - len(
+            self.full_text[para.start : para.end].lstrip()
+        )
         word_offset -= leading_ws
 
         return (para_text, max(0, word_offset), word_length)

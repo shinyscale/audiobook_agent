@@ -4,21 +4,20 @@ Provides a browsable interface for analysis results.
 """
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
+from textual.binding import Binding
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import (
-    Header,
-    Footer,
-    Static,
-    Tree,
     DataTable,
+    Footer,
+    Header,
+    Markdown,
+    Static,
     TabbedContent,
     TabPane,
-    Markdown,
+    Tree,
 )
-from textual.binding import Binding
-from rich.text import Text
 
-from ..models import AnalysisResult, StructureType, PronunciationFlag
+from ..models import AnalysisResult, StructureType
 
 
 class StructureTree(Tree):
@@ -44,7 +43,7 @@ class StructureTree(Tree):
                 mins = int(elem.estimated_duration_minutes % 60)
                 duration = f"{hours}h {mins}m" if hours else f"{mins}m"
                 label = f"Ch {elem.index}: {elem.title or '(Untitled)'} ({elem.word_count:,} words, {duration})"
-                node = root.add(label, data=elem)
+                root.add(label, data=elem)
 
         # Add other structural elements
         if other:
@@ -131,8 +130,16 @@ class DetailPanel(Static):
 
     def show_character(self, char):
         """Display character details."""
-        descriptions = "\n".join(f"• {d.text}" for d in char.descriptions[:5]) if char.descriptions else "_None extracted_"
-        relationships = "\n".join(f"• {k}: {v}" for k, v in char.relationships.items()) if char.relationships else "_None extracted_"
+        descriptions = (
+            "\n".join(f"• {d.text}" for d in char.descriptions[:5])
+            if char.descriptions
+            else "_None extracted_"
+        )
+        relationships = (
+            "\n".join(f"• {k}: {v}" for k, v in char.relationships.items())
+            if char.relationships
+            else "_None extracted_"
+        )
         aliases = ", ".join(char.aliases) if char.aliases else "_None_"
 
         content = f"""## {char.canonical_name}
@@ -152,7 +159,11 @@ class DetailPanel(Static):
 
     def show_pronunciation(self, pron):
         """Display pronunciation details."""
-        contexts = "\n".join(f"> {ex}" for ex in pron.context_examples) if pron.context_examples else "_None_"
+        contexts = (
+            "\n".join(f"> {ex}" for ex in pron.context_examples)
+            if pron.context_examples
+            else "_None_"
+        )
 
         content = f"""## {pron.word}
 
@@ -309,8 +320,8 @@ def run_tui(result: AnalysisResult):
 
 # CLI integration
 if __name__ == "__main__":
-    import sys
     import json
+    import sys
     from pathlib import Path
 
     if len(sys.argv) < 2:

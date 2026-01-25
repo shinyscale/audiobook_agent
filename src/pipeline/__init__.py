@@ -6,16 +6,12 @@ before passing results to the next stage.
 """
 
 from .chapter_detection import ChapterDetectionPipeline, ChapterMap
-from .character_extraction import (
-    CharacterExtractionPipeline,
-    CharacterMap as CharacterMapResult,
-    extract_characters,
-)
 from .chapter_summary import (
-    ChapterSummaryPipeline,
     ChapterSummaryMap,
+    ChapterSummaryPipeline,
     summarize_chapters,
 )
+from .character_extraction import CharacterMap as CharacterMapResult
 from .pronunciation_guide import (
     PronunciationGuidePipeline,
     PronunciationMap,
@@ -25,9 +21,7 @@ from .pronunciation_guide import (
 __all__ = [
     "ChapterDetectionPipeline",
     "ChapterMap",
-    "CharacterExtractionPipeline",
     "CharacterMapResult",
-    "extract_characters",
     "ChapterSummaryPipeline",
     "ChapterSummaryMap",
     "summarize_chapters",

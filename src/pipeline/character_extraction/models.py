@@ -5,32 +5,35 @@ These models represent the flow of data through the per-chapter extraction,
 validation, and cross-chapter consensus stages.
 """
 
+import json
 from dataclasses import dataclass, field
-from typing import Literal, Optional
 from datetime import datetime
 from enum import Enum
-import json
 from pathlib import Path
-import hashlib
+from typing import Literal, Optional
 
 
 class CharacterType(str, Enum):
     """Classification of character's role in the narrative."""
-    STORY = "story"           # Active participant - appears in scenes, speaks, acts
-    HISTORICAL = "historical" # Real historical figure mentioned in passing
-    REFERENCED = "referenced" # Fictional character from other works mentioned
-    DESCRIPTIVE = "descriptive"  # Recurring descriptive handle (e.g., "the creature", "the detective")
-    UNCERTAIN = "uncertain"   # Could not determine
+
+    STORY = "story"  # Active participant - appears in scenes, speaks, acts
+    HISTORICAL = "historical"  # Real historical figure mentioned in passing
+    REFERENCED = "referenced"  # Fictional character from other works mentioned
+    DESCRIPTIVE = (
+        "descriptive"  # Recurring descriptive handle (e.g., "the creature", "the detective")
+    )
+    UNCERTAIN = "uncertain"  # Could not determine
 
 
 @dataclass
 class CharacterMention:
     """A single mention of a character in text."""
-    text: str               # The exact text found ("Elizabeth", "Lizzy", "Miss Bennet")
-    position: int           # Character offset in full document
-    chapter_index: int      # Which chapter (1-indexed)
-    context: str            # Surrounding text (~100 chars)
-    in_dialogue: bool       # Is this within quoted speech?
+
+    text: str  # The exact text found ("Elizabeth", "Lizzy", "Miss Bennet")
+    position: int  # Character offset in full document
+    chapter_index: int  # Which chapter (1-indexed)
+    context: str  # Surrounding text (~100 chars)
+    in_dialogue: bool  # Is this within quoted speech?
     is_agentive: bool = False  # Is this mention in an agentive context (speaks/acts)?
 
     def to_dict(self) -> dict:
@@ -58,11 +61,12 @@ class CharacterMention:
 @dataclass
 class CharacterProposal:
     """A proposed character from one extraction strategy."""
-    strategy: str           # "ner", "llm_character", etc.
-    name: str               # Proposed canonical name
+
+    strategy: str  # "ner", "llm_character", etc.
+    name: str  # Proposed canonical name
     mentions: list[CharacterMention]
-    confidence: float       # Strategy's confidence (0.0 - 1.0)
-    chapter_index: int      # Which chapter this was extracted from
+    confidence: float  # Strategy's confidence (0.0 - 1.0)
+    chapter_index: int  # Which chapter this was extracted from
     reasoning: Optional[str] = None
     character_type: CharacterType = CharacterType.UNCERTAIN  # story, historical, or referenced
 
@@ -103,12 +107,13 @@ class CharacterProposal:
 @dataclass
 class CharacterValidationResult:
     """Result of validating a character proposal."""
+
     proposal: CharacterProposal
-    is_person_score: float      # Is this really a person? (0-1)
-    context_score: float        # Does context support character interpretation? (0-1)
-    alias_candidates: list[str] # Other names that might be same person
-    overall_score: float        # Combined validation score
-    is_valid: bool              # Above threshold?
+    is_person_score: float  # Is this really a person? (0-1)
+    context_score: float  # Does context support character interpretation? (0-1)
+    alias_candidates: list[str]  # Other names that might be same person
+    overall_score: float  # Combined validation score
+    is_valid: bool  # Above threshold?
     reasoning: str
 
     def to_dict(self) -> dict:
@@ -141,30 +146,33 @@ RoleType = Literal["protagonist", "antagonist", "supporting", "minor"]
 @dataclass
 class Character:
     """A validated character with all information merged across chapters."""
-    id: str                         # Unique identifier
-    canonical_name: str             # Primary name to use
-    aliases: list[str]              # Other names for this character
+
+    id: str  # Unique identifier
+    canonical_name: str  # Primary name to use
+    aliases: list[str]  # Other names for this character
     mentions: list[CharacterMention]
-    first_appearance_chapter: int   # First chapter where character appears
-    mention_count: int              # Total mentions across all chapters
-    chapters_present: list[int]     # List of chapter indices where character appears
-    confidence: float               # Overall confidence score
+    first_appearance_chapter: int  # First chapter where character appears
+    mention_count: int  # Total mentions across all chapters
+    chapters_present: list[int]  # List of chapter indices where character appears
+    confidence: float  # Overall confidence score
     supporting_strategies: list[str]  # Which extraction strategies found this character
-    description: str = ""           # LLM-generated prose profile
+    description: str = ""  # LLM-generated prose profile
     character_type: CharacterType = CharacterType.UNCERTAIN  # story, historical, or referenced
     profile_evidence: list[dict] = field(default_factory=list)  # Evidence supporting profile claims
     # Confidence in profile quality (0.0-1.0). None means "no profile was generated/attempted".
     profile_confidence: Optional[float] = None
     # Narrator detection fields
-    is_narrator: bool = False       # Is this the narrator of the story?
+    is_narrator: bool = False  # Is this the narrator of the story?
     narrative_role: Optional[str] = None  # e.g., "First-person narrator"
-    role: RoleType = "supporting"   # Character role in the story
+    role: RoleType = "supporting"  # Character role in the story
     # Effective mention count for narrators (boosted to match main characters)
     effective_mention_count: Optional[int] = None
     # Structured profile fields (F8: Simplified Character Output)
     appearance: Optional[dict] = None  # {summary, age_indication, distinguishing_features}
     personality: Optional[dict] = None  # {summary, traits, temperament, emotional_range}
-    voice_guidance: Optional[dict] = None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
+    voice_guidance: Optional[dict] = (
+        None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -225,6 +233,7 @@ class Character:
 @dataclass
 class CharacterMap:
     """Final output: all characters extracted from the document."""
+
     characters: list[Character]
     low_confidence_characters: list[Character]  # Flagged for review
     total_mentions: int
@@ -244,7 +253,9 @@ class CharacterMap:
     def from_dict(cls, data: dict) -> "CharacterMap":
         return cls(
             characters=[Character.from_dict(c) for c in data["characters"]],
-            low_confidence_characters=[Character.from_dict(c) for c in data["low_confidence_characters"]],
+            low_confidence_characters=[
+                Character.from_dict(c) for c in data["low_confidence_characters"]
+            ],
             total_mentions=data["total_mentions"],
             total_chapters=data["total_chapters"],
             pipeline_metadata=data.get("pipeline_metadata", {}),
@@ -294,13 +305,16 @@ class CharacterMap:
 @dataclass
 class CharacterPipelineCheckpoint:
     """Checkpoint for saving/resuming character extraction pipeline state."""
+
     stage: Literal["extraction", "validation", "consensus", "complete"]
     timestamp: str
     source_file: str
     text_hash: str  # To verify we're resuming with same document
 
     # Stage outputs (populated as pipeline progresses)
-    chapter_proposals: Optional[dict[int, list[CharacterProposal]]] = None  # chapter_idx -> proposals
+    chapter_proposals: Optional[dict[int, list[CharacterProposal]]] = (
+        None  # chapter_idx -> proposals
+    )
     validations: Optional[list[CharacterValidationResult]] = None
     character_map: Optional[CharacterMap] = None
 
@@ -312,8 +326,7 @@ class CharacterPipelineCheckpoint:
         chapter_proposals_dict = None
         if self.chapter_proposals:
             chapter_proposals_dict = {
-                str(k): [p.to_dict() for p in v]
-                for k, v in self.chapter_proposals.items()
+                str(k): [p.to_dict() for p in v] for k, v in self.chapter_proposals.items()
             }
 
         return {
@@ -343,8 +356,14 @@ class CharacterPipelineCheckpoint:
             source_file=data["source_file"],
             text_hash=data["text_hash"],
             chapter_proposals=chapter_proposals,
-            validations=[CharacterValidationResult.from_dict(v) for v in data["validations"]] if data.get("validations") else None,
-            character_map=CharacterMap.from_dict(data["character_map"]) if data.get("character_map") else None,
+            validations=(
+                [CharacterValidationResult.from_dict(v) for v in data["validations"]]
+                if data.get("validations")
+                else None
+            ),
+            character_map=(
+                CharacterMap.from_dict(data["character_map"]) if data.get("character_map") else None
+            ),
             errors=data.get("errors", []),
             warnings=data.get("warnings", []),
         )

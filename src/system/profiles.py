@@ -6,7 +6,7 @@ Defines profiles for different hardware tiers and matches system specs to profil
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .specs import SystemSpecs
 
@@ -192,7 +192,7 @@ def apply_profile_to_config(
         config: OrchestratorConfig to modify
         available_models: Optional list of available model names to filter recommendations
     """
-    from ..agents.config import AgentConfig
+    from ..agents.config import RECOMMENDED_AGENT_MODELS, AgentConfig
 
     available = set(available_models) if available_models else None
 
@@ -206,11 +206,21 @@ def apply_profile_to_config(
                 break
 
         if selected_model:
+            # Get recommended settings for this agent (temperature, think_mode, etc.)
+            agent_recommendations = RECOMMENDED_AGENT_MODELS.get(agent_name, {})
+
             config.set_agent_config(
                 agent_name,
-                AgentConfig(model=selected_model),
+                AgentConfig(
+                    model=selected_model,
+                    temperature=agent_recommendations.get("temperature", 0.7),
+                    think_mode=agent_recommendations.get("think_mode", False),
+                    system_prompt=agent_recommendations.get("system_prompt"),
+                ),
             )
-            logger.debug(f"Set {agent_name} agent to use {selected_model}")
+            logger.debug(
+                f"Set {agent_name} agent to use {selected_model} with temperature={agent_recommendations.get('temperature', 0.7)}"
+            )
 
 
 def format_specs_display(specs: SystemSpecs, profile: HardwareProfile) -> str:

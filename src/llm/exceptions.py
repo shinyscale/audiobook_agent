@@ -9,6 +9,7 @@ raise an exception with context rather than falling back to garbage output.
 
 class LLMAnalysisError(Exception):
     """Base exception for LLM analysis failures."""
+
     pass
 
 
@@ -22,6 +23,7 @@ class ChapterDetectionError(LLMAnalysisError):
     - LLM returns insufficient first_words to locate chapters
     - Detected chapters are suspiciously small (< 500 words)
     """
+
     pass
 
 
@@ -34,6 +36,7 @@ class CharacterProfileError(LLMAnalysisError):
     - LLM returns empty profile
     - LLM returns bullet lists instead of synthesized prose
     """
+
     pass
 
 
@@ -45,6 +48,7 @@ class ChapterSummaryError(LLMAnalysisError):
     - LLM returns empty summary
     - LLM returns narrator instructions instead of narrative summary
     """
+
     pass
 
 
@@ -55,6 +59,7 @@ class PronunciationFilterError(LLMAnalysisError):
     This can occur when:
     - LLM returns invalid JSON for word filtering
     """
+
     pass
 
 
@@ -65,6 +70,7 @@ class CharacterMergeError(LLMAnalysisError):
     This can occur when:
     - LLM returns invalid alias mapping
     """
+
     pass
 
 
@@ -75,4 +81,5 @@ class RelationshipExtractionError(LLMAnalysisError):
     This can occur when:
     - LLM returns invalid relationship data
     """
+
     pass

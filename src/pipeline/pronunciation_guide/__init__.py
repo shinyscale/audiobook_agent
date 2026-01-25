@@ -2,24 +2,24 @@
 Pronunciation guide pipeline for audiobook narration preparation.
 """
 
+from .consolidator import PronunciationConsolidator
+from .enricher import PronunciationEnricher
 from .models import (
-    PronunciationFlag,
-    PronunciationMention,
-    PronunciationProposal,
     PronunciationEnrichment,
     PronunciationEntry,
+    PronunciationFlag,
     PronunciationMap,
+    PronunciationMention,
     PronunciationPipelineCheckpoint,
+    PronunciationProposal,
 )
 from .pipeline import PronunciationGuidePipeline, generate_pronunciation_guide
-from .enricher import PronunciationEnricher
-from .consolidator import PronunciationConsolidator
 from .proposers import (
     BasePronunciationProposer,
+    CharacterProposer,
     CMUProposer,
     ForeignProposer,
     HomographProposer,
-    CharacterProposer,
 )
 
 __all__ = [

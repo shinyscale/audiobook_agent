@@ -7,18 +7,16 @@ Outputs to both console (stderr) and rotating log file.
 
 import json
 import logging
-import os
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional
 
-
 # Sensitive headers that should have values redacted
-SENSITIVE_HEADERS = {'authorization', 'x-api-key', 'api-key'}
+SENSITIVE_HEADERS = {"authorization", "x-api-key", "api-key"}
 
 # Global logger instance
-_llm_logger: Optional['LLMDebugLogger'] = None
+_llm_logger: Optional["LLMDebugLogger"] = None
 
 
 def redact_headers(headers: dict) -> dict:
@@ -35,9 +33,9 @@ def redact_headers(headers: dict) -> dict:
         if key.lower() in SENSITIVE_HEADERS and value:
             # Show first 4 chars, mask the rest
             if len(value) > 8:
-                result[key] = value[:4] + '*' * (len(value) - 4)
+                result[key] = value[:4] + "*" * (len(value) - 4)
             else:
-                result[key] = '****'
+                result[key] = "****"
         else:
             result[key] = value
     return result
@@ -59,7 +57,7 @@ def truncate_body(body: Any, max_length: int = 500) -> str:
             text = str(body)
     elif isinstance(body, bytes):
         try:
-            text = body.decode('utf-8')
+            text = body.decode("utf-8")
         except UnicodeDecodeError:
             return f"[binary data, {len(body)} bytes]"
     else:
@@ -80,7 +78,7 @@ class LLMDebugLogger:
 
     def __init__(self, enabled: bool = False):
         self._enabled = enabled
-        self._logger = logging.getLogger('llm_debug')
+        self._logger = logging.getLogger("llm_debug")
         self._logger.setLevel(logging.DEBUG)
         self._file_handler: Optional[RotatingFileHandler] = None
         self._console_handler: Optional[logging.StreamHandler] = None
@@ -95,22 +93,18 @@ class LLMDebugLogger:
             return
 
         # Create log directory
-        log_dir = Path.home() / '.audiobook-prep'
+        log_dir = Path.home() / ".audiobook-prep"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / 'llm.log'
+        log_file = log_dir / "llm.log"
 
         # Format for log messages
         formatter = logging.Formatter(
-            '[%(asctime)s] %(levelname)s %(name)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "[%(asctime)s] %(levelname)s %(name)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
         # File handler with rotation (10MB max, 3 backups)
         self._file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=3,
-            encoding='utf-8'
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"  # 10MB
         )
         self._file_handler.setLevel(logging.DEBUG)
         self._file_handler.setFormatter(formatter)
@@ -187,7 +181,7 @@ class LLMDebugLogger:
         if body_preview:
             lines.append(f"    Body: {body_preview}")
 
-        self._logger.debug('\n'.join(lines))
+        self._logger.debug("\n".join(lines))
 
     def log_response(
         self,
@@ -218,8 +212,8 @@ class LLMDebugLogger:
         lines = [f"RESPONSE: {status_code} {status_text} ({latency_ms:.0f}ms)"]
 
         if token_usage:
-            prompt = token_usage.get('prompt_tokens', 0)
-            completion = token_usage.get('completion_tokens', 0)
+            prompt = token_usage.get("prompt_tokens", 0)
+            completion = token_usage.get("completion_tokens", 0)
             total = prompt + completion
             lines.append(f"    Tokens: prompt={prompt}, completion={completion}, total={total}")
 
@@ -230,7 +224,7 @@ class LLMDebugLogger:
         if body_preview and not error:
             lines.append(f"    Body: {body_preview}")
 
-        self._logger.debug('\n'.join(lines))
+        self._logger.debug("\n".join(lines))
 
 
 def setup_llm_logging(enabled: bool = False) -> LLMDebugLogger:
@@ -310,8 +304,7 @@ def setup_pipeline_logging(level: str = "INFO", to_file: bool = True) -> None:
 
     # Create formatter
     formatter = logging.Formatter(
-        '[%(asctime)s] %(levelname)s %(name)s - %(message)s',
-        datefmt='%H:%M:%S'
+        "[%(asctime)s] %(levelname)s %(name)s - %(message)s", datefmt="%H:%M:%S"
     )
 
     # Console handler (stderr)
@@ -322,15 +315,12 @@ def setup_pipeline_logging(level: str = "INFO", to_file: bool = True) -> None:
 
     # File handler (optional)
     if to_file:
-        log_dir = Path.home() / '.audiobook-prep'
+        log_dir = Path.home() / ".audiobook-prep"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / 'pipeline.log'
+        log_file = log_dir / "pipeline.log"
 
         file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=3,
-            encoding='utf-8'
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"  # 10MB
         )
         file_handler.setLevel(logging.DEBUG)  # File gets all levels
         file_handler.setFormatter(formatter)
@@ -338,13 +328,13 @@ def setup_pipeline_logging(level: str = "INFO", to_file: bool = True) -> None:
 
     # All pipeline loggers we added diagnostic messages to
     pipeline_loggers = [
-        'src.analyzer',
-        'src.pipeline.chapter_detection.profiler',
-        'src.pipeline.chapter_detection.proposers.regex',
-        'src.pipeline.chapter_detection.validator',
-        'src.pipeline.chapter_detection.consensus',
-        'src.pipeline.character_extraction.consensus',
-        'src.ingestion.pdf_spacing',
+        "src.analyzer",
+        "src.pipeline.chapter_detection.profiler",
+        "src.pipeline.chapter_detection.proposers.regex",
+        "src.pipeline.chapter_detection.validator",
+        "src.pipeline.chapter_detection.consensus",
+        "src.pipeline.character_extraction.consensus",
+        "src.ingestion.pdf_spacing",
     ]
 
     for logger_name in pipeline_loggers:
@@ -360,13 +350,13 @@ def disable_pipeline_logging() -> None:
     global _pipeline_handlers
 
     pipeline_loggers = [
-        'src.analyzer',
-        'src.pipeline.chapter_detection.profiler',
-        'src.pipeline.chapter_detection.proposers.regex',
-        'src.pipeline.chapter_detection.validator',
-        'src.pipeline.chapter_detection.consensus',
-        'src.pipeline.character_extraction.consensus',
-        'src.ingestion.pdf_spacing',
+        "src.analyzer",
+        "src.pipeline.chapter_detection.profiler",
+        "src.pipeline.chapter_detection.proposers.regex",
+        "src.pipeline.chapter_detection.validator",
+        "src.pipeline.chapter_detection.consensus",
+        "src.pipeline.character_extraction.consensus",
+        "src.ingestion.pdf_spacing",
     ]
 
     for logger_name in pipeline_loggers:

@@ -6,6 +6,7 @@ Provides file pickers, progress tracking, and result viewing.
 try:
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
+
     HAS_TKINTER = True
 except ImportError:
     HAS_TKINTER = False
@@ -15,17 +16,18 @@ except ImportError:
     messagebox = None
     ttk = None
 
-from pathlib import Path
-import threading
 import json
-from typing import Optional
 import os
+import threading
+from pathlib import Path
+from typing import Optional
 
 try:
     from ..analyzer import AudiobookAnalyzer
     from ..models import AnalysisResult
-    from ..pipeline.metrics import ProgressSnapshot, MetricsCollector
+    from ..pipeline.metrics import MetricsCollector, ProgressSnapshot
     from ..pipeline.pricing import format_cost
+
     HAS_ANALYZER = True
 except ImportError:
     HAS_ANALYZER = False
@@ -33,15 +35,16 @@ except ImportError:
 
 try:
     from ..llm.config import (
-        LLMProvider,
         DEFAULT_URLS,
+        LLMProvider,
+        delete_ollama_model,
         detect_available_models,
         detect_context_length,
-        test_connection,
         pull_ollama_model,
-        delete_ollama_model,
+        test_connection,
     )
-    from ..llm.prompts import PromptConfig, DEFAULT_PROMPTS
+    from ..llm.prompts import DEFAULT_PROMPTS, PromptConfig
+
     HAS_LLM_CONFIG = True
 except ImportError:
     HAS_LLM_CONFIG = False
@@ -50,18 +53,20 @@ except ImportError:
 
 try:
     from .tui import run_tui
+
     HAS_TUI = True
 except ImportError:
     HAS_TUI = False
 
 try:
     from ..agents.config import (
+        RECOMMENDED_AGENT_MODELS,
         AgentConfig,
         OrchestratorConfig,
         PipelineTuningConfig,
-        RECOMMENDED_AGENT_MODELS,
         create_optimized_config,
     )
+
     HAS_AGENT_CONFIG = True
 except ImportError:
     HAS_AGENT_CONFIG = False
@@ -70,15 +75,36 @@ except ImportError:
 
 try:
     from ..system import (
-        detect_system_specs,
-        detect_optimal_profile,
-        format_specs_display,
         HARDWARE_PROFILES,
         apply_profile_to_config,
+        detect_optimal_profile,
+        detect_system_specs,
+        format_specs_display,
     )
+
     HAS_SYSTEM_DETECTION = True
 except ImportError:
     HAS_SYSTEM_DETECTION = False
+
+
+# Stage order mapping for display purposes
+# This defines the expected execution order of pipeline stages
+STAGE_ORDER = {
+    "Chapter Detection": 1,
+    "Character Extraction": 2,
+    "Character Extraction V2": 2,  # Alternative to V1, same position
+    "Chapter Summaries": 3,
+    "Character Profiles": 4,
+    "Pronunciation Guide": 5,
+}
+
+
+def get_stage_order(stage_name: str) -> str:
+    """Get the order prefix for a stage name."""
+    order = STAGE_ORDER.get(stage_name)
+    if order:
+        return f"{order}. "
+    return ""
 
 
 def make_combobox_auto_expand(combobox: "ttk.Combobox"):
@@ -86,9 +112,10 @@ def make_combobox_auto_expand(combobox: "ttk.Combobox"):
 
     This fixes the issue where long model names are truncated in dropdowns.
     """
+
     def adjust_dropdown_width():
         # Get all values
-        values = combobox.cget('values')
+        values = combobox.cget("values")
         if not values:
             return
 
@@ -132,21 +159,13 @@ class ProgressWindow:
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
         # Stage name (large, prominent)
-        self.stage_label = tk.Label(
-            main_frame,
-            text="Initializing...",
-            font=("Arial", 12, "bold")
-        )
+        self.stage_label = tk.Label(main_frame, text="Initializing...", font=("Arial", 12, "bold"))
         self.stage_label.pack(pady=(0, 10))
 
         # Progress bar with percentage
         progress_frame = tk.Frame(main_frame)
         progress_frame.pack(fill=tk.X, pady=5)
-        self.progress_bar = ttk.Progressbar(
-            progress_frame,
-            mode='indeterminate',
-            length=550
-        )
+        self.progress_bar = ttk.Progressbar(progress_frame, mode="indeterminate", length=550)
         self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.percent_label = tk.Label(progress_frame, text="", width=5)
         self.percent_label.pack(side=tk.LEFT, padx=(5, 0))
@@ -158,17 +177,11 @@ class ProgressWindow:
         timing_frame = tk.Frame(main_frame)
         timing_frame.pack(fill=tk.X, pady=10)
         self.stage_time_label = tk.Label(
-            timing_frame,
-            text="⏱️  Stage: 0:00",
-            anchor=tk.W,
-            font=("Arial", 9)
+            timing_frame, text="⏱️  Stage: 0:00", anchor=tk.W, font=("Arial", 9)
         )
         self.stage_time_label.pack(fill=tk.X)
         self.total_time_label = tk.Label(
-            timing_frame,
-            text="⏱️  Total: 0:00 elapsed",
-            anchor=tk.W,
-            font=("Arial", 9)
+            timing_frame, text="⏱️  Total: 0:00 elapsed", anchor=tk.W, font=("Arial", 9)
         )
         self.total_time_label.pack(fill=tk.X)
 
@@ -176,24 +189,15 @@ class ProgressWindow:
         metrics_frame = tk.Frame(main_frame)
         metrics_frame.pack(fill=tk.X, pady=10)
         self.items_label = tk.Label(
-            metrics_frame,
-            text="📊 Items: Processing...",
-            anchor=tk.W,
-            font=("Arial", 9)
+            metrics_frame, text="📊 Items: Processing...", anchor=tk.W, font=("Arial", 9)
         )
         self.items_label.pack(fill=tk.X)
         self.model_label = tk.Label(
-            metrics_frame,
-            text="🤖 Model: ...",
-            anchor=tk.W,
-            font=("Arial", 9)
+            metrics_frame, text="🤖 Model: ...", anchor=tk.W, font=("Arial", 9)
         )
         self.model_label.pack(fill=tk.X)
         self.tokens_label = tk.Label(
-            metrics_frame,
-            text="💰 In: 0 | Out: 0 | Cost: $0.00",
-            anchor=tk.W,
-            font=("Arial", 9)
+            metrics_frame, text="💰 In: 0 | Out: 0 | Cost: $0.00", anchor=tk.W, font=("Arial", 9)
         )
         self.tokens_label.pack(fill=tk.X)
 
@@ -201,9 +205,7 @@ class ProgressWindow:
         self.details_frame = tk.Frame(main_frame)
         self.details_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         self.details_toggle = tk.Button(
-            self.details_frame,
-            text="▼ Stage Details",
-            command=self._toggle_details
+            self.details_frame, text="▼ Stage Details", command=self._toggle_details
         )
         self.details_toggle.pack()
 
@@ -212,10 +214,7 @@ class ProgressWindow:
 
         # Text widget for stage table
         self.details_text = tk.Text(
-            self.details_content,
-            height=6,
-            font=("Courier", 9),
-            wrap=tk.NONE
+            self.details_content, height=6, font=("Courier", 9), wrap=tk.NONE
         )
         self.details_text.pack(fill=tk.BOTH, expand=True)
         self.details_text.config(state=tk.DISABLED)
@@ -225,7 +224,7 @@ class ProgressWindow:
             main_frame,
             text="Cancel",
             command=self.cancel,
-            state=tk.DISABLED  # For now, don't allow cancel
+            state=tk.DISABLED,  # For now, don't allow cancel
         )
         self.cancel_button.pack(pady=10)
 
@@ -239,7 +238,7 @@ class ProgressWindow:
             try:
                 snapshot = self.metrics.get_progress_snapshot()
                 self._update_display(snapshot)
-            except Exception as e:
+            except Exception:
                 # If polling fails, just skip this update
                 pass
             self.window.after(100, self._poll_progress)
@@ -248,17 +247,18 @@ class ProgressWindow:
         """Update all widgets based on snapshot."""
         # Stage name
         if snapshot.current_stage_name:
-            self.stage_label.config(text=f"Analyzing: {snapshot.current_stage_name}")
+            order_prefix = get_stage_order(snapshot.current_stage_name)
+            self.stage_label.config(text=f"Analyzing: {order_prefix}{snapshot.current_stage_name}")
 
         # Progress bar
         if snapshot.progress_percentage:
             self.progress_bar.stop()
-            self.progress_bar['mode'] = 'determinate'
-            self.progress_bar['value'] = snapshot.progress_percentage
+            self.progress_bar["mode"] = "determinate"
+            self.progress_bar["value"] = snapshot.progress_percentage
             self.percent_label.config(text=f"{snapshot.progress_percentage:.0f}%")
         else:
-            if self.progress_bar['mode'] != 'indeterminate':
-                self.progress_bar['mode'] = 'indeterminate'
+            if self.progress_bar["mode"] != "indeterminate":
+                self.progress_bar["mode"] = "indeterminate"
                 self.progress_bar.start(10)
             self.percent_label.config(text="")
 
@@ -270,7 +270,7 @@ class ProgressWindow:
             total_est = self._format_duration(snapshot.estimated_remaining_seconds)
             self.total_time_label.config(
                 text=f"⏱️  Total: {self._format_duration(snapshot.total_elapsed_seconds)} elapsed, "
-                     f"~{total_est} remaining"
+                f"~{total_est} remaining"
             )
         else:
             self.total_time_label.config(
@@ -297,7 +297,7 @@ class ProgressWindow:
             h, m, l = (
                 snapshot.current_stage_high_confidence,
                 snapshot.current_stage_medium_confidence,
-                snapshot.current_stage_low_confidence
+                snapshot.current_stage_low_confidence,
             )
             if h + m + l > 0:
                 items_text += f" ({h}H/{m}M/{l}L confidence)"
@@ -318,9 +318,7 @@ class ProgressWindow:
         # Model
         if snapshot.current_stage_model:
             provider = snapshot.current_stage_provider or "unknown"
-            self.model_label.config(
-                text=f"🤖 Model: {snapshot.current_stage_model} ({provider})"
-            )
+            self.model_label.config(text=f"🤖 Model: {snapshot.current_stage_model} ({provider})")
         else:
             self.model_label.config(text="🤖 Model: ...")
 
@@ -358,14 +356,16 @@ class ProgressWindow:
 
         # Build table
         lines = []
-        lines.append("Stage                   Time    Items  Confidence")
-        lines.append("─" * 55)
+        lines.append("Stage                       Time    Items  Confidence")
+        lines.append("─" * 59)
 
         # Completed stages
         for stage in snapshot.completed_stages:
             time_str = self._format_duration(stage.duration_seconds)
+            order_prefix = get_stage_order(stage.stage_name)
+            stage_display = f"{order_prefix}{stage.stage_name}"
             lines.append(
-                f"✓ {stage.stage_name:<21} {time_str:>7} {stage.items_processed:>5}  "
+                f"✓ {stage_display:<25} {time_str:>7} {stage.items_processed:>5}  "
                 f"{stage.confidence_summary}"
             )
 
@@ -376,12 +376,11 @@ class ProgressWindow:
             h, m, l = (
                 snapshot.current_stage_high_confidence,
                 snapshot.current_stage_medium_confidence,
-                snapshot.current_stage_low_confidence
+                snapshot.current_stage_low_confidence,
             )
-            lines.append(
-                f"→ {snapshot.current_stage_name:<21} {time_str:>7} {items:>5}  "
-                f"{h}H/{m}M/{l}L"
-            )
+            order_prefix = get_stage_order(snapshot.current_stage_name)
+            stage_display = f"{order_prefix}{snapshot.current_stage_name}"
+            lines.append(f"→ {stage_display:<25} {time_str:>7} {items:>5}  " f"{h}H/{m}M/{l}L")
 
         self.details_text.insert(1.0, "\n".join(lines))
         self.details_text.config(state=tk.DISABLED)
@@ -390,8 +389,8 @@ class ProgressWindow:
         """Show final summary when analysis completes."""
         self.stage_label.config(text="✅ Analysis Complete!")
         self.progress_bar.stop()
-        self.progress_bar['mode'] = 'determinate'
-        self.progress_bar['value'] = 100
+        self.progress_bar["mode"] = "determinate"
+        self.progress_bar["value"] = 100
         self.percent_label.config(text="100%")
 
         # Update to show final summary
@@ -456,7 +455,7 @@ class PromptEditorDialog:
         ttk.Label(
             main_frame,
             text="Customize the system prompts used by the LLM for each analysis task.",
-            wraplength=750
+            wraplength=750,
         ).pack(anchor=tk.W, pady=(0, 10))
 
         # Create notebook (tabs) for each prompt
@@ -484,12 +483,13 @@ class PromptEditorDialog:
             def make_reset_callback(fn, dv):
                 def reset():
                     self.prompt_vars[fn].set(dv)
+
                 return reset
 
             reset_btn = ttk.Button(
                 btn_frame,
                 text="Reset to Default",
-                command=make_reset_callback(field_name, default_value)
+                command=make_reset_callback(field_name, default_value),
             )
             reset_btn.pack(side=tk.RIGHT)
 
@@ -505,7 +505,7 @@ class PromptEditorDialog:
                 wrap=tk.WORD,
                 yscrollcommand=scrollbar.set,
                 font=("Consolas", 10),
-                height=15
+                height=15,
             )
             text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             scrollbar.config(command=text_widget.yview)
@@ -521,6 +521,7 @@ class PromptEditorDialog:
             def make_update_callback(var_ref, text_ref):
                 def update(*args):
                     var_ref.set(text_ref.get("1.0", "end-1c"))
+
                 return update
 
             text_widget.bind("<KeyRelease>", make_update_callback(var, text_widget))
@@ -532,23 +533,13 @@ class PromptEditorDialog:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=10)
 
-        ttk.Button(
-            button_frame,
-            text="Reset All to Defaults",
-            command=self._reset_all
-        ).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="Reset All to Defaults", command=self._reset_all).pack(
+            side=tk.LEFT
+        )
 
-        ttk.Button(
-            button_frame,
-            text="Cancel",
-            command=self._cancel
-        ).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=self._cancel).pack(side=tk.RIGHT, padx=5)
 
-        ttk.Button(
-            button_frame,
-            text="Save",
-            command=self._save
-        ).pack(side=tk.RIGHT)
+        ttk.Button(button_frame, text="Save", command=self._save).pack(side=tk.RIGHT)
 
     def _reset_all(self):
         """Reset all prompts to defaults."""
@@ -627,10 +618,7 @@ class LLMSettingsPanel:
         header_frame.pack(fill=tk.X)
 
         self.toggle_button = ttk.Button(
-            header_frame,
-            text="▶ LLM Settings",
-            command=self._toggle_expanded,
-            width=18
+            header_frame, text="▶ LLM Settings", command=self._toggle_expanded, width=18
         )
         self.toggle_button.pack(side=tk.LEFT)
 
@@ -640,9 +628,7 @@ class LLMSettingsPanel:
 
         # Expandable content frame (hidden by default)
         self.content_frame = ttk.LabelFrame(
-            self.outer_frame,
-            text="LLM Configuration",
-            padding="10"
+            self.outer_frame, text="LLM Configuration", padding="10"
         )
 
         self._create_content_widgets()
@@ -657,7 +643,7 @@ class LLMSettingsPanel:
             enable_row,
             text="Enable editing (prevents accidental changes)",
             variable=self.editing_enabled,
-            command=self._update_editing_state
+            command=self._update_editing_state,
         ).pack(side=tk.LEFT)
 
         ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
@@ -672,7 +658,7 @@ class LLMSettingsPanel:
             textvariable=self.provider,
             values=["ollama", "lm_studio", "openai", "anthropic"],
             state="readonly",
-            width=15
+            width=15,
         )
         self.provider_combo.pack(side=tk.LEFT, padx=5)
         self.provider_combo.bind("<<ComboboxSelected>>", self._on_provider_change)
@@ -690,19 +676,12 @@ class LLMSettingsPanel:
         model_row.pack(fill=tk.X, pady=5)
 
         ttk.Label(model_row, text="Model:").pack(side=tk.LEFT)
-        self.model_combo = ttk.Combobox(
-            model_row,
-            textvariable=self.model,
-            width=35
-        )
+        self.model_combo = ttk.Combobox(model_row, textvariable=self.model, width=35)
         self.model_combo.pack(side=tk.LEFT, padx=5)
         make_combobox_auto_expand(self.model_combo)  # Auto-expand for long model names
 
         self.detect_models_button = ttk.Button(
-            model_row,
-            text="Detect",
-            command=self._detect_models,
-            width=8
+            model_row, text="Detect", command=self._detect_models, width=8
         )
         self.detect_models_button.pack(side=tk.LEFT, padx=2)
 
@@ -715,17 +694,12 @@ class LLMSettingsPanel:
         self.pull_model_entry.insert(0, "qwen2.5:7b")  # Default suggestion
 
         self.pull_button = ttk.Button(
-            self.ollama_mgmt_frame,
-            text="Pull",
-            command=self._pull_model,
-            width=6
+            self.ollama_mgmt_frame, text="Pull", command=self._pull_model, width=6
         )
         self.pull_button.pack(side=tk.LEFT, padx=2)
 
         self.delete_button = ttk.Button(
-            self.ollama_mgmt_frame,
-            text="Delete Selected",
-            command=self._delete_model
+            self.ollama_mgmt_frame, text="Delete Selected", command=self._delete_model
         )
         self.delete_button.pack(side=tk.LEFT, padx=10)
 
@@ -733,15 +707,11 @@ class LLMSettingsPanel:
         self.pull_progress_frame = ttk.Frame(self.content_frame)
         self.pull_progress_var = tk.StringVar(value="")
         self.pull_progress_label = ttk.Label(
-            self.pull_progress_frame,
-            textvariable=self.pull_progress_var,
-            width=40
+            self.pull_progress_frame, textvariable=self.pull_progress_var, width=40
         )
         self.pull_progress_label.pack(side=tk.LEFT)
         self.pull_progress_bar = ttk.Progressbar(
-            self.pull_progress_frame,
-            length=200,
-            mode='determinate'
+            self.pull_progress_frame, length=200, mode="determinate"
         )
         self.pull_progress_bar.pack(side=tk.LEFT, padx=5)
 
@@ -756,15 +726,12 @@ class LLMSettingsPanel:
             to=262144,
             textvariable=self.context_length,
             width=10,
-            increment=1024
+            increment=1024,
         )
         self.context_spinbox.pack(side=tk.LEFT, padx=5)
 
         self.detect_context_button = ttk.Button(
-            context_row,
-            text="Auto",
-            command=self._detect_context_length,
-            width=6
+            context_row, text="Auto", command=self._detect_context_length, width=6
         )
         self.detect_context_button.pack(side=tk.LEFT, padx=2)
 
@@ -775,10 +742,7 @@ class LLMSettingsPanel:
 
         ttk.Label(self.api_key_row, text="API Key:").pack(side=tk.LEFT)
         self.api_key_entry = ttk.Entry(
-            self.api_key_row,
-            textvariable=self.api_key,
-            show="*",
-            width=45
+            self.api_key_row, textvariable=self.api_key, show="*", width=45
         )
         self.api_key_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
 
@@ -787,9 +751,7 @@ class LLMSettingsPanel:
         button_row.pack(fill=tk.X, pady=10)
 
         self.test_button = ttk.Button(
-            button_row,
-            text="Test Connection",
-            command=self._test_connection
+            button_row, text="Test Connection", command=self._test_connection
         )
         self.test_button.pack(side=tk.LEFT)
 
@@ -801,9 +763,7 @@ class LLMSettingsPanel:
         prompts_row.pack(fill=tk.X, pady=5)
 
         self.edit_prompts_button = ttk.Button(
-            prompts_row,
-            text="Edit Prompts...",
-            command=self._edit_prompts
+            prompts_row, text="Edit Prompts...", command=self._edit_prompts
         )
         self.edit_prompts_button.pack(side=tk.LEFT)
 
@@ -960,12 +920,16 @@ class LLMSettingsPanel:
             try:
                 success, message = pull_ollama_model(model_name, base_url, progress_callback)
                 if success:
-                    self.parent.after(0, lambda: self.pull_progress_var.set(f"✓ {model_name} ready"))
+                    self.parent.after(
+                        0, lambda: self.pull_progress_var.set(f"✓ {model_name} ready")
+                    )
                     # Refresh model list
                     self.parent.after(500, self._detect_models)
                 else:
-                    self.parent.after(0, lambda m=message: self.pull_progress_var.set(f"✗ {m[:40]}"))
-            except Exception as e:
+                    self.parent.after(
+                        0, lambda m=message: self.pull_progress_var.set(f"✗ {m[:40]}")
+                    )
+            except Exception:
                 self.parent.after(0, lambda: self.pull_progress_var.set(f"✗ Error: {str(e)[:30]}"))
             finally:
                 self.parent.after(0, lambda: self.pull_button.config(state=tk.NORMAL))
@@ -987,7 +951,7 @@ class LLMSettingsPanel:
         # Confirm deletion
         if not messagebox.askyesno(
             "Confirm Delete",
-            f"Delete model '{model_name}'?\n\nThis will free disk space but you'll need to pull it again to use it."
+            f"Delete model '{model_name}'?\n\nThis will free disk space but you'll need to pull it again to use it.",
         ):
             return
 
@@ -1048,7 +1012,7 @@ class LLMSettingsPanel:
                 provider_enum = LLMProvider(provider)
                 success, message = test_connection(provider_enum, base_url, api_key, model)
                 self.parent.after(0, lambda: self._show_test_result(success, message))
-            except Exception as e:
+            except Exception:
                 self.parent.after(0, lambda: self._show_test_result(False, str(e)))
 
         thread = threading.Thread(target=run_test, daemon=True)
@@ -1131,10 +1095,7 @@ class SystemProfilePanel:
         header_frame.pack(fill=tk.X)
 
         self.toggle_button = ttk.Button(
-            header_frame,
-            text="▶ System Profile",
-            command=self._toggle_expanded,
-            width=18
+            header_frame, text="▶ System Profile", command=self._toggle_expanded, width=18
         )
         self.toggle_button.pack(side=tk.LEFT)
 
@@ -1144,9 +1105,7 @@ class SystemProfilePanel:
 
         # Expandable content frame (hidden by default)
         self.content_frame = ttk.LabelFrame(
-            self.outer_frame,
-            text="System Hardware Profile",
-            padding="10"
+            self.outer_frame, text="System Hardware Profile", padding="10"
         )
 
         self._create_content_widgets()
@@ -1157,7 +1116,7 @@ class SystemProfilePanel:
             ttk.Label(
                 self.content_frame,
                 text="System detection not available (missing psutil)",
-                foreground="gray"
+                foreground="gray",
             ).pack(anchor=tk.W)
             return
 
@@ -1188,7 +1147,9 @@ class SystemProfilePanel:
         self.profile_frame = ttk.Frame(self.content_frame)
         self.profile_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(self.profile_frame, text="Detected Profile:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        ttk.Label(self.profile_frame, text="Detected Profile:", font=("Arial", 10, "bold")).pack(
+            anchor=tk.W
+        )
         self.profile_name_label = ttk.Label(self.profile_frame, text="Detecting...")
         self.profile_name_label.pack(anchor=tk.W, padx=(10, 0))
 
@@ -1199,7 +1160,9 @@ class SystemProfilePanel:
         self.rec_frame = ttk.Frame(self.content_frame)
         self.rec_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(self.rec_frame, text="Recommendations:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        ttk.Label(self.rec_frame, text="Recommendations:", font=("Arial", 10, "bold")).pack(
+            anchor=tk.W
+        )
         self.rec_model_label = ttk.Label(self.rec_frame, text="Max model size: --")
         self.rec_model_label.pack(anchor=tk.W, padx=(10, 0))
         self.rec_workers_label = ttk.Label(self.rec_frame, text="Parallel workers: --")
@@ -1212,16 +1175,12 @@ class SystemProfilePanel:
         button_row.pack(fill=tk.X, pady=10)
 
         self.optimize_button = ttk.Button(
-            button_row,
-            text="Auto-Optimize Settings",
-            command=self._apply_profile
+            button_row, text="Auto-Optimize Settings", command=self._apply_profile
         )
         self.optimize_button.pack(side=tk.LEFT)
 
         self.rescan_button = ttk.Button(
-            button_row,
-            text="Re-scan Hardware",
-            command=self._detect_hardware
+            button_row, text="Re-scan Hardware", command=self._detect_hardware
         )
         self.rescan_button.pack(side=tk.LEFT, padx=5)
 
@@ -1248,10 +1207,11 @@ class SystemProfilePanel:
                 profile = detect_optimal_profile(specs)
                 # Update UI on main thread
                 self.parent.after(0, lambda: self._update_display(specs, profile))
-            except Exception as e:
+            except Exception:
                 self.parent.after(0, lambda: self._show_error(str(e)))
 
         import threading
+
         thread = threading.Thread(target=detect, daemon=True)
         thread.start()
 
@@ -1261,11 +1221,13 @@ class SystemProfilePanel:
         self.detected_profile = profile
 
         # Update collapsed status
-        profile_display = profile.name.replace('_', ' ').title()
+        profile_display = profile.name.replace("_", " ").title()
         self.status_label.config(text=f"{profile_display} ({specs.ram_gb:.0f}GB RAM)")
 
         # Update expanded info
-        self.platform_label.config(text=f"Platform: {specs.platform.title()} ({specs.architecture})")
+        self.platform_label.config(
+            text=f"Platform: {specs.platform.title()} ({specs.architecture})"
+        )
         self.cpu_label.config(text=f"CPU Cores: {specs.cpu_cores}")
         self.ram_label.config(text=f"RAM: {specs.ram_gb:.0f} GB")
 
@@ -1359,7 +1321,9 @@ class AgentModelConfigPanel:
         # State variables
         self.expanded = tk.BooleanVar(value=False)
         self.editing_enabled = tk.BooleanVar(value=False)  # Prevent accidental changes
-        self.experimental_enabled = tk.BooleanVar(value=False)  # Experimental features off by default
+        self.experimental_enabled = tk.BooleanVar(
+            value=False
+        )  # Experimental features off by default
         self.auto_optimize = tk.BooleanVar(value=True)
         self.agent_models: dict[str, tk.StringVar] = {}
 
@@ -1391,10 +1355,7 @@ class AgentModelConfigPanel:
         header_frame.pack(fill=tk.X)
 
         self.toggle_button = ttk.Button(
-            header_frame,
-            text="▶ Agent Model Config",
-            command=self._toggle_expanded,
-            width=20
+            header_frame, text="▶ Agent Model Config", command=self._toggle_expanded, width=20
         )
         self.toggle_button.pack(side=tk.LEFT)
 
@@ -1404,9 +1365,7 @@ class AgentModelConfigPanel:
 
         # Expandable content frame (hidden by default)
         self.content_frame = ttk.LabelFrame(
-            self.outer_frame,
-            text="Per-Agent Model Selection",
-            padding="10"
+            self.outer_frame, text="Per-Agent Model Selection", padding="10"
         )
 
         self._create_content_widgets()
@@ -1421,7 +1380,7 @@ class AgentModelConfigPanel:
             enable_row,
             text="Enable editing (prevents accidental changes)",
             variable=self.editing_enabled,
-            command=self._update_editing_state
+            command=self._update_editing_state,
         ).pack(side=tk.LEFT)
 
         ttk.Separator(self.content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 10))
@@ -1430,7 +1389,7 @@ class AgentModelConfigPanel:
         ttk.Label(
             self.content_frame,
             text="Assign different models to each analysis task for optimal results.",
-            wraplength=500
+            wraplength=500,
         ).pack(anchor=tk.W, pady=(0, 10))
 
         # Auto-optimize checkbox
@@ -1441,7 +1400,7 @@ class AgentModelConfigPanel:
             auto_row,
             text="Auto-optimize model assignment",
             variable=self.auto_optimize,
-            command=self._on_auto_optimize_change
+            command=self._on_auto_optimize_change,
         )
         self.auto_optimize_checkbox.pack(side=tk.LEFT)
 
@@ -1449,14 +1408,26 @@ class AgentModelConfigPanel:
         # "overkill" = model is too large for simple task
         # "underpowered" = model is too small for complex task
         self._model_suitability = {
-            "structure": {"type": "overkill", "threshold": 30,
-                          "warning": "Large models may over-think simple pattern matching. Consider 7B-20B."},
-            "pronunciation": {"type": "overkill", "threshold": 30,
-                              "warning": "Large models may over-think pronunciation flagging. Consider 7B-20B."},
-            "characters": {"type": "underpowered", "threshold": 30,
-                           "warning": "Character analysis benefits from larger models. Consider 30B+."},
-            "summaries": {"type": "underpowered", "threshold": 14,
-                          "warning": "Summary generation benefits from larger models. Consider 14B+."},
+            "structure": {
+                "type": "overkill",
+                "threshold": 30,
+                "warning": "Large models may over-think simple pattern matching. Consider 7B-20B.",
+            },
+            "pronunciation": {
+                "type": "overkill",
+                "threshold": 30,
+                "warning": "Large models may over-think pronunciation flagging. Consider 7B-20B.",
+            },
+            "characters": {
+                "type": "underpowered",
+                "threshold": 30,
+                "warning": "Character analysis benefits from larger models. Consider 30B+.",
+            },
+            "summaries": {
+                "type": "underpowered",
+                "threshold": 14,
+                "warning": "Summary generation benefits from larger models. Consider 14B+.",
+            },
         }
 
         # Warning labels for each agent
@@ -1476,19 +1447,11 @@ class AgentModelConfigPanel:
             row_frame.pack(fill=tk.X)
 
             # Agent name label
-            ttk.Label(
-                row_frame,
-                text=f"{display_name}:",
-                width=20,
-                anchor=tk.W
-            ).pack(side=tk.LEFT)
+            ttk.Label(row_frame, text=f"{display_name}:", width=20, anchor=tk.W).pack(side=tk.LEFT)
 
             # Model combobox
             combo = ttk.Combobox(
-                row_frame,
-                textvariable=self.agent_models[agent_name],
-                width=25,
-                state="readonly"
+                row_frame, textvariable=self.agent_models[agent_name], width=25, state="readonly"
             )
             combo.pack(side=tk.LEFT, padx=5)
             make_combobox_auto_expand(combo)  # Auto-expand for long model names
@@ -1500,22 +1463,14 @@ class AgentModelConfigPanel:
                 return lambda: self._auto_suggest_for_agent(an)
 
             auto_btn = ttk.Button(
-                row_frame,
-                text="Auto",
-                command=make_auto_callback(agent_name),
-                width=6
+                row_frame, text="Auto", command=make_auto_callback(agent_name), width=6
             )
             auto_btn.pack(side=tk.LEFT, padx=2)
             # Store reference for enabling/disabling
             setattr(self, f"auto_btn_{agent_name}", auto_btn)
 
             # Warning label (hidden by default)
-            warning_label = ttk.Label(
-                agent_frame,
-                text="",
-                foreground="orange",
-                wraplength=400
-            )
+            warning_label = ttk.Label(agent_frame, text="", foreground="orange", wraplength=400)
             warning_label.pack(anchor=tk.W, padx=(150, 0))
             self._warning_labels[agent_name] = warning_label
 
@@ -1530,16 +1485,12 @@ class AgentModelConfigPanel:
         button_row.pack(fill=tk.X, pady=10)
 
         self.optimize_all_button = ttk.Button(
-            button_row,
-            text="Optimize All",
-            command=self._optimize_all
+            button_row, text="Optimize All", command=self._optimize_all
         )
         self.optimize_all_button.pack(side=tk.LEFT)
 
         self.refresh_models_button = ttk.Button(
-            button_row,
-            text="Refresh Models",
-            command=self._refresh_models
+            button_row, text="Refresh Models", command=self._refresh_models
         )
         self.refresh_models_button.pack(side=tk.LEFT, padx=5)
 
@@ -1561,7 +1512,7 @@ class AgentModelConfigPanel:
             exp_enable_row,
             text="Enable experimental features editing",
             variable=self.experimental_enabled,
-            command=self._update_experimental_state
+            command=self._update_experimental_state,
         ).pack(side=tk.LEFT)
 
         ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(0, 8))
@@ -1584,16 +1535,32 @@ class AgentModelConfigPanel:
             entry.pack(side=tk.LEFT, padx=5)
             self._tuning_entries.append(entry)
 
-        add_row(self.tuning_frame, "Chapter marker chunk size (chars):", self.chapter_marker_chunk_chars)
-        add_row(self.tuning_frame, "Chapter marker overlap (chars):", self.chapter_marker_overlap_chars)
-        add_row(self.tuning_frame, "Narrative chunk size (chars):", self.chapter_narrative_chunk_chars)
-        add_row(self.tuning_frame, "Narrative overlap (chars):", self.chapter_narrative_overlap_chars)
+        add_row(
+            self.tuning_frame, "Chapter marker chunk size (chars):", self.chapter_marker_chunk_chars
+        )
+        add_row(
+            self.tuning_frame, "Chapter marker overlap (chars):", self.chapter_marker_overlap_chars
+        )
+        add_row(
+            self.tuning_frame, "Narrative chunk size (chars):", self.chapter_narrative_chunk_chars
+        )
+        add_row(
+            self.tuning_frame, "Narrative overlap (chars):", self.chapter_narrative_overlap_chars
+        )
         ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
-        add_row(self.tuning_frame, "Character LLM chunk size (chars):", self.character_llm_chunk_chars)
-        add_row(self.tuning_frame, "Character mention context window (chars):", self.character_mention_context_chars)
+        add_row(
+            self.tuning_frame, "Character LLM chunk size (chars):", self.character_llm_chunk_chars
+        )
+        add_row(
+            self.tuning_frame,
+            "Character mention context window (chars):",
+            self.character_mention_context_chars,
+        )
         ttk.Separator(self.tuning_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
         add_row(self.tuning_frame, "Summary chunk size (words):", self.summary_chunk_words)
-        add_row(self.tuning_frame, "Summary chunk overlap (words):", self.summary_chunk_overlap_words)
+        add_row(
+            self.tuning_frame, "Summary chunk overlap (words):", self.summary_chunk_overlap_words
+        )
 
         def reset_defaults():
             self.chapter_marker_chunk_chars.set(15000)
@@ -1699,7 +1666,7 @@ class AgentModelConfigPanel:
                 self.agent_models[agent_name].set(model)
                 return
             # Check for partial matches
-            for avail_model in (self.llm_panel.detected_models or []):
+            for avail_model in self.llm_panel.detected_models or []:
                 if model.lower() in avail_model.lower():
                     self.agent_models[agent_name].set(avail_model)
                     return
@@ -1741,10 +1708,7 @@ class AgentModelConfigPanel:
 
     def _update_status(self):
         """Update the status label."""
-        non_default = sum(
-            1 for v in self.agent_models.values()
-            if v.get() != "Default"
-        )
+        non_default = sum(1 for v in self.agent_models.values() if v.get() != "Default")
         if non_default == 0:
             self.status_label.config(text="Using default models")
         elif non_default == len(self.AGENT_NAMES):
@@ -1766,11 +1730,11 @@ class AgentModelConfigPanel:
 
         # Common patterns: "model:Nb", "model-Nb", "modelNb"
         patterns = [
-            r':(\d+)b',           # qwen3:14b, gpt-oss:120b
-            r'-(\d+)b',           # llama-7b
-            r'(\d+)b$',           # llama7b
-            r':(\d+\.?\d*)b',     # qwen3:3.8b
-            r'(\d+)x(\d+)b',      # mixtral8x7b -> 56b effective
+            r":(\d+)b",  # qwen3:14b, gpt-oss:120b
+            r"-(\d+)b",  # llama-7b
+            r"(\d+)b$",  # llama7b
+            r":(\d+\.?\d*)b",  # qwen3:3.8b
+            r"(\d+)x(\d+)b",  # mixtral8x7b -> 56b effective
         ]
 
         model_lower = model_name.lower()
@@ -1870,11 +1834,14 @@ class AgentModelConfigPanel:
         for agent_name, model_var in self.agent_models.items():
             model = model_var.get()
             if model and model != "Default":
-                config.set_agent_config(agent_name, AgentConfig(
-                    model=model,
-                    provider=config.default_provider,
-                    base_url=config.default_base_url,
-                ))
+                config.set_agent_config(
+                    agent_name,
+                    AgentConfig(
+                        model=model,
+                        provider=config.default_provider,
+                        base_url=config.default_base_url,
+                    ),
+                )
 
         # Apply tuning knobs
         if PipelineTuningConfig is not None:
@@ -1882,7 +1849,9 @@ class AgentModelConfigPanel:
                 chapter_marker_chunk_chars=int(self.chapter_marker_chunk_chars.get()),
                 chapter_marker_chunk_overlap_chars=int(self.chapter_marker_overlap_chars.get()),
                 chapter_narrative_chunk_chars=int(self.chapter_narrative_chunk_chars.get()),
-                chapter_narrative_chunk_overlap_chars=int(self.chapter_narrative_overlap_chars.get()),
+                chapter_narrative_chunk_overlap_chars=int(
+                    self.chapter_narrative_overlap_chars.get()
+                ),
                 character_llm_chunk_chars=int(self.character_llm_chunk_chars.get()),
                 character_mention_context_chars=int(self.character_mention_context_chars.get()),
                 summary_chunk_words=int(self.summary_chunk_words.get()),
@@ -1898,16 +1867,16 @@ class AgentModelConfigPanel:
 
 class AudiobookPrepGUI:
     """Main desktop GUI application."""
-    
+
     def __init__(self):
         if not HAS_TKINTER:
             raise ImportError("tkinter is required for desktop GUI")
-        
+
         self.root = tk.Tk()
         self.root.title("Audiobook Prep")
         self.root.geometry("800x700")
         self.root.minsize(600, 400)
-        
+
         # Variables
         self.input_file = tk.StringVar()
         self.output_dir = tk.StringVar(value=str(Path.cwd() / "output"))
@@ -1925,7 +1894,7 @@ class AudiobookPrepGUI:
         self._create_widgets()
         self._load_settings()  # Load persisted settings
         self._setup_auto_save()  # Setup automatic settings saving
-        
+
     def _create_widgets(self):
         """Create GUI widgets."""
         # Create canvas with scrollbar for scrollable content
@@ -1937,8 +1906,7 @@ class AudiobookPrepGUI:
 
         # Configure scrolling
         main_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
         self.canvas_window = self.canvas.create_window((0, 0), window=main_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=scrollbar.set)
@@ -1950,11 +1918,13 @@ class AudiobookPrepGUI:
         # Make canvas window expand to canvas width
         def _configure_canvas_width(event):
             self.canvas.itemconfig(self.canvas_window, width=event.width)
+
         self.canvas.bind("<Configure>", _configure_canvas_width)
 
         # Enable mousewheel scrolling
         def _on_mousewheel(event):
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
         self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # Linux mousewheel support (Button-4/5)
@@ -1963,41 +1933,48 @@ class AudiobookPrepGUI:
                 self.canvas.yview_scroll(-1, "units")
             elif event.num == 5:
                 self.canvas.yview_scroll(1, "units")
+
         self.canvas.bind_all("<Button-4>", _on_mousewheel_linux)
         self.canvas.bind_all("<Button-5>", _on_mousewheel_linux)
 
         # Title
-        title_label = tk.Label(
-            main_frame,
-            text="Audiobook Prep",
-            font=("Arial", 18, "bold")
-        )
+        title_label = tk.Label(main_frame, text="Audiobook Prep", font=("Arial", 18, "bold"))
         title_label.pack(pady=(0, 20))
-        
+
         # Input file section
         input_frame = ttk.LabelFrame(main_frame, text="Input File", padding="10")
         input_frame.pack(fill=tk.X, pady=5)
-        
+
         ttk.Label(input_frame, text="Book file:").pack(anchor=tk.W)
         input_row = ttk.Frame(input_frame)
         input_row.pack(fill=tk.X, pady=5)
-        
-        ttk.Entry(input_row, textvariable=self.input_file, width=50).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+        ttk.Entry(input_row, textvariable=self.input_file, width=50).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
         ttk.Button(input_row, text="Browse...", command=self._browse_input).pack(side=tk.LEFT)
-        
+
         # Output section
         output_frame = ttk.LabelFrame(main_frame, text="Output", padding="10")
         output_frame.pack(fill=tk.X, pady=5)
-        
+
         ttk.Label(output_frame, text="Output directory:").pack(anchor=tk.W)
         output_dir_row = ttk.Frame(output_frame)
         output_dir_row.pack(fill=tk.X, pady=5)
-        
-        ttk.Entry(output_dir_row, textvariable=self.output_dir, width=50).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(output_dir_row, text="Browse...", command=self._browse_output_dir).pack(side=tk.LEFT)
+
+        ttk.Entry(output_dir_row, textvariable=self.output_dir, width=50).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
+        ttk.Button(output_dir_row, text="Browse...", command=self._browse_output_dir).pack(
+            side=tk.LEFT
+        )
 
         # Note: Per-run directories are created automatically (e.g., output/book_20260107_143200/)
-        ttk.Label(output_frame, text="Auto-increments when you select a new input file", font=("TkDefaultFont", 9, "italic")).pack(anchor=tk.W, pady=(5, 0))
+        ttk.Label(
+            output_frame,
+            text="Auto-increments when you select a new input file",
+            font=("TkDefaultFont", 9, "italic"),
+        ).pack(anchor=tk.W, pady=(5, 0))
 
         # HTML export option
         ttk.Checkbutton(
@@ -2005,34 +1982,32 @@ class AudiobookPrepGUI:
             text="Generate HTML report",
             variable=self.generate_html,
         ).pack(anchor=tk.W, pady=(10, 0))
-        
+
         # Options section
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
         options_frame.pack(fill=tk.X, pady=5)
-        
+
         wpm_row = ttk.Frame(options_frame)
         wpm_row.pack(fill=tk.X, pady=5)
         ttk.Label(wpm_row, text="Words per minute:").pack(side=tk.LEFT, padx=(0, 10))
         ttk.Spinbox(wpm_row, from_=100, to=200, textvariable=self.wpm, width=10).pack(side=tk.LEFT)
-        
+
         ttk.Checkbutton(
-            options_frame,
-            text="Use LLM refinement (recommended)",
-            variable=self.use_llm
+            options_frame, text="Use LLM refinement (recommended)", variable=self.use_llm
         ).pack(anchor=tk.W, pady=5)
 
         ttk.Checkbutton(
             options_frame,
             text="Enable LLM debug logging",
             variable=self.debug_logging,
-            command=self._toggle_debug_logging
+            command=self._toggle_debug_logging,
         ).pack(anchor=tk.W, pady=5)
 
         ttk.Checkbutton(
             options_frame,
             text="Show pipeline logs (chapter detection, character merging)",
             variable=self.verbose_logging,
-            command=self._toggle_verbose_logging
+            command=self._toggle_verbose_logging,
         ).pack(anchor=tk.W, pady=5)
 
         # LLM Settings panel (collapsible)
@@ -2053,49 +2028,39 @@ class AudiobookPrepGUI:
         # Buttons
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=20)
-        
+
         self.analyze_button = ttk.Button(
-            button_frame,
-            text="Analyze Book",
-            command=self._analyze,
-            style="Accent.TButton"
+            button_frame, text="Analyze Book", command=self._analyze, style="Accent.TButton"
         )
         self.analyze_button.pack(side=tk.LEFT, padx=5)
-        
+
         self.view_results_button = ttk.Button(
-            button_frame,
-            text="View Results (TUI)",
-            command=self._view_results,
-            state=tk.DISABLED
+            button_frame, text="View Results (TUI)", command=self._view_results, state=tk.DISABLED
         )
         self.view_results_button.pack(side=tk.LEFT, padx=5)
-        
+
         self.open_html_button = ttk.Button(
-            button_frame,
-            text="Open HTML Report",
-            command=self._open_html,
-            state=tk.DISABLED
+            button_frame, text="Open HTML Report", command=self._open_html, state=tk.DISABLED
         )
         self.open_html_button.pack(side=tk.LEFT, padx=5)
-        
+
         # Status bar
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(
-            main_frame,
-            textvariable=self.status_var,
-            relief=tk.SUNKEN,
-            anchor=tk.W
+            main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W
         )
         status_bar.pack(fill=tk.X, pady=(10, 0))
 
     def _toggle_debug_logging(self):
         """Toggle LLM debug logging on/off."""
         from ..logging_config import set_llm_debug_enabled
+
         set_llm_debug_enabled(self.debug_logging.get())
 
     def _toggle_verbose_logging(self):
         """Toggle pipeline verbose logging on/off."""
         from ..logging_config import set_pipeline_logging_enabled
+
         set_pipeline_logging_enabled(self.verbose_logging.get())
 
     def _get_next_run_number(self, base_dir: Path, book_name: str) -> int:
@@ -2109,6 +2074,7 @@ class AudiobookPrepGUI:
 
         # Find all existing directories matching pattern: bookname_NNN
         import re
+
         pattern = re.compile(rf"^{re.escape(book_name)}_(\d+)$")
 
         max_num = 0
@@ -2131,8 +2097,8 @@ class AudiobookPrepGUI:
                 ("EPUB", "*.epub"),
                 ("Word", "*.docx"),
                 ("Text", ("*.txt", "*.md")),
-                ("All Files", "*.*")
-            ]
+                ("All Files", "*.*"),
+            ],
         )
         if filename:
             self.input_file.set(filename)
@@ -2144,12 +2110,11 @@ class AudiobookPrepGUI:
             next_num = self._get_next_run_number(base_output, book_name)
             suggested_path = base_output / f"{book_name}_{next_num:03d}"
             self.output_dir.set(str(suggested_path))
-    
+
     def _browse_output_dir(self):
         """Browse for output directory."""
         dirname = filedialog.askdirectory(
-            title="Select Output Directory",
-            initialdir=self.output_dir.get()
+            title="Select Output Directory", initialdir=self.output_dir.get()
         )
         if dirname:
             self.output_dir.set(dirname)
@@ -2159,7 +2124,7 @@ class AudiobookPrepGUI:
         if not self.input_file.get():
             messagebox.showerror("Error", "Please select an input file.")
             return
-        
+
         input_path = Path(self.input_file.get())
         if not input_path.exists():
             messagebox.showerror("Error", f"File not found: {input_path}")
@@ -2173,29 +2138,27 @@ class AudiobookPrepGUI:
                     "LLM Configuration Error",
                     "No model selected.\n\n"
                     "Please expand 'LLM Settings', select a provider, "
-                    "and click 'Detect' to find available models."
+                    "and click 'Detect' to find available models.",
                 )
                 return
 
         # Disable analyze button
         self.analyze_button.config(state=tk.DISABLED)
         self.status_var.set("Starting analysis...")
-        
+
         # Show progress window
         progress = ProgressWindow(self.root)
         progress.progress_bar.start()
-        
+
         # Run analysis in background thread
         thread = threading.Thread(
-            target=self._run_analysis,
-            args=(input_path, progress),
-            daemon=True
+            target=self._run_analysis, args=(input_path, progress), daemon=True
         )
         thread.start()
-        
+
         # Check thread completion
         self._check_analysis_thread(thread, progress)
-    
+
     def _run_analysis(self, input_path: Path, progress: ProgressWindow):
         """Run analysis (called in background thread)."""
         try:
@@ -2224,7 +2187,7 @@ class AudiobookPrepGUI:
             )
 
             # Assign metrics collector to progress window for enhanced tracking
-            if hasattr(analyzer, '_metrics') and analyzer._metrics:
+            if hasattr(analyzer, "_metrics") and analyzer._metrics:
                 progress.metrics = analyzer._metrics
                 # Start polling now that metrics are available
                 progress._poll_progress()
@@ -2232,12 +2195,12 @@ class AudiobookPrepGUI:
             # Capture print statements for progress updates
             import sys
             from io import StringIO
-            
+
             class ProgressCapture:
                 def __init__(self, progress_window):
                     self.progress = progress_window
                     self.buffer = StringIO()
-                
+
                 def write(self, text):
                     self.buffer.write(text)
                     # Update progress on key messages
@@ -2264,32 +2227,36 @@ class AudiobookPrepGUI:
                         self.progress.update(f"Generating profile for {char_name}...")
                     elif "✅ Analysis saved" in text:
                         self.progress.update("Saving results...")
-                
+
                 def flush(self):
                     pass
-            
+
             progress_capture = ProgressCapture(progress)
             old_stdout = sys.stdout
             sys.stdout = progress_capture
-            
+
             try:
                 result = analyzer.analyze(input_path)
                 self.analysis_result = result
             finally:
                 sys.stdout = old_stdout
-            
+
             # Use per-run directory created by analyzer
             if analyzer._last_run_dir:
                 self._last_run_dir = analyzer._last_run_dir  # Store for later use
                 json_path = analyzer._last_run_dir / "analysis.json"
-                html_path = analyzer._last_run_dir / "report.html" if self.generate_html.get() else None
+                html_path = (
+                    analyzer._last_run_dir / "report.html" if self.generate_html.get() else None
+                )
                 progress.update(f"Output: {analyzer._last_run_dir}")
             else:
                 # Fallback (shouldn't happen if output_dir was passed)
                 output_dir = Path(self.output_dir.get())
                 output_dir.mkdir(parents=True, exist_ok=True)
                 json_path = output_dir / f"{input_path.stem}.analysis.json"
-                html_path = output_dir / f"{input_path.stem}.html" if self.generate_html.get() else None
+                html_path = (
+                    output_dir / f"{input_path.stem}.html" if self.generate_html.get() else None
+                )
 
             # Save JSON
             analyzer.save_to_json(result, json_path)
@@ -2299,6 +2266,7 @@ class AudiobookPrepGUI:
             if html_path:
                 try:
                     from ..export.html_report import export_html_report
+
                     export_html_report(
                         result,
                         html_path,
@@ -2308,18 +2276,22 @@ class AudiobookPrepGUI:
                     progress.update("Saving HTML...")
                 except Exception as e:
                     import traceback
+
                     error_msg = str(e)
                     traceback.print_exc()  # Log to console for debugging
                     # Show error in GUI
-                    self.root.after(0, lambda msg=error_msg: messagebox.showwarning(
-                        "HTML Export Warning",
-                        f"HTML report could not be generated:\n\n{msg[:300]}"
-                    ))
+                    self.root.after(
+                        0,
+                        lambda msg=error_msg: messagebox.showwarning(
+                            "HTML Export Warning",
+                            f"HTML report could not be generated:\n\n{msg[:300]}",
+                        ),
+                    )
 
             progress.update("Analysis complete!")
 
             # Show completion summary with final metrics
-            if hasattr(analyzer, '_metrics') and analyzer._metrics:
+            if hasattr(analyzer, "_metrics") and analyzer._metrics:
                 try:
                     final_snapshot = analyzer._metrics.get_progress_snapshot()
                     progress.show_completion_summary(final_snapshot)
@@ -2332,7 +2304,7 @@ class AudiobookPrepGUI:
         finally:
             progress.close()
             self.root.after(0, self._analysis_complete)
-    
+
     def _check_analysis_thread(self, thread: threading.Thread, progress: ProgressWindow):
         """Check if analysis thread is complete."""
         if thread.is_alive():
@@ -2340,7 +2312,7 @@ class AudiobookPrepGUI:
         else:
             # Thread finished, progress window will close itself
             pass
-    
+
     def _analysis_complete(self):
         """Called when analysis completes."""
         self.analyze_button.config(state=tk.NORMAL)
@@ -2348,21 +2320,21 @@ class AudiobookPrepGUI:
         if self.generate_html.get():
             self.open_html_button.config(state=tk.NORMAL)
         self.status_var.set("Analysis complete!")
-    
+
     def _view_results(self):
         """Open TUI with results."""
         if not self.analysis_result:
             messagebox.showwarning("No Results", "Please run analysis first.")
             return
-        
+
         if not HAS_TUI:
             messagebox.showerror("Error", "TUI module not available.")
             return
-        
+
         # Run TUI in separate thread (it blocks)
         thread = threading.Thread(target=lambda: run_tui(self.analysis_result), daemon=True)
         thread.start()
-    
+
     def _open_html(self):
         """Open HTML report in browser."""
         if not self.generate_html.get():
@@ -2380,34 +2352,35 @@ class AudiobookPrepGUI:
             return
 
         import webbrowser
+
         file_url = f"file://{html_path.absolute()}"
         webbrowser.open(file_url)
 
     def _get_settings_file(self) -> Path:
         """Get path to settings file."""
         # Use XDG_CONFIG_HOME if available, otherwise ~/.config
-        config_dir = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
-        settings_dir = config_dir / 'audiobook_prep'
+        config_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+        settings_dir = config_dir / "audiobook_prep"
         settings_dir.mkdir(parents=True, exist_ok=True)
-        return settings_dir / 'gui_settings.json'
+        return settings_dir / "gui_settings.json"
 
     def _save_settings(self):
         """Save current settings to file."""
         try:
             settings = {
-                'output_dir': self.output_dir.get(),
-                'generate_html': self.generate_html.get(),
-                'wpm': self.wpm.get(),
-                'use_llm': self.use_llm.get(),
-                'llm_settings': self.llm_panel.get_settings(),
-                'agent_models': {
+                "output_dir": self.output_dir.get(),
+                "generate_html": self.generate_html.get(),
+                "wpm": self.wpm.get(),
+                "use_llm": self.use_llm.get(),
+                "llm_settings": self.llm_panel.get_settings(),
+                "agent_models": {
                     agent_name: model_var.get()
                     for agent_name, model_var in self.agent_config_panel.agent_models.items()
                 },
             }
 
             settings_file = self._get_settings_file()
-            with open(settings_file, 'w') as f:
+            with open(settings_file, "w") as f:
                 json.dump(settings, f, indent=2, default=str)
         except Exception as e:
             # Don't crash GUI if settings save fails
@@ -2420,41 +2393,41 @@ class AudiobookPrepGUI:
             if not settings_file.exists():
                 return  # No settings file yet
 
-            with open(settings_file, 'r') as f:
+            with open(settings_file, "r") as f:
                 settings = json.load(f)
 
             # Restore basic settings
-            if 'output_dir' in settings:
-                self.output_dir.set(settings['output_dir'])
-            if 'generate_html' in settings:
-                self.generate_html.set(settings['generate_html'])
-            if 'wpm' in settings:
-                self.wpm.set(settings['wpm'])
-            if 'use_llm' in settings:
-                self.use_llm.set(settings['use_llm'])
+            if "output_dir" in settings:
+                self.output_dir.set(settings["output_dir"])
+            if "generate_html" in settings:
+                self.generate_html.set(settings["generate_html"])
+            if "wpm" in settings:
+                self.wpm.set(settings["wpm"])
+            if "use_llm" in settings:
+                self.use_llm.set(settings["use_llm"])
 
             # Restore LLM settings
-            if 'llm_settings' in settings:
-                llm = settings['llm_settings']
-                if 'provider' in llm:
-                    self.llm_panel.provider.set(llm['provider'])
+            if "llm_settings" in settings:
+                llm = settings["llm_settings"]
+                if "provider" in llm:
+                    self.llm_panel.provider.set(llm["provider"])
                     self.llm_panel._update_for_provider()
-                if 'model' in llm:
-                    self.llm_panel.model.set(llm['model'])
-                if 'base_url' in llm:
-                    self.llm_panel.base_url.set(llm['base_url'])
-                if 'context_length' in llm:
-                    self.llm_panel.context_length.set(llm['context_length'])
-                if 'api_key' in llm and llm['api_key']:
-                    self.llm_panel.api_key.set(llm['api_key'])
+                if "model" in llm:
+                    self.llm_panel.model.set(llm["model"])
+                if "base_url" in llm:
+                    self.llm_panel.base_url.set(llm["base_url"])
+                if "context_length" in llm:
+                    self.llm_panel.context_length.set(llm["context_length"])
+                if "api_key" in llm and llm["api_key"]:
+                    self.llm_panel.api_key.set(llm["api_key"])
 
                 # Detect models after loading settings
-                if llm.get('provider') in ('ollama', 'lm_studio'):
+                if llm.get("provider") in ("ollama", "lm_studio"):
                     self.root.after(500, self.llm_panel._detect_models)
 
             # Restore agent model selections
-            if 'agent_models' in settings:
-                for agent_name, model in settings['agent_models'].items():
+            if "agent_models" in settings:
+                for agent_name, model in settings["agent_models"].items():
                     if agent_name in self.agent_config_panel.agent_models:
                         self.agent_config_panel.agent_models[agent_name].set(model)
 
@@ -2469,20 +2442,20 @@ class AudiobookPrepGUI:
     def _setup_auto_save(self):
         """Setup automatic saving when settings change."""
         # Add traces to main settings variables
-        self.output_dir.trace_add('write', self._on_setting_change)
-        self.generate_html.trace_add('write', self._on_setting_change)
-        self.wpm.trace_add('write', self._on_setting_change)
-        self.use_llm.trace_add('write', self._on_setting_change)
+        self.output_dir.trace_add("write", self._on_setting_change)
+        self.generate_html.trace_add("write", self._on_setting_change)
+        self.wpm.trace_add("write", self._on_setting_change)
+        self.use_llm.trace_add("write", self._on_setting_change)
 
         # Add traces to LLM panel settings
-        self.llm_panel.provider.trace_add('write', self._on_setting_change)
-        self.llm_panel.model.trace_add('write', self._on_setting_change)
-        self.llm_panel.base_url.trace_add('write', self._on_setting_change)
-        self.llm_panel.context_length.trace_add('write', self._on_setting_change)
+        self.llm_panel.provider.trace_add("write", self._on_setting_change)
+        self.llm_panel.model.trace_add("write", self._on_setting_change)
+        self.llm_panel.base_url.trace_add("write", self._on_setting_change)
+        self.llm_panel.context_length.trace_add("write", self._on_setting_change)
 
         # Add traces to agent model selections
         for model_var in self.agent_config_panel.agent_models.values():
-            model_var.trace_add('write', self._on_setting_change)
+            model_var.trace_add("write", self._on_setting_change)
 
     def run(self):
         """Start GUI main loop."""
@@ -2499,7 +2472,7 @@ def main():
         print("  sudo apt install python3-tk")
         print("\nAfter installation, try again.")
         return 1
-    
+
     app = AudiobookPrepGUI()
     app.run()
     return 0
@@ -2507,5 +2480,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    sys.exit(main())
 
+    sys.exit(main())

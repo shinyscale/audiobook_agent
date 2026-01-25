@@ -4,13 +4,13 @@ Foreign language pattern proposer.
 Identifies words that appear to be from foreign languages based on patterns.
 """
 
-import re
-from typing import Optional, TYPE_CHECKING
-from collections import defaultdict
 import logging
+import re
+from collections import defaultdict
+from typing import TYPE_CHECKING, Optional
 
+from ..models import PronunciationFlag, PronunciationMention, PronunciationProposal
 from .base import BasePronunciationProposer
-from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
 
 if TYPE_CHECKING:
     from ..word_index import WordIndex
@@ -19,48 +19,98 @@ logger = logging.getLogger(__name__)
 
 # Patterns suggesting foreign words
 FOREIGN_PATTERNS = {
-    'French': [
-        r'\b\w*(?:eau|eux|aux|ois|oir|eur|ienne|ette|ique)\b',
-        r'\b(?:le|la|les|du|des|un|une|mon|ma|mes|notre|votre)\s+\w+',
+    "French": [
+        r"\b\w*(?:eau|eux|aux|ois|oir|eur|ienne|ette|ique)\b",
+        r"\b(?:le|la|les|du|des|un|une|mon|ma|mes|notre|votre)\s+\w+",
         # Note: -tion/-sion pattern removed - too noisy, flags common English words
     ],
-    'German': [
-        r'\b\w*(?:burg|berg|stein|mann|schaft|keit|heit|chen|lein)\b',
-        r'\b(?:der|die|das|ein|eine)\s+\w+',
-        r'\b\w*(?:schlag|fahr|wald|dorf)\b',
+    "German": [
+        r"\b\w*(?:burg|berg|stein|mann|schaft|keit|heit|chen|lein)\b",
+        r"\b(?:der|die|das|ein|eine)\s+\w+",
+        r"\b\w*(?:schlag|fahr|wald|dorf)\b",
     ],
-    'Spanish': [
-        r'\b\w*(?:ción|ñ|ería|ero|illo|ita|ísimo)\b',
-        r'\b(?:el|la|los|las|un|una)\s+[A-Z]\w+',  # Spanish articles before names
+    "Spanish": [
+        r"\b\w*(?:ción|ñ|ería|ero|illo|ita|ísimo)\b",
+        r"\b(?:el|la|los|las|un|una)\s+[A-Z]\w+",  # Spanish articles before names
     ],
-    'Italian': [
-        r'\b\w*(?:zione|etto|etta|issimo|ino|ini|ismo)\b',
-        r'\b(?:il|lo|la|gli|le)\s+\w+',
+    "Italian": [
+        r"\b\w*(?:zione|etto|etta|issimo|ino|ini|ismo)\b",
+        r"\b(?:il|lo|la|gli|le)\s+\w+",
     ],
-    'Latin': [
-        r'\b(?:et|ad|de|ex|per|pro|sub|cum|sine)\s+[a-z]{4,}',
-        r'\b\w*(?:ium|ius|orum|arum)\b',
+    "Latin": [
+        r"\b(?:et|ad|de|ex|per|pro|sub|cum|sine)\s+[a-z]{4,}",
+        r"\b\w*(?:ium|ius|orum|arum)\b",
     ],
 }
 
 # Words that match patterns but are common English
 ENGLISH_EXCEPTIONS = {
     # Common articles/conjunctions that might match patterns
-    'the', 'a', 'an', 'and', 'or', 'but', 'for', 'to', 'of',
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "for",
+    "to",
+    "of",
     # -ique words that are standard English
-    'unique', 'technique', 'antique', 'boutique', 'critique',
+    "unique",
+    "technique",
+    "antique",
+    "boutique",
+    "critique",
     # Common Latin-origin -ium/-ius words
-    'stadium', 'radius', 'genius', 'podium', 'tedium', 'medium', 'premium',
-    'aquarium', 'auditorium', 'gymnasium', 'millennium', 'symposium',
-    'calcium', 'sodium', 'potassium', 'uranium', 'helium', 'titanium',
-    'bacteria', 'criteria', 'media', 'data', 'agenda', 'phenomena',
+    "stadium",
+    "radius",
+    "genius",
+    "podium",
+    "tedium",
+    "medium",
+    "premium",
+    "aquarium",
+    "auditorium",
+    "gymnasium",
+    "millennium",
+    "symposium",
+    "calcium",
+    "sodium",
+    "potassium",
+    "uranium",
+    "helium",
+    "titanium",
+    "bacteria",
+    "criteria",
+    "media",
+    "data",
+    "agenda",
+    "phenomena",
     # Common -ious/-eous words
-    'obvious', 'previous', 'serious', 'curious', 'various', 'anxious',
-    'gorgeous', 'religious', 'precious', 'conscious', 'delicious',
-    'mysterious', 'suspicious', 'ambitious', 'cautious', 'spacious',
+    "obvious",
+    "previous",
+    "serious",
+    "curious",
+    "various",
+    "anxious",
+    "gorgeous",
+    "religious",
+    "precious",
+    "conscious",
+    "delicious",
+    "mysterious",
+    "suspicious",
+    "ambitious",
+    "cautious",
+    "spacious",
     # Words that match German article patterns but are English
-    'die', 'dying', 'died', 'dies',  # English verb "to die"
-    'an', 'one', 'a',  # English articles that match German "ein/eine"
+    "die",
+    "dying",
+    "died",
+    "dies",  # English verb "to die"
+    "an",
+    "one",
+    "a",  # English articles that match German "ein/eine"
 }
 
 
@@ -154,26 +204,30 @@ class ForeignProposer(BasePronunciationProposer):
                 for position, original, _ in occurrences:
                     chapter_idx = self._get_chapter_for_position(position, chapter_boundaries)
                     context = self._extract_context(full_text, position, len(original))
-                    mentions.append(PronunciationMention(
-                        word_form=original,
-                        position=position,
-                        chapter_index=chapter_idx,
-                        context=context,
-                    ))
+                    mentions.append(
+                        PronunciationMention(
+                            word_form=original,
+                            position=position,
+                            chapter_index=chapter_idx,
+                            context=context,
+                        )
+                    )
 
                 # Use most common form as canonical
                 word_forms = [o[1] for o in occurrences]
                 canonical = max(set(word_forms), key=word_forms.count)
 
-                proposals.append(PronunciationProposal(
-                    strategy=self.name,
-                    word=canonical,
-                    flag_reason=PronunciationFlag.FOREIGN,
-                    mentions=mentions,
-                    confidence=0.7,
-                    language_hint=language,
-                    reasoning=f"Matches {language} language pattern",
-                ))
+                proposals.append(
+                    PronunciationProposal(
+                        strategy=self.name,
+                        word=canonical,
+                        flag_reason=PronunciationFlag.FOREIGN,
+                        mentions=mentions,
+                        confidence=0.7,
+                        language_hint=language,
+                        reasoning=f"Matches {language} language pattern",
+                    )
+                )
 
         logger.info(f"Foreign proposer found {len(proposals)} candidate words")
 
@@ -196,15 +250,14 @@ class ForeignProposer(BasePronunciationProposer):
 
         # Process in batches
         for i in range(0, len(proposals), batch_size):
-            batch = proposals[i:i + batch_size]
+            batch = proposals[i : i + batch_size]
 
             # Build prompt with words and context
             candidates_text = []
             for p in batch:
                 context = p.mentions[0].context if p.mentions else "No context"
                 candidates_text.append(
-                    f"- Word: \"{p.word}\" (flagged as {p.language_hint})\n"
-                    f"  Context: \"{context}\""
+                    f'- Word: "{p.word}" (flagged as {p.language_hint})\n' f'  Context: "{context}"'
                 )
 
             prompt = f"""Review these words that were flagged as potentially foreign based on spelling patterns.
@@ -221,14 +274,20 @@ Only mark as foreign if the word is genuinely from another language and would ne
 
             try:
                 result, response = self.llm_client.query_json(prompt)
-                
+
                 if not response.success:
                     # HTTP error or connection failure
-                    logger.debug(f"LLM validation failed: {response.error}, keeping batch candidates")
+                    logger.debug(
+                        f"LLM validation failed: {response.error}, keeping batch candidates"
+                    )
                     validated.extend(batch)
                 elif result and isinstance(result, list):
                     # Create lookup of LLM decisions
-                    decisions = {item.get("word", "").lower(): item for item in result if isinstance(item, dict)}
+                    decisions = {
+                        item.get("word", "").lower(): item
+                        for item in result
+                        if isinstance(item, dict)
+                    }
 
                     for p in batch:
                         decision = decisions.get(p.word.lower(), {})
@@ -238,11 +297,19 @@ Only mark as foreign if the word is genuinely from another language and would ne
                                 p.reasoning = decision["reason"]
                             validated.append(p)
                         else:
-                            logger.debug(f"LLM rejected '{p.word}': {decision.get('reason', 'no reason')}")
+                            logger.debug(
+                                f"LLM rejected '{p.word}': {decision.get('reason', 'no reason')}"
+                            )
                 else:
                     # If LLM fails, keep all candidates from this batch
-                    error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
-                    logger.warning(f"LLM validation failed ({error_detail}), keeping batch candidates")
+                    error_detail = (
+                        f"got {type(result).__name__}"
+                        if result is not None
+                        else "failed to parse JSON"
+                    )
+                    logger.warning(
+                        f"LLM validation failed ({error_detail}), keeping batch candidates"
+                    )
                     validated.extend(batch)
 
             except Exception as e:

@@ -6,9 +6,9 @@ from .models import (
     ChapterSummary,
     ChapterSummaryMap,
     ChunkSummary,
+    DialogueDensity,
     SummaryPipelineCheckpoint,
     ToneType,
-    DialogueDensity,
 )
 from .pipeline import ChapterSummaryPipeline, summarize_chapters
 from .summarizer import ChapterSummarizer

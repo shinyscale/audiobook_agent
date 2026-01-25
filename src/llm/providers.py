@@ -11,6 +11,7 @@ import requests
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
+
     OLLAMA = "ollama"
     LM_STUDIO = "lm_studio"
     OPENAI = "openai"
@@ -43,6 +44,7 @@ def detect_available_models(provider: LLMProvider, base_url: str) -> list[str]:
         List of model identifiers
     """
     from ..logging_config import get_llm_logger
+
     llm_logger = get_llm_logger()
 
     if provider not in (LLMProvider.OLLAMA, LLMProvider.LM_STUDIO):
@@ -58,7 +60,9 @@ def detect_available_models(provider: LLMProvider, base_url: str) -> list[str]:
             response = requests.get(url, timeout=5)
             latency_ms = (time.perf_counter() - start_time) * 1000
             llm_logger.log_response(
-                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
                 body=response.json() if response.ok else response.text[:200],
                 error=None if response.ok else f"HTTP {response.status_code}",
             )
@@ -74,7 +78,9 @@ def detect_available_models(provider: LLMProvider, base_url: str) -> list[str]:
             response = requests.get(url, timeout=5)
             latency_ms = (time.perf_counter() - start_time) * 1000
             llm_logger.log_response(
-                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
                 body=response.json() if response.ok else response.text[:200],
                 error=None if response.ok else f"HTTP {response.status_code}",
             )
@@ -112,11 +118,7 @@ def detect_context_length(
             # Ollama has a /api/show endpoint for model details
             # Convert /v1 URL to base Ollama URL
             ollama_base = base_url.replace("/v1", "")
-            response = requests.post(
-                f"{ollama_base}/api/show",
-                json={"name": model},
-                timeout=5
-            )
+            response = requests.post(f"{ollama_base}/api/show", json={"name": model}, timeout=5)
             if response.ok:
                 data = response.json()
                 # Context length is in model_info or parameters
@@ -172,6 +174,7 @@ def test_connection(
         Tuple of (success, message)
     """
     from ..logging_config import get_llm_logger
+
     llm_logger = get_llm_logger()
 
     try:
@@ -184,14 +187,22 @@ def test_connection(
                 "anthropic-version": "2023-06-01",
             }
             body = {"model": model or "claude-3-haiku-20240307", "max_tokens": 1, "messages": []}
-            llm_logger.log_request(url=url, method="POST", headers=headers, body=body, provider=provider.value)
+            llm_logger.log_request(
+                url=url, method="POST", headers=headers, body=body, provider=provider.value
+            )
             start_time = time.perf_counter()
             response = requests.post(url, json=body, headers=headers, timeout=10)
             latency_ms = (time.perf_counter() - start_time) * 1000
             llm_logger.log_response(
-                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
                 body=response.text[:200],
-                error=None if response.ok or response.status_code == 400 else f"HTTP {response.status_code}",
+                error=(
+                    None
+                    if response.ok or response.status_code == 400
+                    else f"HTTP {response.status_code}"
+                ),
             )
             if response.status_code == 401:
                 return False, "Invalid API key"
@@ -211,7 +222,9 @@ def test_connection(
             response = requests.get(url, timeout=10)
             latency_ms = (time.perf_counter() - start_time) * 1000
             llm_logger.log_response(
-                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
                 body=response.json() if response.ok else response.text[:200],
                 error=None if response.ok else f"HTTP {response.status_code}",
             )
@@ -235,7 +248,9 @@ def test_connection(
             response = requests.get(url, headers=headers, timeout=10)
             latency_ms = (time.perf_counter() - start_time) * 1000
             llm_logger.log_response(
-                url=url, status_code=response.status_code, latency_ms=latency_ms,
+                url=url,
+                status_code=response.status_code,
+                latency_ms=latency_ms,
                 body=response.json() if response.ok else response.text[:200],
                 error=None if response.ok else f"HTTP {response.status_code}",
             )

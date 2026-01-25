@@ -6,6 +6,7 @@ while preserving rich profile data (appearance, personality, voice guidance).
 """
 
 from typing import Optional
+
 from ...models import Character, CharacterDescription, ConfidenceLevel
 from .models import CharacterProfile, CharacterProfileMap
 
@@ -31,11 +32,13 @@ def profile_to_character(profile: CharacterProfile) -> Character:
     # Main profile description (combined summary)
     main_description = _build_main_description(profile)
     if main_description:
-        descriptions.append(CharacterDescription(
-            text=main_description,
-            source_position=0,
-            confidence=ConfidenceLevel.LLM_REFINED,
-        ))
+        descriptions.append(
+            CharacterDescription(
+                text=main_description,
+                source_position=0,
+                confidence=ConfidenceLevel.LLM_REFINED,
+            )
+        )
 
     # Convert confidence from float to enum
     if profile.confidence >= 0.7:
@@ -53,13 +56,15 @@ def profile_to_character(profile: CharacterProfile) -> Character:
     # Convert evidence to list of dicts
     evidence = []
     for ev in profile.evidence:
-        evidence.append({
-            "type": "profile_evidence",
-            "statement": ev.statement,
-            "quote": ev.quote,
-            "chapter": ev.chapter,
-            "position": ev.position,
-        })
+        evidence.append(
+            {
+                "type": "profile_evidence",
+                "statement": ev.statement,
+                "quote": ev.quote,
+                "chapter": ev.chapter,
+                "position": ev.position,
+            }
+        )
 
     # Build voice notes from voice guidance
     voice_notes = _build_voice_notes(profile)
@@ -123,7 +128,10 @@ def _build_main_description(profile: CharacterProfile) -> str:
     sections = []
 
     # Appearance
-    if profile.appearance.summary and profile.appearance.summary != "No physical description available in text.":
+    if (
+        profile.appearance.summary
+        and profile.appearance.summary != "No physical description available in text."
+    ):
         sections.append(f"**Appearance:** {profile.appearance.summary}")
         if profile.appearance.age_indication and profile.appearance.age_indication != "unknown":
             sections.append(f"Age: {profile.appearance.age_indication}")
@@ -132,7 +140,10 @@ def _build_main_description(profile: CharacterProfile) -> str:
             sections.append(f"Distinguishing features: {features}")
 
     # Personality
-    if profile.personality.summary and profile.personality.summary != "Insufficient information for personality analysis.":
+    if (
+        profile.personality.summary
+        and profile.personality.summary != "Insufficient information for personality analysis."
+    ):
         sections.append(f"**Personality:** {profile.personality.summary}")
         if profile.personality.traits:
             traits = ", ".join(profile.personality.traits)
@@ -208,7 +219,11 @@ def _estimate_mention_count(profile: CharacterProfile) -> int:
     estimated = base * chapter_factor
 
     # Boost for first-person narrators who speak as "I" throughout
-    if profile.is_narrator and profile.narrative_role and "first-person" in profile.narrative_role.lower():
+    if (
+        profile.is_narrator
+        and profile.narrative_role
+        and "first-person" in profile.narrative_role.lower()
+    ):
         # First-person narrators are effectively present in every sentence they narrate
         # Boost their count to reflect narrative presence
         estimated = max(estimated, 100)  # Minimum 100 for first-person narrators
@@ -254,7 +269,6 @@ def character_to_rich_dict(char: Character) -> dict:
         "role": role or "unknown",
         "is_narrator": char.is_narrator,
         "narrative_role": char.narrative_role,
-
         # Primary profile data for narration
         "appearance": {
             "summary": appearance or "No physical description available.",
@@ -263,16 +277,17 @@ def character_to_rich_dict(char: Character) -> dict:
             "summary": personality or "No personality analysis available.",
         },
         "voice_guidance": _parse_voice_notes(char.voice_notes),
-
         # Relationships
-        "relationships": [
-            {"character": name, "type": rel_type, "description": ""}
-            for name, rel_type in char.relationships.items()
-        ] if char.relationships else [],
-
+        "relationships": (
+            [
+                {"character": name, "type": rel_type, "description": ""}
+                for name, rel_type in char.relationships.items()
+            ]
+            if char.relationships
+            else []
+        ),
         # Evidence
         "evidence": char.evidence,
-
         # Metadata (secondary)
         "metadata": {
             "first_appearance_chapter": char.first_appearance_chapter,
@@ -335,6 +350,7 @@ def _parse_voice_notes(voice_notes: Optional[str]) -> dict:
         elif line.startswith("Verbal tics:"):
             # Parse quoted strings
             import re
+
             tics = re.findall(r'"([^"]+)"', line)
             result["verbal_tics"] = tics
         elif line.startswith("Formality:"):

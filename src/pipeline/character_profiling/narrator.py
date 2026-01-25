@@ -6,11 +6,11 @@ plot summary, leveraging the LLM's understanding of narrative structure.
 """
 
 import logging
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
 
-from .models import IdentifiedCharacter
 from ..llm import LLMClient
+from .models import IdentifiedCharacter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NarratorInfo:
     """Information about the narrative style and narrator."""
+
     narrative_style: str  # "first-person", "third-person", "mixed"
     narrator_name: Optional[str]  # Character name if first-person
     narrator_role: str  # Brief description of narrator's relationship to events
@@ -160,9 +161,7 @@ class NarratorDetector:
         # F14: Warn when confidence is missing
         confidence_raw = result.get("confidence")
         if confidence_raw is None:
-            logger.warning(
-                "Narrator detection did not return confidence - using default 0.6"
-            )
+            logger.warning("Narrator detection did not return confidence - using default 0.6")
             confidence = 0.6
         else:
             confidence = float(confidence_raw)
@@ -260,12 +259,12 @@ class NarratorDetector:
                                 f"from '{old_role}' to 'protagonist'"
                             )
 
-                    logger.info(f"Marked {char.canonical_name} as narrator (matched alias: {alias})")
+                    logger.info(
+                        f"Marked {char.canonical_name} as narrator (matched alias: {alias})"
+                    )
                     return
 
-        logger.warning(
-            f"Narrator '{narrator_info.narrator_name}' not found in character list"
-        )
+        logger.warning(f"Narrator '{narrator_info.narrator_name}' not found in character list")
 
 
 def detect_narrator_from_summary(

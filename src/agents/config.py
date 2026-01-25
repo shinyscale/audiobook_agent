@@ -5,9 +5,9 @@ Provides per-agent configuration (model selection, parameters) and
 orchestrator-level settings (quality gates, parallel execution).
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Optional, Union
-import os
 
 
 @dataclass
@@ -18,6 +18,7 @@ class AgentConfig:
     Each agent can have its own model, temperature, and behavior settings.
     This allows optimizing each agent for its specific task.
     """
+
     # Model selection
     model: Optional[str] = None  # None = use orchestrator default
     provider: str = "ollama"
@@ -25,7 +26,7 @@ class AgentConfig:
     api_key: Optional[str] = None
 
     # Model parameters
-    temperature: float = 0.3
+    temperature: float = 0.7  # Model-recommended default for local LLMs
     max_tokens: int = 32768  # 32k - large enough for complex JSON responses without truncation
     context_length: int = 65536  # Context window size (num_ctx for Ollama) - 64k for larger models
 
@@ -42,6 +43,11 @@ class AgentConfig:
     think_mode: Optional[Union[bool, str]] = False  # False, True, "low", "medium", "high"
     system_prompt: Optional[str] = None  # Agent-specific system prompt override
 
+    # Additional sampling parameters (Qwen3 recommended: top_p=0.8, top_k=20)
+    top_p: Optional[float] = None  # Nucleus sampling threshold
+    top_k: Optional[int] = None  # Top-k sampling limit
+    presence_penalty: Optional[float] = None  # 0-2, reduces repetition
+
     def get_api_key(self) -> Optional[str]:
         """Get API key from config or environment."""
         if self.api_key:
@@ -54,6 +60,155 @@ class AgentConfig:
 
 
 @dataclass
+class CompetitorModelConfig:
+    """
+    Configuration for a single competitor in multi-model consensus.
+
+    Allows each competitor to use a different model (not just different temperatures),
+    enabling model diversity in voting to reduce single-model bias.
+
+    Example configurations:
+        - Competitor 1: qwen3:30b-instruct @ temp 0.5 (strict)
+        - Competitor 2: qwen2.5:32b @ temp 0.7 (contextual)
+        - Competitor 3: llama3.1:70b @ temp 0.9 (inclusive)
+    """
+
+    model: str
+    provider: str = "ollama"
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    prompt_style: str = "contextual"  # strict, contextual, inclusive
+    temperature: float = 0.7
+    name: Optional[str] = None  # Display name for logging
+
+    def get_api_key(self) -> Optional[str]:
+        """Get API key from config or environment."""
+        if self.api_key:
+            return self.api_key
+        if self.provider == "openai":
+            return os.environ.get("OPENAI_API_KEY")
+        if self.provider == "anthropic":
+            return os.environ.get("ANTHROPIC_API_KEY")
+        return None
+
+
+@dataclass
+class CompetitiveConfig:
+    """
+    Configuration for competitive multi-LLM execution.
+
+    The competitive approach runs multiple LLM configurations in parallel
+    and uses voting to determine consensus, preventing single-LLM hallucinations.
+
+    This is particularly effective for alias resolution where false merges
+    (e.g., "Mr. Sloane" + "Mr. McKee") can be prevented by requiring
+    supermajority agreement.
+
+    Multi-model support:
+        If competitor_models is provided, each competitor can use a different model
+        (not just different temperatures), enabling model diversity in voting.
+    """
+
+    # Master enable/disable
+    enabled: bool = False
+
+    # Number of parallel LLM competitors (each with different temperature + prompt style)
+    num_competitors: int = 3
+
+    # Temperature range for competitors (spread evenly)
+    temperature_range: tuple[float, float] = (0.5, 0.9)
+
+    # Multi-model configuration: explicit per-competitor models
+    # If empty, falls back to single-model with different temperatures
+    competitor_models: list["CompetitorModelConfig"] = field(default_factory=list)
+
+    # Which stages use competitive approach
+    competitive_proposer: bool = False  # Not yet implemented
+    competitive_validation: bool = False  # Not yet implemented
+    competitive_consensus: bool = True  # Most impactful - merge decisions
+
+    # Voting thresholds
+    proposer_pool_strategy: str = "weighted"  # "union", "intersection", "weighted"
+    validation_vote_threshold: float = 0.5  # Majority for validation
+    consensus_merge_threshold: float = 0.67  # Supermajority (2/3) for merges
+
+    # Minimum text length to enable competitive mode (skip for small texts)
+    min_text_length_chars: int = 10000
+
+    def get_competitor_temperatures(self) -> list[float]:
+        """
+        Generate evenly spaced temperatures for competitors.
+
+        Returns list of temperatures from temperature_range[0] to temperature_range[1].
+        """
+        if self.num_competitors == 1:
+            return [(self.temperature_range[0] + self.temperature_range[1]) / 2]
+
+        low, high = self.temperature_range
+        step = (high - low) / (self.num_competitors - 1)
+        return [low + i * step for i in range(self.num_competitors)]
+
+    def get_competitor_configs(
+        self,
+        base_model: str,
+        base_provider: str = "ollama",
+        base_url: Optional[str] = None,
+        base_api_key: Optional[str] = None,
+    ) -> list["CompetitorModelConfig"]:
+        """
+        Return competitor configurations for multi-model consensus.
+
+        If competitor_models is specified, returns those directly.
+        Otherwise, generates configs using the base model with different
+        temperatures and prompt styles (backward compatible behavior).
+
+        Args:
+            base_model: Default model to use if no competitor_models specified
+            base_provider: Default provider
+            base_url: Default base URL for API calls
+            base_api_key: Default API key
+
+        Returns:
+            List of CompetitorModelConfig objects for each competitor
+        """
+        if self.competitor_models:
+            # Use explicit multi-model configuration
+            return self.competitor_models
+
+        # Fall back to single-model with different temps (backward compatible)
+        # Uses the same prompt styles as COMPETITOR_CONFIGS from prompts.py
+        default_styles = [
+            ("precise", 0.5, "strict"),
+            ("balanced", 0.7, "contextual"),
+            ("inclusive", 0.9, "inclusive"),
+        ]
+
+        configs = []
+        temperatures = self.get_competitor_temperatures()
+
+        for i, temp in enumerate(temperatures):
+            if i < len(default_styles):
+                name, _, prompt_style = default_styles[i]
+            else:
+                name = f"competitor_{i}"
+                prompt_style = "contextual"
+
+            configs.append(
+                CompetitorModelConfig(
+                    model=base_model,
+                    provider=base_provider,
+                    base_url=base_url,
+                    api_key=base_api_key,
+                    prompt_style=prompt_style,
+                    temperature=temp,
+                    name=name,
+                )
+            )
+
+        return configs
+
+
+@dataclass
 class PipelineTuningConfig:
     """
     User-tunable knobs for chunking and local context windows.
@@ -61,6 +216,7 @@ class PipelineTuningConfig:
     These are deliberately independent of model context length: the goal is to let
     users empirically find a "sweet spot" for speed vs quality on their hardware/model.
     """
+
     # Chapter detection (LLM proposers) - character counts
     chapter_marker_chunk_chars: int = 15000
     chapter_marker_chunk_overlap_chars: int = 1000
@@ -68,8 +224,12 @@ class PipelineTuningConfig:
     chapter_narrative_chunk_overlap_chars: int = 2000
 
     # Character extraction - LLM chunk size and mention context window (characters)
-    character_llm_chunk_chars: int = 5000  # Reduced from 8000 to avoid LLM response truncation with large JSON arrays
-    character_mention_context_chars: int = 250  # Increased from 200 to 250 to capture death scenes where both entities appear (e.g., "fell prostrate in death the Prince Prospero... seizing the mummer" = 221 chars)
+    character_llm_chunk_chars: int = (
+        5000  # Reduced from 8000 to avoid LLM response truncation with large JSON arrays
+    )
+    character_mention_context_chars: int = (
+        250  # Increased from 200 to 250 to capture death scenes where both entities appear (e.g., "fell prostrate in death the Prince Prospero... seizing the mummer" = 221 chars)
+    )
 
     # Chapter summaries - chunk sizes in words
     summary_chunk_words: int = 2500
@@ -84,8 +244,9 @@ class OrchestratorConfig:
     Controls global behavior like parallel execution, quality gates,
     and default model settings.
     """
+
     # Default model (used when agent doesn't specify one)
-    default_model: str = "llama3.2"
+    default_model: str = "qwen2.5:32b"
     default_provider: str = "ollama"
     default_base_url: str = "http://localhost:11434"
     context_length: int = 32768  # Default context window size
@@ -109,6 +270,9 @@ class OrchestratorConfig:
 
     # Logging
     verbose: bool = False
+
+    # Competitive multi-LLM configuration
+    competitive: CompetitiveConfig = field(default_factory=CompetitiveConfig)
 
     def get_agent_config(self, agent_name: str) -> AgentConfig:
         """
@@ -144,12 +308,15 @@ class OrchestratorConfig:
         - AUDIOBOOK_VERBOSE: Verbose logging (true/false)
         """
         return cls(
-            default_model=os.environ.get("AUDIOBOOK_LLM_MODEL", "llama3.2"),
+            default_model=os.environ.get("AUDIOBOOK_LLM_MODEL", "qwen2.5:32b"),
             default_provider=os.environ.get("AUDIOBOOK_LLM_PROVIDER", "ollama"),
             default_base_url=os.environ.get("AUDIOBOOK_LLM_BASE_URL", "http://localhost:11434"),
             parallel_execution=os.environ.get("AUDIOBOOK_PARALLEL", "").lower() == "true",
             max_parallel_workers=int(os.environ.get("AUDIOBOOK_PARALLEL_WORKERS", "4")),
-            parallel_chapter_summaries=os.environ.get("AUDIOBOOK_PARALLEL_SUMMARIES", "true").lower() != "false",
+            parallel_chapter_summaries=os.environ.get(
+                "AUDIOBOOK_PARALLEL_SUMMARIES", "true"
+            ).lower()
+            != "false",
             verbose=os.environ.get("AUDIOBOOK_VERBOSE", "").lower() == "true",
         )
 
@@ -158,36 +325,38 @@ class OrchestratorConfig:
 # These are suggestions based on model characteristics
 # Models are listed in preference order - first available will be used
 #
-# NOTE: We favor qwen2.5 and llama3 over qwen3 because:
-# - qwen3 variants may use "reasoning mode" which outputs <think> tags
-# - Reasoning models may use training knowledge instead of analyzing provided text
-# - This causes unreliable results, especially for famous novels
+# NOTE on Qwen3 Instruct models:
+# - Qwen3-30B-A3B-Instruct-2507 and Qwen3-Next-80B-A3B-Instruct are NON-THINKING
+# - They do NOT produce <think> tags (different from base Qwen3 models)
+# - LLMClient auto-applies when model contains "qwen3":
+#   top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+# - We still favor qwen2.5 and llama3 for stability, but Qwen3 Instruct variants are viable
 RECOMMENDED_AGENT_MODELS = {
     "structure": {
         "description": "Fast model for pattern recognition and chapter detection",
         "models": ["qwen2.5:14b", "qwen2.5:7b", "llama3.2", "mistral", "gpt-oss:20b"],
-        "temperature": 0.2,  # Low for consistency
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Disable reasoning for speed
         "system_prompt": "You are a document structure analyzer. Extract chapter boundaries and titles from text. Return ONLY valid JSON. No commentary or explanation.",
     },
     "characters": {
         "description": "Deep narrative model for character understanding",
         "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "gpt-oss:120b"],
-        "temperature": 0.3,
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # JSON extraction doesn't benefit from reasoning chains
         "system_prompt": "You are a literary analyst extracting character information for audiobook narration. Identify characters, aliases, and relationships. Return ONLY valid JSON with no additional text.",
     },
     "summaries": {
         "description": "Narrative-focused model for story comprehension",
         "models": ["qwen2.5:32b", "qwen2.5:72b", "llama3.1:70b", "llama3.3:70b", "llama3.2"],
-        "temperature": 0.4,  # Slightly higher for natural language
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Summaries should be direct
         "system_prompt": "You are a literary analyst creating chapter summaries for audiobook narration preparation. Your summaries should help a narrator understand plot, tone, and character presence. Return ONLY valid JSON.",
     },
     "pronunciation": {
         "description": "Phonetically-aware model for pronunciation",
         "models": ["qwen2.5:14b", "qwen2.5:32b", "llama3.2", "llama3.1:8b"],
-        "temperature": 0.2,  # Low for accuracy
+        "temperature": 0.7,  # Model-recommended temperature for local LLMs
         "think_mode": False,  # Phonetic analysis is pattern-based
         "system_prompt": "You are a pronunciation expert for audiobook narration. Identify words requiring special pronunciation guidance (names, places, foreign words). Return ONLY valid JSON.",
     },
@@ -230,14 +399,17 @@ def create_optimized_config(
                 break
 
         if selected_model:
-            config.set_agent_config(agent_name, AgentConfig(
-                model=selected_model,
-                provider=provider,
-                base_url=base_url,
-                temperature=recommendations.get("temperature", 0.3),
-                think_mode=recommendations.get("think_mode", False),
-                system_prompt=recommendations.get("system_prompt"),
-            ))
+            config.set_agent_config(
+                agent_name,
+                AgentConfig(
+                    model=selected_model,
+                    provider=provider,
+                    base_url=base_url,
+                    temperature=recommendations.get("temperature", 0.7),
+                    think_mode=recommendations.get("think_mode", False),
+                    system_prompt=recommendations.get("system_prompt"),
+                ),
+            )
 
     # Set default model (first available from any recommendation, or first available)
     if available_models:

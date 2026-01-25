@@ -5,16 +5,25 @@ These models represent chapter summaries with tone, characters, and metadata
 useful for audiobook narration preparation.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
-from datetime import datetime
 import json
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-
+from typing import Literal, Optional
 
 ToneType = Literal[
-    "tense", "suspenseful", "action", "romantic", "comedic", "somber",
-    "reflective", "dramatic", "peaceful", "mysterious", "hopeful", "dark"
+    "tense",
+    "suspenseful",
+    "action",
+    "romantic",
+    "comedic",
+    "somber",
+    "reflective",
+    "dramatic",
+    "peaceful",
+    "mysterious",
+    "hopeful",
+    "dark",
 ]
 
 DialogueDensity = Literal["high", "medium", "low"]
@@ -23,21 +32,25 @@ DialogueDensity = Literal["high", "medium", "low"]
 @dataclass
 class ChapterSummary:
     """Summary of a single chapter for audiobook narration."""
+
     chapter_index: int
     chapter_title: Optional[str]
 
     # Core summary
-    summary: str                    # 3-5 sentence summary
-    key_events: list[str]           # Bullet points of main events
+    summary: str  # 3-5 sentence summary
+    key_events: list[str]  # Bullet points of main events
 
     # Narration-relevant metadata
-    primary_tone: ToneType          # Dominant emotional tone
-    secondary_tones: list[ToneType] # Other tones present
+    primary_tone: ToneType  # Dominant emotional tone
+    secondary_tones: list[ToneType]  # Other tones present
     dialogue_density: DialogueDensity  # How much dialogue vs narrative
 
-    # Character information
-    characters_present: list[str]   # Character names appearing in chapter
-    pov_character: Optional[str]    # Point-of-view character if applicable
+    # Character information (new split format)
+    active_characters: list[str]  # Characters who appear "on stage" - speak, act, interact
+    mentioned_characters: list[
+        str
+    ]  # Characters referenced but not present (talked about, historical)
+    pov_character: Optional[str]  # Point-of-view character if applicable
 
     # Technical info
     word_count: int
@@ -45,6 +58,11 @@ class ChapterSummary:
 
     # Generation metadata
     confidence: float
+
+    @property
+    def characters_present(self) -> list[str]:
+        """Backward compatibility: return active_characters (the ones who appear in the chapter)."""
+        return self.active_characters
 
     def to_dict(self) -> dict:
         return {
@@ -55,7 +73,8 @@ class ChapterSummary:
             "primary_tone": self.primary_tone,
             "secondary_tones": self.secondary_tones,
             "dialogue_density": self.dialogue_density,
-            "characters_present": self.characters_present,
+            "active_characters": self.active_characters,
+            "mentioned_characters": self.mentioned_characters,
             "pov_character": self.pov_character,
             "word_count": self.word_count,
             "estimated_duration_minutes": self.estimated_duration_minutes,
@@ -64,19 +83,29 @@ class ChapterSummary:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChapterSummary":
+        # Handle backward compatibility: old format had 'characters_present'
+        if "active_characters" not in data and "characters_present" in data:
+            # Migrate old format: treat all characters_present as active
+            data["active_characters"] = data.pop("characters_present")
+            data["mentioned_characters"] = []
+        elif "active_characters" not in data:
+            data["active_characters"] = []
+        if "mentioned_characters" not in data:
+            data["mentioned_characters"] = []
         return cls(**data)
 
 
 @dataclass
 class ChapterSummaryMap:
     """Collection of all chapter summaries for a document."""
+
     summaries: list[ChapterSummary]
     total_chapters: int
     total_word_count: int
     total_duration_minutes: float
 
     # Document-level analysis
-    overall_tones: dict[str, int]   # Tone -> count of chapters with that tone
+    overall_tones: dict[str, int]  # Tone -> count of chapters with that tone
     character_appearances: dict[str, list[int]]  # Character -> chapters they appear in
 
     pipeline_metadata: dict = field(default_factory=dict)
@@ -147,6 +176,7 @@ class ChapterSummaryMap:
 @dataclass
 class ChunkSummary:
     """Intermediate summary of a text chunk (for long chapters)."""
+
     chunk_index: int
     summary: str
     key_events: list[str]
@@ -172,6 +202,7 @@ class ChunkSummary:
 @dataclass
 class SummaryPipelineCheckpoint:
     """Checkpoint for saving/resuming summary pipeline state."""
+
     stage: Literal["summarization", "consolidation", "complete"]
     timestamp: str
     source_file: str
@@ -192,10 +223,7 @@ class SummaryPipelineCheckpoint:
     def to_dict(self) -> dict:
         chunk_dict = None
         if self.chunk_summaries:
-            chunk_dict = {
-                str(k): [c.to_dict() for c in v]
-                for k, v in self.chunk_summaries.items()
-            }
+            chunk_dict = {str(k): [c.to_dict() for c in v] for k, v in self.chunk_summaries.items()}
 
         return {
             "stage": self.stage,
@@ -203,7 +231,9 @@ class SummaryPipelineCheckpoint:
             "source_file": self.source_file,
             "text_hash": self.text_hash,
             "chunk_summaries": chunk_dict,
-            "chapter_summaries": [s.to_dict() for s in self.chapter_summaries] if self.chapter_summaries else None,
+            "chapter_summaries": (
+                [s.to_dict() for s in self.chapter_summaries] if self.chapter_summaries else None
+            ),
             "summary_map": self.summary_map.to_dict() if self.summary_map else None,
             "completed_chapters": self.completed_chapters,
             "errors": self.errors,
@@ -225,8 +255,16 @@ class SummaryPipelineCheckpoint:
             source_file=data["source_file"],
             text_hash=data["text_hash"],
             chunk_summaries=chunk_summaries,
-            chapter_summaries=[ChapterSummary.from_dict(s) for s in data["chapter_summaries"]] if data.get("chapter_summaries") else None,
-            summary_map=ChapterSummaryMap.from_dict(data["summary_map"]) if data.get("summary_map") else None,
+            chapter_summaries=(
+                [ChapterSummary.from_dict(s) for s in data["chapter_summaries"]]
+                if data.get("chapter_summaries")
+                else None
+            ),
+            summary_map=(
+                ChapterSummaryMap.from_dict(data["summary_map"])
+                if data.get("summary_map")
+                else None
+            ),
             completed_chapters=data.get("completed_chapters", []),
             errors=data.get("errors", []),
             warnings=data.get("warnings", []),

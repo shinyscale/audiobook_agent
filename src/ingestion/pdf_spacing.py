@@ -5,15 +5,15 @@ Fixes missing word spaces in PDFs that have tight kerning or
 improper text layer encoding (common in old/scanned PDFs).
 """
 
-import re
-from typing import Optional
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 # Try to import wordsegment for word boundary detection
 try:
     import wordsegment
+
     _HAS_WORDSEGMENT = True
     _wordsegment_loaded = False
 except ImportError:
@@ -36,6 +36,7 @@ def _ensure_wordsegment_loaded() -> None:
 
     logger.info("Loading word segmentation data (first-time only, may take 10-30s)...")
     import sys
+
     print("🔤 Loading word segmentation data (first run only)...", file=sys.stderr, flush=True)
 
     wordsegment.load()
@@ -46,19 +47,129 @@ def _ensure_wordsegment_loaded() -> None:
 
 # Common English words for quick checks
 COMMON_WORDS = {
-    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
-    'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-    'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
-    'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what',
-    'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me',
-    'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take',
-    'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see',
-    'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over',
-    'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work',
-    'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these',
-    'give', 'day', 'most', 'us', 'is', 'was', 'are', 'been', 'has', 'had',
-    'were', 'said', 'each', 'very', 'may', 'such', 'much', 'made', 'own',
-    'upon', 'shall', 'should', 'must', 'before', 'where', 'while', 'through',
+    "the",
+    "be",
+    "to",
+    "of",
+    "and",
+    "a",
+    "in",
+    "that",
+    "have",
+    "i",
+    "it",
+    "for",
+    "not",
+    "on",
+    "with",
+    "he",
+    "as",
+    "you",
+    "do",
+    "at",
+    "this",
+    "but",
+    "his",
+    "by",
+    "from",
+    "they",
+    "we",
+    "say",
+    "her",
+    "she",
+    "or",
+    "an",
+    "will",
+    "my",
+    "one",
+    "all",
+    "would",
+    "there",
+    "their",
+    "what",
+    "so",
+    "up",
+    "out",
+    "if",
+    "about",
+    "who",
+    "get",
+    "which",
+    "go",
+    "me",
+    "when",
+    "make",
+    "can",
+    "like",
+    "time",
+    "no",
+    "just",
+    "him",
+    "know",
+    "take",
+    "people",
+    "into",
+    "year",
+    "your",
+    "good",
+    "some",
+    "could",
+    "them",
+    "see",
+    "other",
+    "than",
+    "then",
+    "now",
+    "look",
+    "only",
+    "come",
+    "its",
+    "over",
+    "think",
+    "also",
+    "back",
+    "after",
+    "use",
+    "two",
+    "how",
+    "our",
+    "work",
+    "first",
+    "well",
+    "way",
+    "even",
+    "new",
+    "want",
+    "because",
+    "any",
+    "these",
+    "give",
+    "day",
+    "most",
+    "us",
+    "is",
+    "was",
+    "are",
+    "been",
+    "has",
+    "had",
+    "were",
+    "said",
+    "each",
+    "very",
+    "may",
+    "such",
+    "much",
+    "made",
+    "own",
+    "upon",
+    "shall",
+    "should",
+    "must",
+    "before",
+    "where",
+    "while",
+    "through",
 }
 
 # Minimum length for a word to be considered for segmentation
@@ -97,10 +208,10 @@ def needs_spacing_correction(text: str, sample_size: int = 10000) -> bool:
 
     for word in words:
         # Strip punctuation for analysis
-        clean = re.sub(r'[^\w]', '', word)
+        clean = re.sub(r"[^\w]", "", word)
 
         # Check for clear concatenation patterns (lowercase followed by uppercase)
-        if re.search(r'[a-z][A-Z]', word):
+        if re.search(r"[a-z][A-Z]", word):
             pattern_matches += 1
             continue
 
@@ -134,7 +245,7 @@ def _looks_concatenated(word: str) -> bool:
                 return True
 
     # Check for camelCase-like patterns (uppercase in middle)
-    if re.search(r'[a-z][A-Z]', word):
+    if re.search(r"[a-z][A-Z]", word):
         return True
 
     # For words 8+ chars, check for very distinctive common words anywhere
@@ -143,10 +254,10 @@ def _looks_concatenated(word: str) -> bool:
     if len(word_lower) >= 8:
         # Very distinctive short words that rarely appear mid-word in valid English
         # Avoid: 'in', 'or', 'an', 'as' - these appear in many valid words
-        distinctive_common = {'of', 'my'}
+        distinctive_common = {"of", "my"}
         for common in distinctive_common:
             # Look for word boundaries: preceded by lowercase, followed by lowercase
-            pattern = rf'[a-z]{common}[a-z]'
+            pattern = rf"[a-z]{common}[a-z]"
             if re.search(pattern, word_lower):
                 return True
 
@@ -177,7 +288,7 @@ def fix_spacing(text: str) -> tuple[str, int]:
 
     # Process text in chunks to preserve structure
     # Split on whitespace but keep the whitespace
-    tokens = re.split(r'(\s+)', text)
+    tokens = re.split(r"(\s+)", text)
 
     for token in tokens:
         if not token or token.isspace():
@@ -189,7 +300,7 @@ def fix_spacing(text: str) -> tuple[str, int]:
         result_parts.append(fixed_token)
         spaces_added += added
 
-    return ''.join(result_parts), spaces_added
+    return "".join(result_parts), spaces_added
 
 
 def _fix_token(token: str) -> tuple[str, int]:
@@ -201,19 +312,19 @@ def _fix_token(token: str) -> tuple[str, int]:
     """
     # First, try to handle tokens with punctuation in the middle
     # Split by common punctuation that might join concatenated words
-    if re.search(r'\w[,;:]\w', token):
+    if re.search(r"\w[,;:]\w", token):
         # Has punctuation between word characters - split and process each part
-        parts = re.split(r'([,;:])', token)
+        parts = re.split(r"([,;:])", token)
         total_spaces = 0
         result_parts = []
         for part in parts:
-            if part in ',;:':
+            if part in ",;:":
                 result_parts.append(part)
             else:
                 fixed_part, added = _fix_single_word(part)
                 result_parts.append(fixed_part)
                 total_spaces += added
-        return ''.join(result_parts), total_spaces
+        return "".join(result_parts), total_spaces
 
     # Simple case: extract leading/trailing punctuation
     return _fix_single_word(token)
@@ -223,46 +334,46 @@ def _fix_token(token: str) -> tuple[str, int]:
 # Format: pattern -> replacement (case-sensitive where needed)
 _COMMON_SHORT_CONCATENATIONS = {
     # "I" + verb patterns (case sensitive - uppercase I)
-    'Iam': 'I am',
-    'Iwas': 'I was',
-    'Iwill': 'I will',
-    'Ishall': 'I shall',
-    'Ihave': 'I have',
-    'Ihad': 'I had',
-    'Ido': 'I do',
-    'Idid': 'I did',
-    'Ican': 'I can',
-    'Icould': 'I could',
-    'Imay': 'I may',
-    'Imight': 'I might',
-    'Imust': 'I must',
-    'Iknow': 'I know',
-    'Ifelt': 'I felt',
-    'Ifeel': 'I feel',
-    'Ifound': 'I found',
-    'Iwent': 'I went',
-    'Icame': 'I came',
-    'Isaw': 'I saw',
-    'Itook': 'I took',
-    'Itried': 'I tried',
+    "Iam": "I am",
+    "Iwas": "I was",
+    "Iwill": "I will",
+    "Ishall": "I shall",
+    "Ihave": "I have",
+    "Ihad": "I had",
+    "Ido": "I do",
+    "Idid": "I did",
+    "Ican": "I can",
+    "Icould": "I could",
+    "Imay": "I may",
+    "Imight": "I might",
+    "Imust": "I must",
+    "Iknow": "I know",
+    "Ifelt": "I felt",
+    "Ifeel": "I feel",
+    "Ifound": "I found",
+    "Iwent": "I went",
+    "Icame": "I came",
+    "Isaw": "I saw",
+    "Itook": "I took",
+    "Itried": "I tried",
     # preposition + article patterns
-    'inthe': 'in the',
-    'ofthe': 'of the',
-    'tothe': 'to the',
-    'onthe': 'on the',
-    'atthe': 'at the',
-    'bythe': 'by the',
-    'forthe': 'for the',
-    'fromthe': 'from the',
-    'withthe': 'with the',
-    'ofan': 'of an',
-    'ofmy': 'of my',
-    'tomy': 'to my',
-    'asI': 'as I',
-    'ifI': 'if I',
+    "inthe": "in the",
+    "ofthe": "of the",
+    "tothe": "to the",
+    "onthe": "on the",
+    "atthe": "at the",
+    "bythe": "by the",
+    "forthe": "for the",
+    "fromthe": "from the",
+    "withthe": "with the",
+    "ofan": "of an",
+    "ofmy": "of my",
+    "tomy": "to my",
+    "asI": "as I",
+    "ifI": "if I",
     # Do/Did patterns
-    'Doyou': 'Do you',
-    'Didyou': 'Did you',
+    "Doyou": "Do you",
+    "Didyou": "Did you",
 }
 
 
@@ -295,7 +406,7 @@ def _fix_single_word(token: str) -> tuple[str, int]:
     Handles leading/trailing punctuation and preserves case.
     """
     # Extract leading/trailing punctuation
-    match = re.match(r'^([^\w]*)(\w+)([^\w]*)$', token)
+    match = re.match(r"^([^\w]*)(\w+)([^\w]*)$", token)
     if not match:
         return token, 0
 
@@ -305,7 +416,7 @@ def _fix_single_word(token: str) -> tuple[str, int]:
     # These are very reliable patterns that don't need full segmentation
     short_fix = _fix_common_short_concatenation(word)
     if short_fix:
-        return prefix + short_fix + suffix, short_fix.count(' ')
+        return prefix + short_fix + suffix, short_fix.count(" ")
 
     # Skip very short words (can't be concatenated)
     if len(word) < 6:
@@ -327,7 +438,7 @@ def _fix_single_word(token: str) -> tuple[str, int]:
         return token, 0
 
     # Count spaces added
-    spaces_added = segmented.count(' ')
+    spaces_added = segmented.count(" ")
 
     return prefix + segmented + suffix, spaces_added
 
@@ -354,7 +465,7 @@ def _segment_word(word: str) -> str:
     for seg in segments:
         # Find this segment in the original word (case-insensitive)
         seg_len = len(seg)
-        original_segment = word[pos:pos + seg_len]
+        original_segment = word[pos : pos + seg_len]
 
         # Post-process: check if this segment is a known short concatenation
         # This catches cases where wordsegment produces "asI" instead of "as I"
@@ -365,7 +476,7 @@ def _segment_word(word: str) -> str:
             result.append(original_segment)
         pos += seg_len
 
-    return ' '.join(result)
+    return " ".join(result)
 
 
 def _is_valid_word(word: str) -> bool:
@@ -382,11 +493,26 @@ def _is_valid_word(word: str) -> bool:
 
     # Common long valid words
     valid_long_words = {
-        'nevertheless', 'notwithstanding', 'understanding', 'circumstances',
-        'extraordinary', 'unfortunately', 'characteristic', 'communication',
-        'philosophical', 'consciousness', 'accomplishment', 'demonstration',
-        'entertainment', 'disappointment', 'establishment', 'transformation',
-        'international', 'representation', 'constantinople', 'mediterranean',
+        "nevertheless",
+        "notwithstanding",
+        "understanding",
+        "circumstances",
+        "extraordinary",
+        "unfortunately",
+        "characteristic",
+        "communication",
+        "philosophical",
+        "consciousness",
+        "accomplishment",
+        "demonstration",
+        "entertainment",
+        "disappointment",
+        "establishment",
+        "transformation",
+        "international",
+        "representation",
+        "constantinople",
+        "mediterranean",
     }
 
     if word_lower in valid_long_words:
@@ -403,11 +529,11 @@ def _is_valid_word(word: str) -> bool:
     # Check for common suffixes that make long words valid
     # Only trust this for moderately long words (not extremely long ones)
     if len(word_lower) <= 15:
-        valid_suffixes = ['tion', 'ness', 'ment', 'able', 'ible', 'ious', 'eous', 'ly', 'ing', 'ed']
+        valid_suffixes = ["tion", "ness", "ment", "able", "ible", "ious", "eous", "ly", "ing", "ed"]
         for suffix in valid_suffixes:
             if word_lower.endswith(suffix):
                 # Could be a valid word, be conservative
-                base = word_lower[:-len(suffix)]
+                base = word_lower[: -len(suffix)]
                 if len(base) >= 4 and not _looks_concatenated(base):
                     return True
 
@@ -433,12 +559,12 @@ def _basic_spacing_fix(text: str) -> tuple[str, int]:
                 # Check if what follows looks like a word start
                 if word[i].islower():
                     spaces_added += 1
-                    return word[:i] + ' ' + word[i:]
+                    return word[:i] + " " + word[i:]
 
         return word
 
     # Find long words and try to fix them
-    result = re.sub(r'\b\w{13,}\b', fix_match, text)
+    result = re.sub(r"\b\w{13,}\b", fix_match, text)
 
     return result, spaces_added
 
@@ -455,23 +581,23 @@ def correct_pdf_spacing(text: str, force: bool = False) -> tuple[str, dict]:
         Tuple of (corrected text, metadata dict with stats)
     """
     metadata = {
-        'spacing_correction_applied': False,
-        'spaces_added': 0,
-        'detection_triggered': False,
+        "spacing_correction_applied": False,
+        "spaces_added": 0,
+        "detection_triggered": False,
     }
 
     # Check if correction is needed
     if not force and not needs_spacing_correction(text):
         return text, metadata
 
-    metadata['detection_triggered'] = True
+    metadata["detection_triggered"] = True
 
     # Apply correction
     corrected, spaces_added = fix_spacing(text)
 
     if spaces_added > 0:
-        metadata['spacing_correction_applied'] = True
-        metadata['spaces_added'] = spaces_added
+        metadata["spacing_correction_applied"] = True
+        metadata["spaces_added"] = spaces_added
         logger.info(f"PDF spacing correction: added {spaces_added} spaces")
 
     return corrected, metadata

@@ -20,6 +20,25 @@ from rich.text import Text
 from ..pipeline.metrics import MetricsCollector, ProgressSnapshot, StageMetrics
 from ..pipeline.pricing import format_cost
 
+# Stage order mapping for display purposes
+# This defines the expected execution order of pipeline stages
+STAGE_ORDER = {
+    "Chapter Detection": 1,
+    "Character Extraction": 2,
+    "Character Extraction V2": 2,  # Alternative to V1, same position
+    "Chapter Summaries": 3,
+    "Character Profiles": 4,
+    "Pronunciation Guide": 5,
+}
+
+
+def get_stage_order(stage_name: str) -> str:
+    """Get the order prefix for a stage name."""
+    order = STAGE_ORDER.get(stage_name)
+    if order:
+        return f"{order}. "
+    return ""
+
 
 def format_duration(seconds: float) -> str:
     """Format seconds as M:SS or H:MM:SS."""
@@ -87,7 +106,7 @@ class RichProgressDisplay:
         for stage in stages:
             table.add_row(
                 "[green]✓[/green]",
-                stage.stage_name,
+                f"{get_stage_order(stage.stage_name)}{stage.stage_name}",
                 format_duration(stage.duration_seconds),
                 f"{stage.items_processed} items" if stage.items_processed > 0 else "",
                 stage.confidence_summary if stage.items_processed > 0 else "",
@@ -99,7 +118,8 @@ class RichProgressDisplay:
         """Build the Rich panel for current progress state."""
         # Determine panel title
         if snapshot.current_stage_name:
-            title = f"[bold cyan]Analyzing: {snapshot.current_stage_name}[/bold cyan]"
+            order_prefix = get_stage_order(snapshot.current_stage_name)
+            title = f"[bold cyan]Analyzing: {order_prefix}{snapshot.current_stage_name}[/bold cyan]"
         else:
             title = "[bold cyan]Analyzing...[/bold cyan]"
 
@@ -195,6 +215,7 @@ class RichProgressDisplay:
 
         # Combine content
         from rich.console import Group
+
         panel_content = Group(*content_parts)
 
         return Panel(
@@ -231,7 +252,7 @@ class RichProgressDisplay:
 
             for stage in snapshot.completed_stages:
                 table.add_row(
-                    stage.stage_name,
+                    f"{get_stage_order(stage.stage_name)}{stage.stage_name}",
                     format_duration(stage.duration_seconds),
                     str(stage.items_processed) if stage.items_processed > 0 else "-",
                     stage.confidence_summary if stage.items_processed > 0 else "-",
@@ -250,6 +271,7 @@ class RichProgressDisplay:
         content_parts.append(totals_text)
 
         from rich.console import Group
+
         panel_content = Group(*content_parts)
 
         return Panel(
@@ -261,9 +283,7 @@ class RichProgressDisplay:
         )
 
     def run_until_complete(
-        self,
-        complete_event: threading.Event,
-        error_container: Optional[list] = None
+        self, complete_event: threading.Event, error_container: Optional[list] = None
     ) -> None:
         """
         Run the progress display until analysis completes.
@@ -313,9 +333,7 @@ class RichProgressDisplay:
             raise
 
     def _run_simple_output(
-        self,
-        complete_event: threading.Event,
-        error_container: Optional[list] = None
+        self, complete_event: threading.Event, error_container: Optional[list] = None
     ) -> None:
         """Run with simple text output for non-TTY environments."""
         last_stage = None
@@ -328,7 +346,8 @@ class RichProgressDisplay:
 
             # Print stage changes
             if snapshot.current_stage_name and snapshot.current_stage_name != last_stage:
-                print(f"[Stage] {snapshot.current_stage_name}...")
+                order_prefix = get_stage_order(snapshot.current_stage_name)
+                print(f"[Stage] {order_prefix}{snapshot.current_stage_name}...")
                 last_stage = snapshot.current_stage_name
 
             complete_event.wait(timeout=self.poll_interval)

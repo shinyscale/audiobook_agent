@@ -6,29 +6,28 @@ All new code should import directly from src.llm instead.
 """
 
 # Re-export from providers
-from .providers import (
-    LLMProvider,
-    DEFAULT_URLS,
-    get_default_url,
-    detect_available_models,
-    detect_context_length,
-    test_connection,
-)
-
 # Re-export from models
 from .models import (
     CONTEXT_PERCENT,
-    ModelConfig,
     RECOMMENDED_MODELS,
-    get_model_for_hardware,
+    ModelConfig,
     get_default_model,
+    get_model_for_hardware,
 )
 
 # Re-export from ollama
 from .ollama import (
-    pull_ollama_model,
     delete_ollama_model,
     get_ollama_model_info,
+    pull_ollama_model,
+)
+from .providers import (
+    DEFAULT_URLS,
+    LLMProvider,
+    detect_available_models,
+    detect_context_length,
+    get_default_url,
+    test_connection,
 )
 
 __all__ = [

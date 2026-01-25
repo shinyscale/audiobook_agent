@@ -2,6 +2,12 @@
 
 You are the oracle in an autonomous improvement loop for an audiobook narrator preparation tool. Your job is to assess the quality of the HTML output against known literary works and provide structured, actionable feedback.
 
+> **⚠️ V2 PIPELINE IS ACTIVE**
+>
+> Output was generated using V2 character extraction. When documenting issues for the fix phase:
+> - Reference V2 files (`src/pipeline/character_extraction_v2/`) not V1
+> - Historical attempts before monkeys_paw #14 used V1 and may not be relevant
+
 > **NOTE ON NOVEL-SPECIFIC CONTENT:** CLAUDE.md says "NEVER include examples from specific novels in prompts or validation logic" - this applies to the **analysis pipeline code** (src/pipeline/*, src/agents/*), NOT to evaluation. As the oracle, you NEED ground truth data (expected characters, chapter counts, aliases, pronunciation entries, etc.) to evaluate against. All novel-specific expected results in this file and manifest.json are correct and necessary. The goal is: make GENERIC code changes to achieve SPECIFIC correct results on test texts.
 
 ## 0. Orient
@@ -88,8 +94,52 @@ if result_path.exists():
 
     print(f'Config present: {\"_config\" in result}')
     print(f'Profiling present: {\"_profiling\" in result}')
+
+    # Character source analysis (ID patterns indicate origin)
+    main_cast_ids = [c['id'] for c in chars if c.get('id', '').startswith('main_cast_')]
+    supporting_ids = [c['id'] for c in chars if c.get('id', '').startswith('supporting_')]
+    # 12-char hash IDs come from F6 Summary Reconciliation (analyzer.py:1220-1240), NOT supporting cast
+    f6_reconciled_ids = [c['id'] for c in chars if len(c.get('id', '')) == 12 and not c.get('id', '').startswith(('main_', 'supporting_', 'split_'))]
+    split_ids = [c['id'] for c in chars if c.get('id', '').startswith('split_')]
+    print(f'Characters from main_cast: {len(main_cast_ids)}')
+    print(f'Characters from supporting_cast: {len(supporting_ids)}')
+    print(f'Characters from F6 reconciliation (hash IDs): {len(f6_reconciled_ids)}')
+    if split_ids:
+        print(f'Characters from semantic split: {len(split_ids)}')
+
+    # Pronunciation IPA coverage
+    with_ipa = [p for p in pron if p.get('ipa')]
+    print(f'Pronunciations with IPA: {len(with_ipa)}/{len(pron)}')
+
+    # Profile population
+    with_desc = [c for c in chars if c.get('physical_description')]
+    with_rels = [c for c in chars if c.get('relationships')]
+    print(f'Characters with physical_description: {len(with_desc)}/{len(chars)}')
+    print(f'Characters with relationships: {len(with_rels)}/{len(chars)}')
 "
 ```
+
+### CRITICAL: Verify Claims Before Documenting Issues
+
+**DO NOT document issues based on assumptions.** Run verification commands:
+
+```bash
+# If claiming "all pronunciations lack IPA":
+jq '[.pronunciations[] | select(.ipa != null)] | length' ../output/{book_name}/analysis.json
+
+# If claiming "character fragmentation" - check which pipeline produced them:
+jq '.characters[] | select(.canonical_name | test("FRAGMENT_NAME"; "i")) | {id: .id, name: .canonical_name}' ../output/{book_name}/analysis.json
+
+# If claiming "profiles empty" - verify:
+jq '[.characters[] | select(.physical_description != null or (.relationships | length) > 0)] | length' ../output/{book_name}/analysis.json
+```
+
+**When documenting character fragmentation issues, ALWAYS note the ID patterns:**
+- `main_cast_*` → Fix in main cast pipeline (main_cast.py)
+- `supporting_*` → Fix in supporting cast pipeline (supporting.py)
+- 12-char hash (e.g., `50c19d96ece4`) → Fix in F6 reconciliation (analyzer.py:1220-1240)
+- `split_*` → Created by semantic conflict split
+- Mixed → Fix requires cross-pipeline merge logic
 
 ### Expected Values for Test Texts
 
@@ -330,6 +380,19 @@ Update `state/EVALUATION_STATE.md` with the full evaluation results:
 
 ## Fix History
 {list of fixes from previous attempts}
+
+## Modification History
+
+Track which files were modified for each issue to detect stuck patterns:
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| {n} | {issue description} | {file1.py, file2.py} | {Fixed / No change / Regression} |
+
+**When updating this table:**
+- Add a row for each fix attempt
+- Note if the same file is being modified repeatedly
+- If the same file/layer appears 3+ times without success, the fix phase MUST escalate upstream
 
 ## Next Action
 {what should happen next}

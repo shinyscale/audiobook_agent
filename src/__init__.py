@@ -14,10 +14,10 @@ from .analyzer import AudiobookAnalyzer, analyze_book
 from .models import AnalysisResult, BookMetadata, Character, PronunciationEntry
 
 __all__ = [
-    'AudiobookAnalyzer',
-    'analyze_book',
-    'AnalysisResult',
-    'BookMetadata',
-    'Character',
-    'PronunciationEntry',
+    "AudiobookAnalyzer",
+    "analyze_book",
+    "AnalysisResult",
+    "BookMetadata",
+    "Character",
+    "PronunciationEntry",
 ]

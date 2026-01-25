@@ -6,12 +6,12 @@ of the original refiner.py. Supports Ollama, OpenAI, and Anthropic.
 """
 
 import json
-import re
+import logging
 import os
+import re
 import time
 from dataclasses import dataclass
-from typing import Optional, Literal, Union, TYPE_CHECKING
-import logging
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 if TYPE_CHECKING:
     from ..pipeline.metrics import MetricsCollector
@@ -22,17 +22,27 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LLMConfig:
     """Configuration for LLM provider."""
+
     provider: Literal["ollama", "openai", "anthropic"]
     model: str
     base_url: Optional[str] = None  # For Ollama/LM Studio
     api_key: Optional[str] = None
-    temperature: float = 0.3
+    temperature: float = 0.7  # Model-recommended default for local LLMs
     max_tokens: int = 4096
     context_length: int = 32768  # Context window size (num_ctx for Ollama)
-    think: Optional[Union[bool, str]] = None  # Reasoning control: False, True, "low", "medium", "high"
+    think: Optional[Union[bool, str]] = (
+        None  # Reasoning control: False, True, "low", "medium", "high"
+    )
+    # Additional sampling parameters
+    # Qwen3 auto-applies: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+    top_p: Optional[float] = None  # Nucleus sampling threshold
+    top_k: Optional[int] = None  # Top-k sampling limit
+    presence_penalty: Optional[float] = None  # 0-2, reduces repetition
 
     @classmethod
-    def ollama(cls, model: str = "llama3.2", base_url: str = "http://localhost:11434") -> "LLMConfig":
+    def ollama(
+        cls, model: str = "llama3.2", base_url: str = "http://localhost:11434"
+    ) -> "LLMConfig":
         return cls(provider="ollama", model=model, base_url=base_url)
 
     @classmethod
@@ -44,7 +54,9 @@ class LLMConfig:
         )
 
     @classmethod
-    def anthropic(cls, model: str = "claude-3-5-sonnet-20241022", api_key: Optional[str] = None) -> "LLMConfig":
+    def anthropic(
+        cls, model: str = "claude-3-5-sonnet-20241022", api_key: Optional[str] = None
+    ) -> "LLMConfig":
         return cls(
             provider="anthropic",
             model=model,
@@ -55,6 +67,7 @@ class LLMConfig:
 @dataclass
 class LLMResponse:
     """Response from an LLM call."""
+
     content: str
     model: str
     usage: Optional[dict] = None  # Token usage if available
@@ -88,11 +101,13 @@ class LLMClient:
 
         if self.config.provider == "ollama":
             import httpx
+
             self._client = httpx.Client(base_url=self.config.base_url, timeout=1200.0)
             self._httpx = httpx  # Store for error handling
 
         elif self.config.provider == "openai":
             from openai import OpenAI
+
             self._client = OpenAI(
                 api_key=self.config.api_key,
                 base_url=self.config.base_url,  # Needed for LM Studio compatibility
@@ -100,6 +115,7 @@ class LLMClient:
 
         elif self.config.provider == "anthropic":
             from anthropic import Anthropic
+
             self._client = Anthropic(api_key=self.config.api_key)
 
         return self._client
@@ -107,6 +123,11 @@ class LLMClient:
     def query(self, prompt: str, system: Optional[str] = None) -> LLMResponse:
         """Send a query to the LLM and get a response."""
         start_time = time.perf_counter()
+
+        # Write heartbeat BEFORE the blocking LLM call so monitors know we're active
+        if self.metrics:
+            self.metrics.record_llm_call_starting()
+
         try:
             if self.config.provider == "ollama":
                 response = self._query_ollama(prompt, system)
@@ -115,7 +136,11 @@ class LLMClient:
             elif self.config.provider == "anthropic":
                 response = self._query_anthropic(prompt, system)
             else:
-                response = LLMResponse(content="", model=self.config.model, error=f"Unknown provider: {self.config.provider}")
+                response = LLMResponse(
+                    content="",
+                    model=self.config.model,
+                    error=f"Unknown provider: {self.config.provider}",
+                )
 
             # Clean thinking tags from response (for reasoning models like DeepSeek-R1, QwQ)
             if response.content:
@@ -134,11 +159,11 @@ class LLMClient:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             # Extract more detailed error information for HTTP errors
             error_msg = str(e)
-            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+            if hasattr(e, "response") and hasattr(e.response, "status_code"):
                 # httpx.HTTPStatusError
                 status_code = e.response.status_code
                 try:
-                    error_detail = e.response.text[:200] if hasattr(e.response, 'text') else ""
+                    error_detail = e.response.text[:200] if hasattr(e.response, "text") else ""
                     if error_detail:
                         error_msg = f"Server error '{status_code}' for url '{getattr(e.response, 'url', 'unknown')}': {error_detail}"
                     else:
@@ -148,11 +173,17 @@ class LLMClient:
 
             # Only log at warning level to reduce noise - individual components will handle their own error messages
             logger.debug(f"LLM query failed: {error_msg}")
-            return LLMResponse(content="", model=self.config.model, error=error_msg, latency_ms=round(elapsed_ms, 2))
+            return LLMResponse(
+                content="",
+                model=self.config.model,
+                error=error_msg,
+                latency_ms=round(elapsed_ms, 2),
+            )
 
     def _query_ollama(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query Ollama API."""
         from ..logging_config import get_llm_logger
+
         llm_logger = get_llm_logger()
 
         client = self._get_client()
@@ -163,15 +194,40 @@ class LLMClient:
         messages.append({"role": "user", "content": prompt})
 
         url = f"{self.config.base_url}/api/chat"
+
+        # Auto-apply Qwen3 recommended settings if not explicitly set
+        # Qwen3 Instruct: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+        model_lower = self.config.model.lower()
+        if "qwen3" in model_lower:
+            if self.config.top_p is None:
+                self.config.top_p = 0.8
+            if self.config.top_k is None:
+                self.config.top_k = 20
+            # Increase max_tokens if at default (4096) - Qwen3 recommends 16384
+            if self.config.max_tokens <= 4096:
+                self.config.max_tokens = 16384
+            # Moderate presence_penalty reduces repetition (0-2 range, 1.0 is balanced)
+            if self.config.presence_penalty is None:
+                self.config.presence_penalty = 1.0
+
+        # Build options dict, only including optional params if set
+        options = {
+            "temperature": self.config.temperature,
+            "num_predict": self.config.max_tokens,
+            "num_ctx": self.config.context_length,
+        }
+        if self.config.top_p is not None:
+            options["top_p"] = self.config.top_p
+        if self.config.top_k is not None:
+            options["top_k"] = self.config.top_k
+        if self.config.presence_penalty is not None:
+            options["presence_penalty"] = self.config.presence_penalty
+
         body = {
             "model": self.config.model,
             "messages": messages,
             "stream": False,
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": self.config.max_tokens,
-                "num_ctx": self.config.context_length,
-            },
+            "options": options,
         }
 
         # Add think parameter if specified (Ollama API expects it at top level)
@@ -199,7 +255,9 @@ class LLMClient:
             except Exception:
                 pass
 
-            error_msg = f"Server error '{response.status_code} {response.reason_phrase}' for url '{url}'"
+            error_msg = (
+                f"Server error '{response.status_code} {response.reason_phrase}' for url '{url}'"
+            )
             if error_body:
                 error_msg += f": {error_body}"
 
@@ -215,6 +273,7 @@ class LLMClient:
             )
 
             import httpx
+
             raise httpx.HTTPStatusError(
                 error_msg,
                 request=response.request,
@@ -247,6 +306,7 @@ class LLMClient:
     def _query_openai(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query OpenAI API."""
         from ..logging_config import get_llm_logger
+
         llm_logger = get_llm_logger()
 
         client = self._get_client()
@@ -309,6 +369,7 @@ class LLMClient:
     def _query_anthropic(self, prompt: str, system: Optional[str]) -> LLMResponse:
         """Query Anthropic API."""
         from ..logging_config import get_llm_logger
+
         llm_logger = get_llm_logger()
 
         client = self._get_client()
@@ -388,7 +449,9 @@ class LLMClient:
 
         return cleaned.strip()
 
-    def query_json(self, prompt: str, system: Optional[str] = None) -> tuple[Optional[Union[dict, list]], LLMResponse]:
+    def query_json(
+        self, prompt: str, system: Optional[str] = None
+    ) -> tuple[Optional[Union[dict, list]], LLMResponse]:
         """Query LLM and parse response as JSON (dict or list)."""
         response = self.query(prompt, system)
 
@@ -457,19 +520,19 @@ class LLMClient:
 
         # Common repairs:
         # 1. Remove trailing commas before } or ]
-        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+        json_str = re.sub(r",\s*([}\]])", r"\1", json_str)
 
         # 2. Fix unquoted keys (word: value -> "word": value)
-        json_str = re.sub(r'(\{|,)\s*(\w+)\s*:', r'\1"\2":', json_str)
+        json_str = re.sub(r"(\{|,)\s*(\w+)\s*:", r'\1"\2":', json_str)
 
         # 3. Replace single quotes with double quotes (for string values)
         # Be careful not to replace apostrophes in text
         json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
 
         # 4. Fix boolean/null case (True -> true, False -> false, None -> null)
-        json_str = re.sub(r'\bTrue\b', 'true', json_str)
-        json_str = re.sub(r'\bFalse\b', 'false', json_str)
-        json_str = re.sub(r'\bNone\b', 'null', json_str)
+        json_str = re.sub(r"\bTrue\b", "true", json_str)
+        json_str = re.sub(r"\bFalse\b", "false", json_str)
+        json_str = re.sub(r"\bNone\b", "null", json_str)
 
         try:
             return json.loads(json_str)
@@ -502,11 +565,11 @@ class LLMClient:
 
         # Test 2: Check for empty response (common failure mode)
         if not response.content or len(response.content.strip()) == 0:
-            return False, f"Model returns empty responses"
+            return False, "Model returns empty responses"
 
         # Test 3: Check for garbled/invalid response
         if len(response.content.strip()) < 1:
-            return False, f"Model returns invalid responses (too short)"
+            return False, "Model returns invalid responses (too short)"
 
         # Test 4: Verify model can generate coherent text
         test_response = self.query("Count to three.")
@@ -514,17 +577,13 @@ class LLMClient:
             return False, f"Model failed generation test: {test_response.error}"
 
         if not test_response.content or len(test_response.content.strip()) == 0:
-            return False, f"Model returns empty responses on generation test"
+            return False, "Model returns empty responses on generation test"
 
         # All checks passed
         return True, f"Model {self.config.model} is healthy"
 
 
-def create_client(
-    provider: str = "ollama",
-    model: Optional[str] = None,
-    **kwargs
-) -> LLMClient:
+def create_client(provider: str = "ollama", model: Optional[str] = None, **kwargs) -> LLMClient:
     """Factory function to create an LLM client."""
     if provider == "ollama":
         config = LLMConfig.ollama(model=model or "llama3.2", **kwargs)

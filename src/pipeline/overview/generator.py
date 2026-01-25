@@ -5,11 +5,11 @@ Creates high-level book overview including structure, plot summary,
 model usage, and timing information.
 """
 
-from typing import Optional
 import logging
+from typing import Optional
 
-from ..llm import LLMClient
 from ...models import AnalysisResult
+from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +128,7 @@ class OverviewGenerator:
         chapter_count = len(chapters)
 
         # Check if chapters have titles (beyond "Chapter N")
-        has_titles = any(
-            ch.title and not ch.title.startswith("Chapter") for ch in chapters
-        )
+        has_titles = any(ch.title and not ch.title.startswith("Chapter") for ch in chapters)
 
         # Check for parts/sections (look for part markers in chapter data)
         has_parts = False  # Could be enhanced with part detection logic
@@ -143,9 +141,7 @@ class OverviewGenerator:
             narrative_style = "third-person"
 
         # Generate description
-        description_parts = [
-            f"This book contains {chapter_count} chapters."
-        ]
+        description_parts = [f"This book contains {chapter_count} chapters."]
 
         if has_titles:
             description_parts.append("Chapters have descriptive titles.")
@@ -207,17 +203,18 @@ class OverviewGenerator:
             eligible_chars = [c for c in result.characters if c.mention_count >= 3]
 
             # Sort by mention count (descending) and take top 3
-            sorted_chars = sorted(
-                eligible_chars,
-                key=lambda c: c.mention_count,
-                reverse=True
-            )[:3]
+            sorted_chars = sorted(eligible_chars, key=lambda c: c.mention_count, reverse=True)[:3]
             if sorted_chars:
                 char_lines = []
                 for char in sorted_chars:
                     role_info = f" ({char.role})" if char.role else ""
-                    char_lines.append(f"- {char.canonical_name}{role_info}: {char.mention_count} mentions")
-                main_characters = "MAIN CHARACTERS (use these names, do NOT invent others):\n" + "\n".join(char_lines)
+                    char_lines.append(
+                        f"- {char.canonical_name}{role_info}: {char.mention_count} mentions"
+                    )
+                main_characters = (
+                    "MAIN CHARACTERS (use these names, do NOT invent others):\n"
+                    + "\n".join(char_lines)
+                )
 
         prompt = PLOT_SUMMARY_PROMPT.format(
             title=result.structure[0].title if result.structure else "Unknown",

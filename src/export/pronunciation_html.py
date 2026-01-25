@@ -5,8 +5,8 @@ Generates an interactive HTML file with pronunciations and their full
 paragraph context, enabling offline review and sharing.
 """
 
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 from ..models import PronunciationEntry
 from ..pipeline.pronunciation_guide.word_index import WordIndex
@@ -40,7 +40,8 @@ def generate_pronunciation_html(
     html_parts = [_generate_header(title)]
 
     # Summary stats
-    html_parts.append(f'''
+    html_parts.append(
+        f"""
     <div class="stats">
         <div class="stat-card">
             <div class="value">{len(pronunciations)}</div>
@@ -51,17 +52,20 @@ def generate_pronunciation_html(
             <div class="label">Categories</div>
         </div>
     </div>
-    ''')
+    """
+    )
 
     # Pronunciation list with context
     html_parts.append('<div class="pronunciation-list">')
 
     for ptype, entries in sorted(by_type.items(), key=lambda x: -len(x[1])):
-        html_parts.append(f'''
+        html_parts.append(
+            f"""
         <div class="category">
             <h2>{ptype.replace('_', ' ').title()} ({len(entries)})</h2>
             <div class="entries">
-        ''')
+        """
+        )
 
         for entry in sorted(entries, key=lambda e: e.word.lower()):
             # Extract paragraph context if word_index available
@@ -77,18 +81,19 @@ def generate_pronunciation_html(
                     # Highlight the word in context
                     if 0 <= word_offset < len(para_text):
                         highlighted = (
-                            para_text[:word_offset] +
-                            '<mark class="highlight">' +
-                            para_text[word_offset:word_offset + word_len] +
-                            '</mark>' +
-                            para_text[word_offset + word_len:]
+                            para_text[:word_offset]
+                            + '<mark class="highlight">'
+                            + para_text[word_offset : word_offset + word_len]
+                            + "</mark>"
+                            + para_text[word_offset + word_len :]
                         )
                         context_html = f'<div class="paragraph-context">{highlighted}</div>'
 
             ipa = entry.ipa or ""
             notes = entry.notes or ""
 
-            html_parts.append(f'''
+            html_parts.append(
+                f"""
                 <div class="entry">
                     <div class="word-header">
                         <span class="word">{entry.word}</span>
@@ -101,19 +106,20 @@ def generate_pronunciation_html(
                         {len(entry.mentions)} occurrence{'s' if len(entry.mentions) != 1 else ''}
                     </div>
                 </div>
-            ''')
+            """
+            )
 
-        html_parts.append('</div></div>')
+        html_parts.append("</div></div>")
 
-    html_parts.append('</div>')
+    html_parts.append("</div>")
     html_parts.append(_generate_footer())
 
-    return '\n'.join(html_parts)
+    return "\n".join(html_parts)
 
 
 def _generate_header(title: str) -> str:
     """Generate HTML header with styles."""
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -273,12 +279,12 @@ def _generate_header(title: str) -> str:
 <body>
     <h1>{title}</h1>
     <p style="color: var(--muted);">Generated {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>
-'''
+"""
 
 
 def _generate_footer() -> str:
     """Generate HTML footer."""
-    return '''
+    return """
     <script>
         // Filter functionality
         function filterPronunciations(query) {
@@ -292,4 +298,4 @@ def _generate_footer() -> str:
         }
     </script>
 </body>
-</html>'''
+</html>"""

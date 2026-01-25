@@ -6,13 +6,13 @@ Two strategies:
 2. LLMNarrativeProposer: Finds narrative/structural breaks (for books without explicit markers)
 """
 
+import logging
 import re
 from typing import Optional
-import logging
 
-from .base import BaseProposer
-from ..models import ChapterProposal, DocumentProfile
 from ...llm import LLMClient
+from ..models import ChapterProposal, DocumentProfile
+from .base import BaseProposer
 
 logger = logging.getLogger(__name__)
 
@@ -209,10 +209,12 @@ class LLMMarkerProposer(BaseProposer):
             # HTTP error or connection failure
             logger.debug(f"LLM marker proposer failed: {response.error}")
             return []
-        
+
         if result is None:
             # JSON parsing failure
-            logger.warning(f"LLM marker proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
+            logger.warning(
+                f"LLM marker proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}"
+            )
             return []
 
         if not isinstance(result, list):
@@ -246,14 +248,16 @@ class LLMMarkerProposer(BaseProposer):
             else:
                 confidence = float(confidence_raw)
 
-            proposals.append(ChapterProposal(
-                strategy=self.name,
-                position=position,
-                title=item.get("title"),
-                evidence=marker_text,
-                confidence=confidence,
-                reasoning=item.get("reasoning"),
-            ))
+            proposals.append(
+                ChapterProposal(
+                    strategy=self.name,
+                    position=position,
+                    title=item.get("title"),
+                    evidence=marker_text,
+                    confidence=confidence,
+                    reasoning=item.get("reasoning"),
+                )
+            )
 
         return proposals
 
@@ -264,8 +268,46 @@ class LLMMarkerProposer(BaseProposer):
         chunk_start: int,
         full_text: str,
     ) -> Optional[int]:
-        """Find the position of marker text, with fallbacks for slight variations."""
-        # Exact match in chunk
+        """Find the position of marker text, with fallbacks for slight variations.
+
+        IMPORTANT: For short markers (roman numerals like I, V, X), we must ensure
+        we match standalone occurrences, not characters embedded in words like "Ventura".
+        """
+        # For short markers (single roman numerals or "Chapter X" style), require standalone match
+        # This prevents matching "V" in "Ventura" when looking for Chapter V
+        is_short_marker = len(marker_text.strip()) <= 4 or re.match(
+            r"^[IVXLC]+$", marker_text.strip()
+        )
+
+        if is_short_marker:
+            # Require the marker to be standalone (surrounded by whitespace or line boundaries)
+            # Pattern: start of line + optional whitespace + marker + optional whitespace + end of line
+            # OR: surrounded by whitespace on both sides
+            escaped = re.escape(marker_text.strip())
+            # Match centered/standalone markers (common in classic lit)
+            pattern = rf"^\s*{escaped}\s*$"
+            match = re.search(pattern, chunk, re.MULTILINE)
+            if match:
+                return chunk_start + match.start()
+
+            # Also try with surrounding whitespace (not at line boundary)
+            pattern = rf"(?<=\s){escaped}(?=\s)"
+            match = re.search(pattern, chunk)
+            if match:
+                return chunk_start + match.start()
+
+            # For "Chapter N" format, be more flexible
+            if marker_text.strip().lower().startswith("chapter"):
+                pattern = re.escape(marker_text.strip())
+                match = re.search(pattern, chunk, re.IGNORECASE)
+                if match:
+                    return chunk_start + match.start()
+
+            # Short marker not found as standalone - don't return false matches
+            logger.debug(f"Short marker '{marker_text}' not found as standalone in chunk")
+            return None
+
+        # For longer markers, exact match is fine
         pos = chunk.find(marker_text)
         if pos >= 0:
             return chunk_start + pos
@@ -391,10 +433,12 @@ class LLMNarrativeProposer(BaseProposer):
             # HTTP error or connection failure
             logger.debug(f"LLM narrative proposer failed: {response.error}")
             return []
-        
+
         if result is None:
             # JSON parsing failure
-            logger.warning(f"LLM narrative proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}")
+            logger.warning(
+                f"LLM narrative proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}"
+            )
             return []
 
         if not isinstance(result, list):
@@ -420,7 +464,7 @@ class LLMNarrativeProposer(BaseProposer):
             confidence_raw = item.get("confidence")
             if confidence_raw is None:
                 logger.warning(
-                    f"LLM narrative break detection did not return confidence - "
+                    "LLM narrative break detection did not return confidence - "
                     "using conservative default 0.3"
                 )
                 base_confidence = 0.3
@@ -428,14 +472,16 @@ class LLMNarrativeProposer(BaseProposer):
                 base_confidence = float(confidence_raw) * 0.7
             confidence = base_confidence
 
-            proposals.append(ChapterProposal(
-                strategy=self.name,
-                position=position,
-                title=None,  # Narrative breaks don't have titles
-                evidence=break_text,
-                confidence=confidence,
-                reasoning=f"{item.get('transition_type', 'break')}: {item.get('reasoning', '')}",
-            ))
+            proposals.append(
+                ChapterProposal(
+                    strategy=self.name,
+                    position=position,
+                    title=None,  # Narrative breaks don't have titles
+                    evidence=break_text,
+                    confidence=confidence,
+                    reasoning=f"{item.get('transition_type', 'break')}: {item.get('reasoning', '')}",
+                )
+            )
 
         return proposals
 

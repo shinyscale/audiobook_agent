@@ -5,11 +5,10 @@ These models represent rich character profiles designed for audiobook narration,
 including appearance, personality, and voice guidance.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Literal
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
-
+from typing import Literal, Optional
 
 RoleType = Literal["protagonist", "antagonist", "supporting", "minor"]
 MentionFrequency = Literal["frequent", "moderate", "occasional", "rare"]
@@ -19,6 +18,7 @@ DominantPattern = Literal["harmful", "beneficial", "mixed", "neutral", "unknown"
 @dataclass
 class ProfileEvidence:
     """Evidence supporting a profile claim."""
+
     statement: str  # The claim being made
     quote: str  # Supporting quote from text
     chapter: Optional[int] = None  # Chapter where quote appears
@@ -28,8 +28,11 @@ class ProfileEvidence:
 @dataclass
 class ActionAnalysis:
     """Analysis of character actions for action-weighted profiling (Feature F3)."""
+
     harmful_actions: list[str] = field(default_factory=list)  # murder, manipulation, cruelty, etc.
-    beneficial_actions: list[str] = field(default_factory=list)  # helping, protecting, kindness, etc.
+    beneficial_actions: list[str] = field(
+        default_factory=list
+    )  # helping, protecting, kindness, etc.
     neutral_actions: list[str] = field(default_factory=list)  # daily activities, travel, etc.
     dominant_pattern: DominantPattern = "unknown"  # Overall action pattern
     evidence: list[str] = field(default_factory=list)  # Supporting quotes
@@ -61,6 +64,7 @@ class ActionAnalysis:
 @dataclass
 class AppearanceProfile:
     """Physical appearance for narrator visualization."""
+
     summary: str  # 1-2 sentence overview
     details: dict[str, str] = field(default_factory=dict)  # "hair": "dark, curly"
     age_indication: str = "unknown"  # "young adult", "middle-aged", etc.
@@ -94,6 +98,7 @@ class AppearanceProfile:
 @dataclass
 class PersonalityProfile:
     """Personality traits for voice characterization."""
+
     summary: str  # 1-2 sentence overview
     traits: list[str] = field(default_factory=list)  # "arrogant", "insecure"
     temperament: str = "unknown"  # "volatile", "calm", "anxious"
@@ -133,6 +138,7 @@ class PersonalityProfile:
 @dataclass
 class VoiceGuidance:
     """Specific guidance for narrator voice work."""
+
     suggested_tone: str = ""  # "aristocratic drawl", "nervous energy"
     dialect_notes: str = ""  # "Midwestern", "British upper class"
     verbal_tics: list[str] = field(default_factory=list)  # "old sport", "you know"
@@ -169,6 +175,7 @@ class VoiceGuidance:
 @dataclass
 class CharacterRelationship:
     """Relationship between characters."""
+
     character: str  # Name of the other character
     relationship_type: str  # "spouse", "lover", "rival", "friend", etc.
     description: str  # Brief description of the relationship
@@ -192,6 +199,7 @@ class CharacterRelationship:
 @dataclass
 class IdentifiedCharacter:
     """Character identified from chapter summaries (before full profiling)."""
+
     canonical_name: str
     aliases: list[str] = field(default_factory=list)
     role: RoleType = "supporting"
@@ -234,6 +242,7 @@ class IdentifiedCharacter:
 @dataclass
 class CharacterProfile:
     """Rich character profile for audiobook narration."""
+
     # Identity
     id: str  # Unique identifier
     canonical_name: str
@@ -258,7 +267,9 @@ class CharacterProfile:
     confidence: float = 0.5
 
     # Narrator Commentary (Feature F4)
-    narrator_comments: list[dict] = field(default_factory=list)  # Narrator judgments about this character
+    narrator_comments: list[dict] = field(
+        default_factory=list
+    )  # Narrator judgments about this character
 
     # Metadata (SECONDARY)
     first_appearance_chapter: int = 1
@@ -278,7 +289,10 @@ class CharacterProfile:
             "personality": self.personality.to_dict(),
             "voice_guidance": self.voice_guidance.to_dict(),
             "relationships": [r.to_dict() for r in self.relationships],
-            "evidence": [{"statement": e.statement, "quote": e.quote, "chapter": e.chapter} for e in self.evidence],
+            "evidence": [
+                {"statement": e.statement, "quote": e.quote, "chapter": e.chapter}
+                for e in self.evidence
+            ],
             "confidence": self.confidence,
             "narrator_comments": self.narrator_comments,
             "metadata": {
@@ -302,8 +316,13 @@ class CharacterProfile:
             appearance=AppearanceProfile.from_dict(data.get("appearance", {})),
             personality=PersonalityProfile.from_dict(data.get("personality", {})),
             voice_guidance=VoiceGuidance.from_dict(data.get("voice_guidance", {})),
-            relationships=[CharacterRelationship.from_dict(r) for r in data.get("relationships", [])],
-            evidence=[ProfileEvidence(e["statement"], e["quote"], e.get("chapter")) for e in data.get("evidence", [])],
+            relationships=[
+                CharacterRelationship.from_dict(r) for r in data.get("relationships", [])
+            ],
+            evidence=[
+                ProfileEvidence(e["statement"], e["quote"], e.get("chapter"))
+                for e in data.get("evidence", [])
+            ],
             confidence=data.get("confidence", 0.5),
             narrator_comments=data.get("narrator_comments", []),
             first_appearance_chapter=metadata.get("first_appearance_chapter", 1),
@@ -315,6 +334,7 @@ class CharacterProfile:
     def from_identified(cls, char: IdentifiedCharacter, id_suffix: str = "") -> "CharacterProfile":
         """Create a profile from an identified character."""
         import hashlib
+
         char_id = hashlib.md5(char.canonical_name.encode()).hexdigest()[:8]
         return cls(
             id=f"char_{char.canonical_name.lower().replace(' ', '_')}_{char_id}{id_suffix}",
@@ -331,6 +351,7 @@ class CharacterProfile:
 @dataclass
 class CharacterProfileMap:
     """Collection of all character profiles for a document."""
+
     profiles: list[CharacterProfile]
     narrator_name: Optional[str] = None
     narrative_style: str = "unknown"  # "first-person", "third-person", "mixed"

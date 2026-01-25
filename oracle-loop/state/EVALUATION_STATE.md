@@ -2,181 +2,80 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 14
-- **Phase:** awaiting_analysis
-- **baseline_score:** 6.275
-
-## Latest Scores
-
-- Structure Detection: 9/10
-- Character Extraction: 5/10 ← FAILING (NO CHANGE from attempt 12)
-- Character Profiles: 7/10
-- Chapter Summaries: 8/10
-- Pronunciation Guide: 4/10 ← FAILING
-- HTML Presentation: 9/10
-- **Overall: 7.00/10** (threshold: 8.0)
-
-## Score Calculation
-
-```
-Overall = (9 × 0.20) + (5 × 0.25) + (7 × 0.15) + (8 × 0.20) + (4 × 0.10) + (9 × 0.10)
-        = 1.80 + 1.25 + 1.05 + 1.60 + 0.40 + 0.90
-        = 7.00/10
-```
-
-## Evaluation Details
-
-### Why Attempt 13 Fix Was INEFFECTIVE
-
-**The gender conflict detection code IS correct and IS in the codebase**, but it DID NOT EXECUTE during the analysis run. Evidence:
-
-1. **Stale .pyc cache**:
-   - consensus.py modified: 08:59:57
-   - consensus.cpython-312.pyc compiled: 09:00
-   - Git commit made: 09:02:00
-   - Analysis ran: 09:21:12
-
-   Python likely used the pre-fix .pyc cache instead of recompiling the updated source.
-
-2. **Output unchanged**: "the sergeant-major" still has aliases ["the soldier", "the old man", "the old woman"] - exactly the same as attempt 12.
-
-3. **Gender detection logic verified**: Manual testing confirms the function correctly detects:
-   - "the sergeant-major" → male
-   - "the old man" → male
-   - "the old woman" → female
-
-   If the code ran, "the old woman" would NOT have been merged.
-
-### Character Extraction: 5/10
-
-**Current character list (9 characters):**
-1. Mr. White (10 mentions) - Good
-2. **White (30 mentions)** - PROBLEM: Orphan entry that should merge with Mr. White
-3. Mrs. White (19 mentions) - Good
-4. Herbert White (14 mentions) with alias "Herbert" - Good
-5. Sergeant-Major Morris (5 mentions) with alias "Morris" - Good
-6. **the sergeant-major (5 mentions)** with aliases "the soldier", "the old man", "the old woman" - CRITICAL BUG
-7. the visitor (4 mentions) - OK
-8. his wife (2 mentions) - Should merge with Mrs. White
-9. Stranger from Maw and Meggins (1 mention) - OK
-
-### Structure Detection: 9/10
-- 3 parts correctly detected
-- Chapter titles showing as "None" instead of "Part I", "Part II", "Part III"
-- Chapter 3 includes Project Gutenberg boilerplate
-
-### Character Profiles: 7/10
-- Mr. White has excellent profile with physical description, personality, voice guidance, evidence
-- Mrs. White, Herbert White have null profile data
-- "White" entry has profile data that duplicates/should belong to Mr. White
-
-### Chapter Summaries: 8/10
-- All three part summaries are accurate and useful for narrator preparation
-
-### Pronunciation Guide: 4/10
-- Common English words flagged: "his", "old", "from", "man", "wife", "woman", "soldier"
-- Gutenberg boilerplate: "GutenbergTM", "eBooks"
-- Root cause: Extracted from broken character names
-
-### HTML Presentation: 9/10
-- Navigation functional, layout clean
-
-## Current Issues (Priority Order)
-
-### CRITICAL
-
-1. **FIX NOT APPLIED - Stale .pyc cache**
-   - Problem: The gender conflict detection code was committed but Python used a cached bytecode file
-   - Evidence: .pyc timestamp (09:00) predates git commit (09:02), output identical to attempt 12
-   - Fix: Clear `__pycache__` directories before running analysis: `find . -name "__pycache__" -exec rm -rf {} +`
-
-2. **"the sergeant-major" wrongly merged with "the old man" and "the old woman"**
-   - Problem: Three DIFFERENT character references merged as aliases
-   - Evidence: "the old man" and "the old woman" are OPPOSITE GENDERS - cannot be the same person
-   - Location: `src/pipeline/character_extraction/consensus.py` - `_llm_epithet_resolution()`
-   - Fix: The code fix IS correct but didn't run. Clear cache and re-run.
-
-3. **"White" (30 mentions) exists as orphan entry separate from "Mr. White"**
-   - Problem: "White" refers to Mr. White in almost all contexts but isn't merging
-   - Evidence: 30 mentions of standalone "White" are separate from "Mr. White" (10 mentions)
-   - Root cause: Ambiguity check correctly blocks merge because "Mrs. White" exists
-   - Location: `src/pipeline/character_extraction/consensus.py` - need context-aware disambiguation
-   - Fix: When "Mr./Mrs. [LastName]" both exist, use dialogue attribution context to determine who standalone "[LastName]" refers to
-
-### HIGH
-
-4. **"his wife" orphan entry**
-   - Problem: "his wife" (2 mentions) should merge with "Mrs. White"
-   - Location: Relational pronoun resolution
-   - Fix: Resolve possessive pronouns + relationship to the primary character of that relationship type
-
-5. **Common English words flagged as proper nouns**
-   - Problem: "his" (99x), "old" (42x), "from" (38x), "man" (23x), "wife" (15x), "woman" (11x), "soldier" (5x)
-   - Root cause: Extracted from broken character names
-   - Fix: Two-part - (a) Fix character extraction bugs, (b) Add stopword filtering
-
-6. **Project Gutenberg boilerplate contamination**
-   - Problem: "GutenbergTM" flagged 57 times, Chapter 3 includes legal text
-   - Location: `src/ingestion/` - back matter detection
-   - Fix: Add patterns to detect and strip Project Gutenberg license text
-
-### MEDIUM
-
-7. **"the sergeant-major" should merge with "Sergeant-Major Morris"**
-   - Problem: Both refer to the same person but exist as separate entries
-   - Fix: After Critical #2 is resolved, ensure cross-group resolution links the epithet to the proper name
-
-8. **Chapter titles showing as "None"**
-   - Problem: All three chapters have `title: null` instead of "Part I", "Part II", "Part III"
-   - Location: `src/pipeline/chapter_detection/` - title extraction
-
-## Fix History
-
-| Attempt | Fix | Outcome |
-|---------|-----|---------|
-| 1-4 | Various pipeline errors | Failed to run |
-| 5 | First successful run | 6.275 baseline |
-| 6 | Re-evaluated with consistent rubric | 7.05 |
-| 7-9 | Various fix attempts | 7.05 |
-| 10 | Case sensitivity fix | 7.05 |
-| 11 | `is_ambiguous_lastname_only()` in heuristic path | 6.70 - fix in wrong code path |
-| 12 | Added ambiguity check to `_validate_merge()` in LLM path | 7.00 - partial fix (Herbert fixed) |
-| 13 | **Gender conflict detection in epithet resolution** | **7.00 - FIX NOT APPLIED (stale .pyc cache)** |
-| 14 | **Cleared Python bytecode cache** | Infrastructure fix - allows attempt 13 code to execute |
-
-## Score History
-
-| Attempt | Score | Delta from Baseline | Notes |
-|---------|-------|---------------------|-------|
-| 5 | 6.275* | baseline | First successful run |
-| 6 | 7.05 | +0.775 | Re-evaluated |
-| 10 | 7.05 | +0.775 | Case sensitivity fix didn't help |
-| 11 | 6.70 | +0.425 | Regression - fix in wrong code path |
-| 12 | 7.00 | +0.725 | Partial fix - Herbert correct now |
-| 13 | 7.00 | +0.725 | FIX NOT APPLIED - stale bytecode cache |
-
-## Next Action
-
-Re-run the analysis. The gender conflict detection code from attempt 13 will now execute properly with the bytecode cache cleared.
-
-**Expected results after attempt 14:**
-- "the old woman" should be a separate character (not alias of "the sergeant-major")
-- "the old man" and "the soldier" may still merge with "the sergeant-major" (all male)
-- Character Extraction should improve from 5/10 to at least 6/10
-
-**Remaining issues after cache fix:**
-- If male epithets still incorrectly merge, need semantic/contextual differentiation beyond gender
-- "White" (30 mentions) orphan entry still needs context-aware disambiguation
-- "his wife" needs relational pronoun resolution
-
-## Configuration Audit
-
-- Model: qwen3-next:80b-a3b-instruct-q8_0 for characters
-- Chunking: 5000 char chunks (character_llm_chunk_chars)
-- LLM calls: 60 total, 113,112 tokens
-- Character Extraction: 40.2% of pipeline time (449s)
-- Low confidence flags on "the sergeant-major" (0.30)
+- **Attempt:** 2
+- **Phase:** complete
+- **baseline_score:** 7.80
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+- Analysis completed: 2026-01-25 00:18 (22m 5s)
+- Characters detected: 4 (Mr. White, Mrs. White, Herbert, Morris)
+
+## Latest Scores
+- Structure Detection: 10/10
+- Character Extraction: 9/10 ✓
+- Character Profiles: 8/10
+- Chapter Summaries: 9/10
+- Pronunciation Guide: 7/10
+- HTML Presentation: 9/10
+- **Overall: 8.85/10** (threshold: 8.0) ✓ **PASS**
+
+## Score History
+| Attempt | Score | Delta from Baseline | Notes |
+|---------|-------|---------------------|-------|
+| 1 | 7.80 | - | Baseline established; 6 hash-ID duplicates from F6 reconciliation |
+| 2 | 8.85 | +1.05 | F6 fix eliminated all duplicates; PASS |
+
+## Fix Applied (Attempt 1 → 2)
+
+**Root Cause:** F6 reconciliation (analyzer.py:1220-1460) was creating duplicate characters when chapter summaries contained character names that didn't exactly match existing characters.
+
+**Changes Made to src/analyzer.py:**
+
+1. **Lines 1272-1314 (SIMPLE_EPITHETS):** Added bare forms "old man", "old woman", "young man", "young woman" to skip list
+
+2. **Lines 1377-1473 (new function `_is_likely_alias_of_existing`):** Fuzzy matcher that:
+   - Strips parenthetical annotations (e.g., "Herbert (mentioned)" → "Herbert")
+   - Matches full names to first/last names (e.g., "Herbert White" → "Herbert")
+   - Strips military/professional titles (e.g., "Sergeant-Major Morris" → "Morris")
+
+3. **Lines 1492-1499 (reconciliation loop):** Added call to fuzzy matcher after synonym check
+
+**Result:** All 5 hash-ID duplicate characters eliminated:
+- ~~"old man" (4043b3ed9215)~~ → skipped as generic descriptor
+- ~~"old woman" (7e1d85a8b8b5)~~ → skipped as generic descriptor
+- ~~"Herbert White" (4e195cae6189)~~ → skipped as alias of "Herbert"
+- ~~"Sergeant-Major Morris" (bfebadeb2661)~~ → skipped as alias of "Morris"
+- ~~"Herbert (mentioned)" (af8c3db5324c)~~ → skipped as alias of "Herbert"
+
+## Evaluation Notes
+
+### Strengths
+- Character extraction now correctly identifies 4 characters with no duplicates
+- Chapter summaries accurately capture the three-act structure and key events
+- Voice guidance includes excellent example quotes for narrator preparation
+- Mr. White's "thin grey beard" correctly captured as distinguishing feature
+
+### Minor Issues (Not Blocking)
+- Physical descriptions mostly "unknown" (fair - story doesn't detail appearances)
+- Some false positives in pronunciation (common words like "slushy", "whitened")
+- Morris's alias "Sergeant-Major Morris" not captured (but not a critical issue)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 | F6 reconciliation creating duplicate characters from summaries | src/analyzer.py (lines 1272-1314, 1377-1473, 1492-1499) | FIXED |
+
+## Next Action
+
+**PASS achieved.** Ready to advance to next text in manifest.json.
+
+All texts in current manifest are now complete:
+- cask_of_amontillado: 8.95/10 ✓
+- masque_of_red_death: 8.80/10 ✓
+- berenice: 8.10/10 ✓
+- monkeys_paw: 8.85/10 ✓
+
+Add new texts to manifest.json to continue oracle loop testing.

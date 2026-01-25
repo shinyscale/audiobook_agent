@@ -2,6 +2,13 @@
 
 You are fixing issues identified in the evaluation phase of an autonomous improvement loop for an audiobook narrator preparation tool.
 
+> **⚠️ V2 PIPELINE IS ACTIVE**
+>
+> The oracle loop now uses **V2 character extraction** (the only implementation). When fixing character-related issues:
+> - **USE:** `src/pipeline/character_extraction_v2/` (main_cast.py, grounding.py, narrator.py, supporting.py)
+> - **USE:** `src/agents/characters.py`
+> - **Note:** V1 character extraction has been removed from the codebase
+
 ## 0. Orient
 
 **Context Budget:** You have a limited context budget. Be efficient:
@@ -40,7 +47,13 @@ BAD: Read entire consensus.py (2500 lines) → wastes 50K+ tokens
 GOOD: Read CODEBASE_SUMMARY.md → grep for function → Read consensus.py:1571-1650
 ```
 
-For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md:
+For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md.
+
+**Character extraction fix locations (V2 is always active):**
+- Main cast issues → `main_cast.py` - `MAIN_CAST_PROMPT`
+- Alias issues → `main_cast.py` - LLM provides aliases directly
+- Hallucinated characters → `grounding.py` - `GroundingGate`
+- Narrator issues → `narrator.py` - `NARRATOR_DETECTION_PROMPT`
 - Character merge issues → `consensus.py` lines 1571-1700
 - Narrator issues → `analyzer.py` lines 1986-2076
 - Profile issues → `analyzer.py` lines 1570-1700
@@ -87,6 +100,147 @@ For EACH issue you plan to fix, you MUST document:
 ### 1.4 Root Cause Categories (Expanded)
 
 When tracing the issue, consider ALL these categories:
+
+### 1.5 Escalate Upstream (MANDATORY after 3 failed attempts)
+
+Check the "Modification History" table in `state/EVALUATION_STATE.md`.
+
+**If the same file or layer has been modified 3+ times without fixing the issue:**
+
+You MUST look UPSTREAM. The bug is NOT in the file you keep modifying.
+
+**Data Flow for Character Extraction V2:**
+```
+Source File (txt/pdf/epub)
+       │
+       ▼
+┌─────────────────┐
+│   Ingestion     │  ← Text normalization can destroy patterns
+│ (base.py)       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Structure     │  ← Chapter boundaries affect everything
+│ (chapter_detection/) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Summaries     │  ← If summaries confuse characters, so will extraction
+│ (summarizer.py) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Character V2    │  ← EXTRACTS FROM SUMMARIES, not raw text
+│ (main_cast.py)  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Grounding Gate  │  ← Verifies against raw text
+│ (grounding.py)  │
+└─────────────────┘
+```
+
+**Key Insight:** If characters are wrong in V2, check SUMMARIES first.
+The `main_cast.py` prompt reads summaries, not the source text.
+
+**For Character Extraction issues, upstream layers are (in order):**
+1. **Summaries** - Do the chapter summaries correctly distinguish the characters?
+2. **NER/Entity extraction** - Is spaCy detecting both names?
+3. **Ingestion** - Is the source text being corrupted or normalized incorrectly?
+4. **Input file** - Is the original text correct?
+
+**Diagnostic steps when escalating upstream:**
+
+```bash
+# 1. Check summaries for the problematic characters
+grep -i "waldman\|krempe" ../output/{book_name}/analysis.json | head -20
+
+# 2. If summaries already confuse them, the bug is in summary generation
+# 3. If summaries are correct, the bug is in character extraction reading summaries
+
+# 4. Check raw text extraction
+grep -i "waldman\|krempe" ../test_texts/{book_name}.txt | head -10
+```
+
+**DO NOT modify the same layer again without upstream evidence.**
+
+**Example escalation pattern:**
+- Attempts 4, 5, 6: Modified `main_cast.py` → No improvement
+- Escalation action: Check summaries for character confusion
+- If summaries are wrong: Fix `summarizer.py` instead
+- If summaries are correct: Add diagnostic logging to trace how main_cast.py processes them
+
+---
+
+### 1.6 Data Investigation (MANDATORY before modifying code)
+
+**DO NOT MODIFY CODE until you have answered these questions about the actual data.**
+
+#### 1.6.1 Character Issues - Check Which Pipeline Produced Them
+
+```bash
+# Check character IDs to determine source pipeline
+jq '.characters[] | select(.canonical_name | test("PROBLEM_NAME"; "i")) | {id: .id, name: .canonical_name, mentions: .mention_count}' ../output/{book_name}/analysis.json
+```
+
+**ID Pattern Interpretation:**
+- `main_cast_{i}` (e.g., `main_cast_2`) → Main cast extraction (LLM-based, from summaries)
+- `supporting_{i}` (e.g., `supporting_6`) → Supporting cast extraction (NER-based, from text)
+- 12-char hash (e.g., `50c19d96ece4`) → **F6 Summary Reconciliation** (analyzer.py:1220-1240)
+- `split_{name}` (e.g., `split_the_creature`) → Semantic conflict split
+
+**CRITICAL:** 12-char hash IDs are from F6 reconciliation, NOT supporting cast!
+- F6 scans summaries for character names not found in the extraction pipeline
+- It creates new Character entries with hashed IDs
+- If fragments have hash IDs, the fix belongs in `analyzer.py` F6 logic, not main_cast.py or supporting.py
+
+**If fragments have different ID patterns, they come from DIFFERENT PIPELINES!**
+- Modifying `main_cast.py` won't fix fragments from supporting cast or F6 reconciliation
+- You may need to fix BOTH pipelines or add cross-pipeline merge logic
+
+#### 1.6.2 Pipeline Stages - Check If They Ran
+
+```bash
+# List all stage names that executed (profiling.stages is a list of objects, not a dict)
+jq '._profiling.stages[].name' ../output/{book_name}/analysis.json
+
+# Check if Character Profiles stage ran (note: stage name is "Character Profiles", NOT "Profile Generation")
+jq '._profiling.stages[] | select(.name == "Character Profiles") | {name, duration_seconds, llm_calls}' ../output/{book_name}/analysis.json
+
+# Check any other stage by name
+jq '._profiling.stages[] | select(.name == "STAGE_NAME_HERE")' ../output/{book_name}/analysis.json
+```
+
+**If a stage is missing from profiling data, it DID NOT RUN.** This is a configuration or pipeline issue, not a logic bug.
+
+#### 1.6.3 Verify Evaluation Claims
+
+**DO NOT trust evaluation claims blindly.** Spot-check against actual data:
+
+```bash
+# Evaluation says "all pronunciation entries have null phonetic"
+# Verify by checking actual data:
+jq '[.pronunciations[] | select(.ipa != null)] | length' ../output/{book_name}/analysis.json
+
+# Evaluation says "all profiles empty"
+# Verify:
+jq '[.characters[] | select(.physical_description != null)] | length' ../output/{book_name}/analysis.json
+```
+
+**Document your findings before proposing a fix:**
+```markdown
+### Data Investigation for Issue: {description}
+- **Character IDs:** {main_cast_* / supporting_* / mixed}
+- **Source pipeline:** {main cast / supporting cast / both}
+- **Profiling data:** {stage ran / stage missing}
+- **Evaluation claim verified:** {yes / no - actual finding}
+```
+
+---
 
 | Category | Description | Where to Look |
 |----------|-------------|---------------|

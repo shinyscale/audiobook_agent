@@ -4,13 +4,15 @@ Regex-based chapter proposer.
 This is the deterministic baseline - fast, reproducible, no LLM dependency.
 """
 
-import re
+import json
 import logging
-from typing import Optional
+import re
+import time
 from dataclasses import dataclass
+from typing import Optional
 
-from .base import BaseProposer
 from ..models import ChapterProposal, DocumentProfile
+from .base import BaseProposer
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChapterPattern:
     """A pattern for detecting chapter markers."""
+
     pattern: re.Pattern
     confidence: float
     description: str
@@ -30,7 +33,9 @@ class ChapterPattern:
 CHAPTER_PATTERNS = [
     # Explicit "Chapter" markers - HARD BOUNDARIES
     ChapterPattern(
-        re.compile(r"^\s*(Chapter|CHAPTER)\s+(\d+|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE),
+        re.compile(
+            r"^\s*(Chapter|CHAPTER)\s+(\d+|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE
+        ),
         confidence=0.95,
         description="explicit_chapter_numbered",
         is_hard_boundary=True,
@@ -41,15 +46,16 @@ CHAPTER_PATTERNS = [
         description="explicit_chapter_word_number",
         is_hard_boundary=True,
     ),
-
     # Part markers - HARD BOUNDARIES
     ChapterPattern(
-        re.compile(r"^\s*(Part|PART)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE | re.IGNORECASE),
+        re.compile(
+            r"^\s*(Part|PART)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$",
+            re.MULTILINE | re.IGNORECASE,
+        ),
         confidence=0.95,
         description="part_marker",
         is_hard_boundary=True,
     ),
-
     # Roman numeral only (common in classic literature)
     # STRICT: Must be centered (10+ spaces) - works for all Roman numerals including "I"
     # HARD BOUNDARY
@@ -67,7 +73,6 @@ CHAPTER_PATTERNS = [
         description="roman_numeral_line",
         is_hard_boundary=False,
     ),
-
     # Arabic numeral only (centered) - HARD BOUNDARY when centered
     ChapterPattern(
         re.compile(r"^\s{10,}(\d{1,3})\s*$", re.MULTILINE),
@@ -75,7 +80,6 @@ CHAPTER_PATTERNS = [
         description="arabic_numeral_centered",
         is_hard_boundary=True,
     ),
-
     # Named chapters (all caps on own line) - softer signal
     ChapterPattern(
         re.compile(r"^\s*([A-Z][A-Z\s]{5,40})\s*$", re.MULTILINE),
@@ -83,34 +87,34 @@ CHAPTER_PATTERNS = [
         description="all_caps_title",
         is_hard_boundary=False,
     ),
-
     # Prologue/Epilogue and other special sections - HARD BOUNDARIES
     ChapterPattern(
         re.compile(
             r"^\s*(Prologue|PROLOGUE|Epilogue|EPILOGUE|Introduction|INTRODUCTION|Preface|PREFACE|"
             r"Foreword|FOREWORD|Afterword|AFTERWORD|Appendix|APPENDIX|Acknowledgments|ACKNOWLEDGMENTS|"
             r"Dedication|DEDICATION|Notes|NOTES|Glossary|GLOSSARY|Interlude|INTERLUDE|Intermezzo|INTERMEZZO)\s*$",
-            re.MULTILINE
+            re.MULTILINE,
         ),
         confidence=0.95,
         description="special_section",
         is_hard_boundary=True,
     ),
-
     # Letters in epistolary novels (Letter 1, Letter I, etc.) - HARD BOUNDARIES
     ChapterPattern(
         re.compile(
             r"^\s*(Letter|LETTER)\s+(\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)(?:\s*[:\.\-—–]\s*(.+?))?$",
-            re.MULTILINE | re.IGNORECASE
+            re.MULTILINE | re.IGNORECASE,
         ),
         confidence=0.95,
         description="letter_section",
         is_hard_boundary=True,
     ),
-
     # "Book One", "Book Two" etc. - HARD BOUNDARIES
     ChapterPattern(
-        re.compile(r"^\s*(Book|BOOK)\s+(\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$", re.MULTILINE | re.IGNORECASE),
+        re.compile(
+            r"^\s*(Book|BOOK)\s+(\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|[IVXLC]+)(?:\s*[:\.\-—–]\s*(.+?))?$",
+            re.MULTILINE | re.IGNORECASE,
+        ),
         confidence=0.95,
         description="book_division",
         is_hard_boundary=True,
@@ -145,7 +149,10 @@ class RegexProposer(BaseProposer):
 
         # If we have a profile with front matter info, start after it
         start_position = profile.front_matter_end if profile else 0
-        logger.debug(f"RegexProposer: start_position={start_position} (front_matter_end)")
+        logger.info(
+            f"[DEBUG] RegexProposer: start_position={start_position} (front_matter_end) "
+            f"at line {text[:start_position].count(chr(10))+1 if start_position < len(text) else 'EOF'}"
+        )
 
         # Track matches per pattern for debugging
         pattern_match_counts = {}
@@ -186,15 +193,17 @@ class RegexProposer(BaseProposer):
                     text, position, pattern_def.confidence, pattern_def.description
                 )
 
-                proposals.append(ChapterProposal(
-                    strategy=self.name,
-                    position=position,
-                    title=title,
-                    evidence=evidence,
-                    confidence=confidence,
-                    reasoning=f"Matched pattern: {pattern_def.description}",
-                    is_hard_boundary=pattern_def.is_hard_boundary,
-                ))
+                proposals.append(
+                    ChapterProposal(
+                        strategy=self.name,
+                        position=position,
+                        title=title,
+                        evidence=evidence,
+                        confidence=confidence,
+                        reasoning=f"Matched pattern: {pattern_def.description}",
+                        is_hard_boundary=pattern_def.is_hard_boundary,
+                    )
+                )
                 seen_positions.add(position)
                 pattern_matches += 1
 
@@ -231,6 +240,50 @@ class RegexProposer(BaseProposer):
         logger.info(f"RegexProposer: returning {len(proposals)} proposals")
         for p in proposals:
             logger.info(f"  [{p.position}] {p.title} (conf={p.confidence:.2f})")
+
+        # region agent log (chapter-v-bug) - hypothesis A/D
+        try:
+            _titles_u = [(p.title or "").strip().upper() for p in proposals]
+            _has_v = any(t in ("V", "CHAPTER V") or t.endswith(" V") for t in _titles_u)
+            _has_i = any(t in ("I", "CHAPTER I") or t.endswith(" I") for t in _titles_u)
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-v-bug-pre",
+                        "hypothesisId": "D",
+                        "location": "src/pipeline/chapter_detection/proposers/regex.py:RegexProposer.propose:summary",
+                        "message": "Regex proposer summary (pattern counts + I/V presence)",
+                        "data": {
+                            "front_matter_end": (
+                                getattr(profile, "front_matter_end", None) if profile else None
+                            ),
+                            "pattern_match_counts": pattern_match_counts,
+                            "skipped_front_matter": skipped_front_matter,
+                            "skipped_duplicate": skipped_duplicate,
+                            "proposal_count_returned": len(proposals),
+                            "has_I": _has_i,
+                            "has_V": _has_v,
+                            "first_20_titles": [p.title for p in proposals[:20]],
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
 
         return proposals
 
@@ -282,13 +335,13 @@ class RegexProposer(BaseProposer):
         confidence = base_confidence
 
         # Check if there's significant whitespace before (chapter markers often follow blank lines)
-        before = text[max(0, position - 50):position]
+        before = text[max(0, position - 50) : position]
         blank_lines_before = before.count("\n\n") + before.count("\n \n")
         if blank_lines_before >= 1:
             confidence = min(1.0, confidence + 0.05)
 
         # Check if there's text after (not just end of document)
-        after = text[position:min(len(text), position + 500)]
+        after = text[position : min(len(text), position + 500)]
         if len(after.strip()) < 100:
             confidence -= 0.1  # Might be end matter, not a real chapter
 
@@ -315,7 +368,7 @@ class RegexProposer(BaseProposer):
         filtered = [sorted_proposals[0]]
         for proposal in sorted_proposals[1:]:
             last_pos = filtered[-1].position
-            text_between = text[last_pos:proposal.position]
+            text_between = text[last_pos : proposal.position]
             word_count = len(text_between.split())
 
             if word_count >= self.min_chapter_words:

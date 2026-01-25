@@ -13,12 +13,12 @@ old name is occasionally referenced in later chapters).
 Feature F1 from character-profiling-enhancements-v2.prd.json
 """
 
-import re
 import logging
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from typing import Any, Optional
 
-from ..llm import LLMClient, LLMResponse
+from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IdentityStatement:
     """An explicit identity statement from the summary."""
+
     name_a: str  # First name mentioned
     name_b: str  # Second name (the "also known as")
     pattern_matched: str  # Which pattern matched
@@ -36,6 +37,7 @@ class IdentityStatement:
 @dataclass
 class SummaryMergeResult:
     """Result of summary-based merge detection."""
+
     merge_pairs: list[tuple[str, str]]  # List of (name_a, name_b) pairs to merge
     statements: list[IdentityStatement]  # The statements that triggered merges
     raw_summary: str = ""  # The summary that was parsed
@@ -56,7 +58,7 @@ IDENTITY_PATTERNS = [
         r"(?:later|also|now)\s+"
         r"(?:known|called|referred to)\s+as\s+"
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)",
-        "is_known_as"
+        "is_known_as",
     ),
     # "A, later revealed to be B" / "A—later revealed to be B"
     # Match: "Cathy Ames—later revealed to be the cruel brothel madam Kate—"
@@ -71,7 +73,7 @@ IDENTITY_PATTERNS = [
         r"(?:(?:the|a|an)\s+)?(?:[\w]+\s+)*?"  # Optional descriptive words
         r"([A-Z][a-zA-Z]+)"  # Name B (must start with capital)
         r"(?=[—–\-,.\s]|$)",  # Followed by delimiter, punctuation, or end
-        "revealed_to_be"
+        "revealed_to_be",
     ),
     # "A (also known as B)" / "A (aka B)"
     (
@@ -80,7 +82,7 @@ IDENTITY_PATTERNS = [
         r"(?:also\s+known\s+as|a\.?k\.?a\.?|formerly|née)\s+"
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)"
         r"\s*\)",
-        "parenthetical_aka"
+        "parenthetical_aka",
     ),
     # "A, also called/named B" - name only, not followed by prepositions
     (
@@ -89,14 +91,14 @@ IDENTITY_PATTERNS = [
         r"(?:also\s+)?(?:called|named|known as)\s+"
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)"  # Name B
         r"(?=\s*[,.]|\s+(?:by|in|at|is|was|to|and|or|who|which|that|\Z))",  # Followed by punctuation or prepositions
-        "also_called"
+        "also_called",
     ),
     # "A becomes/became B" (name change)
     (
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)"  # Name A
         r"\s+(?:becomes|became|transforms into|reinvents\s+(?:him|her)self\s+as)\s+"
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)",
-        "becomes"
+        "becomes",
     ),
     # "born A" ... "known as B" (birth name pattern)
     (
@@ -104,14 +106,14 @@ IDENTITY_PATTERNS = [
         r"[^.]*?"
         r"(?:known|called|went by|adopted the name)\s+"
         r"(?:as\s+)?([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)",
-        "birth_name"
+        "birth_name",
     ),
     # "A, whose real name is B"
     (
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)"  # Name A
         r",?\s+whose\s+(?:real|true|birth|given)\s+name\s+(?:is|was)\s+"
         r"([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)",
-        "real_name"
+        "real_name",
     ),
 ]
 
@@ -213,14 +215,18 @@ class SummaryMerger:
                 if name_a.lower() == name_b.lower():
                     continue
 
-                statements.append(IdentityStatement(
-                    name_a=name_a,
-                    name_b=name_b,
-                    pattern_matched=pattern_name,
-                    quote=quote,
-                    confidence=0.9,
-                ))
-                logger.info(f"Found identity statement via regex: {name_a} = {name_b} (pattern: {pattern_name})")
+                statements.append(
+                    IdentityStatement(
+                        name_a=name_a,
+                        name_b=name_b,
+                        pattern_matched=pattern_name,
+                        quote=quote,
+                        confidence=0.9,
+                    )
+                )
+                logger.info(
+                    f"Found identity statement via regex: {name_a} = {name_b} (pattern: {pattern_name})"
+                )
 
         # Second pass: LLM (if available and enabled)
         if use_llm and self.llm:
@@ -270,13 +276,15 @@ class SummaryMerger:
             if name_a.lower() == name_b.lower():
                 continue
 
-            statements.append(IdentityStatement(
-                name_a=name_a,
-                name_b=name_b,
-                pattern_matched="llm_detection",
-                quote=pair.get("quote", ""),
-                confidence=pair.get("confidence", 0.85),
-            ))
+            statements.append(
+                IdentityStatement(
+                    name_a=name_a,
+                    name_b=name_b,
+                    pattern_matched="llm_detection",
+                    quote=pair.get("quote", ""),
+                    confidence=pair.get("confidence", 0.85),
+                )
+            )
 
         return statements
 
@@ -323,7 +331,7 @@ def apply_summary_merges(
     name_to_char: dict[str, Any] = {}
     for char in characters:
         name_to_char[char.canonical_name.lower()] = char
-        for alias in getattr(char, 'aliases', []):
+        for alias in getattr(char, "aliases", []):
             name_to_char[alias.lower()] = char
 
     # Track which characters to remove (merged into others)
@@ -347,20 +355,20 @@ def apply_summary_merges(
         # Add char_b's canonical name and aliases to char_a
         if char_b.canonical_name not in char_a.aliases:
             char_a.aliases.append(char_b.canonical_name)
-        for alias in getattr(char_b, 'aliases', []):
+        for alias in getattr(char_b, "aliases", []):
             if alias not in char_a.aliases and alias.lower() != char_a.canonical_name.lower():
                 char_a.aliases.append(alias)
 
         # Merge chapters present if available
-        if hasattr(char_a, 'chapters_present') and hasattr(char_b, 'chapters_present'):
+        if hasattr(char_a, "chapters_present") and hasattr(char_b, "chapters_present"):
             combined = sorted(set(char_a.chapters_present + char_b.chapters_present))
             char_a.chapters_present = combined
 
         # Merge mention data if available
-        if hasattr(char_a, 'mention_count') and hasattr(char_b, 'mention_count'):
+        if hasattr(char_a, "mention_count") and hasattr(char_b, "mention_count"):
             char_a.mention_count = char_a.mention_count + char_b.mention_count
 
-        if hasattr(char_a, 'mentions') and hasattr(char_b, 'mentions'):
+        if hasattr(char_a, "mentions") and hasattr(char_b, "mentions"):
             char_a.mentions = char_a.mentions + char_b.mentions
 
         # Mark char_b for removal
@@ -368,7 +376,7 @@ def apply_summary_merges(
 
         # Update lookup to point char_b names to char_a
         name_to_char[char_b.canonical_name.lower()] = char_a
-        for alias in getattr(char_b, 'aliases', []):
+        for alias in getattr(char_b, "aliases", []):
             name_to_char[alias.lower()] = char_a
 
     # Remove merged characters

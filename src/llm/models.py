@@ -2,25 +2,24 @@
 Model recommendations and hardware detection.
 """
 
-from dataclasses import dataclass
-from typing import Optional
 import os
-
+from dataclasses import dataclass
 
 # Context usage percentages (of total context length)
 CONTEXT_PERCENT = {
-    "chapter_detection": 0.75,      # Chapter detection gets 75% of context
-    "character_profile": 0.70,      # Character profiles get 70%
-    "chapter_summary": 0.60,        # Chapter summaries get 60%
-    "alias_resolution": 0.50,       # Alias resolution gets 50%
+    "chapter_detection": 0.75,  # Chapter detection gets 75% of context
+    "character_profile": 0.70,  # Character profiles get 70%
+    "chapter_summary": 0.60,  # Chapter summaries get 60%
+    "alias_resolution": 0.50,  # Alias resolution gets 50%
     "relationship_extraction": 0.50,
-    "chunk_processing": 0.40,       # Processing individual chunks
+    "chunk_processing": 0.40,  # Processing individual chunks
 }
 
 
 @dataclass
 class ModelConfig:
     """Configuration for a local LLM model."""
+
     name: str
     description: str
     min_vram_gb: float
@@ -129,6 +128,7 @@ def get_default_model() -> str:
     # Try to auto-detect from LM Studio
     try:
         import requests
+
         response = requests.get("http://localhost:1234/v1/models", timeout=2)
         if response.ok:
             models = response.json().get("data", [])

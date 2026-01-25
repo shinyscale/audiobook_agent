@@ -12,11 +12,11 @@ This addresses merge failures where the text doesn't explicitly say
 import logging
 import re
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from typing import Optional
 
-from .models import IdentifiedCharacter
+from ...utils.similarity import max_similarity_between_names
 from ..chapter_summary.models import ChapterSummaryMap
+from .models import IdentifiedCharacter
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class HandoffDetector:
 
         # Check each pair
         for i, char_a in enumerate(characters):
-            for char_b in characters[i + 1:]:
+            for char_b in characters[i + 1 :]:
                 candidate = self._check_handoff(char_a, char_b, char_chapters)
                 if candidate and candidate.confidence >= self.min_confidence:
                     candidates.append(candidate)
@@ -149,7 +149,9 @@ class HandoffDetector:
 
         # Return the higher confidence one
         if candidate_ab and candidate_ba:
-            return candidate_ab if candidate_ab.confidence >= candidate_ba.confidence else candidate_ba
+            return (
+                candidate_ab if candidate_ab.confidence >= candidate_ba.confidence else candidate_ba
+            )
         return candidate_ab or candidate_ba
 
     def _check_direction(
@@ -245,17 +247,7 @@ class HandoffDetector:
 
     def _name_similarity(self, name1: str, name2: str) -> float:
         """Calculate string similarity between two names."""
-        # Extract first names for comparison
-        first1 = name1.split()[0].lower() if name1 else ""
-        first2 = name2.split()[0].lower() if name2 else ""
-
-        # Full name comparison
-        full_sim = SequenceMatcher(None, name1.lower(), name2.lower()).ratio()
-
-        # First name comparison (often more relevant)
-        first_sim = SequenceMatcher(None, first1, first2).ratio()
-
-        return max(full_sim, first_sim)
+        return max_similarity_between_names(name1, name2)
 
     def _share_surname(self, name1: str, name2: str) -> bool:
         """Check if two names share a surname."""
@@ -337,7 +329,7 @@ class HandoffDetector:
         name_b = char_b.canonical_name
 
         # Check for Mr./Mrs. pattern
-        mr_pattern = r'^(Mr\.?|Mrs\.?|Miss|Ms\.?)\s+'
+        mr_pattern = r"^(Mr\.?|Mrs\.?|Miss|Ms\.?)\s+"
         is_a_titled = bool(re.match(mr_pattern, name_a, re.IGNORECASE))
         is_b_titled = bool(re.match(mr_pattern, name_b, re.IGNORECASE))
 
@@ -347,8 +339,8 @@ class HandoffDetector:
             surname_b = name_b.split()[-1].lower() if name_b.split() else ""
             if surname_a == surname_b:
                 # Check if one is Mr. and other is Mrs./Miss/Ms.
-                is_a_mr = bool(re.match(r'^Mr\.?\s+', name_a, re.IGNORECASE))
-                is_b_mr = bool(re.match(r'^Mr\.?\s+', name_b, re.IGNORECASE))
+                is_a_mr = bool(re.match(r"^Mr\.?\s+", name_a, re.IGNORECASE))
+                is_b_mr = bool(re.match(r"^Mr\.?\s+", name_b, re.IGNORECASE))
                 if is_a_mr != is_b_mr:  # One Mr., one not
                     return True
 
@@ -382,14 +374,20 @@ class HandoffDetector:
 
         # Chapter pattern
         if gap == 0:
-            reasons.append(f"{char_a.canonical_name} last appears in ch.{max(chapters_a)}, "
-                          f"{char_b.canonical_name} first appears in same chapter")
+            reasons.append(
+                f"{char_a.canonical_name} last appears in ch.{max(chapters_a)}, "
+                f"{char_b.canonical_name} first appears in same chapter"
+            )
         elif gap == 1:
-            reasons.append(f"{char_a.canonical_name} last appears in ch.{max(chapters_a)}, "
-                          f"{char_b.canonical_name} first appears in next chapter ({min(chapters_b)})")
+            reasons.append(
+                f"{char_a.canonical_name} last appears in ch.{max(chapters_a)}, "
+                f"{char_b.canonical_name} first appears in next chapter ({min(chapters_b)})"
+            )
         else:
-            reasons.append(f"{char_a.canonical_name} ends ch.{max(chapters_a)}, "
-                          f"{char_b.canonical_name} starts ch.{min(chapters_b)} ({gap} chapters later)")
+            reasons.append(
+                f"{char_a.canonical_name} ends ch.{max(chapters_a)}, "
+                f"{char_b.canonical_name} starts ch.{min(chapters_b)} ({gap} chapters later)"
+            )
 
         # Chapter count
         if len(chapters_b) <= 2:

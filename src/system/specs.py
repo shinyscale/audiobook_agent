@@ -4,11 +4,11 @@ System hardware specification detection.
 Detects GPU, RAM, CPU, and platform information for optimal configuration.
 """
 
+import logging
 import os
 import platform
-import subprocess
 import re
-import logging
+import subprocess
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GPUInfo:
     """Information about a single GPU."""
+
     name: str
     vram_gb: float
     gpu_type: str  # "nvidia", "amd", "apple_silicon", "integrated", "none"
@@ -30,6 +31,7 @@ class GPUInfo:
 @dataclass
 class SystemSpecs:
     """Complete system hardware specifications."""
+
     platform: str  # "linux", "darwin", "windows"
     architecture: str  # "x86_64", "aarch64", "arm64"
     cpu_cores: int
@@ -233,15 +235,19 @@ def _detect_nvidia_gpus() -> list[GPUInfo]:
 
                 # Still no VRAM? Log warning but still add GPU
                 if vram_gb == 0:
-                    logger.warning(f"Could not determine VRAM for {name}, assuming high-end GPU (96GB)")
+                    logger.warning(
+                        f"Could not determine VRAM for {name}, assuming high-end GPU (96GB)"
+                    )
                     vram_gb = 96.0  # Assume high-end for unrecognized NVIDIA GPUs
 
-                gpus.append(GPUInfo(
-                    name=name,
-                    vram_gb=vram_gb,
-                    gpu_type="nvidia",
-                    driver_version=driver,
-                ))
+                gpus.append(
+                    GPUInfo(
+                        name=name,
+                        vram_gb=vram_gb,
+                        gpu_type="nvidia",
+                        driver_version=driver,
+                    )
+                )
 
     except FileNotFoundError:
         logger.debug("nvidia-smi not found")
@@ -305,11 +311,13 @@ def _detect_amd_gpus() -> list[GPUInfo]:
 
                 name = gpu_names.get(gpu_id, f"AMD GPU {gpu_id}")
 
-                gpus.append(GPUInfo(
-                    name=name,
-                    vram_gb=vram_gb,
-                    gpu_type="amd",
-                ))
+                gpus.append(
+                    GPUInfo(
+                        name=name,
+                        vram_gb=vram_gb,
+                        gpu_type="amd",
+                    )
+                )
 
     except FileNotFoundError:
         logger.debug("rocm-smi not found")
@@ -347,11 +355,13 @@ def _detect_amd_via_lspci() -> list[GPUInfo]:
                 match = re.search(r"\[([^\]]+)\]", line)
                 name = match.group(1) if match else "AMD GPU"
 
-                gpus.append(GPUInfo(
-                    name=name,
-                    vram_gb=0.0,  # Cannot determine VRAM from lspci
-                    gpu_type="amd",
-                ))
+                gpus.append(
+                    GPUInfo(
+                        name=name,
+                        vram_gb=0.0,  # Cannot determine VRAM from lspci
+                        gpu_type="amd",
+                    )
+                )
 
     except FileNotFoundError:
         logger.debug("lspci not found")

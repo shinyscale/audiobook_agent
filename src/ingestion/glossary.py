@@ -4,12 +4,12 @@ Glossary extraction from document back matter.
 Parses term/definition pairs from glossary sections detected by region detection.
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Optional
-import logging
 
-from .regions import DocumentRegion, RegionType
+from .regions import DocumentRegion
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GlossaryEntry:
     """A single extracted glossary entry."""
+
     term: str
     definition: str
     position: int
@@ -26,6 +27,7 @@ class GlossaryEntry:
 @dataclass
 class GlossaryExtractionResult:
     """Result of glossary extraction."""
+
     entries: list[GlossaryEntry]
     region_start: int
     region_end: int
@@ -37,23 +39,41 @@ class GlossaryExtractionResult:
 GLOSSARY_PATTERNS = [
     # "Term: definition" (most common format)
     # Allow terms starting with letter or digit (e.g., "1-oh", "11-Bravo")
-    (re.compile(r'^([A-Za-z0-9][^:\n]{0,60}):\s*(.+?)(?=\n[A-Za-z0-9][^:\n]{0,60}:|$)', re.MULTILINE | re.DOTALL), 0.9, "colon"),
-
+    (
+        re.compile(
+            r"^([A-Za-z0-9][^:\n]{0,60}):\s*(.+?)(?=\n[A-Za-z0-9][^:\n]{0,60}:|$)",
+            re.MULTILINE | re.DOTALL,
+        ),
+        0.9,
+        "colon",
+    ),
     # "Term - definition" or "Term — definition" (em-dash or en-dash)
-    (re.compile(r'^([A-Za-z0-9][^-—\n]{0,60})\s*[-—]\s*(.+?)(?=\n[A-Za-z0-9][^-—\n]{0,60}\s*[-—]|$)', re.MULTILINE | re.DOTALL), 0.85, "dash"),
-
+    (
+        re.compile(
+            r"^([A-Za-z0-9][^-—\n]{0,60})\s*[-—]\s*(.+?)(?=\n[A-Za-z0-9][^-—\n]{0,60}\s*[-—]|$)",
+            re.MULTILINE | re.DOTALL,
+        ),
+        0.85,
+        "dash",
+    ),
     # Bold term: **Term** definition (markdown-style, less common in books)
-    (re.compile(r'^\*\*([^*\n]+)\*\*\s*(.+?)(?=\n\*\*|$)', re.MULTILINE | re.DOTALL), 0.8, "bold"),
-
+    (re.compile(r"^\*\*([^*\n]+)\*\*\s*(.+?)(?=\n\*\*|$)", re.MULTILINE | re.DOTALL), 0.8, "bold"),
     # Term on own line, definition indented below
-    (re.compile(r'^([A-Z0-9][^\n]{1,40})\n[ \t]{2,}(.+?)(?=\n[A-Z0-9][^\n]{1,40}\n[ \t]{2,}|$)', re.MULTILINE | re.DOTALL), 0.7, "indented"),
+    (
+        re.compile(
+            r"^([A-Z0-9][^\n]{1,40})\n[ \t]{2,}(.+?)(?=\n[A-Z0-9][^\n]{1,40}\n[ \t]{2,}|$)",
+            re.MULTILINE | re.DOTALL,
+        ),
+        0.7,
+        "indented",
+    ),
 ]
 
 
 def _clean_definition(definition: str) -> str:
     """Clean up extracted definition text."""
     # Collapse multiple whitespace/newlines into single space
-    definition = re.sub(r'\s+', ' ', definition)
+    definition = re.sub(r"\s+", " ", definition)
     # Remove leading/trailing whitespace
     definition = definition.strip()
     return definition
@@ -64,7 +84,7 @@ def _clean_term(term: str) -> str:
     # Remove leading/trailing whitespace
     term = term.strip()
     # Remove trailing punctuation that might have been captured
-    term = term.rstrip(':;,.')
+    term = term.rstrip(":;,.")
     return term
 
 
@@ -93,12 +113,12 @@ def extract_glossary(
         return None
 
     # Extract glossary text
-    glossary_text = text[glossary_region.start_position:glossary_region.end_position]
+    glossary_text = text[glossary_region.start_position : glossary_region.end_position]
 
     # Skip the "Glossary" header line if present
-    header_match = re.match(r'^\s*[Gg]lossary\s*\n+', glossary_text)
+    header_match = re.match(r"^\s*[Gg]lossary\s*\n+", glossary_text)
     if header_match:
-        glossary_text = glossary_text[header_match.end():]
+        glossary_text = glossary_text[header_match.end() :]
         header_offset = header_match.end()
     else:
         header_offset = 0
@@ -124,12 +144,14 @@ def extract_glossary(
                 if len(definition) < 10:
                     continue
 
-                entries.append(GlossaryEntry(
-                    term=term,
-                    definition=definition,
-                    position=glossary_region.start_position + header_offset + match.start(),
-                    confidence=confidence,
-                ))
+                entries.append(
+                    GlossaryEntry(
+                        term=term,
+                        definition=definition,
+                        position=glossary_region.start_position + header_offset + match.start(),
+                        confidence=confidence,
+                    )
+                )
 
             if entries:
                 best_method = method

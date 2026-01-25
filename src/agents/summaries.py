@@ -7,23 +7,30 @@ Wraps ChapterSummaryPipeline with self-verification to ensure:
 - Characters mentioned match known character list
 """
 
-from typing import Optional
 import logging
 import time
+from typing import Optional
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
-from .config import AgentConfig, PipelineTuningConfig
-from .validation import (
-    UpstreamValidationResult,
-    UpstreamValidationIssue,
-    ValidationSeverity,
-)
 from ..pipeline.chapter_summary import (
-    ChapterSummaryPipeline,
-    ChapterSummaryMap,
     ChapterSummary,
+    ChapterSummaryMap,
+    ChapterSummaryPipeline,
 )
 from ..pipeline.llm import LLMClient
+from .base import (
+    Agent,
+    AgentContext,
+    AgentResult,
+    VerificationIssue,
+    VerificationLevel,
+    VerificationResult,
+)
+from .config import AgentConfig, PipelineTuningConfig
+from .validation import (
+    UpstreamValidationIssue,
+    UpstreamValidationResult,
+    ValidationSeverity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +128,14 @@ class SummaryAgent(Agent):
 
         # Check 1: chapter_map exists
         if not context.chapter_map:
-            issues.append(UpstreamValidationIssue(
-                agent_name="structure",
-                issue_type="no_chapters",
-                description="No chapter map provided - StructureAgent may have failed",
-                severity=ValidationSeverity.CRITICAL,
-            ))
+            issues.append(
+                UpstreamValidationIssue(
+                    agent_name="structure",
+                    issue_type="no_chapters",
+                    description="No chapter map provided - StructureAgent may have failed",
+                    severity=ValidationSeverity.CRITICAL,
+                )
+            )
             return UpstreamValidationResult(
                 valid=False,
                 can_proceed=False,
@@ -134,16 +143,18 @@ class SummaryAgent(Agent):
             )
 
         chapter_map = context.chapter_map
-        chapters = getattr(chapter_map, 'chapters', []) or []
+        chapters = getattr(chapter_map, "chapters", []) or []
 
         # Check 2: Empty chapters list
         if len(chapters) == 0:
-            issues.append(UpstreamValidationIssue(
-                agent_name="structure",
-                issue_type="empty_chapters",
-                description="Chapter map is empty - no chapters detected",
-                severity=ValidationSeverity.CRITICAL,
-            ))
+            issues.append(
+                UpstreamValidationIssue(
+                    agent_name="structure",
+                    issue_type="empty_chapters",
+                    description="Chapter map is empty - no chapters detected",
+                    severity=ValidationSeverity.CRITICAL,
+                )
+            )
             return UpstreamValidationResult(
                 valid=False,
                 can_proceed=False,
@@ -153,49 +164,53 @@ class SummaryAgent(Agent):
         # Get word counts for analysis
         word_counts = []
         for ch in chapters:
-            wc = getattr(ch, 'word_count', 0) or 0
+            wc = getattr(ch, "word_count", 0) or 0
             word_counts.append(wc)
 
         total_words = sum(word_counts)
 
         # Check 3: Single giant chapter (likely missed chapter breaks)
         if len(chapters) == 1 and word_counts[0] > 50000:
-            issues.append(UpstreamValidationIssue(
-                agent_name="structure",
-                issue_type="single_giant_chapter",
-                description=(
-                    f"Single chapter with {word_counts[0]:,} words detected - "
-                    f"likely missed chapter breaks"
-                ),
-                severity=ValidationSeverity.ERROR,
-                details={
-                    "word_count": word_counts[0],
-                    "expected_chapters": max(2, word_counts[0] // 5000),
-                },
-            ))
+            issues.append(
+                UpstreamValidationIssue(
+                    agent_name="structure",
+                    issue_type="single_giant_chapter",
+                    description=(
+                        f"Single chapter with {word_counts[0]:,} words detected - "
+                        f"likely missed chapter breaks"
+                    ),
+                    severity=ValidationSeverity.ERROR,
+                    details={
+                        "word_count": word_counts[0],
+                        "expected_chapters": max(2, word_counts[0] // 5000),
+                    },
+                )
+            )
 
         # Check 4: Low-confidence chapters
         low_conf_count = 0
         for ch in chapters:
-            conf = getattr(ch, 'confidence', 1.0)
+            conf = getattr(ch, "confidence", 1.0)
             if conf < 0.4:
                 low_conf_count += 1
 
         if len(chapters) > 1 and low_conf_count > len(chapters) * 0.5:
-            issues.append(UpstreamValidationIssue(
-                agent_name="structure",
-                issue_type="low_confidence_chapters",
-                description=(
-                    f"{low_conf_count}/{len(chapters)} chapters have low confidence - "
-                    f"chapter detection may be unreliable"
-                ),
-                severity=ValidationSeverity.WARNING,
-                details={
-                    "low_confidence_count": low_conf_count,
-                    "total_chapters": len(chapters),
-                    "ratio": low_conf_count / len(chapters),
-                },
-            ))
+            issues.append(
+                UpstreamValidationIssue(
+                    agent_name="structure",
+                    issue_type="low_confidence_chapters",
+                    description=(
+                        f"{low_conf_count}/{len(chapters)} chapters have low confidence - "
+                        f"chapter detection may be unreliable"
+                    ),
+                    severity=ValidationSeverity.WARNING,
+                    details={
+                        "low_confidence_count": low_conf_count,
+                        "total_chapters": len(chapters),
+                        "ratio": low_conf_count / len(chapters),
+                    },
+                )
+            )
 
         # Check 5: Unusual size distribution (possible detection errors)
         if len(word_counts) >= 3 and total_words > 0:
@@ -204,26 +219,27 @@ class SummaryAgent(Agent):
             outliers = sum(1 for wc in word_counts if wc > avg * 5 or (wc < avg * 0.1 and wc < 500))
 
             if outliers > len(chapters) * 0.3:
-                issues.append(UpstreamValidationIssue(
-                    agent_name="structure",
-                    issue_type="size_distribution_anomaly",
-                    description=(
-                        f"{outliers}/{len(chapters)} chapters have unusual sizes "
-                        f"(>5x or <10% of average {avg:,.0f} words) - "
-                        f"may indicate detection errors"
-                    ),
-                    severity=ValidationSeverity.WARNING,
-                    details={
-                        "outlier_count": outliers,
-                        "total_chapters": len(chapters),
-                        "average_words": avg,
-                    },
-                ))
+                issues.append(
+                    UpstreamValidationIssue(
+                        agent_name="structure",
+                        issue_type="size_distribution_anomaly",
+                        description=(
+                            f"{outliers}/{len(chapters)} chapters have unusual sizes "
+                            f"(>5x or <10% of average {avg:,.0f} words) - "
+                            f"may indicate detection errors"
+                        ),
+                        severity=ValidationSeverity.WARNING,
+                        details={
+                            "outlier_count": outliers,
+                            "total_chapters": len(chapters),
+                            "average_words": avg,
+                        },
+                    )
+                )
 
         # Determine if can proceed
         has_blocking = any(
-            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR)
-            for i in issues
+            i.severity in (ValidationSeverity.CRITICAL, ValidationSeverity.ERROR) for i in issues
         )
 
         return UpstreamValidationResult(
@@ -349,10 +365,12 @@ class SummaryAgent(Agent):
 
         # Check 1: Low confidence items
         if result.low_confidence_count > 0:
-            issues.append(VerificationIssue(
-                description=f"{result.low_confidence_count} summaries have low confidence",
-                severity="warning",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=f"{result.low_confidence_count} summaries have low confidence",
+                    severity="warning",
+                )
+            )
 
         # Check 2: Empty or short summaries
         empty_issues = self._check_summary_completeness(summary_map.summaries)
@@ -392,29 +410,31 @@ class SummaryAgent(Agent):
         for summary in summaries:
             # Empty summary
             if not summary.summary or len(summary.summary.strip()) < 20:
-                issues.append(VerificationIssue(
-                    description=f"Chapter {summary.chapter_index} has empty or very short summary",
-                    severity="error",
-                    item_index=summary.chapter_index,
-                    suggested_fix="Re-run summarization for this chapter",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Chapter {summary.chapter_index} has empty or very short summary",
+                        severity="error",
+                        item_index=summary.chapter_index,
+                        suggested_fix="Re-run summarization for this chapter",
+                    )
+                )
 
             # Summary too short relative to chapter length
             elif summary.word_count > 2000 and len(summary.summary) < 100:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
-                        f"has suspiciously short summary ({len(summary.summary)} chars)"
-                    ),
-                    severity="warning",
-                    item_index=summary.chapter_index,
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(
+                            f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
+                            f"has suspiciously short summary ({len(summary.summary)} chars)"
+                        ),
+                        severity="warning",
+                        item_index=summary.chapter_index,
+                    )
+                )
 
         return issues
 
-    def _check_key_events(
-        self, summaries: list[ChapterSummary]
-    ) -> list[VerificationIssue]:
+    def _check_key_events(self, summaries: list[ChapterSummary]) -> list[VerificationIssue]:
         """Check that substantial chapters have key events."""
         issues = []
 
@@ -422,29 +442,31 @@ class SummaryAgent(Agent):
             # Substantial chapter should have key events
             if summary.word_count > 1000:
                 if not summary.key_events:
-                    issues.append(VerificationIssue(
-                        description=(
-                            f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
-                            f"has no key events listed"
-                        ),
-                        severity="warning",
-                        item_index=summary.chapter_index,
-                    ))
+                    issues.append(
+                        VerificationIssue(
+                            description=(
+                                f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
+                                f"has no key events listed"
+                            ),
+                            severity="warning",
+                            item_index=summary.chapter_index,
+                        )
+                    )
                 elif len(summary.key_events) < 2 and summary.word_count > 3000:
-                    issues.append(VerificationIssue(
-                        description=(
-                            f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
-                            f"has only {len(summary.key_events)} key event(s) - may be incomplete"
-                        ),
-                        severity="info",
-                        item_index=summary.chapter_index,
-                    ))
+                    issues.append(
+                        VerificationIssue(
+                            description=(
+                                f"Chapter {summary.chapter_index} ({summary.word_count:,} words) "
+                                f"has only {len(summary.key_events)} key event(s) - may be incomplete"
+                            ),
+                            severity="info",
+                            item_index=summary.chapter_index,
+                        )
+                    )
 
         return issues
 
-    def _check_tone_consistency(
-        self, summary_map: ChapterSummaryMap
-    ) -> list[VerificationIssue]:
+    def _check_tone_consistency(self, summary_map: ChapterSummaryMap) -> list[VerificationIssue]:
         """Check for tone distribution anomalies."""
         issues = []
 
@@ -455,19 +477,19 @@ class SummaryAgent(Agent):
         total = len(summary_map.summaries)
         for tone, count in summary_map.overall_tones.items():
             if count == total and total > 5:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"All {total} chapters classified as '{tone}' - "
-                        f"may indicate tone detection issue"
-                    ),
-                    severity="info",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(
+                            f"All {total} chapters classified as '{tone}' - "
+                            f"may indicate tone detection issue"
+                        ),
+                        severity="info",
+                    )
+                )
 
         return issues
 
-    def _llm_verify_summary(
-        self, summary: ChapterSummary
-    ) -> list[VerificationIssue]:
+    def _llm_verify_summary(self, summary: ChapterSummary) -> list[VerificationIssue]:
         """Use LLM to verify a summary's completeness."""
         issues = []
 
@@ -475,8 +497,12 @@ class SummaryAgent(Agent):
             return issues
 
         # Build verification prompt
-        key_events_str = "\n".join(f"- {e}" for e in summary.key_events) if summary.key_events else "(none)"
-        characters_str = ", ".join(summary.characters_present) if summary.characters_present else "(none)"
+        key_events_str = (
+            "\n".join(f"- {e}" for e in summary.key_events) if summary.key_events else "(none)"
+        )
+        characters_str = (
+            ", ".join(summary.characters_present) if summary.characters_present else "(none)"
+        )
 
         prompt = SUMMARY_VERIFICATION_PROMPT.format(
             chapter_index=summary.chapter_index,
@@ -500,17 +526,21 @@ class SummaryAgent(Agent):
                 if assessment == "needs_review":
                     for issue in result["issues"]:
                         if isinstance(issue, dict):
-                            issues.append(VerificationIssue(
-                                description=(
-                                    f"Chapter {summary.chapter_index}: "
-                                    f"{issue.get('description', 'Unknown issue')}"
-                                ),
-                                severity=issue.get("severity", "warning"),
-                                item_index=summary.chapter_index,
-                            ))
+                            issues.append(
+                                VerificationIssue(
+                                    description=(
+                                        f"Chapter {summary.chapter_index}: "
+                                        f"{issue.get('description', 'Unknown issue')}"
+                                    ),
+                                    severity=issue.get("severity", "warning"),
+                                    item_index=summary.chapter_index,
+                                )
+                            )
 
         except Exception as e:
-            logger.warning(f"LLM summary verification failed for chapter {summary.chapter_index}: {e}")
+            logger.warning(
+                f"LLM summary verification failed for chapter {summary.chapter_index}: {e}"
+            )
 
         return issues
 

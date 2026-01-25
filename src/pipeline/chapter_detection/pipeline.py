@@ -11,23 +11,22 @@ Supports checkpointing for save/resume functionality.
 """
 
 import hashlib
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable
-import logging
+from typing import Callable, Optional
 
+from ..llm import LLMClient, create_client
+from .consensus import ConsensusBuilder
 from .models import (
     ChapterMap,
-    PipelineCheckpoint,
     ChapterProposal,
-    ValidationResult,
     DocumentProfile,
+    PipelineCheckpoint,
 )
 from .profiler import DocumentProfiler
-from .proposers import RegexProposer, LLMMarkerProposer, LLMNarrativeProposer
+from .proposers import LLMMarkerProposer, LLMNarrativeProposer, RegexProposer
 from .validator import ProposalValidator
-from .consensus import ConsensusBuilder
-from ..llm import LLMClient, LLMConfig, create_client
 
 logger = logging.getLogger(__name__)
 
@@ -205,12 +204,16 @@ class ChapterDetectionPipeline:
             self._report_progress("Complete", 1.0)
 
             # Add pipeline metadata
-            checkpoint.chapter_map.pipeline_metadata.update({
-                "completed_at": datetime.now().isoformat(),
-                "llm_enabled": self.llm is not None,
-                "proposal_count": len(checkpoint.proposals) if checkpoint.proposals else 0,
-                "validation_count": len(checkpoint.validations) if checkpoint.validations else 0,
-            })
+            checkpoint.chapter_map.pipeline_metadata.update(
+                {
+                    "completed_at": datetime.now().isoformat(),
+                    "llm_enabled": self.llm is not None,
+                    "proposal_count": len(checkpoint.proposals) if checkpoint.proposals else 0,
+                    "validation_count": (
+                        len(checkpoint.validations) if checkpoint.validations else 0
+                    ),
+                }
+            )
 
             return checkpoint.chapter_map
 

@@ -3,20 +3,23 @@ Base class for document ingestion.
 All format-specific parsers inherit from this.
 """
 
-from abc import ABC, abstractmethod
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+import json
 import re
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .regions import DocumentRegion
     from .glossary import GlossaryExtractionResult
+    from .regions import DocumentRegion
 
 
 @dataclass
 class ExtractedDocument:
     """Raw extracted content from a document."""
+
     text: str
     source_path: Path
     source_format: str
@@ -84,54 +87,150 @@ class ExtractedDocument:
 
 class DocumentIngester(ABC):
     """Abstract base class for document ingesters."""
-    
+
     SUPPORTED_EXTENSIONS: list[str] = []
-    
+
     def __init__(self, normalize_whitespace: bool = True):
         self.normalize_whitespace = normalize_whitespace
-    
+
     @abstractmethod
     def extract(self, path: Path) -> ExtractedDocument:
         """Extract text and metadata from the document."""
         pass
-    
+
     @classmethod
     def can_handle(cls, path: Path) -> bool:
         """Check if this ingester can handle the given file."""
         return path.suffix.lower() in cls.SUPPORTED_EXTENSIONS
-    
+
     def _normalize_text(self, text: str) -> str:
         """Clean up extracted text."""
         if not self.normalize_whitespace:
             return text
-        
+
+        # region agent log (chapter-v-bug) - hypothesis A/B
+        try:
+            _raw_centered = re.findall(r"(?m)^[ \t]{10,}([IVXLC]+)[ \t]*$", text)
+            _raw_standalone_1 = re.findall(r"(?m)^[ \t]*([IVXLC])[ \t]*$", text)
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-v-bug-pre",
+                        "hypothesisId": "A",
+                        "location": "src/ingestion/base.py:_normalize_text:pre",
+                        "message": "Pre-normalization roman numeral line stats",
+                        "data": {
+                            "text_len": len(text),
+                            "centered_roman_count": len(_raw_centered),
+                            "centered_has_I": ("I" in set(_raw_centered)),
+                            "centered_has_V": ("V" in set(_raw_centered)),
+                            "standalone_single_roman_count": len(_raw_standalone_1),
+                            "standalone_has_I": ("I" in set(_raw_standalone_1)),
+                            "standalone_has_V": ("V" in set(_raw_standalone_1)),
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
+
         # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
-        
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
         # Collapse multiple blank lines into two (preserving paragraph breaks)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
         # Normalize spaces (but preserve newlines)
-        lines = text.split('\n')
-        lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in lines]
-        text = '\n'.join(lines)
-        
+        lines = text.split("\n")
+        # Preserve leading indentation (important for centered headings like roman numerals),
+        # but still normalize internal whitespace and remove trailing whitespace.
+        normalized_lines = []
+        for line in lines:
+            # Keep leading whitespace exactly; normalize the rest.
+            m = re.match(r"^([ \t]*)(.*)$", line)
+            if not m:
+                normalized_lines.append(line.rstrip())
+                continue
+            indent, rest = m.group(1), m.group(2)
+            # If the line is only whitespace, treat it as blank.
+            if rest.strip() == "":
+                normalized_lines.append("")
+                continue
+            rest = re.sub(r"[ \t]+", " ", rest).strip()
+            normalized_lines.append(indent + rest)
+        lines = normalized_lines
+        text = "\n".join(lines)
+
         # Remove leading/trailing whitespace
         text = text.strip()
-        
+
+        # region agent log (chapter-v-bug) - hypothesis A/B
+        try:
+            _norm_centered = re.findall(r"(?m)^[ \t]{10,}([IVXLC]+)[ \t]*$", text)
+            _norm_standalone_1 = re.findall(r"(?m)^[ \t]*([IVXLC])[ \t]*$", text)
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-v-bug-pre",
+                        "hypothesisId": "A",
+                        "location": "src/ingestion/base.py:_normalize_text:post",
+                        "message": "Post-normalization roman numeral line stats",
+                        "data": {
+                            "text_len": len(text),
+                            "centered_roman_count": len(_norm_centered),
+                            "centered_has_I": ("I" in set(_norm_centered)),
+                            "centered_has_V": ("V" in set(_norm_centered)),
+                            "standalone_single_roman_count": len(_norm_standalone_1),
+                            "standalone_has_I": ("I" in set(_norm_standalone_1)),
+                            "standalone_has_V": ("V" in set(_norm_standalone_1)),
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
+
         return text
-    
+
     def _clean_extracted_title(self, title: Optional[str]) -> Optional[str]:
         """Clean up an extracted title."""
         if not title:
             return None
-        
+
         # Remove common suffixes
-        title = re.sub(r'\.(pdf|docx|epub|txt)$', '', title, flags=re.IGNORECASE)
-        
+        title = re.sub(r"\.(pdf|docx|epub|txt)$", "", title, flags=re.IGNORECASE)
+
         # Clean whitespace
-        title = ' '.join(title.split())
-        
+        title = " ".join(title.split())
+
         return title if title else None
 
 
@@ -146,9 +245,9 @@ def get_ingester(path: Path, ocr_fallback: bool = False) -> DocumentIngester:
     Returns:
         Appropriate DocumentIngester instance for the file type
     """
-    from .pdf import PDFIngester
     from .docx import DOCXIngester
     from .epub import EPUBIngester
+    from .pdf import PDFIngester
     from .txt import TXTIngester
 
     ingesters = [PDFIngester, DOCXIngester, EPUBIngester, TXTIngester]

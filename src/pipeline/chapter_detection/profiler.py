@@ -5,19 +5,24 @@ Stage 1: Understand the document structure before detecting chapters.
 This includes TOC extraction when present.
 """
 
-import re
-from typing import Optional
+import json
 import logging
+import re
+import time
+from typing import Optional
 
-from .models import DocumentProfile, TableOfContents, TOCEntry
 from ..llm import LLMClient
+from .models import DocumentProfile, TableOfContents, TOCEntry
 
 logger = logging.getLogger(__name__)
 
 
 # Patterns for detecting TOC
 TOC_HEADER_PATTERNS = [
-    re.compile(r"^\s*(Table\s+of\s+Contents|Contents|CONTENTS|TABLE OF CONTENTS)\s*$", re.MULTILINE | re.IGNORECASE),
+    re.compile(
+        r"^\s*(Table\s+of\s+Contents|Contents|CONTENTS|TABLE OF CONTENTS)\s*$",
+        re.MULTILINE | re.IGNORECASE,
+    ),
 ]
 
 # Pattern for TOC entries (title followed by optional page number)
@@ -161,14 +166,38 @@ class DocumentProfiler:
             return None
 
         # Find TOC end (next major section or blank line run)
-        toc_region = text[toc_start:toc_start + 5000]
+        toc_region = text[toc_start : toc_start + 5000]
 
         # TOC typically ends with multiple blank lines or content start
         toc_end_match = re.search(r"\n\s*\n\s*\n", toc_region)
         if toc_end_match:
             toc_end = toc_start + toc_end_match.end()
+            toc_end_mode = "triple_blank"
         else:
             toc_end = toc_start + len(toc_region)
+            toc_end_mode = "fallback_5k"
+
+            # If we couldn't find a clear TOC terminator, try to stop at the first
+            # strong "content start" marker. This prevents the TOC region from
+            # accidentally swallowing the real Chapter I marker (common in Gutenberg TXT).
+            try:
+                earliest = None
+                earliest_pattern = None
+                for p in CONTENT_START_PATTERNS:
+                    m = p.search(toc_region)
+                    if m:
+                        if earliest is None or m.start() < earliest:
+                            earliest = m.start()
+                            earliest_pattern = getattr(p, "pattern", None)
+                if earliest is not None and earliest > 50:
+                    toc_end = toc_start + earliest
+                    toc_end_mode = "fallback_5k_trimmed_by_content_marker"
+                    logger.info(
+                        f"[DEBUG] TOC end trimmed to {toc_end} using content marker "
+                        f"{earliest_pattern!r} at rel={earliest}"
+                    )
+            except Exception:
+                pass
 
         toc_text = text[toc_start:toc_end]
 
@@ -177,6 +206,47 @@ class DocumentProfiler:
 
         if not entries:
             return None
+
+        # region agent log (chapter-i-null) - hypothesis I1
+        try:
+            _i_match = re.search(r"(?m)^[ \t]{10,}I[ \t]*$", text)
+            _i_pos = _i_match.start() if _i_match else None
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-i-null-pre",
+                        "hypothesisId": "I1",
+                        "location": "src/pipeline/chapter_detection/profiler.py:_extract_toc",
+                        "message": "TOC bounds and whether centered 'I' lies inside them",
+                        "data": {
+                            "toc_start": toc_start,
+                            "toc_end": toc_end,
+                            "toc_end_mode": toc_end_mode,
+                            "toc_entry_count": len(entries),
+                            "centered_I_pos": _i_pos,
+                            "centered_I_within_toc_region": (
+                                (_i_pos is not None) and (toc_start <= _i_pos < toc_end)
+                            ),
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
 
         return TableOfContents(
             entries=entries,
@@ -192,40 +262,66 @@ class DocumentProfiler:
         """
         line_lower = line.lower().strip()
         metadata_indicators = [
-            'copyright', 'published', 'edition', 'isbn',
-            'all rights', 'reserved', 'author', 'introduction',
-            'foreword', 'preface', 'acknowledgments', 'acknowledgements',
-            'dedication', 'translator', 'editor', 'illustrated',
-            'written by', 'project gutenberg', 'ebook', 'e-book',
-            'transcriber', 'produced by', 'cover image', 'frontispiece',
-            'title page', 'half title', 'bibliography', 'index',
-            'appendix', 'glossary', 'notes', 'about the author',
-            'annotation', 'dramatis personae', 'the end',
+            "copyright",
+            "published",
+            "edition",
+            "isbn",
+            "all rights",
+            "reserved",
+            "author",
+            "introduction",
+            "foreword",
+            "preface",
+            "acknowledgments",
+            "acknowledgements",
+            "dedication",
+            "translator",
+            "editor",
+            "illustrated",
+            "written by",
+            "project gutenberg",
+            "ebook",
+            "e-book",
+            "transcriber",
+            "produced by",
+            "cover image",
+            "frontispiece",
+            "title page",
+            "half title",
+            "bibliography",
+            "index",
+            "appendix",
+            "glossary",
+            "notes",
+            "about the author",
+            "annotation",
+            "dramatis personae",
+            "the end",
         ]
         for indicator in metadata_indicators:
             if indicator in line_lower:
                 return True
         # Check for "by Author" pattern at start
-        if line_lower.startswith('by ') and len(line) > 5:
+        if line_lower.startswith("by ") and len(line) > 5:
             return True
         # Check for URLs or email addresses
-        if 'http' in line_lower or '@' in line or 'www.' in line_lower:
+        if "http" in line_lower or "@" in line or "www." in line_lower:
             return True
         # Check for dates (commonly in metadata)
-        if re.search(r'\b(19|20)\d{2}\b', line):
+        if re.search(r"\b(19|20)\d{2}\b", line):
             return True
         # Also reject very long lines (likely prose, not TOC)
         if len(line) > 80:
             return True
         # Reject lines that are mostly numbers (page number lists, etc.)
-        non_digits = re.sub(r'[\d\s\.\-]', '', line)
+        non_digits = re.sub(r"[\d\s\.\-]", "", line)
         if len(non_digits) == 0 and len(line.strip()) > 0:
             return True
         return False
 
     def _roman_to_int(self, s: str) -> int:
         """Convert a Roman numeral string to an integer."""
-        roman_map = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+        roman_map = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
         result = 0
         prev = 0
         for char in reversed(s.upper()):
@@ -242,7 +338,7 @@ class DocumentProfiler:
 
         F9: Validates that Roman numerals are sequential (I, II, III, IV, V, etc.)
         """
-        roman_pattern = re.compile(r'^[IVXLCDM]+$')
+        roman_pattern = re.compile(r"^[IVXLCDM]+$")
         roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
 
         if len(roman_entries) < 3:
@@ -274,16 +370,18 @@ class DocumentProfiler:
             return entries
 
         # Check for Roman numeral sequence (e.g., I, II, III, IV, ..., IX)
-        roman_pattern = re.compile(r'^[IVXLCDM]+$')
+        roman_pattern = re.compile(r"^[IVXLCDM]+$")
         roman_entries = [e for e in entries if roman_pattern.match(e.title.strip())]
 
         if self._is_valid_roman_sequence(roman_entries):
-            logger.info(f"TOC validation: detected valid Roman numeral sequence, "
-                        f"keeping {len(roman_entries)} of {len(entries)} entries")
+            logger.info(
+                f"TOC validation: detected valid Roman numeral sequence, "
+                f"keeping {len(roman_entries)} of {len(entries)} entries"
+            )
             return roman_entries
 
         # Check for "Chapter N" pattern with sequential numbers
-        chapter_pattern = re.compile(r'^chapter\s+(\d+)', re.IGNORECASE)
+        chapter_pattern = re.compile(r"^chapter\s+(\d+)", re.IGNORECASE)
         chapter_entries = []
         for e in entries:
             match = chapter_pattern.match(e.title.strip())
@@ -294,14 +392,16 @@ class DocumentProfiler:
             # Check for sequential chapter numbers
             chapter_entries.sort(key=lambda x: x[0])
             nums = [x[0] for x in chapter_entries]
-            if nums[0] <= 3 and all(nums[i] <= nums[i-1] + 2 for i in range(1, len(nums))):
+            if nums[0] <= 3 and all(nums[i] <= nums[i - 1] + 2 for i in range(1, len(nums))):
                 filtered = [x[1] for x in chapter_entries]
-                logger.info(f"TOC validation: detected sequential Chapter N pattern, "
-                            f"keeping {len(filtered)} of {len(entries)} entries")
+                logger.info(
+                    f"TOC validation: detected sequential Chapter N pattern, "
+                    f"keeping {len(filtered)} of {len(entries)} entries"
+                )
                 return filtered
 
         # Check for standalone Arabic numerals (1, 2, 3, ...)
-        num_pattern = re.compile(r'^(\d+)$')
+        num_pattern = re.compile(r"^(\d+)$")
         num_entries = []
         for e in entries:
             match = num_pattern.match(e.title.strip())
@@ -315,16 +415,20 @@ class DocumentProfiler:
             num_entries.sort(key=lambda x: x[0])
             nums = [x[0] for x in num_entries]
             # Must start from 1-3 and be sequential
-            if nums[0] <= 3 and all(nums[i] <= nums[i-1] + 2 for i in range(1, len(nums))):
+            if nums[0] <= 3 and all(nums[i] <= nums[i - 1] + 2 for i in range(1, len(nums))):
                 filtered = [x[1] for x in num_entries]
-                logger.info(f"TOC validation: detected sequential numeric chapters, "
-                            f"keeping {len(filtered)} of {len(entries)} entries")
+                logger.info(
+                    f"TOC validation: detected sequential numeric chapters, "
+                    f"keeping {len(filtered)} of {len(entries)} entries"
+                )
                 return filtered
 
         # Warn on unreasonable counts (likely page numbers included)
         if len(entries) > 30:
-            logger.warning(f"TOC validation: {len(entries)} entries seems too many, "
-                           f"likely includes page numbers or metadata")
+            logger.warning(
+                f"TOC validation: {len(entries)} entries seems too many, "
+                f"likely includes page numbers or metadata"
+            )
             level1_entries = [e for e in entries if e.level == 1]
             if 3 <= len(level1_entries) <= 50:
                 logger.info(f"TOC validation: filtering to {len(level1_entries)} level-1 entries")
@@ -359,7 +463,9 @@ class DocumentProfiler:
                 entries.append(entry)
 
         # Validate and filter entries
-        return self._validate_toc_entries(entries)
+        validated = self._validate_toc_entries(entries)
+
+        return validated
 
     def _parse_toc_line(self, line: str, base_position: int) -> Optional[TOCEntry]:
         """Parse a single TOC line."""
@@ -414,15 +520,103 @@ class DocumentProfiler:
         else:
             start_search = 0
 
+        # region agent log (chapter-i-null) - hypothesis I1/I2
+        try:
+            _i_match = re.search(r"(?m)^[ \t]{10,}I[ \t]*$", text)
+            _i_pos = _i_match.start() if _i_match else None
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-i-null-pre",
+                        "hypothesisId": "I2",
+                        "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:entry",
+                        "message": "front_matter_end search start + where centered 'I' occurs",
+                        "data": {
+                            "has_toc": toc is not None,
+                            "toc_end_position": (
+                                getattr(toc, "toc_end_position", None) if toc else None
+                            ),
+                            "start_search": start_search,
+                            "centered_I_pos": _i_pos,
+                            "centered_I_before_start_search": (
+                                _i_pos is not None and _i_pos < start_search
+                            ),
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
+
         # Look for first chapter marker after TOC
         for pattern in CONTENT_START_PATTERNS:
-            match = pattern.search(text[start_search:start_search + 20000])
+            match = pattern.search(text[start_search : start_search + 20000])
             if match:
-                return start_search + match.start()
+                # CRITICAL FIX: front_matter_end should point BEFORE the chapter marker,
+                # not AT it. The regex pattern matches starting from the blank lines before
+                # the chapter, so match.start() points to the first \n. We want to return
+                # that position so the regex proposer can find the chapter marker.
+                front_matter_end_pos = start_search + match.start()
+
+                logger.info(
+                    f"[DEBUG] front_matter_end set to {front_matter_end_pos} "
+                    f"(at line {text[:front_matter_end_pos].count(chr(10))+1}, before first chapter marker)"
+                )
+
+                # region agent log (chapter-i-null) - hypothesis I1/I2
+                try:
+                    _payload = (
+                        json.dumps(
+                            {
+                                "sessionId": "debug-session",
+                                "runId": "chapter-i-null-pre",
+                                "hypothesisId": "I2",
+                                "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:match",
+                                "message": "front_matter_end chosen based on first matched content-start pattern",
+                                "data": {
+                                    "pattern": getattr(pattern, "pattern", None),
+                                    "match_start_rel": match.start(),
+                                    "match_abs_start": start_search + match.start(),
+                                    "front_matter_end": front_matter_end_pos,
+                                },
+                                "timestamp": int(time.time() * 1000),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+                    for _path in (
+                        "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                        "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+                    ):
+                        try:
+                            with open(_path, "a", encoding="utf-8") as _f:
+                                _f.write(_payload)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # endregion
+
+                return front_matter_end_pos
 
         # Fallback: look for significant prose (paragraph of 100+ words)
         para_pattern = re.compile(r"\n\s*\n(.{500,}?)\n\s*\n", re.DOTALL)
-        match = para_pattern.search(text[start_search:start_search + 30000])
+        match = para_pattern.search(text[start_search : start_search + 30000])
         if match:
             return start_search + match.start()
 
@@ -432,7 +626,7 @@ class DocumentProfiler:
     def _detect_conventions(self, text: str, front_matter_end: int) -> list[str]:
         """Detect structural conventions used in the document."""
         conventions = []
-        sample = text[front_matter_end:front_matter_end + 50000]
+        sample = text[front_matter_end : front_matter_end + 50000]
 
         # Check for various patterns
         if re.search(r"Chapter\s+\d+", sample, re.IGNORECASE):
@@ -470,8 +664,12 @@ class DocumentProfiler:
 
         if result is None or not isinstance(result, dict):
             # JSON parsing failure or wrong type
-            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
-            logger.warning(f"LLM profiler failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}")
+            error_detail = (
+                f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            )
+            logger.warning(
+                f"LLM profiler failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}"
+            )
             return None
 
         return result

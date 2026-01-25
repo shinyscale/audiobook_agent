@@ -4,16 +4,17 @@ Data models for chapter detection pipeline.
 These models represent the flow of data through the propose -> validate -> reconcile pipeline.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
-from datetime import datetime
 import json
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from typing import Literal, Optional
 
 
 @dataclass
 class TOCEntry:
     """An entry from the Table of Contents."""
+
     title: str  # Chapter title as it appears in TOC
     position_in_toc: int  # Character position of this entry in TOC
     page_number: Optional[int] = None  # If present in TOC
@@ -35,6 +36,7 @@ class TOCEntry:
 @dataclass
 class TableOfContents:
     """Extracted Table of Contents - serves as ground truth when present."""
+
     entries: list[TOCEntry]
     toc_start_position: int
     toc_end_position: int
@@ -61,11 +63,14 @@ class TableOfContents:
 @dataclass
 class DocumentProfile:
     """Understanding of document structure before chapter detection."""
+
     document_type: Literal["novel", "anthology", "memoir", "epistolary", "technical", "unknown"]
     has_explicit_markers: bool  # "Chapter 1", "Part Two", etc.
     table_of_contents: Optional[TableOfContents]  # Extracted TOC if present
     estimated_chapter_count: Optional[int]
-    structural_conventions: list[str]  # e.g., ["roman_numerals", "part_divisions", "named_chapters"]
+    structural_conventions: list[
+        str
+    ]  # e.g., ["roman_numerals", "part_divisions", "named_chapters"]
     front_matter_end: int  # Position where actual content begins (after title page, TOC, etc.)
     confidence: float  # 0.0 - 1.0
     reasoning: str  # Why we classified it this way
@@ -78,7 +83,9 @@ class DocumentProfile:
         return {
             "document_type": self.document_type,
             "has_explicit_markers": self.has_explicit_markers,
-            "table_of_contents": self.table_of_contents.to_dict() if self.table_of_contents else None,
+            "table_of_contents": (
+                self.table_of_contents.to_dict() if self.table_of_contents else None
+            ),
             "estimated_chapter_count": self.estimated_chapter_count,
             "structural_conventions": self.structural_conventions,
             "front_matter_end": self.front_matter_end,
@@ -104,6 +111,7 @@ class DocumentProfile:
 @dataclass
 class ChapterProposal:
     """A proposed chapter boundary from one strategy."""
+
     strategy: str  # "regex", "llm_marker", "llm_narrative", "toc_match"
     position: int  # Character offset in document
     title: Optional[str]  # "Chapter 1", "The Beginning", etc.
@@ -134,6 +142,7 @@ class ChapterProposal:
 @dataclass
 class ValidationResult:
     """Result of validating a proposal."""
+
     proposal: ChapterProposal
     ending_score: float  # How much does preceding text feel like an ending? (0-1)
     beginning_score: float  # How much does following text feel like a beginning? (0-1)
@@ -172,6 +181,7 @@ class ValidationResult:
 @dataclass
 class ChapterBoundary:
     """A validated chapter boundary with consensus information."""
+
     position: int
     title: Optional[str]
     confidence: float
@@ -199,6 +209,7 @@ class ChapterBoundary:
 @dataclass
 class Chapter:
     """A single chapter with boundaries and metadata."""
+
     index: int
     title: Optional[str]
     start_position: int
@@ -226,6 +237,7 @@ class Chapter:
 @dataclass
 class ChapterMap:
     """Final output: validated chapter structure."""
+
     chapters: list[Chapter]
     low_confidence_boundaries: list[ChapterBoundary]  # Flagged for review
     document_profile: DocumentProfile
@@ -247,7 +259,9 @@ class ChapterMap:
     def from_dict(cls, data: dict) -> "ChapterMap":
         return cls(
             chapters=[Chapter.from_dict(ch) for ch in data["chapters"]],
-            low_confidence_boundaries=[ChapterBoundary.from_dict(b) for b in data["low_confidence_boundaries"]],
+            low_confidence_boundaries=[
+                ChapterBoundary.from_dict(b) for b in data["low_confidence_boundaries"]
+            ],
             document_profile=DocumentProfile.from_dict(data["document_profile"]),
             total_word_count=data["total_word_count"],
             toc_agreement_score=data.get("toc_agreement_score", -1.0),
@@ -275,7 +289,9 @@ class ChapterMap:
         if self.toc_agreement_score >= 0:
             lines.append(f"TOC Agreement: {self.toc_agreement_score:.1%}")
         if self.low_confidence_boundaries:
-            lines.append(f"Low Confidence Boundaries: {len(self.low_confidence_boundaries)} (need review)")
+            lines.append(
+                f"Low Confidence Boundaries: {len(self.low_confidence_boundaries)} (need review)"
+            )
         lines.append("")
         lines.append("Chapters:")
         for ch in self.chapters:
@@ -288,6 +304,7 @@ class ChapterMap:
 @dataclass
 class PipelineCheckpoint:
     """Checkpoint for saving/resuming pipeline state."""
+
     stage: Literal["profiling", "proposals", "validation", "consensus", "complete"]
     timestamp: str
     source_file: str
@@ -324,10 +341,24 @@ class PipelineCheckpoint:
             timestamp=data["timestamp"],
             source_file=data["source_file"],
             text_hash=data["text_hash"],
-            document_profile=DocumentProfile.from_dict(data["document_profile"]) if data.get("document_profile") else None,
-            proposals=[ChapterProposal.from_dict(p) for p in data["proposals"]] if data.get("proposals") else None,
-            validations=[ValidationResult.from_dict(v) for v in data["validations"]] if data.get("validations") else None,
-            chapter_map=ChapterMap.from_dict(data["chapter_map"]) if data.get("chapter_map") else None,
+            document_profile=(
+                DocumentProfile.from_dict(data["document_profile"])
+                if data.get("document_profile")
+                else None
+            ),
+            proposals=(
+                [ChapterProposal.from_dict(p) for p in data["proposals"]]
+                if data.get("proposals")
+                else None
+            ),
+            validations=(
+                [ValidationResult.from_dict(v) for v in data["validations"]]
+                if data.get("validations")
+                else None
+            ),
+            chapter_map=(
+                ChapterMap.from_dict(data["chapter_map"]) if data.get("chapter_map") else None
+            ),
             errors=data.get("errors", []),
             warnings=data.get("warnings", []),
         )

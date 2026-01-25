@@ -4,14 +4,13 @@ Pronunciation enricher using LLM.
 Generates IPA notation and phonetic spellings for flagged words.
 """
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional, Callable
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable, Optional
 
-from .models import PronunciationProposal, PronunciationEnrichment, PronunciationFlag
 from ..llm import LLMClient
+from .models import PronunciationEnrichment, PronunciationProposal
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +126,7 @@ class PronunciationEnricher:
         for p in proposals[:5]:  # Limit context examples
             if p.mentions:
                 context = p.mentions[0].context[:100]
-                context_examples.append(f"- {p.word}: \"{context}\"")
+                context_examples.append(f'- {p.word}: "{context}"')
 
         prompt = ENRICHER_BATCH_PROMPT.format(
             word_list="\n".join(word_list),
@@ -265,7 +264,7 @@ class PronunciationEnricher:
                 return self.enrich_batch(proposals)
             except Exception as e:
                 if attempt < self.max_retries - 1:
-                    wait_time = self.retry_backoff_base ** attempt
+                    wait_time = self.retry_backoff_base**attempt
                     logger.warning(
                         f"Enrichment batch attempt {attempt + 1} failed: {e}, "
                         f"retrying in {wait_time}s"
@@ -305,8 +304,7 @@ class PronunciationEnricher:
 
         # Split into batches
         batches = [
-            proposals[i:i + self.batch_size]
-            for i in range(0, len(proposals), self.batch_size)
+            proposals[i : i + self.batch_size] for i in range(0, len(proposals), self.batch_size)
         ]
         total_batches = len(batches)
         completed_batches = 0
@@ -349,8 +347,6 @@ class PronunciationEnricher:
                 if progress_callback:
                     progress_callback(completed_batches, total_batches)
 
-        logger.info(
-            f"Parallel enrichment complete: {len(all_enrichments)} words enriched"
-        )
+        logger.info(f"Parallel enrichment complete: {len(all_enrichments)} words enriched")
 
         return all_enrichments

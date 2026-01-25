@@ -35,18 +35,16 @@ from .base import (
     VerificationIssue,
     VerificationResult,
 )
-
+from .characters import CharacterAgent
 from .config import (
+    RECOMMENDED_AGENT_MODELS,
     AgentConfig,
     OrchestratorConfig,
-    RECOMMENDED_AGENT_MODELS,
     create_optimized_config,
 )
-
-from .structure import StructureAgent, create_structure_agent
-from .characters import CharacterAgent
-from .summaries import SummaryAgent, create_summary_agent
 from .pronunciation import PronunciationAgent, create_pronunciation_agent
+from .structure import StructureAgent, create_structure_agent
+from .summaries import SummaryAgent, create_summary_agent
 
 __all__ = [
     # Base classes and types

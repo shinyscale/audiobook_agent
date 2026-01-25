@@ -8,16 +8,15 @@ ensuring moral assessment is based on deeds not descriptions.
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 from ..llm import LLMClient
-
 
 logger = logging.getLogger(__name__)
 
 
 class MoralValence(str, Enum):
     """Moral classification based on character actions."""
+
     PROTAGONIST = "protagonist"  # Primarily beneficial actions
     ANTAGONIST = "antagonist"  # Primarily harmful actions
     MORALLY_AMBIGUOUS = "morally_ambiguous"  # Significant harmful AND beneficial
@@ -63,10 +62,13 @@ MORAL_VALENCE_CONSTRAINTS: dict[MoralValence, str] = {
 @dataclass
 class MoralValenceResult:
     """Result of moral valence classification."""
+
     character_name: str
     valence: MoralValence
     confidence: float
-    key_actions: list[dict] = field(default_factory=list)  # [{action, category, victim/beneficiary}]
+    key_actions: list[dict] = field(
+        default_factory=list
+    )  # [{action, category, victim/beneficiary}]
     evidence_quotes: list[str] = field(default_factory=list)
     reasoning: str = ""
 
@@ -202,7 +204,9 @@ class MoralValenceClassifier:
         result, response = self.llm.query_json(prompt, system=MORAL_VALENCE_SYSTEM)
 
         if not response.success or result is None:
-            logger.warning(f"Moral valence classification failed for {character_name}: {response.error}")
+            logger.warning(
+                f"Moral valence classification failed for {character_name}: {response.error}"
+            )
             return MoralValenceResult(
                 character_name=character_name,
                 valence=MoralValence.UNCERTAIN,

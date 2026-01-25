@@ -1,184 +1,655 @@
 """
-CharacterAgent - Specialized agent for character extraction.
+CharacterAgent - Summary-Driven Character Extraction
 
-Wraps CharacterExtractionPipeline with self-verification to ensure:
-- No duplicate characters (same person under different names)
-- Consistent alias resolution
-- Proper mention distribution
+This agent implements the profile-first approach:
+1. Extract main cast profiles from chapter summaries (F1)
+2. Search for mentions deterministically (F2)
+3. Apply grounding gate to reject hallucinations (F2b)
+4. Detect narrator from summaries (F4)
+5. Extract supporting cast via NER (F3)
+
+Key improvements over v1:
+- No complex merge heuristics
+- Summaries provide identity context upfront
+- Grounding prevents hallucinated characters
+- Dramatically simpler code (<500 lines vs 2500+)
 """
 
-from typing import Optional
 import logging
-import re
 import time
+from typing import Optional
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
-from .config import AgentConfig, PipelineTuningConfig
-from ..pipeline.character_extraction.pipeline import CharacterExtractionPipeline
-from ..pipeline.character_extraction.models import CharacterMap, Character
-from ..pipeline.chapter_detection.models import ChapterMap as ChapterDetectionMap
-from ..pipeline.llm import LLMClient
+from ..llm.client import LLMClient
+from ..models import Character, StructuralElement, StructureType
+from ..pipeline.character_extraction.models import Character as PipelineCharacter
+from ..pipeline.character_extraction.models import CharacterMap
+from ..pipeline.character_extraction_v2 import (
+    GroundingGate,
+    MainCastExtractor,
+    MentionSearcher,
+    NarratorDetector,
+    SupportingCastExtractor,
+)
+from ..utils.similarity import names_similar, string_similarity
+from .base import (
+    Agent,
+    AgentContext,
+    AgentResult,
+    VerificationIssue,
+    VerificationLevel,
+    VerificationResult,
+)
+from .config import AgentConfig, CompetitiveConfig
 
 logger = logging.getLogger(__name__)
 
 
-# Pronoun/determiner stopwords - characters with these names should be flagged/removed
-PRONOUN_STOPWORDS = {
-    'he', 'she', 'it', 'they', 'we', 'i', 'you',
-    'him', 'her', 'them', 'us', 'me',
-    'his', 'hers', 'its', 'their', 'our', 'my', 'your',
-    'this', 'that', 'these', 'those', 'the', 'a', 'an',
-}
-
-# Agentive verb patterns for detecting unnamed characters
-AGENTIVE_VERBS = [
-    r'\b(said|asked|replied|whispered|shouted|called|cried|muttered|exclaimed)\b',
-    r'\b(walked|ran|stood|turned|looked|smiled|laughed|nodded|frowned)\b',
-    r'\b(grabbed|took|held|threw|placed|opened|closed|pushed|pulled)\b',
-    r'\b(sat|came|went|entered|left|arrived|departed|approached|retreated)\b',
-]
-
-
-DUPLICATE_CHECK_SYSTEM = """You are a literary analyst checking for duplicate characters.
-
-Your task is to identify characters that may be the SAME PERSON listed separately.
-
-Look for:
-1. Names that share components (same first name, same last name)
-2. Characters that appear in similar chapters
-3. Names that could be nicknames/aliases for each other
-
-Only flag pairs you are CONFIDENT are duplicates."""
-
-
-DUPLICATE_CHECK_PROMPT = """Review these characters for potential duplicates (same person listed twice):
-
-{character_list}
-
-For each potential duplicate pair, check:
-- Do the names share significant components?
-- Do they appear in overlapping chapters?
-- Could one be a nickname/title for the other?
-
-Return JSON:
-{{
-  "duplicates": [
-    {{"name1": "...", "name2": "...", "reason": "...", "confidence": 0.0-1.0}}
-  ],
-  "analysis": "Brief summary"
-}}
-
-If no duplicates found, return: {{"duplicates": [], "analysis": "No duplicates detected"}}
-
-Return ONLY valid JSON."""
-
-
 class CharacterAgent(Agent):
     """
-    Specialized agent for character extraction with self-verification.
+    V2 Character Agent using summary-driven extraction.
 
-    Wraps the existing CharacterExtractionPipeline and adds verification:
-    - Checks for duplicate characters that slipped through alias resolution
-    - Validates mention distribution (major characters across chapters)
-    - Verifies alias consistency
+    Pipeline order: summaries → main_cast → mentions → grounding → narrator → supporting
     """
 
     def __init__(
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
-        tuning: Optional[PipelineTuningConfig] = None,
+        min_grounding_mentions: int = 3,
+        competitive_config: Optional[CompetitiveConfig] = None,
     ):
         self.llm = llm_client
         self.config = config or AgentConfig()
-        self._tuning = tuning
+        self.min_grounding_mentions = min_grounding_mentions
+        self.competitive_config = competitive_config
 
     @property
     def name(self) -> str:
-        return "character_agent"
+        return "characters"
+
+    @property
+    def depends_on(self) -> list[str]:
+        """V2 requires summaries (from SummaryAgent) before running."""
+        return ["structure", "summaries"]
 
     @property
     def recommended_models(self) -> list[str]:
         return [
-            "gpt-4o",  # Strong narrative understanding
-            "claude-3-5-sonnet",  # Good at character relationships
-            "llama3.2",  # Local alternative
+            "qwen2.5:72b",  # Strong local model for character understanding
+            "llama3.2",  # Good local alternative
+            "gpt-4o-mini",  # Cloud fallback
         ]
 
     def run(self, context: AgentContext) -> AgentResult[CharacterMap]:
-        """Run character extraction pipeline."""
+        """
+        Run the v2 character extraction pipeline.
+
+        Order:
+        1. Extract main cast from summaries (F1)
+        2. Search for mentions (F2)
+        3. Apply grounding gate (F2b)
+        4. Detect narrator (F4)
+        5. Extract supporting cast (F3)
+        """
         start_time = time.perf_counter()
+        issues = []
 
-        # We need chapter_map from context
-        if not context.chapter_map:
-            # Get model info for error case
-            model_used = self.config.model if self.config else None
-            provider_used = self.config.provider if self.config else None
+        # Validate required inputs
+        if not self.llm:
+            return self._error_result("No LLM client configured", start_time)
 
-            return AgentResult(
-                data=CharacterMap(
-                    characters=[],
-                    low_confidence_characters=[],
-                    total_mentions=0,
-                    total_chapters=0,
-                    pipeline_metadata={"error": "No chapter map provided"},
-                ),
-                high_confidence_count=0,
-                medium_confidence_count=0,
-                low_confidence_count=0,
-                issues=["No chapter map provided - cannot extract characters"],
-                model_used=model_used,
-                provider_used=provider_used,
+        # Get chapter summaries from context
+        chapter_summaries = self._get_chapter_summaries(context)
+        if not chapter_summaries:
+            return self._error_result(
+                "No chapter summaries available - SummaryAgent must run first",
+                start_time,
             )
 
-        pipeline = self._get_pipeline()
-        character_map, _ = pipeline.run(
-            full_text=context.text,
-            chapter_map=context.chapter_map,
-            source_file=context.source_file,
+        # Get chapters for mention position mapping
+        chapters = self._get_chapters(context)
+
+        # Get plot summary if available
+        plot_summary = self._get_plot_summary(context)
+
+        # STEP 1: Extract main cast from summaries (F1)
+        logger.info("V2 Step 1: Extracting main cast from summaries")
+        main_cast_extractor = MainCastExtractor(self.llm, self.competitive_config)
+        profiles = main_cast_extractor.extract(chapter_summaries, plot_summary)
+
+        if not profiles:
+            issues.append("No main cast profiles extracted from summaries")
+
+        # Convert profiles to Character objects
+        characters = main_cast_extractor.profiles_to_characters(profiles)
+        logger.info(f"V2 Step 1 complete: {len(characters)} main cast candidates")
+
+        # STEP 1.4: Filter non-character entities (locations, objects, concepts)
+        # Some LLMs may extract setting elements with roles like "setting/plot device"
+        non_character_roles = ["setting", "location", "place", "object", "concept", "device"]
+        before_filter = len(characters)
+        characters = [
+            c
+            for c in characters
+            if not any(
+                non_char_role in (c.role or "").lower() for non_char_role in non_character_roles
+            )
+        ]
+        if len(characters) < before_filter:
+            filtered_count = before_filter - len(characters)
+            logger.info(f"V2 Step 1.4: Filtered {filtered_count} non-character entity/entities")
+
+        # STEP 1.5: Merge title-variant characters (deterministic post-processing)
+        characters = self._merge_title_variants(characters)
+        logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
+
+        # STEP 2: Search for mentions (F2)
+        logger.info("V2 Step 2: Searching for character mentions")
+        searcher = MentionSearcher(context.text, chapters)
+        mention_results = searcher.search_all(characters)
+        characters = searcher.update_characters_with_mentions(characters, mention_results)
+
+        # STEP 3: Apply grounding gate (F2b)
+        logger.info("V2 Step 3: Applying grounding gate")
+        grounding_gate = GroundingGate(
+            min_mentions=self.min_grounding_mentions,
+            remove_ungrounded_aliases=True,
+        )
+        grounding_report = grounding_gate.apply(characters, mention_results)
+        grounding_gate.log_report(grounding_report)
+
+        # Use grounded characters as main cast
+        main_cast = grounding_report.grounded_characters
+        ungrounded = grounding_report.ungrounded_characters
+
+        if ungrounded:
+            issues.append(
+                f"{len(ungrounded)} characters excluded by grounding gate "
+                f"(insufficient text evidence)"
+            )
+
+        logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
+
+        # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
+        # This must run BEFORE the main merge to avoid the ambiguity problem where
+        # "Daisy" matches multiple full names and gets skipped
+        logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
+        main_cast = self._merge_same_firstname_variants(main_cast)
+        logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
+
+        # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
+        logger.info("V2 Step 3.5: Merging within main cast")
+        main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
+
+        # STEP 3.6: Deduplicate alias-canonical conflicts
+        # Handles cases like "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical with alias "Myrtle Wilson")
+        logger.info("V2 Step 3.6: Deduplicating alias-canonical conflicts")
+        main_cast, alias_dedupe_aliases_added = self._deduplicate_alias_canonical_conflicts(
+            main_cast
+        )
+        if alias_dedupe_aliases_added:
+            within_main_aliases_added.update(alias_dedupe_aliases_added)
+
+        # Re-search mentions for characters that gained new aliases
+        if within_main_aliases_added:
+            logger.info(
+                f"Re-searching mentions for {len(within_main_aliases_added)} characters with new aliases"
+            )
+            for char_id in within_main_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    # Transfer actual mentions for profile generation
+                    char.mentions = result.mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(f"V2 Step 3.5 complete: {len(main_cast)} main cast after within-cast merge")
+
+        # STEP 3.7: Defensive split for wrongly-merged titled characters
+        # Handles LLM hallucinations where "M. Waldman" gets "M. Krempe" as an alias
+        # despite explicit prompt instructions
+        logger.info("V2 Step 3.7: Splitting wrongly-merged titled characters")
+        main_cast, split_count = self._split_wrongly_merged_titled_characters(main_cast)
+        if split_count > 0:
+            logger.warning(
+                f"V2 Step 3.7: Split {split_count} wrongly-merged titled character pairs "
+                f"(LLM ignored prompt instructions)"
+            )
+
+        # STEP 3.8: Defensive split for semantic conflicts
+        # Handles LLM hallucinations where semantically incompatible terms get merged
+        # (e.g., "the creature" as alias of "the old man")
+        logger.info("V2 Step 3.8: Splitting semantically conflicting aliases")
+
+        # region agent log
+        try:
+            import json
+            import time as _time
+
+            focus = []
+            for c in main_cast:
+                blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
+                if any(
+                    k in blob
+                    for k in (
+                        "creature",
+                        "monster",
+                        "fiend",
+                        "daemon",
+                        "wretch",
+                        "being",
+                        "lacey",
+                        "old man",
+                    )
+                ):
+                    focus.append(
+                        {
+                            "id": c.id,
+                            "canonical": c.canonical_name,
+                            "aliases": list(c.aliases),
+                            "mentions": c.mention_count,
+                        }
+                    )
+
+            with open(
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "a",
+                encoding="utf-8",
+            ) as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "sessionId": "debug-session",
+                            "runId": "frankenstein-pre",
+                            "hypothesisId": "H2",
+                            "location": "src/agents/characters.py:step3.8",
+                            "message": "Pre semantic-split focused main_cast snapshot",
+                            "data": {"focus": focus},
+                            "timestamp": int(_time.time() * 1000),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # endregion
+
+        main_cast, semantic_split_count = self._split_semantic_conflicts(main_cast)
+        if semantic_split_count > 0:
+            logger.warning(
+                f"V2 Step 3.8: Split {semantic_split_count} semantically conflicting alias pairs "
+                f"(LLM merged incompatible entity types)"
+            )
+
+        # region agent log
+        try:
+            import json
+            import time as _time
+
+            split_focus = []
+            for c in main_cast:
+                if not isinstance(c.id, str) or not c.id.startswith("split_"):
+                    continue
+                blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
+                if any(
+                    k in blob
+                    for k in (
+                        "creature",
+                        "monster",
+                        "fiend",
+                        "daemon",
+                        "wretch",
+                        "being",
+                        "lacey",
+                        "old man",
+                    )
+                ):
+                    split_focus.append(
+                        {
+                            "id": c.id,
+                            "canonical": c.canonical_name,
+                            "aliases": list(c.aliases),
+                            "mentions": c.mention_count,
+                        }
+                    )
+
+            with open(
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "a",
+                encoding="utf-8",
+            ) as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "sessionId": "debug-session",
+                            "runId": "frankenstein-pre",
+                            "hypothesisId": "H2",
+                            "location": "src/agents/characters.py:step3.8",
+                            "message": "Post semantic-split created split_* characters (focused subset)",
+                            "data": {
+                                "semantic_split_count": semantic_split_count,
+                                "split_focus": split_focus,
+                            },
+                            "timestamp": int(_time.time() * 1000),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # endregion
+
+        # STEP 3.9: Post-split repair pass
+        # Splitting creates new split_* character stubs with mention_count=0.
+        # We must ground them and then re-run within-main merges so they can be absorbed
+        # into existing descriptive clusters (e.g., creature/monster variants).
+        split_stubs = [c for c in main_cast if isinstance(c.id, str) and c.id.startswith("split_")]
+        if split_stubs:
+            logger.info(f"V2 Step 3.9: Grounding {len(split_stubs)} split_* character stub(s)")
+            for char in split_stubs:
+                result = searcher.search_character(char)
+                char.mention_count = result.total_mentions
+                # Transfer actual mentions for profile generation
+                char.mentions = result.mentions
+                # Keep mention_results updated for downstream profile generation
+                mention_results[char.id] = result
+                if result.chapter_distribution:
+                    chapters = sorted(result.chapter_distribution.keys())
+                    char.first_appearance_chapter = chapters[0]
+
+            logger.info("V2 Step 3.9: Re-running within-main merges after split repair")
+            main_cast, post_split_aliases_added = self._merge_within_main_cast(main_cast)
+            main_cast, post_split_dedupe_added = self._deduplicate_alias_canonical_conflicts(
+                main_cast
+            )
+            if post_split_dedupe_added:
+                post_split_aliases_added.update(post_split_dedupe_added)
+
+            # Re-search mentions for characters that gained new aliases during post-split merges
+            if post_split_aliases_added:
+                logger.info(
+                    f"V2 Step 3.9: Re-searching mentions for {len(post_split_aliases_added)} post-split merged character(s)"
+                )
+                for char_id in post_split_aliases_added:
+                    char = next((c for c in main_cast if c.id == char_id), None)
+                    if char:
+                        result = searcher.search_character(char)
+                        char.mention_count = result.total_mentions
+                        char.mentions = result.mentions
+                        mention_results[char.id] = result
+                        if result.chapter_distribution:
+                            chapters = sorted(result.chapter_distribution.keys())
+                            char.first_appearance_chapter = chapters[0]
+
+            # region agent log
+            try:
+                import json
+                import time as _time
+
+                focus = []
+                for c in main_cast:
+                    blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
+                    if any(
+                        k in blob
+                        for k in (
+                            "creature",
+                            "monster",
+                            "fiend",
+                            "daemon",
+                            "wretch",
+                            "being",
+                            "lacey",
+                            "old man",
+                        )
+                    ):
+                        focus.append(
+                            {
+                                "id": c.id,
+                                "canonical": c.canonical_name,
+                                "aliases": list(c.aliases),
+                                "mentions": c.mention_count,
+                                "is_narrator": getattr(c, "is_narrator", None),
+                            }
+                        )
+
+                with open(
+                    "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                    "a",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(
+                        json.dumps(
+                            {
+                                "sessionId": "debug-session",
+                                "runId": "frankenstein-postfix",
+                                "hypothesisId": "H4",
+                                "location": "src/agents/characters.py:step3.9",
+                                "message": "Post-split repair focus snapshot (main_cast)",
+                                "data": {"focus": focus},
+                                "timestamp": int(_time.time() * 1000),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+            except Exception:
+                pass
+            # endregion
+
+        # STEP 4: Detect narrator (F4)
+        logger.info("V2 Step 4: Detecting narrator")
+        narrator_detector = NarratorDetector(self.llm)
+        narrator_info = narrator_detector.detect(chapter_summaries, main_cast, plot_summary)
+        main_cast = narrator_detector.update_characters_with_narrator(main_cast, narrator_info)
+
+        logger.info(
+            f"V2 Step 4 complete: POV={narrator_info.pov}, "
+            f"narrator={narrator_info.narrator_name}"
         )
 
-        # POST-PROCESSING: Split characters that were incorrectly merged based on death evidence
-        character_map = self._split_on_death_evidence(character_map)
+        # STEP 5: Extract supporting cast (F3)
+        logger.info("V2 Step 5: Extracting supporting cast via NER")
+        main_cast_names = self._collect_all_names(main_cast)
+        supporting_extractor = SupportingCastExtractor(
+            context.text,
+            min_mentions=3,  # Lowered to capture narrators with few explicit name mentions
+        )
+        supporting_cast = supporting_extractor.extract(main_cast_names)
 
-        # POST-PROCESSING: Fix misplaced aliases across characters
-        character_map = self._fix_misplaced_aliases(character_map)
+        logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
+
+        # STEP 5.1: Filter narrator-related entries from supporting cast
+        # Handles cases where NER picks up "narrator", "the narrator", etc.
+        supporting_cast = self._filter_narrator_variants(
+            supporting_cast, narrator_info.narrator_name
+        )
+        logger.info(
+            f"V2 Step 5.1 complete: {len(supporting_cast)} supporting after narrator filter"
+        )
+
+        # STEP 5.2: Also filter narrator variants from main cast (defensive)
+        # In case the LLM extracted "Narrator" as a main character
+        original_main_count = len(main_cast)
+        main_cast = self._filter_narrator_variants(main_cast, narrator_info.narrator_name)
+        if len(main_cast) < original_main_count:
+            logger.info(
+                f"V2 Step 5.2: Filtered {original_main_count - len(main_cast)} narrator "
+                f"variant(s) from main cast"
+            )
+
+        # STEP 5.3: Merge narrator placeholders with their actual named character
+        # If the narrator is "the protagonist", "the narrator", etc., find their real name
+        main_cast, supporting_cast, narrator_info, narrator_merged_ids = (
+            self._merge_narrator_placeholder(
+                main_cast, supporting_cast, narrator_info, context.text
+            )
+        )
+        logger.info("V2 Step 5.3 complete: narrator placeholder merge check done")
+
+        # STEP 5.4: Re-search mentions for narrator-merged characters
+        # The merge added the placeholder name as an alias, so we need to re-search
+        # to capture all mentions (both the original name and the placeholder)
+        if narrator_merged_ids:
+            logger.info(
+                f"Re-searching mentions for {len(narrator_merged_ids)} narrator-merged characters"
+            )
+            for char_id in narrator_merged_ids:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    # Transfer actual mentions for profile generation
+                    char.mentions = result.mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+                    logger.info(
+                        f"Narrator-merged character '{char.canonical_name}' now has "
+                        f"{char.mention_count} total mentions (including placeholder)"
+                    )
+
+        # STEP 5.5: Merge last-name-only supporting characters as aliases
+        main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
+            main_cast, supporting_cast
+        )
+
+        # Re-search mentions for characters that gained new aliases
+        if aliases_added:
+            logger.info(
+                f"Re-searching mentions for {len(aliases_added)} characters with new aliases"
+            )
+            for char_id in aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    # Transfer actual mentions for profile generation
+                    char.mentions = result.mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.5 complete: {len(main_cast)} main cast, "
+            f"{len(supporting_cast)} supporting after last-name merge"
+        )
+
+        # STEP 5.6: Merge within supporting cast (last-name-only, spelling variants)
+        supporting_cast, supp_aliases_added = self._merge_within_supporting_cast(supporting_cast)
+
+        # Re-search mentions for supporting characters that gained new aliases
+        if supp_aliases_added:
+            logger.info(
+                f"Re-searching mentions for {len(supp_aliases_added)} supporting chars with new aliases"
+            )
+            for char_id in supp_aliases_added:
+                char = next((c for c in supporting_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    # Transfer actual mentions for profile generation
+                    char.mentions = result.mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.6 complete: {len(supporting_cast)} supporting after within-supporting merge"
+        )
+
+        # STEP 5.6.5: Merge descriptive synonyms from supporting into main cast
+        # Handles "the creature" (main) + "the monster" (supporting) → merge monster into creature
+        logger.info("V2 Step 5.6.5: Merging descriptive synonyms across main/supporting casts")
+        supporting_cast, cross_cast_aliases_added = self._merge_descriptive_synonyms_across_casts(
+            main_cast, supporting_cast
+        )
+
+        # Re-search mentions for main cast characters that gained new aliases
+        if cross_cast_aliases_added:
+            logger.info(
+                f"Re-searching mentions for {len(cross_cast_aliases_added)} main cast chars with new aliases"
+            )
+            for char_id in cross_cast_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    # Transfer actual mentions for profile generation
+                    char.mentions = result.mentions
+                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.6.5 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
+            f"after cross-cast synonym merge"
+        )
+
+        # STEP 5.7: Final defensive narrator filter (after all merges)
+        # This catches any narrator entries that might have been introduced during merging
+        logger.info("V2 Step 5.7: Final narrator filter pass")
+        main_cast = self._filter_narrator_variants(main_cast, narrator_info.narrator_name)
+        supporting_cast = self._filter_narrator_variants(
+            supporting_cast, narrator_info.narrator_name
+        )
+        logger.info(
+            f"V2 Step 5.7 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
+            f"after final narrator filter"
+        )
+
+        # Build final CharacterMap
+        all_characters = self._convert_to_pipeline_characters(
+            main_cast, supporting_cast, mention_results
+        )
 
         # Calculate confidence breakdown
-        high = sum(1 for c in character_map.characters if c.confidence >= 0.7)
-        medium = sum(1 for c in character_map.characters if 0.4 <= c.confidence < 0.7)
-        low = sum(1 for c in character_map.characters if c.confidence < 0.4)
-        low += len(character_map.low_confidence_characters)
+        high = sum(1 for c in all_characters if c.confidence >= 0.7)
+        medium = sum(1 for c in all_characters if 0.4 <= c.confidence < 0.7)
+        low = sum(1 for c in all_characters if c.confidence < 0.4)
 
-        # Collect issues
-        issues = []
-        if character_map.low_confidence_characters:
-            issues.append(
-                f"{len(character_map.low_confidence_characters)} low-confidence characters flagged"
-            )
+        character_map = CharacterMap(
+            characters=all_characters,
+            low_confidence_characters=[c for c in all_characters if c.confidence < 0.4],
+            total_mentions=sum(c.mention_count for c in all_characters),
+            total_chapters=len(chapters) if chapters else 1,
+            pipeline_metadata={
+                "version": "v2",
+                "main_cast_count": len(main_cast),
+                "supporting_cast_count": len(supporting_cast),
+                "grounded_count": grounding_report.total_grounded,
+                "ungrounded_count": grounding_report.total_ungrounded,
+                "narrator_pov": narrator_info.pov,
+                "narrator_name": narrator_info.narrator_name,
+            },
+        )
 
         elapsed = time.perf_counter() - start_time
 
-        # Get model info from config or client
-        model_used = None
-        provider_used = None
-        if self.config and self.config.model:
-            model_used = self.config.model
-            provider_used = self.config.provider
-        elif self.llm and self.llm.config:
-            model_used = self.llm.config.model
-            provider_used = self.llm.config.provider
-
         return AgentResult(
             data=character_map,
-            confidence_scores=[c.confidence for c in character_map.characters],
+            confidence_scores=[c.confidence for c in all_characters],
             high_confidence_count=high,
             medium_confidence_count=medium,
             low_confidence_count=low,
             issues=issues,
             processing_time_seconds=elapsed,
-            model_used=model_used,
-            provider_used=provider_used,
+            model_used=self.llm.config.model if self.llm else None,
+            provider_used=self.llm.config.provider if self.llm else None,
         )
 
     def verify(
@@ -188,735 +659,2107 @@ class CharacterAgent(Agent):
         context: Optional[AgentContext] = None,
     ) -> VerificationResult:
         """
-        Verify character extraction quality.
+        Verify V2 character extraction quality.
 
-        Checks:
-        1. Low-confidence characters
-        2. Duplicate detection (same character under different names)
-        3. Mention distribution (major characters across chapters)
-        4. Alias consistency
+        Simpler than V1 - most validation is handled by grounding gate.
         """
         issues = []
-        suggestions = []
         character_map = result.data
 
         if not character_map.characters:
-            return VerificationResult(
-                passed=True,
-                issues=[],
-                suggestions=[],
+            return VerificationResult(passed=True, issues=[], suggestions=[])
+
+        # Check 1: Main cast count is reasonable
+        main_count = character_map.pipeline_metadata.get("main_cast_count", 0)
+        if main_count < 3:
+            issues.append(
+                VerificationIssue(
+                    description=f"Only {main_count} main cast characters - may be incomplete",
+                    severity="warning",
+                )
+            )
+        elif main_count > 20:
+            issues.append(
+                VerificationIssue(
+                    description=f"{main_count} main cast characters - may have over-extraction",
+                    severity="warning",
+                )
             )
 
-        # Check 1: Low confidence items
+        # Check 2: Grounding worked
+        ungrounded = character_map.pipeline_metadata.get("ungrounded_count", 0)
+        if ungrounded > main_count:
+            issues.append(
+                VerificationIssue(
+                    description=f"More ungrounded ({ungrounded}) than grounded ({main_count}) characters",
+                    severity="warning",
+                )
+            )
+
+        # Check 3: Low confidence items
         if result.low_confidence_count > 0:
-            issues.append(VerificationIssue(
-                description=f"{result.low_confidence_count} characters have low confidence",
-                severity="warning",
-            ))
-
-        # Check 2: Pronoun entries (should be auto-removed)
-        pronoun_issues = self._check_pronoun_entries(character_map.characters)
-        issues.extend(pronoun_issues)
-
-        # Check 3: Look for potential duplicates using heuristics
-        duplicate_issues = self._check_duplicates_heuristic(character_map.characters)
-        issues.extend(duplicate_issues)
-
-        # Check 4: Verify mention distribution
-        distribution_issues = self._check_mention_distribution(character_map)
-        issues.extend(distribution_issues)
-
-        # Check 5: Verify alias consistency
-        alias_issues = self._check_alias_consistency(character_map.characters)
-        issues.extend(alias_issues)
-
-        # Check 6: Disjoint chapter distributions (potential name changes)
-        disjoint_issues = self._check_disjoint_distributions(
-            character_map.characters, character_map.total_chapters
-        )
-        issues.extend(disjoint_issues)
-
-        # Check 7: Missing agentive descriptions (if context available)
-        if context and context.text:
-            agentive_issues = self._check_missing_agentive_descriptions(
-                context.text, character_map.characters
+            issues.append(
+                VerificationIssue(
+                    description=f"{result.low_confidence_count} characters have low confidence",
+                    severity="info",
+                )
             )
-            issues.extend(agentive_issues)
-
-        # Check 8: LLM duplicate check for high-value verification
-        if self.config.enable_verification and self.llm and len(character_map.characters) > 1:
-            llm_issues = self._llm_duplicate_check(character_map.characters)
-            issues.extend(llm_issues)
-
-        # Determine if passed
-        error_count = sum(1 for i in issues if i.severity == "error")
-        passed = error_count == 0
 
         return VerificationResult(
-            passed=passed,
+            passed=len([i for i in issues if i.severity == "error"]) == 0,
             issues=issues,
-            suggestions=suggestions,
+            suggestions=[],
         )
 
-    def refine(
+    def _error_result(
         self,
-        result: AgentResult[CharacterMap],
-        issues: list[VerificationIssue],
+        error_msg: str,
+        start_time: float,
     ) -> AgentResult[CharacterMap]:
-        """
-        Refine character map based on verification issues.
-
-        Automatically removes pronoun entries (error severity).
-        Other issues are flagged for manual review.
-        """
-        character_map = result.data
-
-        # Auto-remove pronoun entries (error severity issues)
-        pronoun_issues = [i for i in issues if "pronoun/determiner" in i.description.lower()]
-        if pronoun_issues:
-            # Get the names to remove from issue descriptions
-            pronoun_names = set()
-            for issue in pronoun_issues:
-                # Extract name from description like "Character 'he' is a pronoun/determiner"
-                match = re.search(r"Character '([^']+)' is a pronoun/determiner", issue.description)
-                if match:
-                    pronoun_names.add(match.group(1).lower())
-
-            # Filter out pronoun characters
-            original_count = len(character_map.characters)
-            character_map.characters = [
-                c for c in character_map.characters
-                if c.canonical_name.lower() not in pronoun_names
-            ]
-            character_map.low_confidence_characters = [
-                c for c in character_map.low_confidence_characters
-                if c.canonical_name.lower() not in pronoun_names
-            ]
-
-            removed_count = original_count - len(character_map.characters)
-            if removed_count > 0:
-                logger.info(f"CharacterAgent: Auto-removed {removed_count} pronoun entries")
-                character_map.pipeline_metadata["pronoun_entries_removed"] = removed_count
-
-        # Add issues to pipeline metadata for review
-        issue_descriptions = [i.description for i in issues]
-        if issue_descriptions:
-            character_map.pipeline_metadata["verification_issues"] = issue_descriptions
-            character_map.pipeline_metadata["needs_review"] = True
-
-        # Log remaining errors (non-pronoun)
-        remaining_errors = [i for i in issues if i.severity == "error" and "pronoun/determiner" not in i.description.lower()]
-        if remaining_errors:
-            logger.warning(
-                f"CharacterAgent: {len(remaining_errors)} errors remain after refinement"
-            )
-
+        """Create an error result."""
+        elapsed = time.perf_counter() - start_time
         return AgentResult(
-            data=character_map,
-            confidence_scores=result.confidence_scores,
-            high_confidence_count=result.high_confidence_count,
-            medium_confidence_count=result.medium_confidence_count,
-            low_confidence_count=result.low_confidence_count,
-            issues=issue_descriptions,
-            processing_time_seconds=result.processing_time_seconds,
-            model_used=result.model_used,
-            provider_used=result.provider_used,
+            data=CharacterMap(
+                characters=[],
+                low_confidence_characters=[],
+                total_mentions=0,
+                total_chapters=0,
+                pipeline_metadata={"error": error_msg, "version": "v2"},
+            ),
+            high_confidence_count=0,
+            medium_confidence_count=0,
+            low_confidence_count=0,
+            issues=[error_msg],
+            processing_time_seconds=elapsed,
+            model_used=self.llm.config.model if self.llm else None,
+            provider_used=self.llm.config.provider if self.llm else None,
         )
 
-    def _get_pipeline(self) -> CharacterExtractionPipeline:
-        """Get or create the character extraction pipeline."""
-        t = self._tuning or PipelineTuningConfig()
-        return CharacterExtractionPipeline(
-            llm_client=self.llm,
-            llm_chunk_size=t.character_llm_chunk_chars,
-            mention_context_window=t.character_mention_context_chars,
-        )
+    def _get_chapter_summaries(self, context: AgentContext) -> list[str]:
+        """Extract chapter summaries from context."""
+        # Try getting from previous_results (SummaryAgent output)
+        summaries_result = context.get_result("summaries")
+        if summaries_result:
+            # SummaryAgent returns a list of ChapterSummary objects or similar
+            if hasattr(summaries_result, "summaries"):
+                return [s.summary for s in summaries_result.summaries if s.summary]
+            elif isinstance(summaries_result, list):
+                return [
+                    s.get("summary") if isinstance(s, dict) else str(s)
+                    for s in summaries_result
+                    if s
+                ]
 
-    def _split_on_death_evidence(self, character_map: CharacterMap) -> CharacterMap:
-        """
-        POST-PROCESSING: Split characters that were incorrectly merged based on death evidence.
+        # Try getting from chapter_map (summaries may be stored on chapters)
+        if context.chapter_map:
+            summaries = []
+            chapters = getattr(context.chapter_map, "chapters", [])
+            for ch in chapters:
+                if hasattr(ch, "summary") and ch.summary:
+                    summaries.append(ch.summary)
+            if summaries:
+                return summaries
 
-        This function scans each character's mention contexts for evidence that two names
-        within the same character entry are actually different entities in a death relationship.
+        return []
 
-        Patterns checked:
-        - "fell prostrate in death the [NAME]"
-        - "[NAME1] ... died/collapsed/killed"
-        - "[NAME] pursuing [OTHER] ... died"
-        - "confronted [NAME] ... [OTHER] died"
-
-        If a character has aliases that appear in a death relationship, we split them
-        into separate characters.
-        """
-        import uuid
-
-        # Death-related patterns
-        DEATH_PATTERNS = [
-            r'fell\s+prostrate\s+in\s+death\s+(?:the\s+)?(\w+(?:\s+\w+)?)',
-            r'(\w+(?:\s+\w+)?)\s+(?:died|collapsed\s+dead|was\s+killed|fell\s+dead)',
-            r'(?:died|collapsed|fell)\s+(?:dead|prostrate)\s+(?:the\s+)?(\w+(?:\s+\w+)?)',
-            r'confronting\s+(?:the\s+)?(\w+)',  # Person who is confronted (may be the killer)
-        ]
-
-        new_characters = []
-        splits_made = 0
-
-        for char in character_map.characters:
-            # Check if this character has multiple aliases
-            if len(char.aliases) == 0:
-                new_characters.append(char)
-                continue
-
-            # Build list of all names (canonical + aliases)
-            all_names = [char.canonical_name] + char.aliases
-
-            # Collect all mention contexts
-            all_contexts = [m.context for m in char.mentions]
-            combined_context = " ".join(all_contexts)
-
-            # Check for death evidence involving any pair of names
-            death_evidence = []
-            for i, name1 in enumerate(all_names):
-                for name2 in all_names[i+1:]:
-                    # Check if both names appear in contexts with death language
-                    name1_lower = name1.lower()
-                    name2_lower = name2.lower()
-
-                    # Look for death patterns mentioning either name
-                    for pattern in DEATH_PATTERNS:
-                        matches = list(re.finditer(pattern, combined_context, re.IGNORECASE))
-                        for match in matches:
-                            matched_name = match.group(1).lower()
-                            # If the death pattern mentions one of our names
-                            name1_in_match = any(part in matched_name for part in name1_lower.split() if len(part) > 2)
-                            name2_in_match = any(part in matched_name for part in name2_lower.split() if len(part) > 2)
-
-                            if name1_in_match or name2_in_match:
-                                # Check if BOTH names appear in a wider context window around the death
-                                match_pos = match.start()
-                                context_window = combined_context[max(0, match_pos-300):match_pos+300].lower()
-
-                                # More flexible matching: check if key parts of names appear
-                                name1_parts = [p for p in name1_lower.split() if len(p) > 2]
-                                name2_parts = [p for p in name2_lower.split() if len(p) > 2]
-
-                                name1_found = any(part in context_window for part in name1_parts) if name1_parts else name1_lower in context_window
-                                name2_found = any(part in context_window for part in name2_parts) if name2_parts else name2_lower in context_window
-
-                                if name1_found and name2_found:
-                                    death_evidence.append((name1, name2, context_window[:200]))  # Store first 200 chars for logging
-                                    logger.info(
-                                        f"  Death evidence found: '{name1}' and '{name2}' both appear near death pattern"
-                                    )
-
-            # If we found death evidence, split the character
-            if death_evidence:
-                logger.info(
-                    f"SPLIT: Found death evidence in '{char.canonical_name}' - "
-                    f"splitting into separate characters"
-                )
-                splits_made += 1
-
-                # For now, we'll split into canonical vs all aliases
-                # More sophisticated logic could group aliases intelligently
-
-                # Character 1: Keep canonical name
-                char1_mentions = [m for m in char.mentions if m.text.lower() == char.canonical_name.lower()]
-                if char1_mentions:
-                    char1 = Character(
-                        id=char.id,
-                        canonical_name=char.canonical_name,
-                        aliases=[],  # Remove aliases to prevent re-merge
-                        mentions=char1_mentions,
-                        first_appearance_chapter=min(m.chapter_index for m in char1_mentions),
-                        mention_count=len(char1_mentions),
-                        chapters_present=sorted(set(m.chapter_index for m in char1_mentions)),
-                        confidence=char.confidence * 0.9,  # Slightly reduce confidence
-                        supporting_strategies=char.supporting_strategies,
-                        description=char.description,
-                        character_type=char.character_type,
-                        profile_evidence=char.profile_evidence,
-                        profile_confidence=char.profile_confidence,
-                        is_narrator=char.is_narrator,
-                        narrative_role=char.narrative_role,
-                        role=char.role,
-                        effective_mention_count=char.effective_mention_count,
+    def _get_chapters(self, context: AgentContext) -> list[StructuralElement]:
+        """Get chapter structural elements from context."""
+        if context.chapter_map:
+            chapters = getattr(context.chapter_map, "chapters", [])
+            # Convert to StructuralElement if needed
+            result = []
+            for ch in chapters:
+                if isinstance(ch, StructuralElement):
+                    result.append(ch)
+                elif hasattr(ch, "start_position"):
+                    # Create StructuralElement from chapter data
+                    elem = StructuralElement(
+                        type=StructureType.CHAPTER,
+                        index=getattr(ch, "index", 0),
+                        start_position=ch.start_position,
+                        end_position=getattr(ch, "end_position", ch.start_position + 1000),
                     )
-                    new_characters.append(char1)
+                    result.append(elem)
+            return result
+        return []
 
-                # Character 2: Create new character from aliases
-                alias_mentions = [m for m in char.mentions if m.text.lower() != char.canonical_name.lower()]
-                if alias_mentions:
-                    # Use the first/most common alias as the new canonical name
-                    alias_counts = {}
-                    for m in alias_mentions:
-                        alias_counts[m.text] = alias_counts.get(m.text, 0) + 1
-                    new_canonical = max(alias_counts.items(), key=lambda x: x[1])[0]
+    def _get_plot_summary(self, context: AgentContext) -> Optional[str]:
+        """Get overall plot summary if available."""
+        summaries_result = context.get_result("summaries")
+        if summaries_result:
+            if hasattr(summaries_result, "plot_summary"):
+                return summaries_result.plot_summary
+            elif isinstance(summaries_result, dict):
+                return summaries_result.get("plot_summary")
+        return None
 
-                    char2 = Character(
-                        id=str(uuid.uuid4()),
-                        canonical_name=new_canonical,
-                        aliases=[a for a in char.aliases if a.lower() != new_canonical.lower()],
-                        mentions=alias_mentions,
-                        first_appearance_chapter=min(m.chapter_index for m in alias_mentions),
-                        mention_count=len(alias_mentions),
-                        chapters_present=sorted(set(m.chapter_index for m in alias_mentions)),
-                        confidence=char.confidence * 0.8,  # Reduce confidence more for split character
-                        supporting_strategies=char.supporting_strategies,
-                        description="",  # New character needs new description
-                        character_type=char.character_type,
-                        profile_evidence=[],
-                        profile_confidence=None,
-                        is_narrator=False,  # Reset narrator flag
-                        narrative_role=None,
-                        role="supporting",
-                        effective_mention_count=None,
-                    )
-                    new_characters.append(char2)
-            else:
-                # No death evidence, keep character as-is
-                new_characters.append(char)
-
-        if splits_made > 0:
-            logger.info(f"POST-PROCESSING: Split {splits_made} character(s) based on death evidence")
-            character_map.pipeline_metadata["post_processing_splits"] = splits_made
-
-        character_map.characters = new_characters
-        return character_map
-
-    def _fix_misplaced_aliases(self, character_map: CharacterMap) -> CharacterMap:
-        """
-        POST-PROCESSING: Fix aliases that were assigned to the wrong character.
-
-        This function detects cases where one character has an alias that is actually
-        a substring or variant of another character's canonical name. This commonly
-        happens when an LLM incorrectly merges "Prospero" with "the mummer" instead
-        of "Prince Prospero".
-
-        Algorithm:
-        1. For each character with aliases
-        2. Check if any alias is a substring of another character's name
-        3. If found, move that alias to the matching character
-        """
-        moves_made = 0
-
-        # Build a mapping of character names for quick lookup
-        for char_with_alias in character_map.characters:
-            if not char_with_alias.aliases:
-                continue
-
-            aliases_to_move = {}  # alias -> target_character
-
-            for alias in char_with_alias.aliases:
-                alias_lower = alias.lower()
-                alias_words = set(alias_lower.split())
-
-                # Check if this alias better matches another character
-                for target_char in character_map.characters:
-                    if target_char.id == char_with_alias.id:
-                        continue
-
-                    target_name_lower = target_char.canonical_name.lower()
-                    target_words = set(target_name_lower.split())
-
-                    # Check for substring match or word overlap
-                    # Case 1: alias is substring of target name (e.g., "Prospero" in "Prince Prospero")
-                    # Case 2: alias is a significant word in target name
-                    is_substring = alias_lower in target_name_lower
-                    significant_overlap = (
-                        len(alias_words & target_words) > 0 and
-                        alias_lower not in ['the', 'a', 'an']  # Exclude articles
-                    )
-
-                    if is_substring or significant_overlap:
-                        # Additional check: verify the alias doesn't also match the current character
-                        current_name_lower = char_with_alias.canonical_name.lower()
-                        current_words = set(current_name_lower.split())
-
-                        # If the alias is ALSO in the current character's name, we need to be careful
-                        # Only move if the target match is STRONGER (more specific)
-                        alias_in_current = alias_lower in current_name_lower
-                        overlap_with_current = len(alias_words & current_words) > 0
-
-                        # Move if:
-                        # - alias NOT in current name, but IS in target name (clear case)
-                        # - OR alias is substring of target but not current
-                        should_move = False
-                        if is_substring and not alias_in_current:
-                            should_move = True
-                        elif significant_overlap and not overlap_with_current:
-                            should_move = True
-
-                        if should_move:
-                            logger.info(
-                                f"ALIAS FIX: Moving alias '{alias}' from "
-                                f"'{char_with_alias.canonical_name}' to '{target_char.canonical_name}'"
-                            )
-                            aliases_to_move[alias] = target_char
-                            moves_made += 1
-                            break  # Found the best match for this alias
-
-            # Apply the moves
-            for alias, target_char in aliases_to_move.items():
-                # Remove from source character
-                char_with_alias.aliases = [a for a in char_with_alias.aliases if a != alias]
-
-                # Add to target character if not already there
-                if alias not in target_char.aliases:
-                    target_char.aliases.append(alias)
-
-                # Note: We're not moving mentions here since they're tracked separately
-                # The alias list is just metadata for display purposes
-
-        if moves_made > 0:
-            logger.info(f"POST-PROCESSING: Moved {moves_made} misplaced alias(es)")
-            character_map.pipeline_metadata["post_processing_alias_moves"] = moves_made
-
-        return character_map
-
-    def _check_duplicates_heuristic(self, characters: list[Character]) -> list[VerificationIssue]:
-        """Check for potential duplicates using name matching heuristics."""
-        issues = []
-
-        for i, char1 in enumerate(characters):
-            for char2 in characters[i + 1:]:
-                # Skip if already aliases of each other
-                if char2.canonical_name in char1.aliases or char1.canonical_name in char2.aliases:
-                    continue
-
-                # Check for shared significant name components
-                words1 = set(self._extract_name_words(char1.canonical_name))
-                words2 = set(self._extract_name_words(char2.canonical_name))
-
-                # Also check aliases
-                for alias in char1.aliases:
-                    words1.update(self._extract_name_words(alias))
-                for alias in char2.aliases:
-                    words2.update(self._extract_name_words(alias))
-
-                shared = words1 & words2
-                if shared:
-                    # Check chapter overlap
-                    chapters1 = set(char1.chapters_present)
-                    chapters2 = set(char2.chapters_present)
-                    overlap = chapters1 & chapters2
-
-                    if overlap:
-                        issues.append(VerificationIssue(
-                            description=(
-                                f"Potential duplicate: '{char1.canonical_name}' and "
-                                f"'{char2.canonical_name}' share name component(s) {shared} "
-                                f"and appear in same chapters"
-                            ),
-                            severity="warning",
-                            suggested_fix="Consider merging these characters",
-                        ))
-
-        return issues
-
-    def _extract_name_words(self, name: str) -> list[str]:
-        """Extract significant words from a name (3+ chars, not titles)."""
-        # Remove common titles
-        name = re.sub(
-            r'\b(mr|mrs|ms|miss|dr|sir|lady|lord|captain|colonel|major|general|sergeant|professor)\b\.?',
-            '',
-            name,
-            flags=re.IGNORECASE
-        )
-
-        words = re.findall(r'[a-zA-Z]+', name.lower())
-        return [w for w in words if len(w) >= 3]
-
-    def _check_mention_distribution(self, character_map: CharacterMap) -> list[VerificationIssue]:
-        """Check for unusual mention distributions."""
-        issues = []
-        total_chapters = character_map.total_chapters
-
-        if total_chapters <= 1:
-            return issues
-
-        for char in character_map.characters[:10]:  # Check top 10 characters
-            chapters_present = len(char.chapters_present)
-            mention_count = char.mention_count
-
-            # High mention count but few chapters = suspicious
-            if mention_count > 50 and chapters_present == 1:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Character '{char.canonical_name}' has {mention_count} mentions "
-                        f"but only appears in 1 chapter - may be a non-character entity"
-                    ),
-                    severity="warning",
-                ))
-
-            # Major character (>100 mentions) should appear in multiple chapters
-            if mention_count > 100 and chapters_present < total_chapters * 0.3:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Major character '{char.canonical_name}' ({mention_count} mentions) "
-                        f"only appears in {chapters_present}/{total_chapters} chapters"
-                    ),
-                    severity="info",
-                ))
-
-        return issues
-
-    def _check_alias_consistency(self, characters: list[Character]) -> list[VerificationIssue]:
-        """Check that aliases are consistent with canonical names."""
-        issues = []
-
+    def _collect_all_names(self, characters: list[Character]) -> set[str]:
+        """Collect all names and aliases from characters."""
+        names = set()
         for char in characters:
-            if not char.aliases:
-                continue
+            names.add(char.canonical_name)
+            names.update(char.aliases)
+        return names
 
-            canonical_words = set(self._extract_name_words(char.canonical_name))
-
-            for alias in char.aliases:
-                alias_words = set(self._extract_name_words(alias))
-
-                # Aliases should share at least one word with canonical name
-                if not canonical_words & alias_words:
-                    # Exception: single word aliases might be nicknames
-                    if len(alias_words) > 1:
-                        issues.append(VerificationIssue(
-                            description=(
-                                f"Alias '{alias}' for '{char.canonical_name}' "
-                                f"shares no name components - verify correct"
-                            ),
-                            severity="info",
-                        ))
-
-        return issues
-
-    def _llm_duplicate_check(self, characters: list[Character]) -> list[VerificationIssue]:
-        """Use LLM to check for duplicates that heuristics might miss."""
-        issues = []
-
-        # Build character list for LLM
-        char_lines = []
-        for char in characters[:30]:  # Limit to top 30 for prompt size
-            aliases_str = f" (aliases: {', '.join(char.aliases[:3])})" if char.aliases else ""
-            chapters_str = ", ".join(str(c) for c in char.chapters_present[:5])
-            if len(char.chapters_present) > 5:
-                chapters_str += f"... ({len(char.chapters_present)} total)"
-
-            char_lines.append(
-                f"- {char.canonical_name}{aliases_str}: "
-                f"{char.mention_count} mentions, chapters {chapters_str}"
-            )
-
-        character_list = "\n".join(char_lines)
-        prompt = DUPLICATE_CHECK_PROMPT.format(character_list=character_list)
-
-        try:
-            result, _ = self.llm.query_json(prompt, system=DUPLICATE_CHECK_SYSTEM)
-
-            if result and isinstance(result.get("duplicates"), list):
-                for dup in result["duplicates"]:
-                    if dup.get("confidence", 0) >= 0.7:
-                        issues.append(VerificationIssue(
-                            description=(
-                                f"LLM detected potential duplicate: '{dup.get('name1')}' and "
-                                f"'{dup.get('name2')}' - {dup.get('reason', 'no reason given')}"
-                            ),
-                            severity="warning",
-                            suggested_fix="Consider merging these characters",
-                        ))
-        except Exception as e:
-            logger.error(f"LLM duplicate check failed: {e}")
-            # Re-raise to fail fast instead of silently continuing
-            raise
-
-        return issues
-
-    def _check_pronoun_entries(self, characters: list[Character]) -> list[VerificationIssue]:
-        """
-        Check for pronoun/determiner entries that should not be characters.
-
-        These entries indicate bugs in upstream extraction and should be
-        flagged as errors for auto-removal.
-        """
-        issues = []
-
-        for char in characters:
-            name_lower = char.canonical_name.lower()
-            if name_lower in PRONOUN_STOPWORDS:
-                issues.append(VerificationIssue(
-                    description=f"Character '{char.canonical_name}' is a pronoun/determiner and should not be a character",
-                    severity="error",
-                    suggested_fix="Remove this entry - it is not a character",
-                ))
-
-        return issues
-
-    def _check_disjoint_distributions(
+    def _filter_narrator_variants(
         self,
-        characters: list[Character],
-        total_chapters: int,
-    ) -> list[VerificationIssue]:
+        supporting_cast: list[Character],
+        narrator_name: str | None,
+    ) -> list[Character]:
         """
-        Check for character pairs with disjoint but sequential chapter distributions.
+        Filter out narrator-related entries from supporting cast.
 
-        This pattern may indicate a character name change mid-book (e.g., marriage,
-        alias adoption, identity reveal).
+        Removes entries like:
+        - "Narrator"
+        - "the narrator"
+        - "The Narrator"
+        - "Nick Carraway (narrator)"
 
-        Feature F4: Relaxed Disjoint Distribution Heuristic
-        Uses 80% dominant chapter ranges instead of strict separation. This catches cases
-        where a character is discussed by their old name in later chapters (e.g., flashbacks,
-        other characters reminiscing).
-
-        A dominant range is defined as the contiguous span containing 80%+ of the character's
-        appearances. If the dominant ranges of two characters are disjoint/sequential,
-        they may be the same person.
-        """
-        issues = []
-        MIN_MENTIONS = 10
-        DOMINANT_THRESHOLD = 0.80  # 80% of appearances must be in dominant range
-
-        # Only check characters with significant mentions
-        significant = [c for c in characters if c.mention_count >= MIN_MENTIONS]
-
-        for i, char1 in enumerate(significant):
-            for char2 in significant[i + 1:]:
-                # Skip if already aliases of each other
-                if char2.canonical_name in char1.aliases or char1.canonical_name in char2.aliases:
-                    continue
-
-                set1, set2 = set(char1.chapters_present), set(char2.chapters_present)
-                if not set1 or not set2:
-                    continue
-
-                # Feature F4: Calculate dominant chapter ranges
-                dominant1 = self._get_dominant_range(set1, DOMINANT_THRESHOLD)
-                dominant2 = self._get_dominant_range(set2, DOMINANT_THRESHOLD)
-
-                if not dominant1 or not dominant2:
-                    continue
-
-                # Check if dominant ranges are disjoint/sequential
-                dom_set1 = set(range(dominant1[0], dominant1[1] + 1))
-                dom_set2 = set(range(dominant2[0], dominant2[1] + 1))
-
-                overlap = dom_set1 & dom_set2
-                if not overlap:  # Dominant ranges are disjoint
-                    # Check if sequential
-                    is_sequential = dominant1[1] < dominant2[0] or dominant2[1] < dominant1[0]
-
-                    if is_sequential:
-                        # Determine which character comes first
-                        if dominant1[1] < dominant2[0]:
-                            early_char, late_char = char1.canonical_name, char2.canonical_name
-                            early_range, late_range = dominant1, dominant2
-                        else:
-                            early_char, late_char = char2.canonical_name, char1.canonical_name
-                            early_range, late_range = dominant2, dominant1
-
-                        issues.append(VerificationIssue(
-                            description=(
-                                f"Disjoint dominant ranges: '{early_char}' (dominant chapters {early_range[0]}-{early_range[1]}) "
-                                f"and '{late_char}' (dominant chapters {late_range[0]}-{late_range[1]}) - "
-                                f"could be same character under different name"
-                            ),
-                            severity="warning",
-                            suggested_fix="Review if these are the same character with a name change",
-                        ))
-
-        return issues
-
-    def _get_dominant_range(
-        self,
-        chapters: set[int],
-        threshold: float = 0.80,
-    ) -> Optional[tuple[int, int]]:
-        """
-        Find the smallest contiguous range containing at least `threshold` of appearances.
-
-        Feature F4: Relaxed Disjoint Distribution Heuristic
-        Uses a sliding window to find the smallest range that contains 80%+ of
-        the character's chapter appearances.
+        These are descriptive references that should not be separate characters.
 
         Args:
-            chapters: Set of chapter indices where character appears
-            threshold: Minimum fraction of appearances required in range (default 0.80)
+            supporting_cast: List of supporting characters
+            narrator_name: The identified narrator's name (if any)
 
         Returns:
-            Tuple of (start, end) chapter indices, or None if insufficient data
+            Filtered list with narrator variants removed
         """
-        if not chapters or len(chapters) < 3:
-            return None
+        if not supporting_cast:
+            return supporting_cast
 
-        sorted_chapters = sorted(chapters)
-        n = len(sorted_chapters)
-        required = int(n * threshold)
+        filtered = []
+        removed_count = 0
 
-        if required < 1:
-            required = 1
+        for char in supporting_cast:
+            canonical_lower = char.canonical_name.lower()
 
-        # Find smallest window containing 'required' chapters
-        best_range = None
-        best_span = float('inf')
+            # Check if canonical name contains "narrator" (case-insensitive)
+            if "narrator" in canonical_lower:
+                logger.info(
+                    f"Filtering narrator variant '{char.canonical_name}' "
+                    f"({char.mention_count} mentions) from supporting cast"
+                )
+                removed_count += 1
+                continue
 
-        for start_idx in range(n - required + 1):
-            end_idx = start_idx + required - 1
-            start_ch = sorted_chapters[start_idx]
-            end_ch = sorted_chapters[end_idx]
-            span = end_ch - start_ch
+            filtered.append(char)
 
-            if span < best_span:
-                best_span = span
-                best_range = (start_ch, end_ch)
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} narrator variant(s) from supporting cast")
 
-        return best_range
+        return filtered
 
-    def _check_missing_agentive_descriptions(
+    def _merge_narrator_placeholder(
         self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+        narrator_info,
         text: str,
-        characters: list[Character],
-    ) -> list[VerificationIssue]:
+    ) -> tuple[list[Character], list[Character], any, set[str]]:
         """
-        Check for high-frequency agentive descriptions missing from character list.
+        Merge narrator placeholders (e.g., 'the protagonist', 'the narrator') with their actual named character.
 
-        Scans for patterns like "the creature said", "the monster walked" that
-        appear 10+ times but are not in the character list.
+        In first-person narratives, the LLM may extract a placeholder like "the protagonist"
+        from summaries, when the character has an actual name mentioned in the text.
+        This method attempts to identify and merge such cases.
+
+        Args:
+            main_cast: List of main cast characters
+            supporting_cast: List of supporting characters
+            narrator_info: NarratorInfo object from narrator detection
+            text: Full text for searching
+
+        Returns:
+            Tuple of (updated_main_cast, updated_supporting_cast, updated_narrator_info, merged_char_ids)
         """
-        issues = []
+        # Only process for first-person narrators with placeholder names
+        if narrator_info.pov != "first-person" or not narrator_info.narrator_character_id:
+            return main_cast, supporting_cast, narrator_info, set()
 
-        # Build set of existing character names for quick lookup
-        existing_names = set()
-        for char in characters:
-            existing_names.add(char.canonical_name.lower())
-            for alias in char.aliases:
-                existing_names.add(alias.lower())
+        # Find the narrator character
+        narrator_char = None
+        narrator_in_main = True
+        for char in main_cast:
+            if char.id == narrator_info.narrator_character_id:
+                narrator_char = char
+                break
 
-        # Pattern to find "the X <agentive_verb>" constructions
-        # We look for "the <noun>" followed by an agentive verb
-        descriptive_pattern = r'\bthe\s+([a-z]+(?:\s+[a-z]+)?)\s+'
+        if not narrator_char:
+            # Check supporting cast
+            for char in supporting_cast:
+                if char.id == narrator_info.narrator_character_id:
+                    narrator_char = char
+                    narrator_in_main = False
+                    break
 
-        # Count occurrences of each descriptive handle followed by agentive verbs
-        descriptive_counts = {}
+        if not narrator_char:
+            return main_cast, supporting_cast, narrator_info, set()
 
-        for verb_pattern in AGENTIVE_VERBS:
-            # Build combined pattern: "the X <verb>"
-            combined_pattern = descriptive_pattern + verb_pattern[2:]  # Remove leading \b from verb
-            for match in re.finditer(combined_pattern, text, re.IGNORECASE):
-                handle = "the " + match.group(1).lower()
-                # Skip common non-character phrases
-                if handle in {'the man', 'the woman', 'the door', 'the room', 'the house',
-                              'the time', 'the day', 'the way', 'the end', 'the same',
-                              'the first', 'the last', 'the other', 'the next'}:
+        # Check if narrator is a placeholder (unnamed or generic descriptor)
+        narrator_name_lower = narrator_char.canonical_name.lower()
+        placeholder_patterns = [
+            "the protagonist",
+            "the narrator",
+            "narrator",
+            "protagonist",
+            "main character",
+            "the main character",
+        ]
+
+        is_placeholder = any(pattern in narrator_name_lower for pattern in placeholder_patterns)
+
+        if not is_placeholder:
+            return main_cast, supporting_cast, narrator_info, set()
+
+        logger.info(
+            f"Narrator placeholder detected: '{narrator_char.canonical_name}' "
+            f"- attempting to find actual character name"
+        )
+
+        # Search for the narrator's actual name in all characters
+        # Look for a character that:
+        # 1. Has a proper name (not another placeholder)
+        # 2. Has relatively high mentions in supporting cast OR is in main cast
+        # 3. Is addressed by name in first-person context
+
+        all_characters = main_cast + supporting_cast
+        candidates = []
+
+        for char in all_characters:
+            if char.id == narrator_char.id:
+                continue
+
+            char_name_lower = char.canonical_name.lower()
+
+            # Skip other placeholders
+            is_other_placeholder = any(
+                pattern in char_name_lower for pattern in placeholder_patterns
+            )
+            if is_other_placeholder:
+                continue
+
+            # Skip generic descriptors
+            if char_name_lower.startswith("the ") and len(char.canonical_name.split()) <= 3:
+                continue
+
+            # Proper name candidate (has capital letters indicating a name)
+            if len(char.canonical_name) > 1 and char.canonical_name[0].isupper():
+                # Simple heuristic: characters with mentions close to narrator's placeholder mentions
+                # are likely the same person (the placeholder captured most first-person references)
+                candidates.append(char)
+
+        if not candidates:
+            logger.info("No named character candidates found for narrator placeholder")
+            return main_cast, supporting_cast, narrator_info, set()
+
+        # For "I Have No Mouth" case: Look for characters addressed directly in dialogue
+        # Simple approach: Pick the first candidate with a reasonable mention count
+        # More sophisticated: Could use LLM to analyze which character is the narrator
+
+        # Sort by mention count (higher is more likely to be the narrator)
+        candidates.sort(key=lambda c: c.mention_count, reverse=True)
+
+        # Take the top candidate
+        merge_target = candidates[0]
+
+        logger.info(
+            f"Merging narrator placeholder '{narrator_char.canonical_name}' "
+            f"({narrator_char.mention_count} mentions) "
+            f"into '{merge_target.canonical_name}' "
+            f"({merge_target.mention_count} mentions)"
+        )
+
+        # Merge the placeholder into the target character
+        # Transfer mention count (will be recalculated with re-search, but keep for safety)
+        merge_target.mention_count += narrator_char.mention_count
+
+        # CRITICAL FIX: Transfer the mentions list for profile generation
+        # Combine both characters' mentions into the target
+        if narrator_char.mentions:
+            if not merge_target.mentions:
+                merge_target.mentions = []
+            merge_target.mentions.extend(narrator_char.mentions)
+
+        # Transfer narrator flag
+        merge_target.is_narrator = True
+        merge_target.narrative_role = narrator_char.narrative_role
+
+        # Boost confidence for narrator (they're a key character)
+        from ...models import ConfidenceLevel
+
+        merge_target.confidence = ConfidenceLevel.HIGH
+
+        # Add placeholder as an alias (for historical record)
+        if narrator_char.canonical_name not in merge_target.aliases:
+            merge_target.aliases.append(narrator_char.canonical_name)
+
+        # Transfer any description if target doesn't have one
+        if not merge_target.descriptions and narrator_char.descriptions:
+            merge_target.descriptions = narrator_char.descriptions
+
+        # Remove the placeholder from main_cast or supporting_cast
+        if narrator_in_main:
+            main_cast = [c for c in main_cast if c.id != narrator_char.id]
+        else:
+            supporting_cast = [c for c in supporting_cast if c.id != narrator_char.id]
+
+        # Update narrator_info to point to the merged character
+        narrator_info.narrator_character_id = merge_target.id
+        narrator_info.narrator_name = merge_target.canonical_name
+
+        logger.info(
+            f"Narrator placeholder merge complete: narrator is now '{merge_target.canonical_name}'"
+        )
+
+        # Return the ID of the merged character so mention search can be re-run
+        return main_cast, supporting_cast, narrator_info, {merge_target.id}
+
+    def _merge_title_variants(self, characters: list[Character]) -> list[Character]:
+        """
+        Merge characters where one canonical name contains another.
+
+        Example: "Sergeant-Major Morris" contains "Morris" → merge as aliases
+
+        This is a deterministic post-processing step to handle LLM variance
+        where titles/ranks are inconsistently included.
+        """
+        if len(characters) <= 1:
+            return characters
+
+        merged = []
+        skip_indices = set()
+
+        for i, char1 in enumerate(characters):
+            if i in skip_indices:
+                continue
+
+            # Check if any other character's name is contained in this one
+            for j, char2 in enumerate(characters):
+                if i == j or j in skip_indices:
                     continue
-                descriptive_counts[handle] = descriptive_counts.get(handle, 0) + 1
 
-        # Flag handles with 10+ agentive occurrences that aren't in character list
-        for handle, count in descriptive_counts.items():
-            if count >= 10 and handle.lower() not in existing_names:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Potential unnamed character: '{handle}' appears {count} times with "
-                        f"agentive verbs but is not in the character list"
-                    ),
-                    severity="warning",
-                    suggested_fix=f"Consider adding '{handle}' as a character or alias",
-                ))
+                name1_lower = char1.canonical_name.lower()
+                name2_lower = char2.canonical_name.lower()
 
-        return issues
+                # Check if one name fully contains the other as a word
+                # "Sergeant-Major Morris" contains "Morris"
+                if self._name_contains_other(name1_lower, name2_lower):
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" and "Mrs. White" are DIFFERENT people)
+                    if self._are_different_titled_people(
+                        char1.canonical_name, char2.canonical_name
+                    ):
+                        continue  # Skip this merge - they're different people
+
+                    # Merge char2 into char1
+                    logger.info(
+                        f"Merging title variant: '{char2.canonical_name}' → "
+                        f"'{char1.canonical_name}' (as alias)"
+                    )
+
+                    # Add char2's canonical name as an alias of char1
+                    if char2.canonical_name not in char1.aliases:
+                        char1.aliases.append(char2.canonical_name)
+
+                    # Add char2's aliases to char1
+                    for alias in char2.aliases:
+                        if alias not in char1.aliases and alias != char1.canonical_name:
+                            char1.aliases.append(alias)
+
+                    skip_indices.add(j)
+
+                elif self._name_contains_other(name2_lower, name1_lower):
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    if self._are_different_titled_people(
+                        char1.canonical_name, char2.canonical_name
+                    ):
+                        continue  # Skip this merge - they're different people
+
+                    # Merge char1 into char2
+                    logger.info(
+                        f"Merging title variant: '{char1.canonical_name}' → "
+                        f"'{char2.canonical_name}' (as alias)"
+                    )
+
+                    # Add char1's canonical name as an alias of char2
+                    if char1.canonical_name not in char2.aliases:
+                        char2.aliases.append(char1.canonical_name)
+
+                    # Add char1's aliases to char2
+                    for alias in char1.aliases:
+                        if alias not in char2.aliases and alias != char2.canonical_name:
+                            char2.aliases.append(alias)
+
+                    skip_indices.add(i)
+                    break  # Don't process this character further
+
+            if i not in skip_indices:
+                merged.append(char1)
+
+        return merged
+
+    def _name_contains_other(self, longer_name: str, shorter_name: str) -> bool:
+        """
+        Check if longer_name contains shorter_name as a complete word.
+
+        Examples:
+        - "sergeant-major morris" contains "morris" → True
+        - "mr. white" contains "white" → True
+        - "whitehouse" contains "white" → False (not word boundary)
+        """
+        import re
+
+        # Escape special regex characters in shorter_name
+        escaped = re.escape(shorter_name)
+
+        # Match as a complete word (with word boundaries or punctuation)
+        pattern = r"(?:^|[\s\-\.])" + escaped + r"(?:$|[\s\-\.])"
+        return bool(re.search(pattern, longer_name))
+
+    def _strip_title(self, name: str) -> str:
+        """
+        Strip honorific titles from a name.
+
+        Examples:
+        - "Mr. Gatsby" → "Gatsby"
+        - "Mrs. Wilson" → "Wilson"
+        - "Dr. Jekyll" → "Jekyll"
+        """
+        import re
+
+        # List of common titles
+        titles = [
+            r"\bMr\.",
+            r"\bMrs\.",
+            r"\bMs\.",
+            r"\bMiss\b",
+            r"\bDr\.",
+            r"\bLord\b",
+            r"\bLady\b",
+            r"\bSir\b",
+        ]
+
+        # Remove any leading title
+        for title in titles:
+            name = re.sub(f"^{title}\\s+", "", name, flags=re.IGNORECASE)
+
+        return name.strip()
+
+    def _are_different_titled_people(self, name1: str, name2: str) -> bool:
+        """
+        Check if two names represent different people with different title prefixes.
+
+        This prevents merging "Mr. White" with "Mrs. White" (husband and wife),
+        while still allowing "Sergeant-Major Morris" to merge with "Morris".
+
+        Rules:
+        - If both names start with DIFFERENT honorific titles (Mr./Mrs./Miss/Ms./Dr.)
+          AND the stripped names are identical → they are DIFFERENT people
+        - Otherwise, allow the merge
+
+        Examples:
+        - "Mr. White" + "Mrs. White" → True (different people)
+        - "Mr. Smith" + "Dr. Smith" → True (different people)
+        - "Sergeant-Major Morris" + "Morris" → False (same person)
+        - "Mr. White" + "White" → False (same person)
+
+        Returns:
+            True if they're different titled people (DON'T merge)
+            False if they're the same person or safe to merge
+        """
+        import re
+
+        # Honorific titles that indicate distinct individuals when different
+        honorific_prefixes = [
+            r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+",  # Added M. for French Monsieur
+        ]
+
+        # Extract titles and stripped names
+        title1 = None
+        title2 = None
+        stripped1 = name1
+        stripped2 = name2
+
+        for pattern in honorific_prefixes:
+            match1 = re.match(pattern, name1, flags=re.IGNORECASE)
+            if match1:
+                title1 = match1.group(1).lower()
+                stripped1 = re.sub(pattern, "", name1, flags=re.IGNORECASE).strip()
+
+            match2 = re.match(pattern, name2, flags=re.IGNORECASE)
+            if match2:
+                title2 = match2.group(1).lower()
+                stripped2 = re.sub(pattern, "", name2, flags=re.IGNORECASE).strip()
+
+        # If both have honorific titles, check for different people scenarios
+        if title1 and title2:
+            # Case 1: Different surnames with any title = different people
+            # "M. Waldman" vs "M. Krempe" are different people (same title, different surnames)
+            # "Mr. Sloane" vs "Mr. McKee" are different people
+            if stripped1.lower() != stripped2.lower():
+                return True  # Different titled people - DON'T merge
+
+            # Case 2: Same surname, different title = different people (spouses)
+            # "Mr. White" vs "Mrs. White" are different people (same surname, different titles)
+            if title1 != title2:
+                return True  # Different titled people - DON'T merge
+
+        # Otherwise, safe to merge
+        return False
+
+    def _merge_same_firstname_variants(
+        self,
+        main_cast: list[Character],
+    ) -> list[Character]:
+        """
+        Pre-merge characters that share the same first name but have different last names.
+
+        This handles cases like:
+        - "Daisy" + "Daisy Buchanan" + "Daisy Fay" → all same person (maiden/married name)
+
+        Unlike the Wilson case (George Wilson vs Myrtle Wilson = different people with
+        different first names), same-first-name variants are likely the same person.
+
+        The key insight: When multiple matches share the SAME first name, they're
+        probably the same person. When matches have DIFFERENT first names (like
+        George Wilson vs Myrtle Wilson), they're different people.
+
+        Returns:
+            Updated list with same-firstname variants merged
+        """
+        if len(main_cast) <= 1:
+            return main_cast
+
+        # Group multi-word names by their first name (lowercase)
+        firstname_to_fullnames: dict[str, list[int]] = {}
+        single_word_names: dict[str, int] = {}  # first_name_lower -> index
+
+        for idx, char in enumerate(main_cast):
+            name = char.canonical_name.strip()
+            if not name:
+                continue
+
+            parts = name.split()
+            first_name = parts[0].lower()
+
+            if len(parts) == 1:
+                # Single-word name (potential first-name-only reference)
+                single_word_names[first_name] = idx
+            else:
+                # Multi-word name (full name)
+                if first_name not in firstname_to_fullnames:
+                    firstname_to_fullnames[first_name] = []
+                firstname_to_fullnames[first_name].append(idx)
+
+        chars_to_remove = set()
+
+        # For each first name that has multiple full-name variants, merge them
+        for first_name, indices in firstname_to_fullnames.items():
+            if len(indices) < 2:
+                continue
+
+            # Multiple full names share the same first name (e.g., "Daisy Buchanan", "Daisy Fay")
+            # These are likely the same person with maiden/married names
+            [(idx, main_cast[idx]) for idx in indices]
+
+            # Find the canonical entry: prefer the one with most mentions
+            canonical_idx = max(indices, key=lambda i: main_cast[i].mention_count)
+            canonical_char = main_cast[canonical_idx]
+
+            logger.info(
+                f"Same-firstname merge: '{first_name}' has {len(indices)} variants, "
+                f"using '{canonical_char.canonical_name}' as canonical"
+            )
+
+            # Merge others into canonical
+            for idx in indices:
+                if idx == canonical_idx:
+                    continue
+                other = main_cast[idx]
+
+                # Add other's canonical name as alias
+                if other.canonical_name not in canonical_char.aliases:
+                    logger.info(
+                        f"  Merging '{other.canonical_name}' → '{canonical_char.canonical_name}' as alias"
+                    )
+                    canonical_char.aliases.append(other.canonical_name)
+
+                # Merge other's aliases too
+                for alias in other.aliases:
+                    if (
+                        alias not in canonical_char.aliases
+                        and alias != canonical_char.canonical_name
+                    ):
+                        canonical_char.aliases.append(alias)
+
+                # Accumulate mention count
+                canonical_char.mention_count += other.mention_count
+
+                chars_to_remove.add(idx)
+
+            # If there's a single-word name matching this first name, merge it too
+            if first_name in single_word_names:
+                single_idx = single_word_names[first_name]
+                if single_idx not in chars_to_remove:
+                    single_char = main_cast[single_idx]
+                    if single_char.canonical_name not in canonical_char.aliases:
+                        logger.info(
+                            f"  Also merging first-name-only '{single_char.canonical_name}' → "
+                            f"'{canonical_char.canonical_name}' as alias"
+                        )
+                        canonical_char.aliases.append(single_char.canonical_name)
+                    canonical_char.mention_count += single_char.mention_count
+                    chars_to_remove.add(single_idx)
+
+        # Build result list
+        result = [c for i, c in enumerate(main_cast) if i not in chars_to_remove]
+
+        if chars_to_remove:
+            logger.info(f"Same-firstname merge: removed {len(chars_to_remove)} duplicate entries")
+
+        return result
+
+    def _deduplicate_alias_canonical_conflicts(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Deduplicate characters where one character's alias matches another's canonical name.
+
+        Example: "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical, alias="Myrtle Wilson")
+        → These are the SAME person, merge them
+
+        This handles cases where the LLM extracted both a character and a variant reference
+        as separate characters, but correctly noted one as an alias of the other.
+
+        Returns:
+            Tuple of (updated_main_cast, char_ids_with_new_aliases)
+        """
+        if len(main_cast) <= 1:
+            return main_cast, set()
+
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Build a map of canonical_name -> character index
+        canonical_map = {char.canonical_name.lower(): idx for idx, char in enumerate(main_cast)}
+
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            # Check if any of this character's aliases match another character's canonical name
+            for alias in char.aliases:
+                alias_lower = alias.lower()
+
+                # Does this alias match another character's canonical name?
+                if alias_lower in canonical_map:
+                    other_idx = canonical_map[alias_lower]
+
+                    # Skip if it's the same character (alias matches own canonical name)
+                    if other_idx == idx:
+                        continue
+
+                    # Skip if already marked for removal
+                    if other_idx in chars_to_remove:
+                        continue
+
+                    other_char = main_cast[other_idx]
+
+                    # MERGE: The character whose canonical name appears as an alias
+                    # should be merged INTO the character that has it as an alias
+                    #
+                    # Example: "Mrs. Wilson" has alias "Myrtle Wilson"
+                    # → Merge "Myrtle Wilson" INTO "Mrs. Wilson"
+                    #
+                    # BUT: We want to keep the one with MORE mentions as canonical
+                    if char.mention_count >= other_char.mention_count:
+                        # Keep current char, merge other into it
+                        logger.info(
+                            f"Alias-canonical conflict: merging '{other_char.canonical_name}' "
+                            f"({other_char.mention_count} mentions) → '{char.canonical_name}' "
+                            f"({char.mention_count} mentions) - alias match"
+                        )
+
+                        # Add other's canonical name as alias (if not already there)
+                        if other_char.canonical_name not in char.aliases:
+                            char.aliases.append(other_char.canonical_name)
+
+                        # Merge other's aliases too
+                        for other_alias in other_char.aliases:
+                            if (
+                                other_alias not in char.aliases
+                                and other_alias.lower() != char.canonical_name.lower()
+                            ):
+                                char.aliases.append(other_alias)
+
+                        chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Keep other char, merge current into it
+                        logger.info(
+                            f"Alias-canonical conflict: merging '{char.canonical_name}' "
+                            f"({char.mention_count} mentions) → '{other_char.canonical_name}' "
+                            f"({other_char.mention_count} mentions) - alias match"
+                        )
+
+                        # Add current's canonical name as alias (if not already there)
+                        if char.canonical_name not in other_char.aliases:
+                            other_char.aliases.append(char.canonical_name)
+
+                        # Merge current's aliases too
+                        for curr_alias in char.aliases:
+                            if (
+                                curr_alias not in other_char.aliases
+                                and curr_alias.lower() != other_char.canonical_name.lower()
+                            ):
+                                other_char.aliases.append(curr_alias)
+
+                        chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters
+        updated_main_cast = [
+            char for idx, char in enumerate(main_cast) if idx not in chars_to_remove
+        ]
+
+        if chars_to_remove:
+            logger.info(
+                f"Alias-canonical deduplication: removed {len(chars_to_remove)} duplicate entries"
+            )
+
+        return updated_main_cast, chars_with_new_aliases
+
+    def _split_wrongly_merged_titled_characters(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], int]:
+        """
+        Defensive fix: Split characters that have aliases with different title+surname combinations.
+
+        This handles LLM hallucinations where "M. Waldman" incorrectly gets "M. Krempe" as an alias,
+        despite explicit prompt instructions forbidding this.
+
+        Examples of splits:
+        - "M. Waldman" with alias "M. Krempe" → split into two separate characters
+        - "Mr. Sloane" with alias "Mr. McKee" → split into two separate characters
+
+        Returns:
+            Tuple of (updated_main_cast, number_of_splits)
+        """
+        import re
+
+        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+(.+)$"
+        split_count = 0
+        new_characters = []
+
+        for char in main_cast:
+            # Check if canonical name has a title
+            canonical_match = re.match(title_pattern, char.canonical_name, flags=re.IGNORECASE)
+            if not canonical_match:
+                # No title in canonical name - nothing to split
+                new_characters.append(char)
+                continue
+
+            canonical_title = canonical_match.group(1).lower()
+            canonical_surname = canonical_match.group(2).strip().lower()
+
+            # Check each alias for different title+surname combinations
+            aliases_to_split = []
+            valid_aliases = []
+
+            for alias in char.aliases:
+                alias_match = re.match(title_pattern, alias, flags=re.IGNORECASE)
+                if not alias_match:
+                    # Alias doesn't have a title
+                    # Check if this is a bare surname of a different person
+                    # (e.g., canonical="M. Waldman", alias="Krempe" - should split)
+                    # vs. (e.g., canonical="M. Waldman", alias="Professor" - should keep)
+                    alias_lower = alias.strip().lower()
+                    # If the alias is a single capitalized word that doesn't match the canonical surname,
+                    # it's likely a different person's surname
+                    if (
+                        len(alias.split()) == 1  # Single word
+                        and alias[0].isupper()  # Capitalized (likely a name)
+                        and alias_lower != canonical_surname  # Different from canonical surname
+                        and alias_lower not in canonical_surname
+                    ):  # Not a substring of canonical surname
+                        logger.warning(
+                            f"SPLIT: '{alias}' cannot be alias of '{char.canonical_name}' "
+                            f"(untitled surname doesn't match canonical surname '{canonical_surname}')"
+                        )
+                        aliases_to_split.append(alias)
+                        split_count += 1
+                    else:
+                        # Keep as valid alias (could be a title, descriptor, etc.)
+                        valid_aliases.append(alias)
+                    continue
+
+                alias_title = alias_match.group(1).lower()
+                alias_surname = alias_match.group(2).strip().lower()
+
+                # Check if this is a different titled person
+                # Different surnames = different people (even if same title)
+                # Different titles with same surname = different people (spouses)
+                if alias_surname != canonical_surname:
+                    logger.warning(
+                        f"SPLIT: '{alias}' cannot be alias of '{char.canonical_name}' "
+                        f"(different surnames: '{alias_surname}' vs '{canonical_surname}')"
+                    )
+                    aliases_to_split.append(alias)
+                    split_count += 1
+                elif alias_title != canonical_title:
+                    logger.warning(
+                        f"SPLIT: '{alias}' cannot be alias of '{char.canonical_name}' "
+                        f"(same surname but different titles: '{alias_title}' vs '{canonical_title}')"
+                    )
+                    aliases_to_split.append(alias)
+                    split_count += 1
+                else:
+                    # Same title and surname - valid alias
+                    valid_aliases.append(alias)
+
+            # Update character with only valid aliases
+            char.aliases = valid_aliases
+            new_characters.append(char)
+
+            # Create new character entries for the split aliases
+            # These will be minimal stubs that may get fleshed out in later processing
+            for split_alias in aliases_to_split:
+                new_char = Character(
+                    id=f"split_{split_alias.lower().replace(' ', '_').replace('.', '')}",
+                    canonical_name=split_alias,
+                    aliases=[],
+                    role="supporting",
+                    mention_count=0,  # Will be updated by mention search
+                    confidence="medium",
+                )
+                new_characters.append(new_char)
+                logger.info(f"Created new character from split alias: '{split_alias}'")
+
+        return new_characters, split_count
+
+    def _split_semantic_conflicts(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], int]:
+        """
+        Defensive fix: Split characters that have semantically conflicting aliases.
+
+        This handles LLM hallucinations where descriptive terms from conflicting semantic
+        categories get merged as aliases (e.g., "the creature" as alias of "the old man").
+
+        Semantic conflict rules:
+        - Creature-related terms (creature, monster, fiend, daemon, wretch) should NEVER
+          be aliases of human descriptors (man, woman, boy, girl, old man, etc.)
+        - These are fundamentally different types of entities
+
+        Examples of splits:
+        - "the old man (De Lacey)" with alias "the creature" → split into two separate characters
+        - "the woman" with alias "the monster" → split into two separate characters
+
+        Returns:
+            Tuple of (updated_main_cast, number_of_splits)
+        """
+
+        # Define semantic conflict groups
+        # Group 1: Supernatural/created beings
+        creature_terms = {"creature", "monster", "fiend", "daemon", "wretch", "being"}
+
+        # Group 2: Human descriptors (when used in "the X" pattern)
+        # These should NOT merge with creature terms
+        human_descriptors = {
+            "man",
+            "woman",
+            "boy",
+            "girl",
+            "child",
+            "person",
+            "old man",
+            "young man",
+            "old woman",
+            "young woman",
+            "gentleman",
+            "lady",
+            "peasant",
+            "sailor",
+            "cottager",
+        }
+
+        split_count = 0
+        new_characters = []
+
+        for char in main_cast:
+            canonical_lower = char.canonical_name.lower().strip()
+
+            # Extract descriptor from "the X" or "X (surname)" patterns
+            canonical_descriptor = None
+            if canonical_lower.startswith("the "):
+                # "the creature", "the old man", etc.
+                canonical_descriptor = canonical_lower[4:].strip()
+                # Handle patterns like "the old man (De Lacey)" - extract just "old man"
+                if " (" in canonical_descriptor:
+                    canonical_descriptor = canonical_descriptor.split(" (")[0].strip()
+
+            # Determine canonical's semantic group
+            canonical_is_creature = canonical_descriptor and any(
+                term in canonical_descriptor for term in creature_terms
+            )
+            canonical_is_human = canonical_descriptor and any(
+                canonical_descriptor == desc or canonical_descriptor.endswith(" " + desc)
+                for desc in human_descriptors
+            )
+
+            # Check each alias for semantic conflicts
+            aliases_to_split = []
+            valid_aliases = []
+
+            for alias in char.aliases:
+                alias_lower = alias.lower().strip()
+
+                # Extract descriptor from alias
+                alias_descriptor = None
+                if alias_lower.startswith("the "):
+                    alias_descriptor = alias_lower[4:].strip()
+                    if " (" in alias_descriptor:
+                        alias_descriptor = alias_descriptor.split(" (")[0].strip()
+
+                # Determine alias's semantic group
+                alias_is_creature = alias_descriptor and any(
+                    term in alias_descriptor for term in creature_terms
+                )
+                alias_is_human = alias_descriptor and any(
+                    alias_descriptor == desc or alias_descriptor.endswith(" " + desc)
+                    for desc in human_descriptors
+                )
+
+                # Check for semantic conflict
+                conflict = False
+                if canonical_is_creature and alias_is_human:
+                    conflict = True
+                    logger.warning(
+                        f"SEMANTIC CONFLICT: '{alias}' (human descriptor) cannot be alias of "
+                        f"'{char.canonical_name}' (creature-related term)"
+                    )
+                elif canonical_is_human and alias_is_creature:
+                    conflict = True
+                    logger.warning(
+                        f"SEMANTIC CONFLICT: '{alias}' (creature-related term) cannot be alias of "
+                        f"'{char.canonical_name}' (human descriptor)"
+                    )
+
+                if conflict:
+                    # region agent log
+                    try:
+                        import json
+                        import time as _time
+
+                        with open(
+                            "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                            "a",
+                            encoding="utf-8",
+                        ) as f:
+                            f.write(
+                                json.dumps(
+                                    {
+                                        "sessionId": "debug-session",
+                                        "runId": "frankenstein-pre",
+                                        "hypothesisId": "H2",
+                                        "location": "src/agents/characters.py:_split_semantic_conflicts",
+                                        "message": "Semantic conflict detected; alias will be split into new character",
+                                        "data": {
+                                            "char_id": char.id,
+                                            "canonical": char.canonical_name,
+                                            "canonical_descriptor": canonical_descriptor,
+                                            "canonical_is_creature": canonical_is_creature,
+                                            "canonical_is_human": canonical_is_human,
+                                            "alias": alias,
+                                            "alias_descriptor": alias_descriptor,
+                                            "alias_is_creature": alias_is_creature,
+                                            "alias_is_human": alias_is_human,
+                                        },
+                                        "timestamp": int(_time.time() * 1000),
+                                    },
+                                    ensure_ascii=False,
+                                )
+                                + "\n"
+                            )
+                    except Exception:
+                        pass
+                    # endregion
+
+                    aliases_to_split.append(alias)
+                    split_count += 1
+                else:
+                    valid_aliases.append(alias)
+
+            # Update character with only valid aliases
+            char.aliases = valid_aliases
+            new_characters.append(char)
+
+            # Create new character entries for the semantically conflicting aliases
+            for split_alias in aliases_to_split:
+                new_char = Character(
+                    id=f"split_{split_alias.lower().replace(' ', '_').replace('.', '').replace('(', '').replace(')', '')}",
+                    canonical_name=split_alias,
+                    aliases=[],
+                    role="supporting",
+                    mention_count=0,  # Will be updated by mention search
+                    confidence="medium",
+                )
+                new_characters.append(new_char)
+                logger.info(
+                    f"Created new character from semantically conflicting alias: '{split_alias}'"
+                )
+
+                # region agent log
+                try:
+                    import json
+                    import time as _time
+
+                    with open(
+                        "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                        "a",
+                        encoding="utf-8",
+                    ) as f:
+                        f.write(
+                            json.dumps(
+                                {
+                                    "sessionId": "debug-session",
+                                    "runId": "frankenstein-pre",
+                                    "hypothesisId": "H3",
+                                    "location": "src/agents/characters.py:_split_semantic_conflicts",
+                                    "message": "Created split character stub (note mention_count=0 here)",
+                                    "data": {
+                                        "new_id": new_char.id,
+                                        "canonical": new_char.canonical_name,
+                                        "mentions": new_char.mention_count,
+                                    },
+                                    "timestamp": int(_time.time() * 1000),
+                                },
+                                ensure_ascii=False,
+                            )
+                            + "\n"
+                        )
+                except Exception:
+                    pass
+                # endregion
+
+        return new_characters, split_count
+
+    def _merge_within_main_cast(
+        self,
+        main_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge characters within main cast that are variants of each other.
+
+        Handles four patterns:
+        1. Middle initial variants: "George B. Wilson" → alias of "George Wilson"
+        2. Last-name-only → Full name: "Wilson" (65 mentions) → alias of "George B. Wilson"
+        3. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
+        4. First-name-only → Full name: "George" → alias of "George B. Wilson"
+
+        Returns:
+            Tuple of (updated_main_cast, char_ids_with_new_aliases)
+        """
+        import re
+
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Pass 0: Merge middle initial variants
+        # "George B. Wilson" (1 mention) → alias of "George Wilson" (91 mentions)
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or " " not in char_name:
+                continue  # Skip empty or single-word names
+
+            # Check if this name has a middle initial pattern: "FirstName I. LastName"
+            # Middle initial pattern: single letter followed by period
+            middle_initial_pattern = r"^(\w+)\s+([A-Z]\.)\s+(.+)$"
+            match = re.match(middle_initial_pattern, char_name)
+            if not match:
+                continue  # Not a middle initial pattern
+
+            firstname = match.group(1)
+            match.group(2)
+            lastname = match.group(3)
+
+            # Construct the name without middle initial
+            name_without_middle = f"{firstname} {lastname}"
+
+            # Check if this matches any other character
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if other_name.lower() == name_without_middle.lower():
+                    # Found a match! Merge the one with FEWER mentions into the one with MORE
+                    if char.mention_count <= other_char.mention_count:
+                        # Current char (with middle initial) has fewer mentions → make it alias
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging middle initial variant: '{char_name}' ({char.mention_count} mentions) "
+                                f"→ '{other_char.canonical_name}' ({other_char.mention_count} mentions) as alias"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also transfer char's aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                    else:
+                        # Other char (without middle initial) has fewer mentions → make it alias
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging middle initial variant: '{other_char.canonical_name}' ({other_char.mention_count} mentions) "
+                                f"→ '{char_name}' ({char.mention_count} mentions) as alias"
+                            )
+                            char.aliases.append(other_name)
+                            # Also transfer other's aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    break  # Only merge with first match
+
+        # Pass 1: Merge last-name-only and title-variant characters
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or " " in char_name:
+                continue  # Skip empty or multi-word names
+
+            # This is a single-word name (potential last name or first name)
+            # Check if it matches the last word OR title-stripped version of any OTHER main cast character
+
+            matches = []
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or " " not in other_name:
+                    continue  # Only match against multi-word names
+
+                # First check: exact match with title-stripped version
+                # E.g., "Sloane" matches "Mr. Sloane" after stripping "Mr."
+                other_title_stripped = self._strip_title(other_name)
+                if char_name.lower() == other_title_stripped.lower():
+                    matches.append((other_idx, "exact_title_stripped"))
+                    continue
+
+                # Second check: last name match
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip(".,;:")
+
+                # Exact last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                    continue
+
+                # Fuzzy last name match (handles Wolfsheim/Wolfshiem)
+                if names_similar(char_name, other_lastname):
+                    matches.append((other_idx, "fuzzy_lastname"))
+                    continue
+
+                # Check first name match (if other_name has multiple parts)
+                if len(other_parts) >= 2:
+                    other_firstname = other_parts[0].strip(".,;:")
+                    if char_name.lower() == other_firstname.lower():
+                        matches.append((other_idx, "exact_firstname"))
+
+            # Merge if exactly ONE match (avoids ambiguity like "Wilson" matching both George and Myrtle)
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = main_cast[other_idx]
+
+                # Add single-word name as alias to the full name character
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within main cast: '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                # Mark single-word character for removal
+                chars_to_remove.add(idx)
+
+        # Pass 2: Merge spelling variants (e.g., "Meyer Wolfsheim" ↔ "Meyer Wolfshiem")
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name:
+                continue
+
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx <= idx or other_idx in chars_to_remove:
+                    continue  # Only check each pair once
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name:
+                    continue
+
+                # Check if names are very similar (spelling variants)
+                if names_similar(char_name, other_name):  # 85% similar
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" vs "Mrs. White" are different people)
+                    if self._are_different_titled_people(char_name, other_name):
+                        continue  # Skip - they're different people
+
+                    # Calculate similarity for logging
+                    similarity = string_similarity(char_name, other_name)
+
+                    # Merge the one with FEWER mentions into the one with MORE mentions
+                    if char.mention_count >= other_char.mention_count:
+                        # Merge other → char
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within main cast: '{other_name}' "
+                                f"({other_char.mention_count} mentions) → '{char_name}' "
+                                f"({char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            char.aliases.append(other_name)
+                            # Also merge other's existing aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Merge char → other
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within main cast: '{char_name}' "
+                                f"({char.mention_count} mentions) → '{other_name}' "
+                                f"({other_char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also merge char's existing aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters from Pass 2
+        updated_main_cast = [
+            char for idx, char in enumerate(main_cast) if idx not in chars_to_remove
+        ]
+
+        # Pass 3: Re-run last-name matching after spelling variants are merged
+        # This handles cases like "Wolfshiem" which initially had ambiguous matches,
+        # but after Pass 2 merging has only one match remaining
+        chars_to_remove_pass3 = set()
+
+        for idx, char in enumerate(updated_main_cast):
+            char_name = char.canonical_name.strip()
+            if not char_name or " " in char_name:
+                continue  # Skip empty or multi-word names
+
+            # Check if this single-word name now has exactly ONE match
+            matches = []
+            for other_idx, other_char in enumerate(updated_main_cast):
+                if other_idx == idx:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or " " not in other_name:
+                    continue
+
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip(".,;:")
+
+                # Exact or fuzzy last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                else:
+                    if names_similar(char_name, other_lastname):
+                        matches.append((other_idx, "fuzzy_lastname"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = updated_main_cast[other_idx]
+
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within main cast (Pass 3): '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                chars_to_remove_pass3.add(idx)
+
+        # Remove Pass 3 merged characters
+        final_main_cast = [
+            char for idx, char in enumerate(updated_main_cast) if idx not in chars_to_remove_pass3
+        ]
+
+        # Pass 4: Merge descriptive synonyms within main cast
+        # Handles cases like "the creature", "the monster", "the fiend" referring to same entity
+        chars_to_remove_pass4 = set()
+
+        # Synonym groups for unnamed characters (same as in supporting.py)
+        synonym_groups = [
+            # Supernatural/created beings
+            {"creature", "monster", "fiend", "daemon", "wretch", "being", "thing"},
+            # Authority figures
+            {"stranger", "visitor", "guest", "traveler", "intruder"},
+            # Generic descriptors
+            {"man", "woman", "boy", "girl", "child", "person"},
+        ]
+
+        def _normalize_descriptor(raw_name: str) -> tuple[bool, str]:
+            """
+            Normalize a descriptive handle into a synonym-group descriptor.
+
+            Examples:
+            - "the creature" -> (True, "creature")
+            - "the creature (implied)" -> (True, "creature")
+            - "creature" -> (False, "creature")   # bare form (special-cased for creature group)
+            """
+            name = (raw_name or "").lower().strip()
+            is_the_form = name.startswith("the ")
+            desc = name[4:].strip() if is_the_form else name
+            if " (" in desc:
+                desc = desc.split(" (", 1)[0].strip()
+            desc = desc.strip(".,;:!?\"'“”")
+            return is_the_form, desc
+
+        for idx, char in enumerate(final_main_cast):
+            if idx in chars_to_remove_pass4:
+                continue
+
+            char_name = char.canonical_name.lower().strip()
+
+            char_is_the_form, descriptor = _normalize_descriptor(char.canonical_name)
+
+            # Check if descriptor matches any synonym group (creature group also allows bare "creature"/"monster"/etc.)
+            for group in synonym_groups:
+                allow_bare = "creature" in group  # only the creature/supernatural group
+                if descriptor not in group:
+                    continue
+                if not char_is_the_form and not allow_bare:
+                    continue
+
+                # Found a match! Check if any other characters use terms from the same group
+                for other_idx, other_char in enumerate(final_main_cast):
+                    if other_idx <= idx or other_idx in chars_to_remove_pass4:
+                        continue  # Only check each pair once
+
+                    other_name = other_char.canonical_name.lower().strip()
+                    other_is_the_form, other_descriptor = _normalize_descriptor(
+                        other_char.canonical_name
+                    )
+
+                    # If both descriptors are in the same synonym group, merge them
+                    if other_descriptor in group:
+                        if not other_is_the_form and not allow_bare:
+                            continue
+                        # Merge the one with FEWER mentions into the one with MORE mentions
+                        if char.mention_count >= other_char.mention_count:
+                            # Merge other → char
+                            if other_char.canonical_name not in char.aliases:
+                                logger.info(
+                                    f"Merging descriptive synonym within main cast: '{other_char.canonical_name}' "
+                                    f"({other_char.mention_count} mentions) → '{char.canonical_name}' "
+                                    f"({char.mention_count} mentions) as alias (synonym group: {group})"
+                                )
+                                char.aliases.append(other_char.canonical_name)
+                                # Also merge other's existing aliases
+                                for alias in other_char.aliases:
+                                    if alias not in char.aliases:
+                                        char.aliases.append(alias)
+                                chars_with_new_aliases.add(char.id)
+                            chars_to_remove_pass4.add(other_idx)
+                        else:
+                            # Merge char → other
+                            if char.canonical_name not in other_char.aliases:
+                                logger.info(
+                                    f"Merging descriptive synonym within main cast: '{char.canonical_name}' "
+                                    f"({char.mention_count} mentions) → '{other_char.canonical_name}' "
+                                    f"({other_char.mention_count} mentions) as alias (synonym group: {group})"
+                                )
+                                other_char.aliases.append(char.canonical_name)
+                                # Also merge char's existing aliases
+                                for alias in char.aliases:
+                                    if alias not in other_char.aliases:
+                                        other_char.aliases.append(alias)
+                                chars_with_new_aliases.add(other_char.id)
+                            chars_to_remove_pass4.add(idx)
+                            break  # Don't process this char anymore
+
+                if idx in chars_to_remove_pass4:
+                    break  # This char was merged, stop checking other synonym groups
+
+        # Remove Pass 4 merged characters
+        final_main_cast = [
+            char for idx, char in enumerate(final_main_cast) if idx not in chars_to_remove_pass4
+        ]
+
+        return final_main_cast, chars_with_new_aliases
+
+    def _merge_lastname_aliases(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], list[Character], set[str]]:
+        """
+        Merge last-name-only supporting characters as aliases of main cast.
+
+        Common pattern: "Wilson" (65 mentions) should be an alias of "George B. Wilson"
+        when there's only one Wilson in the main cast.
+
+        Also handles title variants like "Mr. Gatsby" → alias of "Jay Gatsby"
+
+        NEW: Also handles reverse case where main_cast has single-word name and
+        supporting_cast has full name (e.g., "Wolfshiem" in main, "Meyer Wolfshiem" in supporting)
+
+        Returns:
+            Tuple of (updated_main_cast, updated_supporting_cast, char_ids_with_new_aliases)
+        """
+        import re
+
+        if not supporting_cast:
+            return main_cast, supporting_cast, set()
+
+        supporting_to_remove = set()
+        chars_with_new_aliases = set()
+
+        for supp_idx, supp_char in enumerate(supporting_cast):
+            supp_name = supp_char.canonical_name.strip()
+
+            # Skip if empty
+            if not supp_name:
+                continue
+
+            # Check for title + name pattern (e.g., "Mr. Gatsby")
+            title_stripped = self._strip_title(supp_name)
+            if title_stripped != supp_name:
+                # This is a title + name - check if it matches any main cast canonical or alias
+                for main_idx, main_char in enumerate(main_cast):
+                    # Check canonical name
+                    if title_stripped.lower() == main_char.canonical_name.lower():
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging title variant '{supp_name}' → "
+                                f"'{main_char.canonical_name}' as alias"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+                    # Check aliases
+                    for alias in main_char.aliases:
+                        if title_stripped.lower() == alias.lower():
+                            if supp_name not in main_char.aliases:
+                                logger.info(
+                                    f"Merging title variant '{supp_name}' → "
+                                    f"'{main_char.canonical_name}' (matches alias '{alias}')"
+                                )
+                                main_char.aliases.append(supp_name)
+                                chars_with_new_aliases.add(main_char.id)
+                            supporting_to_remove.add(supp_idx)
+                            break
+
+                # If we processed this as a title variant, skip last-name processing
+                if supp_idx in supporting_to_remove:
+                    continue
+
+            # Check for "the X" → "X" normalization (e.g., "Owl-eyed man" vs "the owl-eyed man")
+            # Strip leading "the " for comparison
+            supp_name_normalized = re.sub(r"^the\s+", "", supp_name, flags=re.IGNORECASE).strip()
+
+            # Check against main cast canonical names and aliases
+            for main_idx, main_char in enumerate(main_cast):
+                # Normalize main canonical name
+                main_canonical_normalized = re.sub(
+                    r"^the\s+", "", main_char.canonical_name, flags=re.IGNORECASE
+                ).strip()
+
+                # Check canonical name (with and without "the")
+                if (
+                    supp_name_normalized.lower() == main_canonical_normalized.lower()
+                    or supp_name.lower() == main_char.canonical_name.lower()
+                ):
+                    if supp_name not in main_char.aliases:
+                        logger.info(
+                            f"Merging 'the' variant '{supp_name}' → "
+                            f"'{main_char.canonical_name}' as alias"
+                        )
+                        main_char.aliases.append(supp_name)
+                        chars_with_new_aliases.add(main_char.id)
+                    supporting_to_remove.add(supp_idx)
+                    break
+
+                # Check aliases
+                for alias in main_char.aliases:
+                    alias_normalized = re.sub(r"^the\s+", "", alias, flags=re.IGNORECASE).strip()
+                    if (
+                        supp_name_normalized.lower() == alias_normalized.lower()
+                        or supp_name.lower() == alias.lower()
+                    ):
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging 'the' variant '{supp_name}' → "
+                                f"'{main_char.canonical_name}' (matches alias '{alias}')"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+                if supp_idx in supporting_to_remove:
+                    break
+
+            # Only process single-word names (potential last names)
+            if " " in supp_name:
+                continue
+
+            # Check if this could be a last name of any main cast character
+            matches = []
+
+            for main_idx, main_char in enumerate(main_cast):
+                # Extract last name from main character's canonical name
+                main_name_parts = main_char.canonical_name.strip().split()
+
+                if not main_name_parts:
+                    continue
+
+                # Get last word as potential surname
+                main_lastname = main_name_parts[-1].strip(".,;:")
+
+                # Check for exact match (case-insensitive)
+                if supp_name.lower() == main_lastname.lower():
+                    matches.append((main_idx, "exact"))
+                    continue
+
+                # Check for fuzzy match (handles Wolfsheim/Wolfshiem)
+                if names_similar(supp_name, main_lastname):  # 85% similar
+                    matches.append((main_idx, "fuzzy_lastname"))
+                    continue
+
+                # Check first name match (if main_name has multiple parts)
+                if len(main_name_parts) >= 2:
+                    main_firstname = main_name_parts[0].strip(".,;:")
+                    if supp_name.lower() == main_firstname.lower():
+                        matches.append((main_idx, "exact_firstname"))
+
+            # Handle merging based on match count
+            if len(matches) == 1:
+                # Exactly one match - straightforward merge
+                main_idx, match_type = matches[0]
+                main_char = main_cast[main_idx]
+
+                # Check if already an alias
+                if supp_name not in main_char.aliases:
+                    logger.info(
+                        f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ '{main_char.canonical_name}' as alias ({match_type} match)"
+                    )
+                    main_char.aliases.append(supp_name)
+                    chars_with_new_aliases.add(main_char.id)
+
+                # Mark for removal from supporting cast
+                supporting_to_remove.add(supp_idx)
+
+            elif len(matches) > 1:
+                # Multiple characters share this surname
+                # Use title-based disambiguation: if one character has "Mrs. [LastName]" as alias,
+                # merge bare last name with a character that does NOT have that female title
+                # (This handles cases like George Wilson vs Myrtle Wilson in Gatsby)
+
+                # Find which characters have gendered title variants
+                matches_with_mrs = []
+                matches_without_mrs = []
+
+                for main_idx, match_type in matches:
+                    main_char = main_cast[main_idx]
+
+                    # Check if this character has "Mrs. [LastName]" as alias
+                    has_mrs_variant = any(
+                        alias.lower().startswith("mrs.") and supp_name.lower() in alias.lower()
+                        for alias in main_char.aliases
+                    )
+
+                    if has_mrs_variant:
+                        matches_with_mrs.append((main_idx, match_type))
+                    else:
+                        matches_without_mrs.append((main_idx, match_type))
+
+                # If we have exactly ONE match WITHOUT the Mrs. title, merge with that one
+                # (This means bare "Wilson" → "George Wilson", not "Myrtle Wilson" who has "Mrs. Wilson")
+                if len(matches_without_mrs) == 1:
+                    main_idx, match_type = matches_without_mrs[0]
+                    main_char = main_cast[main_idx]
+
+                    if supp_name not in main_char.aliases:
+                        logger.info(
+                            f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                            f"→ '{main_char.canonical_name}' as alias (title-disambiguated {match_type} match, "
+                            f"{len(matches)} total surname matches)"
+                        )
+                        main_char.aliases.append(supp_name)
+                        chars_with_new_aliases.add(main_char.id)
+
+                    supporting_to_remove.add(supp_idx)
+                else:
+                    # Can't disambiguate - merge to ALL matching characters
+                    # (This means bare "Wilson" becomes alias for both George and Myrtle)
+                    # Rationale: If we can't tell which character a bare surname refers to,
+                    # both family members should get credit for those mentions
+                    logger.info(
+                        f"Merging last-name-only '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ ALL {len(matches)} characters with this surname (disambiguation failed)"
+                    )
+                    for main_idx, match_type in matches:
+                        main_char = main_cast[main_idx]
+                        if supp_name not in main_char.aliases:
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                            logger.debug(
+                                f"  Added '{supp_name}' as alias to '{main_char.canonical_name}'"
+                            )
+
+                    supporting_to_remove.add(supp_idx)
+
+        # Remove merged characters from supporting cast
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast) if idx not in supporting_to_remove
+        ]
+
+        # REVERSE PASS: Check if any MULTI-WORD supporting characters should merge
+        # with SINGLE-WORD main cast characters (e.g., "Wolfshiem" main + "Meyer Wolfshiem" supporting)
+        # This handles cases where NER extracted the full name but summaries only mentioned last name
+        reverse_supporting_to_remove = set()
+
+        for main_idx, main_char in enumerate(main_cast):
+            main_name = main_char.canonical_name.strip()
+
+            # Only process single-word main cast names
+            if not main_name or " " in main_name:
+                continue
+
+            # Check if this matches any multi-word supporting character's last name
+            matches = []
+
+            for supp_idx, supp_char in enumerate(updated_supporting):
+                if supp_idx in reverse_supporting_to_remove:
+                    continue
+
+                supp_name = supp_char.canonical_name.strip()
+
+                # Only match against multi-word names
+                if not supp_name or " " not in supp_name:
+                    continue
+
+                # Extract last name from supporting character
+                supp_parts = supp_name.split()
+                supp_lastname = supp_parts[-1].strip(".,;:")
+
+                # Check for exact match
+                if main_name.lower() == supp_lastname.lower():
+                    matches.append((supp_idx, supp_name, "exact"))
+                    continue
+
+                # Check for fuzzy match (handles spelling variants)
+                if names_similar(main_name, supp_lastname):
+                    matches.append((supp_idx, supp_name, "fuzzy"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                supp_idx, supp_name, match_type = matches[0]
+                supp_char = updated_supporting[supp_idx]
+
+                # Add supporting full name as alias to main cast character
+                if supp_name not in main_char.aliases:
+                    logger.info(
+                        f"Merging full-name supporting char '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ '{main_char.canonical_name}' ({main_char.mention_count} mentions) as alias ({match_type} match)"
+                    )
+                    main_char.aliases.append(supp_name)
+                    chars_with_new_aliases.add(main_char.id)
+
+                # Mark for removal from supporting cast
+                reverse_supporting_to_remove.add(supp_idx)
+
+        # Remove reverse-merged characters
+        final_supporting = [
+            char
+            for idx, char in enumerate(updated_supporting)
+            if idx not in reverse_supporting_to_remove
+        ]
+
+        return main_cast, final_supporting, chars_with_new_aliases
+
+    def _merge_within_supporting_cast(
+        self,
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge characters within supporting cast that are variants of each other.
+
+        Handles two patterns:
+        1. Last-name-only → Full name: "Wolfshiem" (20 mentions) → alias of "Meyer Wolfshiem"
+        2. Spelling variants: "Wolfsheim" ↔ "Wolfshiem" (85% fuzzy match)
+
+        This is similar to _merge_within_main_cast but for supporting characters.
+
+        Returns:
+            Tuple of (updated_supporting_cast, char_ids_with_new_aliases)
+        """
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Pass 1: Merge last-name-only characters
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or " " in char_name:
+                continue  # Skip empty or multi-word names
+
+            # This is a single-word name (potential last name)
+            # Check if it matches the last word of any OTHER supporting character
+
+            matches = []
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name or " " not in other_name:
+                    continue  # Only match against multi-word names
+
+                # Check last name match
+                other_parts = other_name.split()
+                other_lastname = other_parts[-1].strip(".,;:")
+
+                # Exact last name match
+                if char_name.lower() == other_lastname.lower():
+                    matches.append((other_idx, "exact_lastname"))
+                    continue
+
+                # Fuzzy last name match (handles Wolfsheim/Wolfshiem)
+                if names_similar(char_name, other_lastname):
+                    matches.append((other_idx, "fuzzy_lastname"))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                other_idx, match_type = matches[0]
+                other_char = supporting_cast[other_idx]
+
+                # Add single-word name as alias to the full name character
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging within supporting cast: '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias ({match_type})"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                # Mark single-word character for removal
+                chars_to_remove.add(idx)
+
+        # Pass 2: Merge spelling variants (e.g., "Meyer Wolfsheim" ↔ "Meyer Wolfshiem")
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name:
+                continue
+
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx <= idx or other_idx in chars_to_remove:
+                    continue  # Only check each pair once
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name:
+                    continue
+
+                # Check if names are very similar (spelling variants)
+                if names_similar(char_name, other_name):  # 85% similar
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # (e.g., "Mr. White" vs "Mrs. White" are different people)
+                    if self._are_different_titled_people(char_name, other_name):
+                        continue  # Skip - they're different people
+
+                    # Calculate similarity for logging
+                    similarity = string_similarity(char_name, other_name)
+
+                    # Merge the one with FEWER mentions into the one with MORE mentions
+                    if char.mention_count >= other_char.mention_count:
+                        # Merge other → char
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within supporting cast: '{other_name}' "
+                                f"({other_char.mention_count} mentions) → '{char_name}' "
+                                f"({char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            char.aliases.append(other_name)
+                            # Also merge other's existing aliases
+                            for alias in other_char.aliases:
+                                if alias not in char.aliases:
+                                    char.aliases.append(alias)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    else:
+                        # Merge char → other
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging spelling variant within supporting cast: '{char_name}' "
+                                f"({char.mention_count} mentions) → '{other_name}' "
+                                f"({other_char.mention_count} mentions) as alias (similarity={similarity:.2f})"
+                            )
+                            other_char.aliases.append(char_name)
+                            # Also merge char's existing aliases
+                            for alias in char.aliases:
+                                if alias not in other_char.aliases:
+                                    other_char.aliases.append(alias)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                        break  # Don't process this char anymore
+
+        # Remove merged characters
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast) if idx not in chars_to_remove
+        ]
+
+        return updated_supporting, chars_with_new_aliases
+
+    def _merge_descriptive_synonyms_across_casts(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge descriptive synonym characters from supporting cast into main cast.
+
+        Handles cases like:
+        - "the creature" (main cast, antagonist) + "the monster" (supporting) → merge monster into creature
+        - "the stranger" (main cast) + "the visitor" (supporting) → merge visitor into stranger
+
+        This only merges supporting→main when both use "the X" pattern from same synonym group.
+
+        Returns:
+            Tuple of (updated_supporting_cast, char_ids_with_new_aliases_in_main_cast)
+        """
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Synonym groups (same as in _merge_within_main_cast Pass 4)
+        synonym_groups = [
+            # Supernatural/created beings
+            {"creature", "monster", "fiend", "daemon", "wretch", "being", "thing"},
+            # Authority figures
+            {"stranger", "visitor", "guest", "traveler", "intruder"},
+            # Generic descriptors
+            {"man", "woman", "boy", "girl", "child", "person"},
+        ]
+
+        # Helper function to normalize descriptors (strip parentheticals)
+        def _normalize_cross_cast_descriptor(name: str) -> str:
+            """
+            Normalize a descriptive name by stripping parentheticals.
+
+            Examples:
+            - "the creature (implied presence)" → "creature"
+            - "the monster" → "monster"
+            - "the old man (De Lacey)" → "old man"
+            """
+            if not name.startswith("the "):
+                return name
+
+            desc = name[4:].strip().lower()
+
+            # Strip parentheticals: "creature (implied)" → "creature"
+            if " (" in desc:
+                desc = desc.split(" (")[0].strip()
+
+            # Strip trailing punctuation
+            desc = desc.strip(".,;:!?\"'" "")
+
+            return desc
+
+        # Loop through main cast characters looking for "the X" patterns
+        for main_char in main_cast:
+            main_name = main_char.canonical_name.lower().strip()
+
+            # Only check descriptive patterns like "the X"
+            if not main_name.startswith("the "):
+                continue
+
+            # Extract and normalize descriptor
+            main_descriptor = _normalize_cross_cast_descriptor(main_name)
+
+            # DEBUG: Log creature/monster specifically
+            if "creature" in main_descriptor or "monster" in main_descriptor:
+                logger.warning(
+                    f"DEBUG cross-cast merge: Main cast has '{main_char.canonical_name}' "
+                    f"(normalized descriptor: '{main_descriptor}')"
+                )
+
+            # Check if descriptor matches any synonym group
+            # Group elements are already lowercase strings
+            for group in synonym_groups:
+                if main_descriptor not in group:
+                    continue
+
+                # Found a match! Check supporting cast for synonyms from same group
+                logger.info(
+                    f"Main cast '{main_char.canonical_name}' (descriptor: '{main_descriptor}') "
+                    f"matches synonym group: {group}. Checking supporting cast..."
+                )
+
+                for supp_idx, supp_char in enumerate(supporting_cast):
+                    if supp_idx in chars_to_remove:
+                        continue
+
+                    supp_name = supp_char.canonical_name.lower().strip()
+                    if not supp_name.startswith("the "):
+                        continue
+
+                    # Extract and normalize descriptor (strips parentheticals)
+                    supp_descriptor = _normalize_cross_cast_descriptor(supp_name)
+
+                    # DEBUG: Log all "the X" supporting characters when main is creature/monster
+                    if "creature" in main_descriptor or "monster" in main_descriptor:
+                        logger.warning(
+                            f"DEBUG cross-cast merge: Checking supporting '{supp_char.canonical_name}' "
+                            f"(normalized descriptor: '{supp_descriptor}') against main '{main_char.canonical_name}'"
+                        )
+
+                    # If supporting character uses synonym from same group, merge it
+                    # Group elements are already lowercase strings
+                    if supp_descriptor in group:
+                        logger.info(
+                            f"Merging descriptive synonym across casts: '{supp_char.canonical_name}' "
+                            f"({supp_char.mention_count} mentions, supporting) → "
+                            f"'{main_char.canonical_name}' ({main_char.mention_count} mentions, main cast) "
+                            f"as alias (synonym group: {group})"
+                        )
+
+                        # Add supporting character's name as alias to main character
+                        if supp_char.canonical_name not in main_char.aliases:
+                            main_char.aliases.append(supp_char.canonical_name)
+
+                        # Also merge supporting character's existing aliases
+                        for alias in supp_char.aliases:
+                            if alias not in main_char.aliases:
+                                main_char.aliases.append(alias)
+
+                        chars_with_new_aliases.add(main_char.id)
+                        chars_to_remove.add(supp_idx)
+
+                # Found synonym group match, no need to check other groups for this main character
+                break
+
+        # Remove merged supporting characters
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast) if idx not in chars_to_remove
+        ]
+
+        return updated_supporting, chars_with_new_aliases
+
+    def _convert_to_pipeline_characters(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+        mention_results: dict = None,
+    ) -> list[PipelineCharacter]:
+        """Convert model Characters to pipeline Characters for output compatibility."""
+        result = []
+        mention_results = mention_results or {}
+
+        for char in main_cast:
+            # Get mention data if available
+            mention_info = mention_results.get(char.id)
+
+            # Convert mentions from models.CharacterMention to pipeline.CharacterMention
+            mentions_list = []
+            if mention_info:
+                from ..pipeline.character_extraction.models import (
+                    CharacterMention as PipelineMention,
+                )
+
+                for m in mention_info.mentions:
+                    pipeline_mention = PipelineMention(
+                        text=m.name_form,
+                        position=m.position,
+                        chapter_index=m.chapter_index or 0,
+                        context=m.context,
+                        in_dialogue=False,  # V2 doesn't track this
+                        is_agentive=False,  # V2 doesn't track this
+                    )
+                    mentions_list.append(pipeline_mention)
+
+            chapters_present = (
+                list(mention_info.chapter_distribution.keys())
+                if mention_info and mention_info.chapter_distribution
+                else []
+            )
+
+            # Convert model.Character to pipeline Character
+            pc = PipelineCharacter(
+                id=char.id,
+                canonical_name=char.canonical_name,
+                aliases=char.aliases,
+                mentions=mentions_list,  # Use actual mentions from search
+                first_appearance_chapter=char.first_appearance_chapter or 0,
+                mention_count=char.mention_count,
+                chapters_present=chapters_present,
+                confidence=0.85 if char.confidence.value == "high" else 0.6,
+                supporting_strategies=["v2_summary_extraction"],
+                description=self._get_description_text(char),
+                is_narrator=char.is_narrator,
+                narrative_role=char.narrative_role,
+                role=char.role or "main",
+            )
+            result.append(pc)
+
+        for char in supporting_cast:
+            # Supporting cast doesn't have mention search results (uses NER counts)
+            # So mentions list remains empty for them
+            pc = PipelineCharacter(
+                id=char.id,
+                canonical_name=char.canonical_name,
+                aliases=char.aliases,
+                mentions=[],  # Supporting uses NER, not mention search
+                first_appearance_chapter=char.first_appearance_chapter or 0,
+                mention_count=char.mention_count,
+                chapters_present=[],
+                confidence=0.4,  # Lower confidence for NER extraction
+                supporting_strategies=["v2_ner_extraction"],
+                description="",
+                is_narrator=False,
+                narrative_role=None,
+                role="minor",
+            )
+            result.append(pc)
+
+        return result
+
+    def _get_description_text(self, char: Character) -> str:
+        """Get description text from a Character."""
+        if char.descriptions:
+            return char.descriptions[0].text
+        return ""

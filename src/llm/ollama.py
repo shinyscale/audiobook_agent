@@ -36,7 +36,6 @@ def pull_ollama_model(
             if not response.ok:
                 return False, f"HTTP {response.status_code}: {response.text[:100]}"
 
-            last_status = ""
             for line in response.iter_lines():
                 if line:
                     try:
@@ -44,8 +43,6 @@ def pull_ollama_model(
                         status = data.get("status", "")
                         completed = data.get("completed", 0)
                         total = data.get("total", 0)
-
-                        last_status = status
 
                         if progress_callback:
                             progress_callback(status, completed, total)

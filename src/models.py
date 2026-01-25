@@ -3,21 +3,24 @@ Data models for audiobook prep analysis.
 These define the structure of extracted information.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class ConfidenceLevel(str, Enum):
     """How confident we are in a detection."""
-    HIGH = "high"       # Clear regex match, explicit markup
-    MEDIUM = "medium"   # Heuristic match, likely correct
-    LOW = "low"         # Inference, needs review
+
+    HIGH = "high"  # Clear regex match, explicit markup
+    MEDIUM = "medium"  # Heuristic match, likely correct
+    LOW = "low"  # Inference, needs review
     LLM_REFINED = "llm_refined"  # Confirmed/corrected by LLM
 
 
 class StructureType(str, Enum):
     """Types of structural elements we detect."""
+
     BOOK_TITLE = "book_title"
     PART = "part"
     CHAPTER = "chapter"
@@ -34,6 +37,7 @@ class StructureType(str, Enum):
 
 class PronunciationFlag(str, Enum):
     """Why a word was flagged for pronunciation review."""
+
     PROPER_NOUN = "proper_noun"
     FOREIGN = "foreign"
     ARCHAIC = "archaic"
@@ -46,14 +50,16 @@ class PronunciationFlag(str, Enum):
 
 class CharacterMention(BaseModel):
     """A single mention of a character in the text."""
+
     name_form: str  # The exact form used ("Lizzy", "Elizabeth", etc.)
-    position: int   # Character offset in source text
-    context: str    # Surrounding sentence/paragraph
+    position: int  # Character offset in source text
+    context: str  # Surrounding sentence/paragraph
     chapter_index: Optional[int] = None
 
 
 class CharacterDescription(BaseModel):
     """A description or trait associated with a character."""
+
     text: str
     source_position: int
     chapter_index: Optional[int] = None
@@ -69,6 +75,7 @@ class Character(BaseModel):
     3. Relationships: relationships dict
     4. Metadata: mention_count, first_appearance_chapter, confidence
     """
+
     id: str  # Unique identifier
     canonical_name: str  # Primary name to use
     aliases: list[str] = Field(default_factory=list)
@@ -77,7 +84,9 @@ class Character(BaseModel):
     role: Optional[str] = None  # protagonist, antagonist, supporting, minor
     appearance: Optional[dict] = None  # {summary, age_indication, distinguishing_features}
     personality: Optional[dict] = None  # {summary, traits, temperament, emotional_range}
-    voice_guidance: Optional[dict] = None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
+    voice_guidance: Optional[dict] = (
+        None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
+    )
 
     # Legacy description field (still used for backward compatibility)
     descriptions: list[CharacterDescription] = Field(default_factory=list)
@@ -94,6 +103,9 @@ class Character(BaseModel):
     # Metadata (secondary info - less prominent in output)
     first_appearance_chapter: Optional[int] = None
     mention_count: int = 0
+    mentions: list["CharacterMention"] = Field(
+        default_factory=list
+    )  # Actual mention objects for profile generation
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
     # Narrator role detection
@@ -103,6 +115,7 @@ class Character(BaseModel):
 
 class PronunciationEntry(BaseModel):
     """A word flagged for pronunciation attention."""
+
     word: str
     flag_reason: PronunciationFlag
     occurrences: int = 1
@@ -121,6 +134,7 @@ class PronunciationEntry(BaseModel):
 
 class GlossaryEntry(BaseModel):
     """A single glossary entry (term + definition)."""
+
     term: str
     definition: str
     position: int = 0
@@ -129,6 +143,7 @@ class GlossaryEntry(BaseModel):
 
 class GlossaryMap(BaseModel):
     """Extracted glossary from the document."""
+
     entries: list[GlossaryEntry] = Field(default_factory=list)
     source_region_start: int = 0
     source_region_end: int = 0
@@ -141,15 +156,16 @@ class GlossaryMap(BaseModel):
         """Group entries by first letter for alphabet navigation."""
         grouped: dict[str, list[GlossaryEntry]] = {}
         for entry in sorted(self.entries, key=lambda e: e.term.lower()):
-            letter = entry.term[0].upper() if entry.term else '#'
+            letter = entry.term[0].upper() if entry.term else "#"
             if not letter.isalpha():
-                letter = '#'
+                letter = "#"
             grouped.setdefault(letter, []).append(entry)
         return grouped
 
 
 class StructuralElement(BaseModel):
     """A structural element in the book (chapter, scene, etc.)."""
+
     type: StructureType
     title: Optional[str] = None
     index: int  # Sequential index within its type
@@ -171,6 +187,7 @@ class StructuralElement(BaseModel):
 
 class BookMetadata(BaseModel):
     """Metadata about the source book."""
+
     title: Optional[str] = None
     author: Optional[str] = None
     source_file: str
@@ -178,13 +195,14 @@ class BookMetadata(BaseModel):
     total_word_count: int = 0
     total_character_count: int = 0
     estimated_total_duration_minutes: float = 0.0
-    
+
     # Analysis settings used
     words_per_minute: int = 150  # Default narration pace
 
 
 class AnalysisResult(BaseModel):
     """Complete analysis result for a book."""
+
     metadata: BookMetadata
     structure: list[StructuralElement] = Field(default_factory=list)
     characters: list[Character] = Field(default_factory=list)
@@ -200,7 +218,7 @@ class AnalysisResult(BaseModel):
     # Analysis notes and warnings
     warnings: list[str] = Field(default_factory=list)
     low_confidence_items: list[str] = Field(default_factory=list)
-    
+
     def get_chapter_summary(self) -> list[dict]:
         """Generate a chapter-by-chapter summary."""
         chapters = [s for s in self.structure if s.type == StructureType.CHAPTER]

@@ -5,13 +5,13 @@ Handles breaking long chapters into manageable chunks for LLM processing,
 then consolidating chunk summaries into cohesive chapter summaries.
 """
 
+import logging
 import re
 from typing import Optional
-import logging
 
-from .models import ChapterSummary, ChunkSummary, ToneType, DialogueDensity
-from ..llm import LLMClient
 from ..chapter_detection.scene_breaks import find_scene_breaks
+from ..llm import LLMClient
+from .models import ChapterSummary, ChunkSummary
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,15 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
 {length_guidance}
 
+CRITICAL CHARACTER DISTINCTION:
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+
+Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
+or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
+
 Return a JSON response matching this example format exactly:
 
 ```json
@@ -117,7 +126,8 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
   "dialogue_density": "high",
@@ -161,6 +171,15 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - If something is vague or unclear in the text, say so rather than guessing
 {length_guidance}
 
+CRITICAL CHARACTER DISTINCTION:
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+
+Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
+or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
+
 Return a JSON response matching this example format exactly:
 
 ```json
@@ -175,7 +194,8 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "characters_present": ["Michael", "Sarah", "Dr. Patterson", "James", "Elizabeth"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
   "dialogue_density": "high",
@@ -261,14 +281,10 @@ class ChapterSummarizer:
 
         # Short chapter: summarize directly
         if word_count <= self.chunk_size * 1.2:  # Allow 20% buffer before chunking
-            return self._summarize_short_chapter(
-                chapter_text, chapter_index, title, word_count
-            )
+            return self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
 
         # Long chapter: chunk and consolidate
-        return self._summarize_long_chapter(
-            chapter_text, chapter_index, title, word_count
-        )
+        return self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
 
     def _summarize_short_chapter(
         self,
@@ -308,15 +324,11 @@ class ChapterSummarizer:
         # Summarize each chunk
         chunk_summaries = []
         for i, chunk_text in enumerate(chunks):
-            chunk_summary = self._summarize_chunk(
-                chunk_text, i, len(chunks), title
-            )
+            chunk_summary = self._summarize_chunk(chunk_text, i, len(chunks), title)
             chunk_summaries.append(chunk_summary)
 
         # Consolidate chunk summaries
-        return self._consolidate_chunks(
-            chunk_summaries, chapter_index, title, word_count
-        )
+        return self._consolidate_chunks(chunk_summaries, chapter_index, title, word_count)
 
     def _split_into_chunks(self, text: str) -> list[str]:
         """Split text into chunks, respecting scene breaks as natural boundaries."""
@@ -327,11 +339,7 @@ class ChapterSummarizer:
         else:
             return self._split_by_word_count(text)
 
-    def _split_by_scene_breaks(
-        self,
-        text: str,
-        scene_breaks: list[tuple[int, int]]
-    ) -> list[str]:
+    def _split_by_scene_breaks(self, text: str, scene_breaks: list[tuple[int, int]]) -> list[str]:
         """Split text at scene breaks, then chunk large sections if needed.
 
         Scene breaks provide natural narrative boundaries that result in
@@ -369,7 +377,7 @@ class ChapterSummarizer:
     def _split_by_word_count(self, text: str) -> list[str]:
         """Original chunking logic: split by word count at sentence boundaries."""
         # Split into sentences
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
 
         chunks = []
         current_chunk = []
@@ -380,7 +388,7 @@ class ChapterSummarizer:
 
             if current_word_count + sentence_words > self.chunk_size and current_chunk:
                 # Save current chunk
-                chunks.append(' '.join(current_chunk))
+                chunks.append(" ".join(current_chunk))
 
                 # Start new chunk with overlap
                 overlap_words = 0
@@ -399,7 +407,7 @@ class ChapterSummarizer:
 
         # Don't forget the last chunk
         if current_chunk:
-            chunks.append(' '.join(current_chunk))
+            chunks.append(" ".join(current_chunk))
 
         return chunks
 
@@ -482,7 +490,9 @@ class ChapterSummarizer:
 
         if result is None or not isinstance(result, dict):
             # JSON parsing failure or wrong type
-            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            error_detail = (
+                f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            )
             logger.warning(f"Consolidation failed for chapter {chapter_index} ({error_detail})")
             # Fallback: merge chunk summaries manually
             return self._merge_chunk_summaries(chunk_summaries, chapter_index, title, word_count)
@@ -506,7 +516,7 @@ class ChapterSummarizer:
         for c in chunks:
             all_events.extend(c.key_events)
 
-        # Deduplicate characters
+        # Deduplicate characters (fallback treats all as active since we don't have the distinction)
         all_chars = set()
         for c in chunks:
             all_chars.update(c.characters_mentioned)
@@ -525,7 +535,8 @@ class ChapterSummarizer:
             primary_tone=primary_tone,
             secondary_tones=[],
             dialogue_density="medium",
-            characters_present=list(all_chars),
+            active_characters=list(all_chars),  # Fallback: treat all as active
+            mentioned_characters=[],
             pov_character=None,
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,
@@ -553,6 +564,15 @@ class ChapterSummarizer:
         if dialogue not in ["high", "medium", "low"]:
             dialogue = "medium"
 
+        # Handle new active/mentioned character format with backward compatibility
+        if "active_characters" in result:
+            active_characters = result.get("active_characters", [])
+            mentioned_characters = result.get("mentioned_characters", [])
+        else:
+            # Old format: all characters_present treated as active
+            active_characters = result.get("characters_present", [])
+            mentioned_characters = []
+
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
@@ -561,7 +581,8 @@ class ChapterSummarizer:
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,
-            characters_present=result.get("characters_present", []),
+            active_characters=active_characters,
+            mentioned_characters=mentioned_characters,
             pov_character=result.get("pov_character"),
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,  # ~150 wpm narration
@@ -583,7 +604,8 @@ class ChapterSummarizer:
             primary_tone="reflective",
             secondary_tones=[],
             dialogue_density="medium",
-            characters_present=[],
+            active_characters=[],
+            mentioned_characters=[],
             pov_character=None,
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,
@@ -594,6 +616,16 @@ class ChapterSummarizer:
     def _valid_tones() -> set[str]:
         """Return set of valid tone values."""
         return {
-            "tense", "suspenseful", "action", "romantic", "comedic", "somber",
-            "reflective", "dramatic", "peaceful", "mysterious", "hopeful", "dark"
+            "tense",
+            "suspenseful",
+            "action",
+            "romantic",
+            "comedic",
+            "somber",
+            "reflective",
+            "dramatic",
+            "peaceful",
+            "mysterious",
+            "hopeful",
+            "dark",
         }

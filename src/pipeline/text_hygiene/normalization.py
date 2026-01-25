@@ -9,9 +9,9 @@ Feature F13: Normalize character names to prevent duplicate entries caused by:
 - Leading/trailing whitespace
 """
 
+import logging
 import re
 import unicodedata
-import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -19,30 +19,27 @@ logger = logging.getLogger(__name__)
 
 # Unicode apostrophe variants that should be normalized to ASCII apostrophe
 APOSTROPHE_VARIANTS = [
-    '\u2019',  # RIGHT SINGLE QUOTATION MARK (')
-    '\u2018',  # LEFT SINGLE QUOTATION MARK (')
-    '\u02BC',  # MODIFIER LETTER APOSTROPHE (ʼ)
-    '\u02BB',  # MODIFIER LETTER TURNED COMMA (ʻ)
-    '\u0384',  # GREEK TONOS (΄)
-    '\u0027',  # ASCII APOSTROPHE (')
-    '\u0060',  # GRAVE ACCENT (`)
-    '\u00B4',  # ACUTE ACCENT (´)
+    "\u2019",  # RIGHT SINGLE QUOTATION MARK (')
+    "\u2018",  # LEFT SINGLE QUOTATION MARK (')
+    "\u02bc",  # MODIFIER LETTER APOSTROPHE (ʼ)
+    "\u02bb",  # MODIFIER LETTER TURNED COMMA (ʻ)
+    "\u0384",  # GREEK TONOS (΄)
+    "\u0027",  # ASCII APOSTROPHE (')
+    "\u0060",  # GRAVE ACCENT (`)
+    "\u00b4",  # ACUTE ACCENT (´)
 ]
 
 # Compile apostrophe pattern for efficiency
 APOSTROPHE_PATTERN = re.compile(f"[{''.join(APOSTROPHE_VARIANTS)}]")
 
 # Pattern for possessive suffixes (handles both ASCII and Unicode apostrophes)
-POSSESSIVE_PATTERN = re.compile(
-    f"[{''.join(APOSTROPHE_VARIANTS)}]s$",
-    re.IGNORECASE
-)
+POSSESSIVE_PATTERN = re.compile(f"[{''.join(APOSTROPHE_VARIANTS)}]s$", re.IGNORECASE)
 
 # Pattern for trailing punctuation
 TRAILING_PUNCT_PATTERN = re.compile(r"[.!?,;:]+$")
 
 # Pattern for leading/trailing quotes
-QUOTE_PATTERN = re.compile(r'^["\'""'']+|["\'""'']+$')
+QUOTE_PATTERN = re.compile(r'^["\'""' ']+|["\'""' "]+$")
 
 # Pattern for parenthetical suffixes like "(deceased)" or "[sic]"
 PARENTHETICAL_PATTERN = re.compile(r"\s*[\(\[][^)\]]*[\)\]]\s*$")
@@ -75,25 +72,25 @@ def normalize_name(name: str) -> str:
     normalized = name.strip()
 
     # Remove leading/trailing quotes
-    normalized = QUOTE_PATTERN.sub('', normalized)
+    normalized = QUOTE_PATTERN.sub("", normalized)
 
     # Normalize unicode apostrophes to ASCII
     normalized = APOSTROPHE_PATTERN.sub("'", normalized)
 
     # Remove possessive suffix
-    normalized = POSSESSIVE_PATTERN.sub('', normalized)
+    normalized = POSSESSIVE_PATTERN.sub("", normalized)
 
     # Remove trailing punctuation
-    normalized = TRAILING_PUNCT_PATTERN.sub('', normalized)
+    normalized = TRAILING_PUNCT_PATTERN.sub("", normalized)
 
     # Remove parenthetical suffixes
-    normalized = PARENTHETICAL_PATTERN.sub('', normalized)
+    normalized = PARENTHETICAL_PATTERN.sub("", normalized)
 
     # Final strip
     normalized = normalized.strip()
 
     # Normalize unicode characters (e.g., accented characters)
-    normalized = unicodedata.normalize('NFC', normalized)
+    normalized = unicodedata.normalize("NFC", normalized)
 
     if normalized != original:
         logger.debug(f"Normalized name: '{original}' -> '{normalized}'")
@@ -180,9 +177,9 @@ def extract_base_name(name: str) -> tuple[str, Optional[str]]:
         return (base, None)
 
     # Find what was removed
-    suffix = original[len(base):] if original.startswith(base) else None
+    suffix = original[len(base) :] if original.startswith(base) else None
     if not suffix:
         # The removal was at the start (quotes)
-        suffix = original[:len(original) - len(base)]
+        suffix = original[: len(original) - len(base)]
 
     return (base, suffix if suffix else None)

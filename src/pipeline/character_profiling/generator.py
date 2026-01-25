@@ -11,26 +11,24 @@ Moral valence classification is passed to profile generator as HARD CONSTRAINT.
 ANTAGONIST classification prevents positive descriptors in generated profiles.
 """
 
-import json
 import logging
 from typing import Optional
 
+from ..chapter_detection.models import ChapterMap
+from ..chapter_summary.models import ChapterSummaryMap
+from ..llm import LLMClient
 from .models import (
-    IdentifiedCharacter,
-    CharacterProfile,
     ActionAnalysis,
     AppearanceProfile,
+    CharacterProfile,
+    CharacterRelationship,
+    IdentifiedCharacter,
     PersonalityProfile,
     VoiceGuidance,
-    CharacterRelationship,
-    ProfileEvidence,
 )
 from .moral_valence import MoralValence, MoralValenceResult
 from .passage_gatherer import CharacterPassage, CharacterPassageGatherer
 from .summary_evidence import CharacterSummaryEvidence, SummaryEvidenceExtractor
-from ..chapter_detection.models import ChapterMap
-from ..chapter_summary.models import ChapterSummaryMap
-from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +257,7 @@ class CharacterProfileGenerator:
         """
         # Gather passages if not provided
         if passages is None:
-            passages = self.passage_gatherer.gather_passages(
-                character, full_text, chapter_map
-            )
+            passages = self.passage_gatherer.gather_passages(character, full_text, chapter_map)
 
         # Create base profile from identified character
         profile = CharacterProfile.from_identified(character)
@@ -398,11 +394,13 @@ class CharacterProfileGenerator:
             profile.relationships = []
             for rel in result.get("relationships", []):
                 if rel.get("character"):
-                    profile.relationships.append(CharacterRelationship(
-                        character=rel["character"],
-                        relationship_type=rel.get("type", ""),
-                        description=rel.get("description", ""),
-                    ))
+                    profile.relationships.append(
+                        CharacterRelationship(
+                            character=rel["character"],
+                            relationship_type=rel.get("type", ""),
+                            description=rel.get("description", ""),
+                        )
+                    )
 
         # Set confidence (F14: warn when missing)
         confidence_raw = result.get("confidence")
@@ -451,7 +449,7 @@ class CharacterProfileGenerator:
             ungrounded = 0
             for quote in evidence:
                 # Normalize quote for matching
-                quote_lower = quote.lower().strip().strip('"\'')
+                quote_lower = quote.lower().strip().strip("\"'")
                 if len(quote_lower) < 10:
                     continue  # Skip very short quotes
 
@@ -512,6 +510,9 @@ def generate_character_profile(
     """
     generator = CharacterProfileGenerator(llm_client, summary_map=summary_map)
     return generator.generate_profile(
-        character, full_text, chapter_map, moral_valence=moral_valence,
-        narrative_style=narrative_style
+        character,
+        full_text,
+        chapter_map,
+        moral_valence=moral_valence,
+        narrative_style=narrative_style,
     )

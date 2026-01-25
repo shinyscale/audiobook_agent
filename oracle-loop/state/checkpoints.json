@@ -1,0 +1,33 @@
+{
+  "checkpoints": [],
+  "known_good_baseline": {
+    "cask_of_amontillado": {
+      "commit": "613990badcecf4d223253cbbef12c29c17caa5b2",
+      "score": 8.95
+    },
+    "masque_of_red_death": {
+      "commit": "e2236ba7e15d8844b5964a949c13765382f018a5",
+      "score": 8.80
+    },
+    "berenice": {
+      "commit": "46bd06f4ee31c7d5f94e6f69c5908af69aaf0618",
+      "score": 8.2
+    },
+    "monkeys_paw": {
+      "commit": "438a820f8f203c83ae1519943a51c5582b0d26e2",
+      "score": 8.15
+    },
+    "gatsby": {
+      "commit": "41e2b0175d951488ded655342f03888092870c01",
+      "score": 8.30
+    },
+    "i_have_no_mouth": {
+      "commit": "2328815174a79bba1b64c0b0d91b06797dc67c99",
+      "score": 8.80
+    },
+    "frankenstein": {
+      "commit": "a0774ce25c64d345bffe38accc64c381058338fd",
+      "score": 7.30
+    }
+  }
+}

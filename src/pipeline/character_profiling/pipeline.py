@@ -11,23 +11,23 @@ The pipeline now computes moral valence and passes it as a HARD CONSTRAINT.
 """
 
 import logging
-from typing import Optional, Callable
 from datetime import datetime
+from typing import Callable, Optional
 
+from ..chapter_detection.models import ChapterMap
+from ..chapter_summary.models import ChapterSummaryMap
+from ..llm import LLMClient
+from .generator import CharacterProfileGenerator
+from .handoff_detector import HandoffCandidate, HandoffDetector
+from .identifier import SummaryDrivenCharacterIdentifier
 from .models import (
-    IdentifiedCharacter,
     CharacterProfile,
     CharacterProfileMap,
+    IdentifiedCharacter,
 )
-from .identifier import SummaryDrivenCharacterIdentifier
-from .generator import CharacterProfileGenerator
 from .moral_valence import MoralValenceClassifier
 from .passage_gatherer import CharacterPassageGatherer
 from .summary_evidence import SummaryEvidenceExtractor
-from .handoff_detector import HandoffDetector, HandoffCandidate
-from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
-from ..chapter_detection.models import ChapterMap
-from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,11 @@ class CharacterProfilingPipeline:
                     if not char.is_narrator:
                         logger.warning(f"Narrator {narrator_name} not marked - fixing")
                         char.is_narrator = True
-                        char.narrative_role = "First-person narrator" if "first" in narrative_style.lower() else "Narrator"
+                        char.narrative_role = (
+                            "First-person narrator"
+                            if "first" in narrative_style.lower()
+                            else "Narrator"
+                        )
                     narrator_found = True
                     break
                 # Also check aliases
@@ -111,12 +115,18 @@ class CharacterProfilingPipeline:
                     if not char.is_narrator:
                         logger.warning(f"Narrator {narrator_name} (alias) not marked - fixing")
                         char.is_narrator = True
-                        char.narrative_role = "First-person narrator" if "first" in narrative_style.lower() else "Narrator"
+                        char.narrative_role = (
+                            "First-person narrator"
+                            if "first" in narrative_style.lower()
+                            else "Narrator"
+                        )
                     narrator_found = True
                     break
 
             if not narrator_found:
-                logger.warning(f"Narrator {narrator_name} not in character list - may need addition")
+                logger.warning(
+                    f"Narrator {narrator_name} not in character list - may need addition"
+                )
 
         # Stage 1.5: Handoff Detection and Auto-Merge
         logger.info("Stage 1.5: Detecting character handoffs")
@@ -164,8 +174,7 @@ class CharacterProfilingPipeline:
                 # Extract summary evidence (Feature F2)
                 # Check if this character is the narrator
                 is_char_narrator = (
-                    narrator_name and
-                    char.canonical_name.lower() == narrator_name.lower()
+                    narrator_name and char.canonical_name.lower() == narrator_name.lower()
                 )
                 summary_evidence = summary_extractor.extract_evidence(
                     char.canonical_name,

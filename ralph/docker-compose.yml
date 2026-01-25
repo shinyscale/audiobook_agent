@@ -1,0 +1,29 @@
+services:
+  ralph:
+    build:
+      context: ..
+      dockerfile: ralph/Dockerfile
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      # Mount full project for live code changes
+      - ..:/workspace
+      # Mount Claude CLI config (read-write for auth, settings, todos)
+      - ~/.claude:/home/ralph/.claude
+      # Mount Anthropic credentials (read-only)
+      - ~/.anthropic:/home/ralph/.anthropic:ro
+      # Persist git config
+      - ~/.gitconfig:/home/ralph/.gitconfig:ro
+    environment:
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - OLLAMA_HOST
+    working_dir: /workspace/ralph
+    command: ["./loop.sh", "${MODE:-build}", "${MAX_ITER:-0}"]
+    # Allow network access for LLM APIs
+    network_mode: host
+    # Interactive mode for debugging
+    stdin_open: true
+    tty: true

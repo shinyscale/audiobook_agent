@@ -2,6 +2,90 @@
 
 Pre-computed summary of codebase structure to minimize exploration overhead.
 
+> **⚠️ IMPORTANT: V2 Pipeline is Active**
+>
+> As of **monkeys_paw attempt 14**, the oracle loop uses the **V2 character extraction pipeline**.
+> Earlier attempts (1-13) used the V1 pipeline and those logs/summaries may not be relevant.
+>
+> **When making fixes, focus on V2 files:**
+> - `src/pipeline/character_extraction_v2/` (main_cast.py, grounding.py, narrator.py, etc.)
+> - `src/agents/characters.py`
+>
+> **Note:** V1 character extraction has been removed from the codebase.
+
+## Data Flow for Character Extraction V2
+
+Understanding the full data flow is critical for root cause analysis. **If you keep modifying the same file without success, look UPSTREAM.**
+
+```
+Source File (txt/pdf/epub)
+       │
+       ▼
+┌─────────────────────────┐
+│      Ingestion          │  ← Text normalization can destroy patterns
+│   (src/ingestion/)      │     or corrupt character names
+│   base.py, refine.py    │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Structure Detection   │  ← Chapter boundaries affect EVERYTHING downstream
+│ (chapter_detection/)    │     Wrong chapters = wrong context for all later stages
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Chapter Summaries     │  ← V2 extracts characters FROM THESE SUMMARIES
+│ (chapter_summary/       │     If summaries confuse characters, V2 will too!
+│  summarizer.py)         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Character V2          │  ← Reads SUMMARIES, not raw text
+│ (character_extraction_v2/│     Fixing here won't help if input is wrong
+│  main_cast.py)          │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Grounding Gate        │  ← Verifies characters against raw text
+│   (grounding.py)        │     Rejects hallucinations with 0 text matches
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Narrator Detection    │  ← Uses summaries + main cast context
+│   (narrator.py)         │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│   Supporting Cast       │  ← NER-based extraction for minor characters
+│   (supporting.py)       │
+└─────────────────────────┘
+```
+
+### Critical Insight for Debugging
+
+**If character extraction keeps failing despite multiple fixes to `main_cast.py`:**
+
+1. **Check summaries FIRST** - Do the chapter summaries correctly distinguish the characters?
+   ```bash
+   grep -i "character_name" ../output/{book}/analysis.json | head -20
+   ```
+
+2. **Check ingestion** - Is the source text being corrupted?
+   ```bash
+   grep -i "character_name" ../test_texts/{book}.txt | head -10
+   ```
+
+3. **Check structure** - Are chapter boundaries causing context confusion?
+
+The bug you're looking for may be several layers upstream from where the symptom appears.
+
+---
+
 ## Key Directories
 
 | Directory | Purpose | Key Files |
@@ -13,9 +97,9 @@ Pre-computed summary of codebase structure to minimize exploration overhead.
 | `src/ingestion/` | Document parsers | PDF, EPUB, DOCX, TXT |
 | `src/export/` | Output generation | HTML report, JSON export |
 
-## Character Extraction Pipeline
+## Character Extraction Pipeline (V1 - Legacy)
 
-The character extraction flow:
+The V1 character extraction flow (merge heuristics):
 
 ```
 Text → NER Extraction → Proposers → Consensus → Alias Resolution → Profile Generation
@@ -34,6 +118,29 @@ Text → NER Extraction → Proposers → Consensus → Alias Resolution → Pro
 | Pairwise alias resolution | `consensus.py` | 1036-1130 | `_llm_alias_resolution_pairwise()` |
 | Aggressive alias patterns | `consensus.py` | 1411-1500 | `_check_aggressive_alias_patterns()` |
 | Character agent wrapper | `src/agents/characters.py` | Full file | Agent that wraps pipeline |
+
+## Character Extraction V2 Pipeline (Summary-Driven)
+
+V2 uses a profile-first approach that eliminates complex merge heuristics:
+
+```
+Chapter Summaries → Main Cast Extraction → Mention Search → Grounding Gate → Narrator Detection → Supporting Cast
+```
+
+**Key insight**: Extract character PROFILES (with aliases) from summaries, not names from raw text.
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Main cast extraction | `src/pipeline/character_extraction_v2/main_cast.py` | Extract 10-15 main characters from summaries |
+| Mention search | `src/pipeline/character_extraction_v2/mention_search.py` | Find all name variants in text |
+| Grounding gate | `src/pipeline/character_extraction_v2/grounding.py` | Reject hallucinated characters (0 text hits) |
+| Narrator detection | `src/pipeline/character_extraction_v2/narrator.py` | Detect POV from summaries with main cast context |
+| Supporting cast | `src/pipeline/character_extraction_v2/supporting.py` | NER-based minor character extraction |
+| V2 Agent | `src/agents/characters.py` | Orchestrates V2 pipeline |
+
+**V2 CLI Usage**: `audiobook-prep analyze book.txt` (V2 is the default and only implementation)
+
+**V2 Dependency**: V2 requires summaries FIRST (structure → summaries → characters_v2)
 
 ## Narrator Detection
 
@@ -85,6 +192,8 @@ Text → NER Extraction → Proposers → Consensus → Alias Resolution → Pro
 
 ## Common Fix Locations by Issue Type
 
+### V1 (Legacy) Fix Locations
+
 | Issue | Primary Fix Location | Lines |
 |-------|---------------------|-------|
 | Character false split | `consensus.py` - `_validate_merge()` | 1571-1700 |
@@ -94,6 +203,17 @@ Text → NER Extraction → Proposers → Consensus → Alias Resolution → Pro
 | Profile issues | `analyzer.py` - `_generate_character_profile()` | 1570-1700 |
 | LLM merge decision | `consensus.py` - `_llm_pairwise_merge_decision()` | 985-1309 |
 | Chunking issues | `src/agents/config.py` - `PipelineTuningConfig` | N/A |
+
+### V2 Fix Locations
+
+| Issue | Primary Fix Location | Description |
+|-------|---------------------|-------------|
+| Main cast missing character | `main_cast.py` - `MAIN_CAST_PROMPT` | Adjust prompt for character inclusion |
+| Alias not included | `main_cast.py` - `MAIN_CAST_PROMPT` | Prompt asks LLM for aliases directly |
+| Hallucinated character | `grounding.py` - `GroundingGate` | Adjust min_mentions threshold |
+| Wrong narrator | `narrator.py` - `NARRATOR_DETECTION_PROMPT` | Adjust detection logic |
+| Supporting cast issues | `supporting.py` - `SupportingCastExtractor` | NER filtering and min_mentions |
+| Unnamed character not detected | `main_cast.py` - `MAIN_CAST_PROMPT` | Prompt explicitly allows descriptive handles |
 
 ## Key Prompts for LLM Operations
 

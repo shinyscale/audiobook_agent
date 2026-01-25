@@ -3,12 +3,13 @@ Generate a formatted HTML report from analysis results.
 Comprehensive narrator's guide with relationships, chapter details, and organized pronunciations.
 """
 
-from pathlib import Path
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
+
 from jinja2 import Template
 
-from ..models import AnalysisResult, StructureType, PronunciationFlag
+from ..models import AnalysisResult, PronunciationFlag, StructureType
 
 
 def format_timestamp(timestamp_str: str) -> str:
@@ -20,7 +21,7 @@ def format_timestamp(timestamp_str: str) -> str:
         return timestamp_str if timestamp_str else ""  # Fallback to original if parsing fails
 
 
-HTML_TEMPLATE = '''
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -372,6 +373,18 @@ HTML_TEMPLATE = '''
         .pron-note {
             font-size: 0.85rem;
             color: var(--muted);
+            font-style: italic;
+        }
+
+        /* IPA and phonetic styling */
+        .ipa {
+            font-family: "Doulos SIL", "Charis SIL", "Gentium", "Arial Unicode MS", sans-serif;
+            color: var(--primary);
+            font-size: 0.95em;
+        }
+        .phonetic {
+            color: var(--muted);
+            font-size: 0.9em;
             font-style: italic;
         }
 
@@ -1081,6 +1094,7 @@ HTML_TEMPLATE = '''
                     <thead>
                         <tr>
                             <th>Word</th>
+                            <th>Pronunciation</th>
                             <th>Occurrences</th>
                             <th>Context</th>
                         </tr>
@@ -1089,6 +1103,11 @@ HTML_TEMPLATE = '''
                         {% for pron in proper_nouns[:50] %}
                         <tr>
                             <td><strong>{{ pron.word }}</strong></td>
+                            <td>
+                                {% if pron.ipa %}<span class="ipa">{{ pron.ipa }}</span>{% endif %}
+                                {% if pron.phonetic_spelling %}<br><span class="phonetic">{{ pron.phonetic_spelling }}</span>{% endif %}
+                                {% if not pron.ipa and not pron.phonetic_spelling %}—{% endif %}
+                            </td>
                             <td>{{ pron.occurrences }}</td>
                             <td class="context">
                                 {% if pron.context_examples %}
@@ -1113,7 +1132,8 @@ HTML_TEMPLATE = '''
                     <thead>
                         <tr>
                             <th>Word</th>
-                            <th>Language</th>
+                            <th>Pronunciation</th>
+                            <th>Language/Notes</th>
                             <th>Occurrences</th>
                             <th>Context</th>
                         </tr>
@@ -1122,6 +1142,11 @@ HTML_TEMPLATE = '''
                         {% for pron in foreign_words %}
                         <tr>
                             <td><strong>{{ pron.word }}</strong></td>
+                            <td>
+                                {% if pron.ipa %}<span class="ipa">{{ pron.ipa }}</span>{% endif %}
+                                {% if pron.phonetic_spelling %}<br><span class="phonetic">{{ pron.phonetic_spelling }}</span>{% endif %}
+                                {% if not pron.ipa and not pron.phonetic_spelling %}—{% endif %}
+                            </td>
                             <td>{{ pron.notes or "—" }}</td>
                             <td>{{ pron.occurrences }}</td>
                             <td class="context">
@@ -1144,6 +1169,7 @@ HTML_TEMPLATE = '''
                     <thead>
                         <tr>
                             <th>Word</th>
+                            <th>Pronunciation</th>
                             <th>Type</th>
                             <th>Occurrences</th>
                             <th>Context</th>
@@ -1153,6 +1179,11 @@ HTML_TEMPLATE = '''
                         {% for pron in other_pronunciations %}
                         <tr>
                             <td><strong>{{ pron.word }}</strong></td>
+                            <td>
+                                {% if pron.ipa %}<span class="ipa">{{ pron.ipa }}</span>{% endif %}
+                                {% if pron.phonetic_spelling %}<br><span class="phonetic">{{ pron.phonetic_spelling }}</span>{% endif %}
+                                {% if not pron.ipa and not pron.phonetic_spelling %}—{% endif %}
+                            </td>
                             <td><span class="tag">{{ pron.flag_reason.value }}</span></td>
                             <td>{{ pron.occurrences }}</td>
                             <td class="context">
@@ -1185,6 +1216,7 @@ HTML_TEMPLATE = '''
                     <thead>
                         <tr>
                             <th>Word</th>
+                            <th>Pronunciation</th>
                             <th>Type</th>
                             <th>Occurrences</th>
                             <th>Context</th>
@@ -1194,6 +1226,11 @@ HTML_TEMPLATE = '''
                         {% for pron in chapter.pronunciations %}
                         <tr>
                             <td><strong>{{ pron.word }}</strong></td>
+                            <td>
+                                {% if pron.ipa %}<span class="ipa">{{ pron.ipa }}</span>{% endif %}
+                                {% if pron.phonetic_spelling %}<br><span class="phonetic">{{ pron.phonetic_spelling }}</span>{% endif %}
+                                {% if not pron.ipa and not pron.phonetic_spelling %}—{% endif %}
+                            </td>
                             <td><span class="tag {{ pron.flag_reason.value }}">{{ pron.flag_reason.value }}</span></td>
                             <td>{{ pron.occurrences }}</td>
                             <td class="context">
@@ -1452,7 +1489,7 @@ HTML_TEMPLATE = '''
     </script>
 </body>
 </html>
-'''
+"""
 
 
 def format_number(value: int) -> str:
@@ -1473,32 +1510,32 @@ def _classify_chapter(title: str) -> str:
         'main' - Regular story chapters
     """
     if not title:
-        return 'main'
+        return "main"
 
     title_upper = title.upper().strip()
 
     # Title page detection (filter out)
     # Matches patterns like "FRANKENSTEIN; OR," or standalone book titles
-    if '; OR,' in title_upper or title_upper.endswith('; OR'):
-        return 'title_page'
+    if "; OR," in title_upper or title_upper.endswith("; OR"):
+        return "title_page"
 
     # Prologue material detection
     prologue_patterns = [
-        'LETTER',      # LETTER I, LETTER II, etc.
-        'PREFACE',
-        'INTRODUCTION',
-        'FOREWORD',
-        'DEDICATION',
-        'EDITOR',
-        'PROLOGUE',
+        "LETTER",  # LETTER I, LETTER II, etc.
+        "PREFACE",
+        "INTRODUCTION",
+        "FOREWORD",
+        "DEDICATION",
+        "EDITOR",
+        "PROLOGUE",
         "AUTHOR'S NOTE",
     ]
 
     for pattern in prologue_patterns:
         if title_upper.startswith(pattern) or pattern in title_upper:
-            return 'prologue'
+            return "prologue"
 
-    return 'main'
+    return "main"
 
 
 def _format_duration(seconds: float) -> str:
@@ -1508,6 +1545,38 @@ def _format_duration(seconds: float) -> str:
     if mins > 0:
         return f"{mins}m {secs}s"
     return f"{secs}s"
+
+
+def _clean_malformed_description(text: str) -> str:
+    """
+    Clean malformed JSON patterns from character descriptions.
+
+    When LLM returns malformed JSON with embedded structured fields in the profile text,
+    extract just the leading prose description before the JSON artifacts.
+
+    Example input:
+        'Ted is the narrator...", "appearance": "summary": "unknown", "age_indication": "unknown"...'
+
+    Returns:
+        'Ted is the narrator...'
+    """
+    import re
+
+    if not text:
+        return text
+
+    # Pattern: Look for embedded JSON field patterns like '", "appearance":'
+    # These indicate the LLM returned malformed JSON structure
+    json_pattern = re.search(r'",\s*"(appearance|personality|voice_guidance)":', text)
+
+    if json_pattern:
+        # Extract just the text before the JSON artifacts
+        clean_text = text[: json_pattern.start()]
+        # Remove any trailing quotes or JSON syntax
+        clean_text = clean_text.strip(" \"'{")
+        return clean_text
+
+    return text
 
 
 def export_html_report(
@@ -1543,7 +1612,7 @@ def export_html_report(
         classification = _classify_chapter(elem.title)
 
         # Skip title pages entirely
-        if classification == 'title_page':
+        if classification == "title_page":
             continue
 
         ch_mins = elem.estimated_duration_minutes
@@ -1554,28 +1623,39 @@ def export_html_report(
         chapter_chars = elem.characters_present if elem.characters_present else []
 
         chapter_data = {
-            'title': elem.title,
-            'word_count': format_number(elem.word_count),
-            'duration': f"{ch_hours}h {ch_mins_remainder}m" if ch_hours else f"{ch_mins_remainder}m",
-            'confidence': elem.confidence.value,
-            'characters': chapter_chars,
-            'summary': elem.summary,  # LLM-generated chapter summary
+            "title": elem.title,
+            "word_count": format_number(elem.word_count),
+            "duration": (
+                f"{ch_hours}h {ch_mins_remainder}m" if ch_hours else f"{ch_mins_remainder}m"
+            ),
+            "confidence": elem.confidence.value,
+            "characters": chapter_chars,
+            "summary": elem.summary,  # LLM-generated chapter summary
         }
 
-        if classification == 'prologue':
-            chapter_data['index'] = prologue_idx
-            chapter_data['label'] = f"Prologue {prologue_idx}"
+        if classification == "prologue":
+            chapter_data["index"] = prologue_idx
+            chapter_data["label"] = f"Prologue {prologue_idx}"
             prologue_chapters.append(chapter_data)
             prologue_idx += 1
         else:
-            chapter_data['index'] = main_idx
-            chapter_data['label'] = f"Chapter {main_idx}"
+            chapter_data["index"] = main_idx
+            chapter_data["label"] = f"Chapter {main_idx}"
             main_chapters.append(chapter_data)
             main_idx += 1
 
-    # Separate main vs minor characters (threshold: 10+ mentions = main)
-    main_characters = [c for c in result.characters if c.mention_count >= 10]
-    minor_characters = [c for c in result.characters if c.mention_count < 10][:30]
+    # Separate main vs minor characters
+    # Main characters: 10+ mentions OR is narrator (narrators always get full profile)
+    main_characters = [c for c in result.characters if c.mention_count >= 10 or c.is_narrator]
+    minor_characters = [c for c in result.characters if c.mention_count < 10 and not c.is_narrator][
+        :30
+    ]
+
+    # Clean malformed JSON from character descriptions
+    # This handles cases where LLM returned malformed JSON with embedded structured fields
+    for char in main_characters + minor_characters:
+        if char.descriptions and len(char.descriptions) > 0:
+            char.descriptions[0].text = _clean_malformed_description(char.descriptions[0].text)
 
     # Extract relationships into a dict for display
     relationships = {}
@@ -1585,11 +1665,19 @@ def export_html_report(
 
     # Group pronunciations by type
     homographs = [p for p in result.pronunciations if p.flag_reason == PronunciationFlag.HOMOGRAPH]
-    proper_nouns = [p for p in result.pronunciations if p.flag_reason == PronunciationFlag.PROPER_NOUN]
+    proper_nouns = [
+        p for p in result.pronunciations if p.flag_reason == PronunciationFlag.PROPER_NOUN
+    ]
     foreign_words = [p for p in result.pronunciations if p.flag_reason == PronunciationFlag.FOREIGN]
     other_pronunciations = [
-        p for p in result.pronunciations
-        if p.flag_reason not in (PronunciationFlag.HOMOGRAPH, PronunciationFlag.PROPER_NOUN, PronunciationFlag.FOREIGN)
+        p
+        for p in result.pronunciations
+        if p.flag_reason
+        not in (
+            PronunciationFlag.HOMOGRAPH,
+            PronunciationFlag.PROPER_NOUN,
+            PronunciationFlag.FOREIGN,
+        )
     ]
 
     # Group pronunciations by chapter for the "By Chapter" view
@@ -1604,12 +1692,14 @@ def export_html_report(
         if chapter.type == StructureType.CHAPTER:
             chapter_prons = pronunciations_by_chapter.get(chapter.index, [])
             if chapter_prons:
-                chapter_pronunciation_list.append({
-                    'index': chapter.index,
-                    'title': chapter.title or f"Chapter {chapter.index}",
-                    'word_count': len(chapter_prons),
-                    'pronunciations': sorted(chapter_prons, key=lambda p: p.word.lower())
-                })
+                chapter_pronunciation_list.append(
+                    {
+                        "index": chapter.index,
+                        "title": chapter.title or f"Chapter {chapter.index}",
+                        "word_count": len(chapter_prons),
+                        "pronunciations": sorted(chapter_prons, key=lambda p: p.word.lower()),
+                    }
+                )
 
     # Prepare glossary data
     glossary_entries = []
@@ -1669,5 +1759,5 @@ def export_html_report(
     )
 
     output_path = Path(output_path)
-    output_path.write_text(html, encoding='utf-8')
+    output_path.write_text(html, encoding="utf-8")
     print(f"HTML report saved to: {output_path}")

@@ -7,19 +7,26 @@ Wraps PronunciationGuidePipeline with self-verification to ensure:
 - IPA/phonetic spellings are complete for high-priority items
 """
 
-from typing import Optional
 import logging
 import time
+from typing import Optional
 
-from .base import Agent, AgentContext, AgentResult, VerificationResult, VerificationIssue, VerificationLevel
-from .config import AgentConfig
+from ..pipeline.llm import LLMClient
 from ..pipeline.pronunciation_guide import (
-    PronunciationGuidePipeline,
-    PronunciationMap,
     PronunciationEntry,
     PronunciationFlag,
+    PronunciationGuidePipeline,
+    PronunciationMap,
 )
-from ..pipeline.llm import LLMClient
+from .base import (
+    Agent,
+    AgentContext,
+    AgentResult,
+    VerificationIssue,
+    VerificationLevel,
+    VerificationResult,
+)
+from .config import AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -208,10 +215,12 @@ class PronunciationAgent(Agent):
 
         # Check 1: Low confidence items
         if result.low_confidence_count > 0:
-            issues.append(VerificationIssue(
-                description=f"{result.low_confidence_count} entries have low confidence",
-                severity="warning",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=f"{result.low_confidence_count} entries have low confidence",
+                    severity="warning",
+                )
+            )
 
         # Check 2: Homograph disambiguation
         homograph_issues = self._check_homographs(pronunciation_map.entries)
@@ -228,8 +237,7 @@ class PronunciationAgent(Agent):
         # Check 5: LLM homograph verification (if enabled)
         if self._config.enable_verification and self._llm_client:
             homographs = [
-                e for e in pronunciation_map.entries
-                if e.flag_reason == PronunciationFlag.HOMOGRAPH
+                e for e in pronunciation_map.entries if e.flag_reason == PronunciationFlag.HOMOGRAPH
             ]
             if homographs:
                 llm_issues = self._llm_verify_homographs(homographs)
@@ -245,9 +253,7 @@ class PronunciationAgent(Agent):
             suggestions=suggestions,
         )
 
-    def _check_homographs(
-        self, entries: list[PronunciationEntry]
-    ) -> list[VerificationIssue]:
+    def _check_homographs(self, entries: list[PronunciationEntry]) -> list[VerificationIssue]:
         """Check that homographs have proper disambiguation."""
         issues = []
 
@@ -257,31 +263,35 @@ class PronunciationAgent(Agent):
 
             # Homographs should have options listed
             if not entry.homograph_options:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Homograph '{entry.word}' has no pronunciation options listed"
-                    ),
-                    severity="warning",
-                    suggested_fix="Add homograph_options with different pronunciations",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(
+                            f"Homograph '{entry.word}' has no pronunciation options listed"
+                        ),
+                        severity="warning",
+                        suggested_fix="Add homograph_options with different pronunciations",
+                    )
+                )
             elif len(entry.homograph_options) < 2:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Homograph '{entry.word}' has only one option - "
-                        f"should have at least 2"
-                    ),
-                    severity="info",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(
+                            f"Homograph '{entry.word}' has only one option - "
+                            f"should have at least 2"
+                        ),
+                        severity="info",
+                    )
+                )
 
             # Homographs need notes for context
             if not entry.notes:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Homograph '{entry.word}' has no notes for disambiguation"
-                    ),
-                    severity="warning",
-                    suggested_fix="Add notes explaining when to use each pronunciation",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(f"Homograph '{entry.word}' has no notes for disambiguation"),
+                        severity="warning",
+                        suggested_fix="Add notes explaining when to use each pronunciation",
+                    )
+                )
 
         return issues
 
@@ -293,8 +303,7 @@ class PronunciationAgent(Agent):
 
         # High-priority: character names and high-occurrence words
         high_priority = [
-            e for e in pronunciation_map.entries
-            if e.is_character_name or e.occurrence_count > 10
+            e for e in pronunciation_map.entries if e.is_character_name or e.occurrence_count > 10
         ]
 
         for entry in high_priority:
@@ -305,21 +314,23 @@ class PronunciationAgent(Agent):
                 missing.append("no IPA")
 
             if missing and entry.is_character_name:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Character name '{entry.word}' has {', '.join(missing)}"
-                    ),
-                    severity="warning",
-                    suggested_fix="Add IPA or phonetic spelling",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(f"Character name '{entry.word}' has {', '.join(missing)}"),
+                        severity="warning",
+                        suggested_fix="Add IPA or phonetic spelling",
+                    )
+                )
             elif missing and entry.occurrence_count > 20:
-                issues.append(VerificationIssue(
-                    description=(
-                        f"Frequent word '{entry.word}' ({entry.occurrence_count} occurrences) "
-                        f"has {', '.join(missing)}"
-                    ),
-                    severity="info",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=(
+                            f"Frequent word '{entry.word}' ({entry.occurrence_count} occurrences) "
+                            f"has {', '.join(missing)}"
+                        ),
+                        severity="info",
+                    )
+                )
 
         return issues
 
@@ -349,15 +360,19 @@ class PronunciationAgent(Agent):
 
         if missing_chars and len(missing_chars) <= 5:
             for char in missing_chars:
-                issues.append(VerificationIssue(
-                    description=f"Character '{char}' has no pronunciation entry",
-                    severity="info",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Character '{char}' has no pronunciation entry",
+                        severity="info",
+                    )
+                )
         elif missing_chars:
-            issues.append(VerificationIssue(
-                description=f"{len(missing_chars)} characters have no pronunciation entries",
-                severity="info",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=f"{len(missing_chars)} characters have no pronunciation entries",
+                    severity="info",
+                )
+            )
 
         return issues
 
@@ -373,11 +388,11 @@ class PronunciationAgent(Agent):
         # Build homograph list for LLM
         homograph_lines = []
         for entry in homographs[:15]:  # Limit for prompt size
-            options_str = ", ".join(entry.homograph_options) if entry.homograph_options else "(none)"
-            notes_str = entry.notes or "(no notes)"
-            homograph_lines.append(
-                f"- {entry.word}: options=[{options_str}], notes={notes_str}"
+            options_str = (
+                ", ".join(entry.homograph_options) if entry.homograph_options else "(none)"
             )
+            notes_str = entry.notes or "(no notes)"
+            homograph_lines.append(f"- {entry.word}: options=[{options_str}], notes={notes_str}")
 
         homograph_entries = "\n".join(homograph_lines)
         prompt = HOMOGRAPH_VERIFICATION_PROMPT.format(homograph_entries=homograph_entries)
@@ -391,13 +406,15 @@ class PronunciationAgent(Agent):
             if result and isinstance(result.get("issues"), list):
                 for issue in result["issues"]:
                     if isinstance(issue, dict):
-                        issues.append(VerificationIssue(
-                            description=(
-                                f"Homograph '{issue.get('word', '?')}': "
-                                f"{issue.get('description', 'Unknown issue')}"
-                            ),
-                            severity=issue.get("severity", "warning"),
-                        ))
+                        issues.append(
+                            VerificationIssue(
+                                description=(
+                                    f"Homograph '{issue.get('word', '?')}': "
+                                    f"{issue.get('description', 'Unknown issue')}"
+                                ),
+                                severity=issue.get("severity", "warning"),
+                            )
+                        )
 
         except Exception as e:
             logger.warning(f"LLM homograph verification failed: {e}")

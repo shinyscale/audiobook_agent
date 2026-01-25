@@ -8,22 +8,24 @@ and trigger pipeline halts when data quality is insufficient.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class ValidationSeverity(Enum):
     """Severity levels for validation issues."""
+
     CRITICAL = "critical"  # Pipeline must halt - cannot proceed at all
-    ERROR = "error"        # Agent cannot produce meaningful output
-    WARNING = "warning"    # Agent can proceed with degraded quality
+    ERROR = "error"  # Agent cannot produce meaningful output
+    WARNING = "warning"  # Agent can proceed with degraded quality
 
 
 @dataclass
 class UpstreamValidationIssue:
     """An issue found when validating upstream agent results."""
-    agent_name: str           # Which upstream agent produced problematic data
-    issue_type: str           # e.g., "no_chapters", "single_giant_chapter"
-    description: str          # Human-readable description
+
+    agent_name: str  # Which upstream agent produced problematic data
+    issue_type: str  # e.g., "no_chapters", "single_giant_chapter"
+    description: str  # Human-readable description
     severity: ValidationSeverity
     details: dict = field(default_factory=dict)  # Additional context for debugging
 
@@ -41,8 +43,9 @@ class UpstreamValidationIssue:
 @dataclass
 class UpstreamValidationResult:
     """Result of validating upstream agent outputs."""
-    valid: bool              # True if no issues found
-    can_proceed: bool        # True if agent can proceed (only warnings, no errors/critical)
+
+    valid: bool  # True if no issues found
+    can_proceed: bool  # True if agent can proceed (only warnings, no errors/critical)
     issues: list[UpstreamValidationIssue] = field(default_factory=list)
 
     @property
@@ -90,11 +93,12 @@ class UpstreamValidationResult:
 @dataclass
 class PipelineHaltReport:
     """Diagnostic report generated when pipeline halts due to validation failure."""
-    halted_at: str                          # Agent name that triggered halt
-    halted_reason: str                      # Primary reason for halt
+
+    halted_at: str  # Agent name that triggered halt
+    halted_reason: str  # Primary reason for halt
     upstream_issues: list[UpstreamValidationIssue]  # All issues found
-    partial_results: dict[str, Any]         # Results completed before halt
-    recommendations: list[str]              # Actionable recommendations
+    partial_results: dict[str, Any]  # Results completed before halt
+    recommendations: list[str]  # Actionable recommendations
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_markdown(self) -> str:

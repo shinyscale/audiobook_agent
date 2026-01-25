@@ -4,13 +4,12 @@ Character passage gatherer.
 Gathers relevant passages from the full text for character profile generation.
 """
 
-import re
 import logging
-from typing import Optional
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 
+from ..chapter_detection.models import ChapterMap
 from .models import IdentifiedCharacter
-from ..chapter_detection.models import ChapterMap, Chapter
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CharacterPassage:
     """A passage of text relevant to a character."""
+
     text: str
     chapter_index: int
     position: int  # Character position in full text
@@ -76,10 +76,18 @@ class CharacterPassageGatherer:
         all_passages = []
 
         # Special handling for first-person narrators
-        if character.is_narrator and character.narrative_role and "first-person" in character.narrative_role.lower():
-            logger.info(f"{character.canonical_name} is first-person narrator - gathering 'I' passages")
+        if (
+            character.is_narrator
+            and character.narrative_role
+            and "first-person" in character.narrative_role.lower()
+        ):
+            logger.info(
+                f"{character.canonical_name} is first-person narrator - gathering 'I' passages"
+            )
             # Gather passages containing first-person pronouns
-            all_passages = self._find_narrator_passages(full_text, chapter_map, character.canonical_name)
+            all_passages = self._find_narrator_passages(
+                full_text, chapter_map, character.canonical_name
+            )
         else:
             # Standard name-based gathering
             all_names = [character.canonical_name] + character.aliases
@@ -96,9 +104,7 @@ class CharacterPassageGatherer:
         # Select best passages distributed across narrative
         passages = self._select_representative_passages(passages, chapter_map)
 
-        logger.info(
-            f"Gathered {len(passages)} passages for {character.canonical_name}"
-        )
+        logger.info(f"Gathered {len(passages)} passages for {character.canonical_name}")
 
         return sorted(passages, key=lambda p: p.position)
 
@@ -117,7 +123,7 @@ class CharacterPassageGatherer:
 
         # First-person pronouns to search for
         # Use word boundary to avoid matching "I" inside words
-        fp_pattern = r'\b(I|my|me|myself)\b'
+        fp_pattern = r"\b(I|my|me|myself)\b"
 
         # Find all first-person pronouns, but sample evenly to avoid overwhelming
         # the profiler with too many passages
@@ -148,20 +154,20 @@ class CharacterPassageGatherer:
 
             # Clean up partial words at boundaries
             if start > 0:
-                first_space = context.find(' ')
+                first_space = context.find(" ")
                 if first_space > 0 and first_space < 20:
-                    context = "..." + context[first_space + 1:]
+                    context = "..." + context[first_space + 1 :]
             if end < len(full_text):
                 last_period = max(
-                    context.rfind('.'),
-                    context.rfind('!'),
-                    context.rfind('?'),
+                    context.rfind("."),
+                    context.rfind("!"),
+                    context.rfind("?"),
                     context.rfind('"'),
                 )
                 if last_period > len(context) - 50:
-                    context = context[:last_period + 1]
+                    context = context[: last_period + 1]
                 else:
-                    last_space = context.rfind(' ')
+                    last_space = context.rfind(" ")
                     if last_space > len(context) - 20:
                         context = context[:last_space] + "..."
 
@@ -171,15 +177,19 @@ class CharacterPassageGatherer:
             # Context type for narrator is typically "narration" or "dialogue"
             context_type = self._classify_context(context, pronoun)
 
-            passages.append(CharacterPassage(
-                text=context.strip(),
-                chapter_index=chapter_idx,
-                position=position,
-                name_matched=f"[narrator: {pronoun}]",
-                context_type=context_type,
-            ))
+            passages.append(
+                CharacterPassage(
+                    text=context.strip(),
+                    chapter_index=chapter_idx,
+                    position=position,
+                    name_matched=f"[narrator: {pronoun}]",
+                    context_type=context_type,
+                )
+            )
 
-        logger.info(f"Found {len(passages)} narrator passages from {total_matches} first-person pronouns")
+        logger.info(
+            f"Found {len(passages)} narrator passages from {total_matches} first-person pronouns"
+        )
         return passages
 
     def _find_passages_for_name(
@@ -194,7 +204,7 @@ class CharacterPassageGatherer:
         # Escape regex special characters but allow word boundaries
         escaped_name = re.escape(name)
         # Match the name as a word (with optional punctuation after)
-        pattern = rf'\b{escaped_name}\b'
+        pattern = rf"\b{escaped_name}\b"
 
         for match in re.finditer(pattern, full_text, re.IGNORECASE):
             position = match.start()
@@ -209,22 +219,22 @@ class CharacterPassageGatherer:
             # Clean up partial words at boundaries
             if start > 0:
                 # Find first space and trim before it
-                first_space = context.find(' ')
+                first_space = context.find(" ")
                 if first_space > 0 and first_space < 20:
-                    context = "..." + context[first_space + 1:]
+                    context = "..." + context[first_space + 1 :]
             if end < len(full_text):
                 # Find last sentence-ending punctuation
                 last_period = max(
-                    context.rfind('.'),
-                    context.rfind('!'),
-                    context.rfind('?'),
+                    context.rfind("."),
+                    context.rfind("!"),
+                    context.rfind("?"),
                     context.rfind('"'),
                 )
                 if last_period > len(context) - 50:
-                    context = context[:last_period + 1]
+                    context = context[: last_period + 1]
                 else:
                     # Find last space and trim after it
-                    last_space = context.rfind(' ')
+                    last_space = context.rfind(" ")
                     if last_space > len(context) - 20:
                         context = context[:last_space] + "..."
 
@@ -234,13 +244,15 @@ class CharacterPassageGatherer:
             # Determine context type
             context_type = self._classify_context(context, name)
 
-            passages.append(CharacterPassage(
-                text=context.strip(),
-                chapter_index=chapter_idx,
-                position=position,
-                name_matched=name,
-                context_type=context_type,
-            ))
+            passages.append(
+                CharacterPassage(
+                    text=context.strip(),
+                    chapter_index=chapter_idx,
+                    position=position,
+                    name_matched=name,
+                    context_type=context_type,
+                )
+            )
 
             # Limit per name variant
             if len(passages) >= self.max_passages_per_name:
@@ -264,19 +276,42 @@ class CharacterPassageGatherer:
         """Classify the type of context (dialogue, description, mention)."""
         # Check for dialogue markers
         has_quotes = '"' in context or "'" in context
-        has_said = any(word in context.lower() for word in [
-            'said', 'asked', 'replied', 'answered', 'shouted',
-            'whispered', 'exclaimed', 'muttered', 'spoke'
-        ])
+        has_said = any(
+            word in context.lower()
+            for word in [
+                "said",
+                "asked",
+                "replied",
+                "answered",
+                "shouted",
+                "whispered",
+                "exclaimed",
+                "muttered",
+                "spoke",
+            ]
+        )
 
         if has_quotes and has_said:
             return "dialogue"
 
         # Check for descriptive language
         descriptive_words = [
-            'looked', 'appeared', 'wore', 'dressed', 'tall', 'short',
-            'eyes', 'hair', 'face', 'voice', 'smile', 'expression',
-            'young', 'old', 'beautiful', 'handsome'
+            "looked",
+            "appeared",
+            "wore",
+            "dressed",
+            "tall",
+            "short",
+            "eyes",
+            "hair",
+            "face",
+            "voice",
+            "smile",
+            "expression",
+            "young",
+            "old",
+            "beautiful",
+            "handsome",
         ]
         if any(word in context.lower() for word in descriptive_words):
             return "description"
@@ -326,9 +361,23 @@ class CharacterPassageGatherer:
 
             # Physical description keywords
             physical_words = [
-                'tall', 'short', 'thin', 'fat', 'stout', 'slender',
-                'eyes', 'hair', 'face', 'hands', 'voice', 'smile',
-                'beautiful', 'handsome', 'ugly', 'pretty', 'elegant'
+                "tall",
+                "short",
+                "thin",
+                "fat",
+                "stout",
+                "slender",
+                "eyes",
+                "hair",
+                "face",
+                "hands",
+                "voice",
+                "smile",
+                "beautiful",
+                "handsome",
+                "ugly",
+                "pretty",
+                "elegant",
             ]
             for word in physical_words:
                 if word in text_lower:
@@ -336,9 +385,20 @@ class CharacterPassageGatherer:
 
             # Personality keywords
             personality_words = [
-                'kind', 'cruel', 'gentle', 'harsh', 'nervous', 'calm',
-                'arrogant', 'humble', 'intelligent', 'foolish',
-                'honest', 'deceitful', 'brave', 'cowardly'
+                "kind",
+                "cruel",
+                "gentle",
+                "harsh",
+                "nervous",
+                "calm",
+                "arrogant",
+                "humble",
+                "intelligent",
+                "foolish",
+                "honest",
+                "deceitful",
+                "brave",
+                "cowardly",
             ]
             for word in personality_words:
                 if word in text_lower:
@@ -346,9 +406,20 @@ class CharacterPassageGatherer:
 
             # Relationship keywords
             relationship_words = [
-                'husband', 'wife', 'married', 'love', 'hate',
-                'friend', 'enemy', 'cousin', 'brother', 'sister',
-                'father', 'mother', 'son', 'daughter'
+                "husband",
+                "wife",
+                "married",
+                "love",
+                "hate",
+                "friend",
+                "enemy",
+                "cousin",
+                "brother",
+                "sister",
+                "father",
+                "mother",
+                "son",
+                "daughter",
             ]
             for word in relationship_words:
                 if word in text_lower:

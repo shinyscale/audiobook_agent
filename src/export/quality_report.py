@@ -8,7 +8,7 @@ confidence distributions, and recommendations for review.
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from ..models import AnalysisResult
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 @dataclass
 class AgentQualityMetrics:
     """Quality metrics for a single agent's output."""
+
     agent_name: str
     total_items: int
     high_confidence_count: int
@@ -36,9 +37,9 @@ class AgentQualityMetrics:
         if self.total_items == 0:
             return 1.0
         weighted = (
-            self.high_confidence_count * 1.0 +
-            self.medium_confidence_count * 0.6 +
-            self.low_confidence_count * 0.2
+            self.high_confidence_count * 1.0
+            + self.medium_confidence_count * 0.6
+            + self.low_confidence_count * 0.2
         )
         return weighted / self.total_items
 
@@ -63,6 +64,7 @@ class AgentQualityMetrics:
 @dataclass
 class QualityReport:
     """Complete quality report for an analysis run."""
+
     # Metadata
     source_file: str
     analysis_timestamp: str
@@ -115,11 +117,17 @@ class QualityReport:
         # Per-agent breakdown
         lines.append("## Agent Performance")
         lines.append("")
-        lines.append("| Agent | Model | Items | Quality | H/M/L | LLM Calls | Tokens | Time | Issues |")
-        lines.append("|-------|-------|-------|---------|-------|-----------|--------|------|--------|")
+        lines.append(
+            "| Agent | Model | Items | Quality | H/M/L | LLM Calls | Tokens | Time | Issues |"
+        )
+        lines.append(
+            "|-------|-------|-------|---------|-------|-----------|--------|------|--------|"
+        )
 
         for m in self.agent_metrics:
-            conf_str = f"{m.high_confidence_count}H/{m.medium_confidence_count}M/{m.low_confidence_count}L"
+            conf_str = (
+                f"{m.high_confidence_count}H/{m.medium_confidence_count}M/{m.low_confidence_count}L"
+            )
             issue_count = len(m.verification_issues)
             time_str = f"{m.processing_time_seconds:.1f}s"
             model_str = m.model_used or "-"
@@ -155,9 +163,9 @@ class QualityReport:
             lines.append("## Low-Confidence Chapters (Review Recommended)")
             lines.append("")
             for ch in self.low_confidence_chapters:
-                title = ch.get('title') or '(untitled)'
-                conf = ch.get('confidence', 0)
-                idx = ch.get('index', '?')
+                title = ch.get("title") or "(untitled)"
+                conf = ch.get("confidence", 0)
+                idx = ch.get("index", "?")
                 lines.append(f"- **Chapter {idx}:** {title} ({conf:.0%} confidence)")
             lines.append("")
 
@@ -166,9 +174,9 @@ class QualityReport:
             lines.append("## Low-Confidence Characters (Review Recommended)")
             lines.append("")
             for char in self.low_confidence_characters[:10]:
-                name = char.get('name', 'Unknown')
-                mentions = char.get('mentions', 0)
-                conf = char.get('confidence', 0)
+                name = char.get("name", "Unknown")
+                mentions = char.get("mentions", 0)
+                conf = char.get("confidence", 0)
                 lines.append(f"- **{name}:** {mentions} mentions ({conf:.0%} confidence)")
             if len(self.low_confidence_characters) > 10:
                 remaining = len(self.low_confidence_characters) - 10
@@ -180,9 +188,9 @@ class QualityReport:
             lines.append("## Low-Confidence Pronunciations (Review Recommended)")
             lines.append("")
             for pron in self.low_confidence_pronunciations[:10]:
-                word = pron.get('word', 'Unknown')
-                reason = pron.get('reason', 'unknown')
-                conf = pron.get('confidence', 0)
+                word = pron.get("word", "Unknown")
+                reason = pron.get("reason", "unknown")
+                conf = pron.get("confidence", 0)
                 lines.append(f"- **{word}:** {reason} ({conf:.0%} confidence)")
             if len(self.low_confidence_pronunciations) > 10:
                 remaining = len(self.low_confidence_pronunciations) - 10
@@ -282,18 +290,20 @@ def generate_quality_report(
     agent_metrics = []
     if profiling_report:
         for stage in profiling_report.stages:
-            agent_metrics.append(AgentQualityMetrics(
-                agent_name=stage.stage_name,
-                total_items=stage.items_processed,
-                high_confidence_count=stage.high_confidence_count,
-                medium_confidence_count=stage.medium_confidence_count,
-                low_confidence_count=stage.low_confidence_count,
-                processing_time_seconds=stage.duration_seconds,
-                llm_calls=stage.llm_calls,
-                tokens_used=stage.tokens_total,
-                model_used=stage.model_used,
-                provider_used=stage.provider_used,
-            ))
+            agent_metrics.append(
+                AgentQualityMetrics(
+                    agent_name=stage.stage_name,
+                    total_items=stage.items_processed,
+                    high_confidence_count=stage.high_confidence_count,
+                    medium_confidence_count=stage.medium_confidence_count,
+                    low_confidence_count=stage.low_confidence_count,
+                    processing_time_seconds=stage.duration_seconds,
+                    llm_calls=stage.llm_calls,
+                    tokens_used=stage.tokens_total,
+                    model_used=stage.model_used,
+                    provider_used=stage.provider_used,
+                )
+            )
 
     # Calculate overall quality score
     total_items = sum(m.total_items for m in agent_metrics)
@@ -313,27 +323,33 @@ def generate_quality_report(
 
     for elem in result.structure:
         if elem.confidence == ConfidenceLevel.LOW:
-            low_conf_chapters.append({
-                "index": elem.index,
-                "title": elem.title,
-                "confidence": 0.3,  # LOW maps to ~0.3
-            })
+            low_conf_chapters.append(
+                {
+                    "index": elem.index,
+                    "title": elem.title,
+                    "confidence": 0.3,  # LOW maps to ~0.3
+                }
+            )
 
     for char in result.characters:
         if char.confidence == ConfidenceLevel.LOW:
-            low_conf_characters.append({
-                "name": char.canonical_name,
-                "mentions": char.mention_count,
-                "confidence": 0.3,
-            })
+            low_conf_characters.append(
+                {
+                    "name": char.canonical_name,
+                    "mentions": char.mention_count,
+                    "confidence": 0.3,
+                }
+            )
 
     for pron in result.pronunciations:
         if pron.confidence == ConfidenceLevel.LOW:
-            low_conf_pronunciations.append({
-                "word": pron.word,
-                "reason": pron.flag_reason.value if pron.flag_reason else "unknown",
-                "confidence": 0.3,
-            })
+            low_conf_pronunciations.append(
+                {
+                    "word": pron.word,
+                    "reason": pron.flag_reason.value if pron.flag_reason else "unknown",
+                    "confidence": 0.3,
+                }
+            )
 
     # Generate recommendations
     recommendations = []
@@ -370,13 +386,16 @@ def generate_quality_report(
             )
 
     if not result.characters:
-        recommendations.append("No characters extracted - verify document contains narrative content")
+        recommendations.append(
+            "No characters extracted - verify document contains narrative content"
+        )
 
     # Detect missing rich character profiles for prominent characters
     # (these show up in the HTML report as "No detailed profile available.")
     MIN_MENTIONS_FOR_PROFILE = 5
     missing_profiles = [
-        c for c in result.characters
+        c
+        for c in result.characters
         if c.mention_count >= MIN_MENTIONS_FOR_PROFILE and not c.descriptions
     ]
     if missing_profiles:

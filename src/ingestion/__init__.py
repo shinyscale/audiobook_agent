@@ -4,24 +4,24 @@ Supports PDF, DOCX, EPUB, and TXT formats.
 """
 
 from .base import DocumentIngester, ExtractedDocument, get_ingester
-from .pdf import PDFIngester
 from .docx import DOCXIngester
 from .epub import EPUBIngester
-from .txt import TXTIngester
+from .glossary import GlossaryEntry, GlossaryExtractionResult, extract_glossary
+from .pdf import PDFIngester
 from .refine import refine_extracted_document, to_canonical_markdown
-from .glossary import extract_glossary, GlossaryExtractionResult, GlossaryEntry
+from .txt import TXTIngester
 
 __all__ = [
-    'DocumentIngester',
-    'ExtractedDocument',
-    'get_ingester',
-    'PDFIngester',
-    'DOCXIngester',
-    'EPUBIngester',
-    'TXTIngester',
-    'refine_extracted_document',
-    'to_canonical_markdown',
-    'extract_glossary',
-    'GlossaryExtractionResult',
-    'GlossaryEntry',
+    "DocumentIngester",
+    "ExtractedDocument",
+    "get_ingester",
+    "PDFIngester",
+    "DOCXIngester",
+    "EPUBIngester",
+    "TXTIngester",
+    "refine_extracted_document",
+    "to_canonical_markdown",
+    "extract_glossary",
+    "GlossaryExtractionResult",
+    "GlossaryEntry",
 ]

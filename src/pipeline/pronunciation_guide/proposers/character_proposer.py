@@ -4,13 +4,12 @@ Character name proposer.
 Flags character names from the character extraction pipeline for pronunciation attention.
 """
 
-import re
-from typing import Optional, TYPE_CHECKING
 import logging
+from typing import TYPE_CHECKING, Optional
 
+from ..models import PronunciationFlag, PronunciationProposal
 from .base import BasePronunciationProposer
 from .cmu_proposer import COMMON_WORDS_WHITELIST
-from ..models import PronunciationProposal, PronunciationMention, PronunciationFlag
 
 if TYPE_CHECKING:
     from ..word_index import WordIndex
@@ -71,26 +70,36 @@ class CharacterProposer(BasePronunciationProposer):
                     continue
 
                 # Skip common titles
-                if word_lower.rstrip('.') in {'mr', 'mrs', 'ms', 'miss', 'dr', 'sir', 'lady', 'lord'}:
+                if word_lower.rstrip(".") in {
+                    "mr",
+                    "mrs",
+                    "ms",
+                    "miss",
+                    "dr",
+                    "sir",
+                    "lady",
+                    "lord",
+                }:
                     continue
 
                 seen_words.add(word_lower)
 
                 # Find all occurrences (uses WordIndex if provided)
                 mentions = self._find_all_occurrences(
-                    full_text, word, chapter_boundaries, case_sensitive=False,
-                    word_index=word_index
+                    full_text, word, chapter_boundaries, case_sensitive=False, word_index=word_index
                 )
 
                 if mentions:
-                    proposals.append(PronunciationProposal(
-                        strategy=self.name,
-                        word=word,  # Preserve original capitalization
-                        flag_reason=PronunciationFlag.CHARACTER,
-                        mentions=mentions,
-                        confidence=0.85,  # High confidence - these are known characters
-                        reasoning=f"Character name from extraction pipeline",
-                    ))
+                    proposals.append(
+                        PronunciationProposal(
+                            strategy=self.name,
+                            word=word,  # Preserve original capitalization
+                            flag_reason=PronunciationFlag.CHARACTER,
+                            mentions=mentions,
+                            confidence=0.85,  # High confidence - these are known characters
+                            reasoning="Character name from extraction pipeline",
+                        )
+                    )
 
         logger.info(f"Character proposer found {len(proposals)} character name words")
         return proposals

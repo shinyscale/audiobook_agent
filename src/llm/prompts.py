@@ -6,9 +6,8 @@ users to customize them through a PromptConfig dataclass.
 """
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -132,7 +131,7 @@ Write naturally, as if describing the character to a colleague."""
             return cls()
 
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return cls(**{k: v for k, v in data.items() if hasattr(cls, k)})
         except (json.JSONDecodeError, TypeError):
@@ -148,7 +147,7 @@ Write naturally, as if describing the character to a colleague."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=2, ensure_ascii=False)
 
     def to_dict(self) -> dict:

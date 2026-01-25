@@ -6,13 +6,14 @@ and quality metrics for each stage of the analysis pipeline.
 """
 
 from __future__ import annotations
+
+import logging
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Generator
-import logging
+from typing import Generator, Optional
 
 from .llm import LLMResponse
 from .pricing import calculate_cost
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StageMetrics:
     """Metrics for a single pipeline stage."""
+
     stage_name: str
     duration_seconds: float = 0.0
     llm_calls: int = 0
@@ -30,7 +32,9 @@ class StageMetrics:
     tokens_completion: int = 0
     tokens_total: int = 0
     latency_total_ms: float = 0.0
+    last_latency_ms: float = 0.0  # Latency of most recent LLM call
     items_processed: int = 0
+    items_total: Optional[int] = None  # Total items to process (if known)
     high_confidence_count: int = 0
     medium_confidence_count: int = 0
     low_confidence_count: int = 0
@@ -66,6 +70,7 @@ class StageMetrics:
 @dataclass
 class ProfilingReport:
     """Aggregated profiling report for the entire analysis."""
+
     stages: list[StageMetrics] = field(default_factory=list)
     total_duration_seconds: float = 0.0
     total_llm_calls: int = 0
@@ -136,8 +141,10 @@ class ProfilingReport:
         # Quality concerns
         concerns = self.get_quality_concerns()
         if concerns:
-            concern_strs = [f"{count} low-confidence {stage.lower().replace('_', ' ')}s"
-                          for stage, count in concerns]
+            concern_strs = [
+                f"{count} low-confidence {stage.lower().replace('_', ' ')}s"
+                for stage, count in concerns
+            ]
             lines.append(f"Quality concerns: {', '.join(concern_strs)}")
 
         return "\n".join(lines)
@@ -173,8 +180,14 @@ class ProfilingReport:
             "bottleneck": self.get_bottleneck(),
             "quality_concerns": self.get_quality_concerns(),
             "timestamps": {
-                "started": self.start_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.start_timestamp else None,
-                "ended": self.end_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.end_timestamp else None,
+                "started": (
+                    self.start_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                    if self.start_timestamp
+                    else None
+                ),
+                "ended": (
+                    self.end_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.end_timestamp else None
+                ),
             },
         }
 
@@ -209,6 +222,7 @@ class StageContext:
 
         if response.latency_ms:
             self._metrics.latency_total_ms += response.latency_ms
+            self._metrics.last_latency_ms = response.latency_ms
 
     def record_items(
         self,
@@ -218,7 +232,9 @@ class StageContext:
         low_confidence: int = 0,
     ) -> None:
         """Record processed items with confidence breakdown."""
-        self._metrics.items_processed = total or (high_confidence + medium_confidence + low_confidence)
+        self._metrics.items_processed = total or (
+            high_confidence + medium_confidence + low_confidence
+        )
         self._metrics.high_confidence_count = high_confidence
         self._metrics.medium_confidence_count = medium_confidence
         self._metrics.low_confidence_count = low_confidence
@@ -297,7 +313,7 @@ class ETAEstimator:
             "Character Extraction",
             "Character Profiles",
             "Chapter Summaries",
-            "Pronunciation Guide"
+            "Pronunciation Guide",
         ]
         # Fallback heuristics (seconds) when no historical data
         self._fallback_durations = {
@@ -317,8 +333,9 @@ class ETAEstimator:
         if len(self._stage_history[stage_name]) > 10:
             self._stage_history[stage_name] = self._stage_history[stage_name][-10:]
 
-    def estimate(self, current_stage: str, elapsed: float,
-                 completed_stages: list[str]) -> Optional[float]:
+    def estimate(
+        self, current_stage: str, elapsed: float, completed_stages: list[str]
+    ) -> Optional[float]:
         """
         Estimate remaining time.
 
@@ -332,8 +349,9 @@ class ETAEstimator:
         current_remaining = max(0, current_stage_estimate * 0.5)
 
         # Estimate time for remaining stages
-        remaining_stages = [s for s in self._typical_pipeline
-                           if s not in completed_stages and s != current_stage]
+        remaining_stages = [
+            s for s in self._typical_pipeline if s not in completed_stages and s != current_stage
+        ]
 
         future_time = sum(self._estimate_stage_duration(s) for s in remaining_stages)
 
@@ -381,12 +399,77 @@ class MetricsCollector:
         self._lock = threading.Lock()  # Thread safety for parallel execution
         self._current_stage_info: dict = {}  # Real-time updates for current stage
         self._eta_estimator = ETAEstimator()
+        self._output_dir: Optional[str] = None  # For heartbeat file
+        self._last_heartbeat: float = 0  # Rate limit heartbeat writes
+        self._phase_start_time: Optional[datetime] = None  # When current phase started
+
+    def set_output_dir(self, output_dir: str) -> None:
+        """Set output directory for heartbeat file."""
+        self._output_dir = output_dir
+
+    def _write_heartbeat(self, activity: str = "working") -> None:
+        """Write heartbeat file for external monitoring.
+
+        Rate-limited to once per second to avoid excessive I/O.
+        """
+        if not self._output_dir:
+            return
+
+        now = time.time()
+        if now - self._last_heartbeat < 1.0:  # Rate limit to 1Hz
+            return
+        self._last_heartbeat = now
+
+        try:
+            import json
+            from pathlib import Path
+
+            heartbeat_file = Path(self._output_dir) / "HEARTBEAT.json"
+
+            # Get current stage info
+            stage_name = None
+            stage_elapsed = 0.0
+            llm_calls = 0
+            model = None
+
+            if self._current_context:
+                stage_name = self._current_context.stage_name
+                if self._current_context.start_time:
+                    stage_elapsed = time.perf_counter() - self._current_context.start_time
+                llm_calls = self._current_context._metrics.llm_calls
+                model = self._current_context._metrics.model_used
+
+            # Total elapsed
+            total_elapsed = 0.0
+            if self._analysis_start:
+                total_elapsed = time.perf_counter() - self._analysis_start
+
+            heartbeat_data = {
+                "timestamp": datetime.now().isoformat(),
+                "unix_time": now,
+                "activity": activity,
+                "stage": stage_name,
+                "stage_elapsed_seconds": round(stage_elapsed, 1),
+                "total_elapsed_seconds": round(total_elapsed, 1),
+                "llm_calls_this_stage": llm_calls,
+                "model": model,
+                "phase_started": (
+                    self._phase_start_time.isoformat() if self._phase_start_time else None
+                ),
+            }
+
+            with open(heartbeat_file, "w") as f:
+                json.dump(heartbeat_data, f)
+        except Exception:
+            pass  # Non-critical
 
     def start_analysis(self) -> None:
         """Mark the start of the analysis."""
         self._analysis_start = time.perf_counter()
         self._analysis_start_dt = datetime.now()
+        self._phase_start_time = datetime.now()
         self._stages = []
+        self._write_heartbeat("analysis_started")
 
     @contextmanager
     def stage(self, name: str) -> Generator[StageContext, None, None]:
@@ -402,6 +485,7 @@ class MetricsCollector:
         context = StageContext(name)
         context.start_time = time.perf_counter()
         self._current_context = context
+        self._write_heartbeat(f"stage_started:{name}")
 
         try:
             yield context
@@ -414,6 +498,7 @@ class MetricsCollector:
                 # Clear current stage info
                 self._current_stage_info = {}
             self._current_context = None
+            self._write_heartbeat(f"stage_completed:{name}")
             logger.debug(
                 f"Stage '{name}' completed: {metrics.duration_seconds:.2f}s, "
                 f"{metrics.llm_calls} LLM calls, {metrics.tokens_total} tokens"
@@ -427,6 +512,17 @@ class MetricsCollector:
         """
         if self._current_context:
             self._current_context.record_llm_call(response)
+            self._write_heartbeat("llm_call")
+
+    def record_llm_call_starting(self) -> None:
+        """
+        Record that an LLM call is about to start.
+
+        This writes a heartbeat BEFORE the blocking LLM request,
+        so external monitors know the process is still active even
+        if the LLM takes a long time to respond.
+        """
+        self._write_heartbeat("llm_call_starting")
 
     def get_report(self) -> ProfilingReport:
         """Generate the profiling report."""
@@ -450,21 +546,32 @@ class MetricsCollector:
         """Get the current stage context if in a stage."""
         return self._current_context
 
-    def update_stage_progress(self, items_processed: int = None,
-                             high: int = None, medium: int = None, low: int = None) -> None:
+    def update_stage_progress(
+        self,
+        items_processed: int = None,
+        items_total: int = None,
+        high: int = None,
+        medium: int = None,
+        low: int = None,
+    ) -> None:
         """
         Update real-time progress within current stage.
         Called by pipelines/agents during processing.
         """
         with self._lock:
             if items_processed is not None:
-                self._current_stage_info['items_processed'] = items_processed
+                self._current_stage_info["items_processed"] = items_processed
+            if items_total is not None:
+                self._current_stage_info["items_total"] = items_total
+                # Also store in current context metrics for PROGRESS.json
+                if self._current_context:
+                    self._current_context._metrics.items_total = items_total
             if high is not None:
-                self._current_stage_info['high_confidence'] = high
+                self._current_stage_info["high_confidence"] = high
             if medium is not None:
-                self._current_stage_info['medium_confidence'] = medium
+                self._current_stage_info["medium_confidence"] = medium
             if low is not None:
-                self._current_stage_info['low_confidence'] = low
+                self._current_stage_info["low_confidence"] = low
 
     def get_progress_snapshot(self) -> ProgressSnapshot:
         """
@@ -493,10 +600,11 @@ class MetricsCollector:
                 total_elapsed = time.perf_counter() - self._analysis_start
 
             # Current stage metrics from real-time updates
-            items_processed = self._current_stage_info.get('items_processed', 0)
-            high_conf = self._current_stage_info.get('high_confidence', 0)
-            medium_conf = self._current_stage_info.get('medium_confidence', 0)
-            low_conf = self._current_stage_info.get('low_confidence', 0)
+            items_processed = self._current_stage_info.get("items_processed", 0)
+            items_total = self._current_stage_info.get("items_total")
+            high_conf = self._current_stage_info.get("high_confidence", 0)
+            medium_conf = self._current_stage_info.get("medium_confidence", 0)
+            low_conf = self._current_stage_info.get("low_confidence", 0)
 
             # If no real-time updates, use current context's recorded items
             if items_processed == 0 and self._current_context:
@@ -504,6 +612,10 @@ class MetricsCollector:
                 high_conf = self._current_context._metrics.high_confidence_count
                 medium_conf = self._current_context._metrics.medium_confidence_count
                 low_conf = self._current_context._metrics.low_confidence_count
+
+            # Also check items_total from current context
+            if items_total is None and self._current_context:
+                items_total = self._current_context._metrics.items_total
 
             # Cumulative metrics
             total_llm_calls = sum(s.llm_calls for s in self._stages)
@@ -523,9 +635,7 @@ class MetricsCollector:
             estimated_remaining = None
             if current_stage_name:
                 estimated_remaining = self._eta_estimator.estimate(
-                    current_stage_name,
-                    current_stage_elapsed,
-                    completed_stage_names
+                    current_stage_name, current_stage_elapsed, completed_stage_names
                 )
 
             # Cost calculation (stub for now, will be implemented in Phase 4)
@@ -538,6 +648,7 @@ class MetricsCollector:
                 current_stage_elapsed_seconds=current_stage_elapsed,
                 estimated_remaining_seconds=estimated_remaining,
                 current_stage_items_processed=items_processed,
+                current_stage_items_total=items_total,
                 current_stage_high_confidence=high_conf,
                 current_stage_medium_confidence=medium_conf,
                 current_stage_low_confidence=low_conf,
@@ -548,7 +659,7 @@ class MetricsCollector:
                 total_prompt_tokens=total_prompt_tokens,
                 total_completion_tokens=total_completion_tokens,
                 estimated_cost_usd=estimated_cost,
-                completed_stages=list(self._stages)  # Copy list
+                completed_stages=list(self._stages),  # Copy list
             )
 
     def _calculate_cost(self) -> Optional[float]:
@@ -568,7 +679,7 @@ class MetricsCollector:
                     model_name=stage.model_used,
                     provider=stage.provider_used,
                     input_tokens=stage.tokens_prompt,
-                    output_tokens=stage.tokens_completion
+                    output_tokens=stage.tokens_completion,
                 )
                 if stage_cost is not None:
                     total_cost += stage_cost
@@ -582,7 +693,7 @@ class MetricsCollector:
                     model_name=metrics.model_used,
                     provider=metrics.provider_used,
                     input_tokens=metrics.tokens_prompt,
-                    output_tokens=metrics.tokens_completion
+                    output_tokens=metrics.tokens_completion,
                 )
                 if current_cost is not None:
                     total_cost += current_cost

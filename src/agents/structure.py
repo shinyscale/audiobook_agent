@@ -5,21 +5,23 @@ Wraps the ChapterDetectionPipeline with self-verification to ensure
 high-quality chapter detection regardless of book format.
 """
 
-import time
+import json
 import logging
+import re
+import time
 from typing import Optional
 
+from ..pipeline.chapter_detection import ChapterDetectionPipeline, ChapterMap
+from ..pipeline.llm import LLMClient
 from .base import (
     Agent,
     AgentContext,
     AgentResult,
-    VerificationResult,
     VerificationIssue,
     VerificationLevel,
+    VerificationResult,
 )
 from .config import AgentConfig, PipelineTuningConfig
-from ..pipeline.chapter_detection import ChapterDetectionPipeline, ChapterMap
-from ..pipeline.llm import LLMClient, LLMConfig
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +131,48 @@ class StructureAgent(Agent):
             source_file=context.source_file,
         )
 
+        # region agent log (chapter-v-bug) - hypothesis A/C/D
+        try:
+            _titles = [c.title for c in chapter_map.chapters]
+            _has_v = any((t or "").strip().upper() in ("V", "CHAPTER V") for t in _titles)
+            _has_i = any((t or "").strip().upper() in ("I", "CHAPTER I") for t in _titles)
+            _centered_v_lines = len(re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", context.text))
+            _standalone_v_lines = len(re.findall(r"(?m)^[ \t]*V[ \t]*$", context.text))
+            _payload = (
+                json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-v-bug-pre",
+                        "hypothesisId": "D",
+                        "location": "src/agents/structure.py:StructureAgent.run:post_pipeline",
+                        "message": "StructureAgent produced chapter titles (presence of I/V)",
+                        "data": {
+                            "chapter_count": len(chapter_map.chapters),
+                            "has_V": _has_v,
+                            "has_I": _has_i,
+                            "titles": _titles[:20],
+                            "text_centered_V_lines": _centered_v_lines,
+                            "text_standalone_V_lines": _standalone_v_lines,
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            for _path in (
+                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
+                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
+            ):
+                try:
+                    with open(_path, "a", encoding="utf-8") as _f:
+                        _f.write(_payload)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # endregion
+
         # Calculate confidence breakdown
         high = sum(1 for c in chapter_map.chapters if c.confidence >= 0.7)
         medium = sum(1 for c in chapter_map.chapters if 0.4 <= c.confidence < 0.7)
@@ -141,9 +185,7 @@ class StructureAgent(Agent):
                 f"{len(chapter_map.low_confidence_boundaries)} low-confidence boundaries flagged"
             )
         if chapter_map.toc_agreement_score >= 0 and chapter_map.toc_agreement_score < 0.8:
-            issues.append(
-                f"TOC agreement is only {chapter_map.toc_agreement_score:.0%}"
-            )
+            issues.append(f"TOC agreement is only {chapter_map.toc_agreement_score:.0%}")
 
         elapsed = time.perf_counter() - start_time
 
@@ -190,10 +232,12 @@ class StructureAgent(Agent):
 
         # Check 1: Low confidence items
         if result.low_confidence_count > 0:
-            issues.append(VerificationIssue(
-                description=f"{result.low_confidence_count} chapters have low confidence",
-                severity="warning",
-            ))
+            issues.append(
+                VerificationIssue(
+                    description=f"{result.low_confidence_count} chapters have low confidence",
+                    severity="warning",
+                )
+            )
 
         # Check 2: Chapter size consistency
         size_issues = self._check_chapter_sizes(chapter_map)
@@ -202,24 +246,30 @@ class StructureAgent(Agent):
         # Check 3: TOC agreement
         if chapter_map.toc_agreement_score >= 0:
             if chapter_map.toc_agreement_score < 0.5:
-                issues.append(VerificationIssue(
-                    description=f"Poor TOC agreement ({chapter_map.toc_agreement_score:.0%})",
-                    severity="error",
-                    suggested_fix="Review chapter boundaries against table of contents",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Poor TOC agreement ({chapter_map.toc_agreement_score:.0%})",
+                        severity="error",
+                        suggested_fix="Review chapter boundaries against table of contents",
+                    )
+                )
             elif chapter_map.toc_agreement_score < 0.8:
-                issues.append(VerificationIssue(
-                    description=f"Moderate TOC agreement ({chapter_map.toc_agreement_score:.0%})",
-                    severity="warning",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Moderate TOC agreement ({chapter_map.toc_agreement_score:.0%})",
+                        severity="warning",
+                    )
+                )
 
         # Check 4: Low-confidence boundaries
         if chapter_map.low_confidence_boundaries:
             for boundary in chapter_map.low_confidence_boundaries[:3]:  # Report first 3
-                issues.append(VerificationIssue(
-                    description=f"Low-confidence boundary at position {boundary.position}: {boundary.title or '(untitled)'}",
-                    severity="info",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Low-confidence boundary at position {boundary.position}: {boundary.title or '(untitled)'}",
+                        severity="info",
+                    )
+                )
 
         # Check 5: LLM sequence verification (if available)
         if self._llm_client and self._config.enable_verification:
@@ -247,28 +297,32 @@ class StructureAgent(Agent):
         # Calculate statistics
         word_counts = [c.word_count for c in chapters]
         avg_words = sum(word_counts) / len(word_counts)
-        min_words = min(word_counts)
-        max_words = max(word_counts)
+        min(word_counts)
+        max(word_counts)
 
         # Flag very small chapters (< 20% of average)
         for i, chapter in enumerate(chapters):
             if chapter.word_count < avg_words * 0.2 and chapter.word_count < 500:
-                issues.append(VerificationIssue(
-                    description=f"Chapter {chapter.index} is unusually small ({chapter.word_count} words)",
-                    severity="warning",
-                    item_index=i,
-                    suggested_fix="May be incorrectly split or a section header",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Chapter {chapter.index} is unusually small ({chapter.word_count} words)",
+                        severity="warning",
+                        item_index=i,
+                        suggested_fix="May be incorrectly split or a section header",
+                    )
+                )
 
         # Flag very large chapters (> 3x average)
         for i, chapter in enumerate(chapters):
             if chapter.word_count > avg_words * 3:
-                issues.append(VerificationIssue(
-                    description=f"Chapter {chapter.index} is unusually large ({chapter.word_count} words, avg is {int(avg_words)})",
-                    severity="info",
-                    item_index=i,
-                    suggested_fix="May contain missed chapter boundaries",
-                ))
+                issues.append(
+                    VerificationIssue(
+                        description=f"Chapter {chapter.index} is unusually large ({chapter.word_count} words, avg is {int(avg_words)})",
+                        severity="info",
+                        item_index=i,
+                        suggested_fix="May contain missed chapter boundaries",
+                    )
+                )
 
         return issues
 
@@ -301,11 +355,13 @@ class StructureAgent(Agent):
                 llm_issues = result.get("issues", [])
                 for issue in llm_issues:
                     if isinstance(issue, dict):
-                        issues.append(VerificationIssue(
-                            description=issue.get("description", "Unknown issue"),
-                            severity=issue.get("severity", "warning"),
-                            item_index=issue.get("chapter_index"),
-                        ))
+                        issues.append(
+                            VerificationIssue(
+                                description=issue.get("description", "Unknown issue"),
+                                severity=issue.get("severity", "warning"),
+                                item_index=issue.get("chapter_index"),
+                            )
+                        )
 
         except Exception as e:
             logger.warning(f"LLM sequence verification failed: {e}")

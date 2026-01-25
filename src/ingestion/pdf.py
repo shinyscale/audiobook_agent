@@ -3,13 +3,13 @@ PDF document ingestion using pdfplumber.
 Handles both text-layer PDFs and scanned documents.
 """
 
-from pathlib import Path
-from typing import Optional
-from collections import Counter
 import re
+import shutil
 import subprocess
 import tempfile
-import shutil
+from collections import Counter
+from pathlib import Path
+from typing import Optional
 
 try:
     import pdfplumber
@@ -17,7 +17,6 @@ except ImportError:
     pdfplumber = None
 
 from .base import DocumentIngester, ExtractedDocument
-
 
 # Minimum threshold for considering a page as having text
 MIN_CHARS_FOR_TEXT_PAGE = 50
@@ -28,9 +27,9 @@ HEADER_FOOTER_REPEAT_THRESHOLD = 0.6
 
 class PDFIngester(DocumentIngester):
     """Ingester for PDF documents."""
-    
-    SUPPORTED_EXTENSIONS = ['.pdf']
-    
+
+    SUPPORTED_EXTENSIONS = [".pdf"]
+
     def __init__(
         self,
         normalize_whitespace: bool = True,
@@ -40,10 +39,12 @@ class PDFIngester(DocumentIngester):
         super().__init__(normalize_whitespace)
         self.extract_images = extract_images
         self.ocr_fallback = ocr_fallback
-        
+
         if pdfplumber is None:
-            raise ImportError("pdfplumber is required for PDF ingestion. Install with: pip install pdfplumber")
-    
+            raise ImportError(
+                "pdfplumber is required for PDF ingestion. Install with: pip install pdfplumber"
+            )
+
     def extract(self, path: Path) -> ExtractedDocument:
         """Extract text from a PDF document."""
         path = Path(path)
@@ -67,10 +68,10 @@ class PDFIngester(DocumentIngester):
 
             # Try to get metadata
             if pdf.metadata:
-                if pdf.metadata.get('Title'):
-                    title = pdf.metadata['Title']
-                if pdf.metadata.get('Author'):
-                    author = pdf.metadata['Author']
+                if pdf.metadata.get("Title"):
+                    title = pdf.metadata["Title"]
+                if pdf.metadata.get("Author"):
+                    author = pdf.metadata["Author"]
 
             for i, page in enumerate(pdf.pages):
                 # Extract text
@@ -86,7 +87,7 @@ class PDFIngester(DocumentIngester):
                         pages_with_text += 1
 
                     # Collect header/footer candidates
-                    lines = [l.strip() for l in page_text.split('\n') if l.strip()]
+                    lines = [l.strip() for l in page_text.split("\n") if l.strip()]
                     if len(lines) >= 2:
                         # First 2 lines as header candidates
                         header_candidates.extend(lines[:2])
@@ -94,10 +95,12 @@ class PDFIngester(DocumentIngester):
                         footer_candidates.extend(lines[-2:])
                 else:
                     # Page has no extractable text
-                    page_texts.append('')
+                    page_texts.append("")
                     if page.images:
                         has_images = True
-                        warnings.append(f"Page {i+1}: No text extracted (contains images, may need OCR)")
+                        warnings.append(
+                            f"Page {i+1}: No text extracted (contains images, may need OCR)"
+                        )
                     else:
                         warnings.append(f"Page {i+1}: No text extracted")
 
@@ -112,9 +115,13 @@ class PDFIngester(DocumentIngester):
             ocr_result = self._try_ocr_extraction(path, warnings)
             if ocr_result:
                 page_texts = [ocr_result]
-                warnings.append(f"Used OCR fallback (only {extraction_ratio:.0%} of pages had extractable text)")
+                warnings.append(
+                    f"Used OCR fallback (only {extraction_ratio:.0%} of pages had extractable text)"
+                )
         elif extraction_ratio < 0.3:
-            warnings.append(f"Low text extraction rate ({extraction_ratio:.0%}). Consider using --pdf-ocr for OCR fallback.")
+            warnings.append(
+                f"Low text extraction rate ({extraction_ratio:.0%}). Consider using --pdf-ocr for OCR fallback."
+            )
 
         # Identify and remove repeating headers/footers
         removed_headers, removed_footers = self._identify_repeating_lines(
@@ -133,7 +140,7 @@ class PDFIngester(DocumentIngester):
                     warnings.append(f"Removed repeating footer: {f[:50]}...")
 
         # Join all pages
-        full_text = '\n\n'.join(t for t in page_texts if t.strip())
+        full_text = "\n\n".join(t for t in page_texts if t.strip())
 
         # Normalize if requested
         if self.normalize_whitespace:
@@ -145,7 +152,7 @@ class PDFIngester(DocumentIngester):
         return ExtractedDocument(
             text=full_text,
             source_path=path,
-            source_format='pdf',
+            source_format="pdf",
             title=title,
             author=author,
             chapters=chapters,
@@ -153,72 +160,71 @@ class PDFIngester(DocumentIngester):
             has_images=has_images,
             extraction_warnings=warnings,
         )
-    
+
     def _clean_pdf_text(self, text: str) -> str:
         """Clean common PDF extraction artifacts."""
         # Fix ligatures that may not extract properly
         ligatures = {
-            'ﬁ': 'fi',
-            'ﬂ': 'fl',
-            'ﬀ': 'ff',
-            'ﬃ': 'ffi',
-            'ﬄ': 'ffl',
+            "ﬁ": "fi",
+            "ﬂ": "fl",
+            "ﬀ": "ff",
+            "ﬃ": "ffi",
+            "ﬄ": "ffl",
         }
         for lig, replacement in ligatures.items():
             text = text.replace(lig, replacement)
-        
+
         # Remove page numbers that appear alone on lines
         # (This is a heuristic - might need tuning)
-        text = re.sub(r'^\s*\d+\s*$', '', text, flags=re.MULTILINE)
-        
+        text = re.sub(r"^\s*\d+\s*$", "", text, flags=re.MULTILINE)
+
         # Remove headers/footers that repeat (basic heuristic)
         # More sophisticated detection would track repeated patterns across pages
-        
+
         return text
-    
+
     def _detect_chapters(self, text: str) -> Optional[list[dict]]:
         """
         Attempt to detect chapter boundaries in extracted text.
         Returns list of {title, start_pos, end_pos} dicts.
         """
         chapters = []
-        
+
         # Common chapter patterns
         patterns = [
             # "Chapter 1", "Chapter One", "Chapter I"
-            r'^(?P<title>Chapter\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen|Seventeen|Eighteen|Nineteen|Twenty)[^\n]*)',
+            r"^(?P<title>Chapter\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen|Seventeen|Eighteen|Nineteen|Twenty)[^\n]*)",
             # "CHAPTER 1" (all caps)
-            r'^(?P<title>CHAPTER\s+(?:\d+|[IVXLC]+)[^\n]*)',
+            r"^(?P<title>CHAPTER\s+(?:\d+|[IVXLC]+)[^\n]*)",
             # "1." or "I." at start of line (numbered chapters)
-            r'^(?P<title>(?:\d+|[IVXLC]+)\.\s*[^\n]*)',
+            r"^(?P<title>(?:\d+|[IVXLC]+)\.\s*[^\n]*)",
             # Part headers
-            r'^(?P<title>(?:PART|Part)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five)[^\n]*)',
+            r"^(?P<title>(?:PART|Part)\s+(?:\d+|[IVXLC]+|One|Two|Three|Four|Five)[^\n]*)",
         ]
-        
+
         for pattern in patterns:
             for match in re.finditer(pattern, text, re.MULTILINE | re.IGNORECASE):
-                chapters.append({
-                    'title': match.group('title').strip(),
-                    'start_pos': match.start(),
-                    'end_pos': None,  # Will be filled in below
-                })
-        
+                chapters.append(
+                    {
+                        "title": match.group("title").strip(),
+                        "start_pos": match.start(),
+                        "end_pos": None,  # Will be filled in below
+                    }
+                )
+
         if not chapters:
             return None
-        
+
         # Sort by position and fill in end positions
-        chapters.sort(key=lambda c: c['start_pos'])
+        chapters.sort(key=lambda c: c["start_pos"])
         for i in range(len(chapters) - 1):
-            chapters[i]['end_pos'] = chapters[i + 1]['start_pos']
-        chapters[-1]['end_pos'] = len(text)
+            chapters[i]["end_pos"] = chapters[i + 1]["start_pos"]
+        chapters[-1]["end_pos"] = len(text)
 
         return chapters
 
     def _identify_repeating_lines(
-        self,
-        header_candidates: list[str],
-        footer_candidates: list[str],
-        page_count: int
+        self, header_candidates: list[str], footer_candidates: list[str], page_count: int
     ) -> tuple[list[str], list[str]]:
         """
         Identify lines that repeat across many pages (likely headers/footers).
@@ -239,21 +245,18 @@ class PDFIngester(DocumentIngester):
 
         # Find lines that appear on most pages
         repeating_headers = [
-            line for line, count in header_counts.items()
+            line
+            for line, count in header_counts.items()
             if count >= threshold and len(line) > 3  # Skip very short lines
         ]
         repeating_footers = [
-            line for line, count in footer_counts.items()
-            if count >= threshold and len(line) > 3
+            line for line, count in footer_counts.items() if count >= threshold and len(line) > 3
         ]
 
         return repeating_headers, repeating_footers
 
     def _remove_header_footer_lines(
-        self,
-        page_texts: list[str],
-        headers_to_remove: list[str],
-        footers_to_remove: list[str]
+        self, page_texts: list[str], headers_to_remove: list[str], footers_to_remove: list[str]
     ) -> list[str]:
         """
         Remove identified header/footer lines from page texts.
@@ -272,7 +275,7 @@ class PDFIngester(DocumentIngester):
                 cleaned.append(page_text)
                 continue
 
-            lines = page_text.split('\n')
+            lines = page_text.split("\n")
 
             # Remove header lines from the beginning
             while lines and lines[0].strip() in headers_to_remove:
@@ -282,7 +285,7 @@ class PDFIngester(DocumentIngester):
             while lines and lines[-1].strip() in footers_to_remove:
                 lines.pop()
 
-            cleaned.append('\n'.join(lines))
+            cleaned.append("\n".join(lines))
 
         return cleaned
 
@@ -302,7 +305,7 @@ class PDFIngester(DocumentIngester):
             Extracted text if successful, None otherwise
         """
         # Try ocrmypdf first (best quality)
-        if shutil.which('ocrmypdf'):
+        if shutil.which("ocrmypdf"):
             try:
                 return self._ocr_with_ocrmypdf(path)
             except Exception as e:
@@ -310,8 +313,9 @@ class PDFIngester(DocumentIngester):
 
         # Try pytesseract + pdf2image
         try:
-            from pdf2image import convert_from_path
             import pytesseract
+            from pdf2image import convert_from_path
+
             return self._ocr_with_pytesseract(path, convert_from_path, pytesseract)
         except ImportError:
             pass
@@ -334,16 +338,16 @@ class PDFIngester(DocumentIngester):
         Returns:
             Extracted text from OCR'd PDF
         """
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
         try:
             # Run ocrmypdf to create searchable PDF
             subprocess.run(
-                ['ocrmypdf', '--force-ocr', '--skip-text', str(path), str(tmp_path)],
+                ["ocrmypdf", "--force-ocr", "--skip-text", str(path), str(tmp_path)],
                 check=True,
                 capture_output=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,  # 10 minute timeout
             )
 
             # Extract text from the OCR'd PDF
@@ -353,7 +357,7 @@ class PDFIngester(DocumentIngester):
                     page_text = page.extract_text()
                     if page_text:
                         texts.append(self._clean_pdf_text(page_text))
-                return '\n\n'.join(texts)
+                return "\n\n".join(texts)
         finally:
             if tmp_path.exists():
                 tmp_path.unlink()
@@ -379,4 +383,4 @@ class PDFIngester(DocumentIngester):
             if text.strip():
                 texts.append(self._clean_pdf_text(text))
 
-        return '\n\n'.join(texts)
+        return "\n\n".join(texts)

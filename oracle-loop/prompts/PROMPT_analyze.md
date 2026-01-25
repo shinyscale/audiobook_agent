@@ -65,9 +65,11 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    ```bash
    # Replace {text_file}, {book_name}, and model values from manifest and gui_settings.json
    # Note: {text_file} should be prefixed with ../ since we run from oracle-loop/
+   # Use --competitive-consensus for multi-LLM voting on merge decisions
    audiobook-prep analyze ../{text_file} \
      --html ../output/{book_name}/report.html \
      --output ../output/{book_name}/analysis.json \
+     --competitive-consensus \
      --structure-model {structure_model} \
      --character-model {character_model} \
      --summary-model {summary_model} \
@@ -79,11 +81,23 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
+     --competitive-consensus \
      --structure-model "qwen3:30b-instruct" \
      --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --pronunciation-model "qwen3:30b-instruct"
    ```
+
+   **Note on Character Extraction:**
+   - Uses summary-driven approach for character extraction
+   - Summaries run automatically before character extraction
+   - See `oracle-loop/docs/CODEBASE_SUMMARY.md` for architecture details
+
+   **Note on Competitive Consensus:**
+   - `--competitive-consensus` runs 3 LLMs with different temperatures (0.5, 0.7, 0.9) and prompts
+   - Each merge/alias decision requires 2/3 (supermajority) agreement
+   - This prevents single-LLM hallucinations from causing false merges
+   - Particularly effective for preventing errors like "Mr. McKee" aliased to "Mr. Sloane"
 
 5. Wait for completion (this may take 10-60 minutes depending on text length and model)
 6. Verify output exists:

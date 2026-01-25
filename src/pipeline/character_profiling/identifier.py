@@ -6,13 +6,12 @@ narrative context and correctly handle complex cases like birth names,
 nicknames, and family relationships.
 """
 
-import json
 import logging
 from typing import Optional
 
-from .models import IdentifiedCharacter
-from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
+from ..chapter_summary.models import ChapterSummary
 from ..llm import LLMClient
+from .models import IdentifiedCharacter
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +166,9 @@ class SummaryDrivenCharacterIdentifier:
         # Extract narrator info
         narrator_info = result.get("narrator", {})
         narrator_name = narrator_info.get("name") if narrator_info else None
-        narrative_style = narrator_info.get("narrative_style", "unknown") if narrator_info else "unknown"
+        narrative_style = (
+            narrator_info.get("narrative_style", "unknown") if narrator_info else "unknown"
+        )
 
         # Mark the narrator in the character list
         if narrator_name:
@@ -240,14 +241,16 @@ class SummaryDrivenCharacterIdentifier:
 
             first_chapter = min(chapters_present) if chapters_present else 1
 
-            characters.append(IdentifiedCharacter(
-                canonical_name=canonical,
-                aliases=aliases,
-                role=role_str,
-                first_appearance_chapter=first_chapter,
-                chapters_present=chapters_present,
-                brief_description=char_data.get("brief_description", ""),
-            ))
+            characters.append(
+                IdentifiedCharacter(
+                    canonical_name=canonical,
+                    aliases=aliases,
+                    role=role_str,
+                    first_appearance_chapter=first_chapter,
+                    chapters_present=chapters_present,
+                    brief_description=char_data.get("brief_description", ""),
+                )
+            )
 
         return characters
 
@@ -310,13 +313,15 @@ class SummaryDrivenCharacterIdentifier:
                         original_name = char_name
                         break
 
-            characters.append(IdentifiedCharacter(
-                canonical_name=original_name,
-                aliases=[],
-                role="supporting",
-                first_appearance_chapter=min(chapters),
-                chapters_present=sorted(set(chapters)),
-            ))
+            characters.append(
+                IdentifiedCharacter(
+                    canonical_name=original_name,
+                    aliases=[],
+                    role="supporting",
+                    first_appearance_chapter=min(chapters),
+                    chapters_present=sorted(set(chapters)),
+                )
+            )
 
         return characters
 

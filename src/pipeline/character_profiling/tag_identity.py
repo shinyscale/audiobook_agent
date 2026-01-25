@@ -6,23 +6,24 @@ them as merge signals. When a chapter summary contains a compound character tag,
 this strongly indicates the two names refer to the same person.
 """
 
-import re
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
+from ..chapter_summary.models import ChapterSummaryMap
 
 logger = logging.getLogger(__name__)
 
 
 # Pattern to match compound names: "Name1/Name2" or "Name1 / Name2"
-COMPOUND_NAME_PATTERN = re.compile(r'^([A-Za-z][A-Za-z\s]*?)\s*/\s*([A-Za-z][A-Za-z\s]*?)$')
+COMPOUND_NAME_PATTERN = re.compile(r"^([A-Za-z][A-Za-z\s]*?)\s*/\s*([A-Za-z][A-Za-z\s]*?)$")
 
 
 @dataclass
 class TagIdentityMatch:
     """A match indicating two names are the same person based on chapter tags."""
+
     name1: str
     name2: str
     chapter_index: int
@@ -46,6 +47,7 @@ class TagIdentityMatch:
 @dataclass
 class TagIdentityResult:
     """Result of tag identity propagation."""
+
     matches: list[TagIdentityMatch] = field(default_factory=list)
     total_tags_scanned: int = 0
     compound_tags_found: int = 0
@@ -161,24 +163,27 @@ def apply_tag_identities_to_merge_candidates(
     for match in tag_result.matches:
         # Check if this pair is already in candidates
         pair_exists = any(
-            (c.get("name1") == match.name1 and c.get("name2") == match.name2) or
-            (c.get("name1") == match.name2 and c.get("name2") == match.name1)
+            (c.get("name1") == match.name1 and c.get("name2") == match.name2)
+            or (c.get("name1") == match.name2 and c.get("name2") == match.name1)
             for c in candidates
         )
 
         if not pair_exists:
-            candidates.append({
-                "name1": match.name1,
-                "name2": match.name2,
-                "reason": f"Compound chapter tag: '{match.tag_text}' (chapter {match.chapter_index})",
-                "confidence": match.confidence,
-                "source": "tag_identity",
-            })
+            candidates.append(
+                {
+                    "name1": match.name1,
+                    "name2": match.name2,
+                    "reason": f"Compound chapter tag: '{match.tag_text}' (chapter {match.chapter_index})",
+                    "confidence": match.confidence,
+                    "source": "tag_identity",
+                }
+            )
         else:
             # Update existing candidate with higher confidence
             for c in candidates:
-                if ((c.get("name1") == match.name1 and c.get("name2") == match.name2) or
-                    (c.get("name1") == match.name2 and c.get("name2") == match.name1)):
+                if (c.get("name1") == match.name1 and c.get("name2") == match.name2) or (
+                    c.get("name1") == match.name2 and c.get("name2") == match.name1
+                ):
                     if c.get("confidence", 0) < match.confidence:
                         c["confidence"] = match.confidence
                         c["reason"] = c.get("reason", "") + f"; confirmed by tag '{match.tag_text}'"

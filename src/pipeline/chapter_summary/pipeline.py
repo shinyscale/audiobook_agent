@@ -6,23 +6,23 @@ Supports parallel chapter summarization for faster processing.
 """
 
 import hashlib
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from datetime import datetime
-from typing import Optional, Callable
-from collections import defaultdict
 import logging
 import threading
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional
 
+from ..chapter_detection.models import ChapterMap as ChapterDetectionMap
+from ..character_extraction.models import CharacterMap as CharacterExtractionMap
+from ..llm import LLMClient
 from .models import (
     ChapterSummary,
     ChapterSummaryMap,
     SummaryPipelineCheckpoint,
 )
 from .summarizer import ChapterSummarizer
-from ..chapter_detection.models import ChapterMap as ChapterDetectionMap
-from ..character_extraction.models import CharacterMap as CharacterExtractionMap
-from ..llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -119,15 +119,15 @@ class ChapterSummaryPipeline:
         # Stage 1: Summarization
         if checkpoint.stage == "summarization":
             if self.parallel_chapters and len(chapter_map.chapters) > 1:
-                logger.info(f"Stage 1: Generating chapter summaries in parallel ({self.max_workers} workers)")
+                logger.info(
+                    f"Stage 1: Generating chapter summaries in parallel ({self.max_workers} workers)"
+                )
                 checkpoint = self._run_summarization_parallel(
                     full_text, chapter_map, summarizer, checkpoint, known_characters
                 )
             else:
                 logger.info("Stage 1: Generating chapter summaries")
-                checkpoint = self._run_summarization(
-                    full_text, chapter_map, summarizer, checkpoint
-                )
+                checkpoint = self._run_summarization(full_text, chapter_map, summarizer, checkpoint)
             self._save_checkpoint(checkpoint)
 
         # Stage 2: Consolidation
@@ -211,17 +211,16 @@ class ChapterSummaryPipeline:
         total_chapters = len(chapter_map.chapters)
 
         # Prepare chapters that need processing
-        chapters_to_process = [
-            ch for ch in chapter_map.chapters
-            if ch.index not in completed
-        ]
+        chapters_to_process = [ch for ch in chapter_map.chapters if ch.index not in completed]
 
         if not chapters_to_process:
             logger.info("All chapters already completed, skipping summarization")
             checkpoint.stage = "consolidation"
             return checkpoint
 
-        logger.info(f"Processing {len(chapters_to_process)} chapters with {self.max_workers} workers")
+        logger.info(
+            f"Processing {len(chapters_to_process)} chapters with {self.max_workers} workers"
+        )
 
         # Thread-safe collections for results
         summaries: list[ChapterSummary] = list(checkpoint.chapter_summaries or [])
@@ -276,8 +275,7 @@ class ChapterSummaryPipeline:
         # Execute summarization in parallel
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_chapter = {
-                executor.submit(summarize_chapter, ch): ch
-                for ch in chapters_to_process
+                executor.submit(summarize_chapter, ch): ch for ch in chapters_to_process
             }
 
             for future in as_completed(future_to_chapter):
@@ -292,7 +290,9 @@ class ChapterSummaryPipeline:
                         # Thread-safe progress update
                         with self._progress_lock:
                             progress_counter[0] += 1
-                            self._report_progress("summarization", progress_counter[0], total_chapters)
+                            self._report_progress(
+                                "summarization", progress_counter[0], total_chapters
+                            )
 
                 except Exception as e:
                     error_msg = f"Unexpected error for chapter {chapter.index}: {str(e)}"
@@ -307,7 +307,9 @@ class ChapterSummaryPipeline:
         checkpoint.stage = "consolidation"
         checkpoint.timestamp = datetime.now().isoformat()
 
-        logger.info(f"Parallel summarization complete: {len(summaries)} chapters, {len(errors)} errors")
+        logger.info(
+            f"Parallel summarization complete: {len(summaries)} chapters, {len(errors)} errors"
+        )
 
         return checkpoint
 

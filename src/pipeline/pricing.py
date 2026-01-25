@@ -5,13 +5,14 @@ Pricing data is based on publicly available pricing as of January 2025.
 Prices are in USD per million tokens.
 """
 
-from typing import Optional, Literal
 from dataclasses import dataclass
+from typing import Literal, Optional
 
 
 @dataclass
 class ModelPricing:
     """Pricing information for a specific model."""
+
     input_price_per_mtok: float  # USD per million input tokens
     output_price_per_mtok: float  # USD per million output tokens
     provider: Literal["openai", "anthropic", "ollama"]
@@ -29,18 +30,14 @@ ANTHROPIC_PRICING = {
     # Claude 3.5 Sonnet
     "claude-3-5-sonnet-20241022": ModelPricing(3.00, 15.00, "anthropic"),
     "claude-3-5-sonnet-latest": ModelPricing(3.00, 15.00, "anthropic"),
-
     # Claude 3.5 Haiku
     "claude-3-5-haiku-20241022": ModelPricing(0.80, 4.00, "anthropic"),
     "claude-3-5-haiku-latest": ModelPricing(0.80, 4.00, "anthropic"),
-
     # Claude 3 Opus
     "claude-3-opus-20240229": ModelPricing(15.00, 75.00, "anthropic"),
     "claude-3-opus-latest": ModelPricing(15.00, 75.00, "anthropic"),
-
     # Claude 3 Sonnet
     "claude-3-sonnet-20240229": ModelPricing(3.00, 15.00, "anthropic"),
-
     # Claude 3 Haiku
     "claude-3-haiku-20240307": ModelPricing(0.25, 1.25, "anthropic"),
 }
@@ -52,23 +49,18 @@ OPENAI_PRICING = {
     "gpt-4o": ModelPricing(2.50, 10.00, "openai"),
     "gpt-4o-2024-11-20": ModelPricing(2.50, 10.00, "openai"),
     "gpt-4o-2024-08-06": ModelPricing(2.50, 10.00, "openai"),
-
     # GPT-4o mini
     "gpt-4o-mini": ModelPricing(0.150, 0.600, "openai"),
     "gpt-4o-mini-2024-07-18": ModelPricing(0.150, 0.600, "openai"),
-
     # GPT-4 Turbo
     "gpt-4-turbo": ModelPricing(10.00, 30.00, "openai"),
     "gpt-4-turbo-2024-04-09": ModelPricing(10.00, 30.00, "openai"),
-
     # GPT-4
     "gpt-4": ModelPricing(30.00, 60.00, "openai"),
     "gpt-4-0613": ModelPricing(30.00, 60.00, "openai"),
-
     # GPT-3.5 Turbo
     "gpt-3.5-turbo": ModelPricing(0.50, 1.50, "openai"),
     "gpt-3.5-turbo-0125": ModelPricing(0.50, 1.50, "openai"),
-
     # o1 models (reasoning models)
     "o1": ModelPricing(15.00, 60.00, "openai"),
     "o1-preview": ModelPricing(15.00, 60.00, "openai"),
@@ -104,10 +96,7 @@ def get_model_pricing(model_name: str, provider: str) -> Optional[ModelPricing]:
 
 
 def calculate_cost(
-    model_name: str,
-    provider: str,
-    input_tokens: int,
-    output_tokens: int
+    model_name: str, provider: str, input_tokens: int, output_tokens: int
 ) -> Optional[float]:
     """
     Calculate cost for LLM usage.

@@ -5,29 +5,29 @@ Coordinates the full pronunciation guide generation workflow with checkpointing.
 """
 
 import hashlib
-from pathlib import Path
-from datetime import datetime
-from typing import Optional, Callable
 import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional
 
-from .models import (
-    PronunciationMap,
-    PronunciationPipelineCheckpoint,
-    PronunciationFlag,
-)
-from .word_index import WordIndex
-from .proposers import (
-    BasePronunciationProposer,
-    CMUProposer,
-    ForeignProposer,
-    HomographProposer,
-    CharacterProposer,
-)
-from .enricher import PronunciationEnricher
-from .consolidator import PronunciationConsolidator
 from ..chapter_detection.models import ChapterMap as ChapterDetectionMap
 from ..character_extraction.models import CharacterMap as CharacterExtractionMap
 from ..llm import LLMClient
+from .consolidator import PronunciationConsolidator
+from .enricher import PronunciationEnricher
+from .models import (
+    PronunciationFlag,
+    PronunciationMap,
+    PronunciationPipelineCheckpoint,
+)
+from .proposers import (
+    BasePronunciationProposer,
+    CharacterProposer,
+    CMUProposer,
+    ForeignProposer,
+    HomographProposer,
+)
+from .word_index import WordIndex
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +122,7 @@ class PronunciationGuidePipeline:
         """
         # Extract chapter boundaries
         chapter_boundaries = [
-            (ch.index, ch.start_position, ch.end_position)
-            for ch in chapter_map.chapters
+            (ch.index, ch.start_position, ch.end_position) for ch in chapter_map.chapters
         ]
 
         # Extract character names
@@ -195,8 +194,7 @@ class PronunciationGuidePipeline:
 
             try:
                 proposals = proposer.propose(
-                    full_text, chapter_boundaries, character_names,
-                    word_index=word_index
+                    full_text, chapter_boundaries, character_names, word_index=word_index
                 )
                 all_proposals.extend(proposals)
                 logger.info(f"{proposer.name} proposer: {len(proposals)} proposals")
@@ -270,13 +268,15 @@ class PronunciationGuidePipeline:
                 checkpoint.warnings.append(f"Parallel enrichment failed: {str(e)}")
         else:
             # Sequential batch enrichment (fallback)
-            total_batches = (len(proposals_list) + self.enricher.batch_size - 1) // self.enricher.batch_size
+            total_batches = (
+                len(proposals_list) + self.enricher.batch_size - 1
+            ) // self.enricher.batch_size
 
             for i in range(0, len(proposals_list), self.enricher.batch_size):
                 batch_num = i // self.enricher.batch_size + 1
                 self._report_progress("enrichment", batch_num, total_batches)
 
-                batch = proposals_list[i:i + self.enricher.batch_size]
+                batch = proposals_list[i : i + self.enricher.batch_size]
 
                 try:
                     batch_enrichments = self.enricher.enrich_batch(batch)

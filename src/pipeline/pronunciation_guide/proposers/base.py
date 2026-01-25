@@ -2,11 +2,11 @@
 Base class for pronunciation proposers.
 """
 
-from abc import ABC, abstractmethod
-from typing import Optional, TYPE_CHECKING
 import re
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Optional
 
-from ..models import PronunciationProposal, PronunciationMention
+from ..models import PronunciationMention, PronunciationProposal
 
 if TYPE_CHECKING:
     from ..word_index import WordIndex
@@ -76,7 +76,7 @@ class BasePronunciationProposer(ABC):
         start = max(0, position - window)
         end = min(len(text), position + word_length + window)
         context = text[start:end]
-        context = ' '.join(context.split())  # Normalize whitespace
+        context = " ".join(context.split())  # Normalize whitespace
 
         if start > 0:
             context = "..." + context
@@ -115,28 +115,32 @@ class BasePronunciationProposer(ABC):
                 if case_sensitive and occ.original_form != word:
                     continue
                 context = self._extract_context(text, occ.position, len(occ.original_form))
-                mentions.append(PronunciationMention(
-                    word_form=occ.original_form,
-                    position=occ.position,
-                    chapter_index=occ.chapter_index,
-                    context=context,
-                ))
+                mentions.append(
+                    PronunciationMention(
+                        word_form=occ.original_form,
+                        position=occ.position,
+                        chapter_index=occ.chapter_index,
+                        context=context,
+                    )
+                )
             return mentions
 
         # Fallback to regex scan
         flags = 0 if case_sensitive else re.IGNORECASE
-        pattern = r'\b' + re.escape(word) + r'\b'
+        pattern = r"\b" + re.escape(word) + r"\b"
 
         for match in re.finditer(pattern, text, flags):
             position = match.start()
             chapter_idx = self._get_chapter_for_position(position, chapter_boundaries)
             context = self._extract_context(text, position, len(word))
 
-            mentions.append(PronunciationMention(
-                word_form=match.group(0),
-                position=position,
-                chapter_index=chapter_idx,
-                context=context,
-            ))
+            mentions.append(
+                PronunciationMention(
+                    word_form=match.group(0),
+                    position=position,
+                    chapter_index=chapter_idx,
+                    context=context,
+                )
+            )
 
         return mentions

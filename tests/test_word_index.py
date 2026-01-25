@@ -298,9 +298,10 @@ class TestProposersWithWordIndex:
         words_with = {p.word for p in proposals_with_index}
         words_without = {p.word for p in proposals_without_index}
         assert words_with == words_without
+        # "Gatsby" is flagged; "Nick" and "Daisy" are in COMMON_WORDS_WHITELIST
         assert "Gatsby" in words_with
-        assert "Nick" in words_with
-        assert "Daisy" in words_with
+        assert "Nick" not in words_with  # Common word, whitelisted
+        assert "Daisy" not in words_with  # Common word, whitelisted
 
     def test_cmu_proposer_with_index(self):
         """CMUProposer finds unknown words using WordIndex."""

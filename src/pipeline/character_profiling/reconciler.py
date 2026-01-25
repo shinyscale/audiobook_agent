@@ -6,12 +6,14 @@ Uses LLM to identify and merge any remaining duplicates.
 """
 
 import logging
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
 
-from .models import CharacterProfile, AppearanceProfile, PersonalityProfile, VoiceGuidance, CharacterRelationship
-from .handoff_detector import HandoffCandidate
 from ..llm import LLMClient
+from .handoff_detector import HandoffCandidate
+from .models import (
+    CharacterProfile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DuplicatePair:
     """A pair of characters identified as duplicates."""
+
     name1: str
     name2: str
     reason: str
@@ -215,7 +218,9 @@ class CharacterReconciler:
             if profile.appearance.summary:
                 lines.append(f"   Appearance: {profile.appearance.summary[:100]}")
             if profile.relationships:
-                rels = ", ".join([f"{r.character} ({r.relationship_type})" for r in profile.relationships[:3]])
+                rels = ", ".join(
+                    [f"{r.character} ({r.relationship_type})" for r in profile.relationships[:3]]
+                )
                 lines.append(f"   Relationships: {rels}")
             lines.append("")
         return "\n".join(lines)
@@ -227,12 +232,14 @@ class CharacterReconciler:
             name1 = dup.get("name1", "")
             name2 = dup.get("name2", "")
             if name1 and name2:
-                duplicates.append(DuplicatePair(
-                    name1=name1,
-                    name2=name2,
-                    reason=dup.get("reason", ""),
-                    confidence=dup.get("confidence", 0.5),
-                ))
+                duplicates.append(
+                    DuplicatePair(
+                        name1=name1,
+                        name2=name2,
+                        reason=dup.get("reason", ""),
+                        confidence=dup.get("confidence", 0.5),
+                    )
+                )
         return duplicates
 
     def _merge_profiles(
@@ -298,7 +305,9 @@ class CharacterReconciler:
         # Remove secondary from list
         return [p for p in profiles if p != secondary]
 
-    def _find_profile(self, profiles: list[CharacterProfile], name: str) -> Optional[CharacterProfile]:
+    def _find_profile(
+        self, profiles: list[CharacterProfile], name: str
+    ) -> Optional[CharacterProfile]:
         """Find profile by canonical name or alias."""
         name_lower = name.lower()
         for profile in profiles:

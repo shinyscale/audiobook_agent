@@ -4,13 +4,13 @@ Validation agent for chapter proposals.
 Stage 3: Validate each proposal independently to build confidence.
 """
 
+import logging
 import re
 from typing import Optional
-import logging
-from difflib import SequenceMatcher
 
-from .models import ChapterProposal, ValidationResult, DocumentProfile, TOCEntry
+from ...utils.similarity import string_similarity
 from ..llm import LLMClient
+from .models import ChapterProposal, DocumentProfile, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +121,7 @@ class ProposalValidator:
                 )
 
         logger.info(
-            f"ProposalValidator: {valid_count} valid, {invalid_count} invalid "
-            f"(threshold=0.5)"
+            f"ProposalValidator: {valid_count} valid, {invalid_count} invalid " f"(threshold=0.5)"
         )
 
         return results
@@ -148,9 +147,7 @@ class ProposalValidator:
         toc_score = self._check_toc_match(proposal, profile)
 
         # 3. Calculate overall score
-        overall_score = self._calculate_overall_score(
-            llm_scores, toc_score, proposal.confidence
-        )
+        overall_score = self._calculate_overall_score(llm_scores, toc_score, proposal.confidence)
 
         # Determine if valid (threshold = 0.5)
         is_valid = overall_score >= 0.5
@@ -203,8 +200,12 @@ class ProposalValidator:
 
         if result is None or not isinstance(result, dict):
             # JSON parsing failure or wrong type
-            error_detail = f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
-            logger.warning(f"LLM validation failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}")
+            error_detail = (
+                f"got {type(result).__name__}" if result is not None else "failed to parse JSON"
+            )
+            logger.warning(
+                f"LLM validation failed ({error_detail}): {response.content[:200] if response.content else 'empty response'}"
+            )
             return self._heuristic_validate(text_before, text_after, title)
 
         return {
@@ -221,12 +222,17 @@ class ProposalValidator:
         title: Optional[str],
     ) -> dict:
         """Heuristic validation when LLM is not available."""
-        scores = {"ending_score": 5, "beginning_score": 5, "title_validity": 5, "reasoning": "Heuristic validation"}
+        scores = {
+            "ending_score": 5,
+            "beginning_score": 5,
+            "title_validity": 5,
+            "reasoning": "Heuristic validation",
+        }
 
         # Check for ending indicators
         if text_before:
             # Ends with period/quote suggests complete thought
-            if text_before.rstrip()[-1] in '.!?"\'':
+            if text_before.rstrip()[-1] in ".!?\"'":
                 scores["ending_score"] += 2
 
             # Multiple paragraph breaks before suggest natural division
@@ -294,9 +300,7 @@ class ProposalValidator:
             return 0.9
 
         # Sequence matching
-        ratio = SequenceMatcher(None, t1, t2).ratio()
-
-        return ratio
+        return string_similarity(t1, t2, case_sensitive=True)
 
     def _normalize_title(self, title: str) -> str:
         """Normalize a title for comparison."""
@@ -311,8 +315,16 @@ class ProposalValidator:
 
         # Convert word numbers to digits
         word_to_num = {
-            "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
-            "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+            "one": "1",
+            "two": "2",
+            "three": "3",
+            "four": "4",
+            "five": "5",
+            "six": "6",
+            "seven": "7",
+            "eight": "8",
+            "nine": "9",
+            "ten": "10",
         }
         for word, num in word_to_num.items():
             title = re.sub(rf"\b{word}\b", num, title)

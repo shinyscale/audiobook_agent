@@ -12,8 +12,8 @@ Common back matter includes:
 - Transcriber notes
 """
 
-import re
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BackMatterRegion:
     """A region of text identified as back matter (non-content)."""
+
     start_position: int
     end_position: int
     region_type: str  # "project_gutenberg", "copyright", "advertisement", etc.
@@ -37,42 +38,17 @@ class BackMatterRegion:
 # Project Gutenberg patterns
 GUTENBERG_START_PATTERNS = [
     # License section start markers
+    re.compile(r"\*{3,}\s*START OF (THE )?PROJECT GUTENBERG (EBOOK|LICENSE|ETEXT)", re.IGNORECASE),
+    re.compile(r"End of (the )?Project Gutenberg", re.IGNORECASE),
+    re.compile(r"\*{3,}\s*END OF (THE )?PROJECT GUTENBERG (EBOOK|LICENSE|ETEXT)", re.IGNORECASE),
+    re.compile(r"This eBook is for the use of anyone", re.IGNORECASE),
+    re.compile(r"Project Gutenberg.{0,50}(License|Terms|Trademark)", re.IGNORECASE),
+    re.compile(r"The Project Gutenberg Literary Archive Foundation", re.IGNORECASE),
+    re.compile(r"Professor Michael S\. Hart", re.IGNORECASE),
     re.compile(
-        r"\*{3,}\s*START OF (THE )?PROJECT GUTENBERG (EBOOK|LICENSE|ETEXT)",
-        re.IGNORECASE
+        r"Produced by .{10,100}(Project Gutenberg|PG|Distributed Proofreaders)", re.IGNORECASE
     ),
-    re.compile(
-        r"End of (the )?Project Gutenberg",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"\*{3,}\s*END OF (THE )?PROJECT GUTENBERG (EBOOK|LICENSE|ETEXT)",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"This eBook is for the use of anyone",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"Project Gutenberg.{0,50}(License|Terms|Trademark)",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"The Project Gutenberg Literary Archive Foundation",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"Professor Michael S\. Hart",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"Produced by .{10,100}(Project Gutenberg|PG|Distributed Proofreaders)",
-        re.IGNORECASE
-    ),
-    re.compile(
-        r"www\.gutenberg\.org",
-        re.IGNORECASE
-    ),
+    re.compile(r"www\.gutenberg\.org", re.IGNORECASE),
 ]
 
 # Generic back matter patterns
@@ -82,29 +58,44 @@ BACK_MATTER_PATTERNS = [
     (re.compile(r"All rights reserved", re.IGNORECASE), "copyright"),
     (re.compile(r"ISBN[\s:-]*[\dX-]{10,}", re.IGNORECASE), "metadata"),
     (re.compile(r"Library of Congress", re.IGNORECASE), "metadata"),
-    (re.compile(r"Printed in (the )?(United States|USA|America|UK|Great Britain)", re.IGNORECASE), "metadata"),
-
+    (
+        re.compile(
+            r"Printed in (the )?(United States|USA|America|UK|Great Britain)", re.IGNORECASE
+        ),
+        "metadata",
+    ),
     # Publisher/publication info
     (re.compile(r"Published by .{5,50}(Press|Publishing|Books)", re.IGNORECASE), "metadata"),
     (re.compile(r"First (published|edition|printing)", re.IGNORECASE), "metadata"),
-
     # Advertisements
     (re.compile(r"(Other|More) books by (the )?same author", re.IGNORECASE), "advertisement"),
-    (re.compile(r"Also (available|by) (the same author|this author)", re.IGNORECASE), "advertisement"),
+    (
+        re.compile(r"Also (available|by) (the same author|this author)", re.IGNORECASE),
+        "advertisement",
+    ),
     (re.compile(r"(Visit|Check out) (our |the )?(website|online)", re.IGNORECASE), "advertisement"),
-
     # Transcriber notes
-    (re.compile(r"^\s*\[?(Transcriber'?s?|Editor'?s?) (Note|Comment)", re.MULTILINE | re.IGNORECASE), "transcriber_note"),
+    (
+        re.compile(
+            r"^\s*\[?(Transcriber'?s?|Editor'?s?) (Note|Comment)", re.MULTILINE | re.IGNORECASE
+        ),
+        "transcriber_note",
+    ),
     (re.compile(r"Transcribed (by|from)", re.IGNORECASE), "transcriber_note"),
-
     # About the author
     (re.compile(r"^\s*About the Author\s*$", re.MULTILINE | re.IGNORECASE), "about_author"),
     (re.compile(r"^\s*About the Translator\s*$", re.MULTILINE | re.IGNORECASE), "about_author"),
-    (re.compile(r"^\s*Author's? (Note|Bio|Biography)\s*$", re.MULTILINE | re.IGNORECASE), "about_author"),
-
+    (
+        re.compile(r"^\s*Author's? (Note|Bio|Biography)\s*$", re.MULTILINE | re.IGNORECASE),
+        "about_author",
+    ),
     # Appendices and indices
-    (re.compile(r"^\s*(Appendix|Index|Bibliography|Glossary|Notes)\s*$", re.MULTILINE | re.IGNORECASE), "appendix"),
-
+    (
+        re.compile(
+            r"^\s*(Appendix|Index|Bibliography|Glossary|Notes)\s*$", re.MULTILINE | re.IGNORECASE
+        ),
+        "appendix",
+    ),
     # End markers
     (re.compile(r"^\s*(THE END|FINIS|FIN)\s*$", re.MULTILINE), "end_marker"),
 ]
@@ -177,21 +168,19 @@ class BackMatterDetector:
                 if end - start < self.min_region_size:
                     end = min(len(text), start + self.min_region_size)
 
-                regions.append(BackMatterRegion(
-                    start_position=start,
-                    end_position=end,
-                    region_type="project_gutenberg",
-                    confidence=0.95,
-                    matched_pattern=pattern.pattern[:50],
-                ))
+                regions.append(
+                    BackMatterRegion(
+                        start_position=start,
+                        end_position=end,
+                        region_type="project_gutenberg",
+                        confidence=0.95,
+                        matched_pattern=pattern.pattern[:50],
+                    )
+                )
 
         return regions
 
-    def _detect_generic_back_matter(
-        self,
-        text: str,
-        search_start: int
-    ) -> list[BackMatterRegion]:
+    def _detect_generic_back_matter(self, text: str, search_start: int) -> list[BackMatterRegion]:
         """Detect generic back matter patterns."""
         regions = []
         search_text = text[search_start:]
@@ -204,13 +193,15 @@ class BackMatterDetector:
                 # More conservative confidence for generic patterns
                 confidence = 0.7 if region_type in ["metadata", "copyright"] else 0.6
 
-                regions.append(BackMatterRegion(
-                    start_position=abs_start,
-                    end_position=abs_end,
-                    region_type=region_type,
-                    confidence=confidence,
-                    matched_pattern=pattern.pattern[:50],
-                ))
+                regions.append(
+                    BackMatterRegion(
+                        start_position=abs_start,
+                        end_position=abs_end,
+                        region_type=region_type,
+                        confidence=confidence,
+                        matched_pattern=pattern.pattern[:50],
+                    )
+                )
 
         return regions
 
@@ -224,21 +215,19 @@ class BackMatterDetector:
         - End of document
         """
         # Look for multiple blank lines
-        double_blank = re.search(r"\n\s*\n\s*\n\s*\n", text[start:start + 5000])
+        double_blank = re.search(r"\n\s*\n\s*\n\s*\n", text[start : start + 5000])
         if double_blank:
             return start + double_blank.start()
 
         # Look for chapter heading
         chapter_heading = re.search(
-            r"^\s*(Chapter|CHAPTER|\d+\.|[IVXLC]+\.)\s",
-            text[start:start + 5000],
-            re.MULTILINE
+            r"^\s*(Chapter|CHAPTER|\d+\.|[IVXLC]+\.)\s", text[start : start + 5000], re.MULTILINE
         )
         if chapter_heading:
             return start + chapter_heading.start()
 
         # Default: extend to a reasonable boundary (paragraph end)
-        para_end = re.search(r"\n\s*\n", text[start:start + 2000])
+        para_end = re.search(r"\n\s*\n", text[start : start + 2000])
         if para_end:
             return start + para_end.end()
 

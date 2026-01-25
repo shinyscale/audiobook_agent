@@ -89,7 +89,9 @@ class CharacterSummaryEvidence:
             return ""
 
         lines = [f"=== SUMMARY EVIDENCE FOR {self.character_name} (HIGH PRIORITY) ==="]
-        lines.append("These statements come from chapter summaries and represent confirmed plot events:")
+        lines.append(
+            "These statements come from chapter summaries and represent confirmed plot events:"
+        )
         lines.append("")
 
         # Group by chapter
@@ -248,7 +250,7 @@ class SummaryEvidenceExtractor:
             True if the sentence is primarily about a different character
         """
         target_lower = target_name.lower().strip()
-        sentence_lower = sentence.lower()
+        sentence.lower()
 
         # Check if target is a short name (single word or surname only)
         target_parts = target_lower.split()
@@ -262,7 +264,9 @@ class SummaryEvidenceExtractor:
                     for full_name in collision_names:
                         full_lower = full_name.lower()
                         # Skip if this IS our target
-                        if full_lower == target_lower or full_lower in [n.lower() for n in all_names]:
+                        if full_lower == target_lower or full_lower in [
+                            n.lower() for n in all_names
+                        ]:
                             continue
                         # Check if the longer name appears in the sentence
                         if self._name_in_text(full_name, sentence):
@@ -335,9 +339,7 @@ class SummaryEvidenceExtractor:
                 for ev in fp_evidence:
                     if not self._is_duplicate(ev.statement, evidence_result.evidence):
                         evidence_result.evidence.append(ev)
-            logger.info(
-                f"Extracted first-person evidence for narrator {character_name}"
-            )
+            logger.info(f"Extracted first-person evidence for narrator {character_name}")
 
         # LLM-based extraction for deeper analysis (if available)
         if self.llm and len(pattern_evidence) > 0:
@@ -350,13 +352,15 @@ class SummaryEvidenceExtractor:
                 # Add any new statements not captured by pattern matching
                 for stmt in llm_evidence.get("relevant_statements", []):
                     if not self._is_duplicate(stmt["statement"], evidence_result.evidence):
-                        evidence_result.evidence.append(SummaryEvidence(
-                            character_name=character_name,
-                            statement=stmt["statement"],
-                            chapter_index=stmt.get("chapter_index", 0),
-                            source_type="summary",
-                            relevance_score=0.9,  # LLM-identified is high relevance
-                        ))
+                        evidence_result.evidence.append(
+                            SummaryEvidence(
+                                character_name=character_name,
+                                statement=stmt["statement"],
+                                chapter_index=stmt.get("chapter_index", 0),
+                                source_type="summary",
+                                relevance_score=0.9,  # LLM-identified is high relevance
+                            )
+                        )
 
         logger.info(
             f"Extracted {len(evidence_result.evidence)} summary evidence items "
@@ -386,11 +390,17 @@ class SummaryEvidenceExtractor:
         evidence = []
 
         first_person_patterns = [
-            r'\bI\b', r'\bmy\b', r'\bme\b', r'\bmyself\b',
-            r"\bI'm\b", r"\bI've\b", r"\bI'd\b", r"\bI'll\b",
+            r"\bI\b",
+            r"\bmy\b",
+            r"\bme\b",
+            r"\bmyself\b",
+            r"\bI'm\b",
+            r"\bI've\b",
+            r"\bI'd\b",
+            r"\bI'll\b",
         ]
 
-        sentences = re.split(r'(?<=[.!?])\s+', summary.summary)
+        sentences = re.split(r"(?<=[.!?])\s+", summary.summary)
 
         for sentence in sentences:
             sentence = sentence.strip()
@@ -403,13 +413,15 @@ class SummaryEvidenceExtractor:
 
             if has_first_person:
                 score = self._score_statement(sentence)
-                evidence.append(SummaryEvidence(
-                    character_name=narrator_name,
-                    statement=sentence,
-                    chapter_index=summary.chapter_index,
-                    source_type="first_person_narration",
-                    relevance_score=score,
-                ))
+                evidence.append(
+                    SummaryEvidence(
+                        character_name=narrator_name,
+                        statement=sentence,
+                        chapter_index=summary.chapter_index,
+                        source_type="first_person_narration",
+                        relevance_score=score,
+                    )
+                )
 
         return evidence
 
@@ -425,8 +437,7 @@ class SummaryEvidenceExtractor:
             # Check if character is in this chapter
             chapter_chars = [c.lower() for c in summary.characters_present]
             name_in_chapter = any(
-                name.lower() in chapter_chars or
-                any(name.lower() in c for c in chapter_chars)
+                name.lower() in chapter_chars or any(name.lower() in c for c in chapter_chars)
                 for name in names
             )
 
@@ -459,7 +470,7 @@ class SummaryEvidenceExtractor:
         evidence = []
 
         # Split into sentences
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
 
         for sentence in sentences:
             sentence = sentence.strip()
@@ -480,13 +491,15 @@ class SummaryEvidenceExtractor:
                     # Score based on content indicators
                     score = self._score_statement(sentence)
 
-                    evidence.append(SummaryEvidence(
-                        character_name=names[0],  # Use canonical name
-                        statement=sentence,
-                        chapter_index=chapter_index,
-                        source_type=source_type,
-                        relevance_score=score,
-                    ))
+                    evidence.append(
+                        SummaryEvidence(
+                            character_name=names[0],  # Use canonical name
+                            statement=sentence,
+                            chapter_index=chapter_index,
+                            source_type=source_type,
+                            relevance_score=score,
+                        )
+                    )
                     break  # Only add once per sentence
 
         return evidence
@@ -494,7 +507,7 @@ class SummaryEvidenceExtractor:
     def _name_in_text(self, name: str, text: str) -> bool:
         """Check if a name appears in text (word boundary aware)."""
         # Handle multi-word names and single names
-        pattern = r'\b' + re.escape(name) + r'\b'
+        pattern = r"\b" + re.escape(name) + r"\b"
         return bool(re.search(pattern, text, re.IGNORECASE))
 
     def _score_statement(self, statement: str) -> float:
@@ -505,26 +518,61 @@ class SummaryEvidenceExtractor:
 
         # Action verbs increase score
         action_indicators = [
-            "kills", "murders", "attacks", "saves", "helps", "betrays",
-            "reveals", "discovers", "confronts", "escapes", "fights",
-            "poisons", "manipulates", "deceives", "protects", "threatens",
+            "kills",
+            "murders",
+            "attacks",
+            "saves",
+            "helps",
+            "betrays",
+            "reveals",
+            "discovers",
+            "confronts",
+            "escapes",
+            "fights",
+            "poisons",
+            "manipulates",
+            "deceives",
+            "protects",
+            "threatens",
         ]
         if any(ind in statement_lower for ind in action_indicators):
             score += 0.15
 
         # Relationship indicators
         relationship_indicators = [
-            "husband", "wife", "lover", "mistress", "friend", "enemy",
-            "brother", "sister", "mother", "father", "daughter", "son",
-            "marries", "loves", "hates", "trusts",
+            "husband",
+            "wife",
+            "lover",
+            "mistress",
+            "friend",
+            "enemy",
+            "brother",
+            "sister",
+            "mother",
+            "father",
+            "daughter",
+            "son",
+            "marries",
+            "loves",
+            "hates",
+            "trusts",
         ]
         if any(ind in statement_lower for ind in relationship_indicators):
             score += 0.1
 
         # Character trait indicators
         trait_indicators = [
-            "cruel", "kind", "evil", "good", "monster", "hero",
-            "manipulative", "honest", "deceptive", "brave", "cowardly",
+            "cruel",
+            "kind",
+            "evil",
+            "good",
+            "monster",
+            "hero",
+            "manipulative",
+            "honest",
+            "deceptive",
+            "brave",
+            "cowardly",
         ]
         if any(ind in statement_lower for ind in trait_indicators):
             score += 0.1
@@ -573,7 +621,10 @@ class SummaryEvidenceExtractor:
                 return True
             # Also check for high similarity (substring)
             if len(statement_lower) > 20:
-                if statement_lower in ev.statement.lower() or ev.statement.lower() in statement_lower:
+                if (
+                    statement_lower in ev.statement.lower()
+                    or ev.statement.lower() in statement_lower
+                ):
                     return True
         return False
 
@@ -604,6 +655,9 @@ def extract_character_summary_evidence(
     """
     extractor = SummaryEvidenceExtractor(llm_client, all_character_names)
     return extractor.extract_evidence(
-        character_name, aliases, summary_map,
-        is_narrator=is_narrator, narrative_style=narrative_style
+        character_name,
+        aliases,
+        summary_map,
+        is_narrator=is_narrator,
+        narrative_style=narrative_style,
     )

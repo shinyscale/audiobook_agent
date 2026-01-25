@@ -1,0 +1,18 @@
+ Container ralph-ralph-run-dab893efb6ed  Stopping
+ Container ralph-ralph-run-5faf1e2ed38c  Stopping
+ Container ralph-ralph-run-c6623a7fc8d0  Stopping
+ Container ralph-ralph-run-dab893efb6ed  Stopped
+ Container ralph-ralph-run-dab893efb6ed  Removing
+ Container ralph-ralph-run-5faf1e2ed38c  Stopped
+ Container ralph-ralph-run-5faf1e2ed38c  Removing
+ Container ralph-ralph-run-c6623a7fc8d0  Stopped
+ Container ralph-ralph-run-c6623a7fc8d0  Removing
+ Container ralph-ralph-run-dab893efb6ed  Removed
+ Container ralph-ralph-run-5faf1e2ed38c  Removed
+ Container ralph-ralph-run-c6623a7fc8d0  Removed
+==========================================
+  Ralph Loop Starting
+  Mode: build
+  Max Iterations: 0
+==========================================
+
