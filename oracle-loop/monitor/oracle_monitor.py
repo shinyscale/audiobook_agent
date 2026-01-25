@@ -19,25 +19,8 @@ from textual.reactive import reactive
 from rich.text import Text
 
 
-# Stage order mapping for display purposes
-# This defines the expected execution order of pipeline stages
-# Note: In V2 mode, Character Extraction V2 runs AFTER summaries
-STAGE_ORDER = {
-    "Chapter Detection": 1,
-    "Character Extraction": 2,  # V1 mode, or runs in parallel with Pronunciation
-    "Chapter Summaries": 3,
-    "Character Extraction V2": 4,  # V2 mode: runs after summaries for evidence
-    "Character Profiles": 5,
-    "Pronunciation Guide": 6,  # Sequential mode (may be 2 if parallel)
-}
-
-
-def get_stage_order(stage_name: str) -> str:
-    """Get the order prefix for a stage name."""
-    order = STAGE_ORDER.get(stage_name)
-    if order:
-        return f"{order}. "
-    return ""
+# Stage order removed - it's misleading since execution order varies between parallel/sequential modes
+# Instead we just show stage names without numbers
 
 
 @dataclass
@@ -312,13 +295,13 @@ class StateParser:
             return {}
 
         try:
-            # Check if file was modified recently (within 10 minutes)
+            # Check if file was modified recently (within 2 minutes)
             # If stale, the analysis has completed and we shouldn't show old stage
             import time
             mtime = progress_file.stat().st_mtime
             age_seconds = time.time() - mtime
-            if age_seconds > 600:  # 10 minutes - covers gaps between LLM calls
-                return {}  # Stale progress file, analysis likely complete
+            if age_seconds > 120:  # 2 minutes - analysis likely complete
+                return {}  # Stale progress file, don't show old stage data
 
             with open(progress_file) as f:
                 data = json.load(f)
@@ -484,7 +467,7 @@ class StateParser:
             'output_tokens': output_tokens,
             'activities': recent_activities,
             'last_message': last_message,
-            'thinking_texts': thinking_texts[-10:],  # Keep last 10 text blocks
+            'thinking_texts': thinking_texts[-50:],  # Keep last 50 text blocks for export
         }
 
     def _describe_tool_use(self, tool_name: str, tool_input: dict) -> str:
@@ -739,12 +722,19 @@ class StateParser:
             state.heartbeat_total_elapsed = heartbeat.get('heartbeat_total_elapsed', 0.0)
             state.heartbeat_llm_calls = heartbeat.get('heartbeat_llm_calls', 0)
 
-            # Use heartbeat data for current_stage if fresher than PROGRESS.json
-            if state.heartbeat_age_seconds is not None and state.heartbeat_age_seconds < 30:
-                if heartbeat.get('heartbeat_stage'):
-                    state.current_stage = heartbeat['heartbeat_stage']
-                if heartbeat.get('heartbeat_model'):
-                    state.model = heartbeat['heartbeat_model']
+            # Use heartbeat as primary source of truth for current stage
+            # If heartbeat is fresh (< 60s), trust it completely
+            # If stale (> 60s), clear the stage (analysis likely complete or Claude is working)
+            if state.heartbeat_age_seconds is not None:
+                if state.heartbeat_age_seconds < 60:
+                    # Fresh heartbeat - use its data
+                    if heartbeat.get('heartbeat_stage'):
+                        state.current_stage = heartbeat['heartbeat_stage']
+                    if heartbeat.get('heartbeat_model'):
+                        state.model = heartbeat['heartbeat_model']
+                else:
+                    # Stale heartbeat - clear stage info (analysis done or Claude evaluating)
+                    state.current_stage = ""
 
         state.last_updated = datetime.now()
 
@@ -787,14 +777,24 @@ class StatusBar(Static):
         text.append("  │  ", style="dim")
         text.append("PHASE: ", style="bold cyan")
 
+        # Make phase very obvious with colors and context
         phase_style = "white"
-        if self.state.phase == "awaiting_fix":
-            phase_style = "yellow"
+        phase_label = self.state.phase
+        if self.state.phase in ("awaiting_evaluation", "evaluate"):
+            phase_style = "bold magenta"
+            phase_label = f"{self.state.phase} (Claude working)"
+        elif self.state.phase in ("awaiting_fix", "fix"):
+            phase_style = "bold yellow"
+            phase_label = f"{self.state.phase} (Claude fixing)"
         elif self.state.phase == "complete":
-            phase_style = "green"
+            phase_style = "bold green"
         elif self.state.phase == "running_analysis":
+            phase_style = "bold cyan"
+            phase_label = f"{self.state.phase} (Local LLM)"
+        elif self.state.phase == "awaiting_analysis":
             phase_style = "cyan"
-        text.append(self.state.phase, style=phase_style)
+            phase_label = f"{self.state.phase} (starting)"
+        text.append(phase_label, style=phase_style)
 
         text.append("\n")
 
@@ -813,8 +813,7 @@ class StatusBar(Static):
         if self.state.current_stage:
             text.append("\n")
             text.append("STAGE: ", style="bold cyan")
-            order_prefix = get_stage_order(self.state.current_stage)
-            text.append(f"{order_prefix}{self.state.current_stage}", style="bold yellow")
+            text.append(f"{self.state.current_stage}", style="bold yellow")
 
             # Show stage elapsed time from heartbeat
             if self.state.heartbeat_stage_elapsed > 0:
@@ -829,25 +828,38 @@ class StatusBar(Static):
             # Show LLM calls in current stage
             if self.state.heartbeat_llm_calls > 0:
                 text.append(f"  [{self.state.heartbeat_llm_calls} LLM calls]", style="dim")
+        elif self.state.phase in ('evaluate', 'awaiting_evaluation', 'fix', 'awaiting_fix'):
+            # No active stage but in Claude phase - make it clear
+            text.append("\n")
+            text.append("STAGE: ", style="bold cyan")
+            text.append("Analysis Complete - Claude Evaluating", style="bold magenta")
 
-        # Show heartbeat status (activity indicator)
+        # Show heartbeat status (activity indicator for local LLM)
         text.append("\n")
         if self.state.heartbeat_age_seconds is not None:
             age = self.state.heartbeat_age_seconds
-            text.append("HEARTBEAT: ", style="bold cyan")
+            text.append("LLM HEARTBEAT: ", style="bold cyan")
             if age < 5:
                 text.append("●", style="bold green")
-                text.append(f" {age:.0f}s ago", style="green")
+                text.append(f" {age:.0f}s ago (active)", style="green")
             elif age < 30:
                 text.append("●", style="bold yellow")
                 text.append(f" {age:.0f}s ago", style="yellow")
-            elif age < 120:
-                text.append("●", style="bold red")
-                text.append(f" {age:.0f}s ago (stale)", style="red")
+            elif age < 60:
+                text.append("○", style="yellow")
+                text.append(f" {age:.0f}s ago (idle)", style="yellow")
+            elif age < 300:
+                mins = int(age // 60)
+                text.append("○", style="dim")
+                # Don't show as error - might be between stages or Claude is working
+                if self.state.phase in ('awaiting_evaluation', 'evaluate', 'awaiting_fix', 'fix'):
+                    text.append(f" {mins}m ago (analysis complete)", style="dim green")
+                else:
+                    text.append(f" {mins}m ago (inactive)", style="dim")
             else:
                 mins = int(age // 60)
-                text.append("○", style="dim red")
-                text.append(f" {mins}m ago (inactive)", style="dim red")
+                text.append("○", style="dim")
+                text.append(f" {mins}m ago (inactive)", style="dim")
 
             # Show total analysis time if available
             if self.state.heartbeat_total_elapsed > 0:
@@ -1157,19 +1169,24 @@ class OllamaActivityPanel(Static):
     def render(self) -> Text:
         text = Text()
 
-        text.append("OLLAMA ACTIVITY\n", style="bold white")
+        text.append("LOCAL LLM ACTIVITY\n", style="bold white")
 
         # Only show when we have an active analysis stage
         if not self.state.current_stage:
-            text.append("  No active analysis", style="dim")
+            # No active stage - determine why
             if self.state.phase in ('awaiting_evaluation', 'evaluate', 'awaiting_fix', 'fix'):
-                text.append("\n  (Claude is working - see Claude Activity below)", style="dim cyan")
+                # Claude is working
+                text.append("  Analysis complete - idle\n", style="dim green")
+                text.append("  Claude is now evaluating (see Claude Activity below)", style="bold magenta")
+            elif self.state.phase == 'complete':
+                text.append("  Analysis complete - all done!", style="bold green")
+            else:
+                text.append("  No active analysis", style="dim")
             return text
 
         # Stage progress with item counts
-        stage_order = get_stage_order(self.state.current_stage)
         text.append(f"  Stage: ", style="cyan")
-        text.append(f"{stage_order}{self.state.current_stage}", style="bold yellow")
+        text.append(f"{self.state.current_stage}", style="bold yellow")
 
         # Item progress (e.g., "5/9 chapters")
         if self.state.ollama_items_total:
@@ -1254,13 +1271,19 @@ class ClaudeActivityPanel(Static):
     def render(self) -> Text:
         text = Text()
 
-        text.append("CLAUDE ACTIVITY\n", style="bold white")
+        # Show header with phase indicator
+        if self.state.phase in ('awaiting_evaluation', 'evaluate', 'awaiting_fix', 'fix'):
+            text.append("CLAUDE ACTIVITY [ACTIVE - ", style="bold white")
+            text.append(self.state.phase.upper(), style="bold magenta")
+            text.append("]\n", style="bold white")
+        else:
+            text.append("CLAUDE ACTIVITY\n", style="bold white")
 
         activities = self.state.claude_activities
         if not activities:
             text.append("  No recent activity", style="dim")
             if self.state.phase in ('awaiting_analysis', 'running_analysis'):
-                text.append("\n  (Local LLMs running - see STAGE above)", style="dim cyan")
+                text.append("\n  (Local LLMs running - see Local LLM Activity above)", style="dim cyan")
             return text
 
         # Show tool icons for each tool type
@@ -1310,14 +1333,19 @@ class ClaudeActivityPanel(Static):
 class ClaudeThinkingPanel(Static):
     """Panel showing Claude's reasoning and explanations."""
 
-    def __init__(self, state: OracleState):
+    def __init__(self, state: OracleState, expanded: bool = False):
         super().__init__()
         self.state = state
+        self.expanded = expanded
 
     def render(self) -> Text:
         text = Text()
 
-        text.append("CLAUDE THINKING\n", style="bold white")
+        # Header shows mode
+        if self.expanded:
+            text.append("CLAUDE THINKING [EXPANDED - Press 't' to collapse]\n", style="bold white")
+        else:
+            text.append("CLAUDE THINKING [Press 't' to expand, 'x' to export]\n", style="bold white")
 
         thinking_texts = self.state.thinking_text
         if not thinking_texts:
@@ -1326,27 +1354,47 @@ class ClaudeThinkingPanel(Static):
                 text.append("\n  (Local LLMs running - Claude reasoning appears during evaluate/fix)", style="dim cyan")
             return text
 
-        # Show recent thinking blocks with timestamps/numbering
-        for i, thinking in enumerate(thinking_texts[-5:], 1):  # Show last 5 blocks
+        # In expanded mode, show ALL blocks without truncation
+        # In compact mode, show last 3 blocks with truncation
+        if self.expanded:
+            blocks_to_show = thinking_texts  # Show all
+            max_chars_per_block = None  # No truncation
+            blocks_label = f"Showing all {len(thinking_texts)} blocks"
+        else:
+            blocks_to_show = thinking_texts[-3:]  # Show last 3
+            max_chars_per_block = 800  # Truncate in compact mode
+            blocks_label = f"Showing last 3 of {len(thinking_texts)} blocks"
+
+        text.append(f"  [{blocks_label}]\n", style="dim cyan")
+
+        # Show thinking blocks with numbering
+        for i, thinking in enumerate(blocks_to_show, 1):
             # Add separator between blocks
             if i > 1:
                 text.append("  ─────────────────────────────────────────\n", style="dim")
 
-            text.append(f"  [{i}] ", style="dim cyan")
+            # Show block number (relative to total if not showing all)
+            if self.expanded or len(thinking_texts) <= 3:
+                text.append(f"  [{i}] ", style="dim cyan")
+            else:
+                # Show actual position in full list
+                actual_index = len(thinking_texts) - len(blocks_to_show) + i
+                text.append(f"  [{actual_index}/{len(thinking_texts)}] ", style="dim cyan")
 
             # Word wrap and display the thinking text
             # Clean up the text - remove excessive whitespace
             cleaned = ' '.join(thinking.split())
 
-            # Truncate very long blocks
-            max_chars = 1500
-            if len(cleaned) > max_chars:
-                cleaned = cleaned[:max_chars] + "..."
+            # Truncate in compact mode
+            truncated = False
+            if max_chars_per_block and len(cleaned) > max_chars_per_block:
+                cleaned = cleaned[:max_chars_per_block]
+                truncated = True
 
             # Display with word wrapping by breaking into lines
             words = cleaned.split()
             current_line = ""
-            line_limit = 80
+            line_limit = 100 if self.expanded else 80
 
             for word in words:
                 if len(current_line) + len(word) + 1 <= line_limit:
@@ -1358,12 +1406,17 @@ class ClaudeThinkingPanel(Static):
                     current_line = word
 
             if current_line:
-                text.append(current_line + "\n", style="white")
+                text.append(current_line, style="white")
+                if truncated:
+                    text.append("... [truncated]", style="dim yellow")
+                text.append("\n")
 
         return text
 
-    def update_state(self, state: OracleState):
+    def update_state(self, state: OracleState, expanded: bool = None):
         self.state = state
+        if expanded is not None:
+            self.expanded = expanded
         self.refresh()
 
 
@@ -1466,6 +1519,10 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    ClaudeThinkingPanel.expanded {
+        max-height: 40;
+    }
+
     FooterInfo {
         height: 1;
         padding: 0 1;
@@ -1486,9 +1543,12 @@ class OracleMonitorApp(App):
         Binding("p", "toggle_pause", "Pause", show=True),
         Binding("r", "refresh", "Refresh", show=True),
         Binding("n", "focus_notes", "Notes", show=True),
+        Binding("t", "toggle_thinking", "Thinking", show=True),
+        Binding("x", "export_thinking", "Export", show=True),
     ]
 
     paused = reactive(False)
+    thinking_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
         super().__init__()
@@ -1509,7 +1569,7 @@ class OracleMonitorApp(App):
             yield OllamaActivityPanel(self.state)
             yield StderrPanel(self.state)
             yield ClaudeActivityPanel(self.state)
-            yield ClaudeThinkingPanel(self.state)
+            yield ClaudeThinkingPanel(self.state, expanded=self.thinking_expanded)
             yield IssuesPanel(self.state)
             yield CommitsPanel(self.state)
             yield Input(placeholder="Send note to Claude (press Enter)...", id="user-notes-input")
@@ -1562,7 +1622,7 @@ class OracleMonitorApp(App):
             self.query_one(OllamaActivityPanel).update_state(self.state)
             self.query_one(StderrPanel).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)
-            self.query_one(ClaudeThinkingPanel).update_state(self.state)
+            self.query_one(ClaudeThinkingPanel).update_state(self.state, expanded=self.thinking_expanded)
             self.query_one(IssuesPanel).update_state(self.state)
             self.query_one(CommitsPanel).update_state(self.state)
             self.query_one(FooterInfo).update_state(self.state)
@@ -1591,6 +1651,62 @@ class OracleMonitorApp(App):
             notes_input.focus()
         except Exception:
             pass
+
+    def action_toggle_thinking(self):
+        """Toggle thinking panel expanded/collapsed."""
+        self.thinking_expanded = not self.thinking_expanded
+
+        # Update CSS class
+        try:
+            thinking_panel = self.query_one(ClaudeThinkingPanel)
+            if self.thinking_expanded:
+                thinking_panel.add_class("expanded")
+                self.notify("Thinking panel expanded", title="View Mode")
+            else:
+                thinking_panel.remove_class("expanded")
+                self.notify("Thinking panel collapsed", title="View Mode")
+
+            # Update the panel with new expanded state
+            thinking_panel.update_state(self.state, expanded=self.thinking_expanded)
+        except Exception:
+            pass
+
+    def action_export_thinking(self):
+        """Export full thinking text to file."""
+        if not self.state.thinking_text:
+            self.notify("No thinking text to export", severity="warning")
+            return
+
+        export_file = self.base_dir / "state" / "CLAUDE_THINKING_EXPORT.txt"
+
+        try:
+            # Create export with timestamp and all thinking blocks
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            content_parts = [
+                f"# Claude Thinking Export",
+                f"# Exported: {timestamp}",
+                f"# Text: {self.state.text_name}",
+                f"# Attempt: {self.state.attempt}",
+                f"# Total blocks: {len(self.state.thinking_text)}",
+                "",
+                "=" * 80,
+                "",
+            ]
+
+            for i, thinking in enumerate(self.state.thinking_text, 1):
+                content_parts.append(f"## Block {i}/{len(self.state.thinking_text)}")
+                content_parts.append("")
+                content_parts.append(thinking)
+                content_parts.append("")
+                content_parts.append("-" * 80)
+                content_parts.append("")
+
+            export_file.write_text("\n".join(content_parts), encoding="utf-8")
+            self.notify(f"Exported to {export_file.name}", title="Export Complete")
+        except Exception as e:
+            self.notify(f"Export failed: {e}", severity="error")
 
 
 def run_oracle_monitor(base_dir: Path = None, polling_interval: float = 2.0):
