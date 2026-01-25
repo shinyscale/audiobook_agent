@@ -728,7 +728,7 @@ class AudiobookAnalyzer:
             consensus_collector.configure(
                 enabled=cc.enabled,
                 mode="multi" if cc.competitor_models else ("single" if cc.enabled else "none"),
-                models=[m.split(":")[0] for m in (cc.competitor_models or [])],
+                models=[m.model.split(":")[0] for m in (cc.competitor_models or [])],
                 stages=[
                     s for s, enabled in [
                         ("characters", cc.competitive_consensus),
