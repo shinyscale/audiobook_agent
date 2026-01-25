@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
