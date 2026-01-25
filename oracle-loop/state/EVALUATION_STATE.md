@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
@@ -151,9 +151,21 @@
 - If narrator is found in summaries, they should be marked with `is_narrator: true`
 - Narrator characters should receive profile enrichment (fixing issue #2)
 
+## Pipeline Notes - Attempt 1 Re-run
+- Analysis completed successfully
+- Multi-model competitive consensus active (3 models: qwen3:30b-instruct, deepseek-r1:32b, gemma3:27b)
+- Competitive stages: characters, structure, summaries
+- Agent models: qwen2.5:32b (all stages)
+- Pipeline warnings observed:
+  - "No passages provided for Egaeus, returning UNCERTAIN" (narrator detection)
+  - "LLM batch enrichment failed: failed to parse JSON"
+- Output files generated:
+  - ../output/berenice/report.html (204K)
+  - ../output/berenice/analysis.json (2321 lines)
+
 ## Next Action
-Phase: awaiting_analysis
-Re-run analysis to verify:
-1. ✓ Narrator detection completes without AttributeError
-2. Pending: Egaeus is marked as narrator
-3. Pending: Egaeus gets profile enrichment
+Phase: awaiting_evaluation
+Verify:
+1. ✓ Narrator detection completes without AttributeError (fix successful)
+2. Pending evaluation: Egaeus marked as narrator?
+3. Pending evaluation: Egaeus has profile enrichment?
