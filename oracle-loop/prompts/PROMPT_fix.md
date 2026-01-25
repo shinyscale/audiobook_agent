@@ -23,6 +23,11 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 0d. Read `docs/CODEBASE_SUMMARY.md` for file locations and common fix locations.
 0e. Read `../CLAUDE.md` for coding standards (especially: no novel-specific hardcoding).
 0f. **CRITICAL:** Search `docs/ATTEMPT_1_SUMMARY.md` for keywords related to the current issue.
+0g. **CRITICAL - CHECK FOR EXTERNAL CHANGES:** Run `git log --oneline -10` to see recent commits.
+    - If commits were made OUTSIDE the oracle loop (not by "Oracle Loop" or similar), those changes must be TESTED FIRST
+    - If EVALUATION_STATE.md mentions "External Changes Applied", set phase to `awaiting_analysis` and EXIT
+    - Do NOT apply additional fixes on top of untested external changes
+    - The external changes may have already fixed the issue - run analysis first to verify
     Do NOT read the entire file - grep for relevant terms:
     ```bash
     grep -i "narrator\|merge\|alias" docs/ATTEMPT_1_SUMMARY.md

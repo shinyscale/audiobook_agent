@@ -2,10 +2,14 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
+
+## External Changes Applied
+- Commit `0d306c0`: Prompt improvements for first-person narrator detection (Rule 15, Egaeus example)
+- Testing if prompt-only approach works before adding programmatic detection
 
 ## Latest Scores
 - Structure Detection: 10/10

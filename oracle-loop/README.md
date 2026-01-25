@@ -104,6 +104,7 @@ Edit `state/manifest.json` to configure:
 - **No-progress guardrail**: Exits after 3 consecutive iterations with no state change
 - **Regression detection**: Auto-reverts fixes that cause score to drop > 0.3 points
 - **Max iterations**: Configurable limit (default 100)
+- **External changes detection**: If codebase changes were made outside the oracle loop (e.g., manual fixes, other development), the loop MUST restart at the **analyze** phase to test those changes before making additional fixes. This prevents the loop from piling fixes on top of untested external changes.
 
 ## Related Files
 

@@ -23,6 +23,10 @@ You are the oracle in an autonomous improvement loop for an audiobook narrator p
 0c. Read `docs/output_quality.md` to understand the full evaluation rubric.
 0d. Read `../AGENTS.md` if you need to understand the tool's capabilities.
 0e. Search `docs/ATTEMPT_1_SUMMARY.md` for relevant keywords instead of reading the entire file:
+0f. **CRITICAL - CHECK FOR EXTERNAL CHANGES:** Run `git log --oneline -10` to see recent commits.
+    - If commits were made OUTSIDE the oracle loop (not by "Oracle Loop" or similar), those changes need to be **TESTED** before applying more fixes
+    - If EVALUATION_STATE.md mentions "External Changes Applied" but output hasn't been regenerated, note in evaluation that analysis must run first
+    - The oracle loop must run **analyze** phase after external changes to verify they work before making additional modifications
     ```bash
     grep -i "character\|narrator\|merge" docs/ATTEMPT_1_SUMMARY.md | head -30
     ```
