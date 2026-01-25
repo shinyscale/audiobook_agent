@@ -58,6 +58,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
+- **FIRST-PERSON NARRATORS**: If the text is told in first person ("I", "we") and the narrator's name is revealed in the text (e.g., another character addresses them by name, or they introduce themselves), USE THAT NAME in your summary instead of "the narrator". Only use "the narrator" if their name is not revealed in this section.
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
@@ -108,6 +109,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - When events/objects are referenced, ALWAYS include context from the sections
 - Be precise about HOW characters travel and WHERE specific events occur
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
+- **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently in the consolidated summary instead of "the narrator". Only use "the narrator" if their name is not revealed in any section.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:

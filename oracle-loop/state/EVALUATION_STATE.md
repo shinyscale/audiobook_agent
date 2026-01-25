@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.1
 - **Competitive Mode:** multi
 
@@ -84,21 +84,37 @@ From `_config`:
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | (baseline) | - | 7.1/10 |
+| 2 | Missing Montresor (CRITICAL #1, #2) | `src/pipeline/chapter_summary/summarizer.py` | Pending re-analysis |
 
-## Root Cause Analysis
+## Fix History
 
-The critical issue is that **Montresor is detected by NER** (appears in pronunciation guide) but **not included in character output**. This suggests:
+### Attempt 2: Fixed summary anonymization of first-person narrators
 
-1. The name was found during extraction but filtered out
-2. Possible causes:
-   - Mention count threshold too high (Montresor appears ~5 times vs Fortunato's 14)
-   - First-person narrator "I" not being linked to the discovered name
-   - Character confidence scoring filtered it out
+**Root Cause Analysis (COMPLETE):**
+- **Symptom:** Montresor (narrator/protagonist) not in character list
+- **Data flow trace:**
+  1. Montresor appears in pronunciation guide (NER found it in raw text: 3 mentions)
+  2. Montresor missing from character list
+  3. Main cast extraction (V2) reads FROM SUMMARIES, not raw text
+  4. **Root cause found in:** `src/pipeline/chapter_summary/summarizer.py` prompts
+- **Root cause:** Summary generator anonymized the narrator as "the narrator" instead of using "Montresor"
+  - Main cast LLM correctly followed Rule 14 and created character "the narrator"
+  - Grounding gate searched for "the narrator" in raw text → 0 matches (word "narrator" never appears)
+  - With 0 < min_mentions (3), "the narrator" was filtered as ungrounded/hallucinated
+  - Meanwhile "Montresor" appears 3x in text but never in summary, so V2 never extracted it
+- **Confidence:** HIGH
 
-Investigation needed in fix phase:
-- Check `src/pipeline/character_extraction_v2/main_cast.py` for filtering thresholds
-- Check narrator detection logic in analyzer.py
-- Check if there's a minimum mention count that's excluding Montresor
+**Fix Applied:**
+- Modified: `src/pipeline/chapter_summary/summarizer.py`
+- Updated `CHUNK_SUMMARY_PROMPT` and `CONSOLIDATE_PROMPT` to add:
+  > **FIRST-PERSON NARRATORS**: If the text is told in first person ("I", "we") and the narrator's name is revealed in the text (e.g., another character addresses them by name, or they introduce themselves), USE THAT NAME in your summary instead of "the narrator". Only use "the narrator" if their name is not revealed in this section.
+
+**Expected Impact:**
+- Should fix CRITICAL #1 (missing Montresor)
+- Should fix CRITICAL #2 (no narrator identified) - Montresor will be extracted and narrator detection can match them
+- May improve HIGH #4 (Fortunato labeled antagonist) - once Montresor is present, role assignment may be more accurate
+
+**Smoke Test:** Unable to run full pipeline smoke test due to model config. Verified prompt changes applied correctly. Ready for full re-analysis.
 
 ## Next Action
-Run PROMPT_fix.md to address Critical #1 (missing Montresor) - this single fix could resolve issues #1, #2, and potentially #4.
+Re-run analysis to verify fix (set phase to `awaiting_analysis`)
