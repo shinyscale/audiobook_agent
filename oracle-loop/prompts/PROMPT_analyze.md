@@ -73,11 +73,14 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    - etc.
 
    **Competitive stages:** Check `competitive_stages` array to add stage-specific flags:
-   - `"characters"` in array → implies `--competitive-consensus`
-   - `"structure"` in array → add `--competitive-structure`
-   - `"summaries"` in array → add `--competitive-summaries`
+   - `"characters"` in array → add `--competitive-consensus` (character extraction uses multi-model voting)
+   - `"structure"` in array → add `--competitive-structure` (chapter boundary detection uses multi-model voting)
+   - `"summaries"` in array → add `--competitive-summaries` (chapter summary generation uses multi-model voting)
 
-   Or use `--competitive-all` to enable all stages at once.
+   **IMPORTANT:** You MUST add the stage-specific flags based on `competitive_stages` array!
+   If the array is `["characters", "structure", "summaries"]`, add ALL THREE flags.
+
+   Or if all three stages are enabled, you can use `--competitive-all` instead of listing each flag.
 
    **Note:** In multi-model mode, prompt style (strict/contextual/inclusive) is automatically
    set to "neutral" for all models. Different model architectures provide natural diversity,
@@ -98,10 +101,18 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
      --pronunciation-model {pronunciation_model}
    ```
 
-   Where `{competitive_flags}` is determined by `competitive_mode`:
+   Where `{competitive_flags}` is determined by `competitive_mode` AND `competitive_stages`:
    - **"none"**: (empty - no flags)
-   - **"single"**: `--competitive-consensus`
+   - **"single"**: `--competitive-consensus` (uses same model at 3 temperatures)
    - **"multi"**: Multiple `--competitive-model` flags, one per entry in `competitive_models`
+
+   **PLUS stage-specific flags from `competitive_stages` array:**
+   - `"characters"` → `--competitive-consensus`
+   - `"structure"` → `--competitive-structure`
+   - `"summaries"` → `--competitive-summaries`
+
+   For example, if `competitive_stages: ["characters", "structure", "summaries"]`, you MUST add:
+   `--competitive-consensus --competitive-structure --competitive-summaries`
 
    **Example with mode "none" (baseline):**
    ```bash
@@ -126,7 +137,7 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
      --pronunciation-model "qwen3:30b-instruct"
    ```
 
-   **Example with mode "multi":**
+   **Example with mode "multi" and stages ["characters", "structure", "summaries"]:**
    ```bash
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
@@ -134,6 +145,24 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
      --competitive-model "qwen3:30b-instruct:0.5" \
      --competitive-model "deepseek-r1:32b:0.7" \
      --competitive-model "gemma3:27b:0.9" \
+     --competitive-consensus \
+     --competitive-structure \
+     --competitive-summaries \
+     --structure-model "qwen3:30b-instruct" \
+     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+     --pronunciation-model "qwen3:30b-instruct"
+   ```
+
+   **Alternative using --competitive-all (when all 3 stages enabled):**
+   ```bash
+   audiobook-prep analyze ../Test_Texts/gatsby.txt \
+     --html ../output/gatsby/report.html \
+     --output ../output/gatsby/analysis.json \
+     --competitive-model "qwen3:30b-instruct:0.5" \
+     --competitive-model "deepseek-r1:32b:0.7" \
+     --competitive-model "gemma3:27b:0.9" \
+     --competitive-all \
      --structure-model "qwen3:30b-instruct" \
      --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
