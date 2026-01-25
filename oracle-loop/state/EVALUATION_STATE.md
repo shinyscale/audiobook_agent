@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
@@ -128,10 +128,32 @@
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | CRITICAL: AttributeError in early narrator detection | src/pipeline/character_extraction_v2/narrator.py | Fixed - handled V1Character vs ModelsCharacter mismatch |
+
+### Fix Details - Attempt 1
+
+**Issue:** `'Character' object has no attribute 'descriptions'`
+
+**Root Cause:**
+- narrator.py imported `Character` from `src/models.py` (has `descriptions: list`)
+- analyzer.py creates V1 `Character` objects from `src/pipeline/character_extraction/models.py` (has `description: str`)
+- When narrator detection tried to access `char.descriptions`, V1 Character objects don't have that attribute → AttributeError
+
+**Fix Location:** `src/pipeline/character_extraction_v2/narrator.py:_get_description()`
+- Added imports for both V1Character and ModelsCharacter
+- Updated `_get_description()` to handle all three types: V1Character (str description), ModelsCharacter (list descriptions), MainCastProfile (str description)
+- Updated type hints to `Union[ModelsCharacter, V1Character, MainCastProfile]`
+
+**Smoke Test:** PASS - `_get_description()` correctly extracts description from V1 Character objects without AttributeError
+
+**Expected Impact:**
+- Early narrator detection should now run without crashing
+- If narrator is found in summaries, they should be marked with `is_narrator: true`
+- Narrator characters should receive profile enrichment (fixing issue #2)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Fix AttributeError in early narrator detection
-2. CRITICAL: Ensure narrator gets profile enrichment
-3. HIGH: Boost narrator importance regardless of mention count
+Phase: awaiting_analysis
+Re-run analysis to verify:
+1. ✓ Narrator detection completes without AttributeError
+2. Pending: Egaeus is marked as narrator
+3. Pending: Egaeus gets profile enrichment

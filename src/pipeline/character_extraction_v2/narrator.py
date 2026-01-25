@@ -12,10 +12,12 @@ Key improvements over v1:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 
 from ...llm.client import LLMClient
-from ...models import Character
+from ...models import Character as ModelsCharacter
+from ..character_extraction.models import Character as V1Character
+from .main_cast import MainCastProfile
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,7 @@ class NarratorDetector:
     def detect(
         self,
         chapter_summaries: list[str],
-        main_cast: list[Character],
+        main_cast: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
         plot_summary: Optional[str] = None,
     ) -> NarratorInfo:
         """
@@ -135,16 +137,27 @@ class NarratorDetector:
 
         return self._parse_result(result, main_cast)
 
-    def _get_description(self, char: Character) -> str:
-        """Get a brief description from a character."""
-        if char.descriptions:
+    def _get_description(self, char) -> str:
+        """Get a brief description from a character.
+
+        Args:
+            char: MainCastProfile, V1Character (with description str), or ModelsCharacter (with descriptions list)
+        """
+        # Handle V1Character objects (from character_extraction.models - has singular 'description')
+        if hasattr(char, 'description') and isinstance(char.description, str):
+            return char.description[:100] if char.description else "No description"
+
+        # Handle ModelsCharacter objects (from models.py - has plural 'descriptions')
+        if hasattr(char, 'descriptions') and char.descriptions:
+            # descriptions is a list of CharacterDescription objects
             return char.descriptions[0].text[:100]
+
         return "No description"
 
     def _parse_result(
         self,
         result: dict,
-        main_cast: list[Character],
+        main_cast: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
     ) -> NarratorInfo:
         """Parse LLM result into NarratorInfo."""
         pov = result.get("pov", "unknown").lower()
@@ -176,7 +189,7 @@ class NarratorDetector:
     def _match_to_character(
         self,
         name: str,
-        main_cast: list[Character],
+        main_cast: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
     ) -> Optional[str]:
         """Match a narrator name to a main cast character."""
         if not name:
@@ -229,9 +242,9 @@ class NarratorDetector:
 
     def update_characters_with_narrator(
         self,
-        characters: list[Character],
+        characters: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
         narrator_info: NarratorInfo,
-    ) -> list[Character]:
+    ) -> list[Union[ModelsCharacter, V1Character, MainCastProfile]]:
         """
         Update character objects with narrator information.
 
