@@ -339,9 +339,19 @@ def run_analyze(args):
         )
 
         if competitor_configs:
-            print(f"   Multi-model consensus: ENABLED ({len(competitor_configs)} models)")
-            for cfg in competitor_configs:
-                print(f"     - {cfg.model} @ {cfg.temperature} ({cfg.prompt_style})")
+            # Check if multi-model (different models)
+            unique_models = set(cfg.model for cfg in competitor_configs)
+            is_multi_model = len(unique_models) > 1
+
+            if is_multi_model:
+                print(f"   Multi-model consensus: ENABLED ({len(competitor_configs)} diverse models)")
+                print("     Mode: neutral (model diversity provides natural variation)")
+                for cfg in competitor_configs:
+                    print(f"     - {cfg.model} @ {cfg.temperature}")
+            else:
+                print(f"   Single-model consensus: ENABLED ({len(competitor_configs)} temperatures)")
+                for cfg in competitor_configs:
+                    print(f"     - {cfg.model} @ {cfg.temperature} ({cfg.prompt_style})")
         else:
             print("   Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)")
 
@@ -596,8 +606,8 @@ def _parse_competitive_model_spec(spec: str):
     # We need to parse from the end since model can have colons
     parts = spec.split(":")
 
-    # Valid prompt styles
-    valid_styles = {"strict", "contextual", "inclusive"}
+    # Valid prompt styles (neutral is auto-applied in multi-model mode)
+    valid_styles = {"strict", "contextual", "inclusive", "neutral"}
 
     # Default values
     temperature = 0.7

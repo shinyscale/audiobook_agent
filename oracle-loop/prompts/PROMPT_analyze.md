@@ -67,10 +67,14 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    - `competitive_mode: "single"` → Add `--competitive-consensus` (same model, 3 temperatures)
    - `competitive_mode: "multi"` → Add `--competitive-model` for each entry in `competitive_models` array
 
-   **Format for multi mode:** Each entry in `competitive_models` is `"model:temp:strategy"`:
-   - `qwen3:30b-instruct:0.5:strict` → `--competitive-model "qwen3:30b-instruct:0.5:strict"`
-   - `deepseek-r1:32b:0.7:contextual` → `--competitive-model "deepseek-r1:32b:0.7:contextual"`
+   **Format for multi mode:** Each entry in `competitive_models` is `"model:temp"`:
+   - `qwen3:30b-instruct:0.5` → `--competitive-model "qwen3:30b-instruct:0.5"`
+   - `deepseek-r1:32b:0.7` → `--competitive-model "deepseek-r1:32b:0.7"`
    - etc.
+
+   **Note:** In multi-model mode, prompt style (strict/contextual/inclusive) is automatically
+   set to "neutral" for all models. Different model architectures provide natural diversity,
+   so artificial prompt bias is unnecessary.
 
 5. Run the full analysis pipeline with explicit model flags:
    ```bash
@@ -120,13 +124,22 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
-     --competitive-model "qwen3:30b-instruct:0.5:strict" \
-     --competitive-model "deepseek-r1:32b:0.7:contextual" \
-     --competitive-model "gemma3:27b:0.9:inclusive" \
+     --competitive-model "qwen3:30b-instruct:0.5" \
+     --competitive-model "deepseek-r1:32b:0.7" \
+     --competitive-model "gemma3:27b:0.9" \
      --structure-model "qwen3:30b-instruct" \
      --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
      --pronunciation-model "qwen3:30b-instruct"
+   ```
+
+   Output will show:
+   ```
+   Multi-model consensus: ENABLED (3 diverse models)
+     Mode: neutral (model diversity provides natural variation)
+     - qwen3:30b-instruct @ 0.5
+     - deepseek-r1:32b @ 0.7
+     - gemma3:27b @ 0.9
    ```
 
    **Note on Character Extraction:**

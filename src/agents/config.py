@@ -158,7 +158,11 @@ class CompetitiveConfig:
         """
         Return competitor configurations for multi-model consensus.
 
-        If competitor_models is specified, returns those directly.
+        If competitor_models is specified, returns those with automatic
+        multi-model detection:
+        - If all models are the same: uses strict/contextual/inclusive styles
+        - If models differ: uses "neutral" style for all (model diversity is enough)
+
         Otherwise, generates configs using the base model with different
         temperatures and prompt styles (backward compatible behavior).
 
@@ -172,8 +176,29 @@ class CompetitiveConfig:
             List of CompetitorModelConfig objects for each competitor
         """
         if self.competitor_models:
-            # Use explicit multi-model configuration
-            return self.competitor_models
+            # Check if this is true multi-model (different models)
+            unique_models = set(cfg.model for cfg in self.competitor_models)
+            is_multi_model = len(unique_models) > 1
+
+            if is_multi_model:
+                # Multi-model mode: override all styles to "neutral"
+                # Different model architectures provide natural diversity,
+                # so we don't need artificial prompt bias
+                return [
+                    CompetitorModelConfig(
+                        model=cfg.model,
+                        provider=cfg.provider,
+                        base_url=cfg.base_url,
+                        api_key=cfg.api_key,
+                        prompt_style="neutral",  # Override to neutral
+                        temperature=cfg.temperature,
+                        name=cfg.name or f"{cfg.model}_neutral",
+                    )
+                    for cfg in self.competitor_models
+                ]
+            else:
+                # Same model with different temps: use original styles
+                return self.competitor_models
 
         # Fall back to single-model with different temps (backward compatible)
         # Uses the same prompt styles as COMPETITOR_CONFIGS from prompts.py

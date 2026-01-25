@@ -1,13 +1,17 @@
 """
 Merge prompt variations for competitive multi-LLM consensus.
 
-This module provides three different prompting strategies for character alias
-resolution, each with a different bias:
+This module provides prompting strategies for character alias resolution:
+
+Single-model mode (same model, different temperatures):
 - STRICT: Conservative, requires high certainty (temperature=0.5)
 - CONTEXTUAL: Balanced, considers co-occurrence and context (temperature=0.7)
 - INCLUSIVE: Liberal, merges if likely the same person (temperature=0.9)
 
-The competitive consensus system runs all three in parallel and requires
+Multi-model mode (different model architectures):
+- NEUTRAL: No bias - lets each model's architecture provide natural diversity
+
+The competitive consensus system runs all competitors in parallel and requires
 supermajority (2/3) agreement to merge, preventing single-LLM hallucinations.
 """
 
@@ -182,11 +186,62 @@ Return JSON:
 }}"""
 
 
+# ============================================================================
+# NEUTRAL MERGE PROMPTS (for multi-model mode - no bias)
+# ============================================================================
+
+NEUTRAL_MERGE_SYSTEM = """You are a literary analyst determining whether two character names refer to the same person.
+
+Analyze the evidence objectively and make your determination based on:
+1. Name relationship (full name/nickname, title variant, etc.)
+2. Chapter co-occurrence patterns
+3. Contextual consistency
+4. Any contradicting evidence
+
+HARD RULES (always apply):
+- Different surnames = DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane")
+- Different first names with same surname = family members (different people)
+- Different titles on same surname = DIFFERENT people (e.g., "Mr. Smith" vs "Mrs. Smith")
+- Death/confrontation between names = DIFFERENT people
+
+Return ONLY valid JSON. No other text."""
+
+NEUTRAL_MERGE_PROMPT = """Determine whether these two names refer to the SAME character.
+
+NAME A: {name_a}
+MENTIONS A: {mentions_a}
+CHAPTERS A: {chapters_a}
+CONTEXT A:
+{contexts_a}
+
+NAME B: {name_b}
+MENTIONS B: {mentions_b}
+CHAPTERS B: {chapters_b}
+CONTEXT B:
+{contexts_b}
+
+ANALYSIS:
+1. Is there a plausible name relationship?
+2. Do they appear in overlapping chapters?
+3. Are the contexts consistent?
+4. Is there any evidence they are different people?
+
+Return JSON:
+{{
+  "same_person": true/false,
+  "confidence": 0.0-1.0,
+  "canonical": "name to keep as canonical (must be one of the provided names)",
+  "alias": "name to add as alias (must be one of the provided names)",
+  "reason": "brief justification"
+}}"""
+
+
 # Mapping from style name to (system, prompt) tuple
 MERGE_PROMPTS = {
     "strict": (STRICT_MERGE_SYSTEM, STRICT_MERGE_PROMPT),
     "contextual": (CONTEXTUAL_MERGE_SYSTEM, CONTEXTUAL_MERGE_PROMPT),
     "inclusive": (INCLUSIVE_MERGE_SYSTEM, INCLUSIVE_MERGE_PROMPT),
+    "neutral": (NEUTRAL_MERGE_SYSTEM, NEUTRAL_MERGE_PROMPT),
 }
 
 
