@@ -131,10 +131,35 @@ The IPA coverage drop may be due to multi-model competitive consensus producing 
 | 2 | CompetitorModelConfig.split() AttributeError | src/analyzer.py | Fixed crash - pipeline can now run |
 | 2 | External: Prompt improvements for narrator detection | External commit 0d306c0 | **SUCCESS** - Egaeus now detected as narrator |
 | 2 | Pronunciation false positives: object, record, simile | src/pipeline/pronunciation_guide/proposers/homograph_proposer.py, cmu_proposer.py | Removed common homographs from flagging |
+| 2 | Berenice role incorrect: "antagonist" should be "supporting" | src/pipeline/character_extraction_v2/main_cast.py | Added role assignment guidelines to prompts |
 
 ## Fix Details - Attempt 2
 
-### Issue: Pronunciation false positives (MEDIUM priority)
+### Issue 1: Berenice role incorrect (HIGH priority)
+
+**Root cause:**
+- `main_cast.py:38-218` - `MAIN_CAST_PROMPT` and `CHARACTER_IDENTIFICATION_PROMPT` lacked clear guidance on role assignment
+- LLM assigned "antagonist" to Berenice, a victim/title character who doesn't actively oppose the protagonist
+- "Antagonist" semantically incorrect - requires active harmful intent or opposition
+- Berenice is the title character and central to the plot, but as a victim, not an antagonist
+
+**Fix applied:**
+- Added Rule 16 "ROLE ASSIGNMENT GUIDELINES" to `MAIN_CAST_PROMPT` (lines 101-111)
+- Clarified that "antagonist" requires ACTIVE OPPOSITION
+- Specified that victims, title characters, and love interests should use "supporting" role
+- Added condensed guidance to `CHARACTER_IDENTIFICATION_PROMPT` (lines 232-236)
+- Added reminder note: "Victims and title characters are NOT antagonists"
+
+**Smoke test:** PASS
+- Prompts load successfully (10,181 chars)
+- New guidance found in both prompts
+- Victim and title character guidance present
+- All V2 character extraction tests pass (37/37)
+
+**Files modified:**
+- `src/pipeline/character_extraction_v2/main_cast.py` (lines 101-111, 117, 232-236)
+
+### Issue 2: Pronunciation false positives (MEDIUM priority)
 
 **Root cause:**
 - `homograph_proposer.py:37,43` - "object" and "record" included in HOMOGRAPHS dict
@@ -168,9 +193,11 @@ The IPA coverage drop may be due to multi-model competitive consensus producing 
 Phase: awaiting_analysis
 
 **Expected improvement:**
-- Pronunciation score: 6/10 → ~7/10 (fewer false positives)
-- Overall: 7.95/10 → ~8.05/10 (PASS threshold)
+- Character Extraction score: 8/10 → 9/10 (correct role for Berenice)
+- Overall: 7.95/10 → **8.20/10** (PASS threshold)
 
 **Rationale:**
-Removing 3 false positives (object, record, simile) from 107 total entries = -2.8% false positive rate
-This should improve the "no common words flagged" criterion in Pronunciation scoring
+- Fixing Berenice's role from "antagonist|supporting" to "supporting" addresses a semantic error
+- Character Extraction has 25% weight: +1 point = +0.25 overall
+- Current 7.95 + 0.25 = 8.20 (above 8.0 threshold)
+- The pronunciation false positive fix from earlier may also contribute minor improvement

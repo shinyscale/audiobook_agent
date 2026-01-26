@@ -98,6 +98,16 @@ IMPORTANT RULES:
     - Even if their proper name only appears ONCE in the summaries, first-person narrators are the MOST IMPORTANT character
     - They speak every line of narration - their importance cannot be measured by name mentions alone
     - Look for patterns like: "the narrator, [Name]", "[Name] recounts", "[Name] reflects", "narrated by [Name]"
+16. **ROLE ASSIGNMENT GUIDELINES**:
+    - **protagonist**: Main character(s) driving the story, narrators, characters the story follows
+    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals, enemies)
+      - IMPORTANT: "antagonist" requires active harmful intent or opposition
+      - Victims of the protagonist's actions are NOT antagonists (use "supporting" instead)
+      - Characters who suffer because of the protagonist are NOT antagonists unless they fight back
+    - **supporting**: Important recurring characters, title characters, love interests, mentors, victims, family members
+      - Use this for characters central to the plot who don't actively oppose the protagonist
+      - Title characters (story named after them) should typically be "supporting" unless they are the protagonist
+    - **minor**: Characters with limited appearances or impact
 
 **REMINDER BEFORE YOU BEGIN:**
 - Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 5)
@@ -105,6 +115,7 @@ IMPORTANT RULES:
 - **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 9)
 - Re-read the "Unnamed character (descriptive handle)" example below - this pattern is COMMON in literature
 - **CRITICAL: Named first-person narrators MUST be extracted as protagonist** even if their name appears only once (Rules 14-15)
+- **Victims and title characters are NOT antagonists** - use "supporting" for characters who suffer or are central but don't oppose the protagonist (Rule 16)
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -219,6 +230,11 @@ IMPORTANT RULES:
    are valid entries - use the MOST DISTINCTIVE descriptive term
 4. DO NOT invent proper names that are not supported by the summaries
 5. Focus only on identifying WHO is important - don't worry about aliases yet
+6. **ROLE ASSIGNMENT**:
+   - **protagonist**: Main character(s), narrators, characters the story follows
+   - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
+   - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
+   - **minor**: Characters with limited appearances
 
 CHAPTER SUMMARIES:
 {summaries}
