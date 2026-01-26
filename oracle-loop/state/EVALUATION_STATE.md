@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
@@ -161,10 +161,9 @@
 - Ready to re-run attempt 2 analysis
 
 ## Pipeline Notes - Attempt 2
-- **Status:** FAILED - Pipeline crashed before completing analysis
-- **Duration:** Immediate failure during initialization
-- **Error:** `'CompetitorModelConfig' object has no attribute 'split'`
-- **Competitive config:** multi mode with 3 models across all stages
+- **Status:** COMPLETE - Analysis finished successfully
+- **Duration:** 33m 38s
+- **Competitive config:** multi mode with 3 models (qwen3:30b-instruct, deepseek-r1:32b, gemma3:27b) across all stages
 - **Command used:**
   ```bash
   audiobook-prep analyze "../Test_Texts/Berenice - Poe.txt" \
@@ -180,47 +179,43 @@
     --pronunciation-model "qwen2.5:32b"
   ```
 
-**Output before crash:**
-```
-structure agent: qwen2.5:32b
-characters agent: qwen2.5:32b
-summaries agent: qwen2.5:32b
-pronunciation agent: qwen2.5:32b
-Multi-model consensus: ENABLED (3 diverse models)
-  Mode: neutral (model diversity provides natural variation)
-  Stages: characters, structure, summaries
-  - qwen3:30b-instruct @ 0.5
-  - deepseek-r1:32b @ 0.7
-  - gemma3:27b @ 0.9
-Error during analysis: 'CompetitorModelConfig' object has no attribute 'split'
-```
+**Pipeline Output:**
+- Found 1 chapter (single-chapter short story)
+- Found 3 characters total (Berenice, Egaeus, the servant maiden)
+- Generated 2 character profiles (Berenice, Egaeus)
+- Flagged 107 pronunciation items
+- Detected narrator: Egaeus (first-person)
 
-**Analysis:**
-- The competitive models were parsed and displayed correctly in the startup message
-- Error occurred during the actual analysis phase, not during argument parsing
-- Suggests the bug is in code that consumes `CompetitorModelConfig` objects, not in CLI parsing
-- Likely location: Code that processes competitive models for consensus voting
-- Recent commit `f4b04b8` "Fix: Ensure competitive stage flags are actually passed to CLI" may have introduced this regression
+**Warnings observed:**
+- "BLOCKED alias: 'her' is a pronoun/common word" - working as expected
+- "Narrator 'Egaeus' identified but NOT found in main_cast" - known issue
+- "No passages provided for Egaeus, returning UNCERTAIN" - known issue
+- "LLM batch enrichment failed: failed to parse JSON" (2x) - profile enrichment errors
+
+**Performance breakdown:**
+- Pronunciation Guide: 10m35s (31.5% bottleneck)
+- Character Extraction: 8m43s
+- Chapter Detection: 6m35s
+- Character Profiles: 3m58s
+- Chapter Summaries: 2m54s
+- Total LLM calls: 41
+- Total tokens: 48,019
 
 ## Next Action
-Phase: awaiting_analysis
+Phase: awaiting_evaluation
 
 **Status:**
-BLOCKER FIXED - Pipeline crash resolved, ready to re-run analysis
+ANALYSIS COMPLETE - Ready for evaluation
 
-**What was fixed:**
-- `src/analyzer.py:731` - Changed `m.split(":")` to `m.model.split(":")` to properly access CompetitorModelConfig.model attribute
-- Multi-model competitive consensus can now initialize correctly
+**What happened:**
+- Pipeline completed successfully in 33m 38s
+- Multi-model competitive consensus worked correctly across all 3 stages
+- Output files generated: analysis.json (85K), report.html (205K)
+- Fix for CompetitorModelConfig.split() error was successful
 
-**Testing Plan:**
-Re-run attempt 2 with same competitive configuration to verify:
-1. Pipeline completes without crashes
-2. Multi-model competitive consensus works correctly
-3. Character extraction and narrator detection improvements (if any)
-
-**Expected Issues After Analysis:**
-The original CRITICAL issues remain and need to be addressed in subsequent fix attempts:
-1. First-person narrator (Egaeus) not detected by main cast extraction
-2. Egaeus has zero profile information (F6-reconciled character lacks enrichment)
-3. Berenice marked as "supporting" instead of "main"
-4. Main cast extraction too dependent on explicit name mentions
+**Ready for evaluation:**
+Evaluator should assess whether the external changes from commit `0d306c0` (prompt improvements for first-person narrator detection) have improved the scores, particularly:
+1. Character Extraction score (was 5/10)
+2. Character Profiles score (was 5/10)
+3. Whether Egaeus is now properly detected as narrator
+4. Whether Egaeus now has profile information
