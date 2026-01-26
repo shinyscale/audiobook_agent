@@ -3,27 +3,24 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
-## External Changes Applied
-- Commit `0d306c0`: Prompt improvements for first-person narrator detection (Rule 15, Egaeus example)
-- Testing if prompt-only approach works before adding programmatic detection
-
 ## Latest Scores
 - Structure Detection: 10/10
-- Character Extraction: 5/10 ← FAILING
-- Character Profiles: 5/10 ← FAILING
+- Character Extraction: 8/10 ← IMPROVED (was 5/10)
+- Character Profiles: 7/10 ← IMPROVED (was 5/10)
 - Chapter Summaries: 9/10
-- Pronunciation Guide: 7/10
+- Pronunciation Guide: 6/10 ← DECREASED (was 7/10)
 - HTML Presentation: 9/10
-- **Overall: 6.85/10** (threshold: 8.0)
+- **Overall: 7.95/10** (threshold: 8.0)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.85 | 0 | Fix addressed AttributeError crash, but narrator detection still fails |
+| 2 | 7.95 | +1.10 | Narrator detection working! Egaeus correctly marked as narrator with profile |
 
 ## Output Files
 - HTML: ../output/berenice/report.html
@@ -32,40 +29,58 @@
 ## Detailed Evaluation
 
 ### Structure Detection: 10/10
-- Correctly identified as single-chapter short story
+- Correctly identified as single-chapter short story (1 chapter)
 - "Berenice" by Poe is a continuous narrative without chapter breaks
 - Perfect for short story format
 
-### Character Extraction: 5/10
-**CRITICAL ISSUES:**
-- **Egaeus is NOT marked as narrator** (`is_narrator: false`) despite this being a first-person narrative
-- Egaeus ID: `d013867632e5` (hash) = came from F6 summary reconciliation, NOT main cast extraction
-- Berenice ID: `main_cast_1` = came from main cast, but role="supporting" instead of "main"
-- Pipeline warning shows: "No passages provided for Egaeus, returning UNCERTAIN" - narrator detection has no input data
+### Character Extraction: 8/10 ← MAJOR IMPROVEMENT
+**What improved:**
+- ✅ Egaeus NOW marked as `is_narrator: true` (was false)
+- ✅ Egaeus NOW has `role: protagonist` (was missing)
+- ✅ Egaeus still from F6 reconciliation (`d013867632e5`) but narrator detection succeeded
 
-**Root cause analysis:**
-1. Main cast extraction NEVER FOUND Egaeus - he only names himself once ("my baptismal name is Egaeus")
-2. Egaeus only exists because F6 reconciliation noticed summaries reference him
-3. F6-injected characters get minimal data (1 mention, no profile, no passages for narrator detection)
-4. Narrator detection can't run on a character with no passages
+**Remaining issues:**
+- Berenice has `role: antagonist|supporting` - she should be `main` (title character)
+- "antagonist" is semantically wrong - she's a victim, not an antagonist
+- Only 3 characters detected (Berenice, Egaeus, servant maiden) - appropriate for this short story
 
-### Character Profiles: 5/10
-- Berenice: Has appearance, personality, evidence ✓
-- Egaeus: Has NOTHING - null appearance, null personality, empty descriptions, empty evidence
-- This is catastrophic: the narrator's voice guides the entire audiobook reading
+### Character Profiles: 7/10 ← MAJOR IMPROVEMENT
+**What improved:**
+- ✅ Egaeus NOW has personality: "introspective, melancholic, fixated"
+- ✅ Egaeus NOW has descriptions with evidence (3 quotes)
+- ✅ Berenice has personality traits: "energetic, graceful"
+- ✅ Berenice has descriptions with evidence (4 quotes)
+
+**Remaining issues:**
+- No `physical_description` populated for any character (all null)
+- No `relationships` populated for any character
+- No `speech_patterns` populated
+- No `first_appearance` populated
+
+These are minor: personality summaries and evidence quotes provide enough for narrator prep.
 
 ### Chapter Summaries: 9/10
-- Accurate and comprehensive (337 words)
-- Correctly identifies "the narrator, Egaeus" in the text
-- Captures: Egaeus's monomania, Berenice's transformation, tooth fixation, climactic revelation
-- Minor: Could mention the Latin epigraph setting the story's theme
+Summary is excellent (1334 chars, ~230 words):
+- ✅ Correctly identifies "the narrator Egaeus"
+- ✅ Captures: ancestral mansion setting, Berenice's transformation by illness
+- ✅ Documents the monomania and fixation on teeth
+- ✅ Includes the disturbing climax: grave violation and discovery of teeth
+- ✅ Appropriate detail level for narrator preparation
 
-### Pronunciation Guide: 7/10
-- 74/107 entries have IPA (69%)
-- Good Latin coverage: Dicebant, mihi, sodales, sepulchrum, etc.
-- Berenice IPA: /bəˈrɛnɪsiː/ ✓
-- Egaeus IPA: /iːˈdʒiːəs/ ✓
-- False positives remain: "object", "record", "simile" are common words
+Minor: Could mention the Latin epigraph that sets the story's theme, but this is optional.
+
+### Pronunciation Guide: 6/10 ← REGRESSION
+**Current state:**
+- 44/107 entries have IPA (41.1%) - down from previous analysis
+- Key names covered: Berenice (/bəˈrɛnɪsiː/), Egaeus (/ɪˈdʒiːəs/)
+- Good Latin coverage: Dicebant, mihi, sodales, sepulchrum, amicae, etc.
+
+**Issues:**
+- 63/107 entries missing IPA (59%)
+- False positives present: "object", "simile", "record" - common English words
+- Important terms missing IPA: monomania, Coelius, Amplitudine, filius
+
+The IPA coverage drop may be due to multi-model competitive consensus producing different results. The Latin coverage is actually good - the issue is more with missing IPA for flagged words rather than incorrect flagging.
 
 ### HTML Presentation: 9/10
 - Clean professional dark theme
@@ -75,147 +90,67 @@
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **First-person narrator not detected by main cast extraction**
-   - Problem: Egaeus only names himself once, so NER/mention-based extraction misses him
-   - Evidence: Egaeus has `id: d013867632e5` (F6 hash) not `main_cast_*` prefix
-   - Result: No passages available for narrator detection → "returning UNCERTAIN"
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - needs first-person narrator detection
-   - Fix options:
-     a. Add first-person pronoun analysis ("I", "my", "me") to detect potential narrator
-     b. Check chapter summaries for "the narrator, [Name]" pattern during main cast extraction
-     c. Boost characters mentioned in summaries as narrator to main cast with high mention count
-
-2. **Egaeus has zero profile information**
-   - Problem: F6-reconciled characters don't get profile enrichment
-   - Evidence: Egaeus has null appearance, null personality, empty descriptions/evidence
-   - Location: `src/analyzer.py` around F6 reconciliation (lines 1220-1240) - doesn't trigger profile enrichment
-   - Fix: F6-injected characters should go through the same profile enrichment as main cast
-
 ### HIGH
-3. **Berenice marked as "supporting" instead of "main"**
-   - Problem: Titular character with 14 mentions listed as supporting
-   - Evidence: She's the title character and central to the entire plot
-   - Location: Role assignment in `src/pipeline/character_extraction_v2/main_cast.py`
-   - Fix: Characters matching the work's title should be boosted to "main" role
+1. **Berenice role incorrect: "antagonist|supporting" should be "main"**
+   - Problem: Title character marked as antagonist (semantically wrong) and supporting
+   - Evidence: Berenice is the story's title, central to the plot, and not an antagonist
+   - Location: Role assignment in character extraction/enrichment pipeline
+   - Fix: Title characters should default to "main" role; "antagonist" requires active harmful intent
 
-4. **Main cast extraction too dependent on explicit name mentions**
-   - Problem: First-person narrators often don't say their own name frequently
-   - Evidence: Egaeus has 1 mention, Berenice has 14, both marked "supporting"
-   - Location: Main cast criteria in `main_cast.py`
-   - Fix: Lower threshold for short stories OR use pronouns + context to infer main characters
+2. **59% of pronunciations lack IPA**
+   - Problem: 63/107 pronunciation entries have no IPA transcription
+   - Evidence: monomania, Coelius, Amplitudine, partook all missing IPA
+   - Location: `src/pipeline/pronunciation.py` IPA generation
+   - Fix: Improve LLM fallback for IPA generation or use phonetic dictionary
 
 ### MEDIUM
-5. **Pronunciation false positives**
-   - Problem: "object", "record", "simile" are common English words that don't need help
+3. **Pronunciation false positives: common words flagged**
+   - Problem: "object", "simile", "record" flagged as needing pronunciation help
+   - Evidence: These are common English words that most readers know
    - Location: `src/pipeline/pronunciation.py` filtering
-   - Fix: Add to common word exclusion list
+   - Fix: Add to common word exclusion list or improve filtering logic
 
-6. **31% of pronunciations lack IPA**
-   - Problem: 33/107 entries missing IPA
-   - Location: IPA generation in pronunciation pipeline
-   - Fix: Improve IPA lookup coverage or LLM fallback
+4. **Physical descriptions not populated**
+   - Problem: `physical_description` field is null for all characters
+   - Evidence: Berenice's physical transformation is central to the story
+   - Location: Profile enrichment pipeline
+   - Fix: Extract physical descriptions from text into dedicated field
+
+### LOW
+5. **Relationships not populated**
+   - Problem: `relationships` array empty for all characters
+   - Evidence: Egaeus and Berenice are cousins, betrothed
+   - Location: Profile enrichment
+   - Fix: Lower priority - descriptions and evidence fields capture this implicitly
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | AttributeError in early narrator detection | src/pipeline/character_extraction_v2/narrator.py | Fixed crash, but detection still fails (no input) |
-| 2 | CompetitorModelConfig.split() AttributeError | src/analyzer.py | Fixed crash - pipeline can now run with multi-model competitive consensus |
-
-### Fix Details - Attempt 1
-
-**Issue:** `'Character' object has no attribute 'descriptions'`
-
-**Root Cause:**
-- narrator.py imported `Character` from `src/models.py` (has `descriptions: list`)
-- analyzer.py creates V1 `Character` objects from `src/pipeline/character_extraction/models.py` (has `description: str`)
-- AttributeError when accessing `char.descriptions` on V1 objects
-
-**Fix Location:** `src/pipeline/character_extraction_v2/narrator.py:_get_description()`
-- Added handling for V1Character, ModelsCharacter, and MainCastProfile types
-- Crash eliminated ✓
-
-**Outcome:**
-- Crash fixed, but narrator detection gets "No passages provided for Egaeus"
-- Root issue is upstream: Egaeus never entered main_cast, so no passages were collected
-- Score unchanged at 6.85/10
-
-### Fix Details - Attempt 2
-
-**Issue:** `'CompetitorModelConfig' object has no attribute 'split'`
-
-**Root Cause:**
-- `src/analyzer.py:731` attempted to call `.split(":")` directly on CompetitorModelConfig objects
-- `cc.competitor_models` is a list of CompetitorModelConfig objects (not strings)
-- Need to access the `.model` attribute first before calling `.split()`
-
-**Fix Location:** `src/analyzer.py:731` - consensus collector configuration
-- Changed: `models=[m.split(":")[0] for m in (cc.competitor_models or [])]`
-- To: `models=[m.model.split(":")[0] for m in (cc.competitor_models or [])]`
-- Smoke test: Verified the fixed code correctly extracts model names from CompetitorModelConfig objects
-
-**Outcome:**
-- Pipeline crash eliminated ✓
-- Multi-model competitive consensus can now run
-- Ready to re-run attempt 2 analysis
+| 1 | AttributeError in early narrator detection | src/pipeline/character_extraction_v2/narrator.py | Fixed crash, but detection still failed (no input) |
+| 2 | CompetitorModelConfig.split() AttributeError | src/analyzer.py | Fixed crash - pipeline can now run |
+| 2 | External: Prompt improvements for narrator detection | External commit 0d306c0 | **SUCCESS** - Egaeus now detected as narrator |
 
 ## Pipeline Notes - Attempt 2
 - **Status:** COMPLETE - Analysis finished successfully
 - **Duration:** 33m 38s
-- **Competitive config:** multi mode with 3 models (qwen3:30b-instruct, deepseek-r1:32b, gemma3:27b) across all stages
-- **Command used:**
-  ```bash
-  audiobook-prep analyze "../Test_Texts/Berenice - Poe.txt" \
-    --html ../output/berenice/report.html \
-    --output ../output/berenice/analysis.json \
-    --competitive-model "qwen3:30b-instruct:0.5" \
-    --competitive-model "deepseek-r1:32b:0.7" \
-    --competitive-model "gemma3:27b:0.9" \
-    --competitive-all \
-    --structure-model "qwen2.5:32b" \
-    --character-model "qwen2.5:32b" \
-    --summary-model "qwen2.5:32b" \
-    --pronunciation-model "qwen2.5:32b"
-  ```
-
-**Pipeline Output:**
-- Found 1 chapter (single-chapter short story)
-- Found 3 characters total (Berenice, Egaeus, the servant maiden)
-- Generated 2 character profiles (Berenice, Egaeus)
-- Flagged 107 pronunciation items
-- Detected narrator: Egaeus (first-person)
-
-**Warnings observed:**
-- "BLOCKED alias: 'her' is a pronoun/common word" - working as expected
-- "Narrator 'Egaeus' identified but NOT found in main_cast" - known issue
-- "No passages provided for Egaeus, returning UNCERTAIN" - known issue
-- "LLM batch enrichment failed: failed to parse JSON" (2x) - profile enrichment errors
-
-**Performance breakdown:**
-- Pronunciation Guide: 10m35s (31.5% bottleneck)
-- Character Extraction: 8m43s
-- Chapter Detection: 6m35s
-- Character Profiles: 3m58s
-- Chapter Summaries: 2m54s
-- Total LLM calls: 41
-- Total tokens: 48,019
+- **Competitive config:** multi mode with 3 models across all stages
+- **Key improvements:**
+  - Narrator detection working (Egaeus marked as narrator)
+  - Character profiles populated with personality and evidence
+  - Summary correctly identifies narrator
 
 ## Next Action
-Phase: awaiting_evaluation
+Phase: awaiting_fix
 
-**Status:**
-ANALYSIS COMPLETE - Ready for evaluation
+**Focus:** Score is 7.95/10 - just 0.05 below threshold!
 
-**What happened:**
-- Pipeline completed successfully in 33m 38s
-- Multi-model competitive consensus worked correctly across all 3 stages
-- Output files generated: analysis.json (85K), report.html (205K)
-- Fix for CompetitorModelConfig.split() error was successful
+**Highest impact fixes:**
+1. Fix Berenice's role from "antagonist|supporting" to "main" (+0.25 to Character Extraction)
+2. Improve IPA coverage or remove common word false positives (+0.5 to Pronunciation)
 
-**Ready for evaluation:**
-Evaluator should assess whether the external changes from commit `0d306c0` (prompt improvements for first-person narrator detection) have improved the scores, particularly:
-1. Character Extraction score (was 5/10)
-2. Character Profiles score (was 5/10)
-3. Whether Egaeus is now properly detected as narrator
-4. Whether Egaeus now has profile information
+Either of these could push the score above 8.0.
+
+**Recommended approach for FIX phase:**
+- Target the pronunciation false positives (object, simile, record) - easiest win
+- Or fix role assignment logic for title characters
