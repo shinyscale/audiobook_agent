@@ -207,6 +207,54 @@ class ConsensusBuilder:
             client = LLMClient(new_config)
             self._competitor_clients.append(client)
 
+    def _warm_competitor_models(self) -> None:
+        """Pre-load all competitor models into Ollama memory for true parallel execution.
+
+        When running multiple LLM models in parallel, Ollama may need to load/unload
+        models between requests if they aren't already in memory. This method sends
+        a minimal prompt to each competitor model to force Ollama to load them all
+        into memory before the actual analysis begins.
+
+        Configure Ollama with:
+        - OLLAMA_MAX_LOADED_MODELS=3 (or higher based on available memory)
+        - OLLAMA_KEEP_ALIVE=30m (keep models loaded longer)
+        """
+        if not self._competitor_clients:
+            return
+
+        # Check if we have multiple different models (multi-model setup)
+        unique_models = {client.config.model for client in self._competitor_clients}
+
+        if len(unique_models) <= 1:
+            # Single model with different temperatures - no pre-warming needed
+            logger.debug("Single model competitive setup - skipping pre-warm")
+            return
+
+        logger.info(
+            f"Pre-warming {len(unique_models)} competitor models for parallel execution: "
+            f"{sorted(unique_models)}"
+        )
+
+        def warm_model(client: LLMClient) -> tuple[str, bool]:
+            """Send minimal prompt to force model load."""
+            model_name = client.config.model
+            try:
+                # Minimal prompt to force model load without heavy computation
+                client.query("Hello", system="Respond with 'OK'")
+                logger.info(f"  Warmed: {model_name}")
+                return (model_name, True)
+            except Exception as e:
+                logger.warning(f"  Failed to warm {model_name}: {e}")
+                return (model_name, False)
+
+        # Warm all models in parallel
+        with ThreadPoolExecutor(max_workers=len(self._competitor_clients)) as executor:
+            results = list(executor.map(warm_model, self._competitor_clients))
+
+        # Log summary
+        successful = sum(1 for _, success in results if success)
+        logger.info(f"Model pre-warming complete: {successful}/{len(results)} models loaded")
+
     def _competitive_boundary_validation(
         self,
         clusters: list["ProposalCluster"],
@@ -219,6 +267,9 @@ class ConsensusBuilder:
         """
         if not self._competitor_clients:
             return clusters
+
+        # Pre-warm competitor models for true parallel execution
+        self._warm_competitor_models()
 
         logger.info(f"Running competitive boundary validation on {len(clusters)} boundaries")
 
