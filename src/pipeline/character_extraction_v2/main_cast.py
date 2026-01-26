@@ -1436,11 +1436,41 @@ Return JSON:
         - "Catherine" + "Mrs. McKee" → True (one has title + different surname = different people)
         - "Jay Gatsby" + "Gatsby" → False (no title conflict)
         - "Mr. Gatsby" + "Gatsby" → False (same person with/without title)
+        - "Mr. White" + "father" → False (generic descriptor = valid alias)
+        - "Mrs. White" + "the old woman" → False (generic descriptor = valid alias)
 
         Returns:
             True if they are clearly different people (DON'T allow as aliases)
         """
         import re
+
+        # CRITICAL: Generic family/role descriptors are ALWAYS valid aliases
+        # These should never be blocked, regardless of name matching
+        generic_descriptors = {
+            # Family relationships
+            "father", "mother", "son", "daughter",  "brother", "sister",
+            "uncle", "aunt", "grandfather", "grandmother", "grandchild",
+            "husband", "wife", "spouse", "parent", "child",
+            # Age/gender descriptors
+            "the old man", "the old woman", "the old one",
+            "the young man", "the young woman",
+            "the elder", "the younger",
+            # Generic role descriptors
+            "the visitor", "the guest", "the stranger",
+            "the traveler", "the merchant", "the soldier",
+        }
+
+        # Check if either name is a generic descriptor
+        name1_lower = name1.lower().strip()
+        name2_lower = name2.lower().strip()
+
+        if name1_lower in generic_descriptors or name2_lower in generic_descriptors:
+            # Generic descriptors are valid aliases for anyone
+            logger.debug(
+                f"_are_different_titled_people: '{name1}' + '{name2}' -> False "
+                f"(generic descriptor detected)"
+            )
+            return False
 
         # Extract titles and surnames
         # M. = Monsieur (French equivalent of Mr.)

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.05
 - **Competitive Mode:** multi
 
@@ -86,5 +86,26 @@ Fixing issues #1 and #3 should be sufficient to pass: 7.05 + 0.75 + 0.3 ≈ 8.1
 - Profiling present: Yes
 - Model timeouts occurred (deepseek-r1) but didn't cause complete failure
 
+## Fix History
+### Attempt 1 - Fix 1: Allow generic descriptors as character aliases
+- **Root Cause:** `src/pipeline/character_extraction_v2/main_cast.py:_are_different_titled_people()` lines 1494-1495, 1503-1504
+  - The function checks if two names represent different people based on titles
+  - When one name has a title (e.g., "Mr. White") and the other doesn't (e.g., "father"), it checks for substring overlap
+  - Generic family descriptors like "father", "mother", "the old man" have no overlap with surnames, so they were incorrectly blocked
+- **Symptom:** Main cast extraction actually DID extract 7 characters (verified via debug logs), but `verify_aliases()` blocked family descriptors, leaving characters without key aliases. This may have caused grounding failures or other downstream issues.
+- **Fix Applied:** Added whitelist of generic descriptors (family relationships, age/gender terms, role descriptors) at line 1447
+  - If either name is in the whitelist, return False (allow as alias) immediately
+  - Descriptors include: "father", "mother", "son", "daughter", "the old man", "the old woman", etc.
+- **Smoke Test:** Ran `test_main_cast.py` on monkeys_paw summaries
+  - ✓ Mrs. White now extracted
+  - ✓ Mr. White has "father" as alias
+  - ✓ Mrs. White has "the old woman" and "mother" as aliases
+  - ✓ 7 main cast profiles extracted (vs 0 characters reaching final output in broken version)
+- **Expected Impact:**
+  - Fixes CRITICAL #1 (Mrs. White missing) - main cast extraction will now produce results
+  - Partially fixes MEDIUM #6 ("the old man/woman" aliases) - these are now allowed as aliases
+  - May improve Character Extraction score from 5→8 (+0.75 overall)
+- **Modified Files:** `src/pipeline/character_extraction_v2/main_cast.py`
+
 ## Next Action
-Run PROMPT_fix.md to address main cast extraction failure (CRITICAL #1)
+Re-run analysis to verify fix (phase: awaiting_analysis)
