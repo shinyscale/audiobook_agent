@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.53
 - **Competitive Mode:** single
 
@@ -99,7 +99,8 @@ Estimated impact: 7.53 → 8.0+ (crossing threshold)
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | #2: Geographic locations as characters | src/pipeline/character_extraction_v2/supporting.py | Added "Arve", "Strasburgh" to filter list; added "Mont" prefix pattern |
+| 1 | #3: Spurious "Narrator (Victor)" entry | src/analyzer.py | Enhanced F6 reconciliation to check parenthetical content against existing characters |
 
 ## Notes
 - Pipeline completed successfully in 118m 20s
@@ -109,5 +110,47 @@ Estimated impact: 7.53 → 8.0+ (crossing threshold)
 - HTML presentation is clean and functional
 - Main character issues are merge/split problems, not missing characters
 
+## Fix History - Attempt 1
+
+### Issue #2: Geographic locations incorrectly classified as characters (HIGH priority)
+- **Root cause:** `_is_likely_geographic()` in `supporting.py:269` was incomplete
+  - Missing "Arve" river (appears in Frankenstein near Geneva)
+  - Missing "Strasburgh" spelling variant (old form of Strasbourg)
+  - Missing "Mont" prefix pattern for French mountains (Mont Blanc, Mont Salêve)
+- **Fix:**
+  - Added "arve" and "strasburgh" to `common_places` set
+  - Added pattern check for "mont " prefix (French mountains)
+- **Smoke test:** PASS - All 4 geographic entities now filtered, character names unaffected
+- **Files modified:** `src/pipeline/character_extraction_v2/supporting.py` (lines 277-337)
+
+### Issue #3: Spurious "Narrator (Victor)" character entry (HIGH priority)
+- **Root cause:** F6 summary reconciliation (`analyzer.py:1434`) stripped parentheses but didn't check if content inside matched existing character
+  - "Narrator (Victor)" → stripped to "Narrator" → didn't match "Victor Frankenstein"
+  - Should have checked if "Victor" (parenthetical content) matches existing character
+- **Fix:**
+  - Enhanced `_is_likely_alias_of_existing()` to extract and check parenthetical content
+  - Now checks if parenthetical matches: canonical name, name components, or aliases
+- **Smoke test:** PASS - Parenthetical extraction working correctly
+- **Files modified:** `src/analyzer.py` (lines 1434-1508)
+
+### Issue #1: De Lacey / "the old man" false split (CRITICAL priority)
+- **Status:** DEFERRED for attempt 1
+- **Reason:** Complex cross-pipeline merge issue requiring more investigation
+- **Root cause documented:**
+  - LLM hallucination in main_cast.py created "the old man (De Lacey)" with "the creature" as alias
+  - Semantic split correctly separated them
+  - Now "split_the_old_man" and "supporting_5 De Lacey" need cross-pipeline merge
+- **Next steps:** Consider implementing cross-pipeline merge logic or improving LLM prompt guidance
+
+## Expected Impact
+
+Fixes address 2 of 3 HIGH priority issues in Character Extraction:
+- Issue #2 (4 false positives) → FIXED
+- Issue #3 (1 duplicate entry) → FIXED
+- Issue #1 (false split) → DEFERRED
+
+Estimated score improvement: 7.53 → 7.8-7.9
+(May not reach 8.0 threshold without addressing issue #1)
+
 ## Next Action
-Run PROMPT_fix.md to address character extraction issues (Critical #1, High #2, #3)
+Re-run analysis to verify fixes and evaluate impact

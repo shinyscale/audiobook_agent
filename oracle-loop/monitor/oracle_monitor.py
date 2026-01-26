@@ -601,9 +601,9 @@ class StateParser:
             with open(votes_file) as f:
                 data = json.load(f)
 
-            # Return last 10 votes
+            # Return all votes
             votes = data.get('votes', [])
-            return votes[-10:]
+            return votes
         except (json.JSONDecodeError, IOError, OSError):
             return []
 
@@ -1394,10 +1394,13 @@ class CompetitiveConsensusPanel(Static):
         votes = self.state.recent_votes
         if votes:
             text.append("\n")
-            # Show more votes when expanded
-            num_votes = len(votes) if self.expanded else 5
-            votes_to_show = votes[-num_votes:]
-            text.append(f"  Recent Votes ({len(votes_to_show)}/{len(votes)}):\n", style="bold cyan")
+            # Show all votes when expanded, last 5 when collapsed
+            if self.expanded:
+                votes_to_show = votes
+                text.append(f"  All Votes ({len(votes)}):\n", style="bold cyan")
+            else:
+                votes_to_show = votes[-5:]
+                text.append(f"  Recent Votes ({len(votes_to_show)}/{len(votes)}):\n", style="bold cyan")
 
             for vote in votes_to_show:
                 vote_type = vote.get('vote_type', '?')
@@ -1434,22 +1437,21 @@ class CompetitiveConsensusPanel(Static):
 
                 text.append(f"    {icon} ", style="dim")
 
-                # Subject - full or truncated based on expanded state
-                if self.expanded:
+                # Subject display depends on vote type - NO truncation when expanded
+                if vote_type == "alias":
+                    # For alias votes, show: "alias → canonical_name"
                     text.append(f"{subject}", style="white")
+                    text.append(" → ", style="dim")
+                    text.append(f"{context}", style="cyan")
                 else:
-                    subj = subject[:30] + "..." if len(subject) > 30 else subject
-                    text.append(f"{subj}", style="white")
+                    # Other vote types - just show subject
+                    text.append(f"{subject}", style="white")
 
                 # Display vote info based on type
                 if vote_type == "summary_merge":
                     # Summary merges don't have binary votes - show reason instead
                     if reason:
-                        if self.expanded:
-                            text.append(f"\n      → {reason}", style="dim cyan")
-                        else:
-                            short_reason = reason[:25] + "..." if len(reason) > 25 else reason
-                            text.append(f" ({short_reason}) ", style="dim cyan")
+                        text.append(f" ({reason}) ", style="dim cyan")
                     else:
                         text.append(" (merged) ", style="dim cyan")
                 else:
@@ -1729,7 +1731,7 @@ class OracleMonitorApp(App):
     }
 
     CompetitiveConsensusPanel.expanded {
-        max-height: 30;
+        max-height: 60;
     }
 
     ClaudeActivityPanel {

@@ -121,7 +121,7 @@ class ConsensusCollector:
 
             # Build vote list for JSON
             votes_data = []
-            for vote in self._votes[-20:]:  # Keep last 20
+            for vote in self._votes:  # Show all votes
                 votes_data.append({
                     "vote_type": vote.vote_type,
                     "subject": vote.subject,

@@ -1438,16 +1438,52 @@ class AudiobookAnalyzer:
                     - "Herbert White" → "Herbert" (full name vs first name)
                     - "Sergeant-Major Morris" → "Morris" (title + name vs name)
                     - "Herbert (mentioned)" → "Herbert" (annotation stripping)
+                    - "Narrator (Victor)" → matches "Victor" or "Victor Frankenstein" (parenthetical matching)
                     """
                     import re
 
                     # Strip parenthetical annotations first (e.g., "Herbert (mentioned)" → "Herbert")
                     clean_name = name
+                    parenthetical_content = None
                     if "(" in clean_name:
-                        clean_name = clean_name.split("(")[0].strip()
+                        # Extract both the cleaned name and the parenthetical content
+                        parts = clean_name.split("(", 1)
+                        clean_name = parts[0].strip()
+                        if len(parts) > 1 and ")" in parts[1]:
+                            parenthetical_content = parts[1].split(")")[0].strip()
 
                     # Normalize for comparison
                     clean_lower = clean_name.lower().strip()
+
+                    # If parenthetical content exists, check if it matches an existing character
+                    # Example: "Narrator (Victor)" should match "Victor Frankenstein"
+                    if parenthetical_content:
+                        parenthetical_lower = parenthetical_content.lower().strip()
+                        for char in pipeline_char_map.characters:
+                            char_canonical = char.canonical_name.lower().strip()
+
+                            # Check exact match with canonical name
+                            if parenthetical_lower == char_canonical:
+                                logger.info(
+                                    f"F6: '{name}' matches existing '{char.canonical_name}' via parenthetical content"
+                                )
+                                return True
+
+                            # Check if parenthetical content matches first or last name
+                            char_name_parts = char_canonical.split()
+                            if parenthetical_lower in char_name_parts:
+                                logger.info(
+                                    f"F6: '{name}' matches existing '{char.canonical_name}' (parenthetical is name component)"
+                                )
+                                return True
+
+                            # Check aliases
+                            for alias in char.aliases:
+                                if parenthetical_lower == alias.lower().strip():
+                                    logger.info(
+                                        f"F6: '{name}' matches alias '{alias}' of '{char.canonical_name}' via parenthetical"
+                                    )
+                                    return True
 
                     for char in pipeline_char_map.characters:
                         char_canonical = char.canonical_name.lower().strip()

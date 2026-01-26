@@ -280,7 +280,8 @@ class SupportingCastExtractor:
             "seine",
             "danube",
             "nile",
-            "mississippi",  # Rivers
+            "mississippi",
+            "arve",  # Rivers (Arve is a river near Geneva in Frankenstein)
             "alps",
             "pyrenees",
             "andes",
@@ -293,6 +294,7 @@ class SupportingCastExtractor:
             "milan",  # Cities (European classics)
             "ingolstadt",
             "strasbourg",
+            "strasburgh",  # Old spelling variant of Strasbourg
             "heidelberg",
             "zurich",  # German/Swiss cities (Frankenstein)
             "oxford",
@@ -330,6 +332,12 @@ class SupportingCastExtractor:
         )
         if any(name_lower.endswith(suffix) for suffix in geographic_suffixes):
             logger.debug(f"Filtering '{name}' as likely geographic entity (suffix match)")
+            return True
+
+        # Check for French mountain prefixes (Mont = mountain)
+        # Examples: Mont Blanc, Mont Salêve
+        if name_lower.startswith("mont ") and len(name_lower) > 5:
+            logger.debug(f"Filtering '{name}' as likely geographic entity (Mont prefix)")
             return True
 
         return False
