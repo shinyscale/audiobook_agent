@@ -579,6 +579,7 @@ class StateParser:
             self.base_dir / "output" / "VOTES.json",
             self.base_dir.parent / "output" / "VOTES.json",
             Path("/home/zacharymandrews/Tools/audiobook_agent/output/VOTES.json"),
+            Path("/home/zacharymandrews/Tools/audiobook_agent/oracle-loop/output/VOTES.json"),
         ]
 
         votes_file = None
