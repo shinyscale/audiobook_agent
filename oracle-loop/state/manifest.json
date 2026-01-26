@@ -47,11 +47,11 @@
     {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
-      "complete": false,
-      "attempts": 0,
-      "final_score": null,
-      "baseline_score": null,
-      "last_score": null,
+      "complete": true,
+      "attempts": 1,
+      "final_score": 8.45,
+      "baseline_score": 8.45,
+      "last_score": 8.45,
       "regression_detected": false
     },
     {
