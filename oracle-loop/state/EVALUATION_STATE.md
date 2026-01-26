@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** multi
 
@@ -182,12 +182,22 @@ The IPA coverage drop may be due to multi-model competitive consensus producing 
 
 ## Pipeline Notes - Attempt 2
 - **Status:** COMPLETE - Analysis finished successfully
-- **Duration:** 33m 38s
-- **Competitive config:** multi mode with 3 models across all stages
-- **Key improvements:**
-  - Narrator detection working (Egaeus marked as narrator)
-  - Character profiles populated with personality and evidence
-  - Summary correctly identifies narrator
+- **Duration:** 28m 23s
+- **Competitive config:** multi mode with 3 models across all stages (characters, structure, summaries)
+- **Competitive models:** qwen3:30b-instruct (0.5), deepseek-r1:32b (0.7), gemma3:27b (0.9)
+- **Primary models:** qwen2.5:32b for all agents (structure, characters, summaries, pronunciation)
+- **Pipeline stats:**
+  - Total LLM calls: 25
+  - Total tokens: 35,993
+  - Bottleneck: Pronunciation Guide (37.9% of time, 10m 45s)
+- **Warnings during run:**
+  - Initial LLM timeout (Pass 1) - resolved on retry
+  - "Narrator 'Egaeus' identified but NOT found in main_cast" - early detection phase, resolved later
+  - JSON parse failure during batch enrichment - non-fatal
+- **Output quality:**
+  - 2 characters detected (Berenice, Egaeus)
+  - 103 pronunciation flags (95 unknown, 6 foreign, 2 proper_noun)
+  - 1 chapter (single-chapter short story)
 
 ## Next Action
 Phase: awaiting_analysis
