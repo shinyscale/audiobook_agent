@@ -105,9 +105,12 @@ Estimated impact: 7.53 → 8.0+ (crossing threshold)
 ## Notes
 - Attempt 1: Pipeline completed successfully in 118m 20s
 - Attempt 2: Pipeline started at 2026-01-26 12:21:00, running in background (PID 1750089)
-  - Status at 12:41: Structure agent complete (27 boundaries), now running summaries with competitive consensus
-  - Multiple active connections to Ollama (localhost:11434) - LLM inference in progress
-  - Expected completion: ~2h 18m (similar to attempt 1)
+  - 12:41: Structure agent complete (27 boundaries detected)
+  - 13:01: Summary agent in progress (40 min elapsed) - competitive consensus mode active
+    - 70-75 concurrent Ollama connections (3 models per chapter × 27 chapters)
+    - Memory stable at ~92 MB
+    - Output buffered (4 lines stderr, normal for summary phase)
+  - Expected completion: ~14:39 (118 minutes total, matching attempt 1)
 - 28 chapters detected (correct for 4 letters + 24 chapters)
 - 3 narrators correctly identified (Walton, Victor, creature) - excellent for nested narrative
 - Summaries are high quality and accurate
