@@ -185,6 +185,48 @@ init_checkpoints
 # Source escalation system
 source "$SCRIPT_DIR/escalation.sh"
 
+# === SESSION CONFLICT DETECTION ===
+# Check for existing Claude CLI sessions that could cause API conflicts
+check_claude_session_conflicts() {
+    # Find claude processes (excluding our grep and this script's subshells)
+    local existing_sessions=$(pgrep -f "^claude" 2>/dev/null | while read pid; do
+        # Skip if it's a child of this script
+        local ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        if [ "$ppid" != "$$" ] && [ "$pid" != "$$" ]; then
+            echo "$pid"
+        fi
+    done)
+
+    if [ -n "$existing_sessions" ]; then
+        echo ""
+        echo "========================================"
+        echo "  WARNING: Claude Session Conflict"
+        echo "========================================"
+        echo ""
+        echo "Existing Claude CLI session(s) detected:"
+        for pid in $existing_sessions; do
+            local runtime=$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ')
+            echo "  PID $pid (running for: $runtime)"
+        done
+        echo ""
+        echo "The oracle loop may fail with '400 API Error: tool use"
+        echo "concurrency issues' due to session conflicts."
+        echo ""
+        echo "Options:"
+        echo "  1. Kill existing session(s): kill $existing_sessions"
+        echo "  2. Run oracle loop in a separate tmux/screen session"
+        echo "  3. Wait for existing session(s) to complete"
+        echo ""
+        echo "Continuing anyway in 10 seconds... (Ctrl+C to abort)"
+        sleep 10
+        return 1
+    fi
+    return 0
+}
+
+# Check for session conflicts at startup
+check_claude_session_conflicts || true
+
 echo ""
 echo "========================================"
 echo "  Audiobook Analysis Oracle Loop"
@@ -297,6 +339,15 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     else
         MODEL="sonnet"
         echo "Using model: sonnet (analysis/fix phase)"
+    fi
+
+    # Quick session conflict check before each Claude invocation
+    CONFLICT_PIDS=$(pgrep -f "^claude" 2>/dev/null | grep -v "^$$" || true)
+    if [ -n "$CONFLICT_PIDS" ]; then
+        echo ""
+        echo "Warning: Detected existing Claude session(s): $CONFLICT_PIDS"
+        echo "If API errors occur, consider terminating conflicting sessions."
+        echo ""
     fi
 
     cat "$PROMPT_FILE" | claude -p \
