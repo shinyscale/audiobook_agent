@@ -31,11 +31,11 @@
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": false,
-      "attempts": 1,
-      "final_score": null,
+      "complete": true,
+      "attempts": 2,
+      "final_score": 8.45,
       "baseline_score": 6.85,
-      "last_score": 6.85,
+      "last_score": 8.45,
       "regression_detected": false
     },
     {
