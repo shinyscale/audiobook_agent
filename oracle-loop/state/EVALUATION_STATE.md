@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.53
 
 ## Latest Scores
@@ -94,10 +94,40 @@ Combined expected impact: ~0.55 points → should cross 8.0 threshold
 |---------|-------|----------------|--------|
 | 1 | #2: Geographic locations as characters | src/pipeline/character_extraction_v2/supporting.py | **FIXED** ✓ |
 | 1 | #3: Spurious "Narrator (Victor)" entry | src/analyzer.py | **FIXED** ✓ |
+| 2 | #2: Character profiles - relationships field never populated | src/analyzer.py | **FIXED** ✓ (pending verification) |
 
 ## Verified Fixes from Attempt 1
 - ✅ Geographic locations (Mont Blanc, Arve, Strasburgh, Mont Salêve) no longer appear as characters
 - ✅ "Narrator (Victor)" spurious entry has been removed
+
+## Fix Details for Attempt 2
+
+### Issue #2: Relationships field never populated
+
+**Root cause:**
+- `_generate_character_profile()` did not extract or return relationships
+- The function returned 6 values but relationships was never included
+- The LLM prompt did not request relationships field
+- The caller never assigned relationships to character objects
+
+**Fix applied:**
+1. Added "relationships" field to LLM prompt JSON response format (analyzer.py:2456)
+2. Updated prompt instructions to extract family, friends, enemies, romantic connections (analyzer.py:2477)
+3. Extended function signature to return 7 values including relationships (analyzer.py:2229)
+4. Extract relationships from LLM response (analyzer.py:2669)
+5. Clean and validate relationships dict (analyzer.py:2703)
+6. Update caller to unpack and assign relationships (analyzer.py:1790, 1816)
+7. Updated all error return statements to include 7th None value (analyzer.py:2813, 2814, 2830, 2844)
+
+**Smoke test:** ✓ PASSED
+- Function signature correct (returns 7-tuple)
+- Code compiles without errors
+- Prompt includes relationships field
+- All 231 tests pass
+
+**Expected impact:**
+- relationships field should now populate for characters with sufficient context
+- May improve Character Profiles score from 6/10 → 7-8/10
 
 ## What's Working Well
 - 28/28 chapters correctly detected
@@ -110,10 +140,16 @@ Combined expected impact: ~0.55 points → should cross 8.0 threshold
 ## Notes
 - Score improved from 7.53 → 7.65 (+0.12)
 - The fixes from attempt 1 were verified working
-- Main blockers are now: (1) profile field population, (2) De Lacey/old man merge
-- Profile fields being empty suggests a bug rather than a tuning issue
+- **Attempt 2 fix:** relationships field was never being populated (code bug, now fixed)
+- Partial profile population (16/32 have appearance/personality) requires investigation in logs
+- De Lacey/old man merge remains unaddressed (requires different fix approach)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Character profile population (systemic issue affecting all profiles)
-2. De Lacey / "the old man" merge (CRITICAL false split)
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify:
+1. Relationships field now populates for characters
+2. Check if partial profile issue resolves (may have been transient LLM errors)
+
+Remaining issues to address if score still < 8.0:
+- De Lacey / "the old man" merge (CRITICAL false split - requires cross-pipeline merge logic)

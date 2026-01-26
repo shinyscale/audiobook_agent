@@ -46,7 +46,9 @@ IMPORTANT RULES:
 3. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
    these are the SAME character - use one as canonical and list the other as an alias
 4. A full name and a first-name-only reference (e.g., "Elizabeth Bennet" and "Elizabeth") are usually the SAME person
-   - include the shorter form as an alias
+   - **ALWAYS use the FULL NAME (first + last) as the canonical_name**
+   - Include the first-name-only form as an alias
+   - Even if the first name appears more frequently, the full name should be canonical
 5. **UNNAMED CHARACTERS WITH DESCRIPTIVE HANDLES**: Characters without proper names who are referred to by descriptive terms
    (e.g., "the creature", "the monster", "the stranger", "the old man")
    - These ARE valid main cast entries if they appear across multiple chapters
@@ -57,6 +59,11 @@ IMPORTANT RULES:
      create ONE character entry with canonical_name="the creature" and aliases=["the monster", "the fiend", "the daemon"]
    - DO NOT create separate entries for each descriptive term
    - **COMMON ERROR**: Creating "the creature" WITHOUT "the monster" as an alias when both terms appear in summaries
+   - **IF YOU KNOW THE PROPER NAME** of an unnamed/descriptive character, include it in parentheses:
+     - GOOD: "the old man (De Lacey)" with aliases ["the blind man", "De Lacey"]
+     - BAD: "the old man" with no indication of their actual name
+   - Look for clues like: "the old man, De Lacey" or "De Lacey, the blind old man" or family surnames
+     (e.g., if "Felix De Lacey" and "Agatha De Lacey" exist, "the old man" might be their father De Lacey)
 6. **FAMILY RELATIONSHIP DESCRIPTORS**: Generic family terms (father, mother, son, daughter) often refer to named characters
    - If a named character exists (e.g., "Alphonse Frankenstein") AND generic descriptors appear (e.g., "father", "Victor's father"),
      these refer to the SAME person - list the descriptors as aliases of the named character
@@ -160,6 +167,30 @@ Character with first-name-only references (SAME person - one entry):
 }}
 ```
 
+CORRECT - full name as canonical even when first name is more frequent:
+```json
+{{
+  "canonical_name": "Nick Carraway",
+  "aliases": ["Nick", "Carraway"],
+  "role": "protagonist",
+  "description": "The narrator who moves to West Egg",
+  "is_unnamed": false
+}}
+```
+
+WRONG - do NOT use first-name-only as canonical:
+```json
+{{
+  "canonical_name": "Nick",
+  "aliases": ["Carraway"],
+  "role": "protagonist",
+  "description": "The narrator who moves to West Egg",
+  "is_unnamed": false
+}}
+```
+Note: Even if "Nick" appears 100 times and "Nick Carraway" appears only 5 times,
+use "Nick Carraway" as the canonical_name and "Nick" as an alias.
+
 Spouses with title+surname only (DIFFERENT people - separate entries):
 ```json
 {{
@@ -191,6 +222,20 @@ Unnamed character (descriptive handle):
   "is_unnamed": true
 }}
 ```
+
+Unnamed character WITH known proper name (include parenthetical):
+```json
+{{
+  "canonical_name": "the old man (De Lacey)",
+  "aliases": ["the blind man", "De Lacey", "the cottager", "old De Lacey"],
+  "role": "supporting",
+  "description": "Blind old man living in the cottage, father of Felix and Agatha De Lacey",
+  "is_unnamed": true
+}}
+```
+Note: When a descriptive handle ("the old man") refers to a character whose proper name is known
+(e.g., "De Lacey", revealed through family connections like "Felix De Lacey" and "Agatha De Lacey"),
+include the proper name in parentheses AND as an alias.
 
 Character with family relationship descriptors (SAME person - one entry):
 ```json

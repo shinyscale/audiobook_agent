@@ -600,6 +600,34 @@ class CharacterAgent(Agent):
             f"after cross-cast synonym merge"
         )
 
+        # STEP 5.6.6: Merge bare surnames into family descriptive handles
+        # Handles "De Lacey" (supporting) + "the old man" (main, father of Felix/Agatha De Lacey)
+        logger.info("V2 Step 5.6.6: Merging bare surnames into family descriptive handles")
+        supporting_cast, surname_aliases_added = self._merge_surname_into_family_descriptive(
+            main_cast, supporting_cast
+        )
+
+        # Re-search mentions for main cast characters that gained new aliases
+        if surname_aliases_added:
+            logger.info(
+                f"Re-searching mentions for {len(surname_aliases_added)} main cast chars with new surname aliases"
+            )
+            for char_id in surname_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    char.mentions = result.mentions
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.6.6 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
+            f"after surname-family merge"
+        )
+
         # STEP 5.7: Final defensive narrator filter (after all merges)
         # This catches any narrator entries that might have been introduced during merging
         logger.info("V2 Step 5.7: Final narrator filter pass")
@@ -2676,6 +2704,128 @@ class CharacterAgent(Agent):
         # Remove merged supporting characters
         updated_supporting = [
             char for idx, char in enumerate(supporting_cast) if idx not in chars_to_remove
+        ]
+
+        return updated_supporting, chars_with_new_aliases
+
+    def _merge_surname_into_family_descriptive(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Merge bare surname from supporting cast into descriptive handles when
+        they share family relationships.
+
+        Example:
+        - Supporting: "De Lacey" (bare surname)
+        - Main cast: "Felix De Lacey", "Agatha De Lacey" (share surname)
+        - Main cast: "the old man" (descriptive, described as father of Felix/Agatha)
+        → Merge "De Lacey" into "the old man" as alias
+
+        Returns:
+            Tuple of (updated_supporting_cast, char_ids_with_new_aliases_in_main_cast)
+        """
+        chars_to_remove = set()
+        chars_with_new_aliases = set()
+
+        # Step 1: Build map of surnames → main cast characters
+        surname_to_chars: dict[str, list[Character]] = {}
+        for char in main_cast:
+            parts = char.canonical_name.split()
+            if len(parts) >= 2:
+                surname = parts[-1].lower()
+                if surname not in surname_to_chars:
+                    surname_to_chars[surname] = []
+                surname_to_chars[surname].append(char)
+
+        logger.debug(
+            f"_merge_surname_into_family_descriptive: Found surname families: "
+            f"{[(s, [c.canonical_name for c in chars]) for s, chars in surname_to_chars.items() if len(chars) >= 2]}"
+        )
+
+        # Step 2: Find bare surnames in supporting cast
+        for supp_idx, supp_char in enumerate(supporting_cast):
+            supp_name = supp_char.canonical_name.strip()
+            supp_lower = supp_name.lower()
+
+            # Skip if not a bare surname (single word, title-case)
+            if " " in supp_name:
+                continue
+            if not supp_name or not supp_name[0].isupper():
+                continue
+
+            # Skip if already a descriptive handle
+            if supp_lower.startswith("the "):
+                continue
+
+            # Check if this surname matches main cast family members
+            if supp_lower not in surname_to_chars:
+                continue
+
+            family_members = surname_to_chars[supp_lower]
+            if len(family_members) < 2:
+                continue  # Need at least 2 family members to infer relationship
+
+            logger.info(
+                f"Found bare surname '{supp_name}' matching {len(family_members)} "
+                f"main cast family members: {[c.canonical_name for c in family_members]}"
+            )
+
+            # Step 3: Find descriptive handles that could be this family member
+            for main_char in main_cast:
+                main_name = main_char.canonical_name.lower().strip()
+
+                # Only check descriptive patterns
+                if not main_name.startswith("the "):
+                    continue
+
+                # Skip if already has this surname as alias
+                if any(supp_lower in alias.lower() for alias in main_char.aliases):
+                    logger.debug(
+                        f"Skipping '{main_char.canonical_name}' - already has '{supp_name}' as alias"
+                    )
+                    continue
+
+                # Check for family relationship indicators in description
+                description = (main_char.description or "").lower()
+                family_indicators = ["father", "mother", "parent", "patriarch", "matriarch"]
+
+                # Check if main_char is described as family member of surname-holders
+                is_family = any(ind in description for ind in family_indicators)
+                if not is_family:
+                    # Also check if any family member's name appears in description
+                    for fm in family_members:
+                        first_name = fm.canonical_name.split()[0].lower()
+                        if first_name in description:
+                            is_family = True
+                            logger.debug(
+                                f"Family relationship detected via description: "
+                                f"'{main_char.canonical_name}' mentions '{first_name}'"
+                            )
+                            break
+
+                if is_family:
+                    logger.info(
+                        f"Merging surname '{supp_name}' into descriptive handle "
+                        f"'{main_char.canonical_name}' (family relationship detected)"
+                    )
+
+                    # Merge
+                    if supp_char.canonical_name not in main_char.aliases:
+                        main_char.aliases.append(supp_char.canonical_name)
+                    for alias in supp_char.aliases:
+                        if alias not in main_char.aliases:
+                            main_char.aliases.append(alias)
+
+                    main_char.mention_count += supp_char.mention_count
+                    chars_to_remove.add(supp_idx)
+                    chars_with_new_aliases.add(main_char.id)
+                    break  # Only merge into one descriptive handle
+
+        # Remove merged characters
+        updated_supporting = [
+            c for i, c in enumerate(supporting_cast) if i not in chars_to_remove
         ]
 
         return updated_supporting, chars_with_new_aliases
