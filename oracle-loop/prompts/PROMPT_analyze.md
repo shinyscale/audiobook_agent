@@ -68,7 +68,7 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    - `competitive_mode: "multi"` → Add `--competitive-model` for each entry in `competitive_models` array
 
    **Format for multi mode:** Each entry in `competitive_models` is `"model:temp"`:
-   - `qwen3:30b-instruct:0.5` → `--competitive-model "qwen3:30b-instruct:0.5"`
+   - `qwen2.5:32b:0.5` → `--competitive-model "qwen2.5:32b:0.5"`
    - `deepseek-r1:32b:0.7` → `--competitive-model "deepseek-r1:32b:0.7"`
    - etc.
 
@@ -119,10 +119,10 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
-     --structure-model "qwen3:30b-instruct" \
-     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --pronunciation-model "qwen3:30b-instruct"
+     --structure-model "qwen2.5:32b" \
+     --character-model "qwen2.5:32b" \
+     --summary-model "qwen2.5:32b" \
+     --pronunciation-model "qwen2.5:32b"
    ```
 
    **Example with mode "single":**
@@ -131,10 +131,10 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
      --competitive-consensus \
-     --structure-model "qwen3:30b-instruct" \
-     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --pronunciation-model "qwen3:30b-instruct"
+     --structure-model "qwen2.5:32b" \
+     --character-model "qwen2.5:32b" \
+     --summary-model "qwen2.5:32b" \
+     --pronunciation-model "qwen2.5:32b"
    ```
 
    **Example with mode "multi" and stages ["characters", "structure", "summaries"]:**
@@ -142,16 +142,16 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
-     --competitive-model "qwen3:30b-instruct:0.5" \
+     --competitive-model "qwen2.5:32b:0.5" \
      --competitive-model "deepseek-r1:32b:0.7" \
      --competitive-model "gemma3:27b:0.9" \
      --competitive-consensus \
      --competitive-structure \
      --competitive-summaries \
-     --structure-model "qwen3:30b-instruct" \
-     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --pronunciation-model "qwen3:30b-instruct"
+     --structure-model "qwen2.5:32b" \
+     --character-model "qwen2.5:32b" \
+     --summary-model "qwen2.5:32b" \
+     --pronunciation-model "qwen2.5:32b"
    ```
 
    **Alternative using --competitive-all (when all 3 stages enabled):**
@@ -159,21 +159,21 @@ If `state/EVALUATION_STATE.md` shows phase is `awaiting_analysis` or this is a f
    audiobook-prep analyze ../Test_Texts/gatsby.txt \
      --html ../output/gatsby/report.html \
      --output ../output/gatsby/analysis.json \
-     --competitive-model "qwen3:30b-instruct:0.5" \
+     --competitive-model "qwen2.5:32b:0.5" \
      --competitive-model "deepseek-r1:32b:0.7" \
      --competitive-model "gemma3:27b:0.9" \
      --competitive-all \
-     --structure-model "qwen3:30b-instruct" \
-     --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-     --pronunciation-model "qwen3:30b-instruct"
+     --structure-model "qwen2.5:32b" \
+     --character-model "qwen2.5:32b" \
+     --summary-model "qwen2.5:32b" \
+     --pronunciation-model "qwen2.5:32b"
    ```
 
    Output will show:
    ```
    Multi-model consensus: ENABLED (3 diverse models)
      Mode: neutral (model diversity provides natural variation)
-     - qwen3:30b-instruct @ 0.5
+     - qwen2.5:32b @ 0.5
      - deepseek-r1:32b @ 0.7
      - gemma3:27b @ 0.9
    ```

@@ -3,7 +3,7 @@
   "competitive_mode": "multi",
   "competitive_stages": ["characters", "structure", "summaries"],
   "competitive_models": [
-    "qwen3:30b-instruct:0.5",
+    "qwen2.5:32b:0.5",
     "deepseek-r1:32b:0.7",
     "gemma3:27b:0.9"
   ],
