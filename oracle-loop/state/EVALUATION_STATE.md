@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 2
-- **Phase:** analyzing
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.53
 - **Competitive Mode:** single
 
@@ -104,13 +104,16 @@ Estimated impact: 7.53 → 8.0+ (crossing threshold)
 
 ## Notes
 - Attempt 1: Pipeline completed successfully in 118m 20s
-- Attempt 2: Pipeline started at 2026-01-26 12:21:00, running in background (PID 1750089)
-  - 12:41: Structure agent complete (27 boundaries detected)
-  - 13:01: Summary agent in progress (40 min elapsed) - competitive consensus mode active
-    - 70-75 concurrent Ollama connections (3 models per chapter × 27 chapters)
-    - Memory stable at ~92 MB
-    - Output buffered (4 lines stderr, normal for summary phase)
-  - Expected completion: ~14:39 (118 minutes total, matching attempt 1)
+- Attempt 2: Pipeline completed successfully in 113m 34s (1h 53m) - Started 12:21, completed 14:15
+  - Stage breakdown:
+    - Chapter Detection: 9m 15s (28 chapters)
+    - Chapter Summaries: 29m 60s (bottleneck - 26.4% of time, competitive consensus enabled)
+    - Character Extraction: 27m 24s (32 characters found)
+    - Character Profiles: 20m 22s (19 profiles, 3 low-confidence)
+    - Pronunciation Guide: 25m 30s (618 entries)
+  - Quality concerns: 3 low-confidence character profiles
+  - Competitive consensus active on all stages (characters, structure, summaries)
+  - Semantic conflict detection worked: "SEMANTIC CONFLICT: 'the creature' cannot be alias of 'the old man'"
 - 28 chapters detected (correct for 4 letters + 24 chapters)
 - 3 narrators correctly identified (Walton, Victor, creature) - excellent for nested narrative
 - Summaries are high quality and accurate
