@@ -1325,14 +1325,19 @@ class OllamaActivityPanel(Static):
 class CompetitiveConsensusPanel(Static):
     """Panel showing competitive consensus mode and live voting."""
 
-    def __init__(self, state: OracleState):
+    def __init__(self, state: OracleState, expanded: bool = False):
         super().__init__()
         self.state = state
+        self.expanded = expanded
 
     def render(self) -> Text:
         text = Text()
 
-        text.append("COMPETITIVE CONSENSUS\n", style="bold white")
+        # Header shows expand/collapse hint
+        if self.expanded:
+            text.append("COMPETITIVE CONSENSUS [EXPANDED - Press 'v' to collapse]\n", style="bold white")
+        else:
+            text.append("COMPETITIVE CONSENSUS [Press 'v' to expand]\n", style="bold white")
 
         # Mode indicator
         mode = self.state.competitive_mode
@@ -1389,13 +1394,19 @@ class CompetitiveConsensusPanel(Static):
         votes = self.state.recent_votes
         if votes:
             text.append("\n")
-            text.append("  Recent Votes:\n", style="bold cyan")
-            for vote in votes[-5:]:  # Show last 5
+            # Show more votes when expanded
+            num_votes = len(votes) if self.expanded else 5
+            votes_to_show = votes[-num_votes:]
+            text.append(f"  Recent Votes ({len(votes_to_show)}/{len(votes)}):\n", style="bold cyan")
+
+            for vote in votes_to_show:
                 vote_type = vote.get('vote_type', '?')
                 subject = vote.get('subject', '?')
                 outcome = vote.get('outcome', '?')
                 yes_count = vote.get('yes_count', 0)
                 vote_count = vote.get('vote_count', 0)
+                reason = vote.get('reason', '')
+                context = vote.get('context', '')
 
                 # Type icon
                 if vote_type == "alias":
@@ -1414,16 +1425,43 @@ class CompetitiveConsensusPanel(Static):
                 elif outcome == "rejected":
                     outcome_style = "red"
                     outcome_icon = "✗"
+                elif outcome == "merged":
+                    outcome_style = "cyan"
+                    outcome_icon = "⊕"
                 else:
                     outcome_style = "yellow"
                     outcome_icon = "~"
 
                 text.append(f"    {icon} ", style="dim")
-                # Truncate subject
-                subj = subject[:30] + "..." if len(subject) > 30 else subject
-                text.append(f"{subj}", style="white")
-                text.append(f" [{yes_count}/{vote_count}] ", style="dim")
-                text.append(f"{outcome_icon}", style=outcome_style)
+
+                # Subject - full or truncated based on expanded state
+                if self.expanded:
+                    text.append(f"{subject}", style="white")
+                else:
+                    subj = subject[:30] + "..." if len(subject) > 30 else subject
+                    text.append(f"{subj}", style="white")
+
+                # Display vote info based on type
+                if vote_type == "summary_merge":
+                    # Summary merges don't have binary votes - show reason instead
+                    if reason:
+                        if self.expanded:
+                            text.append(f"\n      → {reason}", style="dim cyan")
+                        else:
+                            short_reason = reason[:25] + "..." if len(reason) > 25 else reason
+                            text.append(f" ({short_reason}) ", style="dim cyan")
+                    else:
+                        text.append(" (merged) ", style="dim cyan")
+                else:
+                    # Binary votes show yes/total count
+                    text.append(f" [{yes_count}/{vote_count}] ", style="dim")
+                    if self.expanded and reason:
+                        text.append(f"\n      → {reason}", style="dim yellow")
+
+                if not self.expanded or vote_type != "summary_merge" or not reason:
+                    text.append(f" {outcome_icon}", style=outcome_style)
+                else:
+                    text.append(f"  {outcome_icon}", style=outcome_style)
                 text.append("\n")
         elif self.state.analysis_running:
             text.append("\n")
@@ -1433,8 +1471,10 @@ class CompetitiveConsensusPanel(Static):
 
         return text
 
-    def update_state(self, state: OracleState):
+    def update_state(self, state: OracleState, expanded: bool = None):
         self.state = state
+        if expanded is not None:
+            self.expanded = expanded
         self.refresh()
 
 
@@ -1688,6 +1728,10 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    CompetitiveConsensusPanel.expanded {
+        max-height: 30;
+    }
+
     ClaudeActivityPanel {
         height: auto;
         max-height: 10;
@@ -1729,11 +1773,13 @@ class OracleMonitorApp(App):
         Binding("r", "refresh", "Refresh", show=True),
         Binding("n", "focus_notes", "Notes", show=True),
         Binding("t", "toggle_thinking", "Thinking", show=True),
+        Binding("v", "toggle_votes", "Votes", show=True),
         Binding("x", "export_thinking", "Export", show=True),
     ]
 
     paused = reactive(False)
     thinking_expanded = reactive(False)
+    votes_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
         super().__init__()
@@ -1751,7 +1797,7 @@ class OracleMonitorApp(App):
             yield StatusBar(self.state)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
-            yield CompetitiveConsensusPanel(self.state)
+            yield CompetitiveConsensusPanel(self.state, expanded=self.votes_expanded)
             yield OllamaActivityPanel(self.state)
             yield StderrPanel(self.state)
             yield ClaudeActivityPanel(self.state)
@@ -1805,7 +1851,7 @@ class OracleMonitorApp(App):
             self.query_one(StatusBar).update_state(self.state)
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
-            self.query_one(CompetitiveConsensusPanel).update_state(self.state)
+            self.query_one(CompetitiveConsensusPanel).update_state(self.state, expanded=self.votes_expanded)
             self.query_one(OllamaActivityPanel).update_state(self.state)
             self.query_one(StderrPanel).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)
@@ -1855,6 +1901,25 @@ class OracleMonitorApp(App):
 
             # Update the panel with new expanded state
             thinking_panel.update_state(self.state, expanded=self.thinking_expanded)
+        except Exception:
+            pass
+
+    def action_toggle_votes(self):
+        """Toggle votes panel expanded/collapsed."""
+        self.votes_expanded = not self.votes_expanded
+
+        # Update CSS class
+        try:
+            votes_panel = self.query_one(CompetitiveConsensusPanel)
+            if self.votes_expanded:
+                votes_panel.add_class("expanded")
+                self.notify("Votes panel expanded", title="View Mode")
+            else:
+                votes_panel.remove_class("expanded")
+                self.notify("Votes panel collapsed", title="View Mode")
+
+            # Update the panel with new expanded state
+            votes_panel.update_state(self.state, expanded=self.votes_expanded)
         except Exception:
             pass
 

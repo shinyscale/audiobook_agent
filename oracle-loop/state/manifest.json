@@ -1,12 +1,8 @@
 {
   "quality_threshold": 8.0,
-  "competitive_mode": "multi",
+  "competitive_mode": "single",
   "competitive_stages": ["characters", "structure", "summaries"],
-  "competitive_models": [
-    "qwen2.5:32b:0.5",
-    "deepseek-r1:32b:0.7",
-    "gemma3:27b:0.9"
-  ],
+  "competitive_models": [],
   "texts": [
     {
       "name": "cask_of_amontillado",
