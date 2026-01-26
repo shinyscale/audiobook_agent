@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.05
 - **Competitive Mode:** multi
 
@@ -21,9 +21,12 @@
 |---------|-------|---------------------|-------|
 | 1 | 7.05 | - | Baseline - Mrs. White missing |
 
-## Output Files
+## Output Files (Attempt 2)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+- Pipeline completed in 40m 26s
+- Characters extracted: 5 (vs 3 in attempt 1)
+- **Mrs. White now detected!** (10 mentions) ✓
 
 ## Current Issues (Priority Order)
 
@@ -74,12 +77,15 @@
 
 Fixing issues #1 and #3 should be sufficient to pass: 7.05 + 0.75 + 0.3 ≈ 8.1
 
-## Pipeline Notes
-- Total time: 36m 14s
-- All characters came from supporting_cast pipeline (IDs: supporting_0, supporting_1, supporting_2)
-- Main cast pipeline produced 0 characters - this is the root cause of missing Mrs. White
-- 1 low-confidence character profile (Mr. White)
-- Some deepseek-r1 timeouts during execution but pipeline completed
+## Pipeline Notes (Attempt 2)
+- Total time: 40m 26s
+- 5 characters extracted with high confidence
+- Mrs. White successfully detected (critical fix verified!)
+- Some alias blocking warnings observed:
+  - "his wife" blocked from Mrs. White
+  - "the old man" not merged with Mr. White (no co-occurrence)
+- Multi-model consensus enabled for characters, structure, and summaries
+- Profiling breakdown: Chapter Detection 9m49s (24.3%), Character Profiles 9m44s, Summaries 7m36s
 
 ## Configuration Notes
 - Config present: Yes
