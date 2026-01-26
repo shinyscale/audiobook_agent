@@ -123,6 +123,14 @@ class OracleState:
     # Recent stderr output
     recent_stderr: list[str] = field(default_factory=list)
 
+    # Competitive consensus info
+    competitive_mode: str = "none"  # none, single, multi
+    competitive_stages: list[str] = field(default_factory=list)
+    competitive_models: list[str] = field(default_factory=list)
+
+    # Live voting data
+    recent_votes: list[dict] = field(default_factory=list)
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -238,10 +246,18 @@ class StateParser:
         completed = sum(1 for t in texts if t.get('complete', False))
         threshold = data.get('quality_threshold', 8.0)
 
+        # Competitive consensus config
+        competitive_mode = data.get('competitive_mode', 'none')
+        competitive_stages = data.get('competitive_stages', [])
+        competitive_models = data.get('competitive_models', [])
+
         return {
             'total_texts': total,
             'completed_texts': completed,
             'threshold': threshold,
+            'competitive_mode': competitive_mode,
+            'competitive_stages': competitive_stages,
+            'competitive_models': competitive_models,
         }
 
     def parse_git_log(self, count: int = 5) -> list[Commit]:
@@ -554,6 +570,42 @@ class StateParser:
         except (json.JSONDecodeError, IOError, OSError):
             return {}
 
+    def parse_live_votes(self) -> list[dict]:
+        """Parse VOTES.json for live consensus voting data during analysis."""
+        import time
+
+        # Try multiple locations for votes file
+        possible_paths = [
+            self.base_dir / "output" / "VOTES.json",
+            self.base_dir.parent / "output" / "VOTES.json",
+            Path("/home/zacharymandrews/Tools/audiobook_agent/output/VOTES.json"),
+        ]
+
+        votes_file = None
+        for path in possible_paths:
+            if path.exists():
+                votes_file = path
+                break
+
+        if not votes_file:
+            return []
+
+        try:
+            # Check if file was modified recently (within 5 minutes)
+            mtime = votes_file.stat().st_mtime
+            age_seconds = time.time() - mtime
+            if age_seconds > 300:  # 5 minutes - stale
+                return []
+
+            with open(votes_file) as f:
+                data = json.load(f)
+
+            # Return last 10 votes
+            votes = data.get('votes', [])
+            return votes[-10:]
+        except (json.JSONDecodeError, IOError, OSError):
+            return []
+
     def check_loop_running(self) -> bool:
         """Check if oracle-loop.sh is currently running."""
         try:
@@ -653,6 +705,14 @@ class StateParser:
         state.completed_texts = manifest.get('completed_texts', 0)
         if 'threshold' in manifest:
             state.threshold = manifest['threshold']
+
+        # Competitive consensus config
+        state.competitive_mode = manifest.get('competitive_mode', 'none')
+        state.competitive_stages = manifest.get('competitive_stages', [])
+        state.competitive_models = manifest.get('competitive_models', [])
+
+        # Parse live votes
+        state.recent_votes = self.parse_live_votes()
 
         # Parse progress file for current stage (real-time during analysis)
         progress_data = self.parse_progress_file()
@@ -1261,6 +1321,122 @@ class OllamaActivityPanel(Static):
         self.refresh()
 
 
+class CompetitiveConsensusPanel(Static):
+    """Panel showing competitive consensus mode and live voting."""
+
+    def __init__(self, state: OracleState):
+        super().__init__()
+        self.state = state
+
+    def render(self) -> Text:
+        text = Text()
+
+        text.append("COMPETITIVE CONSENSUS\n", style="bold white")
+
+        # Mode indicator
+        mode = self.state.competitive_mode
+        if mode == "multi":
+            text.append("  Mode: ", style="cyan")
+            text.append("MULTI-MODEL", style="bold green")
+            text.append(" (diverse models voting)\n", style="dim")
+        elif mode == "single":
+            text.append("  Mode: ", style="cyan")
+            text.append("SINGLE-MODEL", style="bold yellow")
+            text.append(" (same model, 3 temps)\n", style="dim")
+        else:
+            text.append("  Mode: ", style="cyan")
+            text.append("DISABLED", style="dim")
+            text.append("\n")
+            return text
+
+        # Stages enabled
+        stages = self.state.competitive_stages
+        if stages:
+            text.append("  Stages: ", style="cyan")
+            stage_strs = []
+            for stage in stages:
+                if stage == "characters":
+                    stage_strs.append("👥 characters")
+                elif stage == "structure":
+                    stage_strs.append("📖 structure")
+                elif stage == "summaries":
+                    stage_strs.append("📝 summaries")
+                else:
+                    stage_strs.append(stage)
+            text.append(", ".join(stage_strs), style="white")
+            text.append("\n")
+
+        # Models (for multi mode)
+        models = self.state.competitive_models
+        if models and mode == "multi":
+            text.append("  Models: ", style="cyan")
+            for i, model_spec in enumerate(models):
+                if i > 0:
+                    text.append(", ", style="dim")
+                # Parse model:temp format
+                parts = model_spec.split(":")
+                model_name = ":".join(parts[:-1]) if len(parts) > 1 else parts[0]
+                temp = parts[-1] if len(parts) > 1 else "0.7"
+                # Shorten model name
+                if len(model_name) > 15:
+                    model_name = model_name[:12] + "..."
+                text.append(f"{model_name}", style="white")
+                text.append(f"@{temp}", style="dim cyan")
+            text.append("\n")
+
+        # Recent votes
+        votes = self.state.recent_votes
+        if votes:
+            text.append("\n")
+            text.append("  Recent Votes:\n", style="bold cyan")
+            for vote in votes[-5:]:  # Show last 5
+                vote_type = vote.get('vote_type', '?')
+                subject = vote.get('subject', '?')
+                outcome = vote.get('outcome', '?')
+                yes_count = vote.get('yes_count', 0)
+                vote_count = vote.get('vote_count', 0)
+
+                # Type icon
+                if vote_type == "alias":
+                    icon = "🔗"
+                elif vote_type == "boundary":
+                    icon = "📍"
+                elif vote_type == "summary_merge":
+                    icon = "📝"
+                else:
+                    icon = "🗳️"
+
+                # Outcome style
+                if outcome == "accepted":
+                    outcome_style = "green"
+                    outcome_icon = "✓"
+                elif outcome == "rejected":
+                    outcome_style = "red"
+                    outcome_icon = "✗"
+                else:
+                    outcome_style = "yellow"
+                    outcome_icon = "~"
+
+                text.append(f"    {icon} ", style="dim")
+                # Truncate subject
+                subj = subject[:30] + "..." if len(subject) > 30 else subject
+                text.append(f"{subj}", style="white")
+                text.append(f" [{yes_count}/{vote_count}] ", style="dim")
+                text.append(f"{outcome_icon}", style=outcome_style)
+                text.append("\n")
+        elif self.state.analysis_running:
+            text.append("\n")
+            text.append("  Votes: ", style="cyan")
+            text.append("waiting for voting...", style="dim")
+            text.append("\n")
+
+        return text
+
+    def update_state(self, state: OracleState):
+        self.state = state
+        self.refresh()
+
+
 class ClaudeActivityPanel(Static):
     """Panel showing Claude's recent activity (tool calls, messages)."""
 
@@ -1503,6 +1679,14 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    CompetitiveConsensusPanel {
+        height: auto;
+        max-height: 12;
+        border: solid $success;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
     ClaudeActivityPanel {
         height: auto;
         max-height: 10;
@@ -1566,6 +1750,7 @@ class OracleMonitorApp(App):
             yield StatusBar(self.state)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
+            yield CompetitiveConsensusPanel(self.state)
             yield OllamaActivityPanel(self.state)
             yield StderrPanel(self.state)
             yield ClaudeActivityPanel(self.state)
@@ -1619,6 +1804,7 @@ class OracleMonitorApp(App):
             self.query_one(StatusBar).update_state(self.state)
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
+            self.query_one(CompetitiveConsensusPanel).update_state(self.state)
             self.query_one(OllamaActivityPanel).update_state(self.state)
             self.query_one(StderrPanel).update_state(self.state)
             self.query_one(ClaudeActivityPanel).update_state(self.state)

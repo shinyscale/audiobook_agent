@@ -18,8 +18,10 @@ Usage:
     log = consensus_collector.build_log()
 """
 
+import json
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 
@@ -61,6 +63,13 @@ class ConsensusCollector:
                 "models": [],
                 "stages": [],
             }
+            # Clear the live votes file
+            try:
+                votes_file = Path("output/VOTES.json")
+                if votes_file.exists():
+                    votes_file.unlink()
+            except Exception:
+                pass
 
     def configure(
         self,
@@ -88,7 +97,7 @@ class ConsensusCollector:
     ):
         """Record a single voting decision."""
         with self._lock:
-            self._votes.append(VoteRecord(
+            vote = VoteRecord(
                 vote_type=vote_type,
                 subject=subject,
                 context=context,
@@ -98,7 +107,41 @@ class ConsensusCollector:
                 threshold=threshold,
                 outcome=outcome,
                 reason=reason,
-            ))
+            )
+            self._votes.append(vote)
+
+            # Write to VOTES.json for live monitoring
+            self._write_live_votes()
+
+    def _write_live_votes(self):
+        """Write votes to VOTES.json for live monitoring by oracle monitor."""
+        try:
+            votes_file = Path("output/VOTES.json")
+            votes_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Build vote list for JSON
+            votes_data = []
+            for vote in self._votes[-20:]:  # Keep last 20
+                votes_data.append({
+                    "vote_type": vote.vote_type,
+                    "subject": vote.subject,
+                    "context": vote.context,
+                    "votes": vote.votes,
+                    "vote_count": vote.vote_count,
+                    "yes_count": vote.yes_count,
+                    "threshold": vote.threshold,
+                    "outcome": vote.outcome,
+                    "reason": vote.reason,
+                })
+
+            with open(votes_file, "w") as f:
+                json.dump({
+                    "config": self._config,
+                    "total_votes": len(self._votes),
+                    "votes": votes_data,
+                }, f, indent=2)
+        except Exception:
+            pass  # Don't let file writing break the pipeline
 
     def get_votes(self) -> list[VoteRecord]:
         """Get all collected votes."""
