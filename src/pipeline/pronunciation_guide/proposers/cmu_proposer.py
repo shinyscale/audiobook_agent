@@ -368,6 +368,10 @@ COMMON_WORDS_WHITELIST = {
     "orange",
     "silver",
     "gold",
+    # Common literary/rhetorical terms
+    "metaphor",
+    "simile",
+    "analogy",
     # Common descriptive adjectives
     "pale",
     "dark",

@@ -16,6 +16,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Common homographs to exclude - too common for narrators to need pronunciation help
+# These are valid homographs but appear frequently enough that narrators know them
+COMMON_HOMOGRAPHS_EXCLUSION = {
+    "object",   # "an object" vs "to object" - extremely common
+    "record",   # "a record" vs "to record" - extremely common
+    "use",      # "noun: a use" vs "verb: to use" - extremely common
+    "present",  # "a present/be present" vs "to present" - extremely common
+}
+
 # Homographs: words spelled the same but with different pronunciations
 HOMOGRAPHS = {
     "read": ["present tense (REED)", "past tense (RED)"],
@@ -34,22 +43,19 @@ HOMOGRAPHS = {
     "entrance": ["way in (EN-truns)", "to charm (en-TRANS)"],
     "invalid": ["not valid (in-VAL-id)", "sick person (IN-vuh-lid)"],
     "minute": ["time unit (MIN-it)", "tiny (my-NOOT)"],
-    "object": ["thing (OB-jekt)", "to oppose (ob-JEKT)"],
     "polish": ["to shine (POL-ish)", "from Poland (POH-lish)"],
-    "present": ["gift/current (PREZ-ent)", "to give (pri-ZENT)"],
     "produce": ["vegetables (PROH-doos)", "to make (pruh-DOOS)"],
     "project": ["plan (PROJ-ekt)", "to forecast (pruh-JEKT)"],
     "rebel": ["revolutionary (REB-ul)", "to revolt (ri-BEL)"],
-    "record": ["disc/log (REK-ord)", "to capture (ri-KORD)"],
     "refuse": ["decline (ri-FYOOZ)", "trash (REF-yoos)"],
     "resume": ["continue (ri-ZOOM)", "CV (REZ-oo-may)"],
     "separate": ["adj: distinct (SEP-rit)", "verb: divide (SEP-uh-rayt)"],
     "subject": ["topic (SUB-jekt)", "to expose (sub-JEKT)"],
     "wound": ["injury (WOOND)", "past of wind (WOWND)"],
-    "use": ["noun (YOOS)", "verb (YOOZ)"],
     "abuse": ["noun (uh-BYOOS)", "verb (uh-BYOOZ)"],
     "excuse": ["noun (ek-SKYOOS)", "verb (ek-SKYOOZ)"],
     # Removed 'house' - too common, distinction not useful for narrators
+    # Removed 'object', 'record', 'use', 'present' - moved to COMMON_HOMOGRAPHS_EXCLUSION
     "alternate": ["adj (AWL-ter-nit)", "verb (AWL-ter-nayt)"],
     "deliberate": ["adj (di-LIB-er-it)", "verb (di-LIB-er-ayt)"],
     "duplicate": ["noun/adj (DOO-pli-kit)", "verb (DOO-pli-kayt)"],

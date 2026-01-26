@@ -130,6 +130,30 @@ The IPA coverage drop may be due to multi-model competitive consensus producing 
 | 1 | AttributeError in early narrator detection | src/pipeline/character_extraction_v2/narrator.py | Fixed crash, but detection still failed (no input) |
 | 2 | CompetitorModelConfig.split() AttributeError | src/analyzer.py | Fixed crash - pipeline can now run |
 | 2 | External: Prompt improvements for narrator detection | External commit 0d306c0 | **SUCCESS** - Egaeus now detected as narrator |
+| 2 | Pronunciation false positives: object, record, simile | src/pipeline/pronunciation_guide/proposers/homograph_proposer.py, cmu_proposer.py | Removed common homographs from flagging |
+
+## Fix Details - Attempt 2
+
+### Issue: Pronunciation false positives (MEDIUM priority)
+
+**Root cause:**
+- `homograph_proposer.py:37,43` - "object" and "record" included in HOMOGRAPHS dict
+- These are valid homographs but too common for narrators to need help with
+- "simile" not in CMU whitelist, flagged as uncommon word
+
+**Fix applied:**
+- Added `COMMON_HOMOGRAPHS_EXCLUSION` set to exclude overly common homographs
+- Removed "object", "record", "use", "present" from HOMOGRAPHS dict
+- Added "simile", "metaphor", "analogy" to CMU `COMMON_WORDS_WHITELIST`
+
+**Smoke test:** PASS
+- Homograph proposer no longer proposes excluded words
+- CMU proposer no longer flags whitelisted literary terms
+- All pronunciation tests pass (16/18, 2 skipped)
+
+**Files modified:**
+- `src/pipeline/pronunciation_guide/proposers/homograph_proposer.py` (lines 19-63)
+- `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (lines 370-374)
 
 ## Pipeline Notes - Attempt 2
 - **Status:** COMPLETE - Analysis finished successfully
@@ -141,16 +165,12 @@ The IPA coverage drop may be due to multi-model competitive consensus producing 
   - Summary correctly identifies narrator
 
 ## Next Action
-Phase: awaiting_fix
+Phase: awaiting_analysis
 
-**Focus:** Score is 7.95/10 - just 0.05 below threshold!
+**Expected improvement:**
+- Pronunciation score: 6/10 → ~7/10 (fewer false positives)
+- Overall: 7.95/10 → ~8.05/10 (PASS threshold)
 
-**Highest impact fixes:**
-1. Fix Berenice's role from "antagonist|supporting" to "main" (+0.25 to Character Extraction)
-2. Improve IPA coverage or remove common word false positives (+0.5 to Pronunciation)
-
-Either of these could push the score above 8.0.
-
-**Recommended approach for FIX phase:**
-- Target the pronunciation false positives (object, simile, record) - easiest win
-- Or fix role assignment logic for title characters
+**Rationale:**
+Removing 3 false positives (object, record, simile) from 107 total entries = -2.8% false positive rate
+This should improve the "no common words flagged" criterion in Pronunciation scoring
