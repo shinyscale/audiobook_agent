@@ -3,13 +3,20 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.65
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 10m 6s
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) on characters, structure, summaries stages
+- Character count: 5 characters detected
+- Key observation: "the Red Death" now shows alias "(aka the figure)" - description-based matching may have resolved the split
+- Structure: 1 chapter (expected for short story)
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
