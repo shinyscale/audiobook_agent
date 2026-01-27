@@ -3,12 +3,20 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.65
+- **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 13m 41s
+- Competitive consensus enabled (3 LLMs, 2/3 supermajority) on all stages
+- Found 6 characters (down from 7 in previous run - potential fix success)
+- "the Red Death" has alias "the intruder" (5 mentions)
+- No "masked figure" character listed in summary output
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
