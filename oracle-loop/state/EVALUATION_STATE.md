@@ -3,13 +3,20 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.65
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 16m 57s
+- CRITICAL ISSUE: "the monkey's paw" still appears as character despite fix
+- Mrs. White profile had low confidence (0.30)
+- Some alias blocking warnings (BLOCKED alias messages)
+- Competitive consensus enabled for all stages (characters, structure, summaries)
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
