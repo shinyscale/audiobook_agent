@@ -2773,8 +2773,15 @@ CRITICAL INSTRUCTIONS:
                             f"relationships={json.dumps(relationships) if relationships else 'NULL (from _clean_dict)'}"
                         )
 
-                        # Fallback: If LLM didn't provide structured fields, attempt to structure the profile text
-                        if not appearance and not personality and not voice_guidance and profile:
+                        # Fallback: If LLM didn't provide structured fields or they're mostly empty,
+                        # attempt to structure the profile text via secondary LLM call
+                        # This handles cases where JSON parsing failed but we have profile text
+                        has_minimal_data = (
+                            (not appearance or (isinstance(appearance, dict) and not any(v for v in appearance.values() if v and v != "unknown")))
+                            and (not personality or (isinstance(personality, dict) and not any(v for v in personality.values() if v and v != "unknown")))
+                            and (not voice_guidance or (isinstance(voice_guidance, dict) and not any(v for v in voice_guidance.values() if v and v != "unknown")))
+                        )
+                        if has_minimal_data and profile and len(profile) > 50:
                             logger.warning(
                                 f"Structured fields missing for {character.canonical_name}, "
                                 f"attempting to structure profile text via secondary LLM call"

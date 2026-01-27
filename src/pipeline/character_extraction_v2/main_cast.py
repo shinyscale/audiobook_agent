@@ -593,6 +593,14 @@ class MainCastExtractor:
         # when they refer to the same unnamed character. Merge these programmatically.
         profiles = self.merge_descriptive_entities(profiles)
 
+        # CRITICAL: Filter out non-sentient entities (inanimate objects)
+        # Even with explicit prompt instructions, LLMs sometimes classify objects as characters
+        # This post-processing filter catches those cases
+        original_count = len(profiles)
+        profiles = self._filter_non_sentient_entities(profiles)
+        if len(profiles) < original_count:
+            logger.info(f"Filtered out {original_count - len(profiles)} non-sentient entities")
+
         # Optional: Additional competitive LLM verification when enabled
         # Uses multiple LLMs to vote on each alias for extra confidence
         if self._use_competitive_consensus():
@@ -1321,6 +1329,69 @@ class MainCastExtractor:
                 final_profiles.append(profile)
 
         return final_profiles
+
+    def _filter_non_sentient_entities(
+        self,
+        profiles: list[MainCastProfile],
+    ) -> list[MainCastProfile]:
+        """
+        Filter out non-sentient entities (inanimate objects) from character profiles.
+
+        Even with explicit prompt instructions, LLMs sometimes classify objects as characters.
+        This post-processing filter uses pattern matching to catch common cases:
+        - Objects with specific keywords (paw, ring, sword, talisman, etc.)
+        - Descriptions indicating object-like properties
+        - Lack of sentient being indicators
+
+        Args:
+            profiles: List of MainCastProfile objects
+
+        Returns:
+            Filtered profiles with non-sentient entities removed
+        """
+        # Keywords that indicate an inanimate object rather than a character
+        # These are typically suffixes or key terms in object names
+        object_keywords = {
+            "paw", "ring", "sword", "knife", "dagger", "blade",
+            "talisman", "amulet", "artifact", "relic", "charm",
+            "book", "tome", "manuscript", "journal", "diary",
+            "crown", "throne", "scepter", "orb",
+            "stone", "gem", "jewel", "crystal",
+            "key", "lock", "door", "gate",
+            "vessel", "cup", "chalice", "grail",
+            "mirror", "portrait", "painting",
+            "house", "mansion", "castle", "tower", "building",
+            "ship", "boat", "vehicle",
+            "weapon", "tool", "device", "machine",
+        }
+
+        filtered_profiles = []
+        for profile in profiles:
+            # Check canonical name and aliases for object keywords
+            all_names = [profile.canonical_name] + profile.aliases
+            all_names_lower = [name.lower() for name in all_names]
+
+            # Check if any name contains object keywords
+            is_likely_object = False
+            for name in all_names_lower:
+                # Split name into words and check for object keywords
+                words = name.replace("'", " ").split()
+                for word in words:
+                    # Check if word ends with an object keyword (handles possessives)
+                    if any(word.endswith(keyword) for keyword in object_keywords):
+                        is_likely_object = True
+                        logger.info(
+                            f"Filtering non-sentient entity: '{profile.canonical_name}' "
+                            f"(contains object keyword in '{name}')"
+                        )
+                        break
+                if is_likely_object:
+                    break
+
+            if not is_likely_object:
+                filtered_profiles.append(profile)
+
+        return filtered_profiles
 
     def competitive_verify_aliases(
         self,
