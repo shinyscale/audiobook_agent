@@ -3,13 +3,14 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+- Quality Report: output/gatsby_20260127_145347/quality.md
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
@@ -115,15 +116,38 @@ Root cause analysis revealed:
 
 The summaries and pronunciation are strong. Structure is good except for missing titles (MEDIUM priority).
 
+## Pipeline Execution Notes (Attempt 1 Re-run)
+
+**Analysis completed:** 2026-01-27 14:53
+**Duration:** 76m 20s
+**Output directory:** output/gatsby_20260127_145347
+
+**Pipeline Statistics:**
+- 9 chapters detected
+- 32 characters extracted (23 from main extraction, 10 added from summaries via F6 reconciliation)
+- 9 chapter summaries generated
+- 16 character profiles generated (16 eligible characters)
+- 555 pronunciation flags
+
+**Warnings observed:**
+- "Pass 2 failed for Daisy Buchanan, keeping without aliases"
+- "Pass 2 failed for Tom Buchanan, keeping without aliases"
+- "Moral valence classification failed for George Wilson: None"
+- "Low confidence profile for McKee: 0.30"
+- "LLM batch enrichment failed: failed to parse JSON"
+
+**Competitive consensus:** Enabled for characters, structure, summaries stages (3 LLMs, 2/3 supermajority)
+
+**Character mentions (from analysis summary):**
+- Tom Buchanan - 196 mentions
+- Jordan Baker - 113 mentions
+- George Wilson - 91 mentions
+- Nick Carraway - 34 mentions
+- Myrtle Wilson - 23 mentions
+
+**Observation:** No mention of Jay Gatsby or Daisy in top 5 characters summary - this may indicate the same issues persist.
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify fix effectiveness. Expect:
-- Gatsby and Daisy in main_cast with proper roles (supporting/protagonist) and full names with aliases
-- Eckleburg filtered out
-- Character Extraction score should improve from 6/10 toward 8/10 threshold
-
-If fix succeeds, may still need to address:
-- Issue #3 (relationships): Systematic failure in relationship extraction (0/37 populated)
-- Issue #4 (Owl-eyed man alias): Minor alias resolution
-- Issue #5 (chapter titles): Structure detection issue
+Analysis complete. Ready for evaluation to verify if fix improved character extraction quality.
