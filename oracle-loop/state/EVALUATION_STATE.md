@@ -3,8 +3,9 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.53
+- **Competitive Mode:** single
 
 ## Latest Scores
 - Structure Detection: 8/10
@@ -144,12 +145,35 @@ Combined expected impact: ~0.55 points → should cross 8.0 threshold
 - Partial profile population (16/32 have appearance/personality) requires investigation in logs
 - De Lacey/old man merge remains unaddressed (requires different fix approach)
 
+## Output Files
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed in 135m 28s (8134 seconds)
+- Competitive consensus ENABLED (3 LLMs @ temps 0.5/0.7/0.9, 2/3 supermajority)
+- Competitive stages: characters, structure, summaries
+- 28 chapters detected (same as attempt 2)
+- 33 characters extracted (attempt 2 had 32)
+- 619 pronunciation flags (attempt 2 had 618)
+- 18 character profiles generated for 18 eligible characters
+
+### Warnings Observed:
+- Structure: "TOC validation: 31 entries seems too many" - expected (meta-chapters in source)
+- Structure: "Only 27 total boundaries found but TOC expects 31" - minor
+- Structure: "1 errors found but refinement not yet implemented" - known limitation
+- Character: Multiple "BLOCKED alias" messages - alias validation working correctly
+- Character: "BLOCKED alias: 'De Lacey' and 'the old man'" - This is a FALSE NEGATIVE (they ARE the same person)
+- Character: "SEMANTIC CONFLICT: 'the creature' vs 'the old man'" - correct conflict detection
+- Profile: "No passages provided for William/Ernest/Margaret/etc." - minor characters with low mention counts
+- Profile: "Failed to parse JSON response for Mr. Kirwin" - single profile generation error
+- Profile: "Low confidence profile for Mr. Kirwin: 0.30" - flagged appropriately
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify:
-1. Relationships field now populates for characters
-2. Check if partial profile issue resolves (may have been transient LLM errors)
-
-Remaining issues to address if score still < 8.0:
-- De Lacey / "the old man" merge (CRITICAL false split - requires cross-pipeline merge logic)
+Evaluate attempt 3 results to see if:
+1. Competitive consensus (single mode) improved character extraction accuracy
+2. Relationships field now populates for characters
+3. Physical descriptions populate for main characters (especially the creature)
+4. Overall score crosses 8.0 threshold
