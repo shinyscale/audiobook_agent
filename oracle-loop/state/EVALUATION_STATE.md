@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_evaluation
+- **Attempt:** 2
+- **Phase:** awaiting_fix
 - **baseline_score:** 8.65
 - **Competitive Mode:** single
 
@@ -11,21 +11,14 @@
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
 
-## Pipeline Notes
-- Analysis completed in 13m 41s
-- Competitive consensus enabled (3 LLMs, 2/3 supermajority) on all stages
-- Found 6 characters (down from 7 in previous run - potential fix success)
-- "the Red Death" has alias "the intruder" (5 mentions)
-- No "masked figure" character listed in summary output
-
 ## Latest Scores
-- Structure Detection: 9/10 ✓
+- Structure Detection: 10/10 ✓
 - Character Extraction: 7/10 ✗ (FAILING)
 - Character Profiles: 8/10 ✓
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 10/10 ✓
-- **Overall: 8.65/10** (reference only)
+- **Overall: 8.85/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold)
@@ -34,73 +27,78 @@
 
 ### CRITICAL
 
-1. **False character split: "the masked figure" and "the Red Death" are the same entity**
-   - Problem: "the Red Death" (ID: main_cast_1, 6 mentions) and "the masked figure" (ID: ca1c816399e5, 1 mention) are listed as separate characters
-   - Evidence: In Poe's story, the mysterious masked figure at the ball IS the Red Death personified. The text explicitly reveals this: after Prospero dies confronting the figure, the revelers find "the grave-cerements and corpse-like mask" are empty - confirming the masked figure was Death itself, not a separate person
-   - ID Analysis: "the masked figure" has a 12-char hash ID (ca1c816399e5) indicating it came from F6 Summary Reconciliation (analyzer.py:1220-1240), not the main character pipeline
-   - Location: This is a cross-pipeline merge issue. "the Red Death" was correctly identified by main_cast, but "the masked figure" was added during reconciliation and not recognized as an alias
-   - Fix Approach: The F6 reconciliation stage in analyzer.py needs to check if new characters from summaries are aliases of existing characters before adding them as separate entries. The alias "the figure" is already on "the Red Death" - "the masked figure" should have matched.
+1. **False character split: "the masked figure" and "the Red Death" are the same entity (STILL PRESENT)**
+   - Problem: "the Red Death" (ID: main_cast_1, 5 mentions) and "the masked figure" (ID: ca1c816399e5, 1 mention) are still listed as separate characters
+   - Evidence: In Poe's story, the mysterious masked figure at the ball IS the Red Death personified. The text explicitly reveals this when revelers find "the grave-cerements and corpse-like mask" are empty - the masked figure was Death itself
+   - ID Analysis: "the masked figure" has a 12-char hash ID indicating it came from F6 Summary Reconciliation
+
+   **Why Previous Fix Failed:**
+   - The Attempt 1 fix added partial alias matching to check if summary names are variants of existing aliases
+   - But "the Red Death" now only has alias `["the intruder"]` - it no longer has "the figure" as an alias
+   - Without "the figure" as an alias, the partial matching has nothing to match "the masked figure" against
+
+   **Root Cause Analysis:**
+   - The issue is upstream in the main character extraction, not just F6 reconciliation
+   - The character extraction pipeline should recognize that "the masked figure" is a synonym/alias for "the Red Death" based on the text's climactic reveal
+   - The description field already notes: "It manifests as a masked figure whose appearance mimics the disease's symptoms" - this semantic connection should inform alias assignment
+
+   **Fix Approach Options:**
+   - **Option A (Preferred):** Add "the masked figure" and "the figure" as aliases during main_cast character extraction when the description mentions "masked figure"
+   - **Option B:** Enhance F6 reconciliation to check if a summary character name appears within the description of an existing character
+   - **Option C:** Add semantic similarity matching between summary names and existing character descriptions in F6
+
+   Location: Primary fix in `src/pipeline/character_extraction_v2/main_cast.py` (alias generation) or `src/analyzer.py` F6 reconciliation (description-based matching)
 
 ### MEDIUM
 
-2. **Character classification: Prince Prospero listed as "Supporting" instead of "Main"**
-   - Problem: All 6 characters are classified as "Supporting Characters" in the HTML
-   - Evidence: Prince Prospero is the protagonist and has 6 mentions (tied with the Red Death for highest)
-   - Location: Character classification logic - likely threshold-based
-   - Fix Approach: Not critical for this short story, but may indicate issues with main character classification for short texts
+2. **Prince Prospero listed as "Supporting" instead of "Main" character**
+   - Problem: Both main characters (Prospero and the Red Death) are classified as "Supporting Characters" in the HTML
+   - Evidence: Prince Prospero is the protagonist with 6 mentions (highest count); the Red Death is the antagonist
+   - Location: Character classification threshold logic
+   - Impact: Minor for short stories, but unusual presentation
 
-3. **Pronunciation false positives for common words**
-   - Problem: Words like "chiming," "dauntless," "provisioned," "girdled" are flagged but are standard English
-   - Evidence: These words have straightforward pronunciations that narrators would know
-   - Location: Pronunciation filtering logic
-   - Impact: Minor - 4-5 false positives out of 69 entries is acceptable noise
+3. **Minor pronunciation false positives**
+   - Problem: Common English words like "chiming," "dauntless," "girdled" are flagged
+   - Evidence: These have straightforward pronunciations narrators would know
+   - Impact: Low - only 4-5 false positives out of 69 entries
 
 ### LOW
 
-4. **"Avator" pronunciation entry may be OCR error**
-   - Problem: "Avator" flagged with IPA /əˈveɪtər/ but this word doesn't appear in Poe's original text
-   - Evidence: Likely should be "Avatar" if present, or may be an OCR/ingestion artifact
-   - Location: Source text or ingestion pipeline
-   - Fix: Verify source text quality
+4. **"Avator" appears to be OCR/source text error**
+   - Problem: "Avator" flagged but Poe wrote "Avatar" ("Blood was its Avatar")
+   - Evidence: Likely OCR error in source text
+   - Location: Source text quality issue, not pipeline issue
 
 ## Fix History
 
 ### Attempt 1
 **Issue:** False character split - "the masked figure" and "the Red Death" should be the same entity
 
-**Root Cause:**
-- Location: `src/analyzer.py` lines 1556-1571 (F6 Summary Reconciliation)
-- Problem: F6 only checked for exact alias matches. It didn't detect that "the masked figure" is a qualified variant of the existing alias "the figure"
-- Data flow: "the masked figure" appeared in chapter summary's `characters_present`, F6 found it wasn't an exact match for any alias, so it created a new character with hash ID `ca1c816399e5`
-
 **Fix Applied:**
-- Added partial alias matching logic to `_is_likely_alias_of_existing()` function (lines 1544-1564)
+- Added partial alias matching logic to `_is_likely_alias_of_existing()` function in analyzer.py
 - Extracts core words from both summary name and existing aliases (filtering stopwords and adjectives)
 - Checks if alias core words are subset of summary name core words
-- Example: "figure" (from alias "the figure") is subset of {"figure"} (from "the masked figure" after filtering)
 
-**Smoke Test:**
-- Unit test of matching logic: PASS ✓
-- "the masked figure" correctly identified as variant of "the figure"
-- F6 will now skip adding it as a separate character
-
-**Files Modified:**
-- `src/analyzer.py` (F6 reconciliation alias matching)
-
-**Concerns:**
-- The stopword/adjective lists are manually curated - may need expansion for edge cases
-- Partial matching could theoretically cause false positives (e.g., "the old figure" matching "the young figure"), but this is unlikely given that both would need to exist as separate characters first
+**Result:** Fix did NOT resolve the issue because:
+- "the Red Death" no longer has "the figure" as an alias (only "the intruder" now)
+- Without "the figure" alias, partial matching had nothing to match against
+- The fix logic was correct but the upstream alias assignment changed
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | False character split (masked figure / Red Death) | src/analyzer.py (F6 reconciliation) | Fix implemented, awaiting analysis |
+| 1 | False character split (masked figure / Red Death) | src/analyzer.py (F6 reconciliation) | No change - alias changed upstream |
+
+**Pattern Detected:** The F6 reconciliation fix is not sufficient because the underlying alias assignment varies between runs. Need to fix at a higher level - either ensure "the figure" is consistently an alias, or add description-based matching.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 8.65 | - | Baseline. Character Extraction 7/10 due to masked figure / Red Death split |
+| 2 | 8.85 | +0.20 | Minor improvement but critical issue persists |
 
 ## Next Action
-Re-run analysis with fix applied to verify "the masked figure" is no longer created as a separate character
+Run PROMPT_fix.md to address the "masked figure" / "Red Death" split using a different approach:
+- Either add description-based alias matching in F6 reconciliation
+- Or ensure the main_cast pipeline extracts "the masked figure" as an alias when it appears in the character's description
