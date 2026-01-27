@@ -116,6 +116,10 @@ class OracleState:
     heartbeat_total_elapsed: float = 0.0  # Total analysis time
     heartbeat_llm_calls: int = 0  # LLM calls in current stage
 
+    # Ollama service heartbeat (from journalctl)
+    ollama_last_request_age: Optional[float] = None  # Seconds since last API completion
+    ollama_last_request_duration: Optional[float] = None  # Duration of last request in seconds
+
     # Process status
     analysis_running: bool = False  # Is audiobook-prep analyze process running
     analysis_pid: Optional[int] = None  # PID of analysis process
@@ -680,6 +684,64 @@ class StateParser:
             return stderr_lines[-lines:]
         except (IOError, OSError):
             return []
+
+    def parse_ollama_service_logs(self) -> dict:
+        """Parse Ollama service logs for last API completion time.
+
+        Returns dict with:
+            - ollama_last_request_age: seconds since last completion
+            - ollama_last_request_duration: duration of last request in seconds
+        """
+        try:
+            from datetime import datetime
+            import time
+
+            result = subprocess.run(
+                ['journalctl', '-u', 'ollama', '-n', '1', '--no-pager', '--output=json'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+
+            if result.returncode != 0 or not result.stdout.strip():
+                return {}
+
+            # Parse the JSON log entry
+            import json
+            log_entry = json.loads(result.stdout.strip())
+
+            # Extract timestamp (in microseconds since epoch)
+            timestamp_us = log_entry.get('__REALTIME_TIMESTAMP')
+            if not timestamp_us:
+                return {}
+
+            # Convert to seconds
+            timestamp_s = int(timestamp_us) / 1_000_000
+            age_seconds = time.time() - timestamp_s
+
+            # Extract message to get duration
+            message = log_entry.get('MESSAGE', '')
+            duration_s = None
+
+            # Parse duration from GIN log format: "| 200 | 18.592876552s |"
+            if '| 200 |' in message and 'POST     "/api/chat"' in message:
+                # Extract duration string like "18.592876552s"
+                parts = message.split('|')
+                if len(parts) >= 3:
+                    duration_str = parts[2].strip()
+                    if duration_str.endswith('s'):
+                        try:
+                            duration_s = float(duration_str[:-1])
+                        except ValueError:
+                            pass
+
+            return {
+                'ollama_last_request_age': age_seconds,
+                'ollama_last_request_duration': duration_s,
+            }
+
+        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+            return {}
 
     def get_state(self) -> OracleState:
         """Get combined state from all sources."""

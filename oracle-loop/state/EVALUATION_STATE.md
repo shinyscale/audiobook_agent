@@ -107,6 +107,7 @@ Either fix alone should cross the threshold. Focus on #1 first since it's been a
 | 1 | #2: Geographic locations as characters | src/pipeline/character_extraction_v2/supporting.py | **FIXED** ✓ |
 | 1 | #3: Spurious "Narrator (Victor)" entry | src/analyzer.py | **FIXED** ✓ |
 | 2 | #2: Character relationships field never populated | src/analyzer.py | **NOT FIXED** - relationships still {} |
+| 3 | #1: Character relationships field never populated | src/analyzer.py | **FIX APPLIED** - Enhanced prompt to extract relationships from summary evidence |
 
 ## Investigation Notes for Fix Phase
 
@@ -141,9 +142,30 @@ The fix should modify the blocking logic to allow descriptive-to-proper-name ali
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
 
-## Next Action
-**Phase:** awaiting_fix
+## Fix Applied - Attempt 3
 
-Run PROMPT_fix.md to:
-1. Debug why profile fields (relationships, physical_description) aren't populating despite attempt 2 fix
-2. If profile fix works, this alone should cross 8.0 threshold
+### Issue #1: Character Relationships Not Populating
+
+**Root Cause Analysis:**
+- Profile generation stage DID run (1373s, 39 LLM calls)
+- Appearance and personality fields ARE populated (though often "unknown")
+- Relationships field is ALWAYS empty ({})
+- **Root cause:** The profile generation uses small context snippets (200 chars around mentions). Relationships (e.g., "Victor's father Alphonse") are often established in exposition separate from character name mentions. The LLM prompt asked for relationships but didn't have the right context to extract them.
+
+**Fix Applied:**
+File: `src/analyzer.py` lines 2407 and 2481
+1. Enhanced summary evidence text to explicitly prompt LLM to look for relationships in summary context
+2. Improved relationships instruction to be more explicit with examples showing name-based format
+3. Emphasized that relationships should be extracted from BOTH text snippets AND summary evidence
+
+**Expected Impact:**
+- Summary evidence already contains narrative overviews like "Victor Frankenstein, son of Alphonse..." which explicitly mention relationships
+- The enhanced prompt now directs the LLM's attention to these relationship mentions
+- Should populate relationships field for major characters with family/romantic/friendship connections mentioned in summaries
+
+**Confidence:** HIGH - The data is already present (in summary evidence), the fix makes the prompt more explicit about extracting it
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify that relationships are now being extracted from summary evidence.

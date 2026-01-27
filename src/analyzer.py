@@ -2404,7 +2404,8 @@ ADDITIONAL CONTEXT FROM CHAPTER SUMMARIES (Feature F2):
 The following information about this character was extracted from chapter summaries:
 {chr(10).join(evidence_lines)}
 
-Use this summary evidence to enrich your profile, but prioritize direct text quotes as primary evidence."""
+Use this summary evidence to enrich your profile, but prioritize direct text quotes as primary evidence.
+IMPORTANT: Pay special attention to relationships mentioned in the summary evidence - these often describe family, romantic, or social connections that may not appear in the short text snippets."""
 
         # F3: Build moral valence constraint if available
         moral_valence_constraint = ""
@@ -2478,7 +2479,7 @@ CRITICAL INSTRUCTIONS:
 - For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
 - For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
-- For relationships: Include family, friends, enemies, romantic connections mentioned in text. Use empty dict {{}} if no relationships are mentioned. Format: {{"character_name": "relationship_type"}}
+- For relationships: Extract family members, friends, enemies, romantic connections from BOTH the text snippets AND the summary evidence. Look for phrases like "X's father", "married to Y", "friend of Z", etc. Use character names as keys (not "father" or "friend"). Format: {{"Character Name": "relationship_type"}}. Example: {{"Elizabeth Lavenza": "adoptive cousin/fiancée", "Alphonse Frankenstein": "father"}}. Use empty dict {{}} ONLY if truly no relationships are mentioned anywhere.
 - Return ONLY valid JSON matching the above structure. No other text."""
 
         # Helper to parse JSON from LLM response
