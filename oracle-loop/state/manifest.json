@@ -28,8 +28,9 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 3,
+      "final_score": 9.20
     },
     {
       "name": "gatsby",
