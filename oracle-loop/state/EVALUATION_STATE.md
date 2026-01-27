@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.53
 - **Competitive Mode:** single
 
