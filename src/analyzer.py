@@ -1810,9 +1810,11 @@ class AudiobookAnalyzer:
                         char.appearance = appearance
                         char.personality = personality
                         char.voice_guidance = voice_guidance
-                        # Only assign relationships if we got a non-empty dict
-                        if relationships:
+                        # Always assign relationships, even if None (will use model default {})
+                        # This ensures we don't silently skip assignment when LLM provides data
+                        if relationships is not None:
                             char.relationships = relationships
+                            logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
 
                         # Track confidence distribution
                         if confidence >= 0.7:
@@ -2516,6 +2518,9 @@ CRITICAL INSTRUCTIONS:
                         if result is None:
                             raise json.JSONDecodeError("Could not parse JSON", content, 0)
 
+                        # DEBUG: Log the complete parsed result to diagnose relationship extraction
+                        logger.info(f"RAW LLM response for {character.canonical_name}: {json.dumps(result, indent=2)[:500]}...")
+
                         # Check if "profile" field itself contains JSON (double-encoded or malformed)
                         profile = result.get("profile", "")
                         if profile:
@@ -2690,8 +2695,8 @@ CRITICAL INSTRUCTIONS:
                             logger.info(f"  personality content: {json.dumps(personality)}")
                         if voice_guidance:
                             logger.info(f"  voice_guidance content: {json.dumps(voice_guidance)}")
-                        if relationships:
-                            logger.info(f"  relationships content: {json.dumps(relationships)}")
+                        # ALWAYS log relationships, even if empty, to diagnose extraction issues
+                        logger.info(f"  relationships RAW from LLM: {json.dumps(relationships)} (type: {type(relationships).__name__})")
 
                         # Preserve structured fields even if they contain "unknown" values
                         def _clean_dict(d):
@@ -2705,7 +2710,11 @@ CRITICAL INSTRUCTIONS:
                         appearance = _clean_dict(appearance)
                         personality = _clean_dict(personality)
                         voice_guidance = _clean_dict(voice_guidance)
-                        relationships = _clean_dict(relationships)
+                        # Don't clean relationships - preserve whatever LLM returned (even empty {})
+                        # Empty dict {} is valid (means no relationships found in text)
+                        # Non-dict values get converted to None for safety
+                        if not isinstance(relationships, dict):
+                            relationships = None
 
                         # DEBUG: Log after cleaning
                         logger.info(
@@ -2713,7 +2722,7 @@ CRITICAL INSTRUCTIONS:
                             f"appearance={'present' if appearance else 'NULL'}, "
                             f"personality={'present' if personality else 'NULL'}, "
                             f"voice_guidance={'present' if voice_guidance else 'NULL'}, "
-                            f"relationships={'present' if relationships else 'NULL'}"
+                            f"relationships={json.dumps(relationships) if relationships else 'NULL (from _clean_dict)'}"
                         )
 
                         # Fallback: If LLM didn't provide structured fields, attempt to structure the profile text

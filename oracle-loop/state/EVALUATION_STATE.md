@@ -107,7 +107,8 @@ Either fix alone should cross the threshold. Focus on #1 first since it's been a
 | 1 | #2: Geographic locations as characters | src/pipeline/character_extraction_v2/supporting.py | **FIXED** ✓ |
 | 1 | #3: Spurious "Narrator (Victor)" entry | src/analyzer.py | **FIXED** ✓ |
 | 2 | #2: Character relationships field never populated | src/analyzer.py | **NOT FIXED** - relationships still {} |
-| 3 | #1: Character relationships field never populated | src/analyzer.py | **FIX APPLIED** - Enhanced prompt to extract relationships from summary evidence |
+| 3 | #1: Character relationships field never populated | src/analyzer.py | **NOT FIXED** - Enhanced prompt but relationships still {} |
+| 4 | #1: Character relationships field never populated | src/analyzer.py (lines 2711-2716, 1815, +logging) | **FIX APPLIED** - Fixed _clean_dict() bug + diagnostic logging |
 
 ## Investigation Notes for Fix Phase
 
@@ -165,7 +166,63 @@ File: `src/analyzer.py` lines 2407 and 2481
 
 **Confidence:** HIGH - The data is already present (in summary evidence), the fix makes the prompt more explicit about extracting it
 
+**Result:** Relationships still empty after attempt 3. Need to investigate actual LLM responses.
+
+---
+
+## Fix Applied - Attempt 4
+
+### Issue #1: Character Relationships Still Not Populating (DEBUG + FIX)
+
+**Data Investigation (Phase 1.6):**
+- ✅ "Character Profiles" stage DID run (1373s, 39 LLM calls)
+- ✅ 0/33 characters have populated relationships
+- ✅ `personality` IS populated (so LLM is responding to prompt)
+- ✅ `appearance` IS populated (with "unknown" values)
+- ✅ Chapter summaries CONTAIN relationship information (verified: Chapter 1 mentions "his father", "Caroline", "Elizabeth Lavenza" with relationship context)
+- ❌ Relationships field is `{}` for ALL characters including Victor (who has Elizabeth, Alphonse, Caroline)
+
+**Root Cause Analysis:**
+- Profile generation runs ✓
+- LLM prompt asks for relationships ✓
+- Summary evidence contains relationship info ✓
+- Personality extraction works ✓
+- **Root cause:** `_clean_dict()` function at line 2706 converts empty dict `{}` to `None`
+- If LLM returns `{}` (no relationships found) OR if LLM returns populated dict, both should be preserved
+- But `_clean_dict()` was treating `{}` as falsy and returning `None`
+- The fix attempt in attempt 3 improved the PROMPT but didn't fix the CODE LOGIC bug
+
+**Fix Applied:**
+File: `src/analyzer.py`
+
+1. **Line 2711-2716:** Changed relationships handling to NOT use `_clean_dict()`
+   - Preserve whatever LLM returns (including populated dicts)
+   - Only convert non-dict values to None for safety
+   - Empty dict `{}` is valid data (means "no relationships in text")
+
+2. **Line 1815:** Changed conditional from `if relationships:` to `if relationships is not None:`
+   - Ensures we assign non-empty dicts when LLM provides them
+   - Added logging to track when assignment happens
+
+3. **Added diagnostic logging:**
+   - Line 2518: Log raw parsed LLM response
+   - Line 2697: Log relationships before cleaning
+   - Line 2716: Log relationships after cleaning
+
+**Root Cause Category:** Code Logic Bug (in data cleaning/assignment flow)
+
+**Expected Impact:**
+- If LLM IS returning relationship data, it will now be preserved and assigned
+- Logging will show us exactly what the LLM is returning
+- Should see relationships populate for characters with family/romantic connections in summaries
+
+**Confidence:** HIGH - Fixed the code bug that was potentially discarding LLM responses
+
+---
+
 ## Next Action
 **Phase:** awaiting_analysis
 
-Re-run analysis to verify that relationships are now being extracted from summary evidence.
+Re-run analysis with diagnostic logging to verify:
+1. What the LLM is actually returning for relationships
+2. Whether the code fix allows populated relationships to be assigned
