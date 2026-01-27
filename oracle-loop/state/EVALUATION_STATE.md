@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.53
 - **Competitive Mode:** single
 
@@ -220,9 +220,37 @@ File: `src/analyzer.py`
 
 ---
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes - Attempt 4
 
-Re-run analysis with diagnostic logging to verify:
-1. What the LLM is actually returning for relationships
-2. Whether the code fix allows populated relationships to be assigned
+**Analysis completed:** 123m 18s
+**Output files:**
+- HTML: ../output/frankenstein/report.html (1.5M)
+- JSON: ../output/frankenstein/analysis.json (640K)
+
+**Stage timings:**
+- Chapter Detection: 10m 28s (88 LLM calls, 27H/1M/0L confidence)
+- Chapter Summaries: 35m 35s (0 LLM calls, 28H/0M/0L confidence)
+- Character Extraction: 22m 23s (197 LLM calls, 12H/13M/0L confidence)
+- Character Profiles: 23m 28s (42 LLM calls, 15H/0M/3L confidence)
+- Pronunciation Guide: 30m 16s (23 LLM calls, 72H/549M/0L confidence)
+
+**Warnings observed:**
+- Failed to parse JSON response for Victor Frankenstein, Elizabeth Lavenza, Kirwin (line 1 column 1 char 0)
+- Low confidence profiles for Victor Frankenstein, Elizabeth Lavenza, Kirwin (0.30)
+- LLM batch enrichment failed: failed to parse JSON
+- Moral valence classification failed for William Frankenstein, Professor Krempe
+- Several "No passages provided" warnings for minor characters
+
+**Competitive consensus:**
+- ENABLED (3 LLMs, 2/3 supermajority)
+- Stages: characters, structure, summaries
+
+**Results:**
+- 28 chapters detected
+- 34 characters found
+- 621 pronunciation flags
+
+## Next Action
+**Phase:** awaiting_evaluation
+
+Evaluate results to determine if attempt 4 fix (relationships data preservation) was successful.
