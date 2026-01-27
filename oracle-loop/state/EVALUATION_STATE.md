@@ -1,68 +1,30 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** cask_of_amontillado
+- **Name:** masque_of_red_death
 - **Attempt:** 1
-- **Phase:** complete
-- **baseline_score:** 8.90
+- **Phase:** awaiting_evaluation
+- **baseline_score:** null
 - **Competitive Mode:** single
 
+## Output Files
+- HTML: ../output/masque_of_red_death/report.html
+- JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 9m 18s
+- Competitive consensus enabled (3 LLMs, 2/3 supermajority)
+- Competitive stages: characters, structure, summaries
+- Found 1 chapter, 6 characters, 69 pronunciation flags
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+
 ## Latest Scores
-- Structure Detection: 8/10 ✓
-- Character Extraction: 9/10 ✓
-- Character Profiles: 9/10 ✓
-- Chapter Summaries: 10/10 ✓
-- Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 8.90/10**
+(Awaiting evaluation)
 
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** PASS ✓
+## Score History
+| Attempt | Score | Delta from Baseline | Notes |
+|---------|-------|---------------------|-------|
+| (none yet) | - | - | - |
 
-## Evaluation Details
-
-### Structure Detection (8/10)
-- Correctly identified as single-unit work (short story, no chapters)
-- Minor: Structure element has null values for title/line numbers
-
-### Character Extraction (9/10)
-- All 3 named characters correctly identified: Montresor, Fortunato, Luchresi
-- Montresor correctly marked as narrator
-- Fortunato correctly identified as main character (14 mentions)
-- Luchresi correctly categorized as supporting (referenced but never appears)
-- No false splits, false merges, or hallucinations
-
-### Character Profiles (9/10)
-- Fortunato: Excellent costume description, personality, voice guidance with direct quotes
-- Montresor: Accurate personality analysis, appropriate "unknown" for appearance (not described in text)
-- Luchresi: Correct characterization as rhetorical device
-- 16 source evidence citations total, all accurate
-- Minor gap: No relationship data populated (acceptable for 3-character story)
-
-### Chapter Summaries (10/10)
-- Comprehensive, accurate summary (~180 words)
-- All major plot points captured: carnival setting, Amontillado pretense, catacomb descent, manipulation tactics, entombment, "half century" timeframe
-- No hallucinations or factual errors
-- Excellent for narrator preparation
-
-### Pronunciation Guide (8/10)
-- 51 entries, 48 with IPA (94% coverage)
-- Correctly flagged: Fortunato, Luchresi, Montresor, Amontillado, flambeaux, nitre, roquelaire, requiescat
-- Missing: "Medoc" and "De Grave" (French wine regions mentioned in text)
-- Some false positives: tight-fitting, to-day, jingled (common words)
-
-### HTML Presentation (9/10)
-- Tab-based navigation functional
-- Searchable pronunciation guide
-- Expandable evidence sections
-- Clean, professional design
-- Print styles included
-
-## Current Issues
-None requiring fixes - all categories pass threshold.
-
-## Fix History
-- Attempt 1: PASS on first evaluation
-
-## Next Action
-Update manifest.json to mark text complete and advance to next text (masque_of_red_death)
+## Notes
+Analysis complete, ready for evaluation.
