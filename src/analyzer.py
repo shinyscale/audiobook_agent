@@ -2546,8 +2546,8 @@ CRITICAL INSTRUCTIONS:
                         return None
                 return None
 
-        # Retry loop: try up to 2 times on LLM errors
-        max_attempts = 2
+        # Retry loop: try up to 3 times on LLM errors (increased for profile generation robustness)
+        max_attempts = 3
         for attempt in range(max_attempts):
             try:
                 response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM)

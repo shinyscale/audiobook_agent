@@ -42,14 +42,22 @@ TASK: Identify the 10-15 most important characters based on the chapter summarie
 
 IMPORTANT RULES:
 1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
-2. For each character, provide their canonical name and ALL aliases/variants used in the story
-3. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
+2. **CRITICAL: ONLY SENTIENT BEINGS CAN BE CHARACTERS**
+   - DO NOT include inanimate objects, magical items, talismans, weapons, vehicles, buildings, or locations as characters
+   - Even if an object has narrative importance (e.g., a cursed talisman, a magical ring, a haunted house), it is NOT a character
+   - Objects do NOT have personalities, do NOT speak dialogue, and do NOT have relationships with characters
+   - WRONG: "the monkey's paw" as a character with role "antagonist" (it's an object, not a being)
+   - WRONG: "the Ring" as a character (it's a magical item, not a being)
+   - RIGHT: "Gollum" who obsesses over the Ring (Gollum is a sentient being)
+   - If you're unsure whether something is a character, ask: Can it think, feel, and make choices? If no, it's not a character.
+3. For each character, provide their canonical name and ALL aliases/variants used in the story
+4. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
    these are the SAME character - use one as canonical and list the other as an alias
-4. A full name and a first-name-only reference (e.g., "Elizabeth Bennet" and "Elizabeth") are usually the SAME person
+5. A full name and a first-name-only reference (e.g., "Elizabeth Bennet" and "Elizabeth") are usually the SAME person
    - **ALWAYS use the FULL NAME (first + last) as the canonical_name**
    - Include the first-name-only form as an alias
    - Even if the first name appears more frequently, the full name should be canonical
-5. **UNNAMED CHARACTERS WITH DESCRIPTIVE HANDLES**: Characters without proper names who are referred to by descriptive terms
+6. **UNNAMED CHARACTERS WITH DESCRIPTIVE HANDLES**: Characters without proper names who are referred to by descriptive terms
    (e.g., "the creature", "the monster", "the stranger", "the old man")
    - These ARE valid main cast entries if they appear across multiple chapters
    - Use the MOST DISTINCTIVE descriptive term as the canonical name
@@ -64,15 +72,15 @@ IMPORTANT RULES:
      - BAD: "the old man" with no indication of their actual name
    - Look for clues like: "the old man, De Lacey" or "De Lacey, the blind old man" or family surnames
      (e.g., if "Felix De Lacey" and "Agatha De Lacey" exist, "the old man" might be their father De Lacey)
-6. **FAMILY RELATIONSHIP DESCRIPTORS**: Generic family terms (father, mother, son, daughter) often refer to named characters
+7. **FAMILY RELATIONSHIP DESCRIPTORS**: Generic family terms (father, mother, son, daughter) often refer to named characters
    - If a named character exists (e.g., "Alphonse Frankenstein") AND generic descriptors appear (e.g., "father", "Victor's father"),
      these refer to the SAME person - list the descriptors as aliases of the named character
    - Example: "Alphonse Frankenstein" with aliases ["father", "Victor's father", "the narrator's father"]
    - EXCEPTION: If multiple characters could match the descriptor (e.g., multiple fathers), verify context carefully
-7. DO NOT invent proper names that are not supported by the summaries
-8. Characters who share a last name but have DIFFERENT first names are typically DIFFERENT people
+8. DO NOT invent proper names that are not supported by the summaries
+9. Characters who share a last name but have DIFFERENT first names are typically DIFFERENT people
    (e.g., spouses, siblings, parent/child) - do NOT merge these
-9. Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr./M. + Surname) are DIFFERENT people
+10. Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr./M. + Surname) are DIFFERENT people
    - "Mr. Smith" and "Mrs. Smith" are two separate characters (typically spouses)
    - **"M. Waldman" and "M. Krempe" are DIFFERENT people** (M. = Monsieur, an honorific like Mr.)
    - **Characters with abbreviated titles + DIFFERENT surnames are ALWAYS different people** (e.g., "M. Waldman" vs "M. Krempe", "Dr. Smith" vs "Dr. Jones")
@@ -80,32 +88,32 @@ IMPORTANT RULES:
    - When the summaries show bare surname references (e.g., "Smith did X"), determine from context which character
      is being referred to and include that bare surname as an alias for that character
    - If the bare surname is used ambiguously for multiple family members, include it as an alias for ALL applicable characters
-10. Titles and honorifics with a FULL name (e.g., "Mr. John Smith" vs "John Smith") are aliases of the same character
-11. **CRITICAL: Only group names as aliases if they refer to the SAME PERSON in the SAME CONTEXTS**
+11. Titles and honorifics with a FULL name (e.g., "Mr. John Smith" vs "John Smith") are aliases of the same character
+12. **CRITICAL: Only group names as aliases if they refer to the SAME PERSON in the SAME CONTEXTS**
     - Characters who appear in DIFFERENT chapters and NEVER interact are likely DIFFERENT people
     - Different surnames (e.g., "Mr. McKee" vs "Mr. Sloane") are DIFFERENT people unless the summaries explicitly state they are the same person
     - Verify that proposed aliases actually co-occur in the same scenes/chapters before grouping them
-12. **SPELLING VARIANTS: If a character's name is spelled inconsistently** (e.g., "Wolfshiem" and "Wolfsheim"), these are the SAME person
+13. **SPELLING VARIANTS: If a character's name is spelled inconsistently** (e.g., "Wolfshiem" and "Wolfsheim"), these are the SAME person
     - Use the most common spelling as canonical
     - List other spellings as aliases
-13. **BIRTH NAMES / FORMER NAMES**: If a character is revealed to have used a different name in the past (e.g., birth name, former identity)
+14. **BIRTH NAMES / FORMER NAMES**: If a character is revealed to have used a different name in the past (e.g., birth name, former identity)
     - These are the SAME person - use their current/primary name as canonical
     - List the former name as an alias
     - Look for phrases like "was born as", "formerly known as", "real name", "originally named", etc.
-14. **UNNAMED FIRST-PERSON NARRATORS**: If the summaries refer to "the narrator" or "unnamed narrator" but DO NOT provide their name:
+15. **UNNAMED FIRST-PERSON NARRATORS**: If the summaries refer to "the narrator" or "unnamed narrator" but DO NOT provide their name:
     - **YOU MUST STILL CREATE A CHARACTER ENTRY** for the narrator
     - Use "the narrator" as the canonical name
     - Include ALL descriptive terms used for the narrator as aliases (e.g., "the protagonist", "our narrator")
     - Set role="protagonist" if they are the main character
     - IMPORTANT: The narrator IS a character who appears throughout the story - include them even if their proper name is not in the summaries
     - The downstream grounding step will find their actual name mentions in the text if they exist
-15. **NAMED FIRST-PERSON NARRATORS**: If the summaries identify a narrator BY NAME (e.g., "the narrator, Egaeus" or "narrated by Victor"):
+16. **NAMED FIRST-PERSON NARRATORS**: If the summaries identify a narrator BY NAME (e.g., "the narrator, Egaeus" or "narrated by Victor"):
     - **CRITICAL**: Extract that character as a main cast entry with role="protagonist"
     - Include "the narrator" as an alias
     - Even if their proper name only appears ONCE in the summaries, first-person narrators are the MOST IMPORTANT character
     - They speak every line of narration - their importance cannot be measured by name mentions alone
     - Look for patterns like: "the narrator, [Name]", "[Name] recounts", "[Name] reflects", "narrated by [Name]"
-16. **ROLE ASSIGNMENT GUIDELINES**:
+17. **ROLE ASSIGNMENT GUIDELINES**:
     - **protagonist**: Main character(s) driving the story, narrators, characters the story follows
     - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals, enemies)
       - IMPORTANT: "antagonist" requires active harmful intent or opposition
@@ -117,12 +125,13 @@ IMPORTANT RULES:
     - **minor**: Characters with limited appearances or impact
 
 **REMINDER BEFORE YOU BEGIN:**
-- Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 5)
-- Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 6)
-- **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 9)
+- **CRITICAL: Only sentient beings can be characters** - exclude objects, items, talismans, weapons (Rule 2)
+- Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 6)
+- Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 7)
+- **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 10)
 - Re-read the "Unnamed character (descriptive handle)" example below - this pattern is COMMON in literature
-- **CRITICAL: Named first-person narrators MUST be extracted as protagonist** even if their name appears only once (Rules 14-15)
-- **Victims and title characters are NOT antagonists** - use "supporting" for characters who suffer or are central but don't oppose the protagonist (Rule 16)
+- **CRITICAL: Named first-person narrators MUST be extracted as protagonist** even if their name appears only once (Rules 15-16)
+- **Victims and title characters are NOT antagonists** - use "supporting" for characters who suffer or are central but don't oppose the protagonist (Rule 17)
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -273,9 +282,9 @@ IMPORTANT RULES:
 2. For each character, provide their MOST COMMONLY USED NAME (canonical name)
 3. Characters without proper names who are referred to by descriptive terms (e.g., "the creature", "the monster")
    are valid entries - use the MOST DISTINCTIVE descriptive term
-4. DO NOT invent proper names that are not supported by the summaries
-5. Focus only on identifying WHO is important - don't worry about aliases yet
-6. **ROLE ASSIGNMENT**:
+5. DO NOT invent proper names that are not supported by the summaries
+6. Focus only on identifying WHO is important - don't worry about aliases yet
+7. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators, characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
@@ -315,8 +324,8 @@ IMPORTANT RULES:
 1. Look for all variations of their name (nicknames, titles, shortened forms)
 2. For unnamed characters, find all descriptive terms that refer to the same being
 3. Include family relationship descriptors if they clearly refer to this character
-4. DO NOT include names of other characters - focus only on aliases for {character_name}
-5. Be thorough - scan ALL summaries for every reference to this character
+5. DO NOT include names of other characters - focus only on aliases for {character_name}
+6. Be thorough - scan ALL summaries for every reference to this character
 
 CHAPTER SUMMARIES:
 {summaries}
