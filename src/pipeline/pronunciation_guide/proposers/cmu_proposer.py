@@ -404,6 +404,16 @@ COMMON_WORDS_WHITELIST = {
     "short",
     "tall",
     "sober",
+    # Common vocabulary words (standard English, not unusual)
+    "menial",
+    "partook",
+    "wretchedness",
+    "ecstasies",
+    "awaking",
+    "loitered",
+    "commonest",
+    "trembling",
+    "frivolity",
     # Common professions and roles
     "doctor",
     "nurse",

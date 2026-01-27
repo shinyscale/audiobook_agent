@@ -1843,6 +1843,19 @@ class AudiobookAnalyzer:
                         )
                     )
 
+                    # Store structured profile fields FIRST (F8: Simplified Character Output)
+                    # These should be saved even if the profile description is empty,
+                    # since the LLM may have extracted relationships/appearance/etc.
+                    # but failed to generate the prose description.
+                    char.appearance = appearance
+                    char.personality = personality
+                    char.voice_guidance = voice_guidance
+                    # Always assign relationships, even if None (will use model default {})
+                    # This ensures we don't silently skip assignment when LLM provides data
+                    if relationships is not None:
+                        char.relationships = relationships
+                        logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
+
                     if profile:
                         char.description = profile
                         profile_count += 1
@@ -1850,16 +1863,6 @@ class AudiobookAnalyzer:
                         # Store evidence in character
                         char.profile_evidence = evidence
                         char.profile_confidence = confidence
-
-                        # Store structured profile fields (F8: Simplified Character Output)
-                        char.appearance = appearance
-                        char.personality = personality
-                        char.voice_guidance = voice_guidance
-                        # Always assign relationships, even if None (will use model default {})
-                        # This ensures we don't silently skip assignment when LLM provides data
-                        if relationships is not None:
-                            char.relationships = relationships
-                            logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
 
                         # Track confidence distribution
                         if confidence >= 0.7:
