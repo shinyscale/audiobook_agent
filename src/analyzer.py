@@ -1541,6 +1541,29 @@ class AudiobookAnalyzer:
                                         )
                                         return True
 
+                    # Check for partial alias matches (e.g., "the masked figure" vs alias "the figure")
+                    # This handles cases where the summary uses a more descriptive variant of an existing alias
+                    # Extract significant words (nouns) from the summary name
+                    clean_words = set(clean_lower.split())
+                    # Remove common articles and qualifiers to get core nouns
+                    stopwords = {"the", "a", "an", "this", "that", "these", "those", "my", "your", "his", "her", "their", "our"}
+                    adjectives = {"old", "young", "mysterious", "masked", "red", "black", "white", "great", "little", "big", "small"}
+                    core_words = clean_words - stopwords - adjectives
+
+                    # Check against all aliases of all characters
+                    for alias in char.aliases:
+                        alias_lower = alias.lower().strip()
+                        alias_words = set(alias_lower.split())
+                        alias_core = alias_words - stopwords - adjectives
+
+                        # If the summary name contains all core words from an existing alias,
+                        # it's likely a more descriptive variant (e.g., "the masked figure" contains "figure")
+                        if alias_core and alias_core.issubset(core_words):
+                            logger.info(
+                                f"F6: '{name}' is likely variant of '{char.canonical_name}' (contains alias '{alias}' core words: {alias_core})"
+                            )
+                            return True
+
                     return False
 
                 missing_names = []

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.65
 
 ## Output Files
@@ -56,13 +56,38 @@
    - Fix: Verify source text quality
 
 ## Fix History
-(none yet)
+
+### Attempt 1
+**Issue:** False character split - "the masked figure" and "the Red Death" should be the same entity
+
+**Root Cause:**
+- Location: `src/analyzer.py` lines 1556-1571 (F6 Summary Reconciliation)
+- Problem: F6 only checked for exact alias matches. It didn't detect that "the masked figure" is a qualified variant of the existing alias "the figure"
+- Data flow: "the masked figure" appeared in chapter summary's `characters_present`, F6 found it wasn't an exact match for any alias, so it created a new character with hash ID `ca1c816399e5`
+
+**Fix Applied:**
+- Added partial alias matching logic to `_is_likely_alias_of_existing()` function (lines 1544-1564)
+- Extracts core words from both summary name and existing aliases (filtering stopwords and adjectives)
+- Checks if alias core words are subset of summary name core words
+- Example: "figure" (from alias "the figure") is subset of {"figure"} (from "the masked figure" after filtering)
+
+**Smoke Test:**
+- Unit test of matching logic: PASS ✓
+- "the masked figure" correctly identified as variant of "the figure"
+- F6 will now skip adding it as a separate character
+
+**Files Modified:**
+- `src/analyzer.py` (F6 reconciliation alias matching)
+
+**Concerns:**
+- The stopword/adjective lists are manually curated - may need expansion for edge cases
+- Partial matching could theoretically cause false positives (e.g., "the old figure" matching "the young figure"), but this is unlikely given that both would need to exist as separate characters first
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | False character split (masked figure / Red Death) | src/analyzer.py (F6 reconciliation) | Fix implemented, awaiting analysis |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -70,4 +95,4 @@
 | 1 | 8.65 | - | Baseline. Character Extraction 7/10 due to masked figure / Red Death split |
 
 ## Next Action
-Run PROMPT_fix.md to address Critical #1: Merge "the masked figure" with "the Red Death" during F6 reconciliation
+Re-run analysis with fix applied to verify "the masked figure" is no longer created as a separate character

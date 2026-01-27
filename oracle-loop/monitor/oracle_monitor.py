@@ -695,9 +695,10 @@ class StateParser:
         try:
             from datetime import datetime
             import time
+            import re
 
             result = subprocess.run(
-                ['journalctl', '-u', 'ollama', '-n', '1', '--no-pager', '--output=json'],
+                ['journalctl', '-u', 'ollama', '-n', '1', '--no-pager'],
                 capture_output=True,
                 text=True,
                 timeout=2
@@ -706,41 +707,45 @@ class StateParser:
             if result.returncode != 0 or not result.stdout.strip():
                 return {}
 
-            # Parse the JSON log entry
-            import json
-            log_entry = json.loads(result.stdout.strip())
+            # Parse the log line: "Jan 26 21:20:30 ... [GIN] 2026/01/26 - 21:20:30 | 200 | 8.900933032s | ... | POST     "/api/chat""
+            log_line = result.stdout.strip()
 
-            # Extract timestamp (in microseconds since epoch)
-            timestamp_us = log_entry.get('__REALTIME_TIMESTAMP')
-            if not timestamp_us:
+            # Extract timestamp from GIN log portion: "2026/01/26 - 21:20:30"
+            gin_match = re.search(r'\[GIN\]\s+(\d+/\d+/\d+)\s+-\s+([\d:]+)', log_line)
+            if not gin_match:
                 return {}
 
-            # Convert to seconds
-            timestamp_s = int(timestamp_us) / 1_000_000
-            age_seconds = time.time() - timestamp_s
+            date_str = gin_match.group(1)  # 2026/01/26
+            time_str = gin_match.group(2)  # 21:20:30
 
-            # Extract message to get duration
-            message = log_entry.get('MESSAGE', '')
+            # Parse to datetime
+            log_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y/%m/%d %H:%M:%S")
+            age_seconds = (datetime.now() - log_datetime).total_seconds()
+
+            # Extract duration from: "| 200 | 8.900933032s |"
             duration_s = None
-
-            # Parse duration from GIN log format: "| 200 | 18.592876552s |"
-            if '| 200 |' in message and 'POST     "/api/chat"' in message:
-                # Extract duration string like "18.592876552s"
-                parts = message.split('|')
-                if len(parts) >= 3:
-                    duration_str = parts[2].strip()
-                    if duration_str.endswith('s'):
-                        try:
-                            duration_s = float(duration_str[:-1])
-                        except ValueError:
-                            pass
+            duration_match = re.search(r'\|\s*200\s*\|\s*([\d.]+(?:m|s|ms))', log_line)
+            if duration_match:
+                duration_str = duration_match.group(1)
+                # Handle different time units
+                if duration_str.endswith('ms'):
+                    duration_s = float(duration_str[:-2]) / 1000
+                elif duration_str.endswith('s'):
+                    duration_s = float(duration_str[:-1])
+                elif 'm' in duration_str:
+                    # Format like "4m31s"
+                    parts = duration_str.replace('m', ' ').replace('s', '').split()
+                    if len(parts) == 2:
+                        duration_s = int(parts[0]) * 60 + float(parts[1])
+                    else:
+                        duration_s = float(parts[0]) * 60
 
             return {
                 'ollama_last_request_age': age_seconds,
                 'ollama_last_request_duration': duration_s,
             }
 
-        except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, Exception):
             return {}
 
     def get_state(self) -> OracleState:
@@ -858,6 +863,12 @@ class StateParser:
                 else:
                     # Stale heartbeat - clear stage info (analysis done or Claude evaluating)
                     state.current_stage = ""
+
+        # Parse Ollama service logs for additional heartbeat info
+        ollama_logs = self.parse_ollama_service_logs()
+        if ollama_logs:
+            state.ollama_last_request_age = ollama_logs.get('ollama_last_request_age')
+            state.ollama_last_request_duration = ollama_logs.get('ollama_last_request_duration')
 
         state.last_updated = datetime.now()
 
@@ -1003,6 +1014,34 @@ class StatusBar(Static):
             text.append("HEARTBEAT: ", style="bold cyan")
             text.append("○", style="dim")
             text.append(" no data", style="dim")
+
+        # Show Ollama service heartbeat (for when debug.log is stale but Ollama is still working)
+        if self.state.ollama_last_request_age is not None:
+            text.append("  │  ", style="dim")
+            age = self.state.ollama_last_request_age
+            text.append("OLLAMA: ", style="bold cyan")
+            if age < 5:
+                text.append("●", style="bold green")
+                text.append(f" {age:.0f}s ago", style="green")
+            elif age < 30:
+                text.append("●", style="bold yellow")
+                text.append(f" {age:.0f}s ago", style="yellow")
+            elif age < 60:
+                text.append("○", style="yellow")
+                text.append(f" {age:.0f}s ago", style="yellow")
+            elif age < 300:
+                mins = int(age // 60)
+                text.append("○", style="dim")
+                text.append(f" {mins}m ago", style="dim")
+            else:
+                mins = int(age // 60)
+                text.append("○", style="dim")
+                text.append(f" {mins}m ago", style="dim")
+
+            # Show last request duration if available
+            if self.state.ollama_last_request_duration:
+                dur = self.state.ollama_last_request_duration
+                text.append(f" (last: {dur:.0f}s)", style="dim cyan")
 
         # Show analysis process status
         text.append("  │  ", style="dim")
