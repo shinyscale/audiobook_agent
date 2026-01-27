@@ -2391,22 +2391,31 @@ class AudiobookAnalyzer:
         if total_mentions <= 10:
             sampled_mentions = all_mentions
         else:
-            # Divide mentions into thirds (early, middle, late) and sample from each
-            third = total_mentions // 3
-            early = all_mentions[:third]
-            middle = all_mentions[third : 2 * third]
-            late = all_mentions[2 * third :]
+            # ALWAYS include the first mention (where physical descriptions typically appear)
+            first_mention = all_mentions[0]
 
-            # Sample 3-4 from each third
+            # Divide remaining mentions into thirds (early, middle, late) and sample from each
+            remaining_mentions = all_mentions[1:]  # Exclude first mention
+            third = len(remaining_mentions) // 3
+            early = remaining_mentions[:third]
+            middle = remaining_mentions[third : 2 * third]
+            late = remaining_mentions[2 * third :]
+
+            # Sample 3 from each third (9 total + 1 first mention = 10 total)
             import random
 
-            sampled_mentions = []
+            sampled_mentions = [first_mention]  # Start with first mention
             sampled_mentions.extend(random.sample(early, min(3, len(early))))
             sampled_mentions.extend(random.sample(middle, min(3, len(middle))))
-            sampled_mentions.extend(random.sample(late, min(4, len(late))))
+            sampled_mentions.extend(random.sample(late, min(3, len(late))))
 
             # Sort by position to maintain chronological order in context
             sampled_mentions.sort(key=lambda m: m.position)
+            logger.info(
+                f"Profile sampling for {character.canonical_name}: "
+                f"Included first mention at position {first_mention.position}, "
+                f"plus {len(sampled_mentions)-1} sampled mentions"
+            )
 
         # Gather context snippets from sampled mentions
         contexts = []

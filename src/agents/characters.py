@@ -640,6 +640,79 @@ class CharacterAgent(Agent):
             f"after final narrator filter"
         )
 
+        # STEP 5.8: Post-processing - Promote high-mention supporting characters to main cast
+        # This addresses cases where the LLM fails to extract key characters in main_cast
+        # but they get picked up by NER-based supporting_cast extraction
+        logger.info("V2 Step 5.8: Promoting high-mention supporting characters to main cast")
+
+        PROMOTION_THRESHOLD = 50  # Characters with 50+ mentions should be promoted
+        promoted_chars = []
+        remaining_supporting = []
+
+        for char in supporting_cast:
+            if char.mention_count >= PROMOTION_THRESHOLD:
+                # Promote to main cast with upgraded role
+                if char.role == "minor":
+                    char.role = "supporting"  # Upgrade from minor to supporting
+                promoted_chars.append(char)
+                logger.info(
+                    f"Promoted '{char.canonical_name}' to main cast ({char.mention_count} mentions, "
+                    f"role: {char.role})"
+                )
+            else:
+                remaining_supporting.append(char)
+
+        if promoted_chars:
+            main_cast.extend(promoted_chars)
+            supporting_cast = remaining_supporting
+            logger.info(f"Promoted {len(promoted_chars)} character(s) from supporting to main cast")
+
+        logger.info(
+            f"V2 Step 5.8 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
+            f"after promotion"
+        )
+
+        # STEP 5.9: Post-processing - Filter non-sentient objects from main cast
+        # This addresses cases where the LLM extracts billboards, paintings, or other objects
+        # as characters despite prompt instructions
+        logger.info("V2 Step 5.9: Filtering non-sentient objects from main cast")
+
+        # Known non-character entities (case-insensitive matching)
+        NON_SENTIENT_KEYWORDS = [
+            "eckleburg",  # The billboard with eyes in Gatsby
+            "billboard",
+            "sign",
+            "painting",
+            "portrait",
+            "statue",
+            "monument",
+        ]
+
+        filtered_chars = []
+        remaining_main_cast = []
+
+        for char in main_cast:
+            name_lower = char.canonical_name.lower()
+            is_non_sentient = any(keyword in name_lower for keyword in NON_SENTIENT_KEYWORDS)
+
+            if is_non_sentient:
+                filtered_chars.append(char)
+                logger.info(
+                    f"Filtered non-sentient entity '{char.canonical_name}' from main cast "
+                    f"(matched keyword in name)"
+                )
+            else:
+                remaining_main_cast.append(char)
+
+        if filtered_chars:
+            main_cast = remaining_main_cast
+            logger.info(f"Filtered {len(filtered_chars)} non-sentient entity/entities from main cast")
+
+        logger.info(
+            f"V2 Step 5.9 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
+            f"after object filter"
+        )
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
