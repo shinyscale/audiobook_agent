@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.65
 - **Competitive Mode:** single
 
@@ -117,7 +117,14 @@
 | 2 | 8.05 | +0.40 | Prompt fix ineffective for paw, profiles slightly improved |
 | 3 | TBD | TBD | Applied: object filter + profile fallback enhancement |
 
+## Pipeline Notes
+- Analysis completed successfully in 15m 57s
+- ✓ Object filter WORKING: "the monkey's paw" successfully excluded from character list
+- ✓ Profile enhancement WORKING: Mrs. White now has complete structured fields
+- ⚠️ "the visitor" has low confidence (0.30) and incomplete profile (expected - minor unnamed character)
+- Competitive consensus enabled: characters, structure, summaries (3 temperatures: 0.5, 0.7, 0.9)
+- Total: 5 characters extracted (Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, the visitor)
+- Quality: 4H/0M/1L confidence for character profiles
+
 ## Next Action
-Re-run analysis to verify fixes for:
-1. Object filtering (should remove "the monkey's paw" from character list)
-2. Profile generation (should produce complete structured fields for Mrs. White)
+Proceed to evaluation phase to score the results.
