@@ -48,17 +48,12 @@ TASK: Identify the 10-15 most important characters based on the chapter summarie
 
 IMPORTANT RULES:
 1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
-2. **CRITICAL: ONLY SENTIENT BEINGS CAN BE CHARACTERS**
-   - DO NOT include inanimate objects, magical items, talismans, weapons, vehicles, buildings, or locations as characters
-   - DO NOT include signs, billboards, advertisements, paintings, statues, or other non-living imagery as characters
-   - Even if an object has narrative importance (e.g., a cursed talisman, a magical ring, a haunted house), it is NOT a character
-   - Even if an object or image is repeatedly mentioned and has symbolic significance, it is NOT a character
-   - Objects and images do NOT have personalities, do NOT speak dialogue, and do NOT have relationships with characters
-   - WRONG: "the monkey's paw" as a character with role "antagonist" (it's an object, not a being)
-   - WRONG: "the Ring" as a character (it's a magical item, not a being)
-   - WRONG: "the eyes of Doctor T. J. Eckleburg" or "Doctor T. J. Eckleburg" (it's a billboard/advertisement, not a person)
-   - RIGHT: "Gollum" who obsesses over the Ring (Gollum is a sentient being)
-   - If you're unsure whether something is a character, ask: Can it think, feel, and make choices? If no, it's not a character.
+2. **Trust plot importance over categorization**: If something appears frequently in summaries and drives the plot,
+   it's worth extracting - whether it's a person, object, symbolic presence, or force. The narrator needs to know
+   what's important in the story. Examples:
+   - "the monkey's paw" (title object, antagonistic force)
+   - "the eyes of Doctor T. J. Eckleburg" (symbolic presence in Gatsby)
+   - "the Ring" (driving force in LOTR, though Gollum is also a character)
 3. For each character, provide their canonical name and ALL aliases/variants used in the story
 4. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
    these are the SAME character - use one as canonical and list the other as an alias
@@ -136,7 +131,7 @@ IMPORTANT RULES:
 
 **REMINDER BEFORE YOU BEGIN:**
 - **CRITICAL: MANDATORY INCLUSIONS** - Title characters, narrators, love interests, and spouses MUST be extracted (see CRITICAL section above)
-- **CRITICAL: Only sentient beings can be characters** - exclude objects, items, talismans, weapons (Rule 2)
+- **Trust plot importance** - Extract what drives the narrative, including symbolic objects/forces if they're central (Rule 2)
 - Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 6)
 - Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 7)
 - **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 10)
@@ -604,13 +599,9 @@ class MainCastExtractor:
         # when they refer to the same unnamed character. Merge these programmatically.
         profiles = self.merge_descriptive_entities(profiles)
 
-        # CRITICAL: Filter out non-sentient entities (inanimate objects)
-        # Even with explicit prompt instructions, LLMs sometimes classify objects as characters
-        # This post-processing filter catches those cases
-        original_count = len(profiles)
-        profiles = self._filter_non_sentient_entities(profiles)
-        if len(profiles) < original_count:
-            logger.info(f"Filtered out {original_count - len(profiles)} non-sentient entities")
+        # NOTE: Removed non-sentient entity filter - symbolic objects/forces can be valid "characters"
+        # Examples: "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"
+        # Trust that if something appears frequently and drives plot, it's worth extracting
 
         # Optional: Additional competitive LLM verification when enabled
         # Uses multiple LLMs to vote on each alias for extra confidence
