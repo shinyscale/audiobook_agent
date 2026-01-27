@@ -14,8 +14,9 @@
     {
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 3,
+      "final_score": 9.35
     },
     {
       "name": "berenice",
