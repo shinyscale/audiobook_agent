@@ -3,91 +3,102 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.53
 - **Competitive Mode:** single
 
 ## Latest Scores
-- Structure Detection: 8/10
-- Character Extraction: 7/10
-- Character Profiles: 6/10
-- Chapter Summaries: 9/10
-- Pronunciation Guide: 7/10
-- HTML Presentation: 9/10
-- **Overall: 7.65/10** (threshold: 8.0)
+- Structure Detection: 10/10 (28/28 elements correct, 4 letters + 24 chapters)
+- Character Extraction: 7/10 (main characters present but splits and missing aliases)
+- Character Profiles: 5/10 (personality/voice populated, but appearance/relationships still null)
+- Chapter Summaries: 10/10 (spot-checked 3 chapters, all accurate and detailed)
+- Pronunciation Guide: 7/10 (96% IPA coverage, but all 619 entries have null category)
+- HTML Presentation: 9/10 (clean, functional, good organization)
+- **Overall: 7.80/10** (threshold: 8.0)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.53 | 0 | Initial evaluation |
 | 2 | 7.65 | +0.12 | Geo location filtering FIXED, narrator duplicate FIXED |
+| 3 | 7.80 | +0.27 | Structure now 10/10, summaries now 10/10, but profiles still incomplete |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **False character split: "the old man" vs "De Lacey"**
-   - Problem: "the old man" (main_cast_8, 34 mentions) and "De Lacey" (supporting_5, 8 mentions) listed as separate characters
-   - Evidence: The blind old man in the cottage IS De Lacey - Felix and Agatha's father. The creature calls him "the old man" while narrating but he is explicitly named "De Lacey" in the text (e.g., Chapter 15: "I knocked. 'Who is there?' said the old man. 'Come in.' I entered. 'Pardon this intrusion,' said I; 'I am a traveller in want of a little rest...'" followed by De Lacey introducing himself)
-   - ID patterns: `main_cast_8` (main cast) + `supporting_5` (supporting cast) - cross-pipeline merge needed
-   - Location: Need cross-pipeline merge logic or better context-aware alias detection
-   - Fix approach: Add post-processing merge logic that recognizes descriptive references (e.g., "the old man" in cottage context = De Lacey based on family relationships)
+1. **Character profiles still not populating (relationships/physical_description)**
+   - Problem: ALL 33 characters have `physical_description: null` and `relationships: {}` (empty object)
+   - Evidence: `jq` query shows 0/33 characters with either field populated
+   - Expected: Attempt 2 fix (adding relationships to LLM prompt) should have populated these fields
+   - ID pattern: Affects all characters regardless of source pipeline
+   - Location: `src/analyzer.py` - `_generate_character_profile()` function
+   - Investigation needed:
+     1. Was the code actually executed? Check profiling logs for profile generation stage
+     2. Is the LLM response being parsed correctly?
+     3. Are the extracted values being assigned to character objects?
+   - Fix approach: Debug the profile generation pipeline to find where data is being lost
 
 ### HIGH
 
-2. **Character profiles systemically empty**
-   - Problem: ALL 32 characters have `physical_description: null` and empty `relationships: []`
-   - Evidence: `jq` query shows 0/32 characters have populated physical_description or relationships fields
-   - Location: Profile enrichment stage in `src/pipeline/character_extraction_v2/`
-   - Fix: Debug why profile population isn't working - this was working in previous texts
+2. **False character split: "the old man" vs "De Lacey"**
+   - Problem: "the old man" (main_cast_8, 34 mentions) and "De Lacey" (supporting_6, 8 mentions) listed as separate characters
+   - Evidence: The blind old man in the cottage IS De Lacey - Felix and Agatha's father. The creature calls him "the old man" while narrating but he is explicitly named "De Lacey" in the text
+   - ID patterns: `main_cast_8` (main cast) + `supporting_6` (supporting cast) - cross-pipeline merge needed
+   - Location: Need cross-pipeline merge logic in `src/analyzer.py` (F6 reconciliation) or post-processing
+   - Log evidence: "BLOCKED alias: 'De Lacey' and 'the old man'" - system is actively preventing the correct merge
+   - Fix: Modify alias blocking logic to allow descriptive aliases when family relationships indicate same person
 
-3. **The creature's appearance is "unknown"**
-   - Problem: Creature has `appearance.summary: "unknown"` and empty `distinguishing_features`
-   - Evidence: Shelley provides vivid description in Chapter 5: "His yellow skin scarcely covered the work of muscles and arteries beneath; his hair was of a lustrous black, and flowing; his teeth of a pearly whiteness; but these luxuriances only formed a more horrid contrast with his watery eyes, that seemed almost of the same colour as the dun-white sockets in which they were set, his shrivelled complexion and straight black lips."
-   - This is a subset of issue #2 but especially problematic for the protagonist/antagonist
-   - Location: Profile extraction not capturing appearance details from creation scene
-
-4. **Creature missing aliases**
-   - Problem: "the creature" has only 5 mentions and no aliases
-   - Evidence: The creature is referred to as "the monster", "the daemon", "the fiend", "the wretch" throughout the text - these should be captured as aliases
+3. **Creature missing critical aliases**
+   - Problem: "the creature" has only 5 mentions and ZERO aliases
+   - Evidence: The creature is referred to as "the monster" (appears 43+ times in text), "the daemon", "the fiend", "the wretch" throughout - these should be aliases
    - ID: `split_the_creature` (semantic split)
    - Location: Alias detection in main_cast or supporting pipeline
-   - Fix: Improve alias detection for descriptive/epithetical references
+   - Fix: Improve alias detection for descriptive/epithetical references to non-human characters
+
+4. **R.W. not merged with Robert Walton**
+   - Problem: "R.W." (1 mention, f1b39c083608) exists separately from "Robert Walton"
+   - Evidence: R.W. are Walton's initials used to sign letters
+   - ID: Hash ID indicates F6 reconciliation - extracted from chapter summaries
+   - Fix: Add initial-matching logic to recognize "R.W." → "Robert Walton"
 
 ### MEDIUM
 
 5. **All pronunciation entries lack category**
-   - Problem: 618 pronunciations all have `category: null`
-   - Evidence: `jq '[.pronunciations[] | select(.category)] | length'` returns 0
-   - Location: Pronunciation agent - category assignment
-   - Fix: Populate category field (proper_noun, foreign_word, archaic, homograph, etc.)
+   - Problem: 619 pronunciations all have `category: null`
+   - Evidence: `jq` grouping shows 100% null categories
+   - Sample entries show `flag_reason: "proper_noun"` but `category` field is null
+   - Location: Pronunciation pipeline - category assignment
+   - Fix: The `flag_reason` field IS populated with useful values - consider using it as category or ensuring category gets populated from flag_reason
 
-6. **R.W. not merged with Robert Walton**
-   - Problem: "R.W." (1 mention, f1b39c083608) exists separately from "Robert Walton"
-   - Evidence: R.W. are Walton's initials used to sign letters
-   - ID: Hash ID indicates F6 reconciliation
-   - Fix: Improve initial detection to recognize initials as aliases
+6. **The creature's appearance is "unknown"**
+   - Problem: Creature has `appearance.summary: "unknown"` and empty `distinguishing_features`
+   - Evidence: Shelley provides vivid description in Chapter 5: "His yellow skin scarcely covered the work of muscles and arteries beneath; his hair was of a lustrous black, and flowing; his teeth of a pearly whiteness; but these luxuriances only formed a more horrid contrast with his watery eyes..."
+   - Location: Profile extraction not capturing appearance details from creation scene
+   - Note: Only 4/33 characters have non-"unknown" appearance.summary values
 
 ### LOW
 
 7. **Structure titles mostly null**
    - Problem: Only Letters 2-4 have titles; Letter 1 and Chapters 1-24 have null titles
-   - Evidence: `jq` shows 25/28 structure elements have null titles
+   - Evidence: 25/28 structure elements have null titles
    - Location: Structure detection - title extraction
    - Note: HTML handles this gracefully by displaying "Chapter 1", "Chapter 2", etc.
-   - Fix: Improve title extraction or generate default titles in post-processing
+   - Impact: Minimal for narrator usability
+
+8. **Minor character splits**
+   - Caroline Beaufort Frankenstein (main_cast_7, 3 mentions) is separate from Caroline Beaufort (hash, 1 mention)
+   - These are the same person (Victor's mother), but low impact due to few mentions
 
 ## Fix Priority for Crossing 8.0 Threshold
 
-Current score: 7.65. Need: 8.0. Gap: 0.35 points.
+Current score: 7.80. Need: 8.0. Gap: 0.20 points.
 
 **Most impactful fixes:**
-1. **Fix Character Profiles (#2)**: If profiles populate correctly → 6→8 (+0.30 weighted)
-2. **Fix De Lacey split (#1)**: Reduces false splits → 7→8 (+0.25 weighted)
+1. **Debug and fix Character Profiles (#1)**: If profiles populate → 5→7 = +0.30 weighted
+2. **Fix De Lacey/old man split (#2)**: Reduces false splits → 7→8 = +0.25 weighted
 
-Combined expected impact: ~0.55 points → should cross 8.0 threshold
-
-**Focus on issue #2 first** - if profile fields aren't populating at all, this is a systemic bug that affects all characters. Fixing this one issue could significantly boost the Character Profiles score.
+Either fix alone should cross the threshold. Focus on #1 first since it's been attempted twice without success - need to understand WHY it's not working.
 
 ## Modification History
 
@@ -95,85 +106,44 @@ Combined expected impact: ~0.55 points → should cross 8.0 threshold
 |---------|-------|----------------|--------|
 | 1 | #2: Geographic locations as characters | src/pipeline/character_extraction_v2/supporting.py | **FIXED** ✓ |
 | 1 | #3: Spurious "Narrator (Victor)" entry | src/analyzer.py | **FIXED** ✓ |
-| 2 | #2: Character profiles - relationships field never populated | src/analyzer.py | **FIXED** ✓ (pending verification) |
+| 2 | #2: Character relationships field never populated | src/analyzer.py | **NOT FIXED** - relationships still {} |
 
-## Verified Fixes from Attempt 1
-- ✅ Geographic locations (Mont Blanc, Arve, Strasburgh, Mont Salêve) no longer appear as characters
-- ✅ "Narrator (Victor)" spurious entry has been removed
+## Investigation Notes for Fix Phase
 
-## Fix Details for Attempt 2
+### Profile Generation Debugging (Issue #1)
 
-### Issue #2: Relationships field never populated
+The attempt 2 fix claimed to add relationships extraction but the field is still empty. The fix phase should:
 
-**Root cause:**
-- `_generate_character_profile()` did not extract or return relationships
-- The function returned 6 values but relationships was never included
-- The LLM prompt did not request relationships field
-- The caller never assigned relationships to character objects
+1. Check `_profiling` section in analysis.json for profile generation stats
+2. Add logging to see if relationships are being extracted from LLM response
+3. Verify the prompt changes from attempt 2 are actually in the code
+4. Trace data flow from LLM response → extraction → character object assignment
 
-**Fix applied:**
-1. Added "relationships" field to LLM prompt JSON response format (analyzer.py:2456)
-2. Updated prompt instructions to extract family, friends, enemies, romantic connections (analyzer.py:2477)
-3. Extended function signature to return 7 values including relationships (analyzer.py:2229)
-4. Extract relationships from LLM response (analyzer.py:2669)
-5. Clean and validate relationships dict (analyzer.py:2703)
-6. Update caller to unpack and assign relationships (analyzer.py:1790, 1816)
-7. Updated all error return statements to include 7th None value (analyzer.py:2813, 2814, 2830, 2844)
+### De Lacey Merge Investigation (Issue #2)
 
-**Smoke test:** ✓ PASSED
-- Function signature correct (returns 7-tuple)
-- Code compiles without errors
-- Prompt includes relationships field
-- All 231 tests pass
+Log shows: "BLOCKED alias: 'De Lacey' and 'the old man'" - this indicates the system is:
+1. Correctly detecting these might be aliases
+2. But then BLOCKING the merge (probably due to alias validation rules)
 
-**Expected impact:**
-- relationships field should now populate for characters with sufficient context
-- May improve Character Profiles score from 6/10 → 7-8/10
+The fix should modify the blocking logic to allow descriptive-to-proper-name aliases when:
+- The descriptive term ("the old man") appears in family context with the proper name
+- OR when another character in the family tree shares the surname
 
 ## What's Working Well
-- 28/28 chapters correctly detected
+- 28/28 structure elements correctly detected
 - 3 narrators correctly identified (Walton, Victor, creature) - excellent for nested frame narrative
-- Chapter summaries are accurate, detailed, and helpful for narrators
-- HTML presentation is clean and functional
-- Pronunciation IPA coverage is 96% (597/618)
-- Homograph handling is good
-
-## Notes
-- Score improved from 7.53 → 7.65 (+0.12)
-- The fixes from attempt 1 were verified working
-- **Attempt 2 fix:** relationships field was never being populated (code bug, now fixed)
-- Partial profile population (16/32 have appearance/personality) requires investigation in logs
-- De Lacey/old man merge remains unaddressed (requires different fix approach)
+- Chapter summaries are accurate, detailed, and helpful for narrators (10/10)
+- HTML presentation is clean and functional (9/10)
+- Pronunciation IPA coverage is 96.6% (598/619)
+- Personality and voice guidance populated for many characters
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed in 135m 28s (8134 seconds)
-- Competitive consensus ENABLED (3 LLMs @ temps 0.5/0.7/0.9, 2/3 supermajority)
-- Competitive stages: characters, structure, summaries
-- 28 chapters detected (same as attempt 2)
-- 33 characters extracted (attempt 2 had 32)
-- 619 pronunciation flags (attempt 2 had 618)
-- 18 character profiles generated for 18 eligible characters
-
-### Warnings Observed:
-- Structure: "TOC validation: 31 entries seems too many" - expected (meta-chapters in source)
-- Structure: "Only 27 total boundaries found but TOC expects 31" - minor
-- Structure: "1 errors found but refinement not yet implemented" - known limitation
-- Character: Multiple "BLOCKED alias" messages - alias validation working correctly
-- Character: "BLOCKED alias: 'De Lacey' and 'the old man'" - This is a FALSE NEGATIVE (they ARE the same person)
-- Character: "SEMANTIC CONFLICT: 'the creature' vs 'the old man'" - correct conflict detection
-- Profile: "No passages provided for William/Ernest/Margaret/etc." - minor characters with low mention counts
-- Profile: "Failed to parse JSON response for Mr. Kirwin" - single profile generation error
-- Profile: "Low confidence profile for Mr. Kirwin: 0.30" - flagged appropriately
-
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Evaluate attempt 3 results to see if:
-1. Competitive consensus (single mode) improved character extraction accuracy
-2. Relationships field now populates for characters
-3. Physical descriptions populate for main characters (especially the creature)
-4. Overall score crosses 8.0 threshold
+Run PROMPT_fix.md to:
+1. Debug why profile fields (relationships, physical_description) aren't populating despite attempt 2 fix
+2. If profile fix works, this alone should cross 8.0 threshold
