@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.60
 - **Competitive Mode:** single
 
@@ -88,11 +88,20 @@ None
 | 2 | HIGH #1: Missing relationships | `src/analyzer.py` (lines 1846-1876) | Moved structured field assignment outside `if profile:` block |
 | 2 | HIGH #2: Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (lines 406-414) | Added 9 common words to whitelist |
 
-## Next Action
-Re-run analysis with fixes applied:
-- Structured profile fields (relationships, appearance, personality, voice_guidance) will now be saved even if profile description is empty
-- 9 common English words added to pronunciation whitelist to reduce false positives
+## Pipeline Notes - Attempt 2
+**Analysis completed:** 11m 20s (2026-01-27 10:43)
+- Competitive consensus: ENABLED (all 3 stages)
+- Model: qwen3-next:80b-a3b-instruct-q8_0
+- Results: 2 characters, 1 chapter, 97 pronunciation flags
+- Total LLM calls: 24 (40,597 tokens)
+- Bottleneck: Pronunciation Guide (44.4% of time)
 
-Expected impact:
-- Profiles score: 7.0 → 8.0+ (relationships should now be captured)
-- Pronunciation score: 7.5 → 8.0+ (fewer false positives)
+**Warnings observed:**
+- "Narrator 'Egaeus' identified but NOT found in main_cast"
+- Pronoun blocking: 'her' rejected as alias for 'Berenice'
+
+**Fixes applied in this attempt:**
+1. Structured profile fields now saved even if description is empty (`src/analyzer.py`)
+2. Added 9 common words to pronunciation whitelist (`cmu_proposer.py`)
+
+**Ready for evaluation.**
