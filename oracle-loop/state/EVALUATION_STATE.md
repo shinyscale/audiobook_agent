@@ -2,15 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1
-- **Phase:** awaiting_evaluation
+- **Attempt:** 2
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Quality Report: output/gatsby_20260127_145347/quality.md
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
@@ -28,126 +27,114 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.95 | 0.00 | Initial - Characters & Profiles failing |
+| 2 | 6.95 | 0.00 | Fix did NOT work - Gatsby/Daisy still from supporting_cast |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Major characters misclassified as "minor"**
-   - Problem: Jay Gatsby (267 mentions) and Daisy (179 mentions) have `role: "minor"`
-   - Evidence: These are the protagonist and female lead - Gatsby is the title character, Daisy is central to the plot
-   - Location: Role classification in V2 pipeline - likely `src/pipeline/character_extraction_v2/` role assignment logic
-   - Character IDs: `supporting_9` (Gatsby), `supporting_1` (Daisy) - indicates they came from supporting cast extraction, not main cast
-   - Fix: High-mention characters from supporting cast should be promoted or main cast detection improved
+1. **Main cast extraction prompt fix did NOT work - Gatsby and Daisy still extracted by supporting cast**
+   - Problem: Jay Gatsby (267 mentions) has ID `supporting_9` and Daisy (179 mentions) has ID `supporting_1`
+   - Evidence: The main_cast pipeline extracted 10 characters but NOT Gatsby or Daisy:
+     - Nick Carraway, Tom Buchanan, Myrtle Wilson, George Wilson, Jordan Baker, Meyer Wolfsheim, Henry C. Gatz, Doctor T. J. Eckleburg, Catherine, Mr. Sloane
+   - Root cause: The LLM is STILL not following the prompt instructions. The prompt fix added "MANDATORY INCLUSIONS" but the LLM ignored it. This suggests:
+     a) The prompt changes may not have been included in the actual LLM call, OR
+     b) The LLM model being used doesn't follow complex instructions well, OR
+     c) There's a hardcoded list or other logic overriding the prompt
+   - Location: Need to verify `src/pipeline/character_extraction_v2/main_cast.py` is actually being called AND verify the prompt is reaching the LLM
+   - Fix: Either add explicit logic to ALWAYS include title characters (programmatic, not prompt-based), or investigate why prompt isn't being followed
 
-2. **Daisy missing surname and aliases**
-   - Problem: Listed as "Daisy" with no aliases, but should be "Daisy Buchanan" with aliases ["Daisy", "Daisy Fay"]
-   - Evidence: Chapter summaries correctly use "Daisy Buchanan" in `characters_present`, showing pipeline knows the full name
-   - Evidence: Fitzgerald refers to her as "Daisy Buchanan" and historically as "Daisy Fay" (maiden name)
-   - Location: F6 reconciliation mismatch between summary characters and extracted characters (analyzer.py:1220-1240)
-   - Fix: When summary uses "Daisy Buchanan" but character list has "Daisy", merge/update the canonical name
+2. **Daisy missing surname and ALL aliases**
+   - Problem: Listed as "Daisy" with no aliases `[]`, but should be "Daisy Buchanan" with aliases ["Daisy", "Daisy Fay"]
+   - Evidence: Chapter summaries correctly use "Daisy Buchanan" in `characters_present` for every chapter she appears
+   - Location: F6 reconciliation should be merging these OR the character should have full name from extraction
+   - Fix: Either main_cast must extract full name, OR F6 reconciliation must update canonical_name when summary uses full name
+
+3. **Gatsby and Daisy have role="minor" despite being protagonist/love interest**
+   - Problem: Title character Jay Gatsby has `role: "minor"`, female lead Daisy has `role: "minor"`
+   - Evidence: The supporting cast pipeline hardcodes `role: "minor"` - this is working as designed, but the design is wrong when main cast fails
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` - role assignment
+   - Fix: Either fix main_cast extraction (root cause), OR add post-processing to promote high-mention characters from supporting_cast
 
 ### HIGH
 
-3. **Character profiles missing physical_description and relationships**
-   - Problem: 0/37 characters have populated `physical_description` or `relationships` fields
-   - Evidence: Tom Buchanan's entry (the antagonist) has `"appearance": {"summary": "unknown"}` despite clear text descriptions
-   - Text evidence: "a sturdy straw-haired man of thirty with a rather hard mouth and a supercilious manner. Two shining arrogant eyes..."
-   - Location: Profile generation in `src/pipeline/character_profiles.py` or profile parsing failures noted in pipeline (30% confidence for Tom, Wolfsheim, Sloane)
-   - Fix: Profile generation is producing data but parsing/population failing for key fields
+4. **Character profiles completely empty for physical_description and relationships**
+   - Problem: 0/32 characters have populated `physical_description` or `relationships` fields
+   - Evidence: All characters have `"physical_description": null` and `"relationships": {}` in JSON
+   - But: Personality data IS populated (13/32 have personality traits)
+   - Text evidence for Tom Buchanan: "a sturdy straw-haired man of thirty with a rather hard mouth and a supercilious manner. Two shining arrogant eyes..."
+   - Location: `src/pipeline/character_profiles.py` - profile generation or JSON population
+   - Fix: Profile pipeline is generating personality but NOT physical_description/relationships - check if these fields are being extracted but not saved
 
-4. **Owl-eyed man alias missing**
-   - Problem: "the owl-eyed man" (1 mention) should be linked to "Owl Eyes" - the bespectacled man at Gatsby's library
-   - Evidence: This is a named minor character who appears at parties (Ch. 3) and the funeral (Ch. 9)
-   - Location: Alias resolution for descriptive nicknames
-   - Fix: Improve handling of descriptive character references
+5. **Doctor T. J. Eckleburg still extracted as a character despite explicit prompt exclusion**
+   - Problem: Main cast includes "Doctor T. J. Eckleburg" (ID `main_cast_8`) with role "supporting"
+   - Evidence: The fix explicitly added Eckleburg as an example of "only sentient beings" but LLM still extracted it
+   - This confirms: The LLM is NOT following the updated prompt instructions
+   - Location: Same root cause as issue #1 - prompt not being respected
+   - Fix: Add explicit post-processing filter for known non-character references (billboard, painting, etc.)
 
 ### MEDIUM
 
-5. **Chapter titles null for chapters 2-9**
+6. **Chapter titles null for chapters 2-9**
    - Problem: Chapter 1 has title "I" but chapters 2-9 have `title: null`
    - Evidence: All chapters should have Roman numeral titles (I through IX)
    - Location: Structure detection title extraction
    - Fix: Ensure Roman numeral titles are captured for all chapters
 
-6. **49 pronunciation entries missing IPA**
-   - Problem: 49/555 words (9%) lack IPA transcription
-   - Evidence: 506/555 have IPA - good coverage but incomplete
-   - Location: Pronunciation generation
-   - Impact: Minor - 91% coverage is acceptable but could be improved
+7. **49 pronunciation entries missing IPA (9%)**
+   - Problem: 506/555 have IPA - 91% coverage
+   - Evidence: 49 words lack phonetic transcription
+   - Impact: Minor - 91% is acceptable but could be improved
 
 ### LOW
 
-7. **Dr. T. J. Eckleburg listed as character**
-   - Problem: "Doctor T. J. Eckleburg" (3 mentions) is listed - this is the billboard/eyes, not a character
-   - Evidence: The "eyes of Doctor T. J. Eckleburg" is symbolic imagery, not a person
-   - Location: Character extraction filtering for symbolic references
-   - Impact: Low - doesn't affect narrator prep significantly
+8. **Owl-eyed man alias not linked**
+   - Problem: "the owl-eyed man" should be linked to "Owl Eyes"
+   - Evidence: Same character, descriptive reference
+   - Impact: Very low - minor character
 
 ## Fix History
 
 ### Attempt 1 Fixes
 
-**Fix: Enhanced main cast extraction prompt with mandatory inclusions**
-- **Root cause:** Main cast extraction (main_cast.py) failed to extract Gatsby and Daisy despite being the title character and female lead. The LLM only extracted 9 of 10-15 requested characters and missed the two most important ones. They were picked up by fallback NER-based supporting cast extraction, which hardcodes role="minor".
-- **Location:** `src/pipeline/character_extraction_v2/main_cast.py` lines 39-139
-- **Changes:**
-  1. Added "CRITICAL - MANDATORY INCLUSIONS" section emphasizing title characters, narrators, love interests, and spouses MUST be extracted
-  2. Clarified that title characters MUST be extracted as main cast (use "supporting" as role, not as exclusion criterion)
-  3. Added explicit Eckleburg example to "only sentient beings" rule to prevent billboard extraction
-- **Addresses:**
-  - Issue #1 (CRITICAL): Major characters misclassified as "minor" → should now extract Gatsby/Daisy with correct roles
-  - Issue #2 (CRITICAL): Daisy missing surname/aliases → should now get full "Daisy Buchanan" with aliases from main cast
-  - Issue #7 (LOW): Dr. T.J. Eckleburg listed as character → explicit example should prevent
-- **Smoke test:** Manual verification - prompt changes correctly applied, no syntax errors
-- **Confidence:** HIGH - prompt changes directly address LLM extraction failure
+**Fix: Enhanced main cast extraction prompt with mandatory inclusions** - FAILED
+- **Changes made:** Added "CRITICAL - MANDATORY INCLUSIONS" section to main_cast.py prompt
+- **Expected result:** Gatsby and Daisy extracted by main_cast with correct roles
+- **Actual result:** Neither change took effect - Gatsby/Daisy still from supporting_cast, Eckleburg still extracted
+- **Conclusion:** Prompt-based fixes are not working. Need programmatic solution.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Issues #1, #2, #7: Main cast extraction failures | `src/pipeline/character_extraction_v2/main_cast.py` | Awaiting re-analysis |
+| 1 | Issues #1, #2, #7: Main cast extraction failures | `src/pipeline/character_extraction_v2/main_cast.py` | **No change** - LLM ignored prompt |
 
-## Notes
-Root cause analysis revealed:
-1. **Issues #1 & #2 share same root cause:** Main cast extraction failed, causing Gatsby/Daisy to fall through to supporting cast (which hardcodes role="minor" and doesn't do full name/alias resolution)
-2. **Issue #3 (profiles):** Partial failure - 13/37 have personality data, but 0/37 have relationships. Physical descriptions mostly "unknown" which may be acceptable.
-3. **Data investigation showed:** Character IDs reveal pipeline sources - `supporting_*` indicates NER fallback was used instead of proper main cast extraction
+**Pattern Detected:** Prompt-only fixes are not effective. The LLM is not following enhanced instructions. Next fix MUST use programmatic/code-based approach rather than prompt engineering.
 
-The summaries and pronunciation are strong. Structure is good except for missing titles (MEDIUM priority).
+## Root Cause Analysis
 
-## Pipeline Execution Notes (Attempt 1 Re-run)
+The fundamental issue is that **main_cast extraction is unreliable** - it extracts 10 characters but misses the two most important ones (Gatsby, Daisy). The LLM does not reliably follow prompt instructions about mandatory inclusions.
+
+**Solution Direction:** Instead of relying on LLM to follow instructions, add POST-PROCESSING logic:
+1. After main_cast extraction, check if title character (from book title) is missing → force-add from NER/supporting
+2. After supporting_cast extraction, promote any character with >50 mentions to "supporting" role minimum
+3. Add explicit filter for non-sentient references (billboards, paintings, objects)
+4. F6 reconciliation should UPDATE canonical_name when summary uses a fuller name
+
+## Pipeline Execution Notes (Attempt 2)
 
 **Analysis completed:** 2026-01-27 14:53
 **Duration:** 76m 20s
-**Output directory:** output/gatsby_20260127_145347
 
-**Pipeline Statistics:**
-- 9 chapters detected
-- 32 characters extracted (23 from main extraction, 10 added from summaries via F6 reconciliation)
-- 9 chapter summaries generated
-- 16 character profiles generated (16 eligible characters)
-- 555 pronunciation flags
-
-**Warnings observed:**
-- "Pass 2 failed for Daisy Buchanan, keeping without aliases"
-- "Pass 2 failed for Tom Buchanan, keeping without aliases"
-- "Moral valence classification failed for George Wilson: None"
-- "Low confidence profile for McKee: 0.30"
-- "LLM batch enrichment failed: failed to parse JSON"
-
-**Competitive consensus:** Enabled for characters, structure, summaries stages (3 LLMs, 2/3 supermajority)
-
-**Character mentions (from analysis summary):**
-- Tom Buchanan - 196 mentions
-- Jordan Baker - 113 mentions
-- George Wilson - 91 mentions
-- Nick Carraway - 34 mentions
-- Myrtle Wilson - 23 mentions
-
-**Observation:** No mention of Jay Gatsby or Daisy in top 5 characters summary - this may indicate the same issues persist.
+**Character Pipeline Results:**
+- 10 characters from main_cast (but missing Gatsby and Daisy)
+- 12 characters from supporting_cast (includes Gatsby and Daisy with wrong roles)
+- 10 characters from F6 reconciliation (hash IDs)
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Analysis complete. Ready for evaluation to verify if fix improved character extraction quality.
+Fix phase must use PROGRAMMATIC solutions, not prompt engineering:
+1. Add post-extraction promotion logic for high-mention supporting characters
+2. Add post-extraction filter for non-character objects (Eckleburg billboard)
+3. Investigate why physical_description and relationships are null in profiles
