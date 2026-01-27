@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.95
 - **Competitive Mode:** single
 
@@ -84,24 +84,46 @@
    - Impact: Low - doesn't affect narrator prep significantly
 
 ## Fix History
-(First attempt - no prior fixes)
+
+### Attempt 1 Fixes
+
+**Fix: Enhanced main cast extraction prompt with mandatory inclusions**
+- **Root cause:** Main cast extraction (main_cast.py) failed to extract Gatsby and Daisy despite being the title character and female lead. The LLM only extracted 9 of 10-15 requested characters and missed the two most important ones. They were picked up by fallback NER-based supporting cast extraction, which hardcodes role="minor".
+- **Location:** `src/pipeline/character_extraction_v2/main_cast.py` lines 39-139
+- **Changes:**
+  1. Added "CRITICAL - MANDATORY INCLUSIONS" section emphasizing title characters, narrators, love interests, and spouses MUST be extracted
+  2. Clarified that title characters MUST be extracted as main cast (use "supporting" as role, not as exclusion criterion)
+  3. Added explicit Eckleburg example to "only sentient beings" rule to prevent billboard extraction
+- **Addresses:**
+  - Issue #1 (CRITICAL): Major characters misclassified as "minor" → should now extract Gatsby/Daisy with correct roles
+  - Issue #2 (CRITICAL): Daisy missing surname/aliases → should now get full "Daisy Buchanan" with aliases from main cast
+  - Issue #7 (LOW): Dr. T.J. Eckleburg listed as character → explicit example should prevent
+- **Smoke test:** Manual verification - prompt changes correctly applied, no syntax errors
+- **Confidence:** HIGH - prompt changes directly address LLM extraction failure
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| - | - | - | - |
+| 1 | Issues #1, #2, #7: Main cast extraction failures | `src/pipeline/character_extraction_v2/main_cast.py` | Awaiting re-analysis |
 
 ## Notes
-Primary issues are:
-1. Role classification failing for major characters extracted via supporting cast pipeline
-2. Profile field population (physical_description, relationships) not working
-3. Reconciliation between summary characters and extracted characters not merging Daisy properly
+Root cause analysis revealed:
+1. **Issues #1 & #2 share same root cause:** Main cast extraction failed, causing Gatsby/Daisy to fall through to supporting cast (which hardcodes role="minor" and doesn't do full name/alias resolution)
+2. **Issue #3 (profiles):** Partial failure - 13/37 have personality data, but 0/37 have relationships. Physical descriptions mostly "unknown" which may be acceptable.
+3. **Data investigation showed:** Character IDs reveal pipeline sources - `supporting_*` indicates NER fallback was used instead of proper main cast extraction
 
-The summaries and pronunciation are strong. Structure is good except for missing titles.
+The summaries and pronunciation are strong. Structure is good except for missing titles (MEDIUM priority).
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Role promotion for high-mention supporting cast characters
-2. Profile field population issues
-3. Daisy name/alias reconciliation
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fix effectiveness. Expect:
+- Gatsby and Daisy in main_cast with proper roles (supporting/protagonist) and full names with aliases
+- Eckleburg filtered out
+- Character Extraction score should improve from 6/10 toward 8/10 threshold
+
+If fix succeeds, may still need to address:
+- Issue #3 (relationships): Systematic failure in relationship extraction (0/37 populated)
+- Issue #4 (Owl-eyed man alias): Minor alias resolution
+- Issue #5 (chapter titles): Structure detection issue

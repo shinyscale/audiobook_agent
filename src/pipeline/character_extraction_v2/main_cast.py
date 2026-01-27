@@ -40,14 +40,23 @@ MAIN_CAST_PROMPT = """You are a literary analyst extracting the MAIN CAST of cha
 
 TASK: Identify the 10-15 most important characters based on the chapter summaries below.
 
+**CRITICAL - MANDATORY INCLUSIONS:**
+- **ALWAYS include the title character** (character the book is named after) - they are central to the story even if they don't narrate
+- **ALWAYS include the narrator** (if the story is narrated by a character)
+- **ALWAYS include love interests, spouses, and family members of the protagonist** - these are major characters by definition
+- If you're unsure whether someone qualifies, err on the side of INCLUSION - it's better to extract 15 characters than to miss a main character
+
 IMPORTANT RULES:
 1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
 2. **CRITICAL: ONLY SENTIENT BEINGS CAN BE CHARACTERS**
    - DO NOT include inanimate objects, magical items, talismans, weapons, vehicles, buildings, or locations as characters
+   - DO NOT include signs, billboards, advertisements, paintings, statues, or other non-living imagery as characters
    - Even if an object has narrative importance (e.g., a cursed talisman, a magical ring, a haunted house), it is NOT a character
-   - Objects do NOT have personalities, do NOT speak dialogue, and do NOT have relationships with characters
+   - Even if an object or image is repeatedly mentioned and has symbolic significance, it is NOT a character
+   - Objects and images do NOT have personalities, do NOT speak dialogue, and do NOT have relationships with characters
    - WRONG: "the monkey's paw" as a character with role "antagonist" (it's an object, not a being)
    - WRONG: "the Ring" as a character (it's a magical item, not a being)
+   - WRONG: "the eyes of Doctor T. J. Eckleburg" or "Doctor T. J. Eckleburg" (it's a billboard/advertisement, not a person)
    - RIGHT: "Gollum" who obsesses over the Ring (Gollum is a sentient being)
    - If you're unsure whether something is a character, ask: Can it think, feel, and make choices? If no, it's not a character.
 3. For each character, provide their canonical name and ALL aliases/variants used in the story
@@ -121,10 +130,12 @@ IMPORTANT RULES:
       - Characters who suffer because of the protagonist are NOT antagonists unless they fight back
     - **supporting**: Important recurring characters, title characters, love interests, mentors, victims, family members
       - Use this for characters central to the plot who don't actively oppose the protagonist
-      - Title characters (story named after them) should typically be "supporting" unless they are the protagonist
+      - **IMPORTANT: Title characters (story named after them) MUST be extracted as main cast** - use "supporting" as their role unless they are the narrator/protagonist
+      - Love interests and romantic partners of the protagonist MUST be extracted and marked as "supporting"
     - **minor**: Characters with limited appearances or impact
 
 **REMINDER BEFORE YOU BEGIN:**
+- **CRITICAL: MANDATORY INCLUSIONS** - Title characters, narrators, love interests, and spouses MUST be extracted (see CRITICAL section above)
 - **CRITICAL: Only sentient beings can be characters** - exclude objects, items, talismans, weapons (Rule 2)
 - Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 6)
 - Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 7)
