@@ -290,9 +290,19 @@ Overall = (
 
 ## 4. Determine Next Action
 
-### If Overall Score ≥ 8.0: PASS
+### If ALL Category Scores ≥ 8.0: PASS
 
-The text meets quality threshold. Update state to advance:
+The text meets quality threshold when EVERY category achieves at least 8.0/10:
+- Structure Detection ≥ 8.0
+- Character Extraction ≥ 8.0
+- Character Profiles ≥ 8.0
+- Chapter Summaries ≥ 8.0
+- Pronunciation Guide ≥ 8.0
+- HTML Presentation ≥ 8.0
+
+Check each category individually. If ANY category is below 8.0, the text FAILS even if the overall weighted score is above 8.0.
+
+When all categories pass:
 
 1. Update `state/manifest.json`:
    - Set current text's `complete: true`
@@ -305,9 +315,9 @@ The text meets quality threshold. Update state to advance:
    - Clear current issues
    - Note: "Ready to advance to next text"
 
-### If Overall Score < 8.0: FAIL
+### If ANY Category Score < 8.0: FAIL
 
-Issues need to be fixed. Prioritize and document:
+Issues need to be fixed. Focus on the failing categories:
 
 1. **Classify each issue by severity:**
 
@@ -360,13 +370,16 @@ Update `state/EVALUATION_STATE.md` with the full evaluation results:
 - **baseline_score: {first_attempt_score}** <!-- Keep this unchanged until text passes -->
 
 ## Latest Scores
-- Structure Detection: {score}/10
-- Character Extraction: {score}/10
-- Character Profiles: {score}/10
-- Chapter Summaries: {score}/10
-- Pronunciation Guide: {score}/10
-- HTML Presentation: {score}/10
-- **Overall: {overall}/10** (threshold: 8.0)
+- Structure Detection: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- Character Extraction: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- Character Profiles: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- Chapter Summaries: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- Pronunciation Guide: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- HTML Presentation: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+- **Overall: {overall}/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** {PASS if all >= 8.0, FAIL otherwise}
 
 ## Current Issues (Priority Order)
 
@@ -499,13 +512,16 @@ Here's what a good evaluation update to EVALUATION_STATE.md looks like:
 - **Phase:** awaiting_fix
 
 ## Latest Scores
-- Structure Detection: 10/10
-- Character Extraction: 6/10 ← FAILING
-- Character Profiles: 7/10
-- Chapter Summaries: 9/10
-- Pronunciation Guide: 8/10
-- HTML Presentation: 9/10
-- **Overall: 7.85/10** (threshold: 8.0)
+- Structure Detection: 10/10 ✓
+- Character Extraction: 6/10 ✗ (FAILING)
+- Character Profiles: 7/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 9/10 ✓
+- **Overall: 7.85/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (2 categories below threshold)
 
 ## Current Issues (Priority Order)
 

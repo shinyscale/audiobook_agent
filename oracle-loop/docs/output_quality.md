@@ -182,8 +182,10 @@ Overall = (
 ```
 
 **Thresholds:**
-- **>= 8.0**: PASS - advance to next text
-- **< 8.0**: FAIL - iterate with fixes
+- **ALL categories >= 8.0**: PASS - advance to next text
+- **ANY category < 8.0**: FAIL - iterate with fixes
+
+Note: The overall weighted score is calculated for reference, but the pass/fail determination is based on individual category scores. Every category must independently achieve at least 8.0/10.
 
 ---
 
