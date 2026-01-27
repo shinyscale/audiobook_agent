@@ -21,8 +21,9 @@
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 2,
+      "final_score": 9.10
     },
     {
       "name": "monkeys_paw",
