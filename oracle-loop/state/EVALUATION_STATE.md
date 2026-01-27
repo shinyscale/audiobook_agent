@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.65
 - **Competitive Mode:** single
 
@@ -84,13 +84,34 @@
 - Without "the figure" alias, partial matching had nothing to match against
 - The fix logic was correct but the upstream alias assignment changed
 
+### Attempt 2
+**Issue:** False character split - "the masked figure" and "the Red Death" are the same entity
+
+**Root Cause:**
+- Main cast LLM proposed aliases including "corpse-like figure" (visible in consensus log)
+- Grounding gate filtered out "corpse-like figure" because it couldn't find exact text matches
+- Character ended up with only alias: ["the intruder"]
+- F6 reconciliation found "the masked figure" in chapter summary
+- F6 partial alias matching couldn't match "masked figure" against "the intruder" (no shared words)
+- F6 created new character with hash ID ca1c816399e5
+- **KEY INSIGHT:** The character's description already contains "manifests as a masked figure" - this semantic connection was not being used for matching
+
+**Fix Applied:**
+- Added description-based matching to `_is_likely_alias_of_existing()` in analyzer.py (lines ~1567-1580)
+- If a summary character name (minus articles) appears verbatim in an existing character's description, treat as same entity
+- Example: "the masked figure" → "masked figure" found in description text
+- Smoke test: Unit test confirmed "masked figure" matches "the Red Death" via description lookup
+
+**Modified:** src/analyzer.py (F6 reconciliation, description-based matching)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | False character split (masked figure / Red Death) | src/analyzer.py (F6 reconciliation) | No change - alias changed upstream |
+| 2 | False character split (masked figure / Red Death) | src/analyzer.py (F6 reconciliation - description matching) | Pending re-analysis |
 
-**Pattern Detected:** The F6 reconciliation fix is not sufficient because the underlying alias assignment varies between runs. Need to fix at a higher level - either ensure "the figure" is consistently an alias, or add description-based matching.
+**Pattern Detected:** Aliases proposed by LLM are filtered by grounding gate, causing F6 to miss matches. Solution: Use character descriptions (which persist after grounding) as fallback matching signal.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -99,6 +120,4 @@
 | 2 | 8.85 | +0.20 | Minor improvement but critical issue persists |
 
 ## Next Action
-Run PROMPT_fix.md to address the "masked figure" / "Red Death" split using a different approach:
-- Either add description-based alias matching in F6 reconciliation
-- Or ensure the main_cast pipeline extracts "the masked figure" as an alias when it appears in the character's description
+Re-run analysis to verify Attempt 2 fix resolves the "masked figure" / "Red Death" split

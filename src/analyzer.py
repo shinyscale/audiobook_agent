@@ -1564,6 +1564,28 @@ class AudiobookAnalyzer:
                             )
                             return True
 
+                    # Check if summary name appears in character's description
+                    # This handles cases where the LLM proposed an alias but grounding filtered it out
+                    # Example: "the masked figure" appears in description of "the Red Death"
+                    if char.description:
+                        desc_lower = char.description.lower()
+
+                        # Build the cleaned phrase (strip articles but keep adjectives and nouns)
+                        # Example: "the masked figure" → "masked figure"
+                        name_without_articles = clean_lower
+                        for article in ["the ", "a ", "an "]:
+                            if name_without_articles.startswith(article):
+                                name_without_articles = name_without_articles[len(article):].strip()
+                                break
+
+                        # Check if the phrase appears verbatim in the description
+                        # Example: "masked figure" in "manifests as a masked figure"
+                        if len(name_without_articles.split()) >= 2 and name_without_articles in desc_lower:
+                            logger.info(
+                                f"F6: '{name}' matches '{char.canonical_name}' (phrase '{name_without_articles}' found in description)"
+                            )
+                            return True
+
                     return False
 
                 missing_names = []
