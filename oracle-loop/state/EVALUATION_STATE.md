@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.95
 - **Competitive Mode:** single
 
@@ -158,12 +158,31 @@ The fundamental issue is that **main_cast extraction is unreliable** - it extrac
 - 12 characters from supporting_cast (includes Gatsby and Daisy with wrong roles)
 - 10 characters from F6 reconciliation (hash IDs)
 
+## Pipeline Execution Notes (Attempt 3)
+
+**Analysis completed:** 2026-01-27 16:32
+**Duration:** 79m 2s
+**Competitive Consensus:** ENABLED (3 LLMs, 2/3 supermajority)
+**Stages:** characters, structure, summaries
+
+**Pipeline Results:**
+- 9 chapters detected
+- 29 characters extracted
+- 9 chapter summaries generated
+- 556 pronunciation flags
+
+**Warnings/Errors During Analysis:**
+- Pass 2 failed for Daisy Buchanan, keeping without aliases
+- Failed to parse JSON response for Meyer Wolfsheim, Tom, Mr. McKee, Klipspringer
+- Low confidence profiles (0.30) for 4 characters
+- Moral valence classification failed for Myrtle Wilson, Catherine
+- No passages provided for Daisy, Michaelis, Sloane, Klipspringer, Lucille
+
+**Quality Concerns:**
+- 4 low-confidence character profiles
+- Pronunciation Guide took 35.7% of total time (bottleneck)
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Fixes applied (Attempt 2):
-1. ✅ Post-extraction promotion logic for high-mention supporting characters (Step 5.8)
-2. ✅ Post-extraction filter for non-character objects (Step 5.9)
-3. ✅ Always include first mention in profile sampling (improves appearance extraction)
-
-Re-run analysis to verify fixes
+Analysis complete - ready for evaluation to verify if fixes improved scores.
