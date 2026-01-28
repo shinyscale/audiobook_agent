@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
