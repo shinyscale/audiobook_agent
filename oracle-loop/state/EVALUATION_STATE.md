@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.85
 - **Competitive Mode:** single
 
@@ -67,23 +67,25 @@
   - Fix applied: Added dict handling + validation improvements
   - Result: DID NOT WORK - validation still rejects dict responses
 
+- Attempt 2: Fixed Ollama json_mode error dict handling
+  - Root cause: `src/pipeline/pronunciation_guide/enricher.py` lines 166-196
+  - When `json_mode=True`, Ollama returns error dict `{'error': 'Invalid JSON format...'}` when LLM doesn't output array format
+  - Previous fix checked `isinstance(result, dict) and "word" in result` but error dict has no "word" key
+  - This caused all batch enrichments to fail silently and create empty enrichments (ipa=null)
+  - Smoke test: Ran test_pronunciation_ipa.py - confirmed error dict `{'error': 'Expected an array but received an object'}`
+  - Fix applied: Added error dict detection + fallback to single enrichment when batch fails
+  - Modified: `src/pipeline/pronunciation_guide/enricher.py`
+    - Line 167-171: Check for Ollama error dicts
+    - Line 201-218: New `_fallback_to_single_enrichment()` method
+    - Line 197-199: Fill missing words with single enrichment instead of empty placeholders
+  - Smoke test result: PASS - Lincoln now has IPA `/ˈlɪŋkən/` and phonetic `LING-kun`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | No IPA data (0/70 entries) | src/pipeline/pronunciation_guide/enricher.py | No change - IPA still 0/70 |
-
-## Debugging Notes for Fix Phase
-
-The previous fix added dict handling but validation still fails. The fix phase should:
-
-1. **Add diagnostic logging** to `enricher.py` to see exactly what the LLM returns
-2. **Check the validation function** - what field names does it expect? The LLM might return `{word, ipa}` but validation expects different fields
-3. **Verify the prompt** - is ENRICHER_BATCH_PROMPT asking for the right JSON structure?
-4. **Check if enrichment is even being called** - maybe the pipeline skips enrichment entirely
-
-Console output from attempt 2 shows: "LLM validation failed (got dict), keeping batch candidates"
-This confirms the code reaches the dict branch but validation rejects the data.
+| 2 | No IPA data (0/70 entries) | src/pipeline/pronunciation_guide/enricher.py | Smoke test PASS - awaiting full analysis |
 
 ## Configuration Audit
 
@@ -99,4 +101,4 @@ This confirms the code reaches the dict branch but validation rejects the data.
 - IPA enrichment step appears to run but output is null
 
 ## Next Action
-Run PROMPT_fix.md to investigate and fix IPA validation rejection in enricher.py
+Set phase to `awaiting_analysis` - fix applied and smoke tested successfully

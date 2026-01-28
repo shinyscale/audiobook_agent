@@ -144,24 +144,21 @@ class PronunciationEnricher:
         if not response.success:
             # HTTP error or connection failure
             logger.debug(f"LLM batch enrichment failed: {response.error}")
-            # Return empty enrichments for all words
-            for p in proposals:
-                enrichments[p.word.lower()] = PronunciationEnrichment(
-                    word=p.word,
-                    confidence=0.0,
-                )
-            return enrichments
+            # Fallback to single enrichment
+            return self._fallback_to_single_enrichment(proposals)
 
         if result is None:
             # JSON parsing failure
             logger.warning("LLM batch enrichment failed: failed to parse JSON")
-            # Return empty enrichments for all words
-            for p in proposals:
-                enrichments[p.word.lower()] = PronunciationEnrichment(
-                    word=p.word,
-                    confidence=0.0,
-                )
-            return enrichments
+            # Fallback to single enrichment
+            return self._fallback_to_single_enrichment(proposals)
+
+        # Check if result is an error dict from Ollama json_mode validation
+        if isinstance(result, dict) and "error" in result and "word" not in result:
+            logger.warning(f"Ollama json_mode validation error: {result.get('error')}")
+            logger.info("Falling back to single-word enrichment")
+            # Fallback to single enrichment
+            return self._fallback_to_single_enrichment(proposals)
 
         # Parse results - handle both list and single dict
         if isinstance(result, list):
@@ -187,14 +184,30 @@ class PronunciationEnricher:
                     confidence=0.8,
                 )
 
-        # Fill in any missing words
+        # Fill in any missing words with single enrichment
         for p in proposals:
             if p.word.lower() not in enrichments:
+                logger.debug(f"Word '{p.word}' missing from batch result, enriching individually")
+                enrichments[p.word.lower()] = self.enrich_single(p)
+
+        return enrichments
+
+    def _fallback_to_single_enrichment(
+        self,
+        proposals: list[PronunciationProposal],
+    ) -> dict[str, PronunciationEnrichment]:
+        """Fallback to single-word enrichment when batch fails."""
+        logger.info(f"Falling back to single enrichment for {len(proposals)} words")
+        enrichments = {}
+        for p in proposals:
+            try:
+                enrichments[p.word.lower()] = self.enrich_single(p)
+            except Exception as e:
+                logger.error(f"Single enrichment failed for '{p.word}': {e}")
                 enrichments[p.word.lower()] = PronunciationEnrichment(
                     word=p.word,
                     confidence=0.0,
                 )
-
         return enrichments
 
     def enrich_single(
