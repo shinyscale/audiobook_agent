@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -29,6 +29,7 @@
 | 1 | 7.52 | 0.00 | Initial baseline - character extraction issues |
 | 2 | 7.88 | +0.36 | Partial fix - courtiers separated, but ebony clock/narrator still aliases |
 | 3 | 8.03 | +0.51 | Improvement - "narrator" removed, but "ebony clock" persists |
+| 4 | 8.03 | +0.51 | NO CHANGE - "ebony clock" still present despite verify_aliases fixes |
 
 ## Score Breakdown
 
@@ -42,19 +43,18 @@
 - Title is null (could extract "The Masque of the Red Death" from text header)
 
 ### Character Extraction: 7/10 ✗
-**Improvement from Attempt 2:**
-- "the narrator" is NO LONGER an alias of "the Red Death" ✓
-- "The masked figure (Red Death)" now explicitly notes the connection in its name
+**Remaining Critical Issue:**
+1. **FALSE ALIAS: "the ebony clock"** - The ebony clock is a physical object (a giant clock in the black chamber). It is NOT the Red Death personified.
 
-**Remaining Issue:**
-1. **FALSE ALIAS: "the ebony clock"** - The ebony clock is a physical object (a giant clock in the black chamber). It is NOT the Red Death.
-
-**Characters Detected:** 3 total
+**Characters Detected:** 6 total
 - Prince Prospero (main_cast_0) - CORRECT ✓, alias "the Prince Prospero"
 - the Red Death (main_cast_1) - Has wrong alias: "the ebony clock" ✗
-- The masked figure (Red Death) (F6 reconciled) - Acceptable (1 mention, name clarifies relationship)
+- the courtiers (F6 reconciled, 2dc5504206d2) - CORRECT ✓
+- the waltzers (F6 reconciled, 0b253c7c767f) - CORRECT ✓
+- the musicians (F6 reconciled, 2c119eeb2375) - CORRECT ✓
+- the masked figure (F6 reconciled, ca1c816399e5) - Acceptable (describes Red Death's manifestation)
 
-**Why 7/10 (up from 6/10):** The removal of "the narrator" as a false alias is a significant improvement. One false alias remains vs. two previously. The explicit "(Red Death)" notation on the masked figure shows improved understanding.
+**Why 7/10:** The one false alias ("the ebony clock") is a CRITICAL issue that prevents passing. Despite 4 fix attempts, this alias persists.
 
 ### Character Profiles: 7.5/10 ✗
 **Good:**
@@ -71,7 +71,7 @@
 
 ### Chapter Summaries: 9/10 ✓
 **Excellent:**
-- Summary is comprehensive (1316 characters) and accurate
+- Plot summary is comprehensive (1316 characters) and accurate
 - Captures all major story beats:
   - The Red Death plague devastating the country
   - Prospero's retreat with 1000 courtiers into fortified abbey
@@ -103,24 +103,29 @@
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **FALSE ALIAS: "the ebony clock" merged with "the Red Death"**
-   - Problem: Despite the object keyword block implemented in attempt 3, "the ebony clock" still appears as an alias
-   - Evidence: The ebony clock is a massive clock in the black chamber that chimes hourly. It is a PHYSICAL OBJECT.
+1. **FALSE ALIAS: "the ebony clock" merged with "the Red Death" - FIX NOT WORKING**
+   - Problem: After 4 fix attempts targeting `verify_aliases()`, "the ebony clock" STILL appears as an alias
+   - Evidence: The ebony clock is a massive clock in the black chamber that chimes hourly. It is a PHYSICAL OBJECT, not the Red Death.
    - ID: main_cast_1 (from main cast pipeline)
-   - **Root Cause Analysis:**
-     - The fix added object keyword blocking to `verify_aliases()`
-     - But `merge_descriptive_entities()` runs AFTER `verify_aliases()` (line 382 vs 377 in main_cast.py)
-     - The merge adds aliases without re-verification
-     - The "ebony clock" may be added during this post-verification merge step
-   - **Verification needed:** Check if "the ebony clock" comes from:
-     a. Initial Pass 1/Pass 2 LLM output (verify_aliases should catch it)
-     b. merge_descriptive_entities() adding it as an alias from another profile
-     c. F6 reconciliation adding it later
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
-   - Fix: Either:
-     1. Move verify_aliases to run AFTER merge_descriptive_entities, OR
-     2. Add alias filtering logic inside merge_descriptive_entities, OR
-     3. Run verify_aliases a second time after merging
+   - **Investigation Summary:**
+     - Commit 32ef729 (10:02:41): Added object keyword blocking in verify_aliases - "clock" is in object_keywords
+     - Commit 11dd9f6 (10:19:34): Added second verify_aliases call after merge_descriptive_entities
+     - Analysis timestamp: 10:51:16 - ran AFTER both fixes
+     - Python simulation shows blocking logic should work: alias_has_object=True, canonical_has_object=False → should block
+     - **Yet the alias persists in output**
+   - **Root Cause Hypothesis:**
+     The object keyword blocking at lines 717-741 should fire with `continue` BEFORE any other code path. But somehow the alias survives. Possible causes:
+     a. Alias added by CharacterAgent merging logic AFTER main_cast extraction completes
+     b. Bug in code execution order (unlikely given correct indentation)
+     c. Analysis ran with cached/stale code (possible but output timestamps suggest fresh run)
+   - **Investigation for Fix Phase:**
+     1. Add DEBUG logging before/after verify_aliases to confirm it runs
+     2. Log which aliases are passed in and which are filtered out
+     3. Check CharacterAgent methods that add aliases AFTER main_cast extraction:
+        - `_merge_within_main_cast` (lines 1774-2139)
+        - `_merge_lastname_aliases` (lines 2141-2440)
+        - `_merge_supporting_into_main` variants
+     4. Specifically search for where "ebony clock" appears in summary text and whether it's being proposed as an alias by a later merge stage
 
 ### HIGH
 2. **Relationships empty for all characters**
@@ -149,7 +154,9 @@
 | 1 | (initial analysis) | - | Character extraction: 5/10, Profiles: 6/10 |
 | 2 | Critical: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | **Partial** - "courtiers" removed, but "ebony clock" persists and "narrator" added |
 | 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py (verify_aliases) | **Partial** - "narrator" BLOCKED successfully, "ebony clock" STILL PRESENT |
-| 4 | Critical: False alias "ebony clock" still present | src/pipeline/character_extraction_v2/main_cast.py (lines 379-387) | Applied verify_aliases AFTER merge_descriptive_entities to catch aliases added during merge |
+| 4 | Critical: False alias "ebony clock" still present | src/pipeline/character_extraction_v2/main_cast.py (lines 379-387) | **NO CHANGE** - verify_aliases AFTER merge_descriptive_entities didn't help |
+
+**Pattern Alert:** 3 consecutive attempts modifying main_cast.py:verify_aliases() without resolving "ebony clock". The fix phase MUST look elsewhere - likely in CharacterAgent (src/agents/characters.py) merge functions.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (appropriate for this text size)
@@ -159,27 +166,26 @@
 
 ## Fix History
 
-### Attempt 4 - Fix Details
+### Attempt 2
+- Added object keyword blocking and meta-reference blocking to verify_aliases
+- Result: "narrator" still appeared, "ebony clock" still appeared
 
-**Root Cause:** `merge_descriptive_entities()` adds aliases at lines 1192-1194 without verification. It runs AFTER the initial `verify_aliases()` call (line 377 before line 382), so any aliases added during merging bypass the object keyword filter.
+### Attempt 3
+- Strengthened object keyword list, added explicit blocking for meta-references
+- Result: "narrator" BLOCKED, "ebony clock" STILL PRESENT
 
-**Fix Applied:** Added second `verify_aliases()` call immediately after `merge_descriptive_entities()` (new line 387). This ensures all aliases - including those added during merge - are verified against the object keyword and meta-reference filters.
-
-**Smoke Test:** Verified that the blocking logic correctly identifies "the ebony clock" (contains "clock") as an invalid alias for "the Red Death" (no object keywords).
-
-**Test Suite:** All 236 tests pass (10 skipped).
-
-**Files Modified:**
-- `src/pipeline/character_extraction_v2/main_cast.py` lines 379-387
+### Attempt 4
+- Added second verify_aliases() call AFTER merge_descriptive_entities()
+- Hypothesis: Aliases added during merge bypass initial verification
+- Result: NO CHANGE - "ebony clock" still present
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-**Attempt 4 Analysis Complete:**
-- Runtime: 8m 55s
-- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) for all stages
-- Output files generated successfully
-- Notable: "the ebony clock" alias STILL appears in character summary output
-- Many other false aliases were BLOCKED correctly (e.g., "the plague", "the mysterious figure", "the intruder", "the figure")
+**Required Investigation:**
+1. The fix phase MUST investigate beyond main_cast.py
+2. Check src/agents/characters.py for merge functions that add aliases AFTER main_cast extraction returns
+3. Look at _merge_within_main_cast, _merge_lastname_aliases, and related functions
+4. Add debug logging to trace WHERE "the ebony clock" is being added
 
-Ready for evaluation.
+**Fix Priority:** Focus ONLY on the "ebony clock" false alias - this is the blocker for passing Character Extraction.
