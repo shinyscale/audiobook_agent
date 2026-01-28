@@ -697,10 +697,38 @@ class MainCastExtractor:
                     )
                     continue
 
-                # RULE 0.5: Semantic coherence check for symbolic entities
-                # If the canonical name is a symbolic entity (object/force), verify that
-                # aliases refer to THE SAME object/concept, not just any co-occurring nouns
-                if getattr(profile, "is_symbolic", False):
+                # RULE 0.5: Semantic coherence check for symbolic entities and personified concepts
+                # If the canonical name is a symbolic entity (object/force) OR a personified
+                # concept (abstract noun used as character), verify that aliases refer to
+                # THE SAME object/concept, not just any co-occurring nouns
+
+                # Detect personified concepts: abstract nouns that function as characters
+                # (e.g., "the Red Death", "Death", "Fear", "the Plague")
+                def is_personified_concept(name: str) -> bool:
+                    """Check if name is likely a personified abstract concept."""
+                    name_lower = name.lower().strip()
+                    # Remove articles to get core phrase
+                    for article in ["the ", "a ", "an "]:
+                        if name_lower.startswith(article):
+                            name_lower = name_lower[len(article):].strip()
+                            break
+
+                    # Abstract concepts commonly personified in literature
+                    personified_keywords = {
+                        "death", "plague", "disease", "pestilence", "fever",
+                        "fear", "terror", "horror", "darkness", "shadow",
+                        "fate", "destiny", "doom", "revenge", "madness",
+                        "time", "chaos", "decay", "despair", "grief"
+                    }
+
+                    # Check if the core name is a personified concept
+                    # Allow compound forms like "red death" (splits to ["red", "death"])
+                    name_words = set(name_lower.split())
+                    return bool(name_words & personified_keywords)
+
+                is_symbolic_or_personified = getattr(profile, "is_symbolic", False) or is_personified_concept(profile.canonical_name)
+
+                if is_symbolic_or_personified:
                     # Extract core nouns from both canonical and alias (strip "the", articles)
                     def extract_core_noun(text: str) -> str:
                         """Extract the main noun from a phrase like 'the Amontillado'."""
@@ -726,10 +754,11 @@ class MainCastExtractor:
                     )
 
                     if not are_related:
+                        entity_type = "symbolic entity" if getattr(profile, "is_symbolic", False) else "personified concept"
                         logger.warning(
                             f"BLOCKED alias: '{alias}' (core noun: '{alias_noun}') is semantically "
                             f"unrelated to '{profile.canonical_name}' (core noun: '{canonical_noun}'). "
-                            f"Symbolic entities must have aliases referring to the SAME object/concept."
+                            f"This {entity_type} must have aliases referring to the SAME object/concept."
                         )
                         continue
 

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -153,11 +153,25 @@
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | (initial analysis) | - | Character extraction: 5/10, Profiles: 6/10 |
+| 2 | Critical #1: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | Extended semantic coherence check to personified concepts |
+
+## Fix Details - Attempt 2
+
+### Issue: Red Death has false aliases ("ebony clock", "courtiers")
+- **Root Cause:** The semantic coherence check (verify_aliases lines 700-734) ONLY applied to entities marked `is_symbolic=True`. "The Red Death" is a personified abstract concept (disease as character) but was marked `is_symbolic=False`, so aliases weren't checked for semantic coherence.
+- **Data Flow:** main_cast.py Pass 1 extracted "the Red Death" → Pass 2 LLM added "ebony clock" and "courtiers" as aliases → verify_aliases didn't block them because coherence check was skipped.
+- **Fix:** Extended semantic coherence check to detect personified concepts (death, plague, fear, etc.) using keyword detection. Now blocks semantically unrelated aliases like "ebony clock" (core noun: "clock") and "courtiers" (core noun: "courtiers") from "the Red Death" (core noun: "death").
+- **Smoke Test:** PASS - Logic correctly identifies "the Red Death" as personified concept and blocks unrelated nouns while allowing related ones like "Death".
+
+### Deferred Issues
+- **Issue #2 (masked figure):** Requires narrative reveal understanding (complex, high regression risk). The masked figure has only 1 mention count, making it a very minor extraction. Not worth the complexity for <1 point gain.
+- **Issue #3 (profiles):** Partially evaluator error (checked wrong field name - `physical_description` doesn't exist, should be `appearance`). The `appearance` field is populated but has "unknown" values because profile sampling didn't capture descriptive passages in this short text. Fixing would require risky changes to sampling logic.
 
 ## Notes
-The alias grouping issue is similar to what was fixed in cask_of_amontillado (attempt 2 added semantic coherence). The fix there may have introduced the ebony clock/courtiers issue, OR this is a different manifestation of the same underlying problem - the LLM is too aggressive in grouping things that appear together in the narrative.
+The semantic coherence check was added in cask_of_amontillado attempt 2, but it only applied to `is_symbolic=True` entities. This fix extends it to detect personified concepts (abstract nouns functioning as characters) using keyword matching. This is a **universal fix** that should work for any book with personified abstract concepts.
 
-The profile emptiness (physical_description, relationships) suggests the F4 enrichment stage may not be running properly or is failing to extract data from short texts.
+The "masked figure" issue is a design limitation of F6 reconciliation - it doesn't understand narrative reveals. Adding such logic would require LLM interpretation of story context, which is complex and risky.
 
 ## Next Action
-Run PROMPT_fix.md to address alias coherence issue (Critical #1) and profile enrichment (High #3, #4).
+**Phase:** awaiting_analysis
+Re-run analysis to verify the semantic coherence fix prevents false aliases on "the Red Death".
