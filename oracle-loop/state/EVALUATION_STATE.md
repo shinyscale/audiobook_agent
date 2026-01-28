@@ -102,7 +102,14 @@
 - This model may produce inconsistent JSON formatting
 - Consider adding more aggressive JSON recovery for structured extraction
 
+## Pipeline Notes (Attempt 2 - Post-Fix Re-Analysis #2)
+- Analysis completed in 11m 37s
+- Character Profiles stage: Still showing JSON parse failures for Lincoln Stewart
+- Character confidence: Lincoln (low 0.30), others (high)
+- Profiling shows "1 low-confidence character profiles" (quality concern)
+- Competitive consensus enabled across all stages (characters, structure, summaries)
+
 ## Next Action
 **Phase:** awaiting_evaluation
 
-Analysis re-run complete (attempt 2).
+Analysis re-run complete (attempt 2, run 2).
