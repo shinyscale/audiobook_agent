@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -13,12 +13,12 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6/10 ✗ (FAILING)
+- Character Extraction: 7/10 ✗ (FAILING)
 - Character Profiles: 7.5/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.88/10** (reference only)
+- **Overall: 8.03/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
@@ -28,133 +28,119 @@
 |---------|-------|---------------------|-------|
 | 1 | 7.52 | 0.00 | Initial baseline - character extraction issues |
 | 2 | 7.88 | +0.36 | Partial fix - courtiers separated, but ebony clock/narrator still aliases |
+| 3 | 8.03 | +0.51 | Improvement - "narrator" removed, but "ebony clock" persists |
 
 ## Score Breakdown
 
 ### Structure Detection: 9/10 ✓
 **Good:**
 - Correctly identified this is a single continuous narrative without chapters
-- Single structure element with complete text coverage (28-13811 positions)
+- Single structure element with complete text coverage
 - Word count accurate (2,443 words)
 
 **Minor:**
-- Title is null (could extract "The Masque of the Red Death" from the text header)
+- Title is null (could extract "The Masque of the Red Death" from text header)
 
-### Character Extraction: 6/10 ✗
-**Improvement from Attempt 1:**
-- "the courtiers" is now a separate character entry, NOT an alias of "the Red Death" ✓
+### Character Extraction: 7/10 ✗
+**Improvement from Attempt 2:**
+- "the narrator" is NO LONGER an alias of "the Red Death" ✓
+- "The masked figure (Red Death)" now explicitly notes the connection in its name
 
-**Remaining Issues:**
-1. **FALSE ALIAS: "the ebony clock"** - The ebony clock is a physical object (a giant clock in the black chamber). It is NOT the Red Death. This is a semantically unrelated noun.
-2. **FALSE ALIAS: "the narrator"** - This is a third-person narrated story. "The narrator" refers to the storytelling voice, NOT the personified disease. This is completely wrong.
-3. **"the masked figure" still separate** - This character IS the Red Death in disguise. The story explicitly reveals this at the climax. However, with only 1 mention, this is a minor issue.
+**Remaining Issue:**
+1. **FALSE ALIAS: "the ebony clock"** - The ebony clock is a physical object (a giant clock in the black chamber). It is NOT the Red Death.
 
-**Characters Detected:** 6 total
-- Prince Prospero (main_cast_0) - CORRECT ✓
-- the Red Death (main_cast_1) - Has wrong aliases: "ebony clock", "narrator" ✗
-- the courtiers (F6 reconciled) - Now separate, CORRECT ✓
-- the musicians (F6 reconciled) - Minor character, acceptable
-- the waltzers (F6 reconciled) - Minor character, acceptable
-- the masked figure (F6 reconciled) - Should be alias of Red Death, but low impact
+**Characters Detected:** 3 total
+- Prince Prospero (main_cast_0) - CORRECT ✓, alias "the Prince Prospero"
+- the Red Death (main_cast_1) - Has wrong alias: "the ebony clock" ✗
+- The masked figure (Red Death) (F6 reconciled) - Acceptable (1 mention, name clarifies relationship)
 
-**Why 6/10:** The fix removed one false alias but added a new one ("the narrator"). The core issue persists: semantically unrelated nouns are being merged as aliases of "the Red Death". The coherence check needs to be more aggressive.
+**Why 7/10 (up from 6/10):** The removal of "the narrator" as a false alias is a significant improvement. One false alias remains vs. two previously. The explicit "(Red Death)" notation on the masked figure shows improved understanding.
 
 ### Character Profiles: 7.5/10 ✗
-**Improvement from Attempt 1:**
-- "the Red Death" now has rich `appearance` data with distinguishing features:
-  - "vesture dabbled in blood"
-  - "broad brow besprinkled with scarlet horror"
-  - "corpse-like mask"
-  - "grave cerements"
+**Good:**
+- "the Red Death" has rich `appearance` data with distinguishing features
 - Personality data is present for both main characters
+- Prince Prospero correctly has "unknown" appearance (he's not physically described in the text)
 
 **Remaining Issues:**
-1. **Prince Prospero has unknown appearance** - Despite being described as "happy and dauntless and sagacious" (personality, not appearance), his physical presence is never described, so this is actually correct.
-2. **All relationships still empty** - Clear narrative relationships exist:
-   - Prospero → courtiers (master/protector)
-   - Prospero → Red Death (victim/antagonist)
-3. **"the masked figure" has null profile** - Expected for 1-mention F6 reconciled character
+1. **All relationships still empty** - Clear narrative relationships exist:
+   - Prospero → Red Death (victim/nemesis)
+   - Prospero → courtiers (protector/host)
 
-**Why 7.5/10:** Major improvement in appearance data extraction. The empty relationships are the main gap now.
+**Why 7.5/10:** Appearance and personality extraction is good. Empty relationships remain the main gap.
 
 ### Chapter Summaries: 9/10 ✓
 **Excellent:**
-- Summary is comprehensive (182 words in structure, 3-paragraph narrative summary in overview)
-- Captures all major story beats accurately:
+- Summary is comprehensive (1316 characters) and accurate
+- Captures all major story beats:
   - The Red Death plague devastating the country
-  - Prospero's retreat with 1000 courtiers
-  - The seven colored rooms and the masked ball
-  - The ebony clock's chilling effect
-  - The appearance of the masked figure
-  - The confrontation and Prospero's death
-  - The revelation that the figure was empty
+  - Prospero's retreat with 1000 courtiers into fortified abbey
+  - The seven colored rooms and masked ball
+  - The ebony clock's chilling effect on revelers
+  - The mysterious masked figure appearing as Red Death itself
+  - Prospero's pursuit and death
+  - The revelation the figure was empty
   - The death of all guests
-
-**Minor:**
-- Characters present list includes "the courtiers" which is now a separate character (acceptable, not an error)
 
 ### Pronunciation Guide: 8/10 ✓
 **Good:**
 - 45 pronunciation entries flagged
 - 41/45 have IPA (91% coverage)
 - Important terms correctly flagged: Prospero, improvisatori, castellated, arabesque
-- IPA quality is good (/prəˈspɛr.oʊ/ for Prospero is correct)
-- Notes field provides helpful narrator guidance
+- IPA quality is good
 
 **Issues:**
-- `term` and `category` fields are null for all entries (structural issue, low impact)
+- `term` and `category` fields are null for all entries (structural, low impact)
 - 4 entries missing IPA
 
 ### HTML Presentation: 9/10 ✓
 **Good:**
 - Clean, professional dark theme
 - Tab navigation works correctly
-- 8 sections organized logically
-- Sticky navigation bar
-- Summary/overview is well-written and engaging
 - Character profiles display correctly with expandable details
+- Summary/overview is well-written and engaging
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 1. **FALSE ALIAS: "the ebony clock" merged with "the Red Death"**
-   - Problem: The Red Death has aliases ["the ebony clock", "the narrator"]
-   - Evidence: The ebony clock is a massive clock in the black chamber that chimes hourly, causing revelers to stop dancing. It is a PHYSICAL OBJECT, not the personified plague.
+   - Problem: Despite the object keyword block implemented in attempt 3, "the ebony clock" still appears as an alias
+   - Evidence: The ebony clock is a massive clock in the black chamber that chimes hourly. It is a PHYSICAL OBJECT.
    - ID: main_cast_1 (from main cast pipeline)
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - verify_aliases semantic coherence check
-   - Why fix didn't work: The fix added detection for personified concepts (death, plague, etc.) but "ebony clock" somehow still passed. Need to investigate why.
-   - Verification: `jq '.characters[] | select(.canonical_name == "the Red Death") | .aliases' ../output/masque_of_red_death/analysis.json`
-
-2. **FALSE ALIAS: "the narrator" merged with "the Red Death"**
-   - Problem: "the narrator" is listed as an alias of "the Red Death"
-   - Evidence: This is a third-person narrated story. The narrator is the storytelling voice, NOT the plague. There's no in-story narrator as a character.
-   - ID: main_cast_1
-   - Location: Same as above
-   - Fix: The semantic coherence check should reject "narrator" as it has no semantic relationship to "death/plague/Red Death"
-   - Note: This may be a NEW regression - attempt 1 had ["the ebony clock", "the courtiers"] not ["the ebony clock", "the narrator"]
+   - **Root Cause Analysis:**
+     - The fix added object keyword blocking to `verify_aliases()`
+     - But `merge_descriptive_entities()` runs AFTER `verify_aliases()` (line 382 vs 377 in main_cast.py)
+     - The merge adds aliases without re-verification
+     - The "ebony clock" may be added during this post-verification merge step
+   - **Verification needed:** Check if "the ebony clock" comes from:
+     a. Initial Pass 1/Pass 2 LLM output (verify_aliases should catch it)
+     b. merge_descriptive_entities() adding it as an alias from another profile
+     c. F6 reconciliation adding it later
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
+   - Fix: Either:
+     1. Move verify_aliases to run AFTER merge_descriptive_entities, OR
+     2. Add alias filtering logic inside merge_descriptive_entities, OR
+     3. Run verify_aliases a second time after merging
 
 ### HIGH
-3. **Relationships empty for all characters**
+2. **Relationships empty for all characters**
    - Problem: All characters have `relationships: {}`
    - Evidence: Clear narrative relationships exist:
-     - Prospero leads/protects the courtiers
-     - Red Death destroys/kills Prospero
+     - Prospero is the host/protector of the courtiers
+     - Red Death kills Prospero and all guests
    - Location: Character profile enrichment stage (F4 or profile sampling)
    - Fix: Profile enrichment needs to extract relationships from context
 
 ### MEDIUM
-4. **Pronunciation entries missing `term` field**
+3. **Pronunciation entries missing `term` field**
    - Problem: All pronunciations have `word` but `term` is null
-   - Example: `{"term": null, "ipa": "/prəˈspɛroʊ/", "word": "Prospero"}`
    - Location: Pronunciation pipeline output format
-   - Fix: Ensure `term` is populated (may be field name mismatch)
+   - Impact: Low - word field works fine
 
 ### LOW
-5. **"the masked figure" could be alias of Red Death**
-   - Problem: Listed as separate character with 1 mention
-   - Evidence: Story reveals masked figure IS the Red Death
-   - Reason to defer: Only 1 mention, complex narrative-reveal logic required
-   - Impact: <0.5 points
+4. **Structure title is null**
+   - Could extract "The Masque of the Red Death" from text header
+   - Impact: Minimal
 
 ## Modification History
 
@@ -162,36 +148,45 @@
 |---------|-------|----------------|--------|
 | 1 | (initial analysis) | - | Character extraction: 5/10, Profiles: 6/10 |
 | 2 | Critical: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | **Partial** - "courtiers" removed, but "ebony clock" persists and "narrator" added |
-| 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py | **Pending verification** - Added hard programmatic blocks for meta-references and object keywords |
+| 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py (verify_aliases) | **Partial** - "narrator" BLOCKED successfully, "ebony clock" STILL PRESENT |
 
-## Fix Analysis - Attempt 2 Result
+## Fix Analysis - Attempt 3 Result
 
 ### What the fix did:
-- Extended semantic coherence check to detect personified concepts (death, plague, fear, etc.)
-- Should block semantically unrelated aliases like "ebony clock" (core noun: "clock")
+1. Added meta-reference block (RULE 0.4) - blocks "narrator", "reader", "audience"
+2. Added object keyword block (RULE 0.45) - blocks aliases containing object keywords (clock, door, mirror, etc.)
 
 ### What actually happened:
-- "the courtiers" was REMOVED as an alias ✓
-- "the ebony clock" STILL present as an alias ✗
-- "the narrator" is a NEW false alias ✗
+- ✓ "the narrator" BLOCKED successfully (meta-reference rule worked)
+- ✗ "the ebony clock" STILL PRESENT despite containing "clock"
 
 ### Hypothesis for failure:
-1. The semantic coherence check may be running AFTER alias assignment, not blocking the merge
-2. The "personified concept" detection may only check the canonical name, not each alias candidate
-3. There may be multiple paths for alias addition (Pass 1, Pass 2, F6 reconciliation) and only one is filtered
+The object keyword blocking logic IS correct, but it runs in verify_aliases() which executes at line 377. AFTER this, merge_descriptive_entities() runs at line 382 and can add new aliases without verification:
+
+```python
+# Line 377: verify_aliases runs (blocks bad aliases)
+profiles = self.verify_aliases(profiles, chapter_summaries)
+
+# Line 382: merge_descriptive_entities runs AFTER (adds unverified aliases)
+profiles = self.merge_descriptive_entities(profiles)
+```
+
+The merge function at lines 1192-1194:
+```python
+canonical_profile.aliases.append(other.canonical_name)
+canonical_profile.aliases.extend(other.aliases)
+```
+
+**If there was a separate profile for "the ebony clock" (incorrectly detected as a character), it would be merged into "the Red Death" and added as an alias, bypassing all verification.**
 
 ### Next fix should:
-1. Add debug logging to verify_aliases to see what's being blocked vs allowed
-2. Ensure the coherence check runs on EVERY proposed alias before merging
-3. Add explicit rejection of "narrator" as an alias for any character (narrators are metadata, not characters in most cases)
-
-## Notes
-The fix for cask_of_amontillado's semantic coherence check worked there but has partial/inconsistent results on this text. The issue is that different alias sources (main cast Pass 2, F6 reconciliation) may not all be subject to the same filtering.
-
-The "the narrator" alias is particularly problematic because:
-1. This story has no character narrator (third-person omniscient)
-2. Even if there were a narrator, they wouldn't be "the Red Death"
-3. This suggests the LLM is hallucinating this merge, and the coherence check isn't catching it
+1. **Investigate:** Add logging to determine where "the ebony clock" alias originates
+   - Is it in the initial LLM output?
+   - Is it added during merge_descriptive_entities?
+2. **Fix:** Either:
+   - Run verify_aliases AFTER merge_descriptive_entities
+   - Or add object/meta-reference blocking inside merge_descriptive_entities
+   - Or filter aliases inside _filter_non_sentient_entities (which currently filters whole profiles, not aliases)
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (appropriate for this text size)
@@ -199,70 +194,9 @@ The "the narrator" alias is particularly problematic because:
 - Temperature: 0.7 (standard)
 - Profiling shows 0 low confidence items, 0 retries (good)
 
-## Fix Applied - Attempt 3
-
-### Root Cause
-- **Location:** `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()`
-- **Problem:** LLM in Pass 2 proposes invalid aliases ("ebony clock", "narrator"), and the existing semantic coherence check had gaps
-- **Why semantic check failed:** The check only handles substring/plural relationships, not categorical filtering (objects vs characters, meta-references)
-
-### Fix Implemented
-Added two **programmatic hard blocks** in verify_aliases() (RULE 0.4 and RULE 0.45):
-
-1. **Meta-reference block:** Blocks "narrator", "the narrator", "reader", "audience" as aliases
-   - These are storytelling devices, never character references
-   - Universal rule: applies to any text
-
-2. **Object keyword block:** Blocks aliases containing object keywords (clock, door, mirror, etc.) when canonical name doesn't
-   - Prevents physical objects from becoming aliases of characters
-   - Allows symbolic objects IF they're the canonical name (e.g., "the monkey's paw")
-
-### Smoke Test Results
-**PASS** - Tested with "the Red Death" having aliases ["the ebony clock", "the narrator", "Death", "the Red Death itself"]:
-- ✓ "the ebony clock" BLOCKED (object keyword: clock)
-- ✓ "the narrator" BLOCKED (meta-reference)
-- ✓ "Death" ALLOWED (valid alias)
-- ✓ "the Red Death itself" ALLOWED (valid alias)
-
-### Expected Outcome
-Character extraction should improve from 6/10 to 8+/10 by eliminating the two false aliases.
-
-## Analysis Results - Attempt 3
-
-### Pipeline Performance
-- **Duration:** 8m 33s
-- **Total LLM Calls:** 30
-- **Total Tokens:** 37,499
-- **Competitive consensus:** Enabled on characters, structure, summaries (2/3 supermajority)
-
-### Semantic Coherence Check Observations
-The verify_aliases() check IS running and blocking some invalid aliases:
-- ✓ BLOCKED: "the Red Death itself" (core noun mismatch)
-- ✓ BLOCKED: "the figure" (core noun mismatch)
-- ✓ BLOCKED: "the intruder" (core noun mismatch)
-- ✓ BLOCKED: "an empty shell" (core noun mismatch)
-
-**Critical Issue:**
-- ✗ STILL PRESENT: "the ebony clock" remains as an alias of "the Red Death"
-- ✓ IMPROVEMENT: "the narrator" no longer appears (was in attempt 2)
-
-### Character Detection Results
-- Total: 3 characters
-  - Prince Prospero (6 mentions)
-  - the Red Death (7 mentions, **1 alias: "the ebony clock"**)
-  - The masked figure (1 mention)
-
-### Output Files
-- HTML: ../output/masque_of_red_death/report.html (114,867 bytes)
-- JSON: ../output/masque_of_red_death/analysis.json (53,128 bytes)
-
-### Analysis
-The fix partially worked:
-1. Meta-reference block successfully removed "the narrator" alias
-2. Object keyword block is NOT catching "the ebony clock" despite containing "clock"
-3. Hypothesis: The alias may be added through a code path that bypasses verify_aliases(), or the object keyword check has a bug
-
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Detailed evaluation needed to determine why "ebony clock" persists despite object keyword blocking.
+Fix priority: Critical #1 (false alias "the ebony clock")
+- The fix needs to trace WHERE "the ebony clock" is being added
+- Then apply blocking logic at that location OR reorder the processing steps
