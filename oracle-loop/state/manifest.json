@@ -11,9 +11,10 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": false,
-      "attempts": 1,
-      "last_score": 7.4,
+      "complete": true,
+      "attempts": 2,
+      "last_score": 8.83,
+      "final_score": 8.83,
       "baseline_score": 7.4
     },
     {
