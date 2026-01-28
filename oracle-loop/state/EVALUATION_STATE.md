@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -210,7 +210,23 @@ Verified blocking logic correctly identifies "the ebony clock" (contains "clock"
 **Files Modified:**
 - `src/agents/characters.py` (added helper methods and validation calls)
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 5)
+Analysis completed successfully in 9m 27s.
 
-Re-run analysis on masque_of_red_death to verify the fix eliminates the false alias.
+**CRITICAL SUCCESS:** Pipeline output shows alias blocking is working:
+```
+BLOCKED alias during merge: 'the ebony clock' contains object keyword ({'clock'}), not valid for 'the Red Death'
+```
+
+This confirms the CharacterAgent validation fix (from attempt 5) is functioning correctly.
+
+**Pipeline stats:**
+- 6 characters detected (down from previous runs)
+- 37 LLM calls, 42,258 tokens
+- Competitive consensus enabled on all stages (characters, structure, summaries)
+- Bottleneck: Character Extraction (23.8% of time)
+
+## Next Action
+**Phase:** awaiting_evaluation
+
+Ready for evaluation to verify the false alias has been eliminated from the final output.
