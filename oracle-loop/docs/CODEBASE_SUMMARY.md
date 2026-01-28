@@ -142,6 +142,38 @@ Chapter Summaries → Main Cast Extraction → Mention Search → Grounding Gate
 
 **V2 Dependency**: V2 requires summaries FIRST (structure → summaries → characters_v2)
 
+### V2 Architecture (Simplified Prompts - Jan 2026)
+
+The V2 pipeline was refactored to use **simple prompts + deterministic verification**:
+
+**Two-Pass Extraction (Default)**
+- **Pass 1**: Identify cast members (canonical names only, NO aliases)
+- **Pass 2**: For each character, resolve aliases with focused context
+
+**Key Data Structures in `main_cast.py`**:
+```python
+@dataclass
+class MainCastProfile:
+    canonical_name: str
+    aliases: list[str]           # Confirmed aliases
+    uncertain_aliases: list[str] # LLM unsure - let verification decide
+    role: str                    # protagonist/antagonist/supporting/minor
+    is_symbolic: bool            # True for objects/forces (e.g., "the monkey's paw")
+    description: str
+```
+
+**Philosophy: Soft Prompts + Hard Verification**
+- Prompts are ~30 lines with 5 simple rules (not 100+ lines with 17 rules)
+- LLM can express uncertainty via `uncertain_aliases`
+- Deterministic verification (mention_search, grounding) makes final decisions
+- `is_symbolic=True` marks plot-central objects/forces as valid extractions
+
+**Mention Search Robustness**:
+- Handles apostrophe variants (' vs ')
+- Handles hyphen variants (- vs – vs —)
+- Optional periods in titles ("Mr." matches "Mr")
+- Span-based overlap detection (longest match wins)
+
 ## Narrator Detection
 
 | Component | File | Key Lines | Purpose |
@@ -206,14 +238,20 @@ Chapter Summaries → Main Cast Extraction → Mention Search → Grounding Gate
 
 ### V2 Fix Locations
 
-| Issue | Primary Fix Location | Description |
-|-------|---------------------|-------------|
-| Main cast missing character | `main_cast.py` - `MAIN_CAST_PROMPT` | Adjust prompt for character inclusion |
-| Alias not included | `main_cast.py` - `MAIN_CAST_PROMPT` | Prompt asks LLM for aliases directly |
+**⚠️ IMPORTANT: Prefer programmatic fixes over prompt changes. See PROMPT_fix.md "Fix Philosophy" section.**
+
+| Issue | Primary Fix Location | Recommended Approach |
+|-------|---------------------|----------------------|
+| Main cast missing character | Check **summaries first** | If summaries have it, check grounding threshold |
+| Alias not resolved | `mention_search.py` | Improve pattern matching, not prompt |
+| Wrong canonical name | `characters.py` post-processing | Programmatic: prefer longer/fuller names |
+| Wrong role assignment | `characters.py` promotion logic | Programmatic: mention count thresholds |
 | Hallucinated character | `grounding.py` - `GroundingGate` | Adjust min_mentions threshold |
-| Wrong narrator | `narrator.py` - `NARRATOR_DETECTION_PROMPT` | Adjust detection logic |
-| Supporting cast issues | `supporting.py` - `SupportingCastExtractor` | NER filtering and min_mentions |
-| Unnamed character not detected | `main_cast.py` - `MAIN_CAST_PROMPT` | Prompt explicitly allows descriptive handles |
+| Wrong narrator | `narrator.py` | Check summaries for POV clues first |
+| Non-character extracted | `characters.py` post-processing | Programmatic filter if needed |
+| Symbolic entity issues | No fix needed | `is_symbolic=True` marks these as valid |
+
+**Remember**: If a prompt fix doesn't work after 2 attempts, switch to programmatic approach.
 
 ## Key Prompts for LLM Operations
 

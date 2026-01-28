@@ -9,6 +9,68 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 > - **USE:** `src/agents/characters.py`
 > - **Note:** V1 character extraction has been removed from the codebase
 
+## 🎯 Fix Philosophy: Simple, Fluid, Efficient
+
+**CRITICAL: Read this section before implementing ANY fix.**
+
+### Prefer Programmatic Fixes Over Prompt Engineering
+
+The previous approach of adding rules and defensive prompting **fell apart on longer, more complex books**. The LLM often ignored complex prompts entirely. Learn from this:
+
+| Approach | When It Works | When It Fails |
+|----------|---------------|---------------|
+| **Adding prompt rules** | Never reliably | Always - LLM ignores long rule lists |
+| **Defensive prompting** | Simple cases | Complex books - context rot, ignored rules |
+| **Programmatic post-processing** | ✅ Reliably | Rarely - deterministic logic is predictable |
+| **Soft prompts + hard verification** | ✅ Best approach | Rarely |
+
+### The Right Pattern
+
+```
+❌ BAD: Add 10 rules to prompt hoping LLM follows them
+✅ GOOD: Simple prompt + deterministic post-processing to enforce invariants
+
+❌ BAD: "NEVER extract non-sentient objects" (LLM ignores this)
+✅ GOOD: Let LLM extract what seems important, filter programmatically if needed
+
+❌ BAD: Complex conditional logic in prompts
+✅ GOOD: Let LLM express uncertainty (uncertain_aliases), verify deterministically
+```
+
+### Prompt Hygiene
+
+- **Keep prompts SHORT** - Under 30 lines, 5 rules max
+- **Don't accumulate rules** - If adding a rule, remove an old one
+- **Trust plot importance** - If something drives the narrative, it's probably worth extracting
+- **Don't fight the LLM** - If it keeps ignoring a rule, the rule is wrong or unnecessary
+
+### When to Use Each Approach
+
+| Issue Type | Recommended Fix |
+|------------|-----------------|
+| LLM extracts wrong entity | Programmatic filter (post-processing) |
+| LLM misses important entity | Check upstream data (summaries), not prompt |
+| Alias not resolved | Improve mention_search, not prompt |
+| Wrong canonical name | Programmatic normalization (prefer full names) |
+| Role assignment wrong | Programmatic promotion by mention count |
+
+**Remember:** The goal is a working pipeline, not a "smart" prompt. If the LLM needs 100 lines of rules, the architecture is wrong.
+
+### Known Anti-Patterns (DO NOT REPEAT)
+
+These approaches were tried and **failed repeatedly**:
+
+| Anti-Pattern | Why It Failed | What To Do Instead |
+|--------------|---------------|-------------------|
+| "MANDATORY INCLUSIONS" in prompt | LLM ignored it completely | Check upstream summaries, use post-processing |
+| "NEVER extract inanimate objects" | Blocked valid symbolic entities | Let LLM extract, mark `is_symbolic=True` |
+| Adding NON_SENTIENT_KEYWORDS list | Book-specific overfitting, violated CLAUDE.md | Trust plot importance |
+| 17-rule prompts | Context rot, LLM ignored most rules | Keep prompts under 5 rules |
+| Defensive "HARD RULES" sections | Created false constraints | Use soft guidance + hard verification |
+| Adding book-specific examples | Overfitting, violated CLAUDE.md | Use generic patterns only |
+
+---
+
 ## 0. Orient
 
 **Context Budget:** You have a limited context budget. Be efficient:

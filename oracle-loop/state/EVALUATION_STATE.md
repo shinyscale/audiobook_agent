@@ -3,9 +3,55 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.95
 - **Competitive Mode:** single
+
+---
+
+## ⚠️ External Changes Applied
+
+**IMPORTANT:** Significant infrastructure changes were made OUTSIDE the oracle loop.
+You MUST re-run analysis to test these changes before applying any fixes.
+
+### Summary of External Changes (commit 8ecb5a4)
+
+**Philosophy shift: Simplified prompts + deterministic verification**
+
+1. **Simplified MainCast prompts** - Reduced from 100+ lines to ~30 lines each
+   - Removed complex rules that LLM was ignoring anyway
+   - Kept only 5 essential rules
+   - Trust LLM to identify plot-important entities
+
+2. **Two-pass extraction is now default**
+   - Pass 1: Identify cast members (no aliases)
+   - Pass 2: Resolve aliases per character with focused context
+
+3. **Added `is_symbolic` flag** - Plot-central objects/forces can now be marked as symbolic
+   - "the monkey's paw", "the eyes of Doctor T. J. Eckleburg" are valid extractions
+   - Evaluation standards updated to not penalize symbolic entities
+
+4. **Added `uncertain_aliases`** - LLM can express doubt about aliases
+   - Deterministic verification decides (mention search, grounding)
+   - Removes pressure on LLM to be 100% certain
+
+5. **Hardened mention search** - Better handling of punctuation variants
+   - Apostrophes (' vs ')
+   - Hyphens (- vs – vs —)
+   - Optional periods in titles
+
+6. **Softened surname merge rule** - Now allows name changes (maiden → married)
+
+### What This Means for Gatsby
+
+Many of the issues identified may already be fixed by these changes:
+- **Daisy/Tom canonical names** - Two-pass extraction should handle this better
+- **Symbolic entities** - No longer need to filter "non-sentient" things
+- **Role assignment** - Simplified prompts focus on plot importance, not strict categorization
+
+**Action:** Set phase to `awaiting_analysis` and re-run the pipeline with new code.
+
+---
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
