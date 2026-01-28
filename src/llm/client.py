@@ -120,7 +120,7 @@ class LLMClient:
 
         return self._client
 
-    def query(self, prompt: str, system: Optional[str] = None) -> LLMResponse:
+    def query(self, prompt: str, system: Optional[str] = None, json_mode: bool = False) -> LLMResponse:
         """Send a query to the LLM and get a response."""
         start_time = time.perf_counter()
 
@@ -130,9 +130,9 @@ class LLMClient:
 
         try:
             if self.config.provider == "ollama":
-                response = self._query_ollama(prompt, system)
+                response = self._query_ollama(prompt, system, json_mode=json_mode)
             elif self.config.provider == "openai":
-                response = self._query_openai(prompt, system)
+                response = self._query_openai(prompt, system, json_mode=json_mode)
             elif self.config.provider == "anthropic":
                 response = self._query_anthropic(prompt, system)
             else:
@@ -180,7 +180,7 @@ class LLMClient:
                 latency_ms=round(elapsed_ms, 2),
             )
 
-    def _query_ollama(self, prompt: str, system: Optional[str]) -> LLMResponse:
+    def _query_ollama(self, prompt: str, system: Optional[str], json_mode: bool = False) -> LLMResponse:
         """Query Ollama API."""
         from ..logging_config import get_llm_logger
 
@@ -229,6 +229,11 @@ class LLMClient:
             "stream": False,
             "options": options,
         }
+
+        # If caller expects structured JSON, ask Ollama to enforce JSON output.
+        # This materially reduces malformed/truncated "almost-JSON" outputs.
+        if json_mode:
+            body["format"] = "json"
 
         # Add think parameter if specified (Ollama API expects it at top level)
         if self.config.think is not None:
@@ -303,7 +308,7 @@ class LLMClient:
             usage=usage,
         )
 
-    def _query_openai(self, prompt: str, system: Optional[str]) -> LLMResponse:
+    def _query_openai(self, prompt: str, system: Optional[str], json_mode: bool = False) -> LLMResponse:
         """Query OpenAI API."""
         from ..logging_config import get_llm_logger
 
@@ -326,6 +331,9 @@ class LLMClient:
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens,
         }
+        if json_mode:
+            # OpenAI-compatible JSON mode (works on modern OpenAI models).
+            body["response_format"] = {"type": "json_object"}
 
         llm_logger.log_request(
             url=url,
@@ -337,12 +345,16 @@ class LLMClient:
         )
 
         start_time = time.perf_counter()
-        response = client.chat.completions.create(
+        create_kwargs = dict(
             model=self.config.model,
             messages=messages,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens,
         )
+        if json_mode:
+            create_kwargs["response_format"] = {"type": "json_object"}
+
+        response = client.chat.completions.create(**create_kwargs)
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         usage = {
@@ -453,7 +465,7 @@ class LLMClient:
         self, prompt: str, system: Optional[str] = None
     ) -> tuple[Optional[Union[dict, list]], LLMResponse]:
         """Query LLM and parse response as JSON (dict or list)."""
-        response = self.query(prompt, system)
+        response = self.query(prompt, system, json_mode=True)
 
         if not response.success:
             return None, response

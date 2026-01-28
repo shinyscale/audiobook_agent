@@ -2553,7 +2553,9 @@ CRITICAL INSTRUCTIONS:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM)
+                # Character profiles are consumed as JSON; enforce JSON mode at the provider level when possible
+                # (e.g., Ollama `format: "json"`) to reduce malformed output and truncation artifacts.
+                response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM, json_mode=True)
                 if response.success:
                     # Clean up any thinking tags or extra formatting
                     content = response.content.strip()
