@@ -9,7 +9,54 @@ You are fixing issues identified in the evaluation phase of an autonomous improv
 > - **USE:** `src/agents/characters.py`
 > - **Note:** V1 character extraction has been removed from the codebase
 
-## 🎯 Fix Philosophy: Simple, Fluid, Efficient
+---
+
+## 🎯 The Universal Goal
+
+**You are not fixing THIS book. You are finding the configuration that works for ALL books.**
+
+The oracle loop exists to discover the optimal combination of:
+- Model selection (which LLM, what temperature)
+- Prompt wording (minimal, universal guidance)
+- Thresholds (grounding min_mentions, promotion counts, etc.)
+- Verification logic (what to check, how strictly)
+
+### The Universality Test
+
+**Every fix must pass this test:**
+
+| Question | GOOD Fix | BAD Fix |
+|----------|----------|---------|
+| Does it help THIS book? | Yes | Yes |
+| Would it help a book you've never seen? | **Yes** | No/Maybe |
+| Does it regress previously-passing books? | No | Yes/Unknown |
+
+**If a fix only helps the current book, it's the WRONG fix.** Go back and find a more general solution.
+
+### Mandatory Regression Check
+
+After implementing ANY fix:
+1. Re-run analysis on at least 2 previously-analyzed books
+2. Compare scores - if ANY category regresses, REVERT the fix
+3. Only fixes that improve OR maintain ALL tested books are valid
+
+This is slower. That's the point. Fewer, better fixes that actually move toward the universal formula.
+
+### What You're Actually Tuning
+
+| Tunable | Location | Universal Sweet Spot = |
+|---------|----------|------------------------|
+| Model selection | config.py | The model that balances cost/quality for all texts |
+| Temperature | config.py | The setting that's creative but not hallucinatory |
+| Grounding threshold | grounding.py | The min_mentions that catches hallucinations without filtering real characters |
+| Promotion thresholds | characters.py | The mention counts that correctly identify protagonists across genres |
+| Prompt wording | main_cast.py | The minimal guidance that extracts the right cast from ANY summary |
+
+**You are searching for these numbers and words. Not adding code branches.**
+
+---
+
+## Fix Philosophy: Simple, Fluid, Efficient
 
 **CRITICAL: Read this section before implementing ANY fix.**
 
@@ -40,7 +87,7 @@ The previous approach of adding rules and defensive prompting **fell apart on lo
 ### Prompt Hygiene
 
 - **Keep prompts SHORT** - Under 30 lines, 5 rules max
-- **Don't accumulate rules** - If adding a rule, remove an old one
+- **Don't accumulate rules** - If adding a rule line, remove at least one existing rule line (net prompt length must not increase)
 - **Trust plot importance** - If something drives the narrative, it's probably worth extracting
 - **Don't fight the LLM** - If it keeps ignoring a rule, the rule is wrong or unnecessary
 
@@ -117,8 +164,10 @@ GOOD: Read CODEBASE_SUMMARY.md → grep for function → Read consensus.py:1571-
 For common issues, use the "Common Fix Locations" table in CODEBASE_SUMMARY.md.
 
 **Character extraction fix locations (V2 is always active):**
-- Main cast issues → `main_cast.py` - `MAIN_CAST_PROMPT`
-- Alias issues → `main_cast.py` - LLM provides aliases directly
+- Main cast issues → `src/pipeline/character_extraction_v2/main_cast.py` - `CHARACTER_IDENTIFICATION_PROMPT` (Pass 1)
+- Alias issues → `src/pipeline/character_extraction_v2/main_cast.py` - `ALIAS_RESOLUTION_PROMPT` (Pass 2) + `verify_aliases()`
+- Competitive alias vote issues (if enabled) → `src/pipeline/character_extraction_v2/main_cast.py` - `_competitive_alias_vote()` prompt template
+- Competitive merge rubric prompts → `src/pipeline/character_extraction/prompts.py` (STRICT/CONTEXTUAL/INCLUSIVE/NEUTRAL)
 - Hallucinated characters → `grounding.py` - `GroundingGate`
 - Narrator issues → `narrator.py` - `NARRATOR_DETECTION_PROMPT`
 - Character merge issues → `consensus.py` lines 1571-1700
