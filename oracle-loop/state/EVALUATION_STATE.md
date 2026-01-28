@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.25
 - **Competitive Mode:** single
 
@@ -64,7 +64,7 @@ None
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | Filter "the library" location extraction | src/pipeline/character_extraction_v2/main_cast.py | Awaiting verification |
 
 ## Pipeline Notes
 - Analysis completed in 10m 53s
@@ -75,5 +75,20 @@ None
 - Word count: 3,240 words
 - Pronunciation flags: 80 entries (all with IPA)
 
+## Fix History
+
+### Attempt 2: Filter mundane location extractions
+- **Root cause:** `src/pipeline/character_extraction_v2/main_cast.py:extract()` line 390-392
+  - Comment noted non-sentient entity filter was removed to allow symbolic objects (e.g., "the monkey's paw")
+  - But this also allowed mundane locations like "the library" to pass through
+  - The LLM extracted "the library" from summaries because it appears frequently and seems important to narrative
+- **Fix approach:** Programmatic post-processing filter (preferred over prompt changes per Fix Philosophy)
+  - Added `_filter_mundane_locations()` method (lines 1295-1360)
+  - Filters mundane location keywords (library, room, house, garden, etc.) from canonical names
+  - Preserves symbolic objects marked with `is_symbolic=True`
+  - Called after alias verification, before competitive consensus (line 391)
+- **Smoke test:** N/A (would take too long - proceeding to full re-analysis)
+- **Expected outcome:** "the library" should be filtered out, leaving only Egaeus, Berenice, and servant
+
 ## Next Action
-Run PROMPT_fix.md to address HIGH issue #1: Filter out "the library" as a character (setting, not character)
+Re-run analysis to verify fix
