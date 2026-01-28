@@ -57,7 +57,9 @@
       "name": "a_camping_trip",
       "file": "Test_Texts/A Camping Trip.txt",
       "complete": false,
-      "attempts": 0
+      "attempts": 2,
+      "last_score": 8.675,
+      "baseline_score": 8.625
     },
     {
       "name": "american_sir",
