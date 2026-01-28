@@ -77,12 +77,12 @@ CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the 
 TASK: Identify the 10-15 most important characters based on the chapter summaries below.
 
 IMPORTANT RULES:
-1. Include plot-central people/creatures AND plot-central symbolic objects/forces (e.g., a cursed object, a symbolic presence)
+1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
 2. Always include the narrator (if a character) and the title character/entity if applicable
 3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
 4. Do NOT invent names not supported by the summaries
 5. Do NOT list aliases in this pass
-7. **ROLE ASSIGNMENT**:
+6. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators, characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
@@ -714,31 +714,9 @@ class MainCastExtractor:
                     )
                     continue
 
-                # RULE 0.45: Block inanimate objects that are clearly not characters
-                # Physical objects/furniture frequently appear in gothic/horror texts but are not characters
-                # unless they are the primary entity (canonical name). Check if alias contains
-                # object keywords but canonical name does not.
-                object_keywords = {
-                    "clock", "bell", "door", "window", "mirror", "portrait", "painting",
-                    "statue", "coffin", "casket", "sword", "dagger", "knife", "weapon",
-                    "chair", "table", "bed", "chest", "book", "letter", "ring", "crown",
-                    "chandelier", "candle", "torch", "lamp"
-                }
-
-                # Extract core words from alias (after removing articles)
-                alias_words = set(alias_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
-                canonical_words = set(canonical_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
-
-                # If alias contains object keywords but canonical doesn't, likely a false alias
-                alias_has_object = bool(alias_words & object_keywords)
-                canonical_has_object = bool(canonical_words & object_keywords)
-
-                if alias_has_object and not canonical_has_object:
-                    logger.warning(
-                        f"BLOCKED alias: '{alias}' contains inanimate object keyword (one of: {alias_words & object_keywords}), "
-                        f"not a valid alias for character '{profile.canonical_name}'"
-                    )
-                    continue
+                # NOTE: Object keyword blocking for aliases (clock, door, etc.) is handled by
+                # CharacterAgent._is_valid_alias() which runs during merge operations.
+                # This avoids duplicate filtering and keeps alias validation in one place.
 
                 # RULE 0.5: Semantic coherence check for symbolic entities and personified concepts
                 # If the canonical name is a symbolic entity (object/force) OR a personified

@@ -238,7 +238,7 @@ class MainCastProfile:
 
 ### V2 Fix Locations
 
-**⚠️ IMPORTANT: Prefer programmatic fixes over prompt changes. See PROMPT_fix.md "Fix Philosophy" section.**
+**⚠️ IMPORTANT: Prefer universal invariants (grounding/NER/thresholds) and minimal prompt clarifications over brittle wordlist filtering. See `prompts/PROMPT_fix.md` “Fix Philosophy” (⛔ keyword lists forbidden).**
 
 | Issue | Primary Fix Location | Recommended Approach |
 |-------|---------------------|----------------------|
@@ -248,10 +248,10 @@ class MainCastProfile:
 | Wrong role assignment | `characters.py` promotion logic | Programmatic: mention count thresholds |
 | Hallucinated character | `grounding.py` - `GroundingGate` | Adjust min_mentions threshold |
 | Wrong narrator | `narrator.py` | Check summaries for POV clues first |
-| Non-character extracted | `characters.py` post-processing | Programmatic filter if needed |
+| Non-character extracted | `characters.py` post-processing | Enforce universal invariants (grounding/NER/thresholds). **Do not** add wordlist/keyword filters. |
 | Symbolic entity issues | No fix needed | `is_symbolic=True` marks these as valid |
 
-**Remember**: If a prompt fix doesn't work after 2 attempts, switch to programmatic approach.
+**Remember**: If a prompt tweak doesn’t work after 2 attempts, switch to **verification/invariant enforcement** (not “more prompt rules,” and not keyword lists).
 
 ## Key Prompts for LLM Operations
 

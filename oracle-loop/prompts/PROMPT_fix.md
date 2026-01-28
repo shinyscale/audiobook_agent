@@ -60,25 +60,69 @@ This is slower. That's the point. Fewer, better fixes that actually move toward 
 
 **CRITICAL: Read this section before implementing ANY fix.**
 
+### ⛔ STOP (Read Before Proposing Any Fix)
+
+Before you write code, answer these questions:
+
+1. **Am I adding a deny-list / block-list to filter out “bad” candidates?**  
+   Examples: `object_keywords`, `location_keywords`, `mundane_*_keywords`, `NON_SENTIENT_KEYWORDS`, substring/regex deny lists like “reject if name contains any of these words”.  
+   **If yes → STOP. This is forbidden.** Deny lists are book-specific overfitting and will never be complete.
+
+   ✅ **Allowed exception (reference lexicon):** a **small, universal** list used for **recognition/parsing**, not rejection.  
+   Examples: honorifics/titles/ranks to normalize names and merge variants:
+   - `"Colonel Kurtz"` ↔ `"the Colonel"`
+   - `"Father Brown"` ↔ `"Father Brown"` / `"the Father"` (context permitting)
+   - `"Sergeant-Major Morris"` ↔ `"Morris"`
+
+   Guardrails for allowed reference lexicons:
+   - Must be **universal** (stable across many books), not book-vocabulary like “library/clock/room”.
+   - Must be used to **normalize/parse/recognize person-references**, not to “filter out characters.”
+   - Prefer placing in **one central helper** (so it’s maintainable) and adding a **regression test**.
+
+   If you discover an **existing** deny-list in the codebase: **do not expand it**. Treat it as tech debt; prefer replacing it with universal signals (grounding/NER/thresholds) when working in that area.
+
+2. **Would this fix help a book you’ve never seen (different genre/era/culture)?**  
+   If **NO** or **MAYBE** → it’s the wrong fix. Go deeper on root cause.
+
+3. **Am I filtering output to hide symptoms, or clarifying upstream intent / enforcing a universal invariant?**  
+   Prefer **upstream clarity** (prompts, inputs, thresholds) and **universal invariants** (grounding evidence, NER type, mention-count logic) over “filter whatever looks wrong.”
+
+### Fix Classification (MANDATORY in your writeup)
+
+Before implementing anything, include this block in your reasoning:
+
+```markdown
+### Fix Classification
+- **Fix type:** [prompt clarification | threshold adjustment | algorithmic | verification/invariant enforcement | keyword filter]
+- **If keyword filter:** STOP — not allowed. Find another approach.
+- **Universality check:** Would this help a book with a totally different setting and vocabulary?
+- **Root-cause location:** {file}:{function}:{line range}
+```
+
 ### Prefer Programmatic Fixes Over Prompt Engineering
 
 The previous approach of adding rules and defensive prompting **fell apart on longer, more complex books**. The LLM often ignored complex prompts entirely. Learn from this:
 
 | Approach | When It Works | When It Fails |
 |----------|---------------|---------------|
-| **Adding prompt rules** | Never reliably | Always - LLM ignores long rule lists |
+| **Adding lots of prompt rules** | Rarely | Often - LLM ignores long rule lists |
 | **Defensive prompting** | Simple cases | Complex books - context rot, ignored rules |
-| **Programmatic post-processing** | ✅ Reliably | Rarely - deterministic logic is predictable |
+| **Programmatic post-processing (UNIVERSAL invariants)** | ✅ Reliably | Rarely - deterministic logic is predictable |
 | **Soft prompts + hard verification** | ✅ Best approach | Rarely |
 
 ### The Right Pattern
 
 ```
-❌ BAD: Add 10 rules to prompt hoping LLM follows them
-✅ GOOD: Simple prompt + deterministic post-processing to enforce invariants
+❌ BAD: Add 10 rules to prompt hoping the LLM follows them
+✅ GOOD: Simple prompt + deterministic verification to enforce UNIVERSAL invariants
 
-❌ BAD: "NEVER extract non-sentient objects" (LLM ignores this)
-✅ GOOD: Let LLM extract what seems important, filter programmatically if needed
+❌ BAD: "NEVER extract X/Y/Z" followed by a growing list (context rot / ignored)
+✅ GOOD: Clarify the concept once (short prompt), then enforce with evidence:
+        - grounding evidence in the raw text
+        - NER type (PERSON vs GPE/LOC/ORG) where applicable
+        - mention-count / promotion thresholds
+
+⛔ FORBIDDEN: Keyword lists / wordlists to reject candidates (overfits per-book vocabulary)
 
 ❌ BAD: Complex conditional logic in prompts
 ✅ GOOD: Let LLM express uncertainty (uncertain_aliases), verify deterministically
@@ -95,13 +139,34 @@ The previous approach of adding rules and defensive prompting **fell apart on lo
 
 | Issue Type | Recommended Fix |
 |------------|-----------------|
-| LLM extracts wrong entity | Programmatic filter (post-processing) |
+| LLM extracts wrong entity | First: clarify the *definition* in the prompt (short, conceptual). If still wrong: enforce a universal invariant (grounding/NER/threshold), **NOT** a keyword list. |
 | LLM misses important entity | Check upstream data (summaries), not prompt |
 | Alias not resolved | Improve mention_search, not prompt |
 | Wrong canonical name | Programmatic normalization (prefer full names) |
 | Role assignment wrong | Programmatic promotion by mention count |
 
 **Remember:** The goal is a working pipeline, not a "smart" prompt. If the LLM needs 100 lines of rules, the architecture is wrong.
+
+### Concrete Example: Location Extracted as a "Character"
+
+**Problem:** The model keeps extracting a backdrop location like “the library” as a character.
+
+❌ **BAD FIX (keyword list / overfitting):**
+
+```python
+mundane_location_keywords = {"library", "room", "house", "garden"}  # grows forever
+if any(w in entity.lower() for w in mundane_location_keywords):
+    reject(entity)
+```
+
+Why it’s bad: this is vocabulary memorization. The next book will have new words, and sometimes a location/object *is* plot-central.
+
+✅ **GOOD FIX (short conceptual clarification + invariant enforcement):**
+- Clarify the rule in the relevant prompt: focus on **agency/power/character-like role**, not “things mentioned often.”
+- If needed, enforce with a universal invariant:
+  - require grounding evidence of personhood/agency in the raw text, or
+  - require PERSON-type signals (when available), or
+  - tighten thresholds so backdrops don’t get promoted without sufficient evidence.
 
 ### Known Anti-Patterns (DO NOT REPEAT)
 
@@ -111,7 +176,7 @@ These approaches were tried and **failed repeatedly**:
 |--------------|---------------|-------------------|
 | "MANDATORY INCLUSIONS" in prompt | LLM ignored it completely | Check upstream summaries, use post-processing |
 | "NEVER extract inanimate objects" | Blocked valid symbolic entities | Let LLM extract, mark `is_symbolic=True` |
-| Adding NON_SENTIENT_KEYWORDS list | Book-specific overfitting, violated CLAUDE.md | Trust plot importance |
+| **ANY keyword list / wordlist filtering** (e.g., `object_keywords`, `location_keywords`, `*_KEYWORDS`, substring/regex deny lists) | Book-specific overfitting: can never cover all cases; violates CLAUDE.md | Fix the root cause: clarify concept once, then enforce universal invariants (grounding/NER/thresholds) |
 | 17-rule prompts | Context rot, LLM ignored most rules | Keep prompts under 5 rules |
 | Defensive "HARD RULES" sections | Created false constraints | Use soft guidance + hard verification |
 | Adding book-specific examples | Overfitting, violated CLAUDE.md | Use generic patterns only |
