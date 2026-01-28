@@ -64,8 +64,10 @@ This rubric defines evaluation criteria for audiobook narrator preparation docum
 - [ ] Aliases correctly grouped (full name = nickname = title+name)
 - [ ] Titles handled correctly (Dr., Mr., Mrs., etc.)
 - [ ] Nicknames linked to canonical names
-- [ ] No hallucinated characters (entries that don't exist in text)
+- [ ] No hallucinated characters (entries completely invented, not in text)
 - [ ] First appearance chapter is accurate
+
+**Note on symbolic objects/forces:** If an object, symbol, or force appears frequently and drives the plot (e.g., "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"), extracting it as a "character" is ACCEPTABLE for narrator preparation. Narrators need to know about significant narrative elements regardless of sentience. Do NOT penalize these extractions.
 
 **Common Issues:**
 - Characters sharing surnames incorrectly merged (spouses, siblings)

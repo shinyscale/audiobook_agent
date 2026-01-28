@@ -189,7 +189,15 @@ Using your knowledge of the book's characters:
 - Are there false splits (same person listed twice)?
 - Are there false merges (different people combined)?
 - Are aliases correctly grouped?
-- Are there hallucinated characters (entries that don't exist)?
+- Are there hallucinated characters (entries completely invented, not in text)?
+
+**IMPORTANT: Symbolic objects/forces ARE valid extractions:**
+If an object, symbol, or pervasive presence appears frequently and drives the plot, extracting it as a "character" is ACCEPTABLE for narrator preparation. Do NOT penalize extractions like:
+- "the monkey's paw" (title object, antagonistic force in The Monkey's Paw)
+- "the eyes of Doctor T. J. Eckleburg" (symbolic presence in The Great Gatsby)
+- "the Ring" (driving force in Lord of the Rings)
+
+These are narratively significant elements that narrators need to understand. Only mark entries as "hallucinated" if they're completely invented and don't appear in the text.
 
 **For reference, here are expected characters for common test texts:**
 
