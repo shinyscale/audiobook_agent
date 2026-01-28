@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.85
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/a_camping_trip/report.html
 - JSON: ../output/a_camping_trip/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 14m 15s
+- Total LLM calls: 83 (67,331 tokens)
+- Characters detected: 9 (5 primary + 4 from summaries)
+- Pronunciation flags: 70 (18 high confidence, 52 medium)
+- Warnings observed:
+  - LLM marker proposer returned dict instead of list (structure detection)
+  - Several Ollama json_mode validation errors in pronunciation enrichment
+  - "LLM validation failed (got dict), keeping batch candidates" - same error as before
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
