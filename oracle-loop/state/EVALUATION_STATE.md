@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.625
 
 ## Latest Scores
@@ -55,19 +55,25 @@
    - Fix: Consider if anonymous single-mention speakers should be demoted to "background" tier
 
 ## Fix History
-(First attempt - no prior fixes)
+
+### Attempt 1, Fix 1: Improved JSON extraction robustness in profile generation
+- **Issue addressed:** HIGH #1 - Character profiles missing structured data for 3/4 main characters
+- **Root cause:** `src/analyzer.py:2852` - JSON parsing failures when LLM returns malformed JSON (profiling showed 3 JSON parse failures)
+- **Fix implemented:**
+  1. Enhanced `_parse_json_blob()` helper (lines 2516-2551) with brace-balanced extraction to find complete JSON objects even when embedded in extra text
+  2. Added thinking tag stripping for reasoning models (`<think>`, `<thinking>`) before JSON parsing
+  3. Improved markdown code block extraction to handle multiple blocks and select the largest/most JSON-like block
+- **Files modified:** `src/analyzer.py` (lines 2516-2576)
+- **Smoke test:** Unit test of JSON parsing logic - PASSED (handles clean JSON, thinking tags, markdown blocks, embedded JSON)
+- **Universality:** Yes - improves JSON parsing robustness across all LLM providers and all books
+- **Fix type:** Algorithmic improvement (programmatic parsing enhancement, not prompt changes)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | (initial analysis) | N/A | Baseline established |
+| 1 | HIGH #1: Profile JSON parsing failures | src/analyzer.py | Fix implemented, awaiting verification |
 
 ## Next Action
-Run PROMPT_fix.md to address character profile population failures (HIGH #1).
-
-The fix phase should:
-1. Investigate why JSON parsing failed for character profiles in the V2 pipeline
-2. Check `src/pipeline/character_extraction_v2/` for profile enrichment logic
-3. Look at the specific error handling when "moral valence classification failed"
-4. Ensure profile structured fields (appearance, personality, voice guidance) are populated even if some sub-fields fail
+Re-run analysis to verify that improved JSON extraction resolves profile population failures.

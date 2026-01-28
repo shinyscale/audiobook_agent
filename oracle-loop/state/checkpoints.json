@@ -84,6 +84,30 @@
         "pronunciation": 8.0,
         "presentation": 9.0
       }
+    },
+    "gift_of_the_magi": {
+      "commit": "955db62649799ba94164d2b7bf7fff25799da4fe",
+      "score": 8.78,
+      "category_scores": {
+        "structure": 9,
+        "characters": 10,
+        "profiles": 8,
+        "summaries": 9,
+        "pronunciation": 8.5,
+        "presentation": 9
+      }
+    },
+    "a_camping_trip": {
+      "commit": "b47a446dfc790c5bcfedf33b2e27f2255159ddb1",
+      "score": 8.625,
+      "category_scores": {
+        "structure": 10,
+        "characters": 8,
+        "profiles": 6.5,
+        "summaries": 9.5,
+        "pronunciation": 8.5,
+        "presentation": 9
+      }
     }
   }
 }

@@ -2517,6 +2517,29 @@ CRITICAL INSTRUCTIONS:
             try:
                 return json.loads(s)
             except json.JSONDecodeError:
+                # Try to extract JSON object from text with better heuristics
+                # Look for first { and last } at the same nesting level
+                brace_count = 0
+                start_idx = -1
+                end_idx = -1
+
+                for i, char in enumerate(s):
+                    if char == '{':
+                        if brace_count == 0:
+                            start_idx = i
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0 and start_idx != -1:
+                            end_idx = i
+                            # Found a complete JSON object, try to parse it
+                            try:
+                                return json.loads(s[start_idx : end_idx + 1])
+                            except json.JSONDecodeError:
+                                # Continue searching for another potential JSON object
+                                start_idx = -1
+
+                # Fallback to simple extraction if balanced parsing failed
                 start = s.find("{")
                 end = s.rfind("}")
                 if start != -1 and end != -1 and end > start:
@@ -2535,11 +2558,41 @@ CRITICAL INSTRUCTIONS:
                     # Clean up any thinking tags or extra formatting
                     content = response.content.strip()
 
+                    # Strip thinking tags (common in reasoning models like DeepSeek-R1, QwQ, Qwen3)
+                    # These can appear as <think>...</think> or <thinking>...</thinking>
+                    import re as re_module
+                    content = re_module.sub(r'<think>.*?</think>', '', content, flags=re_module.DOTALL)
+                    content = re_module.sub(r'<thinking>.*?</thinking>', '', content, flags=re_module.DOTALL)
+
                     # Try to extract JSON if wrapped in markdown code blocks
+                    # Handle multiple code blocks by taking the largest one (likely the JSON)
                     if "```json" in content:
-                        content = content.split("```json")[1].split("```")[0].strip()
+                        # Extract all ```json blocks and take the longest one
+                        json_blocks = []
+                        remaining = content
+                        while "```json" in remaining:
+                            parts = remaining.split("```json", 1)
+                            if len(parts) > 1 and "```" in parts[1]:
+                                block = parts[1].split("```", 1)[0].strip()
+                                json_blocks.append(block)
+                                remaining = parts[1].split("```", 1)[1] if len(parts[1].split("```", 1)) > 1 else ""
+                            else:
+                                break
+                        if json_blocks:
+                            content = max(json_blocks, key=len)  # Take the longest JSON block
                     elif "```" in content:
-                        content = content.split("```")[1].split("```")[0].strip()
+                        # Try generic code blocks
+                        code_blocks = []
+                        parts = content.split("```")
+                        for i in range(1, len(parts), 2):  # Odd indices are inside code blocks
+                            code_blocks.append(parts[i].strip())
+                        if code_blocks:
+                            # Take the longest block that looks like JSON (starts with {)
+                            json_like_blocks = [b for b in code_blocks if b.startswith("{")]
+                            if json_like_blocks:
+                                content = max(json_like_blocks, key=len)
+                            else:
+                                content = max(code_blocks, key=len)
 
                     try:
                         result = _parse_json_blob(content)
