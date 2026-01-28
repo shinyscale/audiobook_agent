@@ -175,4 +175,11 @@
 ## Next Action
 **Phase:** awaiting_evaluation
 
-Analysis complete. Ready for evaluation.
+**Attempt 4 Analysis Complete:**
+- Runtime: 10m 39s
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) for all stages
+- Output files generated successfully
+- Notable: "the ebony clock" alias still appears in character summary output
+- Many other false aliases were BLOCKED correctly (e.g., "the plague", "the mysterious figure", "blood-drenched and corpse-like figure")
+
+Ready for evaluation.
