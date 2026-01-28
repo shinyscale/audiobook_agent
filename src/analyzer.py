@@ -2224,33 +2224,6 @@ class AudiobookAnalyzer:
         """
         import re
 
-        # CRITICAL: Check if the malformed JSON contains embedded structured fields
-        # Pattern: profile text followed by ", "appearance": ... without proper JSON structure
-        # This happens when LLM fails to add opening braces for nested dicts
-        structured_field_pattern = r'",\s*"(appearance|personality|voice_guidance|relationships|evidence|confidence|limitations)"\s*:'
-        match = re.search(structured_field_pattern, s)
-
-        if match:
-            # Extract only the text BEFORE the first structured field
-            # This is the actual profile description
-            profile_end = match.start()
-            profile_text = s[:profile_end]
-
-            # Remove leading JSON structure: {"profile": " or similar
-            profile_text = re.sub(r'^\s*\{?\s*"profile"\s*:\s*"?', "", profile_text)
-
-            # Remove trailing quote if present
-            profile_text = profile_text.rstrip('"')
-
-            # Unescape JSON string escapes
-            profile_text = profile_text.replace('\\"', '"').replace("\\n", "\n").replace("\\t", " ")
-
-            # Clean up whitespace
-            profile_text = " ".join(profile_text.split())
-
-            return profile_text.strip() if len(profile_text.strip()) > 30 else ""
-
-        # Fallback: original logic for other malformed JSON patterns
         # Remove leading JSON structure: {"profile": " or similar
         s = re.sub(r'^\s*\{?\s*"profile"\s*:\s*"?', "", s)
 
@@ -2934,115 +2907,11 @@ Return ONLY the JSON object."""
                             f"Failed to parse JSON response for {character.canonical_name}: {e}"
                         )
                         logger.debug(f"Raw content (first 500 chars): {content[:500]}")
-
-                        # Try to extract readable text AND structured fields from malformed response
-                        salvaged_profile = self._extract_text_from_malformed_json(content)
-
-                        # Also try to extract structured fields using regex
-                        # This handles cases where the LLM returned data but with malformed JSON structure
-                        salvaged_appearance = None
-                        salvaged_personality = None
-                        salvaged_voice = None
-                        salvaged_relationships = None
-
-                        try:
-                            import re
-
-                            # Try to extract appearance field (even if malformed)
-                            # Pattern: "appearance": "summary": "X", "age_indication": "Y", ...
-                            appearance_match = re.search(
-                                r'"appearance":\s*\{?([^}]*(?:\}|",\s*"(?:personality|voice_guidance|relationships)))',
-                                content,
-                                re.DOTALL
-                            )
-                            if appearance_match:
-                                # Attempt to parse as nested dict
-                                appearance_text = appearance_match.group(1).rstrip('",').strip()
-                                # Try to convert to proper JSON
-                                if not appearance_text.startswith('{'):
-                                    appearance_text = '{' + appearance_text
-                                if not appearance_text.endswith('}'):
-                                    appearance_text = appearance_text + '}'
-                                try:
-                                    salvaged_appearance = json.loads(appearance_text)
-                                    logger.info(f"Salvaged appearance for {character.canonical_name}")
-                                except:
-                                    pass
-
-                            # Similar for personality
-                            personality_match = re.search(
-                                r'"personality":\s*\{?([^}]*(?:\}|",\s*"(?:voice_guidance|relationships|appearance)))',
-                                content,
-                                re.DOTALL
-                            )
-                            if personality_match:
-                                personality_text = personality_match.group(1).rstrip('",').strip()
-                                if not personality_text.startswith('{'):
-                                    personality_text = '{' + personality_text
-                                if not personality_text.endswith('}'):
-                                    personality_text = personality_text + '}'
-                                try:
-                                    salvaged_personality = json.loads(personality_text)
-                                    logger.info(f"Salvaged personality for {character.canonical_name}")
-                                except:
-                                    pass
-
-                            # Similar for voice_guidance
-                            voice_match = re.search(
-                                r'"voice_guidance":\s*\{?([^}]*(?:\}|",\s*"(?:relationships|appearance|personality)))',
-                                content,
-                                re.DOTALL
-                            )
-                            if voice_match:
-                                voice_text = voice_match.group(1).rstrip('",').strip()
-                                if not voice_text.startswith('{'):
-                                    voice_text = '{' + voice_text
-                                if not voice_text.endswith('}'):
-                                    voice_text = voice_text + '}'
-                                try:
-                                    salvaged_voice = json.loads(voice_text)
-                                    logger.info(f"Salvaged voice_guidance for {character.canonical_name}")
-                                except:
-                                    pass
-
-                            # Relationships dict
-                            rel_match = re.search(
-                                r'"relationships":\s*\{?([^}]*\})',
-                                content,
-                                re.DOTALL
-                            )
-                            if rel_match:
-                                rel_text = rel_match.group(1)
-                                if not rel_text.startswith('{'):
-                                    rel_text = '{' + rel_text
-                                try:
-                                    salvaged_relationships = json.loads(rel_text)
-                                    logger.info(f"Salvaged relationships for {character.canonical_name}")
-                                except:
-                                    pass
-
-                        except Exception as extraction_error:
-                            logger.warning(f"Structured field extraction failed: {extraction_error}")
-
-                        # Return salvaged data (profile text + any extracted structured fields)
-                        if salvaged_profile or salvaged_appearance or salvaged_personality or salvaged_voice:
-                            logger.info(
-                                f"Salvaged data for {character.canonical_name}: "
-                                f"profile={'yes' if salvaged_profile else 'no'}, "
-                                f"appearance={'yes' if salvaged_appearance else 'no'}, "
-                                f"personality={'yes' if salvaged_personality else 'no'}, "
-                                f"voice={'yes' if salvaged_voice else 'no'}"
-                            )
-                            return (
-                                salvaged_profile or "",
-                                [],  # No evidence available from malformed response
-                                0.3,  # Low confidence due to parsing failure
-                                salvaged_appearance,
-                                salvaged_personality,
-                                salvaged_voice,
-                                salvaged_relationships,
-                            )
-
+                        # Try to extract readable text from malformed response
+                        salvaged = self._extract_text_from_malformed_json(content)
+                        if salvaged:
+                            logger.info(f"Salvaged profile text for {character.canonical_name}")
+                            return salvaged, [], 0.3, None, None, None, None
                         return "", [], 0.0, None, None, None, None
                 else:
                     # LLM returned error response
