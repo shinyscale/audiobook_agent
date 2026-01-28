@@ -38,8 +38,11 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 1,
+      "last_score": 8.78,
+      "final_score": 8.78,
+      "baseline_score": 8.78
     },
     {
       "name": "gift_of_the_magi",
