@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from ..utils.debug_log import append_debug_event
+
 if TYPE_CHECKING:
     from .glossary import GlossaryExtractionResult
     from .regions import DocumentRegion
@@ -112,38 +114,25 @@ class DocumentIngester(ABC):
         try:
             _raw_centered = re.findall(r"(?m)^[ \t]{10,}([IVXLC]+)[ \t]*$", text)
             _raw_standalone_1 = re.findall(r"(?m)^[ \t]*([IVXLC])[ \t]*$", text)
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-v-bug-pre",
-                        "hypothesisId": "A",
-                        "location": "src/ingestion/base.py:_normalize_text:pre",
-                        "message": "Pre-normalization roman numeral line stats",
-                        "data": {
-                            "text_len": len(text),
-                            "centered_roman_count": len(_raw_centered),
-                            "centered_has_I": ("I" in set(_raw_centered)),
-                            "centered_has_V": ("V" in set(_raw_centered)),
-                            "standalone_single_roman_count": len(_raw_standalone_1),
-                            "standalone_has_I": ("I" in set(_raw_standalone_1)),
-                            "standalone_has_V": ("V" in set(_raw_standalone_1)),
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-v-bug-pre",
+                    "hypothesisId": "A",
+                    "location": "src/ingestion/base.py:_normalize_text:pre",
+                    "message": "Pre-normalization roman numeral line stats",
+                    "data": {
+                        "text_len": len(text),
+                        "centered_roman_count": len(_raw_centered),
+                        "centered_has_I": ("I" in set(_raw_centered)),
+                        "centered_has_V": ("V" in set(_raw_centered)),
+                        "standalone_single_roman_count": len(_raw_standalone_1),
+                        "standalone_has_I": ("I" in set(_raw_standalone_1)),
+                        "standalone_has_V": ("V" in set(_raw_standalone_1)),
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion
@@ -182,38 +171,25 @@ class DocumentIngester(ABC):
         try:
             _norm_centered = re.findall(r"(?m)^[ \t]{10,}([IVXLC]+)[ \t]*$", text)
             _norm_standalone_1 = re.findall(r"(?m)^[ \t]*([IVXLC])[ \t]*$", text)
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-v-bug-pre",
-                        "hypothesisId": "A",
-                        "location": "src/ingestion/base.py:_normalize_text:post",
-                        "message": "Post-normalization roman numeral line stats",
-                        "data": {
-                            "text_len": len(text),
-                            "centered_roman_count": len(_norm_centered),
-                            "centered_has_I": ("I" in set(_norm_centered)),
-                            "centered_has_V": ("V" in set(_norm_centered)),
-                            "standalone_single_roman_count": len(_norm_standalone_1),
-                            "standalone_has_I": ("I" in set(_norm_standalone_1)),
-                            "standalone_has_V": ("V" in set(_norm_standalone_1)),
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-v-bug-pre",
+                    "hypothesisId": "A",
+                    "location": "src/ingestion/base.py:_normalize_text:post",
+                    "message": "Post-normalization roman numeral line stats",
+                    "data": {
+                        "text_len": len(text),
+                        "centered_roman_count": len(_norm_centered),
+                        "centered_has_I": ("I" in set(_norm_centered)),
+                        "centered_has_V": ("V" in set(_norm_centered)),
+                        "standalone_single_roman_count": len(_norm_standalone_1),
+                        "standalone_has_I": ("I" in set(_norm_standalone_1)),
+                        "standalone_has_V": ("V" in set(_norm_standalone_1)),
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion

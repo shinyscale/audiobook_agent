@@ -31,6 +31,7 @@ from ..pipeline.character_extraction_v2 import (
     SupportingCastExtractor,
 )
 from ..utils.similarity import names_similar, string_similarity
+from ..utils.debug_log import append_debug_event
 from .base import (
     Agent,
     AgentContext,
@@ -228,9 +229,6 @@ class CharacterAgent(Agent):
 
         # region agent log
         try:
-            import json
-            import time as _time
-
             focus = []
             for c in main_cast:
                 blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
@@ -255,27 +253,17 @@ class CharacterAgent(Agent):
                             "mentions": c.mention_count,
                         }
                     )
-
-            with open(
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "a",
-                encoding="utf-8",
-            ) as f:
-                f.write(
-                    json.dumps(
-                        {
-                            "sessionId": "debug-session",
-                            "runId": "frankenstein-pre",
-                            "hypothesisId": "H2",
-                            "location": "src/agents/characters.py:step3.8",
-                            "message": "Pre semantic-split focused main_cast snapshot",
-                            "data": {"focus": focus},
-                            "timestamp": int(_time.time() * 1000),
-                        },
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "frankenstein-pre",
+                    "hypothesisId": "H2",
+                    "location": "src/agents/characters.py:step3.8",
+                    "message": "Pre semantic-split focused main_cast snapshot",
+                    "data": {"focus": focus},
+                    "timestamp": int(time.time() * 1000),
+                }
+            )
         except Exception:
             pass
         # endregion
@@ -289,9 +277,6 @@ class CharacterAgent(Agent):
 
         # region agent log
         try:
-            import json
-            import time as _time
-
             split_focus = []
             for c in main_cast:
                 if not isinstance(c.id, str) or not c.id.startswith("split_"):
@@ -319,29 +304,20 @@ class CharacterAgent(Agent):
                         }
                     )
 
-            with open(
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "a",
-                encoding="utf-8",
-            ) as f:
-                f.write(
-                    json.dumps(
-                        {
-                            "sessionId": "debug-session",
-                            "runId": "frankenstein-pre",
-                            "hypothesisId": "H2",
-                            "location": "src/agents/characters.py:step3.8",
-                            "message": "Post semantic-split created split_* characters (focused subset)",
-                            "data": {
-                                "semantic_split_count": semantic_split_count,
-                                "split_focus": split_focus,
-                            },
-                            "timestamp": int(_time.time() * 1000),
-                        },
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "frankenstein-pre",
+                    "hypothesisId": "H2",
+                    "location": "src/agents/characters.py:step3.8",
+                    "message": "Post semantic-split created split_* characters (focused subset)",
+                    "data": {
+                        "semantic_split_count": semantic_split_count,
+                        "split_focus": split_focus,
+                    },
+                    "timestamp": int(time.time() * 1000),
+                }
+            )
         except Exception:
             pass
         # endregion
@@ -390,9 +366,6 @@ class CharacterAgent(Agent):
 
             # region agent log
             try:
-                import json
-                import time as _time
-
                 focus = []
                 for c in main_cast:
                     blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
@@ -419,26 +392,17 @@ class CharacterAgent(Agent):
                             }
                         )
 
-                with open(
-                    "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                    "a",
-                    encoding="utf-8",
-                ) as f:
-                    f.write(
-                        json.dumps(
-                            {
-                                "sessionId": "debug-session",
-                                "runId": "frankenstein-postfix",
-                                "hypothesisId": "H4",
-                                "location": "src/agents/characters.py:step3.9",
-                                "message": "Post-split repair focus snapshot (main_cast)",
-                                "data": {"focus": focus},
-                                "timestamp": int(_time.time() * 1000),
-                            },
-                            ensure_ascii=False,
-                        )
-                        + "\n"
-                    )
+                append_debug_event(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "frankenstein-postfix",
+                        "hypothesisId": "H4",
+                        "location": "src/agents/characters.py:step3.9",
+                        "message": "Post-split repair focus snapshot (main_cast)",
+                        "data": {"focus": focus},
+                        "timestamp": int(time.time() * 1000),
+                    }
+                )
             except Exception:
                 pass
             # endregion
@@ -1733,39 +1697,27 @@ class CharacterAgent(Agent):
                 if conflict:
                     # region agent log
                     try:
-                        import json
-                        import time as _time
-
-                        with open(
-                            "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                            "a",
-                            encoding="utf-8",
-                        ) as f:
-                            f.write(
-                                json.dumps(
-                                    {
-                                        "sessionId": "debug-session",
-                                        "runId": "frankenstein-pre",
-                                        "hypothesisId": "H2",
-                                        "location": "src/agents/characters.py:_split_semantic_conflicts",
-                                        "message": "Semantic conflict detected; alias will be split into new character",
-                                        "data": {
-                                            "char_id": char.id,
-                                            "canonical": char.canonical_name,
-                                            "canonical_descriptor": canonical_descriptor,
-                                            "canonical_is_creature": canonical_is_creature,
-                                            "canonical_is_human": canonical_is_human,
-                                            "alias": alias,
-                                            "alias_descriptor": alias_descriptor,
-                                            "alias_is_creature": alias_is_creature,
-                                            "alias_is_human": alias_is_human,
-                                        },
-                                        "timestamp": int(_time.time() * 1000),
-                                    },
-                                    ensure_ascii=False,
-                                )
-                                + "\n"
-                            )
+                        append_debug_event(
+                            {
+                                "sessionId": "debug-session",
+                                "runId": "frankenstein-pre",
+                                "hypothesisId": "H2",
+                                "location": "src/agents/characters.py:_split_semantic_conflicts",
+                                "message": "Semantic conflict detected; alias will be split into new character",
+                                "data": {
+                                    "char_id": char.id,
+                                    "canonical": char.canonical_name,
+                                    "canonical_descriptor": canonical_descriptor,
+                                    "canonical_is_creature": canonical_is_creature,
+                                    "canonical_is_human": canonical_is_human,
+                                    "alias": alias,
+                                    "alias_descriptor": alias_descriptor,
+                                    "alias_is_creature": alias_is_creature,
+                                    "alias_is_human": alias_is_human,
+                                },
+                                "timestamp": int(time.time() * 1000),
+                            }
+                        )
                     except Exception:
                         pass
                     # endregion
@@ -1796,33 +1748,21 @@ class CharacterAgent(Agent):
 
                 # region agent log
                 try:
-                    import json
-                    import time as _time
-
-                    with open(
-                        "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                        "a",
-                        encoding="utf-8",
-                    ) as f:
-                        f.write(
-                            json.dumps(
-                                {
-                                    "sessionId": "debug-session",
-                                    "runId": "frankenstein-pre",
-                                    "hypothesisId": "H3",
-                                    "location": "src/agents/characters.py:_split_semantic_conflicts",
-                                    "message": "Created split character stub (note mention_count=0 here)",
-                                    "data": {
-                                        "new_id": new_char.id,
-                                        "canonical": new_char.canonical_name,
-                                        "mentions": new_char.mention_count,
-                                    },
-                                    "timestamp": int(_time.time() * 1000),
-                                },
-                                ensure_ascii=False,
-                            )
-                            + "\n"
-                        )
+                    append_debug_event(
+                        {
+                            "sessionId": "debug-session",
+                            "runId": "frankenstein-pre",
+                            "hypothesisId": "H3",
+                            "location": "src/agents/characters.py:_split_semantic_conflicts",
+                            "message": "Created split character stub (note mention_count=0 here)",
+                            "data": {
+                                "new_id": new_char.id,
+                                "canonical": new_char.canonical_name,
+                                "mentions": new_char.mention_count,
+                            },
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
                 except Exception:
                     pass
                 # endregion

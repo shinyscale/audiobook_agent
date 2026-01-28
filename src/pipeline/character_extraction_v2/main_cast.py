@@ -12,6 +12,7 @@ Key principles:
 """
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 
 from ...llm.client import LLMClient, LLMConfig
 from ...models import Character, ConfidenceLevel
+from ...utils.debug_log import append_debug_event
 
 logger = logging.getLogger(__name__)
 
@@ -546,9 +548,6 @@ class MainCastExtractor:
 
         # region agent log
         try:
-            import json
-            import time
-
             focus = []
             for p in profiles:
                 text = (p.canonical_name + " " + " ".join(p.aliases)).lower()
@@ -566,26 +565,17 @@ class MainCastExtractor:
                     )
                 ):
                     focus.append({"canonical": p.canonical_name, "aliases": p.aliases})
-            with open(
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "a",
-                encoding="utf-8",
-            ) as f:
-                f.write(
-                    json.dumps(
-                        {
-                            "sessionId": "debug-session",
-                            "runId": "frankenstein-pre",
-                            "hypothesisId": "H1",
-                            "location": "src/pipeline/character_extraction_v2/main_cast.py:extract",
-                            "message": "Post-LLM parsed profiles (focused subset)",
-                            "data": {"count": len(profiles), "focus": focus},
-                            "timestamp": int(time.time() * 1000),
-                        },
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "frankenstein-pre",
+                    "hypothesisId": "H1",
+                    "location": "src/pipeline/character_extraction_v2/main_cast.py:extract",
+                    "message": "Post-LLM parsed profiles (focused subset)",
+                    "data": {"count": len(profiles), "focus": focus},
+                    "timestamp": int(time.time() * 1000),
+                }
+            )
         except Exception:
             pass
         # endregion
@@ -817,32 +807,17 @@ class MainCastExtractor:
                     for k in ("creature", "monster", "fiend", "daemon", "wretch", "being")
                 ):
                     try:
-                        import json
-                        import time
-
-                        with open(
-                            "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                            "a",
-                            encoding="utf-8",
-                        ) as f:
-                            f.write(
-                                json.dumps(
-                                    {
-                                        "sessionId": "debug-session",
-                                        "runId": "frankenstein-pre",
-                                        "hypothesisId": "H1",
-                                        "location": "src/pipeline/character_extraction_v2/main_cast.py:verify_aliases",
-                                        "message": "Evaluating alias for focused canonical/alias",
-                                        "data": {
-                                            "canonical": profile.canonical_name,
-                                            "alias": alias,
-                                        },
-                                        "timestamp": int(time.time() * 1000),
-                                    },
-                                    ensure_ascii=False,
-                                )
-                                + "\n"
-                            )
+                        append_debug_event(
+                            {
+                                "sessionId": "debug-session",
+                                "runId": "frankenstein-pre",
+                                "hypothesisId": "H1",
+                                "location": "src/pipeline/character_extraction_v2/main_cast.py:verify_aliases",
+                                "message": "Evaluating alias for focused canonical/alias",
+                                "data": {"canonical": profile.canonical_name, "alias": alias},
+                                "timestamp": int(time.time() * 1000),
+                            }
+                        )
                     except Exception:
                         pass
                 # endregion
@@ -965,35 +940,23 @@ class MainCastExtractor:
                         for k in ("creature", "monster", "fiend", "daemon", "wretch", "being")
                     ):
                         try:
-                            import json
-                            import time
-
-                            with open(
-                                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                                "a",
-                                encoding="utf-8",
-                            ) as f:
-                                f.write(
-                                    json.dumps(
-                                        {
-                                            "sessionId": "debug-session",
-                                            "runId": "frankenstein-pre",
-                                            "hypothesisId": "H1",
-                                            "location": "src/pipeline/character_extraction_v2/main_cast.py:verify_aliases",
-                                            "message": "Co-occurrence check for old man/De Lacey vs creature-term alias",
-                                            "data": {
-                                                "canonical": profile.canonical_name,
-                                                "alias": alias,
-                                                "canonical_found": canonical_found,
-                                                "alias_found": alias_found,
-                                                "cooccur": cooccur,
-                                            },
-                                            "timestamp": int(time.time() * 1000),
-                                        },
-                                        ensure_ascii=False,
-                                    )
-                                    + "\n"
-                                )
+                            append_debug_event(
+                                {
+                                    "sessionId": "debug-session",
+                                    "runId": "frankenstein-pre",
+                                    "hypothesisId": "H1",
+                                    "location": "src/pipeline/character_extraction_v2/main_cast.py:verify_aliases",
+                                    "message": "Co-occurrence check for old man/De Lacey vs creature-term alias",
+                                    "data": {
+                                        "canonical": profile.canonical_name,
+                                        "alias": alias,
+                                        "canonical_found": canonical_found,
+                                        "alias_found": alias_found,
+                                        "cooccur": cooccur,
+                                    },
+                                    "timestamp": int(time.time() * 1000),
+                                }
+                            )
                         except Exception:
                             pass
                     # endregion

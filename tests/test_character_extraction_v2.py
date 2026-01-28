@@ -235,6 +235,68 @@ class TestMentionSearcher:
         # Should find "Gatsby" but not "Gatsbyesque"
         assert result.total_mentions == 1
 
+    def test_search_handles_apostrophe_variants(self):
+        """Should match both ASCII and curly apostrophes."""
+        text = "O'Brien spoke. O’Brien shouted. OBriens should not match."
+        searcher = MentionSearcher(text, [])
+
+        char = Character(
+            id="test",
+            canonical_name="O'Brien",
+            aliases=[],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+        assert result.total_mentions == 2
+
+    def test_search_handles_hyphen_variants(self):
+        """Should match hyphen/en-dash/em-dash variants."""
+        text = "Jean-Luc arrived. Jean–Luc left. Jean—Luc returned."
+        searcher = MentionSearcher(text, [])
+
+        char = Character(
+            id="test",
+            canonical_name="Jean-Luc",
+            aliases=[],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+        assert result.total_mentions == 3
+
+    def test_search_prefers_longer_overlapping_names(self):
+        """Longer aliases should claim spans before shorter substrings."""
+        text = "Jay Gatsby met Gatsby."
+        searcher = MentionSearcher(text, [])
+
+        char = Character(
+            id="test",
+            canonical_name="Jay Gatsby",
+            aliases=["Gatsby"],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+        assert result.total_mentions == 2
+        assert result.mentions_by_alias["Jay Gatsby"] == 1
+        assert result.mentions_by_alias["Gatsby"] == 1
+
+    def test_search_optional_period_in_titles(self):
+        """Names with 'Mr.' should match 'Mr' without the period (and vice versa)."""
+        text = "Mr Gatsby arrived. Mr. Gatsby left."
+        searcher = MentionSearcher(text, [])
+
+        char = Character(
+            id="test",
+            canonical_name="Mr. Gatsby",
+            aliases=[],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+        assert result.total_mentions == 2
+
     def test_search_case_insensitive(self, sample_chapters):
         """Test case-insensitive matching."""
         text = "GATSBY shouted. gatsby whispered. Gatsby smiled."

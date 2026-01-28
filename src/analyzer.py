@@ -59,6 +59,7 @@ from .pipeline.chapter_summary import (
 from .pipeline.character_extraction import (
     CharacterMap as PipelineCharacterMap,
 )
+from .utils.debug_log import append_debug_event
 from .pipeline.character_extraction.models import (
     Character,
     CharacterType,
@@ -756,45 +757,26 @@ class AudiobookAnalyzer:
 
         # region agent log (chapter-v-bug) - hypothesis A/C
         try:
-            import json as _json
             import re as _re
-            import time as _time
 
-            _centered_V = len(_re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", doc.text))
-            _standalone_V = len(_re.findall(r"(?m)^[ \t]*V[ \t]*$", doc.text))
-            _centered_I = len(_re.findall(r"(?m)^[ \t]{10,}I[ \t]*$", doc.text))
-            _standalone_I = len(_re.findall(r"(?m)^[ \t]*I[ \t]*$", doc.text))
-            _payload = (
-                _json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-v-bug-pre",
-                        "hypothesisId": "C",
-                        "location": "src/analyzer.py:analyze:post_ingest",
-                        "message": "Doc text marker presence right after ingestion",
-                        "data": {
-                            "source_format": getattr(doc, "source_format", None),
-                            "text_len": len(doc.text),
-                            "centered_V_lines": _centered_V,
-                            "standalone_V_lines": _standalone_V,
-                            "centered_I_lines": _centered_I,
-                            "standalone_I_lines": _standalone_I,
-                        },
-                        "timestamp": int(_time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-v-bug-pre",
+                    "hypothesisId": "C",
+                    "location": "src/analyzer.py:analyze:post_ingest",
+                    "message": "Doc text marker presence right after ingestion",
+                    "data": {
+                        "source_format": getattr(doc, "source_format", None),
+                        "text_len": len(doc.text),
+                        "centered_V_lines": len(_re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", doc.text)),
+                        "standalone_V_lines": len(_re.findall(r"(?m)^[ \t]*V[ \t]*$", doc.text)),
+                        "centered_I_lines": len(_re.findall(r"(?m)^[ \t]{10,}I[ \t]*$", doc.text)),
+                        "standalone_I_lines": len(_re.findall(r"(?m)^[ \t]*I[ \t]*$", doc.text)),
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion
@@ -858,44 +840,33 @@ class AudiobookAnalyzer:
 
             # region agent log (chapter-v-bug) - hypothesis A/C
             try:
-                import json as _json
                 import re as _re
-                import time as _time
 
-                _centered_V = len(_re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", agent_context.text))
-                _standalone_V = len(_re.findall(r"(?m)^[ \t]*V[ \t]*$", agent_context.text))
-                _centered_I = len(_re.findall(r"(?m)^[ \t]{10,}I[ \t]*$", agent_context.text))
-                _standalone_I = len(_re.findall(r"(?m)^[ \t]*I[ \t]*$", agent_context.text))
-                _payload = (
-                    _json.dumps(
-                        {
-                            "sessionId": "debug-session",
-                            "runId": "chapter-v-bug-pre",
-                            "hypothesisId": "C",
-                            "location": "src/analyzer.py:analyze:pre_structure_agent",
-                            "message": "Text marker presence passed into StructureAgent",
-                            "data": {
-                                "text_len": len(agent_context.text),
-                                "centered_V_lines": _centered_V,
-                                "standalone_V_lines": _standalone_V,
-                                "centered_I_lines": _centered_I,
-                                "standalone_I_lines": _standalone_I,
-                            },
-                            "timestamp": int(_time.time() * 1000),
+                append_debug_event(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": "chapter-v-bug-pre",
+                        "hypothesisId": "C",
+                        "location": "src/analyzer.py:analyze:pre_structure_agent",
+                        "message": "Text marker presence passed into StructureAgent",
+                        "data": {
+                            "text_len": len(agent_context.text),
+                            "centered_V_lines": len(
+                                _re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", agent_context.text)
+                            ),
+                            "standalone_V_lines": len(
+                                _re.findall(r"(?m)^[ \t]*V[ \t]*$", agent_context.text)
+                            ),
+                            "centered_I_lines": len(
+                                _re.findall(r"(?m)^[ \t]{10,}I[ \t]*$", agent_context.text)
+                            ),
+                            "standalone_I_lines": len(
+                                _re.findall(r"(?m)^[ \t]*I[ \t]*$", agent_context.text)
+                            ),
                         },
-                        ensure_ascii=False,
-                    )
-                    + "\n"
+                        "timestamp": int(time.time() * 1000),
+                    }
                 )
-                for _path in (
-                    "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                    "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-                ):
-                    try:
-                        with open(_path, "a", encoding="utf-8") as _f:
-                            _f.write(_payload)
-                    except Exception:
-                        pass
             except Exception:
                 pass
             # endregion

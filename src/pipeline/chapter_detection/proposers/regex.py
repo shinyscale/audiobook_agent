@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..models import ChapterProposal, DocumentProfile
+from ....utils.debug_log import append_debug_event
 from .base import BaseProposer
 
 logger = logging.getLogger(__name__)
@@ -246,41 +247,26 @@ class RegexProposer(BaseProposer):
             _titles_u = [(p.title or "").strip().upper() for p in proposals]
             _has_v = any(t in ("V", "CHAPTER V") or t.endswith(" V") for t in _titles_u)
             _has_i = any(t in ("I", "CHAPTER I") or t.endswith(" I") for t in _titles_u)
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-v-bug-pre",
-                        "hypothesisId": "D",
-                        "location": "src/pipeline/chapter_detection/proposers/regex.py:RegexProposer.propose:summary",
-                        "message": "Regex proposer summary (pattern counts + I/V presence)",
-                        "data": {
-                            "front_matter_end": (
-                                getattr(profile, "front_matter_end", None) if profile else None
-                            ),
-                            "pattern_match_counts": pattern_match_counts,
-                            "skipped_front_matter": skipped_front_matter,
-                            "skipped_duplicate": skipped_duplicate,
-                            "proposal_count_returned": len(proposals),
-                            "has_I": _has_i,
-                            "has_V": _has_v,
-                            "first_20_titles": [p.title for p in proposals[:20]],
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-v-bug-pre",
+                    "hypothesisId": "D",
+                    "location": "src/pipeline/chapter_detection/proposers/regex.py:RegexProposer.propose:summary",
+                    "message": "Regex proposer summary (pattern counts + I/V presence)",
+                    "data": {
+                        "front_matter_end": (getattr(profile, "front_matter_end", None) if profile else None),
+                        "pattern_match_counts": pattern_match_counts,
+                        "skipped_front_matter": skipped_front_matter,
+                        "skipped_duplicate": skipped_duplicate,
+                        "proposal_count_returned": len(proposals),
+                        "has_I": _has_i,
+                        "has_V": _has_v,
+                        "first_20_titles": [p.title for p in proposals[:20]],
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion

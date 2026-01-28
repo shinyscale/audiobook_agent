@@ -77,19 +77,57 @@ class MentionSearcher:
 
     def build_search_pattern(self, name: str) -> re.Pattern:
         """
-        Build a regex pattern for finding a name with word boundaries.
+        Build a regex pattern for finding a name with robust boundaries.
 
         Handles:
-        - Word boundaries to prevent substring matches
-        - Case-insensitive matching for flexibility
-        - Proper handling of names with apostrophes or hyphens
+        - Preventing substring matches (e.g., "Gatsby" should not match "Gatsbyesque")
+        - Case-insensitive matching
+        - Apostrophe variants: "'" and "’"
+        - Hyphen variants: "-" "–" "—"
+        - Flexible whitespace between tokens
+        - Optional trailing period for common abbreviations/titles (e.g., "Mr." vs "Mr")
         """
-        # Escape regex special characters but preserve word boundary behavior
-        escaped = re.escape(name)
+        name = (name or "").strip()
+        if not name:
+            return re.compile(r"(?!x)x")  # never matches
 
-        # Use word boundaries, but handle names that start/end with punctuation
-        # Word boundary \b doesn't work well with apostrophes, so we handle those
-        pattern = rf"\b{escaped}\b"
+        # Tokenize on whitespace; then escape each token with a few robustifications.
+        tokens = name.split()
+        token_patterns: list[str] = []
+
+        for tok in tokens:
+            raw = tok
+
+            # Allow optional trailing "." for short alpha tokens (titles/initials)
+            optional_dot = False
+            if raw.endswith(".") and raw[:-1].isalpha() and len(raw[:-1]) <= 4:
+                optional_dot = True
+                raw = raw[:-1]
+
+            # Normalize punctuation variants via placeholders BEFORE escaping, so we don't
+            # accidentally rewrite the regex we inject.
+            APOS = "__APOS__"
+            DASH = "__DASH__"
+            raw = raw.replace("’", APOS).replace("'", APOS)
+            raw = raw.replace("–", DASH).replace("—", DASH).replace("-", DASH)
+
+            escaped = re.escape(raw)
+
+            # Restore placeholders as regex character classes
+            escaped = escaped.replace(re.escape(APOS), "['’]")
+            escaped = escaped.replace(re.escape(DASH), "[-–—]")
+
+            if optional_dot:
+                escaped = escaped + r"\.?"
+
+            token_patterns.append(escaped)
+
+        # Flexible whitespace between tokens
+        inner = r"\s+".join(token_patterns)
+
+        # Robust "word boundary": do not allow adjacent alphanumerics.
+        # This prevents matching inside longer words while still allowing punctuation.
+        pattern = rf"(?<![A-Za-z0-9]){inner}(?![A-Za-z0-9])"
 
         return re.compile(pattern, re.IGNORECASE)
 
@@ -125,44 +163,48 @@ class MentionSearcher:
                 seen.add(name_lower)
                 unique_names.append(name)
 
-        # Search for each name variant
-        all_positions = set()  # Track positions to avoid counting overlaps
+        # Search for each name variant.
+        # We avoid double-counting overlaps (e.g., "Jay Gatsby" vs "Gatsby") by tracking spans.
+        spans: list[tuple[int, int]] = []
+
+        # Prefer longer names first so they "claim" the span before shorter substrings.
+        unique_names = sorted(unique_names, key=len, reverse=True)
 
         for name in unique_names:
             pattern = self.build_search_pattern(name)
             count = 0
 
             for match in pattern.finditer(self.full_text):
-                pos = match.start()
+                start_pos = match.start()
+                end_pos = match.end()
 
-                # Skip if we already counted a mention at this position
-                # (handles overlapping aliases like "Jay Gatsby" and "Gatsby")
-                if any(abs(pos - p) < len(name) for p in all_positions):
+                # Skip if we already counted an overlapping mention span.
+                if any(not (end_pos <= s or start_pos >= e) for s, e in spans):
                     continue
 
-                all_positions.add(pos)
+                spans.append((start_pos, end_pos))
                 count += 1
 
                 # Get context
-                start = max(0, pos - context_chars)
-                end = min(len(self.full_text), pos + len(name) + context_chars)
-                context = self.full_text[start:end].strip()
+                ctx_start = max(0, start_pos - context_chars)
+                ctx_end = min(len(self.full_text), end_pos + context_chars)
+                context = self.full_text[ctx_start:ctx_end].strip()
 
                 # Create mention object
-                chapter_idx = self._position_to_chapter(pos)
+                chapter_idx = self._position_to_chapter(start_pos)
                 mention = CharacterMention(
                     name_form=match.group(),
-                    position=pos,
+                    position=start_pos,
                     context=context,
                     chapter_index=chapter_idx,
                 )
                 result.mentions.append(mention)
 
                 # Update first/last positions
-                if result.first_position is None or pos < result.first_position:
-                    result.first_position = pos
-                if result.last_position is None or pos > result.last_position:
-                    result.last_position = pos
+                if result.first_position is None or start_pos < result.first_position:
+                    result.first_position = start_pos
+                if result.last_position is None or start_pos > result.last_position:
+                    result.last_position = start_pos
 
                 # Track chapter distribution
                 if chapter_idx is not None:
@@ -173,7 +215,7 @@ class MentionSearcher:
             result.mentions_by_alias[name] = count
 
         # Calculate total (sum of unique mentions, not sum by alias)
-        result.total_mentions = len(all_positions)
+        result.total_mentions = len(spans)
 
         return result
 

@@ -44,7 +44,9 @@ STRICT_MERGE_SYSTEM = """You are a CONSERVATIVE character analyst. Your job is t
 CRITICAL: Only say YES if you are CERTAIN these names refer to the SAME person.
 
 HARD RULES (NEVER violate):
-1. Different surnames = DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane" are NEVER the same)
+1. Different surnames usually mean DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane").
+   EXCEPTION: If there is strong contextual evidence of a name change/variant for the SAME person
+   (e.g., maiden vs married name, explicitly stated alias, or a revealed former identity), you may merge.
 2. Different first names = DIFFERENT people (e.g., "George Wilson" vs "Myrtle Wilson" are family, not same person)
 3. Different titles on same surname = DIFFERENT people (e.g., "Mr. Smith" vs "Mrs. Smith" are spouses)
 4. Characters who NEVER appear together in any chapter are likely DIFFERENT people
@@ -199,7 +201,9 @@ Analyze the evidence objectively and make your determination based on:
 4. Any contradicting evidence
 
 HARD RULES (always apply):
-- Different surnames = DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane")
+- Different surnames usually mean DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane").
+  EXCEPTION: if context strongly indicates a name change/variant for the SAME person
+  (maiden vs married, explicitly stated alias, revealed former identity), then merging is allowed.
 - Different first names with same surname = family members (different people)
 - Different titles on same surname = DIFFERENT people (e.g., "Mr. Smith" vs "Mrs. Smith")
 - Death/confrontation between names = DIFFERENT people

@@ -12,6 +12,7 @@ import time
 from typing import Optional
 
 from ..llm import LLMClient
+from ...utils.debug_log import append_debug_event
 from .models import DocumentProfile, TableOfContents, TOCEntry
 
 logger = logging.getLogger(__name__)
@@ -211,39 +212,26 @@ class DocumentProfiler:
         try:
             _i_match = re.search(r"(?m)^[ \t]{10,}I[ \t]*$", text)
             _i_pos = _i_match.start() if _i_match else None
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-i-null-pre",
-                        "hypothesisId": "I1",
-                        "location": "src/pipeline/chapter_detection/profiler.py:_extract_toc",
-                        "message": "TOC bounds and whether centered 'I' lies inside them",
-                        "data": {
-                            "toc_start": toc_start,
-                            "toc_end": toc_end,
-                            "toc_end_mode": toc_end_mode,
-                            "toc_entry_count": len(entries),
-                            "centered_I_pos": _i_pos,
-                            "centered_I_within_toc_region": (
-                                (_i_pos is not None) and (toc_start <= _i_pos < toc_end)
-                            ),
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-i-null-pre",
+                    "hypothesisId": "I1",
+                    "location": "src/pipeline/chapter_detection/profiler.py:_extract_toc",
+                    "message": "TOC bounds and whether centered 'I' lies inside them",
+                    "data": {
+                        "toc_start": toc_start,
+                        "toc_end": toc_end,
+                        "toc_end_mode": toc_end_mode,
+                        "toc_entry_count": len(entries),
+                        "centered_I_pos": _i_pos,
+                        "centered_I_within_toc_region": (
+                            (_i_pos is not None) and (toc_start <= _i_pos < toc_end)
+                        ),
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion
@@ -524,40 +512,23 @@ class DocumentProfiler:
         try:
             _i_match = re.search(r"(?m)^[ \t]{10,}I[ \t]*$", text)
             _i_pos = _i_match.start() if _i_match else None
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-i-null-pre",
-                        "hypothesisId": "I2",
-                        "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:entry",
-                        "message": "front_matter_end search start + where centered 'I' occurs",
-                        "data": {
-                            "has_toc": toc is not None,
-                            "toc_end_position": (
-                                getattr(toc, "toc_end_position", None) if toc else None
-                            ),
-                            "start_search": start_search,
-                            "centered_I_pos": _i_pos,
-                            "centered_I_before_start_search": (
-                                _i_pos is not None and _i_pos < start_search
-                            ),
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-i-null-pre",
+                    "hypothesisId": "I2",
+                    "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:entry",
+                    "message": "front_matter_end search start + where centered 'I' occurs",
+                    "data": {
+                        "has_toc": toc is not None,
+                        "toc_end_position": (getattr(toc, "toc_end_position", None) if toc else None),
+                        "start_search": start_search,
+                        "centered_I_pos": _i_pos,
+                        "centered_I_before_start_search": (_i_pos is not None and _i_pos < start_search),
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion
@@ -579,35 +550,22 @@ class DocumentProfiler:
 
                 # region agent log (chapter-i-null) - hypothesis I1/I2
                 try:
-                    _payload = (
-                        json.dumps(
-                            {
-                                "sessionId": "debug-session",
-                                "runId": "chapter-i-null-pre",
-                                "hypothesisId": "I2",
-                                "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:match",
-                                "message": "front_matter_end chosen based on first matched content-start pattern",
-                                "data": {
-                                    "pattern": getattr(pattern, "pattern", None),
-                                    "match_start_rel": match.start(),
-                                    "match_abs_start": start_search + match.start(),
-                                    "front_matter_end": front_matter_end_pos,
-                                },
-                                "timestamp": int(time.time() * 1000),
+                    append_debug_event(
+                        {
+                            "sessionId": "debug-session",
+                            "runId": "chapter-i-null-pre",
+                            "hypothesisId": "I2",
+                            "location": "src/pipeline/chapter_detection/profiler.py:_find_front_matter_end:match",
+                            "message": "front_matter_end chosen based on first matched content-start pattern",
+                            "data": {
+                                "pattern": getattr(pattern, "pattern", None),
+                                "match_start_rel": match.start(),
+                                "match_abs_start": start_search + match.start(),
+                                "front_matter_end": front_matter_end_pos,
                             },
-                            ensure_ascii=False,
-                        )
-                        + "\n"
+                            "timestamp": int(time.time() * 1000),
+                        }
                     )
-                    for _path in (
-                        "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                        "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-                    ):
-                        try:
-                            with open(_path, "a", encoding="utf-8") as _f:
-                                _f.write(_payload)
-                        except Exception:
-                            pass
                 except Exception:
                     pass
                 # endregion

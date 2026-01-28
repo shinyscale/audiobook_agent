@@ -13,6 +13,7 @@ from typing import Optional
 
 from ..pipeline.chapter_detection import ChapterDetectionPipeline, ChapterMap
 from ..pipeline.llm import LLMClient
+from ..utils.debug_log import append_debug_event
 from .base import (
     Agent,
     AgentContext,
@@ -142,37 +143,24 @@ class StructureAgent(Agent):
             _has_i = any((t or "").strip().upper() in ("I", "CHAPTER I") for t in _titles)
             _centered_v_lines = len(re.findall(r"(?m)^[ \t]{10,}V[ \t]*$", context.text))
             _standalone_v_lines = len(re.findall(r"(?m)^[ \t]*V[ \t]*$", context.text))
-            _payload = (
-                json.dumps(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "chapter-v-bug-pre",
-                        "hypothesisId": "D",
-                        "location": "src/agents/structure.py:StructureAgent.run:post_pipeline",
-                        "message": "StructureAgent produced chapter titles (presence of I/V)",
-                        "data": {
-                            "chapter_count": len(chapter_map.chapters),
-                            "has_V": _has_v,
-                            "has_I": _has_i,
-                            "titles": _titles[:20],
-                            "text_centered_V_lines": _centered_v_lines,
-                            "text_standalone_V_lines": _standalone_v_lines,
-                        },
-                        "timestamp": int(time.time() * 1000),
+            append_debug_event(
+                {
+                    "sessionId": "debug-session",
+                    "runId": "chapter-v-bug-pre",
+                    "hypothesisId": "D",
+                    "location": "src/agents/structure.py:StructureAgent.run:post_pipeline",
+                    "message": "StructureAgent produced chapter titles (presence of I/V)",
+                    "data": {
+                        "chapter_count": len(chapter_map.chapters),
+                        "has_V": _has_v,
+                        "has_I": _has_i,
+                        "titles": _titles[:20],
+                        "text_centered_V_lines": _centered_v_lines,
+                        "text_standalone_V_lines": _standalone_v_lines,
                     },
-                    ensure_ascii=False,
-                )
-                + "\n"
+                    "timestamp": int(time.time() * 1000),
+                }
             )
-            for _path in (
-                "/home/zacharymandrews/Tools/audiobook_agent/.cursor/debug.log",
-                "/home/zacharymandrews/Tools/audiobook_agent/output/debug_mirror.ndjson",
-            ):
-                try:
-                    with open(_path, "a", encoding="utf-8") as _f:
-                        _f.write(_payload)
-                except Exception:
-                    pass
         except Exception:
             pass
         # endregion
