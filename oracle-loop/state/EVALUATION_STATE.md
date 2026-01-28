@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** a_camping_trip
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.85
 - **Competitive Mode:** single
 
@@ -77,8 +77,14 @@
 |---------|-------|----------------|--------|
 | 1 | No IPA data (0/70 entries) | src/pipeline/pronunciation_guide/enricher.py | Fixed - awaiting analysis |
 
-## Next Action
-Set phase to `awaiting_analysis` and re-run analysis to verify IPA generation now works.
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 8m 29s
+- All stages ran with competitive consensus enabled
+- Competitive stages: characters, structure, summaries (using --competitive-all)
+- WARNING: IPA generation still failing - 0/70 entries have IPA data
+- The dict vs list fix in enricher.py did NOT resolve the root issue
+- Console output shows: "LLM validation failed (got dict), keeping batch candidates"
+- This suggests the enrichment step is still not properly handling LLM responses
 
 ## Configuration Audit
 
