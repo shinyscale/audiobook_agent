@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -173,5 +173,17 @@ The semantic coherence check was added in cask_of_amontillado attempt 2, but it 
 The "masked figure" issue is a design limitation of F6 reconciliation - it doesn't understand narrative reveals. Adding such logic would require LLM interpretation of story context, which is complex and risky.
 
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run analysis to verify the semantic coherence fix prevents false aliases on "the Red Death".
+**Phase:** awaiting_evaluation
+Analysis complete. Pipeline ran in 8m 42s with competitive consensus on all stages.
+
+## Pipeline Notes - Attempt 2
+- Analysis completed successfully (8m 42s)
+- Competitive consensus enabled on all 3 stages (characters, structure, summaries)
+- Using qwen3-next:80b-a3b-instruct-q8_0 for all agents
+- Debug output shows semantic coherence check BLOCKED some merges:
+  - BLOCKED: "the Red Death itself" from "the Red Death"
+  - BLOCKED: "the Red Death" from "the masked figure"
+  - BLOCKED: "a mysterious figure dressed as the Red Death" from "the masked figure"
+- Character extraction still shows issues in summary:
+  - "the Red Death" has 7 mentions with aliases "the ebony clock" and "the narrator"
+  - "the masked figure" remains separate (1 mention)
