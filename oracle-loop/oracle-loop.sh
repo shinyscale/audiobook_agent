@@ -101,6 +101,92 @@ get_known_good_score() {
     jq -r ".known_good_baseline[\"$TEXT\"].score // empty" "$STATE_DIR/checkpoints.json" 2>/dev/null
 }
 
+# Get known-good category scores for a text
+get_known_good_category_scores() {
+    local TEXT="$1"
+    jq -r ".known_good_baseline[\"$TEXT\"].category_scores // {}" "$STATE_DIR/checkpoints.json" 2>/dev/null
+}
+
+# Extract category scores from EVALUATION_STATE.md
+extract_category_scores() {
+    local STATE_FILE="$STATE_DIR/EVALUATION_STATE.md"
+
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "{}"
+        return 1
+    fi
+
+    # Parse scores from format: "- Structure Detection: 8/10"
+    local structure=$(grep -oP 'Structure Detection: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+    local characters=$(grep -oP 'Character Extraction: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+    local profiles=$(grep -oP 'Character Profiles: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+    local summaries=$(grep -oP 'Chapter Summaries: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+    local pronunciation=$(grep -oP 'Pronunciation Guide: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+    local presentation=$(grep -oP 'HTML Presentation: \K[0-9.]+(?=/10)' "$STATE_FILE" 2>/dev/null | head -1)
+
+    # Default to 0 if not found
+    cat << EOF
+{
+  "structure": ${structure:-0},
+  "characters": ${characters:-0},
+  "profiles": ${profiles:-0},
+  "summaries": ${summaries:-0},
+  "pronunciation": ${pronunciation:-0},
+  "presentation": ${presentation:-0}
+}
+EOF
+}
+
+# Check per-category regression against baseline
+# Returns: 0 if no regression, 1 if regression detected
+check_category_regression() {
+    local TEXT="$1"
+    local NEW_SCORES="$2"  # JSON object with category scores
+
+    # Get tolerance from experiments.json if available, else default
+    local TOLERANCE=0.5
+    if [ -f "$STATE_DIR/experiments.json" ]; then
+        local exp_tol=$(jq -r '.category_regression_tolerance // empty' "$STATE_DIR/experiments.json" 2>/dev/null)
+        if [ -n "$exp_tol" ]; then
+            TOLERANCE="$exp_tol"
+        fi
+    fi
+
+    # Get baseline category scores
+    local BASELINE=$(get_known_good_category_scores "$TEXT")
+
+    if [ "$BASELINE" = "{}" ] || [ -z "$BASELINE" ]; then
+        # No baseline, no regression possible
+        return 0
+    fi
+
+    local CATEGORIES=("structure" "characters" "profiles" "summaries" "pronunciation" "presentation")
+    local REGRESSION_FOUND=0
+
+    for category in "${CATEGORIES[@]}"; do
+        local new_score=$(echo "$NEW_SCORES" | jq -r ".$category // 0")
+        local baseline_score=$(echo "$BASELINE" | jq -r ".$category // 0")
+
+        if [ "$baseline_score" = "0" ] || [ "$baseline_score" = "null" ]; then
+            continue
+        fi
+
+        local diff=$(echo "$new_score - $baseline_score" | bc -l 2>/dev/null)
+        local threshold_neg=$(echo "-$TOLERANCE" | bc -l 2>/dev/null)
+
+        if [ "$(echo "$diff < $threshold_neg" | bc -l 2>/dev/null)" = "1" ]; then
+            echo ""
+            echo "  CATEGORY REGRESSION: $category"
+            echo "    New:      $new_score"
+            echo "    Baseline: $baseline_score"
+            echo "    Diff:     $diff (threshold: -$TOLERANCE)"
+            REGRESSION_FOUND=1
+        fi
+    done
+
+    return $REGRESSION_FOUND
+}
+
 # Mark checkpoint as known-good (called when score improves)
 mark_checkpoint_good() {
     local TEXT="$1"
@@ -412,24 +498,49 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
             CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null)
             create_checkpoint "$CURRENT_COMMIT" "$NEW_SCORE" "$CURRENT_TEXT" "$CURRENT_ATTEMPT" || true
 
+            # Extract per-category scores for detailed regression check
+            CATEGORY_SCORES=$(extract_category_scores)
+
             # Check if score improved - if so, update known-good baseline
             if [ "$(echo "$NEW_SCORE > $KNOWN_GOOD_SCORE" | bc -l 2>/dev/null)" = "1" ]; then
                 echo "Score improved! Updating known-good baseline."
                 mark_checkpoint_good "$CURRENT_TEXT" "$CURRENT_COMMIT" "$NEW_SCORE"
-            # Check for regression (score dropped significantly from known-good)
-            elif [ "$KNOWN_GOOD_SCORE" != "0" ]; then
-                DIFF=$(echo "$NEW_SCORE - $KNOWN_GOOD_SCORE" | bc 2>/dev/null || echo "0")
 
-                if [ "$(echo "$DIFF < -0.3" | bc -l 2>/dev/null)" = "1" ]; then
+                # Also save category scores to checkpoint
+                jq --arg text "$CURRENT_TEXT" --argjson cats "$CATEGORY_SCORES" \
+                   '.known_good_baseline[$text].category_scores = $cats' \
+                   "$STATE_DIR/checkpoints.json" > "$STATE_DIR/checkpoints.tmp" && \
+                   mv "$STATE_DIR/checkpoints.tmp" "$STATE_DIR/checkpoints.json"
+                echo "Saved category scores to baseline"
+
+            # Check for regression (per-category OR overall score drop)
+            elif [ "$KNOWN_GOOD_SCORE" != "0" ]; then
+                OVERALL_DIFF=$(echo "$NEW_SCORE - $KNOWN_GOOD_SCORE" | bc 2>/dev/null || echo "0")
+                REGRESSION_DETECTED=false
+
+                # Check per-category regression first
+                if ! check_category_regression "$CURRENT_TEXT" "$CATEGORY_SCORES"; then
                     echo ""
                     echo "========================================"
-                    echo "  REGRESSION DETECTED!"
+                    echo "  PER-CATEGORY REGRESSION DETECTED!"
+                    echo "========================================"
+                    REGRESSION_DETECTED=true
+                fi
+
+                # Also check overall score regression (legacy check, threshold -0.3)
+                if [ "$(echo "$OVERALL_DIFF < -0.3" | bc -l 2>/dev/null)" = "1" ]; then
+                    echo ""
+                    echo "========================================"
+                    echo "  OVERALL REGRESSION DETECTED!"
                     echo "========================================"
                     echo "  New score:       $NEW_SCORE"
                     echo "  Known-good:      $KNOWN_GOOD_SCORE"
-                    echo "  Diff:            $DIFF (threshold: -0.3)"
+                    echo "  Diff:            $OVERALL_DIFF (threshold: -0.3)"
                     echo "========================================"
+                    REGRESSION_DETECTED=true
+                fi
 
+                if [ "$REGRESSION_DETECTED" = "true" ]; then
                     # Revert to known-good state
                     if revert_to_known_good "$CURRENT_TEXT" "$NEW_SCORE"; then
                         # Update phase to awaiting_analysis to re-run with reverted code

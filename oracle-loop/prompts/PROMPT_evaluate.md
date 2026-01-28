@@ -366,7 +366,16 @@ Issues need to be fixed. Focus on the failing categories:
 
 ## 5. Write Evaluation State
 
-Update `state/EVALUATION_STATE.md` with the full evaluation results:
+Update `state/EVALUATION_STATE.md` with the full evaluation results.
+
+**IMPORTANT - Machine-Readable Score Format:**
+The scores MUST be written in exactly this format for automated parsing:
+- `Structure Detection: X/10` (where X is a number like 8, 9, 9.5)
+- `Character Extraction: X/10`
+- etc.
+
+The pattern `{Category}: {score}/10` is parsed by the experiment framework.
+Do NOT use alternative formats like "8 out of 10" or "8.0 / 10".
 
 ```markdown
 # Current Evaluation State

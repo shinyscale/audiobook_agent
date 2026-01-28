@@ -3,31 +3,87 @@
   "known_good_baseline": {
     "cask_of_amontillado": {
       "commit": "613990badcecf4d223253cbbef12c29c17caa5b2",
-      "score": 8.95
+      "score": 8.95,
+      "category_scores": {
+        "structure": 10.0,
+        "characters": 8.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      }
     },
     "masque_of_red_death": {
       "commit": "3607f03a049cc781e0fafbb4b90b0bb03174f099",
-      "score": 9.35
+      "score": 9.35,
+      "category_scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 10.0,
+        "pronunciation": 9.0,
+        "presentation": 10.0
+      }
     },
     "berenice": {
       "commit": "18da6c7bd532ef2a274166bc9d28b2eb4f6f756a",
-      "score": 9.10
+      "score": 9.10,
+      "category_scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      }
     },
     "monkeys_paw": {
       "commit": "4c22f1c5ca56a32efbcd45915396e1242ef750c5",
-      "score": 9.20
+      "score": 9.20,
+      "category_scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 10.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      }
     },
     "gatsby": {
       "commit": "f1e232343a22a3407f28849a05c560b9600f212a",
-      "score": 8.45
+      "score": 8.45,
+      "category_scores": {
+        "structure": 8.0,
+        "characters": 6.0,
+        "profiles": 4.0,
+        "summaries": 9.0,
+        "pronunciation": 8.0,
+        "presentation": 8.0
+      }
     },
     "i_have_no_mouth": {
       "commit": "2328815174a79bba1b64c0b0d91b06797dc67c99",
-      "score": 8.80
+      "score": 8.80,
+      "category_scores": {
+        "structure": 9.0,
+        "characters": 8.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      }
     },
     "frankenstein": {
       "commit": "424cf6fb4e6f62bd9e15e601037ca82d7ac44966",
-      "score": 8.10
+      "score": 8.10,
+      "category_scores": {
+        "structure": 8.0,
+        "characters": 8.0,
+        "profiles": 7.0,
+        "summaries": 8.0,
+        "pronunciation": 8.0,
+        "presentation": 9.0
+      }
     }
   }
 }
