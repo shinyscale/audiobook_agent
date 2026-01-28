@@ -387,10 +387,9 @@ class MainCastExtractor:
         # added during the merge step (e.g., "the ebony clock" merged as alias).
         profiles = self.verify_aliases(profiles, chapter_summaries)
 
-        # Filter out mundane location/setting extractions (not symbolic objects)
-        # Symbolic objects like "the monkey's paw" are marked is_symbolic=True and kept
-        # Mundane locations like "the library", "the house" are filtered out here
-        profiles = self._filter_mundane_locations(profiles)
+        # NOTE: Removed non-sentient entity filter - symbolic objects/forces can be valid "characters"
+        # Examples: "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"
+        # Trust that if something appears frequently and drives plot, it's worth extracting
 
         # Optional: Additional competitive LLM verification when enabled
         # Uses multiple LLMs to vote on each alias for extra confidence
@@ -1288,68 +1287,6 @@ class MainCastExtractor:
                     break
 
             if not is_likely_object:
-                filtered_profiles.append(profile)
-
-        return filtered_profiles
-
-    def _filter_mundane_locations(
-        self,
-        profiles: list[MainCastProfile],
-    ) -> list[MainCastProfile]:
-        """
-        Filter out mundane location/setting extractions while preserving symbolic objects.
-
-        Symbolic objects (e.g., "the monkey's paw", "the Ring") are valid extractions
-        and should be marked with is_symbolic=True. This filter only removes generic
-        locations/settings that have no symbolic significance.
-
-        Args:
-            profiles: List of MainCastProfile objects
-
-        Returns:
-            Filtered profiles with mundane locations removed
-        """
-        # Common location/setting keywords that indicate a mundane place (not a character)
-        # These are different from symbolic objects that drive the plot
-        mundane_location_keywords = {
-            "library", "room", "chamber", "hall", "hallway", "corridor",
-            "house", "mansion", "estate", "cottage", "dwelling",
-            "garden", "yard", "courtyard", "grounds",
-            "kitchen", "bedroom", "parlor", "study", "attic", "cellar", "basement",
-            "street", "road", "lane", "avenue", "alley",
-            "city", "town", "village", "hamlet",
-            "shop", "store", "tavern", "inn", "hotel",
-            "church", "chapel", "cathedral", "temple",
-            "school", "university", "college", "academy",
-            "hospital", "asylum", "prison", "jail",
-            "forest", "wood", "woods", "wilderness",
-            "mountain", "hill", "valley", "cave", "cavern",
-            "river", "lake", "ocean", "sea", "shore", "beach",
-            "island", "peninsula",
-        }
-
-        filtered_profiles = []
-        for profile in profiles:
-            # Skip filtering for symbolic entities - they're intentionally extracted
-            if getattr(profile, "is_symbolic", False):
-                filtered_profiles.append(profile)
-                continue
-
-            # Check if canonical name contains mundane location keywords
-            canonical_lower = profile.canonical_name.lower()
-
-            # Remove articles to get core words
-            canonical_words = canonical_lower.replace("the ", "").replace("a ", "").replace("an ", "").split()
-
-            # Check if any word is a mundane location keyword
-            is_mundane_location = any(word in mundane_location_keywords for word in canonical_words)
-
-            if is_mundane_location:
-                logger.warning(
-                    f"FILTERED mundane location: '{profile.canonical_name}' "
-                    f"(not a character, just a setting)"
-                )
-            else:
                 filtered_profiles.append(profile)
 
         return filtered_profiles
