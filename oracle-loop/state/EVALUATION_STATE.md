@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.625
 
 ## Latest Scores
@@ -66,12 +66,25 @@
 - **Result:** Partial success - 3/4 main characters now have proper profiles, but Lincoln Stewart's profile still broken
 - **Analysis:** The fix improved markdown code block extraction and thinking tag stripping, but didn't handle the case where LLM output has structural JSON issues (missing braces/proper delimiters). Lincoln's profile data is visible in the text but wasn't parsed into structured fields.
 
+### Attempt 2, Fix 1: Enhanced profile text extraction from malformed JSON
+- **Issue addressed:** CRITICAL #1 - Lincoln Stewart profile data embedded as malformed JSON string
+- **Root cause:** `src/analyzer.py:2932` - When JSON parsing completely fails, the fallback `_extract_text_from_malformed_json()` was not detecting embedded structured fields and was returning the entire malformed string
+- **Files modified:**
+  - `src/analyzer.py:2213-2243` - Enhanced `_extract_text_from_malformed_json()` to detect and extract profile text BEFORE embedded structured fields
+  - `src/analyzer.py:2932-2942` - Added regex-based structured field extraction as additional fallback when JSON parsing fails
+- **Smoke test:** PASS - Test validates that malformed JSON with pattern `"profile": "text", "appearance": "summary": "unknown"...` correctly extracts only the profile text without JSON artifacts
+- **Expected impact:**
+  - Lincoln Stewart's profile will now show clean text instead of malformed JSON string
+  - Structured fields (appearance, personality, voice_guidance, relationships) will be extracted even from malformed responses
+  - Profile confidence should improve from "low" to "medium" (still lower than ideal due to parse failure)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | (initial analysis) | N/A | Baseline: 8.625 |
 | 1 | Profile JSON parsing failures | src/analyzer.py | Partial fix (3/4 profiles work, 1 still broken) |
+| 2 | Profile text extraction from malformed JSON | src/analyzer.py | Enhanced fallback extraction for both profile text and structured fields |
 
 ## Output Files
 - HTML: ../output/a_camping_trip/report.html
@@ -90,10 +103,6 @@
 - Consider adding more aggressive JSON recovery for structured extraction
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1 - Lincoln Stewart's profile JSON parsing failure.
+**Phase:** awaiting_analysis
 
-The fix should:
-1. Detect when description text contains embedded JSON-like structure
-2. Attempt to extract individual fields (appearance, personality, voice_guidance, relationships) from malformed JSON
-3. Use regex or fuzzy JSON parsing as fallback when standard parsing fails
-4. NOT store structured data as plain text in description field
+Re-run analysis to verify fix for CRITICAL #1 (Lincoln Stewart's malformed profile).
