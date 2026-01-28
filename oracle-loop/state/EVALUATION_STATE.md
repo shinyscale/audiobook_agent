@@ -90,12 +90,12 @@
 - HTML: ../output/a_camping_trip/report.html
 - JSON: ../output/a_camping_trip/analysis.json
 
-## Pipeline Notes (Attempt 2 - Post-Fix Evaluation)
-- Analysis completed in 10m 51s
-- Character Profiles stage: 3 JSON parse failures (same as before fix)
-- Character confidence: Lincoln (low), Milton (high), Rance (high), Bert (high)
-- Lincoln Stewart's structured profile data exists but embedded in description text as malformed string
-- The fix improved some cases but the core issue for Lincoln's profile persists
+## Pipeline Notes (Attempt 2 - Post-Fix Re-Analysis)
+- Analysis completed in 11m 44s
+- Character Profiles stage: 2 JSON parse failures (Lincoln Stewart, Milton Jennings)
+- Character confidence: Lincoln (low 0.30), Milton (low 0.30), Rance (high), Bert (high)
+- Both Lincoln and Milton now showing low confidence and JSON parse failures
+- Profiling shows "2 low-confidence character profiles" (quality concern)
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama)
@@ -103,6 +103,6 @@
 - Consider adding more aggressive JSON recovery for structured extraction
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis to verify fix for CRITICAL #1 (Lincoln Stewart's malformed profile).
+Analysis re-run complete (attempt 2).
