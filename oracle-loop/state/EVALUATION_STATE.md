@@ -2,9 +2,9 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
-- **baseline_score:** 6.7
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
+- **baseline_score:** 7.4
 
 ---
 
@@ -246,8 +246,34 @@ Checked `_config` and `_profiling` sections:
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
 Re-run analysis to verify fixes:
 1. ✓ Semantic coherence check should prevent nonsense aliases
 2. ✓ Derivation detection should reduce pronunciation false positives by ~50%
+
+## Attempt 2 Pipeline Execution
+
+**Completed:** 2026-01-28 09:12
+
+**Output Files:**
+- HTML: ../output/cask_of_amontillado/report.html
+- JSON: ../output/cask_of_amontillado/analysis.json
+
+**Pipeline Stats:**
+- Duration: 17m 58s
+- LLM Calls: 23 total
+- Tokens: 35,267 total
+- Competitive consensus: ENABLED (all stages)
+
+**Characters Found:** 3 total
+- Fortunato (14 mentions)
+- Luchresi (4 mentions)
+- Montresor (1 mention, narrator)
+
+**Pronunciations Flagged:** 36 words (down from 53 in attempt 1)
+
+**Pipeline Warnings:**
+- "Narrator 'Montresor' identified but NOT found in main_cast" (expected for first-person narrator)
+- "Low confidence profile for Montresor: 0.30" (insufficient passage data)
+- "Failed to parse JSON response for Montresor" (profile generation issue)
