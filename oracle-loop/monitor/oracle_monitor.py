@@ -135,6 +135,27 @@ class OracleState:
     # Live voting data
     recent_votes: list[dict] = field(default_factory=list)
 
+    # Experiment framework
+    experiment_mode: bool = False  # True when experiment-runner.sh is active
+    experiment_running: bool = False  # Is experiment-runner.sh process running
+    active_experiment_id: str = ""
+    active_experiment_desc: str = ""
+    active_experiment_status: str = ""  # pending, in_progress, passed, failed_*
+    experiment_phase: str = ""  # "screening", "validation", "regression"
+    experiment_book_index: int = 0  # Current book index in phase
+    experiment_books_in_phase: int = 0  # Total books in current phase
+    experiment_current_book: str = ""  # Current book being tested
+    screening_threshold: float = 7.0
+    validation_threshold: float = 8.0
+    category_regression_tolerance: float = 0.5
+
+    # Baseline comparison (from checkpoints.json category_scores)
+    baseline_category_scores: dict = field(default_factory=dict)  # {category: score}
+    category_deltas: dict = field(default_factory=dict)  # {category: delta_from_baseline}
+
+    # Experiment results summary
+    experiment_results: dict = field(default_factory=dict)  # {book: {status, overall, ...}}
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -623,6 +644,141 @@ class StateParser:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
+    def check_experiment_running(self) -> bool:
+        """Check if experiment-runner.sh is currently running."""
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'experiment-runner.sh'],
+                capture_output=True,
+                timeout=2
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    def parse_experiments(self) -> dict:
+        """Parse experiments.json for experiment framework state."""
+        possible_paths = [
+            self.base_dir / "state" / "experiments.json",
+            self.base_dir / "experiments.json",
+            self.base_dir.parent / "state" / "experiments.json",
+        ]
+        experiments_file = None
+        for path in possible_paths:
+            if path.exists():
+                experiments_file = path
+                break
+
+        if not experiments_file:
+            return {}
+
+        try:
+            with open(experiments_file) as f:
+                data = json.load(f)
+
+            # Find active experiment (in_progress or the first pending)
+            active_exp = None
+            baseline_exp = None
+            for exp in data.get('experiments', []):
+                status = exp.get('status', '')
+                if status == 'in_progress':
+                    active_exp = exp
+                elif status == 'baseline':
+                    baseline_exp = exp
+                elif status == 'pending' and active_exp is None:
+                    # First pending experiment (might be next to run)
+                    active_exp = exp
+
+            # Get book sets
+            book_sets = data.get('book_sets', {})
+
+            # Determine current phase based on results in active experiment
+            experiment_phase = ""
+            book_index = 0
+            books_in_phase = 0
+            current_book = ""
+
+            if active_exp:
+                results = active_exp.get('results', {})
+                screening_books = book_sets.get('screening', [])
+                validation_books = book_sets.get('validation', [])
+                regression_books = book_sets.get('regression', [])
+
+                # Check which phase we're in based on results
+                screening_complete = all(b in results for b in screening_books)
+                validation_complete = all(b in results for b in validation_books)
+
+                if not screening_complete:
+                    experiment_phase = "screening"
+                    books_in_phase = len(screening_books)
+                    book_index = sum(1 for b in screening_books if b in results)
+                    # Find current book (first without result)
+                    for b in screening_books:
+                        if b not in results:
+                            current_book = b
+                            break
+                elif not validation_complete:
+                    experiment_phase = "validation"
+                    books_in_phase = len(validation_books)
+                    book_index = sum(1 for b in validation_books if b in results)
+                    for b in validation_books:
+                        if b not in results:
+                            current_book = b
+                            break
+                else:
+                    experiment_phase = "regression"
+                    books_in_phase = len(regression_books)
+                    book_index = sum(1 for b in regression_books if b in results)
+                    for b in regression_books:
+                        if b not in results:
+                            current_book = b
+                            break
+
+            return {
+                'experiment_mode': active_exp is not None,
+                'active_experiment': active_exp,
+                'active_experiment_id': active_exp.get('id', '') if active_exp else '',
+                'active_experiment_desc': active_exp.get('description', '') if active_exp else '',
+                'active_experiment_status': active_exp.get('status', '') if active_exp else '',
+                'experiment_results': active_exp.get('results', {}) if active_exp else {},
+                'baseline_experiment': baseline_exp,
+                'book_sets': book_sets,
+                'experiment_phase': experiment_phase,
+                'experiment_book_index': book_index,
+                'experiment_books_in_phase': books_in_phase,
+                'experiment_current_book': current_book,
+                'screening_threshold': data.get('screening_threshold', 7.0),
+                'validation_threshold': data.get('validation_threshold', 8.0),
+                'category_regression_tolerance': data.get('category_regression_tolerance', 0.5),
+            }
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+    def parse_baseline_category_scores(self, text_name: str) -> dict:
+        """Get baseline category scores for a text from checkpoints.json."""
+        possible_paths = [
+            self.base_dir / "state" / "checkpoints.json",
+            self.base_dir / "checkpoints.json",
+            self.base_dir.parent / "state" / "checkpoints.json",
+        ]
+        checkpoints_file = None
+        for path in possible_paths:
+            if path.exists():
+                checkpoints_file = path
+                break
+
+        if not checkpoints_file:
+            return {}
+
+        try:
+            with open(checkpoints_file) as f:
+                data = json.load(f)
+
+            baseline = data.get('known_good_baseline', {}).get(text_name, {})
+            return baseline.get('category_scores', {})
+        except (json.JSONDecodeError, IOError):
+            return {}
+
     def check_analysis_running(self) -> tuple[bool, Optional[int]]:
         """Check if audiobook-prep analysis is currently running.
 
@@ -834,6 +990,44 @@ class StateParser:
         # Check if loop is running
         state.loop_running = self.check_loop_running()
 
+        # Check if experiment-runner is running
+        state.experiment_running = self.check_experiment_running()
+
+        # Parse experiment framework state
+        exp_data = self.parse_experiments()
+        if exp_data:
+            state.experiment_mode = exp_data.get('experiment_mode', False) or state.experiment_running
+            state.active_experiment_id = exp_data.get('active_experiment_id', '')
+            state.active_experiment_desc = exp_data.get('active_experiment_desc', '')
+            state.active_experiment_status = exp_data.get('active_experiment_status', '')
+            state.experiment_phase = exp_data.get('experiment_phase', '')
+            state.experiment_book_index = exp_data.get('experiment_book_index', 0)
+            state.experiment_books_in_phase = exp_data.get('experiment_books_in_phase', 0)
+            state.experiment_current_book = exp_data.get('experiment_current_book', '')
+            state.screening_threshold = exp_data.get('screening_threshold', 7.0)
+            state.validation_threshold = exp_data.get('validation_threshold', 8.0)
+            state.category_regression_tolerance = exp_data.get('category_regression_tolerance', 0.5)
+            state.experiment_results = exp_data.get('experiment_results', {})
+
+        # Get baseline category scores for current text (for delta comparison)
+        if state.text_name:
+            state.baseline_category_scores = self.parse_baseline_category_scores(state.text_name)
+
+            # Calculate deltas from baseline
+            if state.baseline_category_scores:
+                score_map = {
+                    'structure': state.structure_score,
+                    'characters': state.characters_score,
+                    'profiles': state.profiles_score,
+                    'summaries': state.summaries_score,
+                    'pronunciation': state.pronunciation_score,
+                    'presentation': state.presentation_score,
+                }
+                for cat, current in score_map.items():
+                    baseline = state.baseline_category_scores.get(cat)
+                    if current is not None and baseline is not None:
+                        state.category_deltas[cat] = current - baseline
+
         # Check if analysis process is running
         state.analysis_running, state.analysis_pid = self.check_analysis_running()
 
@@ -895,8 +1089,12 @@ class StatusBar(Static):
     def render(self) -> Text:
         text = Text()
 
-        # Loop status indicator (prominent, at start of first line)
-        if self.state.loop_running:
+        # Mode and status indicator (prominent, at start of first line)
+        if self.state.experiment_running or self.state.experiment_mode:
+            text.append("● EXPERIMENT", style="bold magenta")
+            if self.state.active_experiment_id:
+                text.append(f" ({self.state.active_experiment_id})", style="magenta")
+        elif self.state.loop_running:
             text.append("● RUNNING", style="bold green")
         else:
             text.append("● STOPPED", style="bold red")
@@ -1098,31 +1296,32 @@ class ScorePanel(Static):
         text.append("\n\n")
 
         scores = [
-            ("Structure", self.state.structure_score),
-            ("Characters", self.state.characters_score),
-            ("Profiles", self.state.profiles_score),
-            ("Summaries", self.state.summaries_score),
-            ("Pronunciation", self.state.pronunciation_score),
-            ("Presentation", self.state.presentation_score),
+            ("Structure", self.state.structure_score, "structure"),
+            ("Characters", self.state.characters_score, "characters"),
+            ("Profiles", self.state.profiles_score, "profiles"),
+            ("Summaries", self.state.summaries_score, "summaries"),
+            ("Pronunciation", self.state.pronunciation_score, "pronunciation"),
+            ("Presentation", self.state.presentation_score, "presentation"),
         ]
 
-        for name, value in scores:
+        for name, value, key in scores:
             # Pad name to fixed width
-            padded_name = f"{name}:".ljust(16)
+            padded_name = f"{name}:".ljust(14)
             text.append(padded_name, style="white")
 
             if value is None:
                 text.append("  --/10  ", style="dim")
-                text.append("░" * 30, style="dim")
+                text.append("░" * 24, style="dim")
+                text.append("      ", style="dim")  # Space for delta
             else:
                 # Score value
                 score_str = f"{value:4.1f}/10  "
                 passing = value >= threshold
                 text.append(score_str, style="green" if passing else "red")
 
-                # Progress bar
-                filled = int((value / 10.0) * 30)
-                empty = 30 - filled
+                # Progress bar (shorter to make room for delta)
+                filled = int((value / 10.0) * 24)
+                empty = 24 - filled
                 bar_style = "green" if passing else "yellow" if value >= 6 else "red"
                 text.append("█" * filled, style=bar_style)
                 text.append("░" * empty, style="dim")
@@ -1132,6 +1331,23 @@ class ScorePanel(Static):
                     text.append(" ✓", style="green")
                 else:
                     text.append(" ✗", style="red")
+
+                # Delta from baseline (if available)
+                delta = self.state.category_deltas.get(key)
+                if delta is not None:
+                    if delta > 0.05:  # Small threshold to avoid showing 0.0
+                        text.append(f" ↑{delta:.1f}", style="green")
+                    elif delta < -0.05:
+                        # Check if this is a regression
+                        if abs(delta) > self.state.category_regression_tolerance:
+                            text.append(f" ↓{abs(delta):.1f}", style="bold red")
+                            text.append("!", style="bold red")
+                        else:
+                            text.append(f" ↓{abs(delta):.1f}", style="yellow")
+                    else:
+                        text.append("  ═", style="dim cyan")  # No change
+                else:
+                    text.append("     ", style="dim")  # No baseline
 
             text.append("\n")
 
@@ -1318,6 +1534,175 @@ class StderrPanel(Static):
 
     def update_state(self, state: OracleState):
         self.state = state
+        self.refresh()
+
+
+class ExperimentStatusPanel(Static):
+    """Panel showing experiment framework status."""
+
+    def __init__(self, state: OracleState, expanded: bool = False):
+        super().__init__()
+        self.state = state
+        self.expanded = expanded
+
+    def render(self) -> Text:
+        text = Text()
+
+        # Check if experiment mode is active
+        if not self.state.experiment_mode and not self.state.experiment_running:
+            text.append("EXPERIMENT MODE: ", style="bold white")
+            text.append("OFF", style="dim")
+            text.append(" (oracle loop active)\n", style="dim")
+            return text
+
+        # Header
+        text.append("═" * 60, style="bold cyan")
+        text.append("\n")
+
+        # Experiment info
+        text.append("  EXPERIMENT: ", style="bold cyan")
+        text.append(f"{self.state.active_experiment_id}", style="bold yellow")
+
+        # Status badge
+        status = self.state.active_experiment_status
+        if status == "in_progress":
+            text.append("  [", style="dim")
+            text.append("RUNNING", style="bold green")
+            text.append("]", style="dim")
+        elif status == "pending":
+            text.append("  [", style="dim")
+            text.append("PENDING", style="bold yellow")
+            text.append("]", style="dim")
+        elif status == "passed":
+            text.append("  [", style="dim")
+            text.append("PASSED", style="bold green")
+            text.append("]", style="dim")
+        elif status.startswith("failed"):
+            text.append("  [", style="dim")
+            text.append(status.upper(), style="bold red")
+            text.append("]", style="dim")
+
+        text.append("\n")
+
+        # Description
+        if self.state.active_experiment_desc:
+            text.append("  ", style="")
+            text.append(f"{self.state.active_experiment_desc}\n", style="white")
+
+        text.append("═" * 60, style="bold cyan")
+        text.append("\n\n")
+
+        # Phase progress: screening → validation → regression
+        phases = ["screening", "validation", "regression"]
+        current_phase = self.state.experiment_phase
+
+        text.append("  Phase: ", style="bold white")
+
+        for i, phase in enumerate(phases):
+            current_idx = phases.index(current_phase) if current_phase in phases else -1
+
+            if phase == current_phase:
+                text.append(f"● {phase.upper()}", style="bold green")
+            elif i < current_idx:
+                text.append(f"✓ {phase}", style="dim green")
+            else:
+                text.append(f"○ {phase}", style="dim")
+
+            if i < len(phases) - 1:
+                text.append("  →  ", style="dim")
+
+        text.append("\n\n")
+
+        # Book progress within phase
+        if self.state.experiment_phase:
+            text.append(f"  Progress: ", style="cyan")
+            text.append(f"{self.state.experiment_book_index}", style="bold white")
+            text.append(f"/{self.state.experiment_books_in_phase}", style="white")
+            text.append(f" books in {self.state.experiment_phase}\n", style="white")
+
+            # Current book being tested
+            if self.state.experiment_current_book:
+                text.append(f"  Current:  ", style="cyan")
+                text.append(f"{self.state.experiment_current_book}", style="bold yellow")
+                text.append("\n")
+
+            # Progress bar
+            if self.state.experiment_books_in_phase > 0:
+                pct = self.state.experiment_book_index / self.state.experiment_books_in_phase
+                filled = int(pct * 40)
+                empty = 40 - filled
+                text.append("  ")
+                text.append("█" * filled, style="green")
+                text.append("░" * empty, style="dim")
+                text.append(f" {pct * 100:.0f}%\n", style="white")
+
+        # Thresholds
+        text.append("\n")
+        text.append("  Thresholds: ", style="cyan")
+        text.append(f"screening≥{self.state.screening_threshold}", style="yellow")
+        text.append("  ", style="")
+        text.append(f"validation≥{self.state.validation_threshold}", style="yellow")
+        text.append("  ", style="")
+        text.append(f"regression±{self.state.category_regression_tolerance}", style="yellow")
+
+        # Show results (all when expanded, last 4 when collapsed)
+        if self.state.experiment_results:
+            text.append("\n\n")
+            results_list = list(self.state.experiment_results.items())
+
+            if self.expanded:
+                text.append(f"  All Results ({len(results_list)}) [Press 'e' to collapse]:\n", style="bold white")
+                results_to_show = results_list
+            else:
+                text.append(f"  Recent Results [Press 'e' to expand]:\n", style="bold white")
+                results_to_show = results_list[-4:]
+
+            for book, result in results_to_show:
+                status = result.get('status', 'unknown')
+                overall = result.get('overall', 0)
+                category_scores = result.get('category_scores', {})
+
+                text.append(f"    {book}: ", style="white")
+                text.append(f"{overall:.1f}/10 ", style="cyan")
+
+                if 'passed' in status:
+                    text.append("✓", style="green")
+                elif 'failed' in status:
+                    text.append(f"✗ ({status})", style="red")
+                else:
+                    text.append(status, style="yellow")
+
+                # Show category breakdown when expanded
+                if self.expanded and category_scores:
+                    text.append("\n")
+                    text.append("      ", style="")
+                    cats = ['structure', 'characters', 'profiles', 'summaries', 'pronunciation', 'presentation']
+                    for cat in cats:
+                        score = category_scores.get(cat, 0)
+                        abbrev = cat[:3].upper()
+                        if score >= 8.0:
+                            text.append(f"{abbrev}:{score:.0f} ", style="green")
+                        elif score >= 7.0:
+                            text.append(f"{abbrev}:{score:.0f} ", style="yellow")
+                        else:
+                            text.append(f"{abbrev}:{score:.0f} ", style="red")
+
+                text.append("\n")
+
+            if not self.expanded and len(results_list) > 4:
+                text.append(f"    ... and {len(results_list) - 4} more\n", style="dim")
+        else:
+            if self.expanded:
+                text.append("\n  [Press 'e' to collapse]\n", style="dim")
+            else:
+                text.append("\n  [Press 'e' to expand]\n", style="dim")
+
+        return text
+
+    def update_state(self, state: OracleState, expanded: bool = None):
+        self.state = state
+        if expanded is not None:
+            self.expanded = expanded
         self.refresh()
 
 
@@ -1791,6 +2176,18 @@ class OracleMonitorApp(App):
         margin: 0 0 1 0;
     }
 
+    ExperimentStatusPanel {
+        height: auto;
+        max-height: 18;
+        border: solid $accent;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    ExperimentStatusPanel.expanded {
+        max-height: 50;
+    }
+
     OllamaActivityPanel {
         height: auto;
         max-height: 9;
@@ -1877,12 +2274,14 @@ class OracleMonitorApp(App):
         Binding("n", "focus_notes", "Notes", show=True),
         Binding("t", "toggle_thinking", "Thinking", show=True),
         Binding("v", "toggle_votes", "Votes", show=True),
+        Binding("e", "toggle_experiment", "Experiment", show=True),
         Binding("x", "export_thinking", "Export", show=True),
     ]
 
     paused = reactive(False)
     thinking_expanded = reactive(False)
     votes_expanded = reactive(False)
+    experiment_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
         super().__init__()
@@ -1898,6 +2297,7 @@ class OracleMonitorApp(App):
 
         with VerticalScroll():
             yield StatusBar(self.state)
+            yield ExperimentStatusPanel(self.state, expanded=self.experiment_expanded)
             yield ScorePanel(self.state)
             yield OverallProgress(self.state)
             yield CompetitiveConsensusPanel(self.state, expanded=self.votes_expanded)
@@ -1952,6 +2352,7 @@ class OracleMonitorApp(App):
         """Update all widgets with new state."""
         try:
             self.query_one(StatusBar).update_state(self.state)
+            self.query_one(ExperimentStatusPanel).update_state(self.state, expanded=self.experiment_expanded)
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(OverallProgress).update_state(self.state)
             self.query_one(CompetitiveConsensusPanel).update_state(self.state, expanded=self.votes_expanded)
@@ -2023,6 +2424,25 @@ class OracleMonitorApp(App):
 
             # Update the panel with new expanded state
             votes_panel.update_state(self.state, expanded=self.votes_expanded)
+        except Exception:
+            pass
+
+    def action_toggle_experiment(self):
+        """Toggle experiment panel expanded/collapsed."""
+        self.experiment_expanded = not self.experiment_expanded
+
+        # Update CSS class
+        try:
+            experiment_panel = self.query_one(ExperimentStatusPanel)
+            if self.experiment_expanded:
+                experiment_panel.add_class("expanded")
+                self.notify("Experiment panel expanded", title="View Mode")
+            else:
+                experiment_panel.remove_class("expanded")
+                self.notify("Experiment panel collapsed", title="View Mode")
+
+            # Update the panel with new expanded state
+            experiment_panel.update_state(self.state, expanded=self.experiment_expanded)
         except Exception:
             pass
 
