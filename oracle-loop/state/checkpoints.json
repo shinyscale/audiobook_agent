@@ -98,14 +98,26 @@
       }
     },
     "a_camping_trip": {
-      "commit": "a402ec6ab7eb0ee87aebadf5df351f2cc6a9ca1b",
-      "score": 9.05,
+      "commit": "c08359c5dca2f824899b3244faab7d332f5e3275",
+      "score": 9.20,
       "category_scores": {
         "structure": 10,
         "characters": 9,
         "profiles": 8,
         "summaries": 10,
-        "pronunciation": 7,
+        "pronunciation": 8.5,
+        "presentation": 9
+      }
+    },
+    "american_sir": {
+      "commit": "8c0b691f70ea952c57264633a06f873bb0a8f8d2",
+      "score": 7.95,
+      "category_scores": {
+        "structure": 9,
+        "characters": 7,
+        "profiles": 6,
+        "summaries": 10,
+        "pronunciation": 9,
         "presentation": 9
       }
     }

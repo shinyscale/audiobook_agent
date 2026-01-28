@@ -2608,15 +2608,19 @@ class CharacterAgent(Agent):
                 if not other_name:
                     continue
 
-                # Check if names are very similar (spelling variants)
-                if names_similar(char_name, other_name):  # 85% similar
+                # Calculate similarity for spelling variant detection
+                # Use direct string similarity (NOT names_similar which has subset matching)
+                # This prevents false merges like "John" + "John Donaldson" (father/son with same first name)
+                # while still catching spelling variants like "Wolfsheim"/"Wolfshiem" (89% similar)
+                # Note: Pass 1 handles legitimate last-name-only merges ("Wilson" → "George Wilson")
+                similarity = string_similarity(char_name, other_name)
+
+                # Check if names are very similar (spelling variants only, threshold 85%)
+                if similarity >= 0.85:
                     # SAFETY CHECK: Don't merge if both have different title prefixes
                     # (e.g., "Mr. White" vs "Mrs. White" are different people)
                     if self._are_different_titled_people(char_name, other_name):
                         continue  # Skip - they're different people
-
-                    # Calculate similarity for logging
-                    similarity = string_similarity(char_name, other_name)
 
                     # Merge the one with FEWER mentions into the one with MORE mentions
                     if char.mention_count >= other_char.mention_count:

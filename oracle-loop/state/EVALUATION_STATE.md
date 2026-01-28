@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -156,9 +156,26 @@ The summary is excellent:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Critical #1: False merge of "John" (nephew) + "John Donaldson" (father) | src/agents/characters.py | Fixed Pass 2 in _merge_within_supporting_cast to use string_similarity (85% threshold) instead of names_similar (which has subset matching). Root cause: names_similar() treated "John" as subset of "John Donaldson" and auto-merged them. Fix prevents father/son same-first-name merges while preserving spelling variant merges. |
+
+## Fix History
+
+### Attempt 1: Fixed false John/John Donaldson merge
+
+**Root cause:** `src/agents/characters.py:_merge_within_supporting_cast():line 2612`
+- Pass 2 used `names_similar()` which includes subset matching
+- `names_similar("John", "John Donaldson")` returned True because {"john"} ⊂ {"john", "donaldson"}
+- This caused father (John Donaldson) and son (John) to be merged as same person
+
+**Smoke test:** PASS
+- "John" vs "John Donaldson" = 44% similarity → kept separate ✓
+- "Wolfsheim" vs "Wolfshiem" = 89% similarity → merged (spelling variant) ✓
+
+**Modified:** src/agents/characters.py lines 2594-2619
+
+**Next:** Awaiting re-analysis to verify fix addresses the issue
 
 ## Next Action
-Run PROMPT_fix.md to address Critical #1 (John/John Donaldson false merge) - this is the highest priority issue as it fundamentally misrepresents the story's core narrative structure.
+**Phase:** awaiting_analysis
 
-**Fix Focus:** The merge/alias logic in V2 character extraction needs to recognize that two characters sharing a name doesn't mean they're the same person - especially when one is described as having died 20 years ago and the other is a living protagonist.
+Re-run analysis to verify the fix prevents false John/John Donaldson merge.
