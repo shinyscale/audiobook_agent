@@ -381,6 +381,12 @@ class MainCastExtractor:
         # when they refer to the same unnamed character. Merge these programmatically.
         profiles = self.merge_descriptive_entities(profiles)
 
+        # CRITICAL: Re-verify aliases after merging
+        # merge_descriptive_entities() can add new aliases (lines 1192-1194) that bypass
+        # the initial verification. Run verify_aliases again to catch any bad aliases
+        # added during the merge step (e.g., "the ebony clock" merged as alias).
+        profiles = self.verify_aliases(profiles, chapter_summaries)
+
         # NOTE: Removed non-sentient entity filter - symbolic objects/forces can be valid "characters"
         # Examples: "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"
         # Trust that if something appears frequently and drives plot, it's worth extracting

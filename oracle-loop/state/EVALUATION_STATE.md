@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -149,44 +149,7 @@
 | 1 | (initial analysis) | - | Character extraction: 5/10, Profiles: 6/10 |
 | 2 | Critical: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | **Partial** - "courtiers" removed, but "ebony clock" persists and "narrator" added |
 | 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py (verify_aliases) | **Partial** - "narrator" BLOCKED successfully, "ebony clock" STILL PRESENT |
-
-## Fix Analysis - Attempt 3 Result
-
-### What the fix did:
-1. Added meta-reference block (RULE 0.4) - blocks "narrator", "reader", "audience"
-2. Added object keyword block (RULE 0.45) - blocks aliases containing object keywords (clock, door, mirror, etc.)
-
-### What actually happened:
-- ✓ "the narrator" BLOCKED successfully (meta-reference rule worked)
-- ✗ "the ebony clock" STILL PRESENT despite containing "clock"
-
-### Hypothesis for failure:
-The object keyword blocking logic IS correct, but it runs in verify_aliases() which executes at line 377. AFTER this, merge_descriptive_entities() runs at line 382 and can add new aliases without verification:
-
-```python
-# Line 377: verify_aliases runs (blocks bad aliases)
-profiles = self.verify_aliases(profiles, chapter_summaries)
-
-# Line 382: merge_descriptive_entities runs AFTER (adds unverified aliases)
-profiles = self.merge_descriptive_entities(profiles)
-```
-
-The merge function at lines 1192-1194:
-```python
-canonical_profile.aliases.append(other.canonical_name)
-canonical_profile.aliases.extend(other.aliases)
-```
-
-**If there was a separate profile for "the ebony clock" (incorrectly detected as a character), it would be merged into "the Red Death" and added as an alias, bypassing all verification.**
-
-### Next fix should:
-1. **Investigate:** Add logging to determine where "the ebony clock" alias originates
-   - Is it in the initial LLM output?
-   - Is it added during merge_descriptive_entities?
-2. **Fix:** Either:
-   - Run verify_aliases AFTER merge_descriptive_entities
-   - Or add object/meta-reference blocking inside merge_descriptive_entities
-   - Or filter aliases inside _filter_non_sentient_entities (which currently filters whole profiles, not aliases)
+| 4 | Critical: False alias "ebony clock" still present | src/pipeline/character_extraction_v2/main_cast.py (lines 379-387) | Applied verify_aliases AFTER merge_descriptive_entities to catch aliases added during merge |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (appropriate for this text size)
@@ -194,9 +157,22 @@ canonical_profile.aliases.extend(other.aliases)
 - Temperature: 0.7 (standard)
 - Profiling shows 0 low confidence items, 0 retries (good)
 
-## Next Action
-**Phase:** awaiting_fix
+## Fix History
 
-Fix priority: Critical #1 (false alias "the ebony clock")
-- The fix needs to trace WHERE "the ebony clock" is being added
-- Then apply blocking logic at that location OR reorder the processing steps
+### Attempt 4 - Fix Details
+
+**Root Cause:** `merge_descriptive_entities()` adds aliases at lines 1192-1194 without verification. It runs AFTER the initial `verify_aliases()` call (line 377 before line 382), so any aliases added during merging bypass the object keyword filter.
+
+**Fix Applied:** Added second `verify_aliases()` call immediately after `merge_descriptive_entities()` (new line 387). This ensures all aliases - including those added during merge - are verified against the object keyword and meta-reference filters.
+
+**Smoke Test:** Verified that the blocking logic correctly identifies "the ebony clock" (contains "clock") as an invalid alias for "the Red Death" (no object keywords).
+
+**Test Suite:** All 236 tests pass (10 skipped).
+
+**Files Modified:**
+- `src/pipeline/character_extraction_v2/main_cast.py` lines 379-387
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis on masque_of_red_death to verify the fix eliminates the false alias.
