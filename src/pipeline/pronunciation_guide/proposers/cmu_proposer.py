@@ -666,6 +666,83 @@ class CMUProposer(BasePronunciationProposer):
 
         return False
 
+    def _is_common_derivation(self, word: str) -> bool:
+        """
+        Check if word is a regular derivation of a known word.
+
+        Returns True if the word is formed by adding common suffixes to a word
+        that IS in the CMU dictionary, making it a predictable pronunciation.
+
+        Examples:
+        - "jingled" → "jingle" + "ed" (if "jingle" is in CMU, "jingled" is common)
+        - "familiarly" → "familiar" + "ly" (if "familiar" is in CMU, "familiarly" is common)
+        - "recoiling" → "recoil" + "ing" (if "recoil" is in CMU, "recoiling" is common)
+        """
+        word_lower = word.lower()
+
+        # Common English suffixes in order of priority (try longer suffixes first)
+        suffixes = [
+            # Adverb suffixes
+            "ingly",  # lovingly, increasingly
+            "edly",   # reportedly, allegedly
+            "ily",    # happily, unsteadily (special: remove -ily, add -y)
+            "ly",     # familiarly, insufferably
+            # Verb suffixes
+            "ing",    # jingling, recoiling
+            "ed",     # jingled, recoiled
+            "s",      # jingles, recoils
+            # Adjective suffixes
+            "iest",   # happiest, funniest
+            "ier",    # happier, funnier
+            "est",    # fastest, tallest
+            "er",     # faster, taller
+            "y",      # filmy, cloudy
+            # Noun suffixes
+            "ness",   # happiness, sadness
+            "ment",   # enjoyment, improvement
+            "tion",   # creation, deletion (but check -ion separately)
+            "ion",    # connection, revision
+        ]
+
+        for suffix in suffixes:
+            if word_lower.endswith(suffix):
+                # Try removing the suffix
+                base = word_lower[:-len(suffix)]
+
+                # Skip if base is too short (likely not a real word)
+                if len(base) < 3:
+                    continue
+
+                # Check if base word is in CMU dictionary
+                if base in self.known_words:
+                    return True
+
+                # Handle consonant doubling (e.g., "running" → "run" + "n" + "ing")
+                if len(base) >= 2 and base[-1] == base[-2]:
+                    base_undoubled = base[:-1]
+                    if base_undoubled in self.known_words:
+                        return True
+
+                # Handle -ily suffix (e.g., "happily" → "happy", "unsteadily" → "unsteady")
+                if suffix == "ily":
+                    base_y = base + "y"
+                    if base_y in self.known_words:
+                        return True
+
+                # Handle y→i transformations (e.g., "happiness" from "happy")
+                if suffix in ("ness", "ed", "er", "est"):
+                    base_y = base + "y"
+                    if base_y in self.known_words:
+                        return True
+
+                # Handle e-dropping (e.g., "filing" → "file" + "ing")
+                if suffix in ("ing", "ed", "er", "est", "y"):
+                    base_e = base + "e"
+                    if base_e in self.known_words:
+                        return True
+
+        return False
+
     def propose(
         self,
         full_text: str,
@@ -708,6 +785,10 @@ class CMUProposer(BasePronunciationProposer):
 
             # Skip if in CMU dictionary
             if word_lower in self.known_words:
+                continue
+
+            # Skip common derivations (e.g., "jingled" if "jingle" is in CMU)
+            if self._is_common_derivation(word_lower):
                 continue
 
             # Skip OCR artifacts (missing spaces between words)
@@ -771,6 +852,8 @@ class CMUProposer(BasePronunciationProposer):
             if word in CONTRACTION_FRAGMENTS:
                 return False
             if word in self.known_words:
+                return False
+            if self._is_common_derivation(word):
                 return False
             if self._is_ocr_artifact(word):
                 return False

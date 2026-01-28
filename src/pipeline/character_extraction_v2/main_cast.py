@@ -697,6 +697,42 @@ class MainCastExtractor:
                     )
                     continue
 
+                # RULE 0.5: Semantic coherence check for symbolic entities
+                # If the canonical name is a symbolic entity (object/force), verify that
+                # aliases refer to THE SAME object/concept, not just any co-occurring nouns
+                if getattr(profile, "is_symbolic", False):
+                    # Extract core nouns from both canonical and alias (strip "the", articles)
+                    def extract_core_noun(text: str) -> str:
+                        """Extract the main noun from a phrase like 'the Amontillado'."""
+                        parts = text.lower().strip().split()
+                        # Remove articles and possessives
+                        articles = {"the", "a", "an", "this", "that", "these", "those"}
+                        core_parts = [p for p in parts if p not in articles]
+                        # Return last word as core noun (e.g., "Amontillado" from "the Amontillado")
+                        return core_parts[-1] if core_parts else text.lower()
+
+                    canonical_noun = extract_core_noun(profile.canonical_name)
+                    alias_noun = extract_core_noun(alias)
+
+                    # Check if the nouns are related (substring match, plural/singular variants)
+                    # "Amontillado" should match "amontillado" but NOT "catacombs" or "trowel"
+                    are_related = (
+                        canonical_noun in alias_noun or
+                        alias_noun in canonical_noun or
+                        canonical_noun[:-1] == alias_noun or  # plural check: "wines" vs "wine"
+                        alias_noun[:-1] == canonical_noun or
+                        canonical_noun[:-2] == alias_noun or  # "es" plural: "boxes" vs "box"
+                        alias_noun[:-2] == canonical_noun
+                    )
+
+                    if not are_related:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' (core noun: '{alias_noun}') is semantically "
+                            f"unrelated to '{profile.canonical_name}' (core noun: '{canonical_noun}'). "
+                            f"Symbolic entities must have aliases referring to the SAME object/concept."
+                        )
+                        continue
+
                 # RULE 1: Hard block - different titled names (Mr. X vs Mr. Y)
                 # If both canonical and alias start with a title (Mr./Mrs./Miss/Ms./Dr.)
                 # AND the surnames are different, they CANNOT be the same person

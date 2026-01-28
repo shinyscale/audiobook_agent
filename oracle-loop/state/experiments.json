@@ -1,8 +1,17 @@
 {
   "book_sets": {
-    "screening": ["cask_of_amontillado", "masque_of_red_death", "berenice", "monkeys_paw"],
-    "validation": ["gatsby", "i_have_no_mouth"],
-    "regression": ["frankenstein", "dracula"]
+    "screening": [
+      "cask_of_amontillado",
+      "masque_of_red_death",
+      "berenice",
+      "monkeys_paw",
+      "gift_of_the_magi",
+      "a_camping_trip",
+      "american_sir",
+      "john_g"
+    ],
+    "validation": ["i_have_no_mouth", "flowers_for_algernon"],
+    "regression": ["gatsby", "frankenstein", "dracula"]
   },
 
   "category_regression_tolerance": 0.5,

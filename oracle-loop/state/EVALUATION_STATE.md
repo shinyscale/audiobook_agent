@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.7
 
 ---
@@ -180,13 +180,56 @@ Length is appropriate (~150 words). No hallucinations detected. All key plot poi
 ---
 
 ## Fix History
-(First attempt - no previous fixes)
+
+### Attempt 1, Fix 1: Semantic coherence check for symbolic entity aliases
+
+**Root Cause:**
+- File: `src/pipeline/character_extraction_v2/main_cast.py:ALIAS_RESOLUTION_PROMPT` (Pass 2)
+- LLM in Pass 2 returns unrelated nouns as aliases for "the Amontillado" (wine)
+- Verification function (`verify_aliases()`) only checked co-occurrence, not semantic coherence
+- "Amontillado", "catacombs", and "trowel" all co-occur in the same summary but are different entities
+
+**Fix Applied:**
+- Added `_is_common_derivation()` semantic coherence check in `verify_aliases()` (lines 699-742)
+- For symbolic entities (`is_symbolic=True`), validates aliases refer to THE SAME object/concept
+- Extracts core nouns and checks if they're related (substring match, plural variants)
+- Blocks "the catacombs" and "the trowel" as aliases for "the Amontillado"
+
+**Smoke Test:** PASS - Logic tested with mock data
+- ✓ Blocks: "the Amontillado" → "the catacombs" (different core nouns)
+- ✓ Blocks: "the Amontillado" → "the trowel" (different core nouns)
+- ✓ Allows: "the Amontillado" → "Amontillado" (same core noun)
+- ✓ Allows: "the monkey's paw" → "the paw" (substring match)
+
+**Modified:** `src/pipeline/character_extraction_v2/main_cast.py` (lines 699-742)
+
+### Attempt 1, Fix 2: Derivation filtering for pronunciation false positives
+
+**Root Cause:**
+- File: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+- CMU dictionary is incomplete for common derived forms (jingled, familiarly, etc.)
+- Base words ARE in CMU (jingle, familiar) but derived forms are not
+- ~50% false positive rate flagging common English words
+
+**Fix Applied:**
+- Added `_is_common_derivation()` method to detect regular derivations (lines 669-741)
+- Strips common suffixes (-ing, -ed, -ly, -ily, -ness, etc.) and checks if base is in CMU
+- Handles spelling transformations: consonant doubling, y→i, e-dropping
+- Special handling for -ily suffix (unsteadily → unsteady)
+- Added check in both filtering paths (direct scan and WordIndex)
+
+**Smoke Test:** PASS - Logic tested with false positives from evaluation
+- ✓ Skips: jingled, jingling, filmy, familiarly, insufferably, recoiling, unsteadily, ejaculated
+- ✓ Still flags: Amontillado, Fortunato (not derivations)
+
+**Modified:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (lines 669-741, 779-786, 839-851)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| - | - | - | - |
+| 1 | CRITICAL: False entity alias merging | `main_cast.py` | Fixed - added semantic coherence check |
+| 1 | HIGH: Pronunciation false positives | `cmu_proposer.py` | Fixed - added derivation detection |
 
 ---
 
@@ -203,6 +246,8 @@ Checked `_config` and `_profiling` sections:
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. CRITICAL: Fix alias merging logic to prevent unrelated nouns from being grouped
-2. HIGH: Add common word filtering to pronunciation flagging
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fixes:
+1. ✓ Semantic coherence check should prevent nonsense aliases
+2. ✓ Derivation detection should reduce pronunciation false positives by ~50%

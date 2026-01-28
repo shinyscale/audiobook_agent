@@ -257,8 +257,12 @@ class MainCastProfile:
 
 | Operation | File | Search Pattern |
 |-----------|------|----------------|
-| Character extraction prompts | `src/pipeline/character_extraction/proposers/*.py` | `system.*prompt` |
-| Alias resolution prompt | `consensus.py` | `_build_alias_prompt_global` (line 844) |
+| V2 main cast prompt (Pass 1) | `src/pipeline/character_extraction_v2/main_cast.py` | `CHARACTER_IDENTIFICATION_PROMPT` |
+| V2 alias resolution prompt (Pass 2) | `src/pipeline/character_extraction_v2/main_cast.py` | `ALIAS_RESOLUTION_PROMPT` |
+| V2 competitive alias vote (if enabled) | `src/pipeline/character_extraction_v2/main_cast.py` | `_competitive_alias_vote` |
+| Competitive merge rubric prompts | `src/pipeline/character_extraction/prompts.py` | `STRICT_MERGE_SYSTEM` / `CONTEXTUAL_MERGE_SYSTEM` / `INCLUSIVE_MERGE_SYSTEM` |
+| Legacy character extraction prompts (V1) | `src/pipeline/character_extraction/proposers/*.py` | `system.*prompt` |
+| Legacy alias resolution prompt (V1) | `consensus.py` | `_build_alias_prompt_global` (line 844) |
 | Epithet resolution prompt | `consensus.py` | Line 63 comment |
 | Summary prompts | `src/pipeline/chapter_summary/summarizer.py` | `system.*prompt` |
 | Pronunciation prompts | `src/pipeline/pronunciation_guide/extractor.py` | `system.*prompt` |
