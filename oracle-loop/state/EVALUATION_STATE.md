@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -227,7 +227,42 @@ Added two **programmatic hard blocks** in verify_aliases() (RULE 0.4 and RULE 0.
 ### Expected Outcome
 Character extraction should improve from 6/10 to 8+/10 by eliminating the two false aliases.
 
-## Next Action
-**Phase:** awaiting_analysis
+## Analysis Results - Attempt 3
 
-Re-run analysis to verify fix effectiveness.
+### Pipeline Performance
+- **Duration:** 8m 33s
+- **Total LLM Calls:** 30
+- **Total Tokens:** 37,499
+- **Competitive consensus:** Enabled on characters, structure, summaries (2/3 supermajority)
+
+### Semantic Coherence Check Observations
+The verify_aliases() check IS running and blocking some invalid aliases:
+- ✓ BLOCKED: "the Red Death itself" (core noun mismatch)
+- ✓ BLOCKED: "the figure" (core noun mismatch)
+- ✓ BLOCKED: "the intruder" (core noun mismatch)
+- ✓ BLOCKED: "an empty shell" (core noun mismatch)
+
+**Critical Issue:**
+- ✗ STILL PRESENT: "the ebony clock" remains as an alias of "the Red Death"
+- ✓ IMPROVEMENT: "the narrator" no longer appears (was in attempt 2)
+
+### Character Detection Results
+- Total: 3 characters
+  - Prince Prospero (6 mentions)
+  - the Red Death (7 mentions, **1 alias: "the ebony clock"**)
+  - The masked figure (1 mention)
+
+### Output Files
+- HTML: ../output/masque_of_red_death/report.html (114,867 bytes)
+- JSON: ../output/masque_of_red_death/analysis.json (53,128 bytes)
+
+### Analysis
+The fix partially worked:
+1. Meta-reference block successfully removed "the narrator" alias
+2. Object keyword block is NOT catching "the ebony clock" despite containing "clock"
+3. Hypothesis: The alias may be added through a code path that bypasses verify_aliases(), or the object keyword check has a bug
+
+## Next Action
+**Phase:** awaiting_evaluation
+
+Detailed evaluation needed to determine why "ebony clock" persists despite object keyword blocking.
