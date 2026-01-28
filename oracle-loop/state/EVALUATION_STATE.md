@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.85
 - **Competitive Mode:** single
 
@@ -64,16 +64,21 @@
 (None)
 
 ## Fix History
-(First attempt - no previous fixes)
+- Attempt 1: Fixed IPA generation - batch enrichment was only handling list responses, not dict responses
+  - Root cause: `src/pipeline/pronunciation_guide/enricher.py` line 163 - only checked `isinstance(result, list)`
+  - LLMs often return bare dict `{"word": "...", "ipa": "..."}` instead of array `[{...}]` for single/small batches
+  - Smoke test: Single-word enrichment confirmed LLM returns dict, not list
+  - Modified: `src/pipeline/pronunciation_guide/enricher.py` - added dict handling + validation
+  - Modified: Improved ENRICHER_BATCH_PROMPT to emphasize array format
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | No IPA data (0/70 entries) | src/pipeline/pronunciation_guide/enricher.py | Fixed - awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address missing IPA generation (High #1). This is the only issue blocking passage.
+Set phase to `awaiting_analysis` and re-run analysis to verify IPA generation now works.
 
 ## Configuration Audit
 

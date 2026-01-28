@@ -42,7 +42,11 @@ WORDS TO PRONOUNCE:
 CONTEXT EXAMPLES:
 {context_examples}
 
-Return a JSON array with one object per word:
+CRITICAL: Your response must be a JSON array containing one object per word.
+- Even if there is only ONE word, wrap it in an array: [object]
+- Do NOT return a bare object
+
+Required format:
 [
   {{
     "word": "the word",
@@ -52,7 +56,7 @@ Return a JSON array with one object per word:
   }}
 ]
 
-Return ONLY valid JSON, no other text."""
+Return ONLY the JSON array, no other text."""
 
 
 ENRICHER_SINGLE_PROMPT = """Generate pronunciation guidance for this word from a novel.
@@ -159,15 +163,27 @@ class PronunciationEnricher:
                 )
             return enrichments
 
-        # Parse results
+        # Parse results - handle both list and single dict
         if isinstance(result, list):
             for item in result:
                 word = item.get("word", "")
+                if word:  # Only add if word is not empty
+                    enrichments[word.lower()] = PronunciationEnrichment(
+                        word=word,
+                        ipa=item.get("ipa"),
+                        phonetic_spelling=item.get("phonetic_spelling"),
+                        notes=item.get("notes"),
+                        confidence=0.8,
+                    )
+        elif isinstance(result, dict) and "word" in result:
+            # LLM returned a single object instead of an array (common with 1 word)
+            word = result.get("word", "")
+            if word:  # Only add if word is not empty
                 enrichments[word.lower()] = PronunciationEnrichment(
                     word=word,
-                    ipa=item.get("ipa"),
-                    phonetic_spelling=item.get("phonetic_spelling"),
-                    notes=item.get("notes"),
+                    ipa=result.get("ipa"),
+                    phonetic_spelling=result.get("phonetic_spelling"),
+                    notes=result.get("notes"),
                     confidence=0.8,
                 )
 

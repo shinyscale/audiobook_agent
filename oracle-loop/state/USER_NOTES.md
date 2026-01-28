@@ -36,3 +36,38 @@ This is being tested on berenice. If it works, the same prompt will help all fut
 1. Check the chapter summaries - do they describe the library as having agency?
 2. Check if the LLM is ignoring the prompt - add diagnostic logging
 3. DO NOT fall back to keyword lists - find the root cause instead
+
+---
+
+## Root Cause Fixes vs Salvage Code
+
+### Salvage Code Is Forbidden
+
+**DO NOT** add increasingly complex recovery heuristics like:
+- Regex-based JSON field extraction
+- Brace-balanced parsing with fallback chains
+- "Salvage what we can" from malformed output
+
+**WHY:** Salvage code chases symptoms. Each new failure pattern requires new salvage logic. The codebase grows brittle and complex.
+
+### What To Do Instead
+
+1. **Ask why the output is malformed** - Is the prompt unclear? Is the model misconfigured?
+
+2. **Fix at the source** - Examples:
+   - LLM returns non-JSON → Enable `json_mode=True` at provider level
+   - LLM misunderstands task → Clarify the prompt
+   - LLM output truncated → Check max_tokens, simplify expected output
+
+3. **Leverage provider capabilities** - Ollama's `format: "json"`, OpenAI's `response_format`
+
+### Recent Example (2026-01-28)
+
+**Bad approach (reverted):**
+- Oracle loop added ~140 lines of regex salvage code for malformed JSON
+- Score dropped from 6.5 to 5.0 - the salvage code made things worse
+
+**Good approach (applied):**
+- Added `json_mode=True` to LLMClient.query() (~14 lines)
+- Ollama now enforces JSON at token-sampling level
+- Provider physically cannot emit tokens that break JSON structure

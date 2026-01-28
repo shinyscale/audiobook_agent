@@ -98,14 +98,14 @@
       }
     },
     "a_camping_trip": {
-      "commit": "b47a446dfc790c5bcfedf33b2e27f2255159ddb1",
-      "score": 8.625,
+      "commit": "80538c50736a59aaae911ae7acd146df83893f5e",
+      "score": 8.85,
       "category_scores": {
-        "structure": 10,
-        "characters": 8,
-        "profiles": 6.5,
-        "summaries": 9.5,
-        "pronunciation": 8.5,
+        "structure": 9,
+        "characters": 9,
+        "profiles": 8,
+        "summaries": 10,
+        "pronunciation": 7,
         "presentation": 9
       }
     }
