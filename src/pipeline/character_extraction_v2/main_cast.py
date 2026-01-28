@@ -697,6 +697,43 @@ class MainCastExtractor:
                     )
                     continue
 
+                # RULE 0.4: Block meta-references that are never character aliases
+                # "narrator" is a storytelling voice/device, not a character reference
+                # "reader" / "audience" are similar meta-references
+                meta_references = {"narrator", "the narrator", "reader", "the reader", "audience", "the audience"}
+                if alias_lower in meta_references:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is a meta-reference (storytelling device), "
+                        f"not a valid character alias for '{profile.canonical_name}'"
+                    )
+                    continue
+
+                # RULE 0.45: Block inanimate objects that are clearly not characters
+                # Physical objects/furniture frequently appear in gothic/horror texts but are not characters
+                # unless they are the primary entity (canonical name). Check if alias contains
+                # object keywords but canonical name does not.
+                object_keywords = {
+                    "clock", "bell", "door", "window", "mirror", "portrait", "painting",
+                    "statue", "coffin", "casket", "sword", "dagger", "knife", "weapon",
+                    "chair", "table", "bed", "chest", "book", "letter", "ring", "crown",
+                    "chandelier", "candle", "torch", "lamp"
+                }
+
+                # Extract core words from alias (after removing articles)
+                alias_words = set(alias_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
+                canonical_words = set(canonical_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
+
+                # If alias contains object keywords but canonical doesn't, likely a false alias
+                alias_has_object = bool(alias_words & object_keywords)
+                canonical_has_object = bool(canonical_words & object_keywords)
+
+                if alias_has_object and not canonical_has_object:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' contains inanimate object keyword (one of: {alias_words & object_keywords}), "
+                        f"not a valid alias for character '{profile.canonical_name}'"
+                    )
+                    continue
+
                 # RULE 0.5: Semantic coherence check for symbolic entities and personified concepts
                 # If the canonical name is a symbolic entity (object/force) OR a personified
                 # concept (abstract noun used as character), verify that aliases refer to
@@ -742,6 +779,11 @@ class MainCastExtractor:
                     canonical_noun = extract_core_noun(profile.canonical_name)
                     alias_noun = extract_core_noun(alias)
 
+                    logger.debug(
+                        f"Semantic coherence check: canonical='{profile.canonical_name}' (core: '{canonical_noun}'), "
+                        f"alias='{alias}' (core: '{alias_noun}')"
+                    )
+
                     # Check if the nouns are related (substring match, plural/singular variants)
                     # "Amontillado" should match "amontillado" but NOT "catacombs" or "trowel"
                     are_related = (
@@ -761,6 +803,11 @@ class MainCastExtractor:
                             f"This {entity_type} must have aliases referring to the SAME object/concept."
                         )
                         continue
+                    else:
+                        logger.debug(
+                            f"ALLOWED alias: '{alias}' is semantically related to '{profile.canonical_name}' "
+                            f"(core nouns: '{alias_noun}' ~ '{canonical_noun}')"
+                        )
 
                 # RULE 1: Hard block - different titled names (Mr. X vs Mr. Y)
                 # If both canonical and alias start with a title (Mr./Mrs./Miss/Ms./Dr.)

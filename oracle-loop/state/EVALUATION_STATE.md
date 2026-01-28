@@ -162,6 +162,7 @@
 |---------|-------|----------------|--------|
 | 1 | (initial analysis) | - | Character extraction: 5/10, Profiles: 6/10 |
 | 2 | Critical: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | **Partial** - "courtiers" removed, but "ebony clock" persists and "narrator" added |
+| 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py | **Pending verification** - Added hard programmatic blocks for meta-references and object keywords |
 
 ## Fix Analysis - Attempt 2 Result
 
@@ -198,10 +199,35 @@ The "the narrator" alias is particularly problematic because:
 - Temperature: 0.7 (standard)
 - Profiling shows 0 low confidence items, 0 retries (good)
 
-## Next Action
-**Phase:** awaiting_fix
+## Fix Applied - Attempt 3
 
-Fix phase should:
-1. Investigate WHY "ebony clock" passed the coherence check (add debug logging if needed)
-2. Block "narrator" from being an alias of any character in most contexts
-3. Consider running verify_aliases at the END of all alias sources, not just after main cast Pass 2
+### Root Cause
+- **Location:** `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()`
+- **Problem:** LLM in Pass 2 proposes invalid aliases ("ebony clock", "narrator"), and the existing semantic coherence check had gaps
+- **Why semantic check failed:** The check only handles substring/plural relationships, not categorical filtering (objects vs characters, meta-references)
+
+### Fix Implemented
+Added two **programmatic hard blocks** in verify_aliases() (RULE 0.4 and RULE 0.45):
+
+1. **Meta-reference block:** Blocks "narrator", "the narrator", "reader", "audience" as aliases
+   - These are storytelling devices, never character references
+   - Universal rule: applies to any text
+
+2. **Object keyword block:** Blocks aliases containing object keywords (clock, door, mirror, etc.) when canonical name doesn't
+   - Prevents physical objects from becoming aliases of characters
+   - Allows symbolic objects IF they're the canonical name (e.g., "the monkey's paw")
+
+### Smoke Test Results
+**PASS** - Tested with "the Red Death" having aliases ["the ebony clock", "the narrator", "Death", "the Red Death itself"]:
+- ✓ "the ebony clock" BLOCKED (object keyword: clock)
+- ✓ "the narrator" BLOCKED (meta-reference)
+- ✓ "Death" ALLOWED (valid alias)
+- ✓ "the Red Death itself" ALLOWED (valid alias)
+
+### Expected Outcome
+Character extraction should improve from 6/10 to 8+/10 by eliminating the two false aliases.
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fix effectiveness.
