@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.52
 - **Competitive Mode:** single
 
@@ -155,8 +155,7 @@
 | 2 | Critical: False aliases on Red Death | src/pipeline/character_extraction_v2/main_cast.py | **Partial** - "courtiers" removed, but "ebony clock" persists and "narrator" added |
 | 3 | Critical: False aliases "ebony clock" and "narrator" | src/pipeline/character_extraction_v2/main_cast.py (verify_aliases) | **Partial** - "narrator" BLOCKED successfully, "ebony clock" STILL PRESENT |
 | 4 | Critical: False alias "ebony clock" still present | src/pipeline/character_extraction_v2/main_cast.py (lines 379-387) | **NO CHANGE** - verify_aliases AFTER merge_descriptive_entities didn't help |
-
-**Pattern Alert:** 3 consecutive attempts modifying main_cast.py:verify_aliases() without resolving "ebony clock". The fix phase MUST look elsewhere - likely in CharacterAgent (src/agents/characters.py) merge functions.
+| 5 | Critical: False alias "ebony clock" - fix location identified | src/agents/characters.py | Added alias validation in CharacterAgent merge operations |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (appropriate for this text size)
@@ -179,13 +178,39 @@
 - Hypothesis: Aliases added during merge bypass initial verification
 - Result: NO CHANGE - "ebony clock" still present
 
+### Attempt 5 - Fix Applied
+
+**Root Cause Identified:**
+The alias "the ebony clock" was being added by CharacterAgent merge operations (`_merge_within_main_cast`, etc.) that directly append aliases WITHOUT verification. These merge functions run AFTER MainCastExtractor.verify_aliases() returns, so blocked aliases can reappear during merging.
+
+**Data Flow:**
+1. MainCastExtractor extracts "the Red Death" with alias "the ebony clock"
+2. verify_aliases() blocks "the ebony clock" → removed
+3. CharacterAgent receives clean profiles
+4. CharacterAgent._merge_within_main_cast() merges characters and adds aliases directly (lines ~1108-1114, ~1132-1138) WITHOUT validation
+5. Invalid alias reappears in final output
+
+**Fix Applied:**
+1. Added `_is_valid_alias()` helper method to CharacterAgent (lines 1159-1211)
+   - Blocks meta-references (narrator, reader, audience)
+   - Blocks inanimate objects (clock, door, mirror, etc.) unless canonical name also contains object keyword
+   - Reuses same logic as MainCastExtractor.verify_aliases()
+
+2. Added `_clean_invalid_aliases()` cleanup method (lines 1213-1234)
+   - Final validation pass before output
+   - Removes any invalid aliases from all characters
+
+3. Applied validation in two places:
+   - Inline validation when adding aliases during merge (lines ~1110-1116, ~1136-1148)
+   - Final cleanup pass before building CharacterMap (Step 5.10, lines ~658-667)
+
+**Smoke Test:**
+Verified blocking logic correctly identifies "the ebony clock" (contains "clock") as invalid alias for "the Red Death" (no object keywords).
+
+**Files Modified:**
+- `src/agents/characters.py` (added helper methods and validation calls)
+
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**Required Investigation:**
-1. The fix phase MUST investigate beyond main_cast.py
-2. Check src/agents/characters.py for merge functions that add aliases AFTER main_cast extraction returns
-3. Look at _merge_within_main_cast, _merge_lastname_aliases, and related functions
-4. Add debug logging to trace WHERE "the ebony clock" is being added
-
-**Fix Priority:** Focus ONLY on the "ebony clock" false alias - this is the blocker for passing Character Extraction.
+Re-run analysis on masque_of_red_death to verify the fix eliminates the false alias.

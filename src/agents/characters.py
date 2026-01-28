@@ -659,6 +659,13 @@ class CharacterAgent(Agent):
             f"V2 Step 5.9 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting"
         )
 
+        # STEP 5.10: Final alias validation
+        # Clean up any invalid aliases that may have been added during merge operations
+        # This ensures aliases like "the ebony clock" (object) don't appear on non-object characters
+        logger.info("V2 Step 5.10: Validating aliases before final output")
+        self._clean_invalid_aliases(main_cast)
+        self._clean_invalid_aliases(supporting_cast)
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
@@ -1106,12 +1113,14 @@ class CharacterAgent(Agent):
 
                     # Add char2's canonical name as an alias of char1
                     if char2.canonical_name not in char1.aliases:
-                        char1.aliases.append(char2.canonical_name)
+                        if self._is_valid_alias(char2.canonical_name, char1.canonical_name):
+                            char1.aliases.append(char2.canonical_name)
 
                     # Add char2's aliases to char1
                     for alias in char2.aliases:
                         if alias not in char1.aliases and alias != char1.canonical_name:
-                            char1.aliases.append(alias)
+                            if self._is_valid_alias(alias, char1.canonical_name):
+                                char1.aliases.append(alias)
 
                     skip_indices.add(j)
 
@@ -1130,12 +1139,14 @@ class CharacterAgent(Agent):
 
                     # Add char1's canonical name as an alias of char2
                     if char1.canonical_name not in char2.aliases:
-                        char2.aliases.append(char1.canonical_name)
+                        if self._is_valid_alias(char1.canonical_name, char2.canonical_name):
+                            char2.aliases.append(char1.canonical_name)
 
                     # Add char1's aliases to char2
                     for alias in char1.aliases:
                         if alias not in char2.aliases and alias != char2.canonical_name:
-                            char2.aliases.append(alias)
+                            if self._is_valid_alias(alias, char2.canonical_name):
+                                char2.aliases.append(alias)
 
                     skip_indices.add(i)
                     break  # Don't process this character further
@@ -1144,6 +1155,84 @@ class CharacterAgent(Agent):
                 merged.append(char1)
 
         return merged
+
+    def _is_valid_alias(self, alias: str, canonical_name: str) -> bool:
+        """
+        Check if an alias is valid for the given canonical name.
+
+        Blocks:
+        - Inanimate objects (clock, door, etc.) unless canonical also has object keyword
+        - Meta-references (narrator, reader, etc.)
+
+        This prevents merge operations from adding invalid aliases that bypass
+        MainCastExtractor.verify_aliases().
+
+        Args:
+            alias: The proposed alias to validate
+            canonical_name: The canonical character name
+
+        Returns:
+            True if alias is valid, False if it should be blocked
+        """
+        alias_lower = alias.lower().strip()
+        canonical_lower = canonical_name.lower().strip()
+
+        # Block meta-references
+        meta_references = {"narrator", "the narrator", "reader", "the reader", "audience", "the audience"}
+        if alias_lower in meta_references:
+            logger.warning(
+                f"BLOCKED alias during merge: '{alias}' is a meta-reference, "
+                f"not valid for '{canonical_name}'"
+            )
+            return False
+
+        # Block inanimate objects (unless canonical also has object keyword)
+        object_keywords = {
+            "clock", "bell", "door", "window", "mirror", "portrait", "painting",
+            "statue", "coffin", "casket", "sword", "dagger", "knife", "weapon",
+            "chair", "table", "bed", "chest", "book", "letter", "ring", "crown",
+            "chandelier", "candle", "torch", "lamp"
+        }
+
+        # Extract core words (after removing articles)
+        alias_words = set(alias_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
+        canonical_words = set(canonical_lower.replace("the ", "").replace("a ", "").replace("an ", "").split())
+
+        alias_has_object = bool(alias_words & object_keywords)
+        canonical_has_object = bool(canonical_words & object_keywords)
+
+        if alias_has_object and not canonical_has_object:
+            logger.warning(
+                f"BLOCKED alias during merge: '{alias}' contains object keyword "
+                f"({alias_words & object_keywords}), not valid for '{canonical_name}'"
+            )
+            return False
+
+        return True
+
+    def _clean_invalid_aliases(self, characters: list[Character]) -> None:
+        """
+        Remove invalid aliases from character list.
+
+        This is a final cleanup pass applied after all merge operations to catch
+        any invalid aliases that slipped through. Modifies characters in-place.
+
+        Args:
+            characters: List of Character objects to clean
+        """
+        for char in characters:
+            original_count = len(char.aliases)
+            # Filter out invalid aliases
+            char.aliases = [
+                alias for alias in char.aliases
+                if self._is_valid_alias(alias, char.canonical_name)
+            ]
+            removed_count = original_count - len(char.aliases)
+            if removed_count > 0:
+                logger.info(
+                    f"Cleaned {removed_count} invalid alias(es) from '{char.canonical_name}': "
+                    f"final aliases = {char.aliases}"
+                )
 
     def _name_contains_other(self, longer_name: str, shorter_name: str) -> bool:
         """
