@@ -137,6 +137,7 @@ class TestMainCastExtractor:
                 "role": "protagonist",
                 "description": "A wealthy man known for his parties",
                 "is_unnamed": False,
+                "is_symbolic": False,
             },
             {
                 "canonical_name": "the creature",
@@ -144,19 +145,33 @@ class TestMainCastExtractor:
                 "role": "antagonist",
                 "description": "Victor's creation",
                 "is_unnamed": True,
+                "is_symbolic": False,
+            },
+            {
+                "canonical_name": "the green light",
+                "aliases": ["green light"],
+                "role": "supporting",
+                "description": "A symbolic object driving Gatsby's longing",
+                "is_unnamed": True,
+                "is_symbolic": True,
             },
         ]
 
         profiles = extractor._parse_profiles(result)
 
-        assert len(profiles) == 2
+        assert len(profiles) == 3
         assert profiles[0].canonical_name == "Jay Gatsby"
         assert "Gatsby" in profiles[0].aliases
         assert profiles[0].role == "protagonist"
         assert not profiles[0].is_unnamed
+        assert not getattr(profiles[0], "is_symbolic", False)
 
         assert profiles[1].canonical_name == "the creature"
         assert profiles[1].is_unnamed
+        assert not getattr(profiles[1], "is_symbolic", False)
+
+        assert profiles[2].canonical_name == "the green light"
+        assert getattr(profiles[2], "is_symbolic", False) is True
 
     def test_parse_profiles_removes_canonical_from_aliases(self, mock_llm):
         """Test that canonical name is not duplicated in aliases."""
@@ -176,6 +191,7 @@ class TestMainCastExtractor:
         assert len(profiles) == 1
         assert "Jay Gatsby" not in profiles[0].aliases
         assert "Gatsby" in profiles[0].aliases
+        assert profiles[0].uncertain_aliases == []
 
     def test_profiles_to_characters(self, mock_llm):
         """Test converting profiles to Character objects."""
@@ -196,6 +212,52 @@ class TestMainCastExtractor:
         assert characters[0].canonical_name == "Jay Gatsby"
         assert characters[0].role == "protagonist"
         assert characters[0].confidence == ConfidenceLevel.MEDIUM
+        assert characters[0].is_symbolic is False
+
+    def test_competitive_alias_vote_prompt_aligned(self, mock_llm):
+        """
+        Ensure the competitive alias vote prompt does NOT contain the old absolute
+        surname rule and that it includes ENTITY_TYPE.
+        """
+        extractor = MainCastExtractor(mock_llm)
+
+        captured = {"prompts": []}
+
+        class Resp:
+            success = True
+
+        competitor = Mock()
+
+        def _query_json(user_prompt, system=None):
+            captured["prompts"].append(user_prompt)
+            return {"is_valid_alias": True, "confidence": 0.9}, Resp()
+
+        competitor.query_json = Mock(side_effect=_query_json)
+        extractor._competitor_clients = [(competitor, "strict")]
+
+        # Character entity
+        votes = extractor._competitive_alias_vote(
+            canonical_name="Daisy Buchanan",
+            alias="Daisy Fay",
+            context="Daisy is referred to by her maiden name in a flashback.",
+            is_symbolic=False,
+        )
+        assert votes == [True]
+        prompt = captured["prompts"][-1]
+        assert "ENTITY_TYPE: character" in prompt
+        assert "Different surnames = DIFFERENT people (NOT valid aliases)" not in prompt
+        assert "Different surnames usually indicate different people" in prompt
+
+        # Symbolic entity
+        votes = extractor._competitive_alias_vote(
+            canonical_name="the green light",
+            alias="green light",
+            context="A recurring symbol.",
+            is_symbolic=True,
+        )
+        assert votes == [True]
+        prompt = captured["prompts"][-1]
+        assert "ENTITY_TYPE: symbolic" in prompt
 
 
 class TestMentionSearcher:

@@ -39,9 +39,9 @@ COMPETITOR_CONFIGS = [
 # STRICT MERGE PROMPTS (for temp=0.5 "precise" competitor)
 # ============================================================================
 
-STRICT_MERGE_SYSTEM = """You are a CONSERVATIVE character analyst. Your job is to prevent false merges.
+STRICT_MERGE_SYSTEM = """You are a CONSERVATIVE analyst. Your job is to prevent false merges.
 
-CRITICAL: Only say YES if you are CERTAIN these names refer to the SAME person.
+CRITICAL: Only say YES if you are CERTAIN these names refer to the SAME entity.
 
 HARD RULES (NEVER violate):
 1. Different surnames usually mean DIFFERENT people (e.g., "Mr. McKee" vs "Mr. Sloane").
@@ -49,7 +49,7 @@ HARD RULES (NEVER violate):
    (e.g., maiden vs married name, explicitly stated alias, or a revealed former identity), you may merge.
 2. Different first names = DIFFERENT people (e.g., "George Wilson" vs "Myrtle Wilson" are family, not same person)
 3. Different titles on same surname = DIFFERENT people (e.g., "Mr. Smith" vs "Mrs. Smith" are spouses)
-4. Characters who NEVER appear together in any chapter are likely DIFFERENT people
+4. For people/characters, lack of chapter co-occurrence is weak evidence (summaries may prefer one form); do not rely on it alone
 5. If one character DIES in relation to another, they are DIFFERENT people
 
 When in doubt, say NO. False negatives (missing an alias) are much better than
@@ -71,11 +71,10 @@ CHAPTERS B: {chapters_b}
 CONTEXT B:
 {contexts_b}
 
-STRICT CRITERIA - ALL must be true:
+STRICT CRITERIA (prioritize safety):
 1. Names must have clear relationship (full name/nickname, title variant, or obvious alias)
-2. Characters must appear in at least one overlapping chapter
-3. Contexts must be consistent (same role, same relationships)
-4. No evidence of them being separate entities (different genders, family relationship, confrontation)
+2. Contexts must be consistent (same role, same relationships)
+3. No evidence of them being separate entities (different genders, family relationship, confrontation)
 
 Return JSON:
 {{
@@ -91,7 +90,7 @@ Return JSON:
 # CONTEXTUAL MERGE PROMPTS (for temp=0.7 "balanced" competitor)
 # ============================================================================
 
-CONTEXTUAL_MERGE_SYSTEM = """You are a literary analyst determining whether two character names refer to the same person.
+CONTEXTUAL_MERGE_SYSTEM = """You are a literary analyst determining whether two names refer to the same entity.
 
 Analyze the evidence carefully, considering:
 1. Do the names have a plausible relationship? (full name/nickname, title variant, etc.)
@@ -142,7 +141,7 @@ Return JSON:
 # INCLUSIVE MERGE PROMPTS (for temp=0.9 "inclusive" competitor)
 # ============================================================================
 
-INCLUSIVE_MERGE_SYSTEM = """You are a literary analyst looking for character aliases that might be missed.
+INCLUSIVE_MERGE_SYSTEM = """You are a literary analyst looking for aliases that might be missed.
 
 Consider whether these names MIGHT refer to the same character. Look for any evidence
 that could connect them:
@@ -192,7 +191,7 @@ Return JSON:
 # NEUTRAL MERGE PROMPTS (for multi-model mode - no bias)
 # ============================================================================
 
-NEUTRAL_MERGE_SYSTEM = """You are a literary analyst determining whether two character names refer to the same person.
+NEUTRAL_MERGE_SYSTEM = """You are a literary analyst determining whether two names refer to the same entity.
 
 Analyze the evidence objectively and make your determination based on:
 1. Name relationship (full name/nickname, title variant, etc.)

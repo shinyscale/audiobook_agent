@@ -36,248 +36,39 @@ class MainCastProfile:
     role: str = "supporting"  # protagonist, antagonist, supporting, minor
     description: str = ""
     is_unnamed: bool = False  # True for descriptive handles like "the creature"
+    # True for plot-central symbolic objects/forces (e.g., "the monkey's paw", "the green light").
+    # These are allowed in main cast by design.
+    is_symbolic: bool = False
+    # Aliases the model is unsure about. These are NOT treated as true aliases unless
+    # later validated (e.g., by deterministic verification or grounding).
+    uncertain_aliases: list[str] = field(default_factory=list)
 
 
-MAIN_CAST_PROMPT = """You are a literary analyst extracting the MAIN CAST of characters from a novel.
+MAIN_CAST_PROMPT = """You are extracting the MAIN CAST from chapter summaries.
 
-TASK: Identify the 10-15 most important characters based on the chapter summaries below.
+Return JSON ONLY.
 
-**CRITICAL - MANDATORY INCLUSIONS:**
-- **ALWAYS include the title character** (character the book is named after) - they are central to the story even if they don't narrate
-- **ALWAYS include the narrator** (if the story is narrated by a character)
-- **ALWAYS include love interests, spouses, and family members of the protagonist** - these are major characters by definition
-- If you're unsure whether someone qualifies, err on the side of INCLUSION - it's better to extract 15 characters than to miss a main character
+Task:
+- Identify 10–15 plot-central entities (people/creatures AND allowed symbolic objects/forces).
+- Always include the narrator (if a character) and the title character/entity if applicable.
+- Do not invent names not supported by the summaries.
+- Provide canonical_name and aliases/variants used in summaries.
 
-IMPORTANT RULES:
-1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
-2. **Trust plot importance over categorization**: If something appears frequently in summaries and drives the plot,
-   it's worth extracting - whether it's a person, object, symbolic presence, or force. The narrator needs to know
-   what's important in the story. Examples:
-   - "the monkey's paw" (title object, antagonistic force)
-   - "the eyes of Doctor T. J. Eckleburg" (symbolic presence in Gatsby)
-   - "the Ring" (driving force in LOTR, though Gollum is also a character)
-3. For each character, provide their canonical name and ALL aliases/variants used in the story
-4. If a character is referenced by multiple full names (e.g., maiden/married names like "Daisy Fay" and "Daisy Buchanan"),
-   these are the SAME character - use one as canonical and list the other as an alias
-5. A full name and a first-name-only reference (e.g., "Elizabeth Bennet" and "Elizabeth") are usually the SAME person
-   - **ALWAYS use the FULL NAME (first + last) as the canonical_name**
-   - Include the first-name-only form as an alias
-   - Even if the first name appears more frequently, the full name should be canonical
-6. **UNNAMED CHARACTERS WITH DESCRIPTIVE HANDLES**: Characters without proper names who are referred to by descriptive terms
-   (e.g., "the creature", "the monster", "the stranger", "the old man")
-   - These ARE valid main cast entries if they appear across multiple chapters
-   - Use the MOST DISTINCTIVE descriptive term as the canonical name
-   - **CRITICAL**: ALL other descriptive terms referring to the same unnamed character MUST be listed as aliases
-   - **CHECK ALL SUMMARIES**: Scan through ALL chapter summaries to find every descriptive term used for the same being
-   - Example: If the text uses "the creature", "the monster", "the fiend", "the daemon" for the same being,
-     create ONE character entry with canonical_name="the creature" and aliases=["the monster", "the fiend", "the daemon"]
-   - DO NOT create separate entries for each descriptive term
-   - **COMMON ERROR**: Creating "the creature" WITHOUT "the monster" as an alias when both terms appear in summaries
-   - **IF YOU KNOW THE PROPER NAME** of an unnamed/descriptive character, include it in parentheses:
-     - GOOD: "the old man (De Lacey)" with aliases ["the blind man", "De Lacey"]
-     - BAD: "the old man" with no indication of their actual name
-   - Look for clues like: "the old man, De Lacey" or "De Lacey, the blind old man" or family surnames
-     (e.g., if "Felix De Lacey" and "Agatha De Lacey" exist, "the old man" might be their father De Lacey)
-7. **FAMILY RELATIONSHIP DESCRIPTORS**: Generic family terms (father, mother, son, daughter) often refer to named characters
-   - If a named character exists (e.g., "Alphonse Frankenstein") AND generic descriptors appear (e.g., "father", "Victor's father"),
-     these refer to the SAME person - list the descriptors as aliases of the named character
-   - Example: "Alphonse Frankenstein" with aliases ["father", "Victor's father", "the narrator's father"]
-   - EXCEPTION: If multiple characters could match the descriptor (e.g., multiple fathers), verify context carefully
-8. DO NOT invent proper names that are not supported by the summaries
-9. Characters who share a last name but have DIFFERENT first names are typically DIFFERENT people
-   (e.g., spouses, siblings, parent/child) - do NOT merge these
-10. Characters with DIFFERENT titles before the same surname (Mr./Mrs./Miss/Dr./M. + Surname) are DIFFERENT people
-   - "Mr. Smith" and "Mrs. Smith" are two separate characters (typically spouses)
-   - **"M. Waldman" and "M. Krempe" are DIFFERENT people** (M. = Monsieur, an honorific like Mr.)
-   - **Characters with abbreviated titles + DIFFERENT surnames are ALWAYS different people** (e.g., "M. Waldman" vs "M. Krempe", "Dr. Smith" vs "Dr. Jones")
-   - Create separate character entries for each
-   - When the summaries show bare surname references (e.g., "Smith did X"), determine from context which character
-     is being referred to and include that bare surname as an alias for that character
-   - If the bare surname is used ambiguously for multiple family members, include it as an alias for ALL applicable characters
-11. Titles and honorifics with a FULL name (e.g., "Mr. John Smith" vs "John Smith") are aliases of the same character
-12. **CRITICAL: Only group names as aliases if they refer to the SAME PERSON in the SAME CONTEXTS**
-    - Characters who appear in DIFFERENT chapters and NEVER interact are likely DIFFERENT people
-    - Different surnames (e.g., "Mr. McKee" vs "Mr. Sloane") are DIFFERENT people unless the summaries explicitly state they are the same person
-    - Verify that proposed aliases actually co-occur in the same scenes/chapters before grouping them
-13. **SPELLING VARIANTS: If a character's name is spelled inconsistently** (e.g., "Wolfshiem" and "Wolfsheim"), these are the SAME person
-    - Use the most common spelling as canonical
-    - List other spellings as aliases
-14. **BIRTH NAMES / FORMER NAMES**: If a character is revealed to have used a different name in the past (e.g., birth name, former identity)
-    - These are the SAME person - use their current/primary name as canonical
-    - List the former name as an alias
-    - Look for phrases like "was born as", "formerly known as", "real name", "originally named", etc.
-15. **UNNAMED FIRST-PERSON NARRATORS**: If the summaries refer to "the narrator" or "unnamed narrator" but DO NOT provide their name:
-    - **YOU MUST STILL CREATE A CHARACTER ENTRY** for the narrator
-    - Use "the narrator" as the canonical name
-    - Include ALL descriptive terms used for the narrator as aliases (e.g., "the protagonist", "our narrator")
-    - Set role="protagonist" if they are the main character
-    - IMPORTANT: The narrator IS a character who appears throughout the story - include them even if their proper name is not in the summaries
-    - The downstream grounding step will find their actual name mentions in the text if they exist
-16. **NAMED FIRST-PERSON NARRATORS**: If the summaries identify a narrator BY NAME (e.g., "the narrator, Egaeus" or "narrated by Victor"):
-    - **CRITICAL**: Extract that character as a main cast entry with role="protagonist"
-    - Include "the narrator" as an alias
-    - Even if their proper name only appears ONCE in the summaries, first-person narrators are the MOST IMPORTANT character
-    - They speak every line of narration - their importance cannot be measured by name mentions alone
-    - Look for patterns like: "the narrator, [Name]", "[Name] recounts", "[Name] reflects", "narrated by [Name]"
-17. **ROLE ASSIGNMENT GUIDELINES**:
-    - **protagonist**: Main character(s) driving the story, narrators, characters the story follows
-    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals, enemies)
-      - IMPORTANT: "antagonist" requires active harmful intent or opposition
-      - Victims of the protagonist's actions are NOT antagonists (use "supporting" instead)
-      - Characters who suffer because of the protagonist are NOT antagonists unless they fight back
-    - **supporting**: Important recurring characters, title characters, love interests, mentors, victims, family members
-      - Use this for characters central to the plot who don't actively oppose the protagonist
-      - **IMPORTANT: Title characters (story named after them) MUST be extracted as main cast** - use "supporting" as their role unless they are the narrator/protagonist
-      - Love interests and romantic partners of the protagonist MUST be extracted and marked as "supporting"
-    - **minor**: Characters with limited appearances or impact
-
-**REMINDER BEFORE YOU BEGIN:**
-- **CRITICAL: MANDATORY INCLUSIONS** - Title characters, narrators, love interests, and spouses MUST be extracted (see CRITICAL section above)
-- **Trust plot importance** - Extract what drives the narrative, including symbolic objects/forces if they're central (Rule 2)
-- Unnamed characters with multiple descriptive terms → ONE entry with ALL terms as aliases (Rule 6)
-- Family descriptors referring to named characters → List descriptors as aliases of the named character (Rule 7)
-- **Characters with title + DIFFERENT surnames → SEPARATE entries** (e.g., "M. Waldman" ≠ "M. Krempe") (Rule 10)
-- Re-read the "Unnamed character (descriptive handle)" example below - this pattern is COMMON in literature
-- **CRITICAL: Named first-person narrators MUST be extracted as protagonist** even if their name appears only once (Rules 15-16)
-- **Victims and title characters are NOT antagonists** - use "supporting" for characters who suffer or are central but don't oppose the protagonist (Rule 17)
+Output JSON array, each item:
+{
+  "canonical_name": string,
+  "aliases": [string],
+  "role": "protagonist"|"antagonist"|"supporting"|"minor",
+  "description": string,
+  "is_unnamed": boolean,
+  "is_symbolic": boolean
+}
 
 CHAPTER SUMMARIES:
 {summaries}
 
 {plot_summary_section}
-
-OUTPUT FORMAT (JSON):
-Return a JSON array of character objects:
-```json
-[
-  {{
-    "canonical_name": "Full Name or Descriptive Handle",
-    "aliases": ["Alias1", "Alias2", "Title + Name"],
-    "role": "protagonist|antagonist|supporting|minor",
-    "description": "Brief description of character's role in the story",
-    "is_unnamed": false
-  }}
-]
-```
-
-EXAMPLES:
-
-Character with maiden/married name variants (SAME person - one entry):
-```json
-{{
-  "canonical_name": "Elizabeth Bennet",
-  "aliases": ["Elizabeth", "Lizzy", "Miss Bennet", "Elizabeth Darcy"],
-  "role": "protagonist",
-  "description": "Spirited young woman who marries Mr. Darcy",
-  "is_unnamed": false
-}}
-```
-
-Character with first-name-only references (SAME person - one entry):
-```json
-{{
-  "canonical_name": "Fitzwilliam Darcy",
-  "aliases": ["Mr. Darcy", "Darcy"],
-  "role": "protagonist",
-  "description": "Wealthy gentleman who falls in love with Elizabeth",
-  "is_unnamed": false
-}}
-```
-
-CORRECT - full name as canonical even when first name is more frequent:
-```json
-{{
-  "canonical_name": "Nick Carraway",
-  "aliases": ["Nick", "Carraway"],
-  "role": "protagonist",
-  "description": "The narrator who moves to West Egg",
-  "is_unnamed": false
-}}
-```
-
-WRONG - do NOT use first-name-only as canonical:
-```json
-{{
-  "canonical_name": "Nick",
-  "aliases": ["Carraway"],
-  "role": "protagonist",
-  "description": "The narrator who moves to West Egg",
-  "is_unnamed": false
-}}
-```
-Note: Even if "Nick" appears 100 times and "Nick Carraway" appears only 5 times,
-use "Nick Carraway" as the canonical_name and "Nick" as an alias.
-
-Spouses with title+surname only (DIFFERENT people - separate entries):
-```json
-{{
-  "canonical_name": "Mr. Smith",
-  "aliases": ["Smith"],
-  "role": "protagonist",
-  "description": "The father of the family",
-  "is_unnamed": false
-}},
-{{
-  "canonical_name": "Mrs. Smith",
-  "aliases": ["Smith"],
-  "role": "supporting",
-  "description": "The mother of the family",
-  "is_unnamed": false
-}}
-```
-
-Note: In this example, both characters have "Smith" as an alias because the bare surname is used for both in the text.
-If the text only uses "Smith" for one character, only that character should have it as an alias.
-
-Unnamed character (descriptive handle):
-```json
-{{
-  "canonical_name": "the creature",
-  "aliases": ["the monster", "the wretch", "the fiend", "the daemon"],
-  "role": "antagonist",
-  "description": "Victor's creation, a being of immense size and terrible aspect",
-  "is_unnamed": true
-}}
-```
-
-Unnamed character WITH known proper name (include parenthetical):
-```json
-{{
-  "canonical_name": "the old man (De Lacey)",
-  "aliases": ["the blind man", "De Lacey", "the cottager", "old De Lacey"],
-  "role": "supporting",
-  "description": "Blind old man living in the cottage, father of Felix and Agatha De Lacey",
-  "is_unnamed": true
-}}
-```
-Note: When a descriptive handle ("the old man") refers to a character whose proper name is known
-(e.g., "De Lacey", revealed through family connections like "Felix De Lacey" and "Agatha De Lacey"),
-include the proper name in parentheses AND as an alias.
-
-Character with family relationship descriptors (SAME person - one entry):
-```json
-{{
-  "canonical_name": "Alphonse Frankenstein",
-  "aliases": ["father", "Victor's father", "the narrator's father"],
-  "role": "supporting",
-  "description": "Victor's caring and devoted father",
-  "is_unnamed": false
-}}
-```
-
-Named first-person narrator (CRITICAL - always extract even with single name mention):
-```json
-{{
-  "canonical_name": "Egaeus",
-  "aliases": ["the narrator"],
-  "role": "protagonist",
-  "description": "The first-person narrator who tells the story of his obsession with Berenice",
-  "is_unnamed": false
-}}
-```
-Note: Even though "Egaeus" appears only once in the summaries ("the narrator, Egaeus"), he is the MOST IMPORTANT character because every word of narration is spoken in his voice.
-
-Extract the main cast now:"""
+"""
 
 
 # Pass 1: Character Identification Prompt
@@ -286,12 +77,11 @@ CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the 
 TASK: Identify the 10-15 most important characters based on the chapter summaries below.
 
 IMPORTANT RULES:
-1. Only extract characters who appear MULTIPLE times across chapters or have significant plot impact
-2. For each character, provide their MOST COMMONLY USED NAME (canonical name)
-3. Characters without proper names who are referred to by descriptive terms (e.g., "the creature", "the monster")
-   are valid entries - use the MOST DISTINCTIVE descriptive term
-5. DO NOT invent proper names that are not supported by the summaries
-6. Focus only on identifying WHO is important - don't worry about aliases yet
+1. Include plot-central people/creatures AND plot-central symbolic objects/forces (e.g., a cursed object, a symbolic presence)
+2. Always include the narrator (if a character) and the title character/entity if applicable
+3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
+4. Do NOT invent names not supported by the summaries
+5. Do NOT list aliases in this pass
 7. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators, characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
@@ -311,7 +101,8 @@ Return a JSON array of character objects with ONLY canonical names:
     "canonical_name": "Full Name or Descriptive Handle",
     "role": "protagonist|antagonist|supporting|minor",
     "description": "Brief description of character's role",
-    "is_unnamed": false
+    "is_unnamed": false,
+    "is_symbolic": false
   }}
 ]
 ```
@@ -329,11 +120,11 @@ Description: {description}
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
-1. Look for all variations of their name (nicknames, titles, shortened forms)
-2. For unnamed characters, find all descriptive terms that refer to the same being
-3. Include family relationship descriptors if they clearly refer to this character
-5. DO NOT include names of other characters - focus only on aliases for {character_name}
-6. Be thorough - scan ALL summaries for every reference to this character
+1. Only include an alias if it refers to the SAME entity as {character_name}
+2. Include nicknames/titles/shortened forms and obvious spelling variants
+3. For unnamed characters or symbolic entities, include all descriptive handles that refer to the same thing
+4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
+5. Do NOT include names of other characters/entities
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -344,6 +135,7 @@ Return a JSON object with all aliases found:
 {{
   "canonical_name": "{character_name}",
   "aliases": ["Alias1", "Alias2", "Title + Name"],
+  "uncertain_aliases": ["MaybeAlias1"],
   "confidence_notes": "Optional notes about any uncertain aliases"
 }}
 ```
@@ -687,6 +479,13 @@ class MainCastExtractor:
                 aliases = alias_result.get("aliases", [])
                 char.aliases = [a.strip() for a in aliases if a.strip()]
 
+                # Optional: keep uncertain aliases separate for later validation
+                uncertain = alias_result.get("uncertain_aliases", []) or []
+                if isinstance(uncertain, list):
+                    char.uncertain_aliases = [
+                        a.strip() for a in uncertain if isinstance(a, str) and a.strip()
+                    ]
+
                 # Remove canonical name from aliases
                 char.aliases = [a for a in char.aliases if a.lower() != char.canonical_name.lower()]
 
@@ -724,6 +523,7 @@ class MainCastExtractor:
                 role=item.get("role", "supporting"),
                 description=item.get("description", ""),
                 is_unnamed=item.get("is_unnamed", False),
+                is_symbolic=item.get("is_symbolic", False),
             )
 
             profiles.append(profile)
@@ -753,9 +553,15 @@ class MainCastExtractor:
             profile = MainCastProfile(
                 canonical_name=canonical,
                 aliases=[a.strip() for a in item.get("aliases", []) if a.strip()],
+                uncertain_aliases=[
+                    a.strip()
+                    for a in (item.get("uncertain_aliases", []) or [])
+                    if isinstance(a, str) and a.strip()
+                ],
                 role=item.get("role", "supporting"),
                 description=item.get("description", ""),
                 is_unnamed=item.get("is_unnamed", False),
+                is_symbolic=item.get("is_symbolic", False),
             )
 
             # Ensure canonical name is not in aliases (avoid duplication)
@@ -824,8 +630,7 @@ class MainCastExtractor:
 
                 # RULE 0: Block nonsensical aliases (pronouns, common words, setting elements)
                 # These are never valid character aliases
-                nonsensical_patterns = {
-                    # Pronouns
+                pronouns = {
                     "he",
                     "she",
                     "it",
@@ -839,6 +644,9 @@ class MainCastExtractor:
                     "i",
                     "we",
                     "us",
+                }
+
+                nonsensical_patterns = {
                     # Common words that might appear in summaries but aren't character names
                     "the",
                     "a",
@@ -866,8 +674,15 @@ class MainCastExtractor:
                     "someone",
                 }
 
+                # Pronouns are never valid aliases (even for symbolic entities)
+                if alias_lower in pronouns:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is a pronoun, not a valid alias for '{profile.canonical_name}'"
+                    )
+                    continue
+
                 # Check if alias is entirely nonsensical
-                if alias_lower in nonsensical_patterns:
+                if alias_lower in nonsensical_patterns and not getattr(profile, "is_symbolic", False):
                     logger.warning(
                         f"BLOCKED alias: '{alias}' is a pronoun/common word, "
                         f"not a valid character alias for '{profile.canonical_name}'"
@@ -1412,6 +1227,7 @@ class MainCastExtractor:
                     profile.canonical_name,
                     alias,
                     all_summaries,
+                    is_symbolic=bool(getattr(profile, "is_symbolic", False)),
                 )
 
                 # Require supermajority to keep the alias
@@ -1456,6 +1272,7 @@ class MainCastExtractor:
         canonical_name: str,
         alias: str,
         context: str,
+        is_symbolic: bool = False,
     ) -> list[bool]:
         """
         Have multiple LLMs vote on whether an alias is valid.
@@ -1465,16 +1282,20 @@ class MainCastExtractor:
         """
         from ..character_extraction.prompts import get_merge_prompts
 
-        prompt_template = """Determine if "{alias}" is a valid alias for the character "{canonical_name}".
+        prompt_template = """Determine if "{alias}" is a valid alias for "{canonical_name}".
+
+ENTITY_TYPE: {entity_type}
 
 CONTEXT FROM THE STORY:
 {context}
 
 RULES:
-- A valid alias is a name that refers to the SAME person (nickname, title variant, maiden/married name)
-- Different surnames = DIFFERENT people (NOT valid aliases)
-- Different titles + same surname = DIFFERENT people (Mr. X vs Mrs. X are spouses)
-- Characters who never appear together are likely DIFFERENT people
+- A valid alias refers to the SAME entity (person/creature OR symbolic object/force) as the canonical name.
+- If ENTITY_TYPE is symbolic: focus on whether the names refer to the same object/force; ignore surname/title rules.
+- If ENTITY_TYPE is character: different titles with the same surname are DIFFERENT people (e.g., Mr. Smith vs Mrs. Smith).
+- Different surnames usually indicate different people; EXCEPTION when context indicates a name change/variant
+  (maiden vs married, revealed former identity, explicitly stated alias).
+- Prefer NO when uncertain.
 
 Return JSON:
 {{
@@ -1491,6 +1312,7 @@ Return JSON:
                 canonical_name=canonical_name,
                 alias=alias,
                 context=context,
+                entity_type=("symbolic" if is_symbolic else "character"),
             )
 
             try:
@@ -1645,6 +1467,7 @@ Return JSON:
                 aliases=profile.aliases,
                 role=profile.role,
                 confidence=ConfidenceLevel.MEDIUM,  # Not yet grounded
+                is_symbolic=profile.is_symbolic,
             )
 
             # Store description in the descriptions list for compatibility

@@ -112,6 +112,9 @@ class Character(BaseModel):
     is_narrator: bool = False
     narrative_role: Optional[str] = None  # e.g., "First-person narrator", "POV character"
 
+    # Plot-central symbolic objects/forces (allowed in main cast when configured by prompts)
+    is_symbolic: bool = False
+
 
 class PronunciationEntry(BaseModel):
     """A word flagged for pronunciation attention."""

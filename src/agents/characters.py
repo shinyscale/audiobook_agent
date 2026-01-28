@@ -132,8 +132,10 @@ class CharacterAgent(Agent):
         characters = [
             c
             for c in characters
-            if not any(
-                non_char_role in (c.role or "").lower() for non_char_role in non_character_roles
+            if (
+                # Keep plot-central symbolic entities explicitly marked as such
+                bool(getattr(c, "is_symbolic", False))
+                or not any(non_char_role in (c.role or "").lower() for non_char_role in non_character_roles)
             )
         ]
         if len(characters) < before_filter:
