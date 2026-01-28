@@ -173,6 +173,6 @@
 - `src/pipeline/character_extraction_v2/main_cast.py` lines 379-387
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
-Re-run analysis on masque_of_red_death to verify the fix eliminates the false alias.
+Analysis complete. Ready for evaluation.
