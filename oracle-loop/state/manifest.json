@@ -47,8 +47,11 @@
     {
       "name": "gift_of_the_magi",
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 1,
+      "last_score": 8.78,
+      "final_score": 8.78,
+      "baseline_score": 8.78
     },
     {
       "name": "a_camping_trip",
