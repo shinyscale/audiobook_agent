@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -120,6 +120,7 @@ The personality describes the FATHER: "impulsive, charming, financially irrespon
 | 9 | 8.50 | +0.55 | Disambiguation context in profile prompt didn't help (3/10) |
 | 10 | 8.55 | +0.60 | John Donaldson profile now correct; "John" still has narrator data (5/10) |
 | 11 | 8.55 | +0.60 | **Narrator filter worked** but "John" now has FATHER's backstory instead (5/10) |
+| 12 | TBD | TBD | Chapter-range prior + larger context + surrounding sentences for temporal |
 
 ## Modification History
 
@@ -136,6 +137,7 @@ The personality describes the FATHER: "impulsive, charming, financially irrespon
 | 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** |
 | 10 | Context-aware evidence disambiguation in gathering | src/analyzer.py | **PARTIAL** |
 | 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | **PARTIAL** - Fixed narrator contamination, but revealed same-name father/son collision |
+| 12 | Chapter-range prior + expanded context for same-name disambiguation | passage_gatherer.py (context 500→2000), name_disambiguator.py (chapter-range signal, surrounding_context), summary_evidence.py (pass surrounding sentences), llm/client.py (temperature override) | **PENDING** |
 
 ## Key Insight for Fix Phase
 
@@ -185,21 +187,38 @@ The story has THREE Johns:
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_evaluation
 
-Fix the same-name collision for "John":
-1. When gathering evidence for "John" (the nephew), filter out backstory passages about the narrator's brother
-2. Key signals:
-   - Temporal: Past tense backstory → likely father; present action → likely nephew
-   - Relationship: "my brother John", "poor John" → father; "the boy", "young John" → nephew
-   - Context: If "John Donaldson" is a known character, bare "John" in past-tense backstory → attribute to John Donaldson
+**Attempt 12 analysis completed** - Pipeline ran with enhanced same-name disambiguation:
 
-**Files to consider:**
-- `src/pipeline/character_profiling/passage_gatherer.py` - evidence gathering logic
-- `src/pipeline/character_profiling/name_disambiguator.py` - disambiguation logic (already exists)
-- Possibly extend NameAmbiguityMap to handle short-form/long-form collision
+1. **Larger passage context (2000 chars)** - `passage_gatherer.py`
+   - Increased from 500 to 2000 chars around each mention
+   - More context helps capture nearby identity cues
+
+2. **Chapter-range prior (0.85 confidence)** - `name_disambiguator.py`
+   - Uses `chapters_present` from IdentifiedCharacter
+   - If only one candidate appears in the current chapter, prefer them
+   - Key for father (early chapters) vs nephew (later chapters)
+
+3. **Surrounding context for temporal markers** - `name_disambiguator.py`, `summary_evidence.py`
+   - Looks at 2 sentences before target for temporal cues
+   - "Years ago... John graduated" → temporal marker spans sentences
+
+4. **Low temperature (0.1) for LLM disambiguation** - `llm/client.py`
+   - Added per-call temperature override
+   - Classification tasks use low temp for deterministic results
+
+**Files modified:**
+- `src/pipeline/character_profiling/passage_gatherer.py` - context_window 500→2000
+- `src/pipeline/character_profiling/name_disambiguator.py` - chapter-range signal, surrounding_context, stats
+- `src/pipeline/character_profiling/summary_evidence.py` - pass surrounding sentences to disambiguator
+- `src/llm/client.py` - temperature override parameter
 
 **Test case:** After fix, "John" (nephew) evidence should include:
 - "young John's note out of the scrap-basket"
 - "all his charm were repeated in his son, but underlaid with a manliness"
 - Evidence about ambulance driving, Croix de Guerre
+
+**Expected improvement:** Chapter-range prior should correctly attribute:
+- Early chapter "John" references → John Donaldson (father appears in ch 1-2 backstory)
+- Later chapter "John" references → John (nephew appears in ch 3+ present-day action)
