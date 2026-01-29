@@ -3,26 +3,18 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Quality Report: output/American Sir_20260129_113915/quality.md
-
-## Pipeline Execution
-- Duration: 15m 33s
-- LLM Calls: 59
-- Tokens: 52,864
-- Characters Found: 4 (John, Uncle Bill, John Donaldson, Joe Barron)
-- Profiles Generated: 3
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
 - Character Extraction: 9/10 ✓
-- Character Profiles: 5/10 ✗ (FAILING - See analysis below)
+- Character Profiles: 5/10 ✗ (FAILING - same-name collision, not narrator contamination)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
@@ -31,115 +23,87 @@
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold - Character Profiles at 5/10)
 
-## Attempt 10 Analysis
+## Attempt 11 Analysis
 
-**FIX PARTIALLY WORKED:** The evidence disambiguation code improved some aspects, but a fundamental character identification confusion remains.
+### What the Narrator Filter FIXED ✓
+The narrator perspective contamination filter worked correctly:
+- "John" entry no longer has `is_narrator: true`
+- Evidence no longer contains narrator self-descriptions ("I am stern, crabbed...")
+- Uncle Bill profile is now separate and correctly describes the narrator
 
-### What Improved
-- The evidence for "John Donaldson" (father) is now CORRECT:
-  - Evidence mentions "mysterious American civilian", "Piave front", "mortally wounded", "confesses he is the boy's father"
-  - Personality: "quiet resilience and emotional honesty under duress"
-  - This correctly describes the FATHER, not the son
+### What's STILL WRONG (Different Root Cause)
 
-### What's Still Wrong
+**The "John" (nephew) profile is populated with the FATHER's backstory, not the nephew's story.**
 
-**"John" character is populated as the NARRATOR (Uncle Bill), not the nephew:**
+The evidence for "John" (supporting_0) includes:
+- "John graduated from Yale with honors and prizes" → FATHER (backstory)
+- "John planned to live in Italy since age seventeen" → FATHER
+- "John went on a mining adventure in the south" → FATHER
+- "John lived a thriftless life in Florida" → FATHER
+- "John died in a fatal accident" → FATHER (fake death 15 years ago)
+- "John had a two-year-old son" → FATHER (the son IS the nephew!)
 
-1. The character entry "John" (supporting_0) has `is_narrator: true`
-2. Evidence statements ALL describe Uncle Bill:
-   - "The narrator is the same person who signed the letter as 'Uncle Bill'"
-   - "The narrator is the brother of John Donaldson's father"
-   - "The narrator repaid John's debts and hushed up a scandal"
-   - "The narrator considers himself morally responsible for the redemption of John Donaldson's father"
-3. Personality describes Uncle Bill: "stern, crabbed, prejudiced, critical, and selfish"
-4. Meanwhile "Uncle Bill" (supporting_1) exists as a SEPARATE entry with `is_narrator: false`
+The personality describes the FATHER: "impulsive, charming, financially irresponsible, dreamer"
 
-**Root Cause:** The profile generation for "John" gathered evidence about the NARRATOR's perspective (first person "I" statements) instead of the nephew named "John." The system conflated:
-- Searching for character "John" in the text
-- Narrator statements that happen to mention "John"
+**This is a DIFFERENT problem from narrator contamination:**
+- The father is called just "John" in the narrator's early backstory (positions 2000-4800)
+- The father is called "John Donaldson" in the nephew's later recounting (positions 11000+)
+- The nephew is also named "John" (after his father)
+- Evidence gathering matches "John" to ANY John in the text, getting the wrong person
 
-**The nephew John (the teenage ambulance driver) has NO profile data about HIM specifically:**
-- His Croix de Guerre
-- His bravery under fire
-- His emotional discovery that John Donaldson is his father
-- His resemblance to his father
+**The NEPHEW's actual characteristics (NOT in the profile):**
+- Teenage ambulance driver in WWI
+- Won the Croix de Guerre for bravery
+- Graduated from school (not Yale - that was his father)
+- Discovers John Donaldson is his long-lost father
+- Described as having "manliness, a force which poor John [father] never had"
 
-### Story Structure Clarification
+### Why Previous Fixes Didn't Solve This
 
-"American Sir" has FOUR distinct characters:
-1. **The Narrator** = Uncle Bill = Bill (elderly man writing to his nephew)
-2. **John** = the nephew/grandson (teenage ambulance driver, WWI hero)
-3. **John Donaldson** = the nephew's father (abandoned family, died in WWI)
-4. **Joe Barron** = fellow ambulance driver (minor character)
+| Attempt | Fix | Why It Didn't Work for This Issue |
+|---------|-----|-----------------------------------|
+| 10 | Context-aware evidence disambiguation | Separated father/son based on name shape ("John" vs "John Donaldson"), but the father is ALSO called just "John" in the backstory |
+| 11 | Narrator perspective filter | Fixed narrator "I did X" contamination, but this is name collision, not narrator perspective |
 
-The narrator (Uncle Bill) is NOT named "John." The nephew IS named "John" (after his father). The system has:
-- Created "John" entry but populated it with narrator data
-- Created "Uncle Bill" entry separately
-- Created "John Donaldson" entry correctly
-- These should be: merge "John" with "Uncle Bill" (both are narrator), OR re-profile "John" as the nephew
+### Root Cause Analysis
 
-### Evidence for Profile Score of 5/10
+**The text has a temporal name shift:**
+- Early story (narrator's backstory): Father = "John" → Evidence gathered for "John" profile
+- Late story (nephew's account): Father = "John Donaldson" → Evidence gathered for "John Donaldson" profile
+- Throughout: Nephew = "John" or "young John" → SHOULD get nephew's profile
 
-**"John" profile (should be nephew):**
-- ❌ Contains narrator (Uncle Bill) evidence, not nephew evidence
-- ❌ Personality describes "stern, crabbed, prejudiced" - this is Uncle Bill
-- ❌ `is_narrator: true` - the nephew is NOT the narrator
-- ✓ Voice guidance has some useful quotes
-
-**"Uncle Bill" profile:**
-- ✓ Evidence correctly identifies "Uncle Bill" references
-- ✓ Personality roughly correct (reserved, reflective)
-- ❌ Should probably be merged with the narrator or be the narrator entry
-
-**"John Donaldson" profile:**
-- ✓ Evidence correctly describes the father
-- ✓ Personality fits (courageous, honest, emotionally vulnerable)
-- ✓ Appearance notes "shabby", "resembles" his son
-- ✓ Good voice guidance with death scene quotes
-
-**"Joe Barron" profile:**
-- ❌ No profile data (personality, appearance, voice_guidance all null)
-- (Minor character, less impactful)
-
-**Scoring rationale:**
-- 2 of 4 characters have accurate profiles (John Donaldson, Uncle Bill partially)
-- 1 character (John/nephew) has completely wrong data (narrator's data)
-- 1 character (Joe Barron) has no data
-- Relationships still empty for all characters
-- Score: 5/10 (fair - descriptions present but significant accuracy issues)
+**The disambiguation needs to:**
+1. Recognize when "John" in early backstory is being discussed as a PAST person (the narrator's brother)
+2. vs "John" in the current action (the nephew doing things NOW)
+3. Use temporal markers: past tense backstory vs present action
+4. Use relationship markers: "my brother John" (father) vs "the boy John" / "young John" (nephew)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **"John" character entry contains narrator data instead of nephew data**
-   - Problem: The character "John" (the teenage nephew) is populated with the NARRATOR's evidence and personality
-   - Evidence: `is_narrator: true` on "John" entry, evidence says "The narrator is the same person who signed the letter as 'Uncle Bill'"
-   - Location: Profile generation in `src/analyzer.py` - evidence gathering for "John" found narrator-perspective statements
-   - Root cause: When searching for evidence about character "John", the system matched first-person narrator statements that mention "John" (as a reference), rather than passages ABOUT John as a character
+1. **"John" profile contains father's backstory instead of nephew's story**
+   - Problem: Evidence for "John" (the nephew) matches any "John" in the text, predominantly getting the father's backstory which uses just "John"
+   - Evidence: All 12 evidence statements describe the father (Yale graduate, thriftless life, fake death, had a son)
+   - Location: `src/pipeline/character_profiling/passage_gatherer.py` or `summary_evidence.py` - name matching logic
+   - Root cause: The father is called "John" in the narrator's backstory (early) and "John Donaldson" in the nephew's recounting (late). The nephew is also "John". Evidence for "John" grabs the father's backstory.
    - Fix approach:
-     - **Option A**: Check if gathered evidence is about the character (third-person) vs narrator talking TO/ABOUT the character (first-person)
-     - **Option B**: Use the existing character descriptions/roles to filter - if a character is NOT marked as narrator, exclude narrator-perspective evidence
-     - **Option C**: Cross-reference with chapter summary which correctly distinguishes "Narrator (Uncle Bill)" from "John Donaldson (the nephew)"
+     - **Option A**: Use temporal context - backstory about "John" (past tense, 15+ years ago) → attribute to John Donaldson
+     - **Option B**: Use the NameAmbiguityMap to recognize "John" is ambiguous when "John Donaldson" exists, then use relationship/context clues
+     - **Option C**: Cross-reference with the chapter summary which correctly says "narrator's brother John" (father) vs "the boy John" (nephew)
+     - **Key insight**: When a character has both short form (John) and long form (John Donaldson), evidence using the short form in backstory context likely refers to the full-name character
 
 ### HIGH
 
 2. **Relationships still empty for all characters**
    - Problem: `relationships: {}` for all 4 characters
-   - Evidence: Clear relationships exist:
-     - John (nephew) is grandson of Uncle Bill
-     - John (nephew) is son of John Donaldson
-     - John Donaldson is brother of Uncle Bill
-     - Joe Barron is fellow ambulance driver with John (nephew)
+   - Evidence: Clear relationships exist (John grandson of Uncle Bill, son of John Donaldson; John Donaldson brother of Uncle Bill)
    - Location: `src/pipeline/character_profiling/` relationship extraction
-   - Fix: May require correctly identifying which John is which before relationships can be derived
+   - Fix: May require correctly attributing "John" evidence first
 
-3. **Physical descriptions empty for all characters**
-   - Problem: `physical_description: null` or `appearance.summary: "unknown"` for all characters
-   - Evidence: Text provides descriptions:
-     - John (nephew): resembles his father, has "charm"
-     - John Donaldson (father): "shabby", "worn appearance", "physical beauty"
-     - Uncle Bill: self-describes as elderly
+3. **Physical descriptions still "unknown" for all characters**
+   - Problem: `appearance.summary: "unknown"` for all characters
+   - Evidence: Text provides: "All John Donaldson's physical beauty, all his charm were repeated in his son, but underlaid with a manliness, a force"
    - Location: Profile generation in `src/analyzer.py`
 
 ## Score History
@@ -152,49 +116,50 @@ The narrator (Uncle Bill) is NOT named "John." The nephew IS named "John" (after
 | 5 | 8.65 | +0.70 | Collision fix helped slightly but semantic confusion remains |
 | 6 | 7.15 | -0.80 | **REGRESSION**: Character extraction broke (4/10) |
 | 7 | 8.45 | +0.50 | Character extraction FIXED (9/10). Profiles still confused (4/10) |
-| 8 | 8.50 | +0.55 | **NO IMPROVEMENT** - Substring filtering didn't fix profile confusion (3/10) |
-| 9 | 8.50 | +0.55 | **NO IMPROVEMENT** - Disambiguation context in profile prompt didn't help (3/10) |
-| 10 | 8.55 | +0.60 | **MINOR IMPROVEMENT** - John Donaldson profile now correct; "John" still has narrator data (5/10) |
+| 8 | 8.50 | +0.55 | Substring filtering didn't fix profile confusion (3/10) |
+| 9 | 8.50 | +0.55 | Disambiguation context in profile prompt didn't help (3/10) |
+| 10 | 8.55 | +0.60 | John Donaldson profile now correct; "John" still has narrator data (5/10) |
+| 11 | 8.55 | +0.60 | **Narrator filter worked** but "John" now has FATHER's backstory instead (5/10) |
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | False merge of John/John Donaldson | src/agents/characters.py | **FIXED** at post-processing layer |
-| 2 | Empty relationships - added character context | src/analyzer.py | **No change** - Relationships still empty |
-| 3 | Empty relationships - simplified prompt | src/analyzer.py | **No change** - Relationships still empty |
-| 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** - summary_evidence still null, profile data confused |
-| 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
-| 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
-| 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** - Two Johns now extracted separately |
-| 8 | Profile mention search substring filtering | src/analyzer.py | **NO CHANGE** - Did not fix semantic confusion in profile generation |
-| 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** - Evidence already gathered incorrectly before prompt is used |
-| 10 | Context-aware evidence disambiguation in gathering | src/analyzer.py | **PARTIAL** - John Donaldson now correct; "John" still has narrator data |
-| 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | FIX APPLIED - Two-layer defense: (1) block ambiguous narrator names, (2) filter "I did X to John" passages |
+| 2 | Empty relationships - added character context | src/analyzer.py | **No change** |
+| 3 | Empty relationships - simplified prompt | src/analyzer.py | **No change** |
+| 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** |
+| 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** |
+| 6 | Semantic disambiguation for same-name chars | name_disambiguator.py, passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** |
+| 7 | CHARACTER_IDENTIFICATION_PROMPT family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** |
+| 8 | Substring filtering in profile mention search | src/analyzer.py | **NO CHANGE** |
+| 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** |
+| 10 | Context-aware evidence disambiguation in gathering | src/analyzer.py | **PARTIAL** |
+| 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | **PARTIAL** - Fixed narrator contamination, but revealed same-name father/son collision |
 
 ## Key Insight for Fix Phase
 
-**The attempt 10 fix was in the right direction but incomplete.**
+**The narrator contamination filter WORKED - it exposed the underlying same-name collision problem.**
 
-The evidence disambiguation helped separate "John" from "John Donaldson" (father vs son based on name components). But it didn't handle:
-- **Narrator perspective contamination**: Evidence gathering for "John" found first-person narrator statements ABOUT John, not statements about John AS a character
+The story has THREE Johns:
+1. **"John" (the father, past)** - Narrator's brother, called just "John" in the backstory
+2. **"John Donaldson" (the father, present)** - Same person when his full name is revealed in the nephew's account
+3. **"John" (the nephew, present)** - Named after his father, called "John" or "young John"
 
-**New approach needed:**
-1. When gathering evidence for a character who is NOT the narrator
-2. Filter out passages where the evidence is from narrator's first-person perspective
-3. OR: Check if the passage describes the character (third person) vs addresses/mentions the character (narrator speaking TO or ABOUT them)
+**Current problem:** Evidence gathering for character "John" (the nephew) matches:
+- "John graduated from Yale" → Father in backstory (WRONG)
+- "John lived thriftless life" → Father in backstory (WRONG)
+- "young John's note" → Nephew (CORRECT)
 
-**Example of wrong evidence currently in "John" profile:**
-- "The narrator repaid John's debts and hushed up a scandal" - This is ABOUT John from narrator's perspective, but it describes the NARRATOR's action, not John's character
-
-**Example of correct evidence that SHOULD be in "John" profile:**
-- "he encounters a mysterious, shabby American civilian" - This is John (nephew) AS a character acting in the story
-- "the boy discovers through intimate conversation that this man is his long-lost father" - This describes John's experience
+**The fix needs to:**
+1. Recognize that when "John Donaldson" exists as a full character, bare "John" references in BACKSTORY context likely refer to John Donaldson (the father)
+2. Distinguish "John" in present action (nephew doing things) from "John" in past narration (father's history)
+3. Use qualifiers: "young John" → nephew, "my brother John" → father, "John Donaldson" → father
 
 ## Fix History
 
 ### Attempt 1: Fixed false John/John Donaldson merge ✓ (POST-PROCESSING)
-- **Result:** Characters separated at post-processing, but profiles still confused
+- **Result:** Characters separated, but profiles still confused
 
 ### Attempts 2-5: Profile/Relationship fixes
 - Various attempts, see modification history
@@ -207,46 +172,34 @@ The evidence disambiguation helped separate "John" from "John Donaldson" (father
 - **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` lines 77-86
 - **Result:** FIXED - "John" and "John Donaldson" now correctly separate
 
-### Attempt 8: Substring filtering in profile mention search
-- **Modified:** `src/analyzer.py` lines 2304-2310
-- **Result:** NO IMPROVEMENT - Profile data still inverted between John and John Donaldson
+### Attempts 8-9: Profile disambiguation attempts
+- **Result:** NO IMPROVEMENT - Evidence already gathered incorrectly
 
-### Attempt 9: Character disambiguation context in profile generation prompt
-- **Modified:** `src/analyzer.py` lines 2468-2516
-- **Result:** NO IMPROVEMENT - Evidence already gathered incorrectly before prompt is used
-
-### Attempt 10: Context-aware evidence disambiguation in gathering stage
-- **Modified:** `src/analyzer.py` lines 2320-2355
-- **Result:** PARTIAL - John Donaldson (father) profile now correct; "John" (nephew) still populated with narrator data
-- **Why partial success:** Disambiguation separates father/son, but doesn't separate narrator-perspective evidence from character-perspective evidence
+### Attempt 10: Context-aware evidence disambiguation
+- **Result:** PARTIAL - Separated father/son when full name used, but not when "John" alone is used
 
 ### Attempt 11: Narrator perspective contamination filter ✓
-- **Root cause:** Two issues causing narrator data to contaminate non-narrator profiles:
-  1. Ambiguous short-form names (e.g., "John") could be marked as narrator, causing "I/my/me" passages to be gathered for them
-  2. First-person passages like "I repaid John's debts" were attributed to John even though they describe narrator actions
-
-- **Fix applied (two-layer defense):**
-  1. **Prevent ambiguous narrator assignment** (`pipeline.py`): If narrator name is ambiguous per NameAmbiguityMap, clear narrator assignment to avoid first-person contamination
-  2. **Filter narrator-perspective passages** (`perspective_filter.py` NEW): For non-narrators, exclude passages where narrator is subject ("I did X to John") unless character is co-subject ("John and I") or appositive ("my nephew John")
-
-- **Files modified:**
-  - `src/pipeline/character_profiling/perspective_filter.py` (NEW - ~106 lines)
-  - `src/pipeline/character_profiling/identifier.py` (added ambiguous narrator guard)
-  - `src/pipeline/character_profiling/pipeline.py` (clear ambiguous narrator, plumb narrative_style)
-  - `src/pipeline/character_profiling/passage_gatherer.py` (apply perspective filter)
-  - `src/pipeline/character_profiling/summary_evidence.py` (apply perspective filter)
-  - `src/pipeline/character_profiling/generator.py` (plumb narrative_style)
-  - `tests/test_narrator_contamination_filter.py` (NEW - 4 tests)
-
-- **Tests:** All 28 tests pass (including 4 new narrator contamination tests)
-
-- **Universality:** Yes - helps ANY first-person narrative where non-narrator characters are mentioned in "I did X" constructions
+- **Result:** PARTIAL SUCCESS - Fixed narrator "I did X" contamination
+- **New issue revealed:** Father's backstory (using just "John") still attributed to nephew's profile
+- **This is progress:** We've eliminated narrator contamination and can now see the pure same-name collision problem
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis to verify:
-1. "John" (nephew) profile no longer contains narrator (Uncle Bill) evidence
-2. "John" (nephew) has evidence about HIS actions (ambulance driving, Croix de Guerre, discovering father)
-3. No regression on other characters
+Fix the same-name collision for "John":
+1. When gathering evidence for "John" (the nephew), filter out backstory passages about the narrator's brother
+2. Key signals:
+   - Temporal: Past tense backstory → likely father; present action → likely nephew
+   - Relationship: "my brother John", "poor John" → father; "the boy", "young John" → nephew
+   - Context: If "John Donaldson" is a known character, bare "John" in past-tense backstory → attribute to John Donaldson
+
+**Files to consider:**
+- `src/pipeline/character_profiling/passage_gatherer.py` - evidence gathering logic
+- `src/pipeline/character_profiling/name_disambiguator.py` - disambiguation logic (already exists)
+- Possibly extend NameAmbiguityMap to handle short-form/long-form collision
+
+**Test case:** After fix, "John" (nephew) evidence should include:
+- "young John's note out of the scrap-basket"
+- "all his charm were repeated in his son, but underlaid with a manliness"
+- Evidence about ambulance driving, Croix de Guerre
