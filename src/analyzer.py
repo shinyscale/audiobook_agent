@@ -2317,15 +2317,19 @@ class AudiobookAnalyzer:
                 for m in re.finditer(pattern, full_text, flags=re.IGNORECASE):
                     pos = m.start()
 
-                    # Filter out matches that are part of a longer character name
+                    # Filter out matches that are part of a longer character name OR
+                    # that refer to a different character with a similar name
                     # Extract surrounding context to check if this is a substring match
                     if all_names_set:
-                        context_start = max(0, pos - 5)
-                        context_end = min(len(full_text), pos + len(name) + 50)
+                        # Get broader context for disambiguation
+                        context_start = max(0, pos - 200)
+                        context_end = min(len(full_text), pos + len(name) + 200)
                         context = full_text[context_start:context_end]
 
                         # Check if this match is part of a longer name in our character list
                         is_substring_match = False
+                        refers_to_other_character = False
+
                         for other_name in all_names_set:
                             if other_name != name.lower().strip():
                                 # Check if the matched text is followed by more name parts
@@ -2341,7 +2345,42 @@ class AudiobookAnalyzer:
                                         is_substring_match = True
                                         break
 
-                        if not is_substring_match:
+                                # UNIVERSAL DISAMBIGUATION: Check if this match refers to the OTHER character
+                                # This handles cases like father/son sharing a name
+                                # If we're searching for "John" and "John Donaldson" also exists:
+                                # - Check if context contains parts of the longer name (e.g., "Donaldson")
+                                # - Check for relationship markers (e.g., "father", "his father", "the elder")
+                                if other_name.startswith(name.lower().strip() + " "):
+                                    # Extract the distinguishing part (e.g., "Donaldson" from "John Donaldson")
+                                    distinguishing_parts = other_name[len(name):].strip().split()
+
+                                    # Check if any distinguishing part appears in the context
+                                    for part in distinguishing_parts:
+                                        if len(part) >= 3:  # Avoid single-char matches
+                                            # Check if the distinguishing part appears in the context
+                                            # Use word boundaries to avoid false positives
+                                            part_pattern = r"\b" + re.escape(part) + r"\b"
+                                            if re.search(part_pattern, context, re.IGNORECASE):
+                                                refers_to_other_character = True
+                                                break
+
+                                    # Check for family relationship markers that suggest this refers to the longer name
+                                    # Universal markers: "father", "his father", "the elder", "senior", "Sr."
+                                    family_markers = [
+                                        r"\b(his|her|their)\s+(father|mother|parent)",
+                                        r"\bfather\b",
+                                        r"\bmother\b",
+                                        r"\b(the\s+)?(elder|older)\b",
+                                        r"\b(Sr\.|Senior)\b"
+                                    ]
+                                    for marker_pattern in family_markers:
+                                        if re.search(marker_pattern, context, re.IGNORECASE):
+                                            # If we find a family marker near a simple name match,
+                                            # and a fuller name exists, this likely refers to the fuller name
+                                            refers_to_other_character = True
+                                            break
+
+                        if not is_substring_match and not refers_to_other_character:
                             positions.add(pos)
                     else:
                         # No filtering data available, include all matches

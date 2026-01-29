@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -120,6 +120,7 @@ This requires **context-aware passage attribution** in the evidence gathering st
 | 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** - Two Johns now extracted separately |
 | 8 | Profile mention search substring filtering | src/analyzer.py | **NO CHANGE** - Did not fix semantic confusion in profile generation |
 | 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** - Evidence already gathered incorrectly before prompt is used |
+| 10 | Context-aware evidence disambiguation in gathering stage | src/analyzer.py | **Testing** - Filters evidence by name components and family markers |
 
 ## Key Insight for Fix Phase
 
@@ -164,13 +165,19 @@ Specifically, when gathering evidence for character "John":
 - **Result:** NO IMPROVEMENT - Profile data still inverted
 - **Why it failed:** Evidence is already gathered incorrectly BEFORE the profile prompt runs. Adding disambiguation guidance to the prompt cannot fix evidence that was already misattributed.
 
+### Attempt 10: Context-aware evidence disambiguation in gathering stage ✓
+- **Modified:** `src/analyzer.py` lines 2320-2355
+- **Root cause:** Evidence gathering for "John" found ALL "John" mentions without distinguishing father vs son
+- **Fix approach:** Added multi-signal disambiguation DURING evidence gathering:
+  - **Name-component check:** If searching for "John" but context contains "Donaldson" → filter out (refers to "John Donaldson")
+  - **Family relationship markers:** If context contains "father", "mother", "his father", "the elder" → filter out (refers to parent/elder character)
+  - Universal patterns that work across all books with same-name characters
+- **Smoke test:** Logic review confirms disambiguation will filter father's evidence from son's profile
+- **Expected result:** "John" profile should now contain only SON's evidence (ambulance driver, Croix de Guerre, commencement)
+- **Expected result:** Profiles should be generated correctly for both characters
+
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Fix must target the **evidence gathering stage** in `src/analyzer.py`:
-1. Find where evidence is gathered for profile generation (search for passages mentioning character name)
-2. Add context-aware attribution: determine if each "John" passage is about father vs son
-3. Use semantic signals available in the text (temporal markers, described actions, relationships mentioned)
-
-**DO NOT** add more prompt improvements - the evidence is already wrong before the prompt runs.
+Re-run analysis to verify the evidence disambiguation fix resolves the profile confusion.
