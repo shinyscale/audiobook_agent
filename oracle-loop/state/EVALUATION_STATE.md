@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -194,8 +194,19 @@ The summary is excellent:
 - Profile data IS populated in `appearance`, `descriptions`, `personality`, `voice_guidance` fields
 - The relationships extraction may be a separate step that's not running or not populating results
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 10m 42s
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- 4 characters extracted (John, Uncle Bill, John Donaldson, Joe Barron)
+- 3 character profiles generated (high confidence)
+- Some warnings observed:
+  - "LLM marker proposer returned non-list: <class 'dict'>" (twice)
+  - "Narrator 'the elderly, crabbed man' identified but NOT found in main_cast"
+  - "No passages provided" for character voice analysis (3x)
+  - Ollama json_mode validation errors in pronunciation stage (2x)
 
-Fixed relationship extraction by providing character name context to LLM.
-Re-run analysis to verify relationships are now populated.
+## Next Action
+**Phase:** awaiting_evaluation
+
+Analysis complete with character name context fix applied.
+Ready to evaluate if relationships are now populated correctly.
