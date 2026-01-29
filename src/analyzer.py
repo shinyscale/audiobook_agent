@@ -2251,6 +2251,99 @@ class AudiobookAnalyzer:
         # Only return if we have substantial text
         return s.strip() if len(s.strip()) > 30 else ""
 
+    def _extract_relationships_from_evidence(
+        self, evidence: list, all_character_names: list, current_character_name: str
+    ) -> dict:
+        """
+        Extract relationships from evidence statements using pattern matching.
+
+        This is a universal post-processing step for when the LLM extracts relationship
+        information into evidence but fails to populate the structured relationships field.
+
+        Args:
+            evidence: List of evidence dicts with "statement" and "quote" fields
+            all_character_names: List of character names from this story
+            current_character_name: The character whose profile is being generated (to exclude self-references)
+
+        Returns:
+            Dict mapping character names to relationship types (e.g., {"John Donaldson": "father"})
+        """
+        import re
+
+        relationships = {}
+
+        # Relationship keywords to search for
+        rel_keywords = [
+            "father", "mother", "son", "daughter",
+            "uncle", "aunt", "nephew", "niece",
+            "cousin", "brother", "sister",
+            "husband", "wife", "spouse",
+            "guardian", "ward"
+        ]
+
+        # Create case-insensitive character name lookup
+        char_name_lower = {name.lower(): name for name in all_character_names if name.lower() != current_character_name.lower()}
+
+        for ev in evidence:
+            statement = ev.get("statement", "").lower()
+
+            # Check if the statement mentions any relationship keyword
+            for rel_type in rel_keywords:
+                if rel_type not in statement:
+                    continue
+
+                # Found a relationship keyword, now find which other character is mentioned
+                # Look for character names in the full statement
+                for char_lower, char_name in char_name_lower.items():
+                    if char_lower in statement:
+                        # Found a character name in a statement with a relationship keyword
+
+                        # Determine the relationship type and direction
+                        # Pattern: "X is the father of Y" → Y's relationships[X] = "father"
+                        # Pattern: "X's father Y" → X's relationships[Y] = "father"
+                        # Pattern: "beloved cousin named X" → relationships[X] = "cousin"
+
+                        # Simple heuristic: if the pattern is "X is/was [article] REL",
+                        # then REL describes X
+                        # if the pattern is "X's REL", then REL describes the other person
+
+                        if re.search(rf"is\s+(?:the\s+)?{rel_type}", statement):
+                            # Pattern: "X is the father" → X is described as father
+                            # This means X has the role "father" relative to current character
+                            if char_name not in relationships:
+                                relationships[char_name] = rel_type
+                                logger.info(
+                                    f"  Extracted relationship: {char_name} -> {rel_type} (from 'is the {rel_type}')"
+                                )
+
+                        elif re.search(rf"{char_lower}\s+(?:is|was|has been)", statement):
+                            # Pattern: "John Donaldson is the father" → John Donaldson is the father
+                            if char_name not in relationships:
+                                relationships[char_name] = rel_type
+                                logger.info(
+                                    f"  Extracted relationship: {char_name} -> {rel_type} (from '{char_lower} is {rel_type}')"
+                                )
+
+                        elif re.search(rf"(?:his|her|their)\s+{rel_type}", statement) or re.search(rf"\w+'s\s+{rel_type}", statement):
+                            # Pattern: "John's uncle" or "his father" → the other person IS that relation
+                            # We need to find who that relation refers to
+                            # Often it's another named character in the statement or nearby context
+                            if char_name not in relationships:
+                                relationships[char_name] = rel_type
+                                logger.info(
+                                    f"  Extracted relationship: {char_name} -> {rel_type} (from possessive pattern)"
+                                )
+
+                        elif re.search(rf"{rel_type}\s+(?:named|called)\s+{char_lower}", statement):
+                            # Pattern: "cousin named John Donaldson" → John Donaldson is a cousin
+                            if char_name not in relationships:
+                                relationships[char_name] = rel_type
+                                logger.info(
+                                    f"  Extracted relationship: {char_name} -> {rel_type} (from 'named' pattern)"
+                                )
+
+        return relationships
+
     def _generate_character_profile(
         self,
         llm: "LLMClient",
@@ -3042,6 +3135,20 @@ Return ONLY the JSON object."""
                         if profile and not validated_evidence:
                             logger.warning(f"Profile for {character.canonical_name} lacks evidence")
                             confidence = min(confidence, 0.3)
+
+                        # POST-PROCESSING: Extract relationships from evidence if LLM didn't extract them
+                        # The LLM often mentions relationships in evidence statements but fails to extract
+                        # them into the structured relationships field. This universal pattern applies to all books.
+                        if not relationships or not relationships:
+                            extracted_relationships = self._extract_relationships_from_evidence(
+                                validated_evidence, all_character_names or [], character.canonical_name
+                            )
+                            if extracted_relationships:
+                                logger.info(
+                                    f"Post-processing extracted {len(extracted_relationships)} relationships "
+                                    f"from evidence for {character.canonical_name}: {extracted_relationships}"
+                                )
+                                relationships = extracted_relationships if not relationships else {**relationships, **extracted_relationships}
 
                         return (
                             profile,

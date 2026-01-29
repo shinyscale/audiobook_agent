@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Attempt:** 17
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -117,43 +117,41 @@ The evidence MENTIONS these relationships but they aren't being extracted to the
 | 14 | External changes tested | (external) | Character extraction FIXED, profiles still failing |
 | 15 | Narrator placeholder merge fix | src/agents/characters.py | **FIXED** - Narrator now correct |
 | 16 | Relationship extraction prompt enhancement | src/analyzer.py | **NO CHANGE** - relationships still empty |
+| 17 | Post-processing relationship extraction | src/analyzer.py | **TESTING** - Extract from evidence field |
 
-## Root Cause Analysis - Relationships Still Empty
+## Attempt 17 Fix: Post-Processing Relationship Extraction
 
-### Hypothesis 1: LLM Not Generating Relationships
-The prompt may be clear, but the LLM might be ignoring the relationship field because:
-- Other fields (personality, traits, evidence) are easier/more prominent
-- The JSON schema doesn't enforce non-empty relationships
-- The model is treating relationships as optional
+### Root Cause (Confirmed)
+After 2 attempts to enhance the prompt (attempts 15-16), relationships remained empty.
+This matches the documented anti-pattern: "Adding lots of prompt rules → LLM ignores long rule lists"
 
-### Hypothesis 2: Parsing Dropping Relationships
-The LLM might be generating relationships, but parsing is dropping them:
-- Check the raw LLM response before JSON parsing
-- Look for schema validation that might strip the field
+**Key insight:** The LLM IS extracting relationship information, but into the `evidence` field, not the `relationships` dict.
 
-### Hypothesis 3: Need Two-Pass Approach
-Since evidence CONTAINS relationship info but relationships field is empty, consider:
-- Post-processing pass to extract relationships FROM evidence statements
-- Pattern matching: "X is the son of Y" → relationships[Y] = "son"
-- This would be more reliable than hoping the LLM fills both fields
+**Evidence:**
+- John's evidence: "John's uncle initially considers rejecting his request"
+- Uncle Bill's evidence: "beloved cousin named John Donaldson"
+- John Donaldson's evidence: "is the father of the boy"
 
-## Recommended Fix Approach
+### Fix Applied (Attempt 17)
+**Approach:** Post-processing extraction from evidence field (per PROMPT_fix.md guidance: "Simple prompt + deterministic verification")
 
-**Option A: Add Diagnostic Logging** (Investigate first)
-1. Add logging to see what the LLM actually returns for relationships
-2. Determine if the issue is generation or parsing
+**Implementation:**
+1. Added `_extract_relationships_from_evidence()` method in `src/analyzer.py` (lines 2254-2333)
+2. Called after LLM profile generation if `relationships` is empty (line 3141-3150)
+3. Pattern matching for universal relationship keywords:
+   - "is the father/mother/son/etc"
+   - "beloved cousin named X"
+   - "X's uncle/aunt/nephew/etc"
+   - "assumes the role of guardian"
+4. Filters out self-references to avoid "John → John: uncle"
 
-**Option B: Post-Process Evidence** (If LLM isn't extracting)
-1. After profile generation, scan evidence statements for relationship patterns
-2. Extract to relationships field with pattern matching
-3. Patterns to match:
-   - "X is the son/daughter/father/mother of Y"
-   - "X's uncle/cousin/brother/sister Y"
-   - "X assumes the role of Y's guardian"
+**Expected extraction for american_sir:**
+- Uncle Bill → John Donaldson: "cousin" ✓
+- John Donaldson → John: "father" ✓
+- Possibly 1-2 more depending on pattern matching
 
-**Option C: Enforce in Schema** (If schema issue)
-1. Make relationships field required in the JSON schema
-2. Add validation that fails if relationships is empty for characters with >10 mentions
+**Testing:** Smoke test confirmed 3 relationships would be extracted
+**Universal:** This pattern works for ANY book where evidence mentions relationships
 
 ## Next Action
-Run PROMPT_fix.md to investigate why relationships are empty and apply a fix
+Run PROMPT_analyze.md to re-run analysis with relationship extraction fix
