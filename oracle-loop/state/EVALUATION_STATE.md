@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -11,83 +11,86 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Latest Scores (from attempt 12)
+## Latest Scores (from attempt 13)
 - Structure Detection: 10/10 ✓
-- Character Extraction: 9/10 ✓
-- Character Profiles: 4/10 ✗ (was failing due to missing chapters_present data)
+- Character Extraction: 7/10 ✗ (FALSE MERGE: John/John Donaldson father-son)
+- Character Profiles: 5/10 ✗ (Evidence confusion, missing descriptions)
 - Chapter Summaries: 10/10 ✓
-- Pronunciation Guide: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.65/10** (reference only)
+- **Overall: 8.2/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** PENDING - Major fixes applied, ready for evaluation
-
-## Attempt 13: Analysis Complete
-
-### Pipeline Run Information
-- **Duration:** 15m 37s
-- **Competitive consensus:** Enabled for all stages (characters, structure, summaries)
-- **Model:** qwen3-next:80b-a3b-instruct-q8_0
-- **Temperature variation:** 0.5, 0.7, 0.9 (2/3 supermajority required)
-
-### Results
-- Structure: 1 chapter detected
-- Characters: 3 extracted (John, Uncle Bill, Joe Barron)
-- Character profiles: 2 generated
-- Chapter summaries: 1 generated
-- Pronunciation guide: 50 words flagged
-- Total LLM calls: 60
-- Total tokens: 53,631
-
-### Pipeline Notes
-- Some warnings during run (non-critical):
-  - LLM marker proposer returned dict instead of list (fallback worked)
-  - Narrator detection mismatch in one stage (resolved in final stage)
-  - Some pronunciation validation errors (non-blocking)
-
-### Fixes Applied (Prior to Analysis)
-
-**Fix 1: Unblocked chapter-range prior for supporting cast (UPSTREAM FIX)**
-- Problem: Supporting cast had `chapters_present=[]` hardcoded
-- Fix: Now runs deterministic mention search before final output
-- File: `src/agents/characters.py`
-
-**Fix 2: Improved relationship markers for memoir-style text**
-- Problem: Missed "my brother John" pattern
-- Fix: Added memoir-style relationship patterns
-- File: `src/pipeline/character_profiling/name_disambiguator.py`
-
-**Fix 3: Chapter-range signal fallback**
-- Problem: If `chapters_present` empty, signal never fires
-- Fix: Falls back to `summary_map.character_appearances`
-- File: `src/pipeline/character_profiling/name_disambiguator.py`
-
-**Fix 4: LLM fallback improvements**
-- Problem: LLM disambiguation was wasteful
-- Fix: Now uses `temperature=0.1` and `max_tokens=128`
-- Files: `src/llm/client.py`, `src/pipeline/character_profiling/name_disambiguator.py`
+**Status:** FAIL (2 categories below threshold)
 
 ## Current Issues (Priority Order)
 
-### CRITICAL (may be resolved by fixes above)
+### CRITICAL
 
-1. **"John" profile evidence attribution**
-   - Was: Father's backstory incorrectly attributed to nephew
-   - Fix applied: Relationship markers + chapters_present population
-   - Status: **PENDING VERIFICATION**
+1. **FALSE MERGE: John (son) and John Donaldson (father) conflated as one character**
+   - Problem: "John" entry has "John Donaldson" as alias, but these are DIFFERENT people
+   - Evidence: Father "John Donaldson" - deceased, caused scandals, financially dependent (backstory)
+   - Evidence: Son "John" (also named "John Donaldson") - the boy/nephew, serves in WWI
+   - Text proof: "All John Donaldson's physical beauty...repeated in his son" (line 201) establishes they're different
+   - Location: Character extraction or alias resolution - `src/agents/characters.py` or alias matching logic
+   - Fix: Same-name handling needs to recognize temporal/generational separation
+   - **ID pattern:** `supporting_0` = from supporting cast pipeline
+
+2. **Evidence contamination in "John" profile**
+   - Problem: Profile conflates facts about father John Donaldson with nephew John
+   - Evidence assigned to "John":
+     - "John was financially dependent" → Should be FATHER only
+     - "John's son is physically similar" → Correctly shows relationship
+     - "Uncle Bill confesses on his deathbed" → Should be UNCLE BILL's profile
+   - Location: Profile generation or evidence attribution - `src/pipeline/character_profiling/`
+   - Fix: Evidence disambiguation failed because the characters were merged upstream
 
 ### HIGH
 
-2. **Relationships empty for all characters**
-   - Problem: `relationships: {}` for all 4 characters
-   - May improve once evidence is correctly attributed
-   - Status: **PENDING VERIFICATION**
+3. **Physical descriptions missing for all characters**
+   - Problem: All characters have `appearance.summary: "unknown"`
+   - Text evidence: "All John Donaldson's physical beauty, all his charm were repeated in his son" (line 201)
+   - Location: Profile extraction - `src/pipeline/character_profiling/generator.py` or passage gatherer
+   - Fix: Ensure appearance extraction captures inherited/comparative descriptions
 
-3. **Physical descriptions empty**
-   - Problem: `appearance.summary: "unknown"`
-   - Text has: "All John Donaldson's physical beauty...repeated in his son"
-   - Status: **PENDING VERIFICATION**
+4. **Relationships empty for all characters**
+   - Problem: `relationships: {}` for all 3 characters
+   - Expected relationships:
+     - John (son) → Uncle Bill (pseudo-uncle)
+     - John (son) → John Donaldson (father - deceased)
+     - Uncle Bill → John (son) - secret relationship revealed at end
+   - Location: `src/pipeline/character_profiling/summary_evidence.py` or relationship extraction
+   - Fix: Likely blocked by character merge (can't establish father-son relationship when they're merged)
+
+### MEDIUM
+
+5. **Uncle Bill profile missing key twist revelation**
+   - Problem: Profile doesn't capture that Uncle Bill is ACTUALLY John Donaldson's father
+   - This is the central twist of the story
+   - Evidence is present ("Uncle Bill confesses on his deathbed") but misattributed to John's profile
+   - Location: Evidence routing in profile generation
+
+6. **`chapters_present` still empty for all characters**
+   - Problem: Sanity check shows `chapters_present: []` or `null` for all characters
+   - The "upstream fix" claims to have addressed this, but data is still missing
+   - This may be why chapter-range disambiguation signals aren't firing
+   - Location: `src/agents/characters.py` - check if fix actually deployed
+
+## Key Insight: Root Cause Analysis
+
+The fundamental problem is that this story has **two characters named John Donaldson** (father and son). The system is merging them because:
+1. Name matching sees "John" and "John Donaldson" as alias-related
+2. No temporal/generational signal separates them
+
+This is similar to previous attempts but the false merge persists. The fixes from attempt 13 (relationship markers, chapter-range prior) **cannot work** because:
+- Both Johns appear in the same narrative (son via dialogue, father via flashback)
+- Memoir-style patterns like "my brother John" don't apply here
+- The characters share the same name literally (not just first name)
+
+**What's needed:** Detection that "John Donaldson (father, deceased, backstory)" and "John Donaldson (son, present-day protagonist)" are distinct entities based on:
+- Temporal context (past tense/backstory vs. present narrative)
+- Relational context ("his son", "the father")
+- Death marker (father is deceased)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -104,7 +107,7 @@
 | 10 | 8.55 | +0.60 | John Donaldson profile now correct; "John" still has narrator data (5/10) |
 | 11 | 8.55 | +0.60 | Narrator filter worked but "John" now has FATHER's backstory (5/10) |
 | 12 | 8.65 | +0.70 | Chapter-range prior FAILED - supporting cast had no chapters_present data |
-| 13 | TBD | TBD | **MAJOR FIXES**: chapters_present populated, relationship markers enhanced |
+| 13 | 8.20 | +0.25 | Fixes didn't deploy? Character extraction regressed to 7/10 (false merge) |
 
 ## Modification History
 
@@ -118,16 +121,25 @@
 | 10 | Context-aware evidence disambiguation | src/analyzer.py | PARTIAL |
 | 11 | Narrator perspective filter | perspective_filter.py + others | PARTIAL |
 | 12 | Chapter-range prior (blocked by data) | name_disambiguator.py + others | FAILED |
-| 13 | **Upstream data fix + relationship markers** | characters.py, name_disambiguator.py, client.py, tests | **PENDING** |
+| 13 | Upstream data fix + relationship markers | characters.py, name_disambiguator.py, client.py, tests | **REGRESSION** |
+
+## Regression Analysis
+
+Attempt 13 shows a regression in Character Extraction (9/10 → 7/10). The false merge of John/John Donaldson has returned. Previous attempts (7, 8, 9, 10, 11, 12) had them correctly separated.
+
+**Likely cause:** The changes to `src/agents/characters.py` for the "upstream data fix" may have inadvertently affected alias resolution logic.
+
+**Recommendation:** Compare the character extraction results between attempt 12 and attempt 13 to see what changed.
 
 ## Next Action
 
-**Phase:** awaiting_run
+**Phase:** awaiting_fix
 
-Run analysis on american_sir and evaluate whether the major fixes resolve the same-name collision.
+Priority fixes needed:
+1. **Investigate regression**: Why did the false merge return? Check if attempt 13's changes to `characters.py` broke alias separation
+2. **If merge is upstream**: The character extraction needs to NOT merge "John" and "John Donaldson" when text evidence shows they're different people (father/son)
+3. **Profile evidence will improve automatically** once characters are correctly separated
 
-**Key verification points:**
-1. Does "John" (nephew) profile now have correct evidence?
-2. Is the father's backstory attributed to "John Donaldson"?
-3. Are relationships populated?
-4. Character Profiles score >= 8.0?
+**Key verification for fix phase:**
+- Characters list should have FOUR entries: Uncle Bill, John (son), John Donaldson (father), Joe Barron
+- OR at minimum: "John" and "John Donaldson" should be SEPARATE with no alias relationship
