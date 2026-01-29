@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Attempt:** 14
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -131,28 +131,23 @@ Attempt 13 shows a regression in Character Extraction (9/10 → 7/10). The false
 
 **Recommendation:** Compare the character extraction results between attempt 12 and attempt 13 to see what changed.
 
-## Next Action
+## Pipeline Notes
 
-**Phase:** awaiting_analysis
+Analysis completed successfully (attempt 14) in 13m 21s.
 
-**Fix phase reviewed (2026-01-29):** External changes protocol followed. No additional fixes applied.
+**Key observations:**
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- Using model: qwen3-next:80b-a3b-instruct-q8_0 for all agents
+- Found 4 characters (John, Uncle Bill, John Donaldson, Joe Barron)
+- Generated 3 character profiles
+- 1 chapter detected
+- Some warnings during execution (LLM marker proposer, JSON validation)
 
-**CRITICAL: External changes detected but not yet tested.**
+**External changes tested:**
+The uncommitted changes from outside the oracle loop have now been tested. Evaluation phase will verify if the fixes resolved the issues.
 
-Uncommitted changes found in:
-- `src/agents/characters.py`
-- `src/llm/client.py`
-- `src/pipeline/character_profiling/` (multiple files)
-- New file: `src/pipeline/character_profiling/perspective_filter.py`
-
-These changes were made OUTSIDE the oracle loop and must be analyzed before applying additional fixes. According to the fix protocol (section 0g), when external changes are detected, we must:
-1. Set phase to `awaiting_analysis`
-2. Exit WITHOUT applying new fixes
-3. Run analysis to test the external changes
-
-The external changes may have already fixed the issues - we need to verify this before proceeding with new fixes.
-
-**Verification needed after analysis:**
+**Verification needed in evaluation phase:**
 - Check if false merge is resolved (John vs John Donaldson should be separate)
 - Check if profile evidence contamination is resolved
 - Check if relationships are now populated
+- Check if physical descriptions are now captured
