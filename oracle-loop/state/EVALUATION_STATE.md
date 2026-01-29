@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -243,9 +243,11 @@ The summary is excellent:
 4. **Does the model have issues with same-name disambiguation?** Test with a prompt that explicitly shows "John (supporting_0)" vs "John Donaldson (supporting_2)"
 
 ## Pipeline Notes (Attempt 3 - Latest Run)
-- Analysis completed successfully in 11m 3s (2026-01-28 17:47)
-- Competitive consensus enabled for all 3 stages
-- Character Profiles stage: 5 LLM calls, 3 items processed, HIGH confidence, 0 retries
+- Analysis completed successfully in 10m 10s (2026-01-28 17:59)
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- Character Profiles stage: 3 LLM calls, 3 items processed, HIGH confidence
+- Profiling totals: 58 LLM calls, 51,373 tokens
+- Bottleneck: Pronunciation Guide (38.2% of time)
 - Warnings observed:
   - "LLM marker proposer returned non-list: <class 'dict'>" (twice)
   - "Narrator 'John Donaldson (the uncle)' identified but NOT found in main_cast"
@@ -255,4 +257,4 @@ The summary is excellent:
 ## Next Action
 **Phase:** awaiting_evaluation
 
-Attempt 3 analysis complete. Ready for evaluation to verify if simplified relationship prompt fixed the empty relationships issue.
+Attempt 3 analysis complete with simplified relationship extraction prompt. Ready for evaluation to verify if the clearer, more focused prompt structure fixed the empty relationships issue.
