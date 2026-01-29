@@ -3,13 +3,19 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Analysis completed successfully in 10m 23s
+- Competitive consensus enabled with all 3 stages (characters, structure, summaries)
+- Found 4 characters: John, Uncle Bill, John Donaldson, Joe Barron
+- Collision detection fix applied - awaiting evaluation to verify profile confusion is resolved
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
