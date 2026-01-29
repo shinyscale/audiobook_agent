@@ -133,13 +133,24 @@ Attempt 13 shows a regression in Character Extraction (9/10 → 7/10). The false
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Priority fixes needed:
-1. **Investigate regression**: Why did the false merge return? Check if attempt 13's changes to `characters.py` broke alias separation
-2. **If merge is upstream**: The character extraction needs to NOT merge "John" and "John Donaldson" when text evidence shows they're different people (father/son)
-3. **Profile evidence will improve automatically** once characters are correctly separated
+**CRITICAL: External changes detected but not yet tested.**
 
-**Key verification for fix phase:**
-- Characters list should have FOUR entries: Uncle Bill, John (son), John Donaldson (father), Joe Barron
-- OR at minimum: "John" and "John Donaldson" should be SEPARATE with no alias relationship
+Uncommitted changes found in:
+- `src/agents/characters.py`
+- `src/llm/client.py`
+- `src/pipeline/character_profiling/` (multiple files)
+- New file: `src/pipeline/character_profiling/perspective_filter.py`
+
+These changes were made OUTSIDE the oracle loop and must be analyzed before applying additional fixes. According to the fix protocol (section 0g), when external changes are detected, we must:
+1. Set phase to `awaiting_analysis`
+2. Exit WITHOUT applying new fixes
+3. Run analysis to test the external changes
+
+The external changes may have already fixed the issues - we need to verify this before proceeding with new fixes.
+
+**Verification needed after analysis:**
+- Check if false merge is resolved (John vs John Donaldson should be separate)
+- Check if profile evidence contamination is resolved
+- Check if relationships are now populated
