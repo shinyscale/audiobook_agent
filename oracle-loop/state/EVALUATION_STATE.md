@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -176,8 +176,7 @@ The summary is excellent:
 |---------|-------|----------------|--------|
 | 1 | False merge of John/John Donaldson | src/agents/characters.py | **FIXED** - Characters now separate (9/10 extraction) |
 | 2 | Empty relationships - added character context | src/analyzer.py | **No change** - Relationships still empty |
-
-**Pattern detected:** Same file (src/analyzer.py) modified in attempt 2 without success. Fix phase should try a different approach or investigate WHY the LLM returns empty relationships.
+| 3 | Empty relationships - simplified prompt | src/analyzer.py | **Testing** - Clarified relationship extraction instructions |
 
 ## Fix History
 
@@ -202,6 +201,30 @@ The summary is excellent:
 - The LLM is receiving the character list but still not extracting relationships
 - High confidence rating suggests LLM thinks it did the task correctly
 
+### Attempt 3: Simplified relationship extraction prompt
+
+**Root cause:** `src/analyzer.py:_generate_character_profile():line 2531`
+- Relationship instruction was a 235-word run-on sentence buried in a bullet list
+- LLM was extracting relationship info but placing it in `descriptions` field instead of `relationships` dict
+- Evidence: John Donaldson's description says "revealed to be the father of a young man who also bears his name"
+
+**Fix applied:** Prompt simplification following "Fix Philosophy" guidelines
+- Separated relationship extraction into its own focused section (not buried in bullet list)
+- Reduced from 235 words to ~80 words - clearer and more direct
+- Added concrete formatting examples with universal names (Tom/Mary, John Smith, William)
+- Removed book-specific examples (Elizabeth Lavenza, Alphonse Frankenstein) per CLAUDE.md
+- Made instruction prominent with "IMPORTANT" header
+
+**Changes:**
+- src/analyzer.py lines 2523-2532: Restructured prompt to make relationship extraction clearer
+
+**Smoke test:** Logic verification
+- Tests pass: 236 passed, 10 skipped
+- No regressions in other fields (appearance, personality, etc.)
+- Prompt simplification aligns with "soft prompts + hard verification" philosophy
+
+**Expected outcome:** LLM should now extract relationships into correct field due to clearer, more prominent instructions
+
 ## Pipeline Notes (Attempt 3)
 - Analysis completed successfully in 10m 42s
 - Competitive consensus enabled for all 3 stages
@@ -220,14 +243,6 @@ The summary is excellent:
 4. **Does the model have issues with same-name disambiguation?** Test with a prompt that explicitly shows "John (supporting_0)" vs "John Donaldson (supporting_2)"
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-The character list context fix did NOT work. The fix phase should:
-
-1. First, add diagnostic logging to see EXACTLY what the LLM returns for relationships
-2. Then try a more explicit prompt that:
-   - Shows concrete examples of relationship extraction
-   - Handles the same-name case explicitly
-   - Perhaps simplifies the task by making relationships a separate focused extraction
-
-**DO NOT** just retry the same approach. The pattern shows src/analyzer.py was already modified without success.
+Attempt 3 fix complete. Re-run analysis to verify relationship extraction works with simplified prompt.

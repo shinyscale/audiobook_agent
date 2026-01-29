@@ -2528,8 +2528,17 @@ CRITICAL INSTRUCTIONS:
 - For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
 - For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
-- For relationships: Extract family members, friends, enemies, romantic connections from BOTH the text snippets AND the summary evidence. Look for phrases like "X's father", "married to Y", "friend of Z", "cousin", "nephew", "uncle", etc. You MUST use the EXACT character names from the "CHARACTERS IN THIS STORY" list above as keys (not generic terms like "father" or "friend"). Format: {{"Character Name": "relationship_type"}}. Example: {{"Elizabeth Lavenza": "adoptive cousin/fiancée", "Alphonse Frankenstein": "father"}}. If relationships are mentioned in the summary evidence (even if not in the text snippets), you MUST extract them. Use empty dict {{}} ONLY if truly no relationships with other named characters are mentioned anywhere.
-- Return ONLY valid JSON matching the above structure. No other text."""
+- Return ONLY valid JSON matching the above structure. No other text.
+
+RELATIONSHIPS EXTRACTION (IMPORTANT):
+Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
+Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
+If the text says "A's father" or "son of B", add the entry. If no relationships mentioned, use {{}}.
+
+Example relationships dict format:
+- If text says "Tom's wife Mary" → {{"Mary": "spouse"}}
+- If summary says "her father John Smith" → {{"John Smith": "father"}}
+- If both say "his nephew William" → {{"William": "nephew"}}"""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):
