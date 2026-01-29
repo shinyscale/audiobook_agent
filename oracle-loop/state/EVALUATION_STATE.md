@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -13,83 +13,81 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 9/10 ✓ (FIXED! John and John Donaldson now separate)
-- Character Profiles: 4/10 ✗ (FAILING - profile data confused between father/son)
-- Chapter Summaries: 9/10 ✓
+- Character Extraction: 9/10 ✓
+- Character Profiles: 3/10 ✗ (FAILING - Profile data completely inverted between John and John Donaldson)
+- Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 8.50/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold - Character Profiles)
+**Status:** FAIL (1 category below threshold - Character Profiles at 3/10)
 
-## Analysis of Attempt 7 Results
+## Analysis of Attempt 8 Results
 
-**MAJOR PROGRESS**: Character extraction fix WORKED - "John" and "John Donaldson" are now correctly separated as two distinct characters.
+**FIX DID NOT WORK**: The substring filtering fix (filtering "John" matches inside "John Donaldson") did NOT solve the profile confusion problem.
 
-### What's Working Now
-1. Character EXTRACTION is correct - 4 characters, properly separated
-2. Uncle Bill correctly identified as narrator with alias "Bill"
-3. Chapter summary is excellent
-4. Pronunciation guide has good coverage with IPA
+### Evidence of Continued Profile Confusion
 
-### What's Still Broken
-The PROFILE GENERATION stage is confusing evidence between John (son) and John Donaldson (father):
+**John (the son) has FATHER's profile data:**
+1. Personality says "impulsive, avoids unpleasantness, thriftless" - These are the FATHER's traits (he embezzled money and fled)
+2. Evidence says "John had a lifelong dream to live in Italy" - This was the FATHER (he fled to Italy)
+3. Evidence says "John avoided confrontation and stopped communicating after a financial incident" - This was the FATHER (embezzlement)
+4. Evidence says "John died in a hunting accident, possibly suicide" - The FATHER died, the son survived!
 
-**Evidence of profile confusion:**
+**John Donaldson (the father) has SON's profile data:**
+1. Description says "John Donaldson is a young man who served as a driver on the Piave front" - The SON was the ambulance driver, not the father!
+2. Appearance says "towering stature", "young magnificence" - This describes the SON
+3. "Resembles his father's physical beauty" - This describes the SON (who resembles HIS father), not the father himself
 
-1. **John (the son) has FATHER's traits:**
-   - Age: "middle-aged" - WRONG (John is ~17-18 at school commencement)
-   - Personality: "John Donaldson was impulsive, avoidant of discomfort" - FATHER's description
-   - Description: "deceased man" - FATHER died, not son
+### Why the Fix Didn't Work
 
-2. **John Donaldson (the father) has SON's traits:**
-   - Appearance: "Physically resembles his father" - This describes the SON, not father
+The substring filtering only prevents `\bJohn\b` from matching the "John" in "John Donaldson" when searching for mentions. But the profile generation prompt sends ALL evidence about both characters to the LLM, which then confuses them semantically.
 
-3. **Relationships empty for ALL characters** - Uncle/nephew, father/son not captured
+The LLM sees passages like:
+- "John had a dream to live in Italy" (about father, pre-flee)
+- "John wrote asking me to come to commencement" (about son)
 
-### Root Cause Analysis
+Without context about WHICH John is being discussed, the LLM assigns traits randomly.
 
-The profile generation in `src/pipeline/character_profiling/` is:
-1. Extracting passages that mention "John" or "John Donaldson"
-2. Failing to disambiguate which "John" is being described
-3. Attributing evidence to wrong character based on substring matching
+### Root Cause
 
-The existing `name_disambiguator.py` (added in attempt 6) is not being used effectively, OR the LLM in profile generation is ignoring disambiguation signals.
+The profile generation stage in `src/pipeline/character_profiling/` is NOT using the disambiguation signals that are available:
+1. The chapter summary correctly identifies both characters
+2. The text provides context clues (commencement = son, Italy/fleeing = father)
+
+The profile extraction prompt needs to:
+1. Tell the LLM that "John" (alone) = the son (young, letter writer, ambulance driver)
+2. Tell the LLM that "John Donaldson" = the father (older, deceased, fled to Italy)
+3. OR pass the disambiguation as part of the character context
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Profile evidence crossed between John and John Donaldson**
-   - Problem: Son (John) has father's profile data; father has some of son's data
+1. **Profile evidence completely inverted between John and John Donaldson**
+   - Problem: Son has father's traits (impulsive, died, lived in Italy); father has son's traits (young ambulance driver)
    - Evidence:
-     - John's age is "middle-aged" (should be ~18, graduating school)
-     - John's personality says "John Donaldson was impulsive" (father's traits)
-     - John's description says "deceased man" (father died, not son)
-   - Location: `src/pipeline/character_profiling/` - evidence attribution
-   - Root cause: Passages mentioning "John" being attributed to wrong character
-   - Fix approach: Profile generation must use the same disambiguation signals as extraction:
-     - "John" alone = the son (young man, letter writer, ambulance driver)
-     - "John Donaldson" = the father (deceased, fled, met in Italy)
+     - John's personality: "impulsive, avoids unpleasantness, thriftless" → FATHER's traits
+     - John's evidence: "died in hunting accident" → FATHER died, not son
+     - John Donaldson's description: "young man who served as a driver" → SON was the driver
+   - Location: `src/pipeline/character_profiling/` or `src/analyzer.py` profile generation stage
+   - Root cause: LLM cannot distinguish passages about "John" (son) from passages about "John Donaldson" (father) without explicit guidance
+   - Fix approach: **The profile extraction prompt must include character-specific disambiguation context**
+     - Option A: Include character descriptions from extraction in profile prompt
+     - Option B: Include the chapter summary (which correctly identifies both) as context
+     - Option C: Add explicit rules: "For 'John' without surname: young man, school commencement, ambulance driver. For 'John Donaldson': older man, deceased, fled America."
 
 ### HIGH
 
-2. **Relationships empty for all characters**
+2. **Relationships still empty for all characters**
    - Problem: `relationships: {}` for all 4 characters
-   - Evidence:
-     - John Donaldson is John's father (explicitly stated in summary)
-     - Uncle Bill is John's great-uncle (stated in text)
+   - Evidence: Clear relationships in text:
+     - John Donaldson is John's father
+     - Uncle Bill is John's great-uncle/guardian
      - Joe Barron is John's fellow ambulance driver
-   - Location: `src/pipeline/character_profiling/` - relationship extraction
-   - Fix: After profile confusion is fixed, verify relationship extraction works
-
-### MEDIUM
-
-3. **Physical descriptions null for all characters**
-   - Problem: `physical_description: null` but `appearance.summary` has data
-   - Evidence: Father was described as having "physical beauty" and "charm"
-   - This may be a field mapping issue rather than extraction failure
+   - Location: `src/pipeline/character_profiling/` relationship extraction
+   - Fix: This may be fixed once profile confusion is resolved
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -101,6 +99,7 @@ The existing `name_disambiguator.py` (added in attempt 6) is not being used effe
 | 5 | 8.65 | +0.70 | Collision fix helped slightly but semantic confusion remains |
 | 6 | 7.15 | -0.80 | **REGRESSION**: Character extraction broke (4/10) |
 | 7 | 8.45 | +0.50 | Character extraction FIXED (9/10). Profiles still confused (4/10) |
+| 8 | 8.50 | +0.55 | **NO IMPROVEMENT** - Substring filtering didn't fix profile confusion (3/10) |
 
 ## Modification History
 
@@ -113,31 +112,36 @@ The existing `name_disambiguator.py` (added in attempt 6) is not being used effe
 | 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
 | 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
 | 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** - Two Johns now extracted separately |
-| 8 | Profile mention search substring filtering | src/analyzer.py | FIX APPLIED - mentions now avoid "John" in "John Donaldson" |
+| 8 | Profile mention search substring filtering | src/analyzer.py | **NO CHANGE** - Did not fix semantic confusion in profile generation |
 
-## Fix Strategy for Attempt 8
+## Fix Strategy for Attempt 9
 
-**Target**: Profile generation disambiguation
+**Target**: Profile generation prompt must include character disambiguation context
 
-The character EXTRACTION now correctly separates John and John Donaldson. But the PROFILE GENERATION assigns evidence to the wrong character.
+The substring filtering approach (attempt 8) was necessary but not sufficient. The LLM still cannot distinguish between passages discussing the father vs the son without explicit guidance about WHO each character is.
 
-**Key insight**: When extracting profiles, the system must distinguish:
-- **"John"** (no surname) → the SON (young, letter writer, ambulance driver)
-- **"John Donaldson"** → the FATHER (older, deceased, found in Italy)
+**The key insight**: The chapter summary ALREADY correctly distinguishes them:
+- "his deceased brother's grandson, John, who asks him to attend his school commencement"
+- "his beloved cousin John Donaldson—whose financial ruin and eventual death left the narrator as guardian"
 
-**The disambiguation signals are available:**
-1. Chapter summaries correctly list "John" and "John Donaldson" as separate characters_present
-2. The plot summary describes their relationship
-3. Context words: "father", "son", "his father John Donaldson"
+**Approach**: When generating profiles, include character-specific context from the extraction/summary:
 
-**Approaches to try:**
-1. Check if `name_disambiguator.py` is being invoked during profile generation
-2. If it is, check if its signals are being honored by the LLM
-3. If not, add explicit disambiguation in the profile extraction prompt:
-   - "When the text mentions 'John' without 'Donaldson', attribute to the younger character"
-   - "When the text mentions 'John Donaldson' or discusses someone deceased/fleeing, attribute to the father"
+For John (son):
+- "John is the young grandson/nephew who writes asking for help"
+- "He joins the ambulance service, graduates from school"
+- Passages about commencement, letters, ambulance driving → attribute to John
 
-**File to investigate:** `src/pipeline/character_profiling/pipeline.py` - check how profiles are generated and whether disambiguation is applied.
+For John Donaldson (father):
+- "John Donaldson is the father who embezzled money and fled to Italy"
+- "He died during WWI as a stretcher-bearer"
+- Passages about fleeing, financial ruin, death in Italy → attribute to John Donaldson
+
+**Files to investigate:**
+1. `src/analyzer.py` - profile generation stage (~line 2300+)
+2. `src/pipeline/character_profiling/pipeline.py` - how profiles are built
+3. Check if the chapter summary is available to pass as context
+
+**This is NOT a keyword list violation** - we're passing existing, extracted context to help the LLM disambiguate, not hardcoding book-specific logic.
 
 ## Fix History
 
@@ -154,31 +158,13 @@ The character EXTRACTION now correctly separates John and John Donaldson. But th
 ### Attempt 7: Fixed CHARACTER_IDENTIFICATION_PROMPT for family name overlap ✓
 - **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` lines 77-86
 - **Result:** FIXED - "John" and "John Donaldson" now correctly separate
-- **New issue:** Profile generation still confuses evidence between them
 
-### Attempt 8: Fixed profile mention search to avoid substring matches
-- **Root cause:** Profile generation regex `\bJohn\b` matched BOTH "John" (son) and "John" in "John Donaldson" (father)
-- **Modified:** `src/analyzer.py` lines 2304-2310 → added substring filtering logic
-- **Fix:** When searching for character mentions during profile generation, filter out matches that are part of a longer character name
-- **Example:** "John" now only matches standalone "John", NOT "John" in "John Donaldson"
-- **Smoke test:** PASS - Verified with synthetic test that "John" correctly excludes "John Donaldson" matches
-- **Universality:** Yes - helps ANY book with substring name overlaps (e.g., "Ames" vs "Cathy Ames", "José" vs "José Arcadio")
-
-## Pipeline Notes - Attempt 8
-
-Analysis completed successfully in 13m 5s.
-
-**Key metrics:**
-- 4 characters extracted: John (16 mentions), Uncle Bill (18 mentions, alias: Bill), John Donaldson (7 mentions), Joe Barron (3 mentions)
-- 3 character profiles generated (3 eligible characters)
-- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
-- Total LLM calls: 61, Total tokens: 56,153
-
-**Bottleneck:** Character Profiles (4m 25s, 33.7% of time)
-
-No pipeline errors or warnings reported.
+### Attempt 8: Substring filtering in profile mention search
+- **Modified:** `src/analyzer.py` lines 2304-2310
+- **Result:** NO IMPROVEMENT - Profile data still inverted between John and John Donaldson
+- **Why it failed:** Substring filtering prevents matching "John" in "John Donaldson", but the LLM still semantically confuses which passages describe which character
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Evaluate whether the substring filtering fix correctly attributes profile evidence to John (son) vs John Donaldson (father).
+Run PROMPT_fix.md to add character context/disambiguation to the profile generation prompt. The LLM needs to know WHO each "John" character is before attributing evidence to their profiles.
