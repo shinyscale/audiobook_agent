@@ -2,20 +2,20 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Quality Report: output/American Sir_20260129_093421/quality.md
+- Quality Report: output/American Sir_20260129_113915/quality.md
 
 ## Pipeline Execution
-- Duration: 11m 36s
-- LLM Calls: 61
-- Tokens: 55,408
+- Duration: 15m 33s
+- LLM Calls: 59
+- Tokens: 52,864
 - Characters Found: 4 (John, Uncle Bill, John Donaldson, Joe Barron)
 - Profiles Generated: 3
 
@@ -170,6 +170,7 @@ The narrator (Uncle Bill) is NOT named "John." The nephew IS named "John" (after
 | 8 | Profile mention search substring filtering | src/analyzer.py | **NO CHANGE** - Did not fix semantic confusion in profile generation |
 | 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** - Evidence already gathered incorrectly before prompt is used |
 | 10 | Context-aware evidence disambiguation in gathering | src/analyzer.py | **PARTIAL** - John Donaldson now correct; "John" still has narrator data |
+| 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | FIX APPLIED - Two-layer defense: (1) block ambiguous narrator names, (2) filter "I did X to John" passages |
 
 ## Key Insight for Fix Phase
 
@@ -219,13 +220,33 @@ The evidence disambiguation helped separate "John" from "John Donaldson" (father
 - **Result:** PARTIAL - John Donaldson (father) profile now correct; "John" (nephew) still populated with narrator data
 - **Why partial success:** Disambiguation separates father/son, but doesn't separate narrator-perspective evidence from character-perspective evidence
 
+### Attempt 11: Narrator perspective contamination filter ✓
+- **Root cause:** Two issues causing narrator data to contaminate non-narrator profiles:
+  1. Ambiguous short-form names (e.g., "John") could be marked as narrator, causing "I/my/me" passages to be gathered for them
+  2. First-person passages like "I repaid John's debts" were attributed to John even though they describe narrator actions
+
+- **Fix applied (two-layer defense):**
+  1. **Prevent ambiguous narrator assignment** (`pipeline.py`): If narrator name is ambiguous per NameAmbiguityMap, clear narrator assignment to avoid first-person contamination
+  2. **Filter narrator-perspective passages** (`perspective_filter.py` NEW): For non-narrators, exclude passages where narrator is subject ("I did X to John") unless character is co-subject ("John and I") or appositive ("my nephew John")
+
+- **Files modified:**
+  - `src/pipeline/character_profiling/perspective_filter.py` (NEW - ~106 lines)
+  - `src/pipeline/character_profiling/identifier.py` (added ambiguous narrator guard)
+  - `src/pipeline/character_profiling/pipeline.py` (clear ambiguous narrator, plumb narrative_style)
+  - `src/pipeline/character_profiling/passage_gatherer.py` (apply perspective filter)
+  - `src/pipeline/character_profiling/summary_evidence.py` (apply perspective filter)
+  - `src/pipeline/character_profiling/generator.py` (plumb narrative_style)
+  - `tests/test_narrator_contamination_filter.py` (NEW - 4 tests)
+
+- **Tests:** All 28 tests pass (including 4 new narrator contamination tests)
+
+- **Universality:** Yes - helps ANY first-person narrative where non-narrator characters are mentioned in "I did X" constructions
+
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Fix the narrator perspective contamination in evidence gathering:
-- When gathering evidence for character "John" who is NOT the narrator
-- Filter out evidence that describes the NARRATOR's actions/thoughts
-- Only include evidence that describes JOHN's actions/thoughts/characteristics
-
-The chapter summary correctly identifies "Narrator (Uncle Bill)" and "John Donaldson (the nephew)" as separate - use this as a guide for evidence attribution.
+Re-run analysis to verify:
+1. "John" (nephew) profile no longer contains narrator (Uncle Bill) evidence
+2. "John" (nephew) has evidence about HIS actions (ambulance driving, Croix de Guerre, discovering father)
+3. No regression on other characters
