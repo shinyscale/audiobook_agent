@@ -242,7 +242,17 @@ The summary is excellent:
 3. **Is the prompt too complex?** The prompt has many fields - maybe relationship extraction needs to be simpler or separate
 4. **Does the model have issues with same-name disambiguation?** Test with a prompt that explicitly shows "John (supporting_0)" vs "John Donaldson (supporting_2)"
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 3 - Latest Run)
+- Analysis completed successfully in 11m 3s (2026-01-28 17:47)
+- Competitive consensus enabled for all 3 stages
+- Character Profiles stage: 5 LLM calls, 3 items processed, HIGH confidence, 0 retries
+- Warnings observed:
+  - "LLM marker proposer returned non-list: <class 'dict'>" (twice)
+  - "Narrator 'John Donaldson (the uncle)' identified but NOT found in main_cast"
+  - "No passages provided" for character voice analysis (3x)
+  - Ollama json_mode validation errors in pronunciation stage (2x)
 
-Attempt 3 fix complete. Re-run analysis to verify relationship extraction works with simplified prompt.
+## Next Action
+**Phase:** awaiting_evaluation
+
+Attempt 3 analysis complete. Ready for evaluation to verify if simplified relationship prompt fixed the empty relationships issue.
