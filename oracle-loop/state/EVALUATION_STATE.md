@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 17
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -11,19 +11,10 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 17)
-- Analysis completed successfully in 14m 12s
-- Competitive consensus enabled on all stages (characters, structure, summaries)
-- All 4 characters detected: John, Uncle Bill, John Donaldson, Joe Barron
-- Uncle Bill correctly identified as first-person narrator
-- 3 character profiles generated (all eligible characters)
-- Post-processing relationship extraction applied to profiles
-- No errors during analysis
-
 ## Latest Scores
 - Structure Detection: 10/10 ✓
 - Character Extraction: 9/10 ✓
-- Character Profiles: 7/10 ✗ (FAILING - relationships empty)
+- Character Profiles: 7/10 ✗ (FAILING - relationships not serialized)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
@@ -32,135 +23,100 @@
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold)
 
-## Progress Report
+## Evaluation Details
 
-### What's Working Well (Attempt 16)
+### Structure Detection: 10/10 ✓
+- Single-chapter short story correctly identified
+- No structural errors
 
-1. **Structure Detection: 10/10** - Correctly identified single-chapter short story
-2. **Character Extraction: 9/10** - All 4 characters correctly separated (John, Uncle Bill, John Donaldson, Joe Barron)
-3. **Narrator Detection: FIXED** - Uncle Bill correctly marked as first-person narrator
-4. **Evidence Attribution: FIXED** - No more narrator perspective contamination
-5. **Personality/Traits: EXCELLENT** - Rich, accurate descriptions for main characters
-6. **Voice Guidance: GOOD** - Tone, formality, example quotes all populated
-7. **Chapter Summaries: 10/10** - Comprehensive, accurate summary
-8. **Pronunciation: 8/10** - 45/50 entries have IPA, good coverage of Italian terms
+### Character Extraction: 9/10 ✓
+- All 4 characters correctly separated: John, Uncle Bill, John Donaldson, Joe Barron
+- No false merges or splits
+- Uncle Bill correctly identified as first-person narrator
 
-### Remaining Gap: Empty Relationships
+### Character Profiles: 7/10 ✗ (FAILING)
+**Good:**
+- Personality/traits populated with rich, accurate descriptions
+- Voice guidance populated (tone, formality, example quotes)
+- Evidence populated with 4-8 citations per character
+- Appearance has age indication
 
-The profile generation fix from attempt 16 did NOT work. All characters still have `relationships: {}`.
+**Bad:**
+- **Relationships field is empty (`{}`) for ALL characters**
+- Physical appearance is "unknown" for all characters (minor issue)
 
-**Evidence that relationships SHOULD exist:**
-- Evidence item: "John is the son of John Donaldson"
-- Evidence item: "The narrator had a beloved cousin named John Donaldson"
-- Evidence item: "The narrator is not John's real uncle but assumes the role"
+### Chapter Summaries: 10/10 ✓
+- Comprehensive, accurate summary of the short story
+- Captures key events and character relationships
 
-The evidence MENTIONS these relationships but they aren't being extracted to the structured `relationships` field.
+### Pronunciation Guide: 8/10 ✓
+- 45/50 entries have IPA
+- Good coverage of proper nouns and Italian terms
+
+### HTML Presentation: 9/10 ✓
+- Clean layout
+- Navigation functional
+- "Key Relationships" section shows "No explicit relationships detected" (matches empty data)
 
 ## Current Issues (Priority Order)
 
-### HIGH
+### CRITICAL
 
-1. **All relationships empty despite prompt enhancement**
-   - Problem: `relationships: {}` for all 4 characters
-   - Expected relationships:
-     - John (boy) → Uncle Bill: "guardian" or "pseudo-uncle"
-     - John (boy) → John Donaldson: "father" (discovered during war)
-     - Uncle Bill → John (boy): "ward" or "nephew"
-     - Uncle Bill → John Donaldson: "cousin"
-     - John Donaldson → John (boy): "son"
-   - Attempt 16 fix: Enhanced prompt to make relationships more prominent
-   - Result: **NO CHANGE** - relationships still empty
-   - Hypothesis: The LLM is populating `evidence` field with relationship info but NOT the `relationships` dict
-   - Location: `src/analyzer.py` profile generation (lines 2550-2700)
-   - Root cause options:
-     1. The JSON schema isn't enforcing relationship extraction
-     2. The LLM response parsing is dropping the relationships field
-     3. The prompt structure makes relationships appear optional when they should be required
-   - Suggested investigation:
-     1. Check the actual LLM response before parsing to see if relationships are generated
-     2. Add diagnostic logging to see what the LLM returns for relationships
-     3. Consider post-processing: extract relationships FROM evidence statements using a second pass
+1. **Relationships not serialized to output**
+   - Problem: `_convert_characters()` in `src/analyzer.py` (lines 3528-3544) creates `OutputCharacter` but does NOT include the `relationships` field
+   - Root cause found: The relationship extraction fix in attempt 17 works correctly (tested: extracts `{"John": "uncle", "John Donaldson": "cousin"}` from Uncle Bill's evidence), but the data is lost during conversion to output
+   - Evidence:
+     - Line 1836: `char.relationships = relationships` sets the attribute on pipeline Character
+     - Lines 3528-3544: `OutputCharacter()` constructor does NOT include `relationships=getattr(pc, "relationships", None)`
+   - Location: `src/analyzer.py` lines 3528-3544 (`_convert_characters` method)
+   - Fix: Add `relationships=getattr(pc, "relationships", {}),` to the `OutputCharacter()` constructor call
 
 ### MEDIUM
 
 2. **Physical descriptions all "unknown"**
    - Problem: All characters have `appearance.summary: "unknown"`
    - Evidence exists: "All John Donaldson's physical beauty, all his charm were repeated in his son"
-   - This describes both father AND son (inherited beauty)
    - Impact: Minor - doesn't block 8.0 threshold
-   - Location: `src/analyzer.py` profile generation
+   - Location: Profile generation prompt or evidence extraction
 
-## Score History
-| Attempt | Score | Delta from Baseline | Notes |
-|---------|-------|---------------------|-------|
-| 1 | 7.95 | - | Baseline. Critical: John/John Donaldson false merge |
-| 2 | 8.65 | +0.70 | Character extraction FIXED (9/10). Profiles failing (7/10) |
-| 3 | 8.65 | +0.70 | No change. Prompt simplification didn't improve relationships |
-| 4 | 8.60 | +0.65 | Profiles dropped to 5/10 due to evidence confusion |
-| 5 | 8.65 | +0.70 | Collision fix helped slightly but semantic confusion remains |
-| 6 | 7.15 | -0.80 | **REGRESSION**: Character extraction broke (4/10) |
-| 7 | 8.45 | +0.50 | Character extraction FIXED (9/10). Profiles still confused (4/10) |
-| 8 | 8.50 | +0.55 | Substring filtering didn't fix profile confusion (3/10) |
-| 9 | 8.50 | +0.55 | Disambiguation context in profile prompt didn't help (3/10) |
-| 10 | 8.55 | +0.60 | John Donaldson profile now correct; "John" still has narrator data (5/10) |
-| 11 | 8.55 | +0.60 | Narrator filter worked but "John" now has FATHER's backstory (5/10) |
-| 12 | 8.65 | +0.70 | Chapter-range prior FAILED - supporting cast had no chapters_present data |
-| 13 | 8.20 | +0.25 | Fixes didn't deploy? Character extraction regressed to 7/10 (false merge) |
-| 14 | 8.45 | +0.50 | Character extraction FIXED (9/10). Profiles confused (5/10). |
-| 15 | 9.00 | +1.05 | **BREAKTHROUGH:** Narrator fix worked! Evidence now correct. Only relationships missing. |
-| 16 | 9.00 | +1.05 | Profile prompt enhancement did NOT fix relationships |
+## Fix History
+
+| Attempt | Fix Applied | Result |
+|---------|-------------|--------|
+| 1 | Initial baseline | 7.95 - John/John Donaldson false merge |
+| 2 | Character extraction fix | Character extraction FIXED (9/10), profiles failing |
+| 3-5 | Various profile attempts | Partial improvements |
+| 6 | Semantic disambiguation | REGRESSION - Character extraction broke |
+| 7 | CHARACTER_IDENTIFICATION_PROMPT | Character extraction FIXED |
+| 8-9 | Profile disambiguation | No change |
+| 10 | Context-aware evidence | Partial improvement |
+| 11 | Narrator perspective filter | Partial - narrator data contamination fixed |
+| 12 | Chapter-range prior | FAILED - supporting cast lacked data |
+| 13 | Upstream data fix | REGRESSION |
+| 14 | External changes tested | Character extraction FIXED, profiles failing |
+| 15 | Narrator placeholder merge | BREAKTHROUGH - Narrator correctly identified |
+| 16 | Relationship prompt enhancement | NO CHANGE - relationships still empty |
+| 17 | Post-processing relationship extraction | PARTIAL - extraction works but serialization missing |
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | False merge of John/John Donaldson | src/agents/characters.py | **FIXED** |
-| 2-5 | Various profile/relationship fixes | Multiple | Partial |
-| 6 | Semantic disambiguation | Multiple | **REGRESSION** |
-| 7 | CHARACTER_IDENTIFICATION_PROMPT | main_cast.py | **FIXED** |
-| 8-9 | Profile disambiguation attempts | src/analyzer.py | NO CHANGE |
-| 10 | Context-aware evidence disambiguation | src/analyzer.py | PARTIAL |
-| 11 | Narrator perspective filter | perspective_filter.py + others | PARTIAL |
-| 12 | Chapter-range prior (blocked by data) | name_disambiguator.py + others | FAILED |
-| 13 | Upstream data fix + relationship markers | characters.py, name_disambiguator.py, client.py, tests | **REGRESSION** |
-| 14 | External changes tested | (external) | Character extraction FIXED, profiles still failing |
-| 15 | Narrator placeholder merge fix | src/agents/characters.py | **FIXED** - Narrator now correct |
-| 16 | Relationship extraction prompt enhancement | src/analyzer.py | **NO CHANGE** - relationships still empty |
-| 17 | Post-processing relationship extraction | src/analyzer.py | **TESTING** - Extract from evidence field |
+| 17 | Relationship extraction from evidence | src/analyzer.py (lines 2254-2345, 3141-3151) | **PARTIAL** - Extraction works, serialization broken |
 
-## Attempt 17 Fix: Post-Processing Relationship Extraction
+## Root Cause Analysis
 
-### Root Cause (Confirmed)
-After 2 attempts to enhance the prompt (attempts 15-16), relationships remained empty.
-This matches the documented anti-pattern: "Adding lots of prompt rules → LLM ignores long rule lists"
+The relationship extraction fix added in attempt 17 is **working correctly**:
+- `_extract_relationships_from_evidence()` correctly parses evidence statements
+- Test confirms: Uncle Bill's evidence yields `{"John": "uncle", "John Donaldson": "cousin"}`
+- Line 1836 assigns: `char.relationships = relationships`
 
-**Key insight:** The LLM IS extracting relationship information, but into the `evidence` field, not the `relationships` dict.
+But the relationships are **lost during output conversion**:
+- `_convert_characters()` creates `OutputCharacter` objects
+- The constructor call does NOT include `relationships`
+- All other structured fields (appearance, personality, voice_guidance) ARE included
 
-**Evidence:**
-- John's evidence: "John's uncle initially considers rejecting his request"
-- Uncle Bill's evidence: "beloved cousin named John Donaldson"
-- John Donaldson's evidence: "is the father of the boy"
-
-### Fix Applied (Attempt 17)
-**Approach:** Post-processing extraction from evidence field (per PROMPT_fix.md guidance: "Simple prompt + deterministic verification")
-
-**Implementation:**
-1. Added `_extract_relationships_from_evidence()` method in `src/analyzer.py` (lines 2254-2333)
-2. Called after LLM profile generation if `relationships` is empty (line 3141-3150)
-3. Pattern matching for universal relationship keywords:
-   - "is the father/mother/son/etc"
-   - "beloved cousin named X"
-   - "X's uncle/aunt/nephew/etc"
-   - "assumes the role of guardian"
-4. Filters out self-references to avoid "John → John: uncle"
-
-**Expected extraction for american_sir:**
-- Uncle Bill → John Donaldson: "cousin" ✓
-- John Donaldson → John: "father" ✓
-- Possibly 1-2 more depending on pattern matching
-
-**Testing:** Smoke test confirmed 3 relationships would be extracted
-**Universal:** This pattern works for ANY book where evidence mentions relationships
+This is a one-line fix in `src/analyzer.py`.
 
 ## Next Action
-Run PROMPT_analyze.md to re-run analysis with relationship extraction fix
+Run PROMPT_fix.md to add `relationships=getattr(pc, "relationships", {}),` to the `OutputCharacter()` constructor in `_convert_characters()` (line ~3544)
