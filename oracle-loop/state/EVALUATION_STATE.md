@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -13,65 +13,75 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7/10 ✗ (FAILING)
-- Character Profiles: 6/10 ✗ (FAILING)
+- Character Extraction: 9/10 ✓
+- Character Profiles: 7/10 ✗ (FAILING)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.95/10** (reference only)
+- **Overall: 8.65/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (1 category below threshold)
 
 ## Evaluation Details
 
 ### Structure Detection: 9/10 ✓
 
-This is a short story without chapter divisions - the tool correctly identified it as a single structural unit. The analysis appropriately handled this case.
+This is a short story without chapter divisions - correctly identified as a single structural unit.
 
 **Observations:**
 - Single chapter detected (correct for short story format)
 - Word count 5044 words, 33.6 minutes estimated duration (reasonable)
 - Confidence: medium (appropriate for untitled single section)
 
+**Minor issue:**
+- Chapter title is null rather than story title "American, Sir!" (cosmetic only)
+
+### Character Extraction: 9/10 ✓ (IMPROVED from 7/10)
+
+**THE CRITICAL FIX WORKED!** John and John Donaldson are now correctly separated.
+
+**Expected characters:**
+1. Uncle Bill (narrator) ✓ - 18 mentions, correctly marked as narrator
+2. John (the nephew, ambulance driver) ✓ - 16 mentions
+3. John Donaldson (the father, the thief who died) ✓ - 7 mentions, NOW SEPARATE
+4. Joe Barron (fellow ambulance driver) ✓ - 3 mentions
+
+**Verification:**
+- `supporting_0: John` - 16 mentions, is_narrator: False
+- `supporting_2: John Donaldson` - 7 mentions, is_narrator: False
+- These are correctly distinct entries with different IDs
+
 **Minor issues:**
-- Chapter title is null rather than story title "American, Sir!" (cosmetic)
+- Margaret Donaldson missing (mentioned once: "I had a note signed Margaret Donaldson, John's wife")
+- This is a very minor character with only one mention, so acceptable to omit
 
-### Character Extraction: 7/10 ✗
+### Character Profiles: 7/10 ✗ (FAILING)
 
-**Expected characters in "American, Sir!":**
-1. **Uncle Bill** (the narrator) - John's honorary uncle, the one recounting the story
-2. **John** (the nephew) - young man, later WWI ambulance driver, son of John Donaldson
-3. **John Donaldson** (the father) - the disgraced cousin who stole money, faked death, later died in WWI Italy
-4. **Joe Barron** - fellow ambulance driver who helps John rescue wounded
-5. **Margaret Donaldson** - John's mother, briefly mentioned (sent a note about husband's "death")
+Profiles ARE populated - they use `appearance`, `descriptions`, `personality`, `voice_guidance` fields (not `physical_description`).
 
-**Found characters:**
-1. John (with alias John Donaldson) - 28 mentions ✓
-2. Uncle Bill (with alias Bill) - 18 mentions, correctly marked as narrator ✓
-3. Joe Barron - 3 mentions ✓
+**Good profile elements present:**
+- Personality traits populated for John (impulsive, emotionally sensitive, adventure-seeking)
+- Personality traits populated for Uncle Bill (compassionate, restrained, attentive)
+- Voice guidance with suggested tone (gentle) and example quotes
+- Descriptions with LLM-refined summaries
+- Source evidence with citations (10 for John, 5 for Uncle Bill)
 
-**Issues:**
-- **FALSE MERGE:** "John" (the son/nephew, the ambulance driver) and "John Donaldson" (the father, the disgraced thief who died in Italy) are DIFFERENT PEOPLE but merged as aliases. This is a critical error - the story's entire dramatic tension is the revelation that father and son share the same name.
-- **Missing:** Margaret Donaldson (John's mother, deceased, briefly mentioned)
+**Issues preventing score of 8/10:**
 
-The false merge of the two Johns is significant because:
-- The nephew is the living protagonist telling his story
-- The father is the disgraced relative who reappears and dies
-- They share the name "John Donaldson" which is central to the plot twist
+1. **Empty relationships dict for all characters** - The story has clear family relationships:
+   - John (nephew) is the son of John Donaldson (father)
+   - Uncle Bill is actually a cousin to John Donaldson, honorary uncle to John
+   - Margaret Donaldson was John Donaldson's wife
 
-### Character Profiles: 6/10 ✗
+   The relationships field is `{}` for all 4 characters despite these being central to the plot.
 
-**Issues:**
-- No physical descriptions for any characters (0/3)
-- No relationships populated (0/3) - relationships dict is empty for all
-- The profile system correctly captured personality traits and chapter events
-- Speech patterns and verbal tics captured for Uncle Bill ("Uncle Bill,")
+2. **Physical appearance showing "unknown"** despite text evidence:
+   - The evidence section contains: "All John Donaldson's physical beauty, all his charm were reproduced"
+   - This should populate the appearance summary for John (nephew) or John Donaldson (father)
 
-The lack of physical descriptions and relationships significantly impacts usefulness for narrator prep. The text does contain relationship information:
-- John (nephew) is the son of John Donaldson (father)
-- Uncle Bill is actually a cousin, not an uncle
-- Margaret Donaldson was John Donaldson's wife and John's mother
+3. **Joe Barron has no profile data** - appearance, personality, voice_guidance all null
+   - Minor character, but at 3 mentions could have basic data
 
 ### Chapter Summaries: 10/10 ✓
 
@@ -79,8 +89,8 @@ The summary is excellent:
 - Accurately captures the two-part structure (commencement request + 1919 pier reunion)
 - Correctly identifies the plot twist (dying man is the father)
 - No factual errors or hallucinations
-- Appropriate length (~270 words per chapter summary)
-- Captures the thematic arc (resentment → redemption)
+- Appropriate length (~270 words)
+- Captures thematic arc (resentment → redemption)
 - Correctly notes WWI setting, Red Cross ambulance service, Piave front
 
 ### Pronunciation Guide: 9/10 ✓
@@ -89,100 +99,88 @@ The summary is excellent:
 - 50 entries flagged, 45/50 have IPA (90% coverage)
 - Italian place names correctly identified: Caporetto, Piave, Tagliamento
 - Character names with good IPA: Donaldson, Barron
-- Foreign terms flagged appropriately
+- 5 homographs (live, minute, read, close, moderate) correctly handled with notes explaining both pronunciations
 
 **Minor issues:**
-- 5 homographs (live, minute, read, close, moderate) lack IPA but have notes explaining both pronunciations - acceptable for homographs
-- Some common words flagged unnecessarily (lad's, scrap-basket) but these are borderline and notes are helpful
+- Some common words flagged unnecessarily (scrap-basket, lad's) - borderline
 
 ### HTML Presentation: 9/10 ✓
 
 **Strengths:**
 - Clean dark theme, professional appearance
 - Tab navigation works correctly
-- Character cards are well-organized
-- Pronunciation guide has multiple views (by chapter, alphabetical, glossary)
+- Character cards well-organized with personality, voice guidance, evidence
+- Pronunciation guide has multiple views
 - Print styling included
 
 **Minor issues:**
-- Relationship section shows "No explicit relationships detected" (consequence of profile issue)
-- Character profiles section sparse due to missing descriptions
+- Relationship section shows "No explicit relationships detected" (consequence of empty relationships)
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-
-1. **False character merge: John (nephew) and John Donaldson (father)**
-   - Problem: The analysis merged "John Donaldson" as an alias of "John", but these are two DIFFERENT characters - father and son who share the same name
-   - Evidence: The entire story's dramatic reveal is that the dying soldier in Italy has the same name as the nephew: "He gave his name as John Donaldson"
-   - Location: V2 character extraction - likely in alias/merge logic (`src/pipeline/character_extraction_v2/`)
-   - ID pattern: `supporting_*` (all 3 characters) - fix needed in supporting cast pipeline
-   - Fix: The merge logic needs to recognize that when characters share a name but have clearly different narrative roles (one is dead/dying, one is alive telling the story), they should NOT be merged. Semantic conflict detection should identify that "John" the narrator's nephew and "John Donaldson" the thief who died 20 years ago cannot be the same person.
-
 ### HIGH
 
-2. **Missing character: Margaret Donaldson**
-   - Problem: John's mother is mentioned by name as the one who sent notice of his father's "death"
-   - Evidence: "I had a note signed Margaret Donaldson, John's wife"
-   - Location: Character extraction threshold or supporting cast detection
-   - Fix: Lower mention threshold or improve detection for characters mentioned in pivotal narrative moments
-
-3. **Empty relationships for all characters**
-   - Problem: relationships dict is `{}` for all 3 characters despite clear family ties
-   - Evidence: John is the son of John Donaldson; Uncle Bill is actually a cousin to John's father
-   - Location: Relationship extraction in V2 pipeline or profile generation
-   - Fix: Profile generation should populate relationships based on story context
+1. **Empty relationships for all characters**
+   - Problem: `relationships: {}` for all 4 characters despite clear family ties in the story
+   - Evidence:
+     - John (nephew) is son of John Donaldson (father)
+     - Uncle Bill is cousin to John Donaldson, honorary uncle to nephew John
+     - The story's plot REVOLVES around these family connections
+   - Location: Profile generation stage - relationship extraction
+   - ID patterns: All `supporting_*` IDs - fix in profile enrichment or relationship extraction
+   - Fix: The profile generation LLM call (3 items processed, high confidence) isn't extracting relationships. Check `src/pipeline/` or `src/agents/` for relationship extraction prompts/logic.
 
 ### MEDIUM
 
-4. **No physical descriptions populated**
-   - Problem: physical_description is null for all characters
-   - Evidence: Text contains descriptions: John (nephew) has "all John Donaldson's physical beauty" but with "greater strength"
-   - Location: Profile generation stage
-   - Fix: Physical description extraction should capture comparative descriptions
+2. **Physical appearance showing "unknown" despite text evidence**
+   - Problem: `appearance.summary: "unknown"` for John despite evidence containing physical descriptions
+   - Evidence: The evidence includes "All John Donaldson's physical beauty, all his charm were reproduced"
+   - Location: Profile enrichment stage - appearance extraction
+   - Fix: Appearance extraction should parse the evidence/descriptions for physical traits
 
-5. **Chapter title missing**
-   - Problem: Structure has title: null instead of "American, Sir!"
-   - Evidence: Story title is clearly stated in the source
-   - Location: Structure detection for short stories without explicit chapter markers
-   - Fix: For single-chapter texts, use document title as chapter title
+3. **Joe Barron has no profile data**
+   - Problem: appearance, personality, voice_guidance all null for Joe Barron
+   - Evidence: He's mentioned 3 times as a fellow ambulance driver
+   - Location: Profile enrichment threshold - may exclude characters with <5 mentions
+   - Fix: Either lower threshold or provide minimal profile for all named characters
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
-| 1 | 7.95 | - | Baseline established. Character merge error (John/John Donaldson), missing profiles |
+| 1 | 7.95 | - | Baseline. Critical: John/John Donaldson false merge |
+| 2 | 8.65 | +0.70 | Character extraction FIXED (9/10). Profiles still failing (7/10) |
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Critical #1: False merge of "John" (nephew) + "John Donaldson" (father) | src/agents/characters.py | Fixed Pass 2 in _merge_within_supporting_cast to use string_similarity (85% threshold) instead of names_similar (which has subset matching). Root cause: names_similar() treated "John" as subset of "John Donaldson" and auto-merged them. Fix prevents father/son same-first-name merges while preserving spelling variant merges. |
+| 1 | False merge of John/John Donaldson | src/agents/characters.py | **FIXED** - Characters now separate (9/10 extraction) |
 
 ## Fix History
 
-### Attempt 1: Fixed false John/John Donaldson merge
+### Attempt 1: Fixed false John/John Donaldson merge ✓
 
 **Root cause:** `src/agents/characters.py:_merge_within_supporting_cast():line 2612`
 - Pass 2 used `names_similar()` which includes subset matching
 - `names_similar("John", "John Donaldson")` returned True because {"john"} ⊂ {"john", "donaldson"}
-- This caused father (John Donaldson) and son (John) to be merged as same person
 
-**Smoke test:** PASS
-- "John" vs "John Donaldson" = 44% similarity → kept separate ✓
-- "Wolfsheim" vs "Wolfshiem" = 89% similarity → merged (spelling variant) ✓
-
-**Modified:** src/agents/characters.py lines 2594-2619
-
-**Next:** Awaiting re-analysis to verify fix addresses the issue
+**Result:** VERIFIED FIXED
+- John (supporting_0) and John Donaldson (supporting_2) now have separate IDs
+- Character extraction score improved from 7/10 to 9/10
 
 ## Pipeline Notes (Attempt 2)
 - Analysis completed successfully in 11m 18s
-- Found 4 characters (previously 3): John, Uncle Bill, John Donaldson, Joe Barron
-- **KEY RESULT:** John and John Donaldson are now separate entities in the output
-- Competitive consensus enabled (all stages: characters, structure, summaries)
-- Some warnings in output about LLM json_mode validation (non-critical)
+- Character Profiles stage: 5 LLM calls, 3 items processed, high confidence
+- However, relationships field remains empty despite high confidence rating
+- Profile data IS populated in `appearance`, `descriptions`, `personality`, `voice_guidance` fields
+- The relationships extraction may be a separate step that's not running or not populating results
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix
 
-Evaluate whether the fix successfully prevents the false John/John Donaldson merge.
+Focus on HIGH priority issue:
+1. Investigate why relationships are not being extracted/populated
+2. The profile enrichment stage IS running (3 items processed, high confidence) but relationships remain empty
+3. Check if relationship extraction is a separate step that needs to be added/fixed
+
+The remaining gap is 1 point in Character Profiles. Fixing relationships should bring it to 8/10.
