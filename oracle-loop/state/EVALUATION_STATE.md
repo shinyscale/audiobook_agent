@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 16)
+- Analysis completed in 15m 16s
+- Competitive consensus enabled for characters, structure, and summaries
+- Model: qwen3-next:80b-a3b-instruct-q8_0
+- All 4 characters correctly extracted (John, Uncle Bill, John Donaldson, Joe Barron)
+- Narrator correctly detected: Uncle Bill (first-person)
+- 3 character profiles generated (eligible characters)
+- Some LLM validation warnings in output (json_mode format issues) but analysis completed successfully
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
