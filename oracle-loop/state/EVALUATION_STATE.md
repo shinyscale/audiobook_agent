@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -175,7 +175,14 @@ The summary is excellent:
 
 **Next:** Awaiting re-analysis to verify fix addresses the issue
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 11m 18s
+- Found 4 characters (previously 3): John, Uncle Bill, John Donaldson, Joe Barron
+- **KEY RESULT:** John and John Donaldson are now separate entities in the output
+- Competitive consensus enabled (all stages: characters, structure, summaries)
+- Some warnings in output about LLM json_mode validation (non-critical)
 
-Re-run analysis to verify the fix prevents false John/John Donaldson merge.
+## Next Action
+**Phase:** awaiting_evaluation
+
+Evaluate whether the fix successfully prevents the false John/John Donaldson merge.
