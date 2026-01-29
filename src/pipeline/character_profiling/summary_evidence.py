@@ -457,6 +457,13 @@ class SummaryEvidenceExtractor:
                 )
                 evidence.extend(event_statements)
 
+            # ALSO extract relationship-focused sentences even without explicit names
+            # This captures pronominal relationships like "his father", "her son"
+            relationship_statements = self._extract_relationship_statements(
+                summary.summary, names, summary.chapter_index, "summary"
+            )
+            evidence.extend(relationship_statements)
+
         return evidence
 
     def _extract_statements_mentioning(
@@ -509,6 +516,79 @@ class SummaryEvidenceExtractor:
         # Handle multi-word names and single names
         pattern = r"\b" + re.escape(name) + r"\b"
         return bool(re.search(pattern, text, re.IGNORECASE))
+
+    def _extract_relationship_statements(
+        self,
+        text: str,
+        names: list[str],
+        chapter_index: int,
+        source_type: str,
+    ) -> list[SummaryEvidence]:
+        """
+        Extract sentences with strong relationship keywords even without explicit character names.
+
+        This captures pronominal relationships like "his father", "her son", "the nephew"
+        that are critical for understanding character connections but don't use explicit names.
+
+        Only extracts if the character is confirmed to be in this chapter
+        (via characters_present check done by caller).
+        """
+        evidence = []
+
+        # Strong relationship keywords that indicate family/close connections
+        # These are UNIVERSAL relationship terms, not book-specific vocabulary
+        relationship_keywords = [
+            # Family relationships (direct)
+            "father", "mother", "parent",
+            "son", "daughter", "child", "children",
+            "brother", "sister", "sibling",
+            "husband", "wife", "spouse",
+            "uncle", "aunt", "nephew", "niece",
+            "cousin", "grandfather", "grandmother", "grandchild",
+            # Family relationships (in-law)
+            "father-in-law", "mother-in-law", "brother-in-law", "sister-in-law",
+            # Close relationships
+            "lover", "mistress", "friend", "companion", "partner",
+            # Descriptive phrases
+            "married to", "son of", "daughter of", "brother of", "sister of",
+        ]
+
+        # Split into sentences
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            sentence_lower = sentence.lower()
+
+            # Check if sentence contains any strong relationship keyword
+            has_relationship = any(keyword in sentence_lower for keyword in relationship_keywords)
+
+            if has_relationship:
+                # Avoid duplicates - check if we already extracted this sentence
+                already_added = any(
+                    ev.statement == sentence and ev.chapter_index == chapter_index
+                    for ev in evidence
+                )
+                if already_added:
+                    continue
+
+                # Score higher since relationship info is critical
+                score = 0.85  # High base score for relationship statements
+
+                evidence.append(
+                    SummaryEvidence(
+                        character_name=names[0],  # Use canonical name
+                        statement=sentence,
+                        chapter_index=chapter_index,
+                        source_type=source_type,
+                        relevance_score=score,
+                    )
+                )
+
+        return evidence
 
     def _score_statement(self, statement: str) -> float:
         """Score a statement's relevance based on content indicators."""
