@@ -666,6 +666,33 @@ class CharacterAgent(Agent):
         self._clean_invalid_aliases(main_cast)
         self._clean_invalid_aliases(supporting_cast)
 
+        # STEP 5.10.5: Search for mentions for supporting cast too (chapter distributions)
+        #
+        # Supporting cast is initially extracted via NER and may not have deterministic
+        # mention search results. However, downstream components (and debugging) benefit
+        # from having grounded mentions + chapter_distribution for supporting characters,
+        # especially for same-name disambiguation and chapter-range priors.
+        if supporting_cast:
+            logger.info(
+                f"V2 Step 5.10.5: Searching mentions for {len(supporting_cast)} supporting characters"
+            )
+            try:
+                supporting_results = searcher.search_all(supporting_cast)
+                supporting_cast = searcher.update_characters_with_mentions(
+                    supporting_cast, supporting_results
+                )
+                # Merge into global mention_results so downstream conversion can use chapter_distribution
+                mention_results.update(supporting_results)
+
+                # Populate first appearance chapter when possible
+                for char in supporting_cast:
+                    r = supporting_results.get(char.id)
+                    if r and r.chapter_distribution:
+                        chapters = sorted(r.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+            except Exception as e:
+                logger.warning(f"Supporting cast mention search failed: {e}")
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
@@ -1006,15 +1033,38 @@ class CharacterAgent(Agent):
             logger.info("No named character candidates found for narrator placeholder")
             return main_cast, supporting_cast, narrator_info, set()
 
-        # For "I Have No Mouth" case: Look for characters addressed directly in dialogue
-        # Simple approach: Pick the first candidate with a reasonable mention count
-        # More sophisticated: Could use LLM to analyze which character is the narrator
+        # PRIORITY 1: Match narrator_info.narrator_name to candidates
+        # The narrator detector may have identified the narrator by name even if
+        # it couldn't match to main_cast (e.g., "Uncle Bill" identified from summaries)
+        merge_target = None
+        if narrator_info.narrator_name:
+            narrator_name_lower = narrator_info.narrator_name.lower()
+            for candidate in candidates:
+                candidate_name_lower = candidate.canonical_name.lower()
+                # Exact match or partial match (first/last name)
+                if (
+                    narrator_name_lower == candidate_name_lower
+                    or narrator_name_lower in candidate_name_lower
+                    or candidate_name_lower in narrator_name_lower
+                ):
+                    merge_target = candidate
+                    logger.info(
+                        f"Matched narrator '{narrator_info.narrator_name}' to candidate "
+                        f"'{candidate.canonical_name}' by name"
+                    )
+                    break
 
-        # Sort by mention count (higher is more likely to be the narrator)
-        candidates.sort(key=lambda c: c.mention_count, reverse=True)
-
-        # Take the top candidate
-        merge_target = candidates[0]
+        # PRIORITY 2 (FALLBACK): Use mention count heuristic
+        # For true placeholders like "the protagonist" where narrator detection
+        # couldn't determine a name
+        if not merge_target:
+            logger.info(
+                "No name match found, using mention count heuristic to identify narrator"
+            )
+            # Sort by mention count (higher is more likely to be the narrator)
+            candidates.sort(key=lambda c: c.mention_count, reverse=True)
+            # Take the top candidate
+            merge_target = candidates[0]
 
         logger.info(
             f"Merging narrator placeholder '{narrator_char.canonical_name}' "
@@ -2977,14 +3027,39 @@ class CharacterAgent(Agent):
         for char in supporting_cast:
             # Supporting cast doesn't have mention search results (uses NER counts)
             # So mentions list remains empty for them
+            mention_info = mention_results.get(char.id) if mention_results else None
+
+            mentions_list = []
+            if mention_info:
+                from ..pipeline.character_extraction.models import (
+                    CharacterMention as PipelineMention,
+                )
+
+                for m in mention_info.mentions:
+                    pipeline_mention = PipelineMention(
+                        text=m.name_form,
+                        position=m.position,
+                        chapter_index=m.chapter_index or 0,
+                        context=m.context,
+                        in_dialogue=False,  # V2 doesn't track this
+                        is_agentive=False,  # V2 doesn't track this
+                    )
+                    mentions_list.append(pipeline_mention)
+
+            chapters_present = (
+                list(mention_info.chapter_distribution.keys())
+                if mention_info and mention_info.chapter_distribution
+                else []
+            )
+
             pc = PipelineCharacter(
                 id=char.id,
                 canonical_name=char.canonical_name,
                 aliases=char.aliases,
-                mentions=[],  # Supporting uses NER, not mention search
+                mentions=mentions_list,
                 first_appearance_chapter=char.first_appearance_chapter or 0,
                 mention_count=char.mention_count,
-                chapters_present=[],
+                chapters_present=chapters_present,
                 confidence=0.4,  # Lower confidence for NER extraction
                 supporting_strategies=["v2_ner_extraction"],
                 description="",

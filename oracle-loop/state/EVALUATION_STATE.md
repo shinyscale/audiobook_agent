@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -125,6 +125,7 @@ But it's INCORRECTLY:
 | 12 | Chapter-range prior (blocked by data) | name_disambiguator.py + others | FAILED |
 | 13 | Upstream data fix + relationship markers | characters.py, name_disambiguator.py, client.py, tests | **REGRESSION** |
 | 14 | External changes tested | (external) | Character extraction FIXED, profiles still failing |
+| 15 | Narrator placeholder merge fix | src/agents/characters.py | **PENDING TEST** |
 
 ## Pattern Analysis
 
@@ -140,5 +141,36 @@ The fundamental remaining issue is **narrator identity confusion**:
 2. Filter narrator evidence so it goes to Uncle Bill's profile, not John's
 3. This should cascade to fix the profile quality
 
+## Fix Applied (Attempt 15)
+
+### Root Cause Analysis
+
+**Issue:** Narrator incorrectly identified as "John" instead of "Uncle Bill"
+
+**Data flow trace:**
+1. Main cast extraction → Empty (no characters passed grounding)
+2. Narrator detection → Identifies "Uncle Bill" by name from summaries but can't match to empty main_cast
+3. Supporting cast NER → Finds "John" (28 mentions), "Uncle Bill" (18 mentions), etc.
+4. Narrator placeholder merge → **BUG HERE:** Sorted by mention count, picked "John" (highest)
+
+**Root cause location:** `src/agents/characters.py:_merge_narrator_placeholder():line 1040-1044`
+
+The function used mention count as the PRIMARY heuristic, ignoring `narrator_info.narrator_name` which already identified "Uncle Bill" from summaries.
+
+### Fix Implemented
+
+Modified `_merge_narrator_placeholder()` to:
+1. **PRIORITY 1:** Match `narrator_info.narrator_name` to candidates by name (exact or partial match)
+2. **PRIORITY 2 (FALLBACK):** Use mention count heuristic ONLY if no name match found
+
+**Smoke test:** PASS
+- Test scenario: narrator_name="Uncle Bill", candidates=["John" (28 mentions), "Uncle Bill" (18 mentions)]
+- Result: Correctly selected "Uncle Bill" by name match, despite having fewer mentions
+
+**Expected cascade fixes:**
+- Critical #1: Evidence attribution will go to Uncle Bill (correct narrator) instead of John
+- High #2: Uncle Bill's profile will have narrator evidence, not confused with John Donaldson
+- Medium #5: Narrator flag correctly assigned to Uncle Bill
+
 ## Next Action
-Run PROMPT_fix.md to fix narrator detection (Critical #1, High #2, Medium #5)
+Run PROMPT_analyze.md to re-analyze american_sir with the narrator fix

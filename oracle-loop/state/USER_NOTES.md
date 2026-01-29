@@ -1,25 +1,65 @@
 # User Notes for Oracle Loop
 
-## Current Guidance (Updated 2026-01-29)
+## Current Guidance (Updated 2026-01-29 - Upstream Data Fix Applied)
 
-### Context-Aware Disambiguation (NEW)
+### Context-Aware Disambiguation (MAJOR FIX)
 
 For same-name character handling (e.g., father/son sharing "John"):
 
-1. **Use multi-signal disambiguation** - Don't rely on string matching alone
-   - Relationship markers: "his father John", "Sr./Jr.", "the elder"
-   - Name-shape: If sentence has "Donaldson", attribute to "John Donaldson"
-   - Temporal: "years ago", past perfect → older generation
-   - Chapter presence: Prefer active character over just mentioned
+**Signal priority (highest to lowest):**
 
-2. **Don't drop low-confidence passages** - Mark as `ambiguous=True` instead
-   - Downweight in profile generation, don't discard
-   - Preserves data for characters with many weak-mention forms
+1. **Relationship markers (0.95)** - "his father John", "Sr./Jr.", "the elder"
+   - **NEW:** Added memoir-style patterns:
+     - Elder: "my brother John", "poor John" → full-name character
+     - Younger: "the boy", "my nephew" → short-name character
+2. **Name-shape (0.90)** - If sentence has "Donaldson", attribute to "John Donaldson"
+3. **Temporal markers (0.80)** - "years ago", past perfect → older generation
+   - Now checks SURROUNDING CONTEXT (2 sentences before) for temporal markers
+4. **Chapter-range prior (0.85)** - Uses `chapters_present` from IdentifiedCharacter
+   - **FIXED:** `chapters_present` now populated for supporting cast (was hardcoded to `[]`)
+   - **NEW:** Falls back to `summary_map.character_appearances` if empty
+   - If only one candidate appears in the current chapter, prefer them
+5. **Chapter presence (0.70)** - Prefer active character from chapter summary
+6. **LLM fallback (0.70)** - Gated, uses `temperature=0.1`, `max_tokens=128`
 
-3. **Implementation**: See `src/pipeline/character_profiling/name_disambiguator.py`
-   - `NameAmbiguityMap` identifies which names are ambiguous
-   - `ContextDisambiguator` applies signals in priority order
-   - LLM fallback is gated (only when heuristics fail)
+**Critical upstream fix (attempt 13):**
+- `src/agents/characters.py` now runs deterministic mention search for supporting cast
+- `chapters_present` and `mentions` fields are now populated (not hardcoded empty)
+- This unblocks the chapter-range disambiguation signal
+
+**Key files:**
+- `src/agents/characters.py` - supporting cast data population
+- `src/pipeline/character_profiling/name_disambiguator.py` - all disambiguation signals
+- `src/pipeline/character_profiling/passage_gatherer.py` - context_window (2000 chars)
+- `src/llm/client.py` - temperature and max_tokens override for per-call control
+
+---
+
+### Narrator Perspective Contamination Filter (NEW)
+
+For first-person narratives, non-narrator characters can get contaminated with narrator evidence:
+- "I repaid John's debts" describes the NARRATOR's action, not John's character
+- But naive extraction assigns this to John's profile
+
+**Two-layer defense:**
+
+1. **Block ambiguous narrator names** (`pipeline.py`)
+   - If narrator name is ambiguous (e.g., "John" when "John Donaldson" exists)
+   - Clear narrator assignment to prevent first-person passage gathering for wrong character
+
+2. **Filter narrator-perspective passages** (`perspective_filter.py`)
+   - For NON-narrators in first-person text
+   - Exclude passages where narrator is subject ("I did X to John")
+   - KEEP passages where character is:
+     - Co-subject: "John and I drove the ambulance"
+     - Appositive: "my nephew John was brave"
+     - Subject: "John drove the ambulance"
+
+**Implementation**: See `src/pipeline/character_profiling/perspective_filter.py`
+- `should_exclude_narrator_perspective_for_non_narrator()` - core filter function
+- Applied in both `passage_gatherer.py` and `summary_evidence.py`
+
+**When to use**: Any first-person narrative where narrator mentions other characters
 
 ---
 

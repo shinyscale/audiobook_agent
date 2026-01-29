@@ -120,9 +120,33 @@ class LLMClient:
 
         return self._client
 
-    def query(self, prompt: str, system: Optional[str] = None, json_mode: bool = False) -> LLMResponse:
-        """Send a query to the LLM and get a response."""
+    def query(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        json_mode: bool = False,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
+        """
+        Send a query to the LLM and get a response.
+
+        Args:
+            prompt: The user prompt to send
+            system: Optional system prompt
+            json_mode: Whether to request JSON output
+            temperature: Optional per-call temperature override (0.0-2.0).
+                         If not specified, uses config.temperature.
+
+        Returns:
+            LLMResponse with the result
+        """
         start_time = time.perf_counter()
+
+        # Use override temperature if provided, else config default
+        effective_temperature = temperature if temperature is not None else self.config.temperature
+        # Use override max tokens if provided, else config default
+        effective_max_tokens = max_tokens if max_tokens is not None else self.config.max_tokens
 
         # Write heartbeat BEFORE the blocking LLM call so monitors know we're active
         if self.metrics:
@@ -130,11 +154,28 @@ class LLMClient:
 
         try:
             if self.config.provider == "ollama":
-                response = self._query_ollama(prompt, system, json_mode=json_mode)
+                response = self._query_ollama(
+                    prompt,
+                    system,
+                    json_mode=json_mode,
+                    temperature=effective_temperature,
+                    max_tokens=effective_max_tokens,
+                )
             elif self.config.provider == "openai":
-                response = self._query_openai(prompt, system, json_mode=json_mode)
+                response = self._query_openai(
+                    prompt,
+                    system,
+                    json_mode=json_mode,
+                    temperature=effective_temperature,
+                    max_tokens=effective_max_tokens,
+                )
             elif self.config.provider == "anthropic":
-                response = self._query_anthropic(prompt, system)
+                response = self._query_anthropic(
+                    prompt,
+                    system,
+                    temperature=effective_temperature,
+                    max_tokens=effective_max_tokens,
+                )
             else:
                 response = LLMResponse(
                     content="",
@@ -180,7 +221,14 @@ class LLMClient:
                 latency_ms=round(elapsed_ms, 2),
             )
 
-    def _query_ollama(self, prompt: str, system: Optional[str], json_mode: bool = False) -> LLMResponse:
+    def _query_ollama(
+        self,
+        prompt: str,
+        system: Optional[str],
+        json_mode: bool = False,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
         """Query Ollama API."""
         from ..logging_config import get_llm_logger
 
@@ -210,10 +258,14 @@ class LLMClient:
             if self.config.presence_penalty is None:
                 self.config.presence_penalty = 1.0
 
+        # Use provided overrides or fall back to config
+        effective_temp = temperature if temperature is not None else self.config.temperature
+        effective_max_tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+
         # Build options dict, only including optional params if set
         options = {
-            "temperature": self.config.temperature,
-            "num_predict": self.config.max_tokens,
+            "temperature": effective_temp,
+            "num_predict": effective_max_tokens,
             "num_ctx": self.config.context_length,
         }
         if self.config.top_p is not None:
@@ -308,7 +360,14 @@ class LLMClient:
             usage=usage,
         )
 
-    def _query_openai(self, prompt: str, system: Optional[str], json_mode: bool = False) -> LLMResponse:
+    def _query_openai(
+        self,
+        prompt: str,
+        system: Optional[str],
+        json_mode: bool = False,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
         """Query OpenAI API."""
         from ..logging_config import get_llm_logger
 
@@ -325,11 +384,15 @@ class LLMClient:
         base_url = self.config.base_url or "https://api.openai.com/v1"
         url = f"{base_url}/chat/completions"
 
+        # Use provided overrides or fall back to config
+        effective_temp = temperature if temperature is not None else self.config.temperature
+        effective_max_tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+
         body = {
             "model": self.config.model,
             "messages": messages,
-            "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens,
+            "temperature": effective_temp,
+            "max_tokens": effective_max_tokens,
         }
         if json_mode:
             # OpenAI-compatible JSON mode (works on modern OpenAI models).
@@ -348,8 +411,8 @@ class LLMClient:
         create_kwargs = dict(
             model=self.config.model,
             messages=messages,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
+            temperature=effective_temp,
+            max_tokens=effective_max_tokens,
         )
         if json_mode:
             create_kwargs["response_format"] = {"type": "json_object"}
@@ -378,7 +441,13 @@ class LLMClient:
             usage=usage,
         )
 
-    def _query_anthropic(self, prompt: str, system: Optional[str]) -> LLMResponse:
+    def _query_anthropic(
+        self,
+        prompt: str,
+        system: Optional[str],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
         """Query Anthropic API."""
         from ..logging_config import get_llm_logger
 
@@ -386,11 +455,16 @@ class LLMClient:
 
         client = self._get_client()
 
+        # Use provided overrides or fall back to config
+        effective_temp = temperature if temperature is not None else self.config.temperature
+        effective_max_tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+
         url = "https://api.anthropic.com/v1/messages"
         body = {
             "model": self.config.model,
-            "max_tokens": self.config.max_tokens,
+            "max_tokens": effective_max_tokens,
             "messages": [{"role": "user", "content": prompt}],
+            "temperature": effective_temp,
         }
         if system:
             body["system"] = system

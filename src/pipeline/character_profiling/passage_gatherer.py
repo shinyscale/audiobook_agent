@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Optional
 from ..chapter_detection.models import ChapterMap
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from .models import IdentifiedCharacter
+from .perspective_filter import should_exclude_narrator_perspective_for_non_narrator
 
 if TYPE_CHECKING:
     from .name_disambiguator import ContextDisambiguator
@@ -55,7 +56,7 @@ class CharacterPassageGatherer:
 
     def __init__(
         self,
-        context_window: int = 500,
+        context_window: int = 2000,
         max_passages_per_name: int = 20,
         disambiguator: Optional["ContextDisambiguator"] = None,
         summary_map: Optional[ChapterSummaryMap] = None,
@@ -93,6 +94,7 @@ class CharacterPassageGatherer:
         full_text: str,
         chapter_map: ChapterMap,
         summary_map: Optional[ChapterSummaryMap] = None,
+        narrative_style: str = "unknown",
     ) -> list[CharacterPassage]:
         """
         Gather passages relevant to this character.
@@ -145,6 +147,16 @@ class CharacterPassageGatherer:
 
         # Deduplicate by position (overlapping contexts)
         passages = self._deduplicate_passages(all_passages)
+
+        # Filter narrator-centric first-person passages for NON-narrator characters.
+        # These often look like "I did X to John" and primarily describe the narrator.
+        if narrative_style == "first-person" and not character.is_narrator:
+            filtered = []
+            for p in passages:
+                if should_exclude_narrator_perspective_for_non_narrator(p.text, p.name_matched):
+                    continue
+                filtered.append(p)
+            passages = filtered
 
         # Score passages by descriptive content
         passages = self._score_passages(passages)
@@ -608,10 +620,11 @@ def gather_character_passages(
     character: IdentifiedCharacter,
     full_text: str,
     chapter_map: ChapterMap,
-    context_window: int = 500,
+    context_window: int = 2000,
     max_passages: int = 15,
     disambiguator: Optional["ContextDisambiguator"] = None,
     summary_map: Optional[ChapterSummaryMap] = None,
+    narrative_style: str = "unknown",
 ) -> list[CharacterPassage]:
     """
     Convenience function to gather passages for a character.
@@ -634,4 +647,10 @@ def gather_character_passages(
         disambiguator=disambiguator,
         summary_map=summary_map,
     )
-    return gatherer.gather_passages(character, full_text, chapter_map, summary_map=summary_map)
+    return gatherer.gather_passages(
+        character,
+        full_text,
+        chapter_map,
+        summary_map=summary_map,
+        narrative_style=narrative_style,
+    )

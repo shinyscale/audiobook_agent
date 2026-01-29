@@ -159,6 +159,20 @@ class CharacterProfilingPipeline:
             llm_client=self.llm,
         )
 
+        # Defensive: if the detected narrator name is an ambiguous short-form (e.g., "John"
+        # where "John Donaldson" also exists), do NOT mark it as narrator. Otherwise, the
+        # narrator passage gatherer ("I/my/me" passages) can contaminate the wrong character.
+        if narrator_name and ambiguity_map.is_ambiguous(narrator_name):
+            logger.warning(
+                f"Narrator name '{narrator_name}' is ambiguous; clearing narrator assignment "
+                "to avoid first-person contamination."
+            )
+            narrator_name = None
+            for c in characters:
+                if c.is_narrator:
+                    c.is_narrator = False
+                    c.narrative_role = None
+
         # Stage 2: Profile Generation
         logger.info("Stage 2: Generating character profiles")
         self._report_progress("profiling", 0, len(characters))
@@ -185,7 +199,11 @@ class CharacterProfilingPipeline:
 
                 # Gather passages for this character (with disambiguation)
                 passages = passage_gatherer.gather_passages(
-                    char, full_text, chapter_map, summary_map=summary_map
+                    char,
+                    full_text,
+                    chapter_map,
+                    summary_map=summary_map,
+                    narrative_style=narrative_style,
                 )
 
                 # Extract summary evidence (Feature F2) with disambiguation

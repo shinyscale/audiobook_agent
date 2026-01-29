@@ -170,6 +170,39 @@ class SummaryDrivenCharacterIdentifier:
             narrator_info.get("narrative_style", "unknown") if narrator_info else "unknown"
         )
 
+        # Defensive: do not mark an ambiguous short-form as narrator.
+        #
+        # Example: if we have "John" and "John Donaldson", treating "John" as narrator
+        # will cause narrator passage gathering ("I/my/me" passages) to contaminate
+        # John's profile with narrator actions/thoughts.
+        if narrator_name:
+            narrator_lower = narrator_name.lower().strip()
+            narrator_parts = narrator_lower.split()
+            if len(narrator_parts) == 1:
+                token = narrator_parts[0]
+                # If this token appears as a component of any OTHER multi-word character name/alias,
+                # it is ambiguous and should not be used as narrator_name.
+                ambiguous = False
+                for c in characters:
+                    candidate_names = [c.canonical_name] + (c.aliases or [])
+                    for cand in candidate_names:
+                        cand_lower = cand.lower().strip()
+                        if cand_lower == narrator_lower:
+                            continue
+                        cand_parts = cand_lower.split()
+                        if len(cand_parts) >= 2 and token in cand_parts:
+                            ambiguous = True
+                            break
+                    if ambiguous:
+                        break
+
+                if ambiguous:
+                    logger.warning(
+                        f"Narrator name '{narrator_name}' is ambiguous with other character names; "
+                        "not marking narrator to avoid first-person contamination."
+                    )
+                    narrator_name = None
+
         # Mark the narrator in the character list
         if narrator_name:
             for char in characters:

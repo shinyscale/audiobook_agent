@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from ..llm import LLMClient
+from .perspective_filter import should_exclude_narrator_perspective_for_non_narrator
 
 if TYPE_CHECKING:
     from .name_disambiguator import ContextDisambiguator
@@ -368,7 +369,12 @@ class SummaryEvidenceExtractor:
         )
 
         # Pattern-based extraction (always run)
-        pattern_evidence = self._extract_pattern_based(all_names, summary_map)
+        pattern_evidence = self._extract_pattern_based(
+            all_names,
+            summary_map,
+            is_narrator=is_narrator,
+            narrative_style=narrative_style,
+        )
         evidence_result.evidence.extend(pattern_evidence)
 
         # First-person evidence extraction for narrators
@@ -477,6 +483,8 @@ class SummaryEvidenceExtractor:
         self,
         names: list[str],
         summary_map: ChapterSummaryMap,
+        is_narrator: bool = False,
+        narrative_style: str = "unknown",
     ) -> list[SummaryEvidence]:
         """Extract evidence using pattern matching on summaries."""
         evidence = []
@@ -496,6 +504,8 @@ class SummaryEvidenceExtractor:
             summary_statements = self._extract_statements_mentioning(
                 summary.summary, names, summary.chapter_index, "summary",
                 chapter_summary=summary,
+                is_narrator=is_narrator,
+                narrative_style=narrative_style,
             )
             evidence.extend(summary_statements)
 
@@ -504,15 +514,21 @@ class SummaryEvidenceExtractor:
                 event_statements = self._extract_statements_mentioning(
                     event, names, summary.chapter_index, "key_event",
                     chapter_summary=summary,
+                    is_narrator=is_narrator,
+                    narrative_style=narrative_style,
                 )
                 evidence.extend(event_statements)
 
             # ALSO extract relationship-focused sentences even without explicit names
             # This captures pronominal relationships like "his father", "her son"
-            relationship_statements = self._extract_relationship_statements(
-                summary.summary, names, summary.chapter_index, "summary"
-            )
-            evidence.extend(relationship_statements)
+            #
+            # In first-person narratives, relationship phrases are often narrator-centric
+            # ("my father", "my son") and can contaminate non-narrator characters.
+            if not (narrative_style == "first-person" and not is_narrator):
+                relationship_statements = self._extract_relationship_statements(
+                    summary.summary, names, summary.chapter_index, "summary"
+                )
+                evidence.extend(relationship_statements)
 
         return evidence
 
@@ -523,6 +539,8 @@ class SummaryEvidenceExtractor:
         chapter_index: int,
         source_type: str,
         chapter_summary: Optional[ChapterSummary] = None,
+        is_narrator: bool = False,
+        narrative_style: str = "unknown",
     ) -> list[SummaryEvidence]:
         """Extract sentences that mention any of the character names."""
         evidence = []
@@ -530,7 +548,7 @@ class SummaryEvidenceExtractor:
         # Split into sentences
         sentences = re.split(r"(?<=[.!?])\s+", text)
 
-        for sentence in sentences:
+        for i, sentence in enumerate(sentences):
             sentence = sentence.strip()
             if not sentence:
                 continue
@@ -538,6 +556,15 @@ class SummaryEvidenceExtractor:
             # Check if any name variant is mentioned
             for name in names:
                 if self._name_in_text(name, sentence):
+                    # Filter narrator-centric first-person sentences for NON-narrator characters.
+                    # Example: "I repaid John's debts" primarily describes the narrator.
+                    if (
+                        narrative_style == "first-person"
+                        and not is_narrator
+                        and should_exclude_narrator_perspective_for_non_narrator(sentence, name)
+                    ):
+                        continue
+
                     # Check for surname collision before adding
                     # (e.g., sentence about "Cathy Ames" when extracting for "Ames")
                     if self._is_collision_sentence(name, sentence, names):
@@ -549,12 +576,20 @@ class SummaryEvidenceExtractor:
                     # Check disambiguation for same-name characters
                     if self.disambiguator and self.disambiguator.is_ambiguous(name):
                         self._disambiguation_stats["checked"] += 1
+
+                        # Get surrounding sentences for expanded context
+                        # This helps detect temporal markers like "Years ago..." in prior sentences
+                        start_idx = max(0, i - 2)
+                        end_idx = min(len(sentences), i)  # Sentences BEFORE current
+                        surrounding_context = " ".join(sentences[start_idx:end_idx]) if start_idx < end_idx else None
+
                         result = self.disambiguator.disambiguate(
                             name=name,
                             sentence=sentence,
                             chapter_summary=chapter_summary,
                             chapter_index=chapter_index,
                             target_character_names=names,
+                            surrounding_context=surrounding_context,
                         )
 
                         # Check if disambiguation resolved to a different character

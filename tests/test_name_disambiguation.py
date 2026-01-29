@@ -166,6 +166,20 @@ class TestContextDisambiguator:
         # Should resolve to the fuller name (father)
         assert "donaldson" in result.resolved_character.lower() or result.resolved_character == "John Donaldson"
 
+    def test_relationship_marker_my_brother(self, father_son_ambiguity_map):
+        """'my brother John' should resolve to the elder/full name (John Donaldson)."""
+        disambiguator = ContextDisambiguator(father_son_ambiguity_map)
+
+        result = disambiguator.disambiguate(
+            name="John",
+            sentence="Years ago, my brother John graduated from Yale with honors.",
+            chapter_summary=None,
+        )
+
+        assert result.method == "relationship"
+        assert result.confidence >= 0.8
+        assert "donaldson" in result.resolved_character.lower() or result.resolved_character == "John Donaldson"
+
     def test_relationship_marker_senior_junior(self, father_son_ambiguity_map):
         """'Sr.' should resolve to elder, 'Jr.' to younger."""
         disambiguator = ContextDisambiguator(father_son_ambiguity_map)

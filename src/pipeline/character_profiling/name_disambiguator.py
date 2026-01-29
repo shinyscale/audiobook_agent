@@ -175,6 +175,11 @@ RELATIONSHIP_ELDER_PATTERNS = [
     r"\bthe\s+elder\b",
     r"\bold\s+(\w+)\b",  # "old John"
     r"\b(\w+)'s\s+father\b",  # "John's father"
+    # First-person family references (often used in memoir-style narration)
+    # Useful for cases like american_sir where a father's backstory is told as "my brother John ..."
+    r"\bmy\s+brother\b",
+    r"\bmy\s+older\s+brother\b",
+    r"\bmy\s+elder\s+brother\b",
     # Roman numerals for generations
     r"\b[IVX]+\b",  # I, II, III, IV
 ]
@@ -188,6 +193,11 @@ RELATIONSHIP_YOUNGER_PATTERNS = [
     r"\bthe\s+younger\b",
     r"\byoung\s+(\w+)\b",  # "young John"
     r"\b(\w+)'s\s+(son|daughter)\b",  # "John's son"
+    # First-person family references indicating youth
+    r"\bmy\s+nephew\b",
+    r"\bthe\s+boy\b",
+    r"\bthe\s+lad\b",
+    r"\bteenage\b",
 ]
 
 # Temporal markers - detect past/flashback context
@@ -233,8 +243,9 @@ class ContextDisambiguator:
     1. Relationship markers - "his father John", "Sr./Jr."
     2. Name-shape markers - sentence includes surname → full-name wins
     3. Temporal markers - past context likely refers to older generation
-    4. Chapter presence - if only one candidate active, prefer them
-    5. LLM fallback - gated, only when heuristics fail
+    4. Chapter-range prior - use chapters_present to prefer candidates in/near current chapter
+    5. Chapter presence - if only one candidate active in summary, prefer them
+    6. LLM fallback - gated, only when heuristics fail
     """
 
     def __init__(
@@ -243,6 +254,7 @@ class ContextDisambiguator:
         summary_map: Optional[ChapterSummaryMap] = None,
         llm_client: Optional[LLMClient] = None,
         llm_confidence_threshold: float = 0.6,
+        characters: Optional[list] = None,
     ):
         """
         Args:
@@ -250,6 +262,7 @@ class ContextDisambiguator:
             summary_map: Chapter summaries for context
             llm_client: Optional LLM for fallback disambiguation
             llm_confidence_threshold: Minimum confidence before using LLM
+            characters: Optional list of IdentifiedCharacter objects for chapter-range prior
         """
         self.ambiguity_map = ambiguity_map
         self.summary_map = summary_map
@@ -261,6 +274,15 @@ class ContextDisambiguator:
         if summary_map:
             for summary in summary_map.summaries:
                 self._chapter_summary_index[summary.chapter_index] = summary
+
+        # Build character lookup by name for chapter-range prior
+        self._character_by_name: dict[str, object] = {}
+        if characters:
+            for char in characters:
+                if hasattr(char, "canonical_name"):
+                    self._character_by_name[char.canonical_name.lower()] = char
+                    for alias in getattr(char, "aliases", []):
+                        self._character_by_name[alias.lower()] = char
 
         # Compile regex patterns
         self._elder_patterns = [
@@ -285,6 +307,7 @@ class ContextDisambiguator:
             "by_relationship": 0,
             "by_name_shape": 0,
             "by_temporal": 0,
+            "by_chapter_range": 0,
             "by_chapter_presence": 0,
             "by_llm": 0,
             "by_default": 0,
@@ -305,6 +328,7 @@ class ContextDisambiguator:
         chapter_summary: Optional[ChapterSummary] = None,
         chapter_index: Optional[int] = None,
         target_character_names: Optional[list[str]] = None,
+        surrounding_context: Optional[str] = None,
     ) -> DisambiguationResult:
         """
         Disambiguate an ambiguous name reference.
@@ -315,6 +339,8 @@ class ContextDisambiguator:
             chapter_summary: Chapter summary for context (preferred)
             chapter_index: Chapter index (used to look up summary if not provided)
             target_character_names: Names of the character we're extracting for
+            surrounding_context: Optional expanded context (sentences before/after)
+                for temporal marker detection
 
         Returns:
             DisambiguationResult with the resolved character
@@ -343,8 +369,12 @@ class ContextDisambiguator:
         short_name_candidate = min(candidates, key=lambda c: len(c.split()))
 
         # Signal 1: Relationship markers (confidence 0.95)
+        combined_text = sentence
+        if surrounding_context:
+            combined_text = f"{surrounding_context}\n{sentence}"
+
         result = self._check_relationship_markers(
-            sentence, candidates, full_name_candidate, short_name_candidate
+            combined_text, candidates, full_name_candidate, short_name_candidate
         )
         if result:
             self.stats["by_relationship"] += 1
@@ -359,14 +389,25 @@ class ContextDisambiguator:
             return result
 
         # Signal 3: Temporal markers (confidence 0.8)
+        # Check both sentence AND surrounding context for temporal cues
         result = self._check_temporal_markers(
-            sentence, candidates, full_name_candidate, short_name_candidate
+            combined_text, candidates, full_name_candidate, short_name_candidate
         )
         if result:
             self.stats["by_temporal"] += 1
             return result
 
-        # Signal 4: Chapter presence as tie-breaker (confidence 0.7)
+        # Signal 4: Chapter-range prior (confidence 0.85)
+        # Use chapters_present from IdentifiedCharacter to prefer candidates in/near this chapter
+        if chapter_index is not None and self._character_by_name:
+            result = self._check_chapter_range_signal(
+                name, chapter_index, candidates
+            )
+            if result:
+                self.stats["by_chapter_range"] += 1
+                return result
+
+        # Signal 5: Chapter presence from summary (confidence 0.7)
         if chapter_summary:
             result = self._check_chapter_presence(
                 chapter_summary, candidates, target_character_names
@@ -375,10 +416,10 @@ class ContextDisambiguator:
                 self.stats["by_chapter_presence"] += 1
                 return result
 
-        # Signal 5: LLM fallback (gated)
+        # Signal 6: LLM fallback (gated)
         if self.llm and len(candidates) >= 2:
             result = self._llm_disambiguation(
-                name, sentence, candidates, chapter_summary
+                name, combined_text, candidates, chapter_summary
             )
             if result and result.confidence >= self.llm_confidence_threshold:
                 self.stats["by_llm"] += 1
@@ -562,6 +603,111 @@ class ContextDisambiguator:
 
         return None
 
+    def _check_chapter_range_signal(
+        self,
+        name: str,
+        chapter_index: int,
+        candidates: list[str],
+    ) -> Optional[DisambiguationResult]:
+        """
+        Use chapters_present from IdentifiedCharacter as a disambiguation signal.
+
+        If only one candidate appears in (or near) this chapter, prefer them.
+        This is powerful for father/son disambiguation where:
+        - Father appears in backstory chapters (early)
+        - Son appears in present-day chapters (later)
+
+        Args:
+            name: The ambiguous name
+            chapter_index: Current chapter index
+            candidates: Possible character names
+
+        Returns:
+            DisambiguationResult if exactly one candidate matches, else None
+        """
+        if not self._character_by_name:
+            return None
+
+        candidates_in_chapter = []
+        candidates_near_chapter = []
+
+        def chapters_from_summary_map_for_char(char_obj: object) -> set[int]:
+            """
+            Fallback when IdentifiedCharacter.chapters_present is missing/empty.
+
+            Uses ChapterSummaryMap.character_appearances (name -> chapters) by matching
+            canonical name and aliases. This avoids an upstream dependency where some
+            character lists omit chapters_present.
+            """
+            if not self.summary_map or not getattr(self.summary_map, "character_appearances", None):
+                return set()
+
+            keys = []
+            if hasattr(char_obj, "canonical_name"):
+                keys.append(getattr(char_obj, "canonical_name"))
+            for a in getattr(char_obj, "aliases", []) or []:
+                keys.append(a)
+
+            chapters: set[int] = set()
+            for k in keys:
+                if not k:
+                    continue
+                k_lower = str(k).lower().strip()
+                for appear_name, ch_list in self.summary_map.character_appearances.items():
+                    appear_lower = str(appear_name).lower().strip()
+                    if appear_lower == k_lower or appear_lower in k_lower or k_lower in appear_lower:
+                        for ch in ch_list or []:
+                            try:
+                                chapters.add(int(ch))
+                            except Exception:
+                                continue
+            return chapters
+
+        for candidate in candidates:
+            char = self._character_by_name.get(candidate.lower())
+            if not char:
+                # Try partial match for multi-word names
+                for key, c in self._character_by_name.items():
+                    if candidate.lower() in key or key in candidate.lower():
+                        char = c
+                        break
+
+            if not char or not hasattr(char, "chapters_present"):
+                continue
+
+            chapters_present = list(getattr(char, "chapters_present", []) or [])
+            if not chapters_present:
+                chapters_present = sorted(chapters_from_summary_map_for_char(char))
+            if not chapters_present:
+                continue
+
+            # Exact chapter match
+            if chapter_index in chapters_present:
+                candidates_in_chapter.append(candidate)
+            # Adjacent chapters (±1) for near-matches
+            elif any(ch in chapters_present for ch in [chapter_index - 1, chapter_index + 1]):
+                candidates_near_chapter.append(candidate)
+
+        # If exactly one candidate is in this chapter
+        if len(candidates_in_chapter) == 1:
+            return DisambiguationResult(
+                resolved_character=candidates_in_chapter[0],
+                confidence=0.85,
+                method="chapter_range",
+                reason=f"Only '{candidates_in_chapter[0]}' appears in chapter {chapter_index}",
+            )
+
+        # If no candidates in chapter but exactly one in adjacent chapters
+        if len(candidates_in_chapter) == 0 and len(candidates_near_chapter) == 1:
+            return DisambiguationResult(
+                resolved_character=candidates_near_chapter[0],
+                confidence=0.75,
+                method="chapter_range",
+                reason=f"Only '{candidates_near_chapter[0]}' appears near chapter {chapter_index}",
+            )
+
+        return None
+
     def _llm_disambiguation(
         self,
         name: str,
@@ -597,9 +743,10 @@ Which character does '{name}' refer to in this sentence? Respond with ONLY the c
 If you cannot determine, respond with "UNKNOWN"."""
 
         try:
-            result, response = self.llm.query(prompt, max_tokens=100)
-            if response.success and result:
-                result = result.strip().strip('"').strip("'")
+            # Use low temperature (0.1) for classification tasks - more deterministic
+            response = self.llm.query(prompt, temperature=0.1, max_tokens=128)
+            if response.success and response.content:
+                result = response.content.strip().strip('"').strip("'")
 
                 # Check if result matches any candidate
                 result_lower = result.lower()
@@ -643,6 +790,7 @@ def build_disambiguator(
         ambiguity_map=ambiguity_map,
         summary_map=summary_map,
         llm_client=llm_client,
+        characters=characters,  # Pass for chapter-range prior
     )
 
     # Log detected ambiguities

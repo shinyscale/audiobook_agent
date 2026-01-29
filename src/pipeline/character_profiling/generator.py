@@ -257,7 +257,12 @@ class CharacterProfileGenerator:
         """
         # Gather passages if not provided
         if passages is None:
-            passages = self.passage_gatherer.gather_passages(character, full_text, chapter_map)
+            passages = self.passage_gatherer.gather_passages(
+                character,
+                full_text,
+                chapter_map,
+                narrative_style=narrative_style,
+            )
 
         # Create base profile from identified character
         profile = CharacterProfile.from_identified(character)
