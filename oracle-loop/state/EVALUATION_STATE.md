@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -168,6 +168,25 @@ The summary is excellent:
 - John (supporting_0) and John Donaldson (supporting_2) now have separate IDs
 - Character extraction score improved from 7/10 to 9/10
 
+### Attempt 2: Provide character list context for relationship extraction
+
+**Root cause:** `src/analyzer.py:_generate_character_profile():lines 2453-2513`
+- Profile generation prompt did NOT provide list of other characters in the story
+- LLM was asked to use "character names as keys" but didn't know which names were valid
+- Summary evidence mentions relationships ("his beloved cousin John Donaldson—the boy's father") but LLM was overly conservative without character context
+- Result: Empty relationships dict {} for all characters despite clear family ties
+
+**Fix implemented:**
+1. Built `all_character_names` list from `pipeline_char_map.characters` (line 1751)
+2. Passed list to `_generate_character_profile()` as new parameter
+3. Added "CHARACTERS IN THIS STORY" section to prompt with exact names
+4. Enhanced relationship extraction instruction to emphasize using provided character names
+
+**Universality:** YES - All books have multiple characters with relationships. Providing the LLM with valid character names helps it extract relationships correctly for any story.
+
+**Files modified:**
+- `src/analyzer.py` (lines 1748-1751, 2247-2254, 2419-2435, 2512)
+
 ## Pipeline Notes (Attempt 2)
 - Analysis completed successfully in 11m 18s
 - Character Profiles stage: 5 LLM calls, 3 items processed, high confidence
@@ -176,11 +195,7 @@ The summary is excellent:
 - The relationships extraction may be a separate step that's not running or not populating results
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Focus on HIGH priority issue:
-1. Investigate why relationships are not being extracted/populated
-2. The profile enrichment stage IS running (3 items processed, high confidence) but relationships remain empty
-3. Check if relationship extraction is a separate step that needs to be added/fixed
-
-The remaining gap is 1 point in Character Profiles. Fixing relationships should bring it to 8/10.
+Fixed relationship extraction by providing character name context to LLM.
+Re-run analysis to verify relationships are now populated.

@@ -1745,6 +1745,10 @@ class AudiobookAnalyzer:
                 medium_conf_count = 0
                 low_conf_count = 0
 
+                # Build character name list for relationship extraction
+                # This helps the LLM know which character names to use as relationship keys
+                all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
+
                 for i, char in enumerate(eligible_chars):
                     logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
 
@@ -1811,6 +1815,7 @@ class AudiobookAnalyzer:
                             chapter_map=chapter_map,
                             summary_evidence=summary_evidence,
                             moral_valence=moral_valence,
+                            all_character_names=all_character_names,
                         )
                     )
 
@@ -2250,6 +2255,7 @@ class AudiobookAnalyzer:
         chapter_map: Optional["ChapterMap"] = None,
         summary_evidence: Optional["CharacterSummaryEvidence"] = None,
         moral_valence: Optional["MoralValenceResult"] = None,
+        all_character_names: Optional[list[str]] = None,
     ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
@@ -2260,6 +2266,7 @@ class AudiobookAnalyzer:
             chapter_map: Chapter boundaries (optional)
             summary_evidence: F2 - Evidence extracted from chapter summaries (optional)
             moral_valence: F3 - Moral valence classification result (optional)
+            all_character_names: List of all character names in the story (for relationship extraction)
 
         Returns:
             tuple: (profile_text, evidence_list, confidence_score, appearance, personality, voice_guidance, relationships)
@@ -2421,6 +2428,18 @@ class AudiobookAnalyzer:
         if hasattr(character, "is_narrator") and character.is_narrator:
             narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
 
+        # Build character names list for relationship extraction
+        character_names_text = ""
+        if all_character_names:
+            names_list = ", ".join(f'"{name}"' for name in all_character_names if name != character.canonical_name)
+            if names_list:
+                character_names_text = f"""
+
+CHARACTERS IN THIS STORY:
+The following characters appear in this story: {names_list}
+When extracting relationships, you MUST use these exact character names as keys in the relationships dict.
+If the text or summary evidence mentions a relationship with any of these characters, include it in your response."""
+
         # F2: Build summary evidence section if available
         summary_evidence_text = ""
         if summary_evidence and summary_evidence.evidence:
@@ -2453,7 +2472,7 @@ This is a HARD CONSTRAINT - your profile MUST respect this classification."""
         prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
 
 The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
-Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{summary_evidence_text}{moral_valence_constraint}
+Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{character_names_text}{summary_evidence_text}{moral_valence_constraint}
 
 Text Evidence:
 {context_text}
@@ -2509,7 +2528,7 @@ CRITICAL INSTRUCTIONS:
 - For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
 - For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
-- For relationships: Extract family members, friends, enemies, romantic connections from BOTH the text snippets AND the summary evidence. Look for phrases like "X's father", "married to Y", "friend of Z", etc. Use character names as keys (not "father" or "friend"). Format: {{"Character Name": "relationship_type"}}. Example: {{"Elizabeth Lavenza": "adoptive cousin/fiancée", "Alphonse Frankenstein": "father"}}. Use empty dict {{}} ONLY if truly no relationships are mentioned anywhere.
+- For relationships: Extract family members, friends, enemies, romantic connections from BOTH the text snippets AND the summary evidence. Look for phrases like "X's father", "married to Y", "friend of Z", "cousin", "nephew", "uncle", etc. You MUST use the EXACT character names from the "CHARACTERS IN THIS STORY" list above as keys (not generic terms like "father" or "friend"). Format: {{"Character Name": "relationship_type"}}. Example: {{"Elizabeth Lavenza": "adoptive cousin/fiancée", "Alphonse Frankenstein": "father"}}. If relationships are mentioned in the summary evidence (even if not in the text snippets), you MUST extract them. Use empty dict {{}} ONLY if truly no relationships with other named characters are mentioned anywhere.
 - Return ONLY valid JSON matching the above structure. No other text."""
 
         # Helper to parse JSON from LLM response
