@@ -3,13 +3,20 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 9)
+- Analysis completed successfully in 11m 12s
+- Competitive consensus enabled on all stages (characters, structure, summaries)
+- 4 characters extracted: John (16 mentions), Uncle Bill (18 mentions), John Donaldson (7 mentions), Joe Barron (3 mentions)
+- 3 character profiles generated (Joe Barron excluded - only 3 mentions)
+- No major pipeline errors
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
