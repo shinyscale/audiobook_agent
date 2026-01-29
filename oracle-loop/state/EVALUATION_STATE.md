@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 17)
+- Analysis completed successfully in 14m 12s
+- Competitive consensus enabled on all stages (characters, structure, summaries)
+- All 4 characters detected: John, Uncle Bill, John Donaldson, Joe Barron
+- Uncle Bill correctly identified as first-person narrator
+- 3 character profiles generated (all eligible characters)
+- Post-processing relationship extraction applied to profiles
+- No errors during analysis
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
