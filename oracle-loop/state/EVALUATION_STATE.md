@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** evaluate
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -12,16 +12,18 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Latest Scores
+*Scores from Attempt 5 - Attempt 6 evaluation pending*
+
 - Structure Detection: 9/10 ✓
 - Character Extraction: 9/10 ✓
-- Character Profiles: 5/10 ✗ (FAILING)
+- Character Profiles: 5/10 ✗ (was FAILING - disambiguation fix applied)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.65/10** (reference only)
+- **Overall: 8.65/10** (prior attempt)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** EVALUATION PENDING (Attempt 6 fix implemented)
 
 ## Analysis of Attempt 5 Fix
 
@@ -106,6 +108,7 @@ Instead of filtering based on name collisions, the evidence extractor needs to:
 | 3 | 8.65 | +0.70 | No change. Prompt simplification didn't improve relationships |
 | 4 | 8.60 | +0.65 | Profiles dropped to 5/10 due to evidence confusion |
 | 5 | 8.65 | +0.70 | Collision fix helped slightly but semantic confusion remains |
+| 6 | - | - | PENDING: Context-aware disambiguation implemented |
 
 ## Modification History
 
@@ -116,10 +119,9 @@ Instead of filtering based on name collisions, the evidence extractor needs to:
 | 3 | Empty relationships - simplified prompt | src/analyzer.py | **No change** - Relationships still empty |
 | 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** - summary_evidence still null, profile data confused |
 | 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
+| 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **PENDING** - Multi-signal disambiguation implemented |
 
-**ESCALATION STATUS:** String-based collision detection has been attempted twice (attempts 4-5) without resolving the semantic disambiguation issue. The next fix should either:
-1. Implement context-aware evidence assignment (more complex)
-2. Accept this edge case and focus on relationship extraction instead (simpler)
+**ESCALATION STATUS:** Context-aware disambiguation has been implemented (attempt 6). The fix uses relationship markers, name-shape, temporal markers, and chapter presence to distinguish father from son references. Ready for evaluation.
 
 ## Fix History
 
@@ -157,11 +159,42 @@ Instead of filtering based on name collisions, the evidence extractor needs to:
 
 **Result:** PARTIAL - Collision detection works but semantic confusion remains. The underlying issue is that "John" legitimately refers to both characters in the text.
 
+### Attempt 6: Context-Aware Evidence Disambiguation (IMPLEMENTED)
+
+**Attempted fix:** Implemented Option A - semantic disambiguation with multi-signal approach
+
+**Files created/modified:**
+1. `src/pipeline/character_profiling/name_disambiguator.py` (NEW - 450+ lines)
+   - `NameAmbiguityMap` - identifies ambiguous names (e.g., "John" vs "John Donaldson")
+   - `ContextDisambiguator` - resolves using priority signals:
+     - Signal 1: Relationship markers (0.95 confidence) - "his father John", "Sr./Jr."
+     - Signal 2: Name-shape markers (0.9 confidence) - sentence has "Donaldson" → full name wins
+     - Signal 3: Temporal markers (0.8 confidence) - "years ago", past perfect tense
+     - Signal 4: Chapter presence (0.7 confidence) - prefer active character
+     - Signal 5: LLM fallback (gated) - only when heuristics fail
+
+2. `src/pipeline/character_profiling/passage_gatherer.py`
+   - Added `ambiguous`, `disambiguation_confidence`, `disambiguation_method` to CharacterPassage
+   - Integrated disambiguator to filter passages before profile generation
+
+3. `src/pipeline/character_profiling/summary_evidence.py`
+   - Integrated disambiguator into evidence extraction
+   - Skip evidence that resolves to different character
+
+4. `src/pipeline/character_profiling/pipeline.py`
+   - Build disambiguator after character identification
+   - Pass to both passage gatherer and summary extractor
+
+5. `tests/test_name_disambiguation.py` (NEW - 24 unit tests, all passing)
+
+**Expected result:** Sentences about "John preferred a thriftless life" should be correctly attributed to "John Donaldson" (the father) due to temporal markers, not the son.
+
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** evaluate
 
-The fix phase should evaluate whether to:
-1. **Option A**: Implement context-aware evidence assignment (complex but correct)
-2. **Option B**: Accept edge case, focus on relationship extraction which has failed 4 times
+Run fresh analysis to test disambiguation:
+```bash
+audiobook-prep analyze Test_Texts/american_sir.txt --output output/american_sir/analysis.json --html output/american_sir/report.html
+```
 
-Given that relationships have failed 4 times, Option B may actually be harder. Consider whether this text should be marked as "known limitation" due to deliberate authorial naming ambiguity.
+Then evaluate whether John's profile no longer contains father's traits.

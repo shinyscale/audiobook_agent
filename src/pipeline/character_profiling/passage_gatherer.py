@@ -2,14 +2,21 @@
 Character passage gatherer.
 
 Gathers relevant passages from the full text for character profile generation.
+
+Supports disambiguation for same-name characters (e.g., father/son pairs).
 """
 
 import logging
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
 from ..chapter_detection.models import ChapterMap
+from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from .models import IdentifiedCharacter
+
+if TYPE_CHECKING:
+    from .name_disambiguator import ContextDisambiguator
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +31,10 @@ class CharacterPassage:
     name_matched: str  # Which name variant matched
     context_type: str = "mention"  # "mention", "dialogue", "description"
     score: float = 0.0  # Relevance score for prioritization
+    # Disambiguation metadata (for same-name character handling)
+    ambiguous: bool = False  # Was disambiguation uncertain?
+    disambiguation_confidence: float = 1.0  # How confident in character assignment (0-1)
+    disambiguation_method: str = ""  # Method used: "relationship", "name_shape", etc.
 
     def to_dict(self) -> dict:
         return {
@@ -33,6 +44,9 @@ class CharacterPassage:
             "name_matched": self.name_matched,
             "context_type": self.context_type,
             "score": self.score,
+            "ambiguous": self.ambiguous,
+            "disambiguation_confidence": self.disambiguation_confidence,
+            "disambiguation_method": self.disambiguation_method,
         }
 
 
@@ -43,20 +57,42 @@ class CharacterPassageGatherer:
         self,
         context_window: int = 500,
         max_passages_per_name: int = 20,
+        disambiguator: Optional["ContextDisambiguator"] = None,
+        summary_map: Optional[ChapterSummaryMap] = None,
     ):
         """
         Args:
             context_window: Characters of context around each mention
             max_passages_per_name: Max passages to gather per name variant
+            disambiguator: Optional ContextDisambiguator for same-name character handling
+            summary_map: Chapter summaries for disambiguation context
         """
         self.context_window = context_window
         self.max_passages_per_name = max_passages_per_name
+        self.disambiguator = disambiguator
+        self.summary_map = summary_map
+
+        # Build chapter index for quick lookup
+        self._chapter_summary_index: dict[int, ChapterSummary] = {}
+        if summary_map:
+            for summary in summary_map.summaries:
+                self._chapter_summary_index[summary.chapter_index] = summary
+
+        # Statistics for disambiguation
+        self._disambiguation_stats = {
+            "total_passages_considered": 0,
+            "skipped_different_character": 0,
+            "kept_same_character": 0,
+            "kept_ambiguous_low_confidence": 0,
+            "not_ambiguous": 0,
+        }
 
     def gather_passages(
         self,
         character: IdentifiedCharacter,
         full_text: str,
         chapter_map: ChapterMap,
+        summary_map: Optional[ChapterSummaryMap] = None,
     ) -> list[CharacterPassage]:
         """
         Gather passages relevant to this character.
@@ -69,10 +105,18 @@ class CharacterPassageGatherer:
             character: The character to gather passages for
             full_text: Complete document text
             chapter_map: Chapter boundaries
+            summary_map: Optional chapter summaries (overrides instance summary_map)
 
         Returns:
             List of relevant passages, sorted by position
         """
+        # Use provided summary_map or fall back to instance summary_map
+        effective_summary_map = summary_map or self.summary_map
+        if effective_summary_map and not self._chapter_summary_index:
+            # Build index if not already built
+            for summary in effective_summary_map.summaries:
+                self._chapter_summary_index[summary.chapter_index] = summary
+
         all_passages = []
 
         # Special handling for first-person narrators
@@ -89,10 +133,14 @@ class CharacterPassageGatherer:
                 full_text, chapter_map, character.canonical_name
             )
         else:
-            # Standard name-based gathering
+            # Standard name-based gathering with disambiguation
             all_names = [character.canonical_name] + character.aliases
             for name in all_names:
-                passages = self._find_passages_for_name(name, full_text, chapter_map)
+                passages = self._find_passages_for_name(
+                    name, full_text, chapter_map,
+                    character_canonical_name=character.canonical_name,
+                    all_character_names=all_names,
+                )
                 all_passages.extend(passages)
 
         # Deduplicate by position (overlapping contexts)
@@ -104,7 +152,17 @@ class CharacterPassageGatherer:
         # Select best passages distributed across narrative
         passages = self._select_representative_passages(passages, chapter_map)
 
-        logger.info(f"Gathered {len(passages)} passages for {character.canonical_name}")
+        # Log disambiguation stats if used
+        if self.disambiguator:
+            stats = self._disambiguation_stats
+            ambiguous_kept = stats["kept_ambiguous_low_confidence"]
+            logger.info(
+                f"Gathered {len(passages)} passages for {character.canonical_name} "
+                f"(disambiguation: {stats['skipped_different_character']} skipped, "
+                f"{ambiguous_kept} kept as ambiguous)"
+            )
+        else:
+            logger.info(f"Gathered {len(passages)} passages for {character.canonical_name}")
 
         return sorted(passages, key=lambda p: p.position)
 
@@ -197,8 +255,19 @@ class CharacterPassageGatherer:
         name: str,
         full_text: str,
         chapter_map: ChapterMap,
+        character_canonical_name: Optional[str] = None,
+        all_character_names: Optional[list[str]] = None,
     ) -> list[CharacterPassage]:
-        """Find passages containing a specific name."""
+        """
+        Find passages containing a specific name.
+
+        Args:
+            name: Name to search for
+            full_text: Complete document text
+            chapter_map: Chapter boundaries
+            character_canonical_name: Canonical name of target character (for disambiguation)
+            all_character_names: All names/aliases of target character (for disambiguation)
+        """
         passages = []
 
         # Escape regex special characters but allow word boundaries
@@ -207,6 +276,7 @@ class CharacterPassageGatherer:
         pattern = rf"\b{escaped_name}\b"
 
         for match in re.finditer(pattern, full_text, re.IGNORECASE):
+            self._disambiguation_stats["total_passages_considered"] += 1
             position = match.start()
 
             # Get context window
@@ -244,6 +314,63 @@ class CharacterPassageGatherer:
             # Determine context type
             context_type = self._classify_context(context, name)
 
+            # Initialize disambiguation metadata
+            is_ambiguous = False
+            disambiguation_confidence = 1.0
+            disambiguation_method = ""
+
+            # Apply disambiguation if available and name is ambiguous
+            if self.disambiguator and self.disambiguator.is_ambiguous(name):
+                # Get chapter summary for context
+                chapter_summary = self._chapter_summary_index.get(chapter_idx)
+
+                result = self.disambiguator.disambiguate(
+                    name=name,
+                    sentence=context,
+                    chapter_summary=chapter_summary,
+                    chapter_index=chapter_idx,
+                    target_character_names=all_character_names,
+                )
+
+                # Check if disambiguation resolved to a different character
+                resolved_lower = result.resolved_character.lower()
+                target_names_lower = [n.lower() for n in (all_character_names or [name])]
+                canonical_lower = (character_canonical_name or name).lower()
+
+                # If resolved to a different character entirely, skip this passage
+                is_same_character = (
+                    resolved_lower == canonical_lower
+                    or resolved_lower in target_names_lower
+                    or any(resolved_lower in n or n in resolved_lower for n in target_names_lower)
+                )
+
+                if not is_same_character and result.confidence >= 0.7:
+                    # High confidence that this is about a different character - skip
+                    self._disambiguation_stats["skipped_different_character"] += 1
+                    logger.debug(
+                        f"Disambiguation: Skipping passage for '{name}' -> "
+                        f"'{result.resolved_character}' (confidence={result.confidence:.2f}, "
+                        f"method={result.method})"
+                    )
+                    continue
+                elif not is_same_character and result.confidence < 0.7:
+                    # Low confidence - keep but mark as ambiguous
+                    is_ambiguous = True
+                    disambiguation_confidence = result.confidence
+                    disambiguation_method = result.method
+                    self._disambiguation_stats["kept_ambiguous_low_confidence"] += 1
+                    logger.debug(
+                        f"Disambiguation: Keeping ambiguous passage for '{name}' "
+                        f"(low confidence={result.confidence:.2f})"
+                    )
+                else:
+                    # Same character - keep with full confidence
+                    disambiguation_confidence = result.confidence
+                    disambiguation_method = result.method
+                    self._disambiguation_stats["kept_same_character"] += 1
+            else:
+                self._disambiguation_stats["not_ambiguous"] += 1
+
             passages.append(
                 CharacterPassage(
                     text=context.strip(),
@@ -251,6 +378,9 @@ class CharacterPassageGatherer:
                     position=position,
                     name_matched=name,
                     context_type=context_type,
+                    ambiguous=is_ambiguous,
+                    disambiguation_confidence=disambiguation_confidence,
+                    disambiguation_method=disambiguation_method,
                 )
             )
 
@@ -480,6 +610,8 @@ def gather_character_passages(
     chapter_map: ChapterMap,
     context_window: int = 500,
     max_passages: int = 15,
+    disambiguator: Optional["ContextDisambiguator"] = None,
+    summary_map: Optional[ChapterSummaryMap] = None,
 ) -> list[CharacterPassage]:
     """
     Convenience function to gather passages for a character.
@@ -490,6 +622,8 @@ def gather_character_passages(
         chapter_map: Chapter boundaries
         context_window: Characters of context around each mention
         max_passages: Maximum passages to return
+        disambiguator: Optional ContextDisambiguator for same-name character handling
+        summary_map: Chapter summaries for disambiguation context
 
     Returns:
         List of relevant passages
@@ -497,5 +631,7 @@ def gather_character_passages(
     gatherer = CharacterPassageGatherer(
         context_window=context_window,
         max_passages_per_name=max_passages * 2,  # Gather more, then select
+        disambiguator=disambiguator,
+        summary_map=summary_map,
     )
-    return gatherer.gather_passages(character, full_text, chapter_map)
+    return gatherer.gather_passages(character, full_text, chapter_map, summary_map=summary_map)

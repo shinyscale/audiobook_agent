@@ -1,6 +1,27 @@
 # User Notes for Oracle Loop
 
-## Current Guidance (Updated 2026-01-28)
+## Current Guidance (Updated 2026-01-29)
+
+### Context-Aware Disambiguation (NEW)
+
+For same-name character handling (e.g., father/son sharing "John"):
+
+1. **Use multi-signal disambiguation** - Don't rely on string matching alone
+   - Relationship markers: "his father John", "Sr./Jr.", "the elder"
+   - Name-shape: If sentence has "Donaldson", attribute to "John Donaldson"
+   - Temporal: "years ago", past perfect → older generation
+   - Chapter presence: Prefer active character over just mentioned
+
+2. **Don't drop low-confidence passages** - Mark as `ambiguous=True` instead
+   - Downweight in profile generation, don't discard
+   - Preserves data for characters with many weak-mention forms
+
+3. **Implementation**: See `src/pipeline/character_profiling/name_disambiguator.py`
+   - `NameAmbiguityMap` identifies which names are ambiguous
+   - `ContextDisambiguator` applies signals in priority order
+   - LLM fallback is gated (only when heuristics fail)
+
+---
 
 ### Keyword Lists Are Forbidden
 

@@ -26,6 +26,7 @@ from .models import (
     IdentifiedCharacter,
 )
 from .moral_valence import MoralValenceClassifier
+from .name_disambiguator import NameAmbiguityMap, ContextDisambiguator, build_disambiguator
 from .passage_gatherer import CharacterPassageGatherer
 from .summary_evidence import SummaryEvidenceExtractor
 
@@ -150,6 +151,14 @@ class CharacterProfilingPipeline:
             all_character_names.append(char.canonical_name)
             all_character_names.extend(char.aliases)
 
+        # Build disambiguator for same-name character handling
+        # This handles cases like father/son pairs (John vs John Donaldson)
+        ambiguity_map, disambiguator = build_disambiguator(
+            characters=characters,
+            summary_map=summary_map,
+            llm_client=self.llm,
+        )
+
         # Stage 2: Profile Generation
         logger.info("Stage 2: Generating character profiles")
         self._report_progress("profiling", 0, len(characters))
@@ -159,19 +168,27 @@ class CharacterProfilingPipeline:
             # Generate rich profiles with appearance, personality, voice guidance
             # Feature F2: Pass summary_map to generator for summary evidence extraction
             generator = CharacterProfileGenerator(self.llm, summary_map=summary_map)
-            passage_gatherer = CharacterPassageGatherer()
-            # Pass all character names for collision filtering
-            summary_extractor = SummaryEvidenceExtractor(self.llm, all_character_names)
+            # Pass disambiguator for same-name character handling
+            passage_gatherer = CharacterPassageGatherer(
+                disambiguator=disambiguator,
+                summary_map=summary_map,
+            )
+            # Pass all character names for collision filtering + disambiguator
+            summary_extractor = SummaryEvidenceExtractor(
+                self.llm, all_character_names, disambiguator=disambiguator
+            )
             # Feature F3: Moral valence classifier for hard constraints
             valence_classifier = MoralValenceClassifier(self.llm)
 
             for i, char in enumerate(characters):
                 logger.info(f"Profiling character {i + 1}/{len(characters)}: {char.canonical_name}")
 
-                # Gather passages for this character
-                passages = passage_gatherer.gather_passages(char, full_text, chapter_map)
+                # Gather passages for this character (with disambiguation)
+                passages = passage_gatherer.gather_passages(
+                    char, full_text, chapter_map, summary_map=summary_map
+                )
 
-                # Extract summary evidence (Feature F2)
+                # Extract summary evidence (Feature F2) with disambiguation
                 # Check if this character is the narrator
                 is_char_narrator = (
                     narrator_name and char.canonical_name.lower() == narrator_name.lower()

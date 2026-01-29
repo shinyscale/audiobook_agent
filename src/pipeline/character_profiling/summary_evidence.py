@@ -11,10 +11,13 @@ Feature F2: Summary-Derived Profile Evidence
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
 from ..llm import LLMClient
+
+if TYPE_CHECKING:
+    from .name_disambiguator import ContextDisambiguator
 
 logger = logging.getLogger(__name__)
 
@@ -175,14 +178,24 @@ class SummaryEvidenceExtractor:
         self,
         llm_client: Optional[LLMClient] = None,
         all_character_names: Optional[list[str]] = None,
+        disambiguator: Optional["ContextDisambiguator"] = None,
     ):
         """
         Args:
             llm_client: Optional LLM for enhanced extraction. If None, uses pattern-based extraction.
             all_character_names: List of all character names for collision detection.
+            disambiguator: Optional ContextDisambiguator for same-name character handling.
         """
         self.llm = llm_client
         self.surname_collisions = self._build_surname_collisions(all_character_names or [])
+        self.disambiguator = disambiguator
+        # Statistics for disambiguation
+        self._disambiguation_stats = {
+            "checked": 0,
+            "skipped_different_character": 0,
+            "kept_same_character": 0,
+            "kept_not_ambiguous": 0,
+        }
 
     def _build_surname_collisions(self, names: list[str]) -> dict[str, list[str]]:
         """
@@ -388,10 +401,19 @@ class SummaryEvidenceExtractor:
                             )
                         )
 
-        logger.info(
-            f"Extracted {len(evidence_result.evidence)} summary evidence items "
-            f"for {character_name}"
-        )
+        # Log extraction results including disambiguation stats
+        if self.disambiguator and self._disambiguation_stats["checked"] > 0:
+            stats = self._disambiguation_stats
+            logger.info(
+                f"Extracted {len(evidence_result.evidence)} summary evidence items "
+                f"for {character_name} (disambiguation: {stats['checked']} checked, "
+                f"{stats['skipped_different_character']} skipped as different character)"
+            )
+        else:
+            logger.info(
+                f"Extracted {len(evidence_result.evidence)} summary evidence items "
+                f"for {character_name}"
+            )
 
         return evidence_result
 
@@ -470,16 +492,18 @@ class SummaryEvidenceExtractor:
             if not name_in_chapter:
                 continue
 
-            # Extract from summary text
+            # Extract from summary text - pass chapter_summary for disambiguation
             summary_statements = self._extract_statements_mentioning(
-                summary.summary, names, summary.chapter_index, "summary"
+                summary.summary, names, summary.chapter_index, "summary",
+                chapter_summary=summary,
             )
             evidence.extend(summary_statements)
 
-            # Extract from key events
+            # Extract from key events - pass chapter_summary for disambiguation
             for event in summary.key_events:
                 event_statements = self._extract_statements_mentioning(
-                    event, names, summary.chapter_index, "key_event"
+                    event, names, summary.chapter_index, "key_event",
+                    chapter_summary=summary,
                 )
                 evidence.extend(event_statements)
 
@@ -498,6 +522,7 @@ class SummaryEvidenceExtractor:
         names: list[str],
         chapter_index: int,
         source_type: str,
+        chapter_summary: Optional[ChapterSummary] = None,
     ) -> list[SummaryEvidence]:
         """Extract sentences that mention any of the character names."""
         evidence = []
@@ -520,6 +545,37 @@ class SummaryEvidenceExtractor:
                             f"Skipping collision sentence for '{name}': {sentence[:50]}..."
                         )
                         continue
+
+                    # Check disambiguation for same-name characters
+                    if self.disambiguator and self.disambiguator.is_ambiguous(name):
+                        self._disambiguation_stats["checked"] += 1
+                        result = self.disambiguator.disambiguate(
+                            name=name,
+                            sentence=sentence,
+                            chapter_summary=chapter_summary,
+                            chapter_index=chapter_index,
+                            target_character_names=names,
+                        )
+
+                        # Check if disambiguation resolved to a different character
+                        resolved_lower = result.resolved_character.lower()
+                        names_lower = [n.lower() for n in names]
+
+                        # If resolved to a character NOT in our target names, skip
+                        if resolved_lower not in names_lower and not any(
+                            resolved_lower in n or n in resolved_lower
+                            for n in names_lower
+                        ):
+                            self._disambiguation_stats["skipped_different_character"] += 1
+                            logger.debug(
+                                f"Disambiguation: '{name}' -> '{result.resolved_character}' "
+                                f"(not in {names}), skipping. Method: {result.method}"
+                            )
+                            continue
+                        else:
+                            self._disambiguation_stats["kept_same_character"] += 1
+                    else:
+                        self._disambiguation_stats["kept_not_ambiguous"] += 1
 
                     # Score based on content indicators
                     score = self._score_statement(sentence)
@@ -743,6 +799,7 @@ def extract_character_summary_evidence(
     is_narrator: bool = False,
     narrative_style: str = "unknown",
     all_character_names: Optional[list[str]] = None,
+    disambiguator: Optional["ContextDisambiguator"] = None,
 ) -> CharacterSummaryEvidence:
     """
     Convenience function to extract summary evidence for a character.
@@ -755,11 +812,14 @@ def extract_character_summary_evidence(
         is_narrator: Whether this character is the narrator
         narrative_style: Narrative style ("first-person", "third-person", "mixed", "unknown")
         all_character_names: List of all character names for collision detection
+        disambiguator: Optional ContextDisambiguator for same-name character handling
 
     Returns:
         CharacterSummaryEvidence with all extracted evidence
     """
-    extractor = SummaryEvidenceExtractor(llm_client, all_character_names)
+    extractor = SummaryEvidenceExtractor(
+        llm_client, all_character_names, disambiguator=disambiguator
+    )
     return extractor.extract_evidence(
         character_name,
         aliases,

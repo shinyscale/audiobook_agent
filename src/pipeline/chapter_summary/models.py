@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, TYPE_CHECKING
 
 ToneType = Literal[
     "tense",
@@ -143,6 +143,21 @@ class ChapterSummaryMap:
         """Load summary map from JSON file."""
         with open(path, "r") as f:
             return cls.from_dict(json.load(f))
+
+    def get_summary(self, chapter_index: int) -> Optional["ChapterSummary"]:
+        """
+        Get the summary for a specific chapter index.
+
+        Args:
+            chapter_index: The chapter index to look up
+
+        Returns:
+            ChapterSummary for that chapter, or None if not found
+        """
+        for summary in self.summaries:
+            if summary.chapter_index == chapter_index:
+                return summary
+        return None
 
     def summary(self) -> str:
         """Human-readable summary of the chapter summaries."""
