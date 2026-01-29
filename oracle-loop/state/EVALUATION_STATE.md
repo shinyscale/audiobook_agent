@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -14,97 +14,73 @@
 ## Latest Scores
 - Structure Detection: 10/10 ✓
 - Character Extraction: 9/10 ✓
-- Character Profiles: 5/10 ✗ (FAILING - same-name collision, not narrator contamination)
+- Character Profiles: 4/10 ✗ (FAILING - evidence for nephew has father's backstory)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.55/10** (reference only)
+- **Overall: 8.65/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold - Character Profiles at 5/10)
+**Status:** FAIL (Character Profiles at 4/10)
 
-## Attempt 11 Analysis
+## Attempt 12 Analysis
 
-### What the Narrator Filter FIXED ✓
-The narrator perspective contamination filter worked correctly:
-- "John" entry no longer has `is_narrator: true`
-- Evidence no longer contains narrator self-descriptions ("I am stern, crabbed...")
-- Uncle Bill profile is now separate and correctly describes the narrator
+### Why the Chapter-Range Prior FIX FAILED
 
-### What's STILL WRONG (Different Root Cause)
+The chapter-range prior couldn't work because:
+1. **All characters are supporting cast** - IDs are `supporting_0`, `supporting_1`, etc.
+2. **Supporting cast has empty `chapters_present`** - Line 2987 in `characters.py` sets `chapters_present=[]`
+3. **Disambiguation signal has no data** - The prior checks `chapters_present` but it's always empty
 
-**The "John" (nephew) profile is populated with the FATHER's backstory, not the nephew's story.**
+### Root Cause (UNCHANGED)
 
-The evidence for "John" (supporting_0) includes:
-- "John graduated from Yale with honors and prizes" → FATHER (backstory)
-- "John planned to live in Italy since age seventeen" → FATHER
-- "John went on a mining adventure in the south" → FATHER
-- "John lived a thriftless life in Florida" → FATHER
-- "John died in a fatal accident" → FATHER (fake death 15 years ago)
-- "John had a two-year-old son" → FATHER (the son IS the nephew!)
+**"John" in the backstory refers to the FATHER, not the nephew.**
 
-The personality describes the FATHER: "impulsive, charming, financially irresponsible, dreamer"
+Text structure:
+- Positions 2000-5000: Narrator tells backstory about "my brother John" (the FATHER)
+- Positions 11000+: Nephew's account where father is called "John Donaldson"
 
-**This is a DIFFERENT problem from narrator contamination:**
-- The father is called just "John" in the narrator's early backstory (positions 2000-4800)
-- The father is called "John Donaldson" in the nephew's later recounting (positions 11000+)
-- The nephew is also named "John" (after his father)
-- Evidence gathering matches "John" to ANY John in the text, getting the wrong person
+Evidence for "John" (nephew profile) still has:
+- "John graduated from Yale" (pos 2005) → FATHER
+- "John planned to live in Italy" (pos 2451) → FATHER
+- "John died in an accident" (pos 3689) → FATHER's fake death
+- "John had a two-year-old son" (pos 3909) → FATHER (the son IS the nephew!)
 
-**The NEPHEW's actual characteristics (NOT in the profile):**
-- Teenage ambulance driver in WWI
-- Won the Croix de Guerre for bravery
-- Graduated from school (not Yale - that was his father)
-- Discovers John Donaldson is his long-lost father
-- Described as having "manliness, a force which poor John [father] never had"
-
-### Why Previous Fixes Didn't Solve This
-
-| Attempt | Fix | Why It Didn't Work for This Issue |
-|---------|-----|-----------------------------------|
-| 10 | Context-aware evidence disambiguation | Separated father/son based on name shape ("John" vs "John Donaldson"), but the father is ALSO called just "John" in the backstory |
-| 11 | Narrator perspective filter | Fixed narrator "I did X" contamination, but this is name collision, not narrator perspective |
-
-### Root Cause Analysis
-
-**The text has a temporal name shift:**
-- Early story (narrator's backstory): Father = "John" → Evidence gathered for "John" profile
-- Late story (nephew's account): Father = "John Donaldson" → Evidence gathered for "John Donaldson" profile
-- Throughout: Nephew = "John" or "young John" → SHOULD get nephew's profile
-
-**The disambiguation needs to:**
-1. Recognize when "John" in early backstory is being discussed as a PAST person (the narrator's brother)
-2. vs "John" in the current action (the nephew doing things NOW)
-3. Use temporal markers: past tense backstory vs present action
-4. Use relationship markers: "my brother John" (father) vs "the boy John" / "young John" (nephew)
+**What SHOULD be in nephew's profile:**
+- WWI ambulance driver (age 18)
+- Won Croix de Guerre
+- Discovered John Donaldson (father) alive on Piave front
+- "All John Donaldson's physical beauty...repeated in his son, but underlaid with a manliness"
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
 1. **"John" profile contains father's backstory instead of nephew's story**
-   - Problem: Evidence for "John" (the nephew) matches any "John" in the text, predominantly getting the father's backstory which uses just "John"
-   - Evidence: All 12 evidence statements describe the father (Yale graduate, thriftless life, fake death, had a son)
-   - Location: `src/pipeline/character_profiling/passage_gatherer.py` or `summary_evidence.py` - name matching logic
-   - Root cause: The father is called "John" in the narrator's backstory (early) and "John Donaldson" in the nephew's recounting (late). The nephew is also "John". Evidence for "John" grabs the father's backstory.
-   - Fix approach:
-     - **Option A**: Use temporal context - backstory about "John" (past tense, 15+ years ago) → attribute to John Donaldson
-     - **Option B**: Use the NameAmbiguityMap to recognize "John" is ambiguous when "John Donaldson" exists, then use relationship/context clues
-     - **Option C**: Cross-reference with the chapter summary which correctly says "narrator's brother John" (father) vs "the boy John" (nephew)
-     - **Key insight**: When a character has both short form (John) and long form (John Donaldson), evidence using the short form in backstory context likely refers to the full-name character
+   - Problem: Evidence for "John" (the nephew) matches any "John" in the text, getting the father's backstory
+   - Evidence: All 11 evidence statements describe the father (Yale, thriftless life, fake death, had a son)
+   - Root cause: Father is called just "John" in backstory (pos 2000-5000), nephew is also "John"
+   - Location: Evidence gathering in `src/pipeline/character_profiling/passage_gatherer.py` or `summary_evidence.py`
+   - Fix approach: **SEE ESCALATION RECOMMENDATION BELOW**
 
 ### HIGH
 
-2. **Relationships still empty for all characters**
+2. **Relationships empty for all characters**
    - Problem: `relationships: {}` for all 4 characters
-   - Evidence: Clear relationships exist (John grandson of Uncle Bill, son of John Donaldson; John Donaldson brother of Uncle Bill)
+   - Evidence: Clear relationships exist (John grandson of Uncle Bill; John Donaldson brother of Uncle Bill)
    - Location: `src/pipeline/character_profiling/` relationship extraction
-   - Fix: May require correctly attributing "John" evidence first
 
-3. **Physical descriptions still "unknown" for all characters**
+3. **Physical descriptions empty for all characters**
    - Problem: `appearance.summary: "unknown"` for all characters
-   - Evidence: Text provides: "All John Donaldson's physical beauty, all his charm were repeated in his son, but underlaid with a manliness, a force"
-   - Location: Profile generation in `src/analyzer.py`
+   - Evidence: Text provides: "All John Donaldson's physical beauty, all his charm were repeated in his son, but underlaid with a manliness"
+   - Location: Profile generation
+
+### MEDIUM
+
+4. **`chapters_present` not populated for supporting cast**
+   - Problem: Line 2987 in `characters.py` sets `chapters_present=[]` for all supporting cast
+   - Impact: Chapter-range disambiguation signal has no data to work with
+   - Location: `src/agents/characters.py:2987`
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -119,8 +95,8 @@ The personality describes the FATHER: "impulsive, charming, financially irrespon
 | 8 | 8.50 | +0.55 | Substring filtering didn't fix profile confusion (3/10) |
 | 9 | 8.50 | +0.55 | Disambiguation context in profile prompt didn't help (3/10) |
 | 10 | 8.55 | +0.60 | John Donaldson profile now correct; "John" still has narrator data (5/10) |
-| 11 | 8.55 | +0.60 | **Narrator filter worked** but "John" now has FATHER's backstory instead (5/10) |
-| 12 | TBD | TBD | Chapter-range prior + larger context + surrounding sentences for temporal |
+| 11 | 8.55 | +0.60 | Narrator filter worked but "John" now has FATHER's backstory (5/10) |
+| 12 | 8.65 | +0.70 | Chapter-range prior FAILED - supporting cast has no `chapters_present` data |
 
 ## Modification History
 
@@ -136,89 +112,59 @@ The personality describes the FATHER: "impulsive, charming, financially irrespon
 | 8 | Substring filtering in profile mention search | src/analyzer.py | **NO CHANGE** |
 | 9 | Disambiguation context in profile generation prompt | src/analyzer.py | **NO CHANGE** |
 | 10 | Context-aware evidence disambiguation in gathering | src/analyzer.py | **PARTIAL** |
-| 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | **PARTIAL** - Fixed narrator contamination, but revealed same-name father/son collision |
-| 12 | Chapter-range prior + expanded context for same-name disambiguation | passage_gatherer.py (context 500→2000), name_disambiguator.py (chapter-range signal, surrounding_context), summary_evidence.py (pass surrounding sentences), llm/client.py (temperature override) | **PENDING** |
+| 11 | Narrator perspective contamination filter | perspective_filter.py (NEW), pipeline.py, passage_gatherer.py, summary_evidence.py, identifier.py, generator.py | **PARTIAL** |
+| 12 | Chapter-range prior + expanded context | passage_gatherer.py, name_disambiguator.py, summary_evidence.py, llm/client.py | **FAILED** - data dependency not met |
 
-## Key Insight for Fix Phase
+## Fix History Summary
 
-**The narrator contamination filter WORKED - it exposed the underlying same-name collision problem.**
+**12 attempts have tried 6 different approaches to fix same-name evidence collision:**
 
-The story has THREE Johns:
-1. **"John" (the father, past)** - Narrator's brother, called just "John" in the backstory
-2. **"John Donaldson" (the father, present)** - Same person when his full name is revealed in the nephew's account
-3. **"John" (the nephew, present)** - Named after his father, called "John" or "young John"
+1. **Post-processing merge fix** (attempt 1) - Fixed character extraction ✓
+2. **Prompt engineering** (attempts 2, 3, 9) - No effect on evidence gathering
+3. **Upstream pipeline changes** (attempts 4, 5, 6) - Caused regressions
+4. **Main cast prompt fix** (attempt 7) - Fixed extraction ✓
+5. **Filtering/disambiguation heuristics** (attempts 8, 10, 11, 12) - Partial or no effect
+6. **Narrator filter** (attempt 11) - Fixed narrator contamination, revealed father/son collision ✓
 
-**Current problem:** Evidence gathering for character "John" (the nephew) matches:
-- "John graduated from Yale" → Father in backstory (WRONG)
-- "John lived thriftless life" → Father in backstory (WRONG)
-- "young John's note" → Nephew (CORRECT)
+## ESCALATION RECOMMENDATION
 
-**The fix needs to:**
-1. Recognize that when "John Donaldson" exists as a full character, bare "John" references in BACKSTORY context likely refer to John Donaldson (the father)
-2. Distinguish "John" in present action (nephew doing things) from "John" in past narration (father's history)
-3. Use qualifiers: "young John" → nephew, "my brother John" → father, "John Donaldson" → father
+**This issue requires architectural change, not heuristic tuning.**
 
-## Fix History
+The problem: When two characters share a name, evidence gathering cannot distinguish them with text position, temporal markers, or chapter presence because:
+1. Both characters are called "John" in their respective narrative sections
+2. The backstory about "John" (father) dominates positions 2000-5000
+3. Supporting cast characters don't have `chapters_present` populated
 
-### Attempt 1: Fixed false John/John Donaldson merge ✓ (POST-PROCESSING)
-- **Result:** Characters separated, but profiles still confused
+**Recommended architectural fix:**
 
-### Attempts 2-5: Profile/Relationship fixes
-- Various attempts, see modification history
-- Relationships still empty after all attempts
+**Option A: Pre-merge ambiguous references at extraction time**
+- When "John" and "John Donaldson" are both detected
+- And they share a relationship (chapter summary says "narrator's brother John" = "John Donaldson")
+- Treat bare "John" in backstory as an alias for "John Donaldson"
+- The nephew profile then gets only present-day "John" references
 
-### Attempt 6: Context-Aware Evidence Disambiguation (WRONG LAYER)
-- **Result:** REGRESSION - Fixed profile layer but broke extraction layer
+**Option B: Evidence attribution based on narrative context**
+- Use chapter summary to identify which "John" is being discussed
+- Summary says: "his late brother's son, John" (nephew) vs "John Donaldson" (father)
+- Route evidence to correct profile based on summary's narrative structure
 
-### Attempt 7: Fixed CHARACTER_IDENTIFICATION_PROMPT for family name overlap ✓
-- **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` lines 77-86
-- **Result:** FIXED - "John" and "John Donaldson" now correctly separate
+**Option C: Explicit same-name merge at profiling time**
+- Detect when two profiles have the same short name
+- Use generation context (backstory vs present action) to merge evidence correctly
+- Apply to "John" (nephew) and "John Donaldson" (father) where backstory-John = John Donaldson
 
-### Attempts 8-9: Profile disambiguation attempts
-- **Result:** NO IMPROVEMENT - Evidence already gathered incorrectly
-
-### Attempt 10: Context-aware evidence disambiguation
-- **Result:** PARTIAL - Separated father/son when full name used, but not when "John" alone is used
-
-### Attempt 11: Narrator perspective contamination filter ✓
-- **Result:** PARTIAL SUCCESS - Fixed narrator "I did X" contamination
-- **New issue revealed:** Father's backstory (using just "John") still attributed to nephew's profile
-- **This is progress:** We've eliminated narrator contamination and can now see the pure same-name collision problem
+**Relevant code locations:**
+- `src/pipeline/character_profiling/identifier.py` - character identification
+- `src/agents/characters.py:2977-2995` - supporting cast conversion (populate `chapters_present`)
+- `src/pipeline/character_profiling/summary_evidence.py` - evidence gathering
+- `src/analyzer.py` - profile generation orchestration
 
 ## Next Action
 
-**Phase:** awaiting_evaluation
+**ESCALATE** - This issue has been attempted 12 times without resolution. The fix phase should:
 
-**Attempt 12 analysis completed** - Pipeline ran with enhanced same-name disambiguation:
+1. Read `spec/oracle-loop-escalation-american_sir-20260129_*.prd.md` for prior escalation context
+2. Consider generating a new escalation PRD if prior ones don't cover the architectural fix needed
+3. Focus on Option A (pre-merge at extraction) or Option B (summary-guided attribution) as most promising
 
-1. **Larger passage context (2000 chars)** - `passage_gatherer.py`
-   - Increased from 500 to 2000 chars around each mention
-   - More context helps capture nearby identity cues
-
-2. **Chapter-range prior (0.85 confidence)** - `name_disambiguator.py`
-   - Uses `chapters_present` from IdentifiedCharacter
-   - If only one candidate appears in the current chapter, prefer them
-   - Key for father (early chapters) vs nephew (later chapters)
-
-3. **Surrounding context for temporal markers** - `name_disambiguator.py`, `summary_evidence.py`
-   - Looks at 2 sentences before target for temporal cues
-   - "Years ago... John graduated" → temporal marker spans sentences
-
-4. **Low temperature (0.1) for LLM disambiguation** - `llm/client.py`
-   - Added per-call temperature override
-   - Classification tasks use low temp for deterministic results
-
-**Files modified:**
-- `src/pipeline/character_profiling/passage_gatherer.py` - context_window 500→2000
-- `src/pipeline/character_profiling/name_disambiguator.py` - chapter-range signal, surrounding_context, stats
-- `src/pipeline/character_profiling/summary_evidence.py` - pass surrounding sentences to disambiguator
-- `src/llm/client.py` - temperature override parameter
-
-**Test case:** After fix, "John" (nephew) evidence should include:
-- "young John's note out of the scrap-basket"
-- "all his charm were repeated in his son, but underlaid with a manliness"
-- Evidence about ambulance driving, Croix de Guerre
-
-**Expected improvement:** Chapter-range prior should correctly attribute:
-- Early chapter "John" references → John Donaldson (father appears in ch 1-2 backstory)
-- Later chapter "John" references → John (nephew appears in ch 3+ present-day action)
+The current profiling pipeline cannot distinguish same-name characters with different temporal scopes without upstream changes to how character identity is tracked through the extraction→profiling pipeline.
