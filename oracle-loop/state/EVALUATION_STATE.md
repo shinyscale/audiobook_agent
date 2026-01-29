@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -113,6 +113,7 @@ The profile extraction prompt needs to:
 | 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
 | 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** - Two Johns now extracted separately |
 | 8 | Profile mention search substring filtering | src/analyzer.py | **NO CHANGE** - Did not fix semantic confusion in profile generation |
+| 9 | Character disambiguation context in profile prompt | src/analyzer.py | **TESTING** - Added disambiguation guidance to profile generation prompt |
 
 ## Fix Strategy for Attempt 9
 
@@ -164,7 +165,19 @@ For John Donaldson (father):
 - **Result:** NO IMPROVEMENT - Profile data still inverted between John and John Donaldson
 - **Why it failed:** Substring filtering prevents matching "John" in "John Donaldson", but the LLM still semantically confuses which passages describe which character
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 9: Character disambiguation context in profile generation prompt
+- **Modified:** `src/analyzer.py` lines 2468-2516 (added disambiguation_note section)
+- **Root cause:** Profile generation searches for character mentions and extracts surrounding passages, but these passages may contain ambiguous references to either character. Without explicit guidance, the LLM cannot distinguish "John" (son) from "John Donaldson" (father) within the passage text.
+- **Fix approach:** Added a CHARACTER DISAMBIGUATION section to the profile prompt that:
+  1. Detects when characters have overlapping names (one name is substring of another)
+  2. Lists the similar-named characters explicitly
+  3. Provides guidance: "You are analyzing '{canonical_name}' specifically - NOT the other character(s)"
+  4. Instructs the LLM to pay attention to which name form appears in each passage
+  5. Includes the character's existing description as additional context
+- **Universality:** This fix applies to ANY book with same-name conflicts (father/son with shared names, Jr./Sr., characters with overlapping name components). No book-specific keywords or examples.
+- **Result:** PENDING - Awaiting analysis
 
-Run PROMPT_fix.md to add character context/disambiguation to the profile generation prompt. The LLM needs to know WHO each "John" character is before attributing evidence to their profiles.
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify that profile generation now correctly distinguishes between John (son) and John Donaldson (father).

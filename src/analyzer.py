@@ -2470,6 +2470,43 @@ class AudiobookAnalyzer:
         if hasattr(character, "is_narrator") and character.is_narrator:
             narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
 
+        # Build character disambiguation context for same-name characters
+        # This helps when multiple characters share name components (e.g., "John" and "John Donaldson")
+        disambiguation_note = ""
+        char_canonical = getattr(character, "canonical_name", "")
+        if char_canonical and all_character_names:
+            # Check if there's another character whose name contains or is contained in this character's name
+            related_names = []
+            for other_name in all_character_names:
+                if other_name != char_canonical:
+                    # Check for name overlap (one is substring of the other)
+                    if (char_canonical.lower() in other_name.lower() or
+                        other_name.lower() in char_canonical.lower()):
+                        related_names.append(other_name)
+
+            if related_names:
+                # Extract distinguishing information from the character's description field
+                char_description = ""
+                descriptions = getattr(character, "descriptions", []) or []
+                if descriptions and len(descriptions) > 0:
+                    desc_text = descriptions[0].get("text", "") if isinstance(descriptions[0], dict) else ""
+                    if desc_text:
+                        char_description = f"\n{desc_text}"
+
+                related_list = ", ".join(f'"{name}"' for name in related_names)
+                disambiguation_note = f"""
+
+CHARACTER DISAMBIGUATION (CRITICAL):
+This story has multiple characters with similar names: "{char_canonical}" and {related_list}.
+You are analyzing "{char_canonical}" specifically - NOT the other character(s).
+
+When attributing traits, events, or quotes to this character:
+1. Pay attention to which name form appears in each passage
+2. Passages that mention the FULL name of another character (e.g., both first AND last name) likely refer to that other character, NOT this one
+3. If a passage is ambiguous about which character is being discussed, mark the evidence as lower confidence{char_description}
+
+IMPORTANT: Carefully distinguish passages about "{char_canonical}" from passages about other characters with similar names."""
+
         # Build character names list for relationship extraction
         character_names_text = ""
         if all_character_names:
@@ -2514,7 +2551,7 @@ This is a HARD CONSTRAINT - your profile MUST respect this classification."""
         prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
 
 The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
-Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{character_names_text}{summary_evidence_text}{moral_valence_constraint}
+Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{disambiguation_note}{character_names_text}{summary_evidence_text}{moral_valence_constraint}
 
 Text Evidence:
 {context_text}
