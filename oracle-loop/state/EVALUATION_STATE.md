@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 6
-- **Phase:** evaluate
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -12,93 +12,77 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Latest Scores
-*Scores from Attempt 5 - Attempt 6 evaluation pending*
-
 - Structure Detection: 9/10 ✓
-- Character Extraction: 9/10 ✓
-- Character Profiles: 5/10 ✗ (was FAILING - disambiguation fix applied)
-- Chapter Summaries: 10/10 ✓
+- Character Extraction: 4/10 ✗ (CRITICAL REGRESSION)
+- Character Profiles: 5/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.65/10** (prior attempt)
+- **Overall: 7.15/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** EVALUATION PENDING (Attempt 6 fix implemented)
+**Status:** FAIL (2 categories below threshold - Character Extraction REGRESSED)
 
-## Analysis of Attempt 5 Fix
+## Analysis of Attempt 6 Results
 
-The collision detection fix was implemented but **did NOT resolve the profile confusion**. The issue is:
+**CRITICAL REGRESSION DETECTED**: The character extraction has gotten WORSE, not better.
 
-1. **Collision detection is conceptually correct** - it prevents "John" searches from matching "John Donaldson" sentences
-2. **BUT the underlying problem is SEMANTIC, not collision-based** - both father AND son are legitimately called "John" in the text
+### What Happened
 
-Evidence that the fix didn't work:
-- John's personality (HTML line 864): "John Donaldson was impulsive, avoidant of unpleasantness" - describes FATHER, attributed to SON
-- John's evidence contains father's biography (thriftless life in Florida, faked death on shooting trip)
+The attempt 6 disambiguation fix was designed to fix PROFILE confusion (father's traits assigned to son), but:
 
-## Root Cause Analysis
+1. **The fix was applied to the WRONG layer** - Profile generation (evidence attribution)
+2. **The actual problem is UPSTREAM** - Character identification (initial extraction)
+3. **Result**: Father and son are now MERGED at extraction time, before profiles are even generated
 
-This story has a **deliberate naming ambiguity** that's central to the plot:
-- **Father**: John Donaldson (later just "John" in past tense narratives about him)
-- **Son**: Named "John Donaldson" after his father (called "John" throughout)
+### Evidence of Regression
 
-When the LLM extracts evidence about "John", it pulls statements about BOTH characters because:
-1. Both share the name "John"
-2. The text discusses the father's past using "John" as a reference
-3. Collision detection filters out "John Donaldson" mentions but keeps "John" mentions even when they refer to the father
+**Attempt 1 Output** (from fix history): "John" and "John Donaldson" were SEPARATE characters
+**Attempt 6 Output**: Only ONE "John Donaldson" character exists with alias "Father"
 
-**The solution requires SEMANTIC disambiguation**, not just name collision filtering.
+The separation achieved in attempt 1 has been lost. The disambiguation code added in attempt 6 cannot help because there's only ONE character to profile - the merge already happened.
+
+### Root Cause (NEW)
+
+The CHARACTER_IDENTIFICATION_PROMPT in `src/pipeline/character_profiling/identifier.py` contains these rules:
+- Line 79: "Nickname variants = SAME person (Cal/Caleb, Cathy/Catherine, Tom/Thomas)"
+- Line 80: "Adjacent chapter appearance + similar names = likely SAME person (merge them)"
+
+The LLM interprets "John" and "John Donaldson" as nickname variants and merges them. The prompt says nothing about keeping father/son with same first name SEPARATE.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Personality wrongly describes father for son**
-   - Problem: John (supporting_0, the son) has personality: "John Donaldson was impulsive, avoidant of unpleasantness, and lived a thriftless life" - this describes the FATHER
-   - Evidence: The son is described as having "quiet dignity and responsibility that his father never did"
-   - Root cause: Evidence extraction pulls father's biographical info into son's profile
-   - The evidence items 3-5 for "John" describe the father's behavior, not the son's
-
-2. **Evidence items wrongly assigned**
-   - "John preferred a thriftless life in Florida" - describes FATHER
-   - "John stopped writing due to an inability to endure unpleasantness" - describes FATHER
-   - "John died during a shooting trip" - describes FATHER (faked death)
-   - These are in son "John"'s evidence but should be in father "John Donaldson"'s evidence
+1. **FALSE MERGE: Father and son merged into single character (REGRESSION)**
+   - Problem: "John" (the son) and "John Donaldson" (the father) are merged into one character
+   - Evidence: analysis.json has only 3 characters; `characters_present` in summary has both "John" AND "John Donaldson" separately
+   - Evidence: Plot summary says "receives a letter from his father, John Donaldson" proving they should be separate
+   - Location: `src/pipeline/character_profiling/identifier.py` - CHARACTER_IDENTIFICATION_PROMPT
+   - Root cause: Prompt encourages merging "John" with "John Donaldson" as nickname variants
+   - Fix: Add rule to prompt: "First name only (John) vs Full name (John Donaldson) = likely DIFFERENT people if context suggests parent/child relationship - check summaries for family terms like 'father', 'son', 'parent'"
 
 ### HIGH
 
-3. **Relationships still empty for all characters**
-   - Problem: `relationships: {}` for all 4 characters
-   - This has persisted through 4 attempts at fixing
-   - `summary_evidence` is still `null` for all characters
-   - The relationship extraction code may not be executing at all
+2. **Relationships empty for all characters**
+   - Problem: `relationships: {}` for all 3 characters
+   - Evidence: Uncle Bill is clearly John's uncle (name contains "Uncle") but no relationship recorded
+   - This has persisted through 6 attempts
+   - Location: Profile generation - relationship extraction not executing
+   - Fix: Deferred - fix character extraction first
 
 ### MEDIUM
 
-4. **Physical descriptions null for all characters**
-   - The text does describe characters (son "strikingly similar to father yet more grounded")
-   - Profile generation is not populating these fields
+3. **Physical descriptions null for all characters**
+   - Problem: `physical_description: null` for all characters
+   - The text does contain physical descriptions (father was "beautiful")
+   - Location: Profile generation
+   - Fix: Deferred
 
-## Fix Strategy for Attempt 6
-
-The collision detection approach (attempts 4-5) did not work because the problem is SEMANTIC, not string-matching.
-
-**Recommended approach**: Context-aware evidence assignment
-
-Instead of filtering based on name collisions, the evidence extractor needs to:
-1. Recognize temporal context (past tense about "John" before the son was born = father)
-2. Recognize relationship context ("John's father" vs "John" the son)
-3. Use chapter/section position (early story = flashback about father)
-
-**Specific implementation suggestion**:
-- In `src/pipeline/character_profiling/evidence_extractor.py` or `profile_generator.py`
-- Add temporal/context analysis when a character name could refer to multiple people
-- Use the chapter summary to understand which "John" is being discussed at each point
-
-**Alternatively**: Accept this as an edge case limitation
-- Stories with deliberately ambiguous naming (same name for father and son) are inherently difficult
-- A narrator would face the same confusion
-- Focus on fixing the relationship extraction instead (simpler, higher impact)
+4. **Profile confusion will return after merge fix**
+   - Problem: Once characters are separated, the profile disambiguation (attempt 6 fix) will need to work
+   - The disambiguation code may still have issues
+   - Fix: Test after merge is fixed
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -108,7 +92,7 @@ Instead of filtering based on name collisions, the evidence extractor needs to:
 | 3 | 8.65 | +0.70 | No change. Prompt simplification didn't improve relationships |
 | 4 | 8.60 | +0.65 | Profiles dropped to 5/10 due to evidence confusion |
 | 5 | 8.65 | +0.70 | Collision fix helped slightly but semantic confusion remains |
-| 6 | - | - | PENDING: Context-aware disambiguation implemented |
+| 6 | 7.15 | -0.80 | **REGRESSION**: Character extraction dropped from 9/10 to 4/10 |
 
 ## Modification History
 
@@ -119,82 +103,59 @@ Instead of filtering based on name collisions, the evidence extractor needs to:
 | 3 | Empty relationships - simplified prompt | src/analyzer.py | **No change** - Relationships still empty |
 | 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** - summary_evidence still null, profile data confused |
 | 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
-| 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **PENDING** - Multi-signal disambiguation implemented |
+| 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
 
-**ESCALATION STATUS:** Context-aware disambiguation has been implemented (attempt 6). The fix uses relationship markers, name-shape, temporal markers, and chapter presence to distinguish father from son references. Ready for evaluation.
+**ESCALATION NOTE:** The attempt 1 fix in `src/agents/characters.py` (prevent merge during post-processing) is still in place. The regression is happening EARLIER - during LLM character identification. The CHARACTER_IDENTIFICATION_PROMPT is causing the LLM to merge them before the post-processing even runs.
+
+## Fix Strategy for Attempt 7
+
+**Target**: CHARACTER_IDENTIFICATION_PROMPT in `src/pipeline/character_profiling/identifier.py`
+
+**Problem**: The prompt has rules that encourage merging:
+- "Nickname variants = SAME person"
+- "First name + Mrs./Mr. last name = SAME person"
+
+**Missing rule**: "First name (John) vs Full name (John Donaldson) may be DIFFERENT people if summaries mention family relationship"
+
+**Specific fix**:
+Add to CRITICAL RULES section (around line 35):
+```
+8. First name vs Full name may be DIFFERENT people
+   - Example: "John" and "John Donaldson" may be father and son
+   - Check summaries for family terms: "father", "son", "parent", "child", "Sr.", "Jr."
+   - If the summary mentions "X's father Y" where Y has same first name, keep them SEPARATE
+```
+
+Add to IMPORTANT MERGE RULES section (around line 81):
+```
+- First name only vs Full name with same first = CHECK FOR FAMILY RELATIONSHIP
+  - If summaries say "X is Y's father/son/parent", they are DIFFERENT people
+  - Do NOT merge based on shared first name alone
+```
 
 ## Fix History
 
-### Attempt 1: Fixed false John/John Donaldson merge ✓
+### Attempt 1: Fixed false John/John Donaldson merge ✓ (POST-PROCESSING)
 
 **Root cause:** `src/agents/characters.py:_merge_within_supporting_cast():line 2612`
 - Pass 2 used `names_similar()` which includes subset matching
 - `names_similar("John", "John Donaldson")` returned True because {"john"} ⊂ {"john", "donaldson"}
 
-**Result:** VERIFIED FIXED - Characters remain separate through attempt 5
+**Fix applied:** Replace names_similar() with string_similarity() >= 0.85 threshold
 
-### Attempt 2: Provided character list context for relationship extraction ✗
+**Result:** VERIFIED FIXED at post-processing layer - but LLM is now merging them upstream!
 
-**Attempted fix:** Added character names list to the profile generation prompt
+### Attempts 2-5: Profile/Relationship fixes
 
-**Result:** FAILED - No improvement to relationships
+Various attempts to fix profiles and relationships. See modification history.
 
-### Attempt 3: Simplified relationship extraction prompt ✗
+### Attempt 6: Context-Aware Evidence Disambiguation (WRONG LAYER)
 
-**Attempted fix:** Made relationship instructions clearer and more prominent
+**Attempted fix:** Added multi-signal disambiguation to profile evidence extraction
 
-**Result:** FAILED - No improvement to relationships
-
-### Attempt 4: Enhanced upstream relationship data (ESCALATION) ✗
-
-**Attempted fix:** Added `_extract_relationship_statements()` to summary_evidence.py
-
-**Result:** REGRESSION - summary_evidence still null, profiles now confused
-
-### Attempt 5: Fixed evidence extraction collision detection ✗
-
-**Attempted fix:**
-1. Passed `all_character_names` to SummaryEvidenceExtractor
-2. Enhanced `_build_surname_collisions()` to handle first-name collisions
-
-**Result:** PARTIAL - Collision detection works but semantic confusion remains. The underlying issue is that "John" legitimately refers to both characters in the text.
-
-### Attempt 6: Context-Aware Evidence Disambiguation (IMPLEMENTED)
-
-**Attempted fix:** Implemented Option A - semantic disambiguation with multi-signal approach
-
-**Files created/modified:**
-1. `src/pipeline/character_profiling/name_disambiguator.py` (NEW - 450+ lines)
-   - `NameAmbiguityMap` - identifies ambiguous names (e.g., "John" vs "John Donaldson")
-   - `ContextDisambiguator` - resolves using priority signals:
-     - Signal 1: Relationship markers (0.95 confidence) - "his father John", "Sr./Jr."
-     - Signal 2: Name-shape markers (0.9 confidence) - sentence has "Donaldson" → full name wins
-     - Signal 3: Temporal markers (0.8 confidence) - "years ago", past perfect tense
-     - Signal 4: Chapter presence (0.7 confidence) - prefer active character
-     - Signal 5: LLM fallback (gated) - only when heuristics fail
-
-2. `src/pipeline/character_profiling/passage_gatherer.py`
-   - Added `ambiguous`, `disambiguation_confidence`, `disambiguation_method` to CharacterPassage
-   - Integrated disambiguator to filter passages before profile generation
-
-3. `src/pipeline/character_profiling/summary_evidence.py`
-   - Integrated disambiguator into evidence extraction
-   - Skip evidence that resolves to different character
-
-4. `src/pipeline/character_profiling/pipeline.py`
-   - Build disambiguator after character identification
-   - Pass to both passage gatherer and summary extractor
-
-5. `tests/test_name_disambiguation.py` (NEW - 24 unit tests, all passing)
-
-**Expected result:** Sentences about "John preferred a thriftless life" should be correctly attributed to "John Donaldson" (the father) due to temporal markers, not the son.
+**Result:** REGRESSION - The fix addressed the wrong layer. Characters are merged during initial LLM identification, before profiles are generated. The disambiguation code never sees both characters because they're already merged.
 
 ## Next Action
-**Phase:** evaluate
+**Phase:** awaiting_fix
 
-Run fresh analysis to test disambiguation:
-```bash
-audiobook-prep analyze Test_Texts/american_sir.txt --output output/american_sir/analysis.json --html output/american_sir/report.html
-```
-
-Then evaluate whether John's profile no longer contains father's traits.
+Fix the CHARACTER_IDENTIFICATION_PROMPT to add rules preventing merge of same-first-name family members. The fix must be in `src/pipeline/character_profiling/identifier.py` lines ~30-82.
