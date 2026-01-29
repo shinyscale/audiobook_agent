@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -104,8 +104,7 @@ The LLM interprets "John" and "John Donaldson" as nickname variants and merges t
 | 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** - summary_evidence still null, profile data confused |
 | 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
 | 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
-
-**ESCALATION NOTE:** The attempt 1 fix in `src/agents/characters.py` (prevent merge during post-processing) is still in place. The regression is happening EARLIER - during LLM character identification. The CHARACTER_IDENTIFICATION_PROMPT is causing the LLM to merge them before the post-processing even runs.
+| 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **SMOKE TEST PASS** - Two Johns now extracted separately |
 
 ## Fix Strategy for Attempt 7
 
@@ -155,7 +154,24 @@ Various attempts to fix profiles and relationships. See modification history.
 
 **Result:** REGRESSION - The fix addressed the wrong layer. Characters are merged during initial LLM identification, before profiles are generated. The disambiguation code never sees both characters because they're already merged.
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 7: Fixed CHARACTER_IDENTIFICATION_PROMPT for family name overlap ✓
 
-Fix the CHARACTER_IDENTIFICATION_PROMPT to add rules preventing merge of same-first-name family members. The fix must be in `src/pipeline/character_profiling/identifier.py` lines ~30-82.
+**Root cause:** `src/pipeline/character_extraction_v2/main_cast.py:CHARACTER_IDENTIFICATION_PROMPT:lines 75-110`
+- Pass 1 LLM received both chapter summaries (correct: "John" and "John Donaldson" listed separately) and plot summary (wrong: "John Donaldson receives letter from his father, John Donaldson")
+- LLM gave priority to plot summary's narrative, treating both as one person
+- Prompt had no guidance about family members with shared names
+
+**Fix applied:**
+1. Added NOTE: "When chapter summaries include a `characters_present` list, treat each entry as distinct even if names are similar"
+2. Added Rule 5: "FAMILY MEMBERS WITH SHARED NAMES: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people."
+
+**Smoke test:** PASS - Extraction now produces 2 characters:
+- "John Donaldson" (father, protagonist)
+- "John (the writer of the letter)" (son, supporting)
+
+**Modified:** `src/pipeline/character_extraction_v2/main_cast.py` lines 77-86
+
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify the fix and check if character extraction score improves.

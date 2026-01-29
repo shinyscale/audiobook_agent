@@ -76,13 +76,16 @@ CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the 
 
 TASK: Identify the 10-15 most important characters based on the chapter summaries below.
 
+NOTE: When chapter summaries include a `characters_present` list, treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both are in the list).
+
 IMPORTANT RULES:
 1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
 2. Always include the narrator (if a character) and the title character/entity if applicable
 3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
 4. Do NOT invent names not supported by the summaries
-5. Do NOT list aliases in this pass
-6. **ROLE ASSIGNMENT**:
+5. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
+6. Do NOT list aliases in this pass
+7. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators, characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
