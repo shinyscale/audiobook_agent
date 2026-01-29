@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 15
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -11,94 +11,70 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 15)
-- Analysis completed in 13m 58s
-- Detected narrator: Uncle Bill (first-person) - **CORRECT**
-- 4 characters extracted: John, Uncle Bill, John Donaldson, Joe Barron
-- Some warnings: LLM validation errors in pronunciation guide (non-critical)
-- Key test: Check if narrator is correctly assigned and evidence attribution is fixed
-
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 9/10 ✓ (FIXED: John/John Donaldson now separate)
-- Character Profiles: 5/10 ✗ (Evidence confusion persists, relationships empty)
+- Character Extraction: 9/10 ✓
+- Character Profiles: 7/10 ✗ (Relationships still empty)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 9.0/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold)
 
+## Progress Report
+
+### Major Victory: Narrator Fix Worked! 🎉
+
+The narrator placeholder merge fix from attempt 15 was **SUCCESSFUL**:
+
+1. **Uncle Bill is now correctly marked as `is_narrator: true`**
+2. **John (the boy) is now `is_narrator: false`**
+3. **Evidence attribution is now CORRECT:**
+   - Uncle Bill's profile has narrator evidence (e.g., "haunted by memories of his cousin")
+   - John's profile has only evidence about John the boy (e.g., "orphan seeking familial connection")
+   - John Donaldson's profile has evidence about the father (e.g., "faked his death")
+
+**The critical evidence confusion blocker from attempts 4-14 is RESOLVED.**
+
+### Remaining Gap: Empty Relationships
+
+The only remaining issue is that `relationships: {}` for all characters. This keeps Profile score at 7/10.
+
 ## Current Issues (Priority Order)
-
-### CRITICAL
-
-1. **EVIDENCE CONFUSION: John's profile contains narrator's backstory**
-   - Problem: Evidence for "John" claims "The narrator is the same person as John Donaldson, who faked his death"
-   - This is WRONG. The narrator (Uncle Bill) is NOT John Donaldson. The narrator is the boy's pseudo-uncle.
-   - The text says: "I was not his uncle" - confirming Uncle Bill is NOT the father John Donaldson
-   - Evidence #1 in John's profile: "The narrator is the same person as John Donaldson" → HALLUCINATED
-   - Evidence #3: "The narrator had a strained relationship with his brother John Donaldson" → Should be in Uncle Bill's profile
-   - Evidence #4: "The narrator feels guilt over his brother's death" → Should be in Uncle Bill's profile
-   - Location: Evidence attribution in profiling - `src/pipeline/character_profiling/summary_evidence.py` or `src/analyzer.py`
-   - Fix: The evidence is being attributed to the wrong character. "John" (the boy) should NOT have narrator evidence - Uncle Bill is the narrator.
 
 ### HIGH
 
-2. **Uncle Bill incorrectly profiled**
-   - Problem: Uncle Bill's profile says "Is the biological father of John Donaldson"
-   - This is WRONG. Uncle Bill is the narrator, a cousin who raised John (the boy) after the father died/faked his death.
-   - The TEXT says: "I saw the charming boy, a cousin, who had come to be this lad's father"
-   - Uncle Bill ≠ John Donaldson (the father). They are different people.
-   - Evidence #3 in Uncle Bill's profile claims he "faked his death and stole money" → WRONG, that was JOHN DONALDSON (the father)
-   - Location: Profile generation is confusing the narrator's identity
-   - Fix: The system needs to understand Uncle Bill is the frame narrator, not the father character
-
-3. **All relationships empty**
+1. **All relationships empty**
    - Problem: `relationships: {}` for all 4 characters
    - Expected relationships:
-     - John (boy) → John Donaldson (father, deceased-then-found)
-     - John (boy) → Uncle Bill (guardian/pseudo-uncle)
-     - Uncle Bill → John (boy) (ward)
-     - John Donaldson (father) → John (boy) (son)
-   - Location: `src/pipeline/character_profiling/summary_evidence.py` or relationship extraction
-   - Fix: Relationship extraction is not working at all
-
-4. **All physical descriptions "unknown"**
-   - Problem: All characters have `appearance.summary: "unknown"`
-   - Text evidence: "All John Donaldson's physical beauty, all his charm were repeated in his son"
-   - This describes both father AND son (inherited beauty)
-   - Location: `src/pipeline/character_profiling/generator.py`
-   - Fix: Appearance extraction is not finding any descriptions
+     - John (boy) → Uncle Bill: guardian/pseudo-uncle
+     - John (boy) → John Donaldson: father (discovered during war)
+     - Uncle Bill → John (boy): ward
+     - Uncle Bill → John Donaldson: cousin (haunted by his memory)
+     - John Donaldson → John (boy): son
+   - Evidence exists in profiles (e.g., "Uncle Bill...reluctantly agrees to attend the boy's school commencement") but not extracted to relationships field
+   - Location: `src/pipeline/character_profiling/` - relationship extraction
+   - Fix: Relationship extraction needs to populate the `relationships` field from evidence
 
 ### MEDIUM
 
-5. **Narrator assignment confusion**
-   - Problem: "John" is marked as `is_narrator: true` but the actual first-person narrator is Uncle Bill
-   - Evidence: "Dear Uncle Bill:" opens the story, and the "I" voice throughout is Uncle Bill
-   - This may be causing the evidence attribution issues above
-   - Location: Narrator detection in `src/agents/characters.py` or `src/analyzer.py`
+2. **Physical descriptions all "unknown"**
+   - Problem: All characters have `appearance.summary: "unknown"`
+   - Evidence: "All John Donaldson's physical beauty, all his charm were repeated in his son"
+   - This describes both father AND son (inherited beauty)
+   - Impact: Minor - doesn't block 8.0 threshold
+   - Location: `src/pipeline/character_profiling/generator.py`
 
-## Key Insight: Root Cause Analysis
+## What's Working Well
 
-The story structure is:
-1. **Frame narrative**: Uncle Bill (narrator, "I") reflects on receiving a letter from John (boy/nephew)
-2. **Embedded narrative**: John (boy) tells his WWI story where he meets John Donaldson (his father)
-
-The system is correctly extracting 4 separate characters:
-- John (the boy, should NOT be narrator)
-- Uncle Bill (the actual narrator)
-- John Donaldson (the father, different from the boy)
-- Joe Barron (minor character)
-
-But it's INCORRECTLY:
-1. Marking "John" as narrator instead of "Uncle Bill"
-2. Attributing narrator evidence (about the family backstory) to "John" instead of "Uncle Bill"
-3. Confusing Uncle Bill with John Donaldson in Uncle Bill's own profile
-
-**The character separation is FIXED** - this is good progress from attempt 13.
-**The profile contamination is the remaining blocker.**
+- **Structure Detection: 10/10** - Correctly identified single-chapter short story
+- **Character Extraction: 9/10** - All 4 characters correctly separated, no false merges
+- **Narrator Detection: FIXED** - Uncle Bill correctly marked as first-person narrator
+- **Evidence Attribution: FIXED** - No more narrator perspective contamination
+- **Chapter Summaries: 10/10** - Comprehensive, accurate summary of the story
+- **Pronunciation: 8/10** - Good coverage of Italian/French terms
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -117,6 +93,7 @@ But it's INCORRECTLY:
 | 12 | 8.65 | +0.70 | Chapter-range prior FAILED - supporting cast had no chapters_present data |
 | 13 | 8.20 | +0.25 | Fixes didn't deploy? Character extraction regressed to 7/10 (false merge) |
 | 14 | 8.45 | +0.50 | Character extraction FIXED (9/10). Profiles confused (5/10). |
+| 15 | 9.00 | +1.05 | **BREAKTHROUGH:** Narrator fix worked! Evidence now correct. Only relationships missing. |
 
 ## Modification History
 
@@ -132,52 +109,16 @@ But it's INCORRECTLY:
 | 12 | Chapter-range prior (blocked by data) | name_disambiguator.py + others | FAILED |
 | 13 | Upstream data fix + relationship markers | characters.py, name_disambiguator.py, client.py, tests | **REGRESSION** |
 | 14 | External changes tested | (external) | Character extraction FIXED, profiles still failing |
-| 15 | Narrator placeholder merge fix | src/agents/characters.py | **PENDING TEST** |
+| 15 | Narrator placeholder merge fix | src/agents/characters.py | **FIXED** - Narrator now correct |
 
-## Pattern Analysis
+## Root Cause Analysis for Remaining Issue
 
-The fundamental remaining issue is **narrator identity confusion**:
-1. "John" (the boy) is marked as narrator, but Uncle Bill is the actual narrator
-2. Evidence about "I" (Uncle Bill's backstory, guilt, family history) is attributed to "John"
-3. Uncle Bill's profile then gets confused with John Donaldson (the father)
+The relationship field is never populated. This appears to be a **separate extraction step** that isn't being called or isn't working. The evidence contains relationship information (e.g., "the narrator's grandson, John") but it's not being extracted into the structured `relationships` field.
 
-**Root cause hypothesis**: The narrator detection is seeing "John" as a main character and assuming he's the narrator, when the first-person "I" is actually Uncle Bill.
-
-**Fix approach**:
-1. Fix narrator detection to identify Uncle Bill as the narrator (he says "I" throughout)
-2. Filter narrator evidence so it goes to Uncle Bill's profile, not John's
-3. This should cascade to fix the profile quality
-
-## Fix Applied (Attempt 15)
-
-### Root Cause Analysis
-
-**Issue:** Narrator incorrectly identified as "John" instead of "Uncle Bill"
-
-**Data flow trace:**
-1. Main cast extraction → Empty (no characters passed grounding)
-2. Narrator detection → Identifies "Uncle Bill" by name from summaries but can't match to empty main_cast
-3. Supporting cast NER → Finds "John" (28 mentions), "Uncle Bill" (18 mentions), etc.
-4. Narrator placeholder merge → **BUG HERE:** Sorted by mention count, picked "John" (highest)
-
-**Root cause location:** `src/agents/characters.py:_merge_narrator_placeholder():line 1040-1044`
-
-The function used mention count as the PRIMARY heuristic, ignoring `narrator_info.narrator_name` which already identified "Uncle Bill" from summaries.
-
-### Fix Implemented
-
-Modified `_merge_narrator_placeholder()` to:
-1. **PRIORITY 1:** Match `narrator_info.narrator_name` to candidates by name (exact or partial match)
-2. **PRIORITY 2 (FALLBACK):** Use mention count heuristic ONLY if no name match found
-
-**Smoke test:** PASS
-- Test scenario: narrator_name="Uncle Bill", candidates=["John" (28 mentions), "Uncle Bill" (18 mentions)]
-- Result: Correctly selected "Uncle Bill" by name match, despite having fewer mentions
-
-**Expected cascade fixes:**
-- Critical #1: Evidence attribution will go to Uncle Bill (correct narrator) instead of John
-- High #2: Uncle Bill's profile will have narrator evidence, not confused with John Donaldson
-- Medium #5: Narrator flag correctly assigned to Uncle Bill
+**Investigation needed:**
+1. Is there a relationship extraction step in the profiling pipeline?
+2. If so, why isn't it populating the field?
+3. If not, this is a missing feature
 
 ## Next Action
-Run PROMPT_analyze.md to re-analyze american_sir with the narrator fix
+Run PROMPT_fix.md to investigate and fix relationship extraction
