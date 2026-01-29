@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Analysis completed successfully in 15m 32s
+- Competitive consensus enabled: 3 LLMs at different temperatures (0.5, 0.7, 0.9)
+- Stages using consensus: characters, structure, summaries
+- **CRITICAL SUCCESS**: 4 characters extracted (John and John Donaldson now SEPARATE!)
+- Some stderr warnings about LLM format issues but analysis completed
+- Characters found: John, Uncle Bill (aka Bill), John Donaldson, Joe Barron
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
