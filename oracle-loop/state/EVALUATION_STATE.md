@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 4)
+- Analysis completed in 11m 5s
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- 4 characters extracted: John, Uncle Bill, John Donaldson, Joe Barron
+- 3 character profiles generated with HIGH confidence
+- Pipeline warnings: Some LLM validation errors in pronunciation stage (non-critical)
+- Testing fix: Enhanced upstream data with pronominal relationship extraction
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
