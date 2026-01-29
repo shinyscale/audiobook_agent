@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+- Quality Report: output/American Sir_20260129_093421/quality.md
+
+## Pipeline Execution
+- Duration: 11m 36s
+- LLM Calls: 61
+- Tokens: 55,408
+- Characters Found: 4 (John, Uncle Bill, John Donaldson, Joe Barron)
+- Profiles Generated: 3
+- Competitive Stages: characters, structure, summaries (all enabled)
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
