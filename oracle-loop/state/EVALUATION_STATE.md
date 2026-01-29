@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Attempt:** 8
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -113,6 +113,7 @@ The existing `name_disambiguator.py` (added in attempt 6) is not being used effe
 | 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Partial** - Collision detection added but semantic confusion remains |
 | 6 | Semantic disambiguation for same-name chars | name_disambiguator.py (NEW), passage_gatherer.py, summary_evidence.py, pipeline.py | **REGRESSION** - Fixed wrong layer; extraction now merging |
 | 7 | Character extraction V2 prompt - family name guidance | src/pipeline/character_extraction_v2/main_cast.py | **FIXED** - Two Johns now extracted separately |
+| 8 | Profile mention search substring filtering | src/analyzer.py | FIX APPLIED - mentions now avoid "John" in "John Donaldson" |
 
 ## Fix Strategy for Attempt 8
 
@@ -155,7 +156,15 @@ The character EXTRACTION now correctly separates John and John Donaldson. But th
 - **Result:** FIXED - "John" and "John Donaldson" now correctly separate
 - **New issue:** Profile generation still confuses evidence between them
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 8: Fixed profile mention search to avoid substring matches
+- **Root cause:** Profile generation regex `\bJohn\b` matched BOTH "John" (son) and "John" in "John Donaldson" (father)
+- **Modified:** `src/analyzer.py` lines 2304-2310 → added substring filtering logic
+- **Fix:** When searching for character mentions during profile generation, filter out matches that are part of a longer character name
+- **Example:** "John" now only matches standalone "John", NOT "John" in "John Donaldson"
+- **Smoke test:** PASS - Verified with synthetic test that "John" correctly excludes "John Donaldson" matches
+- **Universality:** Yes - helps ANY book with substring name overlaps (e.g., "Ames" vs "Cathy Ames", "José" vs "José Arcadio")
 
-Fix the profile generation to correctly disambiguate evidence between "John" (son) and "John Donaldson" (father). The extraction is now correct - profiles must follow.
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify profile generation correctly attributes evidence to John (son) vs John Donaldson (father).

@@ -2301,13 +2301,51 @@ class AudiobookAnalyzer:
             names.extend(getattr(character, "aliases", []) or [])
             names = [n for n in names if isinstance(n, str) and n.strip()]
 
+            # Build set of ALL character names to filter substring matches
+            # This prevents "John" from matching "John Donaldson"
+            all_names_set = set()
+            if all_character_names:
+                for n in all_character_names:
+                    if isinstance(n, str) and n.strip():
+                        all_names_set.add(n.lower().strip())
+
             positions: set[int] = set()
             for name in names:
                 # Allow flexible whitespace for multi-word names (e.g., "De Lacey")
                 escaped = re.escape(name).replace(r"\ ", r"\s+")
                 pattern = rf"\b{escaped}\b"
                 for m in re.finditer(pattern, full_text, flags=re.IGNORECASE):
-                    positions.add(m.start())
+                    pos = m.start()
+
+                    # Filter out matches that are part of a longer character name
+                    # Extract surrounding context to check if this is a substring match
+                    if all_names_set:
+                        context_start = max(0, pos - 5)
+                        context_end = min(len(full_text), pos + len(name) + 50)
+                        context = full_text[context_start:context_end]
+
+                        # Check if this match is part of a longer name in our character list
+                        is_substring_match = False
+                        for other_name in all_names_set:
+                            if other_name != name.lower().strip():
+                                # Check if the matched text is followed by more name parts
+                                # that would make it match a longer character name
+                                if other_name.startswith(name.lower().strip() + " "):
+                                    # This is a potential substring (e.g., "John" in "John Donaldson")
+                                    # Check if the text after the match contains the rest of the longer name
+                                    remaining = other_name[len(name):].strip()
+                                    text_after_match = full_text[pos + len(name):pos + len(name) + len(remaining) + 5]
+                                    # Use flexible whitespace matching
+                                    remaining_pattern = r"\s+" + re.escape(remaining)
+                                    if re.match(remaining_pattern, text_after_match, re.IGNORECASE):
+                                        is_substring_match = True
+                                        break
+
+                        if not is_substring_match:
+                            positions.add(pos)
+                    else:
+                        # No filtering data available, include all matches
+                        positions.add(pos)
 
             pos_list = sorted(positions)
 
