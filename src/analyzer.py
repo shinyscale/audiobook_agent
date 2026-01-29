@@ -2598,9 +2598,10 @@ Text Evidence:
 CRITICAL REQUIREMENTS:
 1. Make ONLY claims that are directly supported by the provided text
 2. For each claim, provide the exact quote that supports it
-3. Consider how the character develops or changes throughout the narrative (if evident from the samples)
-4. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
-5. Distinguish between what the text explicitly states vs. what might be inferred
+3. **EXTRACT RELATIONSHIPS**: Check the text AND summary evidence for ANY relationships this character has with other characters. Look for family ties (father, mother, son, daughter, cousin, uncle, nephew), social bonds (friend, rival, lover, spouse), or role relationships (guardian, ward, employer). Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
+4. Consider how the character develops or changes throughout the narrative (if evident from the samples)
+5. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
+6. Distinguish between what the text explicitly states vs. what might be inferred
 
 Return a JSON response matching this example format exactly:
 
@@ -2626,8 +2627,7 @@ Return a JSON response matching this example format exactly:
     "example_quotes": ["quote1", "quote2"]
   }},
   "relationships": {{
-    "character_name_1": "relationship description (e.g., 'father', 'friend', 'rival')",
-    "character_name_2": "relationship description"
+    "OtherCharacterName": "relationship_type (e.g., father/mother/son/daughter/cousin/uncle/friend/rival/spouse/guardian/ward)"
   }},
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
@@ -2646,17 +2646,20 @@ CRITICAL INSTRUCTIONS:
 - For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
 - For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
+- **For relationships: SCAN the text evidence and summary evidence for ANY mention of family ties, friendships, rivalries, romantic connections, or role relationships. Use exact character names from "CHARACTERS IN THIS STORY" as keys. If no relationships found, use {{}}.**
 - Return ONLY valid JSON matching the above structure. No other text.
 
-RELATIONSHIPS EXTRACTION (IMPORTANT):
-Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
-Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
-If the text says "A's father" or "son of B", add the entry. If no relationships mentioned, use {{}}.
+RELATIONSHIPS EXTRACTION EXAMPLES:
+When you see phrases like these in the text or summaries, extract to relationships dict:
+- "his father John" → {{"John": "father"}}
+- "Tom's wife Mary" → {{"Mary": "spouse"}}
+- "her cousin William" → {{"William": "cousin"}}
+- "the boy's uncle" → {{"[uncle's name]": "uncle"}}
+- "John's nephew" → {{"[nephew's name]": "nephew"}}
+- "guardian of the boy" → {{"[boy's name]": "guardian"}}
+- "ward of Uncle Bill" → {{"Uncle Bill": "ward"}}
 
-Example relationships dict format:
-- If text says "Tom's wife Mary" → {{"Mary": "spouse"}}
-- If summary says "her father John Smith" → {{"John Smith": "father"}}
-- If both say "his nephew William" → {{"William": "nephew"}}"""
+If NO relationships are mentioned in the text or summaries, use empty dict: {{}}"""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):

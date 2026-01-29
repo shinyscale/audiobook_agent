@@ -110,14 +110,14 @@
       }
     },
     "american_sir": {
-      "commit": "374b6e8aae9ce98b80a3dd7eb2c82c3069424354",
-      "score": 8.65,
+      "commit": "3f127c787f072d2dab8f4de8806dbd3b6ec04c51",
+      "score": 9.0,
       "category_scores": {
-        "structure": 9,
+        "structure": 10,
         "characters": 9,
         "profiles": 7,
         "summaries": 10,
-        "pronunciation": 9,
+        "pronunciation": 8,
         "presentation": 9
       }
     }
