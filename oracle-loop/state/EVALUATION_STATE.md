@@ -3,13 +3,20 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 15)
+- Analysis completed in 13m 58s
+- Detected narrator: Uncle Bill (first-person) - **CORRECT**
+- 4 characters extracted: John, Uncle Bill, John Donaldson, Joe Barron
+- Some warnings: LLM validation errors in pronunciation guide (non-critical)
+- Key test: Check if narrator is correctly assigned and evidence attribution is fixed
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
