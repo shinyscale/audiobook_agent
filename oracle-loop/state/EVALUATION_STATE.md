@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -164,7 +164,21 @@ The character EXTRACTION now correctly separates John and John Donaldson. But th
 - **Smoke test:** PASS - Verified with synthetic test that "John" correctly excludes "John Donaldson" matches
 - **Universality:** Yes - helps ANY book with substring name overlaps (e.g., "Ames" vs "Cathy Ames", "José" vs "José Arcadio")
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes - Attempt 8
 
-Re-run analysis to verify profile generation correctly attributes evidence to John (son) vs John Donaldson (father).
+Analysis completed successfully in 13m 5s.
+
+**Key metrics:**
+- 4 characters extracted: John (16 mentions), Uncle Bill (18 mentions, alias: Bill), John Donaldson (7 mentions), Joe Barron (3 mentions)
+- 3 character profiles generated (3 eligible characters)
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- Total LLM calls: 61, Total tokens: 56,153
+
+**Bottleneck:** Character Profiles (4m 25s, 33.7% of time)
+
+No pipeline errors or warnings reported.
+
+## Next Action
+**Phase:** awaiting_evaluation
+
+Evaluate whether the substring filtering fix correctly attributes profile evidence to John (son) vs John Donaldson (father).
