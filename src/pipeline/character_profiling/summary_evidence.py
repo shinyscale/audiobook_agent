@@ -186,45 +186,71 @@ class SummaryEvidenceExtractor:
 
     def _build_surname_collisions(self, names: list[str]) -> dict[str, list[str]]:
         """
-        Build a map of surname -> list of full names containing that surname.
+        Build a map of name_part -> list of full names containing that part.
 
-        This helps detect when extracting evidence for "Ames" (parents) but
-        the sentence is actually about "Cathy Ames" (daughter).
+        This helps detect when extracting evidence for a short name but
+        the sentence is actually about a longer name containing that part.
+
+        Examples:
+        - "Ames" (parents) vs "Cathy Ames" (daughter) - surname collision
+        - "John" (nephew) vs "John Donaldson" (father) - first name collision
 
         Args:
             names: List of all character names
 
         Returns:
-            Dict mapping surname/short name to list of longer names containing it
+            Dict mapping short name or name part to list of longer names containing it
         """
         collisions: dict[str, list[str]] = {}
 
+        # First pass: Build collisions for each name part (first, middle, last)
         for name in names:
             name_lower = name.lower().strip()
             parts = name_lower.split()
 
-            if len(parts) < 2:
-                continue
+            # Extract all parts (first name, middle name, surname)
+            for part in parts:
+                # Find all names that contain this part
+                for other_name in names:
+                    other_lower = other_name.lower().strip()
+                    if other_lower == name_lower:
+                        continue
 
-            # Extract surname (last part)
-            surname = parts[-1]
+                    other_parts = other_lower.split()
+                    if part in other_parts:
+                        # This part appears in another name
+                        if part not in collisions:
+                            collisions[part] = []
+                        if name not in collisions[part]:
+                            collisions[part].append(name)
+                        if other_name not in collisions[part]:
+                            collisions[part].append(other_name)
 
-            # Add all other full names that contain this surname
-            for other_name in names:
-                other_lower = other_name.lower().strip()
-                if other_lower == name_lower:
-                    continue
+        # Second pass: Single-word names need special handling
+        # Map single-word name to all longer names containing it
+        for name in names:
+            name_lower = name.lower().strip()
+            parts = name_lower.split()
 
-                # Check if other name contains this surname as a word
-                other_parts = other_lower.split()
-                if surname in other_parts:
-                    # The surname appears in another name
-                    if surname not in collisions:
-                        collisions[surname] = []
-                    if name not in collisions[surname]:
-                        collisions[surname].append(name)
-                    if other_name not in collisions[surname]:
-                        collisions[surname].append(other_name)
+            if len(parts) == 1:
+                # This is a single-word name (e.g., "John")
+                # Find all longer names that contain this word
+                for other_name in names:
+                    other_lower = other_name.lower().strip()
+                    other_parts = other_lower.split()
+
+                    # Skip if same name or other is also single-word
+                    if other_lower == name_lower or len(other_parts) == 1:
+                        continue
+
+                    # Check if our single word appears in the other name
+                    if name_lower in other_parts:
+                        if name_lower not in collisions:
+                            collisions[name_lower] = []
+                        if name not in collisions[name_lower]:
+                            collisions[name_lower].append(name)
+                        if other_name not in collisions[name_lower]:
+                            collisions[name_lower].append(other_name)
 
         return collisions
 
@@ -250,7 +276,7 @@ class SummaryEvidenceExtractor:
             True if the sentence is primarily about a different character
         """
         target_lower = target_name.lower().strip()
-        sentence.lower()
+        # Note: sentence lowercasing not needed - _name_in_text() uses case-insensitive matching
 
         # Check if target is a short name (single word or surname only)
         target_parts = target_lower.split()

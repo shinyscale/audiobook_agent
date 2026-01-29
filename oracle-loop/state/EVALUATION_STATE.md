@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -79,6 +79,7 @@ This confusion may have existed before but is now more visible. The LLM is assig
 | 2 | Empty relationships - added character context | src/analyzer.py | **No change** - Relationships still empty |
 | 3 | Empty relationships - simplified prompt | src/analyzer.py | **No change** - Relationships still empty |
 | 4 | Empty relationships - enhanced upstream data | src/pipeline/character_profiling/summary_evidence.py | **REGRESSION** - summary_evidence still null, profile data now CONFUSED |
+| 5 | Profile evidence confused between characters | src/analyzer.py, src/pipeline/character_profiling/summary_evidence.py | **Awaiting analysis** - Fixed collision detection |
 
 **ESCALATION STATUS:** Attempt 4 tried upstream data flow fix per guidelines but introduced REGRESSION. The fix did not execute properly AND the underlying same-name confusion remains.
 
@@ -115,33 +116,33 @@ This confusion may have existed before but is now more visible. The LLM is assig
 - NEW issue: profile data (evidence, descriptions, personality) is CONFUSED between John and John Donaldson
 - The confusion appears to be in evidence extraction, where searching for "John" matches "John Donaldson"
 
-## Diagnosis for Attempt 5
+### Attempt 5: Fixed evidence extraction collision detection ⏳
 
-**The CRITICAL issue is name substring matching in evidence extraction.**
+**Root cause identified:** `src/analyzer.py:1724`
+- `SummaryEvidenceExtractor` was initialized WITHOUT the `all_character_names` parameter
+- Collision detection requires this parameter to build a map of name overlaps
+- Without it, `_is_collision_sentence()` couldn't detect when "John" is part of "John Donaldson"
 
-When the system extracts evidence for character "John":
-1. It searches for text containing "John"
-2. It finds "John Donaldson was the son of a wealthy family"
-3. This gets assigned to "John" instead of "John Donaldson"
+**Fixes applied:**
+1. **Primary fix (analyzer.py:1721-1732):**
+   - Moved `SummaryEvidenceExtractor` initialization to AFTER `all_character_names` is built
+   - Pass `all_character_names` parameter to enable collision detection
 
-Similarly, when extracting for "John Donaldson":
-1. It may find "All John Donaldson's physical beauty... repeated in his son"
-2. The pronoun "his son" causes this to be associated with the SON entity instead of the FATHER
+2. **Enhanced collision detection (summary_evidence.py:187-260):**
+   - Updated `_build_surname_collisions()` to handle both surname AND first-name collisions
+   - Original only handled "Ames" vs "Cathy Ames" (surname collisions)
+   - Now also handles "John" vs "John Donaldson" (first-name collisions)
+   - Works for ANY name part overlap (first, middle, last)
 
-**Fix approach for attempt 5:**
+**Smoke test:** PASSED
+- Collision correctly detected when extracting for "John" with sentence containing "John Donaldson"
+- No false positives when sentence contains only "John"
 
-1. **Priority 1:** Fix evidence extraction to use EXACT name matching
-   - When extracting for "John", EXCLUDE any sentence that contains "John Donaldson"
-   - Use word boundary matching: `\bJohn\b` should NOT match "John Donaldson"
-   - Or: When target name is a prefix of another character's name, require the target name to be followed by non-alpha
+**Full test suite:** PASSED (236 tests pass, 0 failures)
 
-2. **Priority 2:** Verify summary_evidence.py fix is being called
-   - Add logging to `_extract_relationship_statements()` to confirm it executes
-   - Check if the extractor.extract() call is filtering out the new statements
-
-3. **Do NOT modify prompts again** - Three attempts at prompt modification have failed. The issue is in data flow, not prompt clarity.
+**Result:** Awaiting analysis to verify fix resolves profile confusion
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Fix the evidence extraction substring matching issue (CRITICAL #1) before addressing relationships. The profile confusion is causing a 2-point drop in Character Profiles score.
+Re-run analysis to verify that John and John Donaldson now have correct profile evidence (no more confusion between father and son).

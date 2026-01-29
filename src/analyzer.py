@@ -1718,12 +1718,6 @@ class AudiobookAnalyzer:
                 if profile_llm and profile_llm.config:
                     ctx.set_model(profile_llm.config.model, profile_llm.config.provider)
 
-                # F2: Initialize summary evidence extractor (if summaries available)
-                summary_evidence_extractor = None
-                if summary_map:
-                    summary_evidence_extractor = SummaryEvidenceExtractor(profile_llm)
-                    logger.info("F2: Summary evidence extraction enabled")
-
                 # F3: Initialize moral valence classifier
                 moral_valence_classifier = MoralValenceClassifier(profile_llm)
                 logger.info("F3: Moral valence classification enabled")
@@ -1745,9 +1739,19 @@ class AudiobookAnalyzer:
                 medium_conf_count = 0
                 low_conf_count = 0
 
-                # Build character name list for relationship extraction
-                # This helps the LLM know which character names to use as relationship keys
+                # Build character name list for collision detection and relationship extraction
+                # This helps avoid assigning evidence to the wrong character when names overlap
+                # (e.g., "John" vs "John Donaldson", "Mary" vs "Mary Smith")
                 all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
+
+                # F2: Initialize summary evidence extractor with character names for collision detection
+                summary_evidence_extractor = None
+                if summary_map:
+                    summary_evidence_extractor = SummaryEvidenceExtractor(
+                        profile_llm,
+                        all_character_names  # Required for detecting name substring collisions
+                    )
+                    logger.info("F2: Summary evidence extraction enabled with collision detection")
 
                 for i, char in enumerate(eligible_chars):
                     logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
