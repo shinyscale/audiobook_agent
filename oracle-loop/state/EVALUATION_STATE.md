@@ -138,29 +138,35 @@ From `gui_settings.json`:
 - Context length: 65536 tokens
 
 ## Next Action
-**Phase:** running_analysis
+**Phase:** awaiting_fix
 
-Running Gatsby attempt 3 with:
-- qwen3-next:80b-a3b-instruct-q8_0 model (MoE architecture)
-- Wrapped JSON object prompts
-- Competitive consensus: ENABLED (single mode - 3 temperatures)
-- Competitive stages: ALL (characters, structure, summaries)
-- Task ID: b064483
+## Attempt 3 Results: FAILED - Model Compatibility Issue
 
-Command:
+**Root Cause:** qwen3-next:80b-a3b-instruct-q8_0 model returns error responses instead of JSON arrays for chapter marker detection.
+
+**Evidence:**
+- Structure detection failed: Model returned `{"error": "No explicit chapter or section markers found..."}` repeatedly
+- Ground truth: Gatsby.txt HAS clear chapter markers (Roman numerals I-IX on standalone lines, starting at line 59)
+- The model is refusing to extract markers that are clearly present
+
+**Error Pattern (stderr output):**
 ```
-audiobook-prep analyze ../Test_Texts/gatsby.txt \
-  --html ../output/gatsby/report.html \
-  --output ../output/gatsby/analysis.json \
-  --competitive-consensus \
-  --competitive-all \
-  --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
+Model returned error-like response instead of expected data:
+{'error': "No explicit chapter or section markers found in the provided text..."}
+This model may not support json_mode or structured output properly.
+LLM marker proposer failed to parse response: {"error": "No explicit..."}
+LLM marker proposer returned non-list: <class 'dict'>
 ```
 
-Expected improvements:
-- Main cast extraction should succeed (wrapped JSON format works with qwen3-next)
-- Competitive consensus reduces hallucination errors (2/3 supermajority required)
-- Analysis should complete ~3x faster (MoE vs dense model)
+**Diagnosis:**
+- The model is not following the JSON array format instruction
+- Instead of returning `[]` (empty list) when no markers found, it returns `{"error": "..."}`
+- This breaks the structure detection consensus system
+- The error-response detection logic in `src/pipeline/llm.py` is working correctly (it detects and reports the issue)
+
+**Next Steps:**
+1. **Option A (Model Switch):** Revert to qwen2.5:32b-instruct-q8_0 (known to work)
+2. **Option B (Debug):** Investigate why qwen3-next returns error objects instead of empty lists
+3. **Option C (Prompt Fix):** Update prompts to handle qwen3-next's behavior
+
+**Recommendation:** Switch back to qwen2.5:32b for reliability, then investigate qwen3-next separately
