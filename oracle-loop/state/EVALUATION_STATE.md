@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** running_analysis
 - **baseline_score:** 7.35
 
 ## Latest Scores (Attempt 3)
@@ -136,6 +136,25 @@ Output files regenerated 2026-01-30 15:27
 
 **Next steps:** Requires deeper investigation into passage gathering and evidence extraction. Deferred to next iteration.
 
-## Next Action
+## Current Analysis Run (Attempt 4)
 
-Set phase to `awaiting_analysis` and re-run analysis to verify Wolfsheim merge fix.
+**Started:** 2026-01-30 (timestamp from analysis run)
+**Command:**
+```bash
+audiobook-prep analyze ../Test_Texts/gatsby.txt \
+  --html ../output/gatsby/report.html \
+  --output ../output/gatsby/analysis.json \
+  --competitive-all \
+  --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
+```
+
+**Competitive mode:** single (same model at 3 temperatures: 0.5, 0.7, 0.9)
+**Stages:** characters, structure, summaries (using --competitive-all)
+**Background task ID:** bf7ec17
+
+**Expected impact:** Verify that the fuzzy full-name matching fix successfully merges "Meyer Wolfsheim" and "Meyer Wolfshiem" into a single character entry.
+
+**Status:** Running... (analysis in progress, will update when complete)
