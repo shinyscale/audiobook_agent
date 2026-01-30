@@ -2,61 +2,95 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
+- **Attempt:** 3
+- **Phase:** awaiting_fix
+- **baseline_score:** 6.25
 - **Competitive Mode:** single
 
 ## Latest Scores
-(Awaiting first analysis)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 8/10 ✓
+- Character Profiles: 6/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 9/10 ✓
+- **Overall: 8.20/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (1 category below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
-| (none yet) | - | - | - |
+| 1 | 6.25 | - | Initial: character extraction failures |
+| 2 | 7.5 | +1.25 | AM extracted, Ted as narrator |
+| 3 | 8.20 | +1.95 | Character profiles now the blocker |
 
-## Notes
-Starting analysis for i_have_no_mouth with JSON-compatible model (qwen2.5:32b-instruct-q8_0).
+## Current Issues (Priority Order)
 
-### Fixes Applied Before This Run
+### CRITICAL
+(None)
 
-**1. Non-Human Entity Examples (Summarizer Prompts)**
-- File: `src/pipeline/chapter_summary/summarizer.py`
-- Changed JSON examples from `["Michael", "Sarah", "Dr. Patterson"]` to `["Michael", "Sarah", "HAL", "the Monster"]`
-- Added guidance note about including AI systems, creatures, supernatural beings in active_characters
-- Expected impact: AM (sentient supercomputer) should now appear in `characters_present`
+### HIGH
+1. **All character physical descriptions empty**
+   - Problem: Every character has `physical_description: ""`
+   - Evidence: Benny, Ellen, Gorrister, Nimdok, Ted, AM all lack physical descriptions
+   - Expected: The text provides details:
+     - Benny: transformed to simian appearance, brutish, originally brilliant
+     - Gorrister: described as once an idealist
+     - Ellen: the only woman, described through Ted's narration
+     - AM: described as machine consciousness, the entity running the underground complex
+   - Location: `src/pipeline/character_profiling/` - profile generation not populating physical_description
+   - ID patterns: supporting_0 through supporting_4 (supporting cast pipeline), 25ec916d56b8 (F6 reconciliation for AM)
+   - Fix: Character profiling pipeline may be skipping evidence gathering for short stories, or the passage gatherer isn't finding descriptive passages
 
-**2. JSON-Capable Model Fallback**
-- Files: `src/agents/config.py`, `src/analyzer.py`, `src/agents/characters.py`, `src/pipeline/character_extraction_v2/main_cast.py`, `src/pipeline/chapter_summary/summarizer.py`, `src/cli.py`
-- Added `--json-model` CLI flag for user-configurable JSON fallback
-- Not used in this run since primary model is JSON-compatible
+2. **Relationships are thin and formulaic**
+   - Problem: All relationships are generic ("companion", "co-survivor", "adversary")
+   - Evidence: Missing nuanced relationships:
+     - Ted → Ellen: romantic/sexual relationship described
+     - AM → all survivors: torturer, captor, god-like entity
+     - Ted's paranoid view of others (unreliable narrator)
+   - Location: `src/pipeline/character_profiling/` - relationship extraction
+   - Fix: May need to improve relationship prompts to capture antagonist/captor/victim dynamics
 
-**3. Model Configuration Update**
-- File: `~/.config/audiobook_prep/gui_settings.json`
-- Changed from: `qwen3-next:80b-a3b-instruct-q8_0` (JSON incompatible)
-- Changed to: `qwen2.5:32b-instruct-q8_0` (JSON compatible)
-- Expected impact: Main cast extraction should succeed, Ted identified as narrator
+### MEDIUM
+3. **AM mention count of 1 seems low**
+   - Problem: AM is mentioned throughout the story but only shows 1 mention
+   - Evidence: AM appears in dialogue, narration, and is the central antagonist
+   - Location: May be issue with how entity names are counted (all-caps pattern?)
+   - Fix: Check if character mention search handles 2-letter all-caps names
 
-### Expected Outcomes
-- AM in character list (non-human entity fix)
-- Ted marked as narrator with correct mention count (main cast extraction working)
-- Character Extraction: 5/10 → 8+/10
-- Overall score: 7.5/10 → 8+/10 (PASS threshold)
+4. **Chapter title shows as "None"**
+   - Problem: Structure shows title as "None" instead of story title
+   - Evidence: HTML shows "Chapter 1" with no subtitle
+   - Location: Structure detection for short stories without chapter headers
+   - Fix: For single-chapter texts, could default to document title
+
+### LOW
+(None)
+
+## Fix History
+- Attempt 1: Fixed JSON schema enforcement for character extraction
+- Attempt 2: Model fallback for JSON incompatibility + Jesus filter (improved to 7.5)
+- Attempt 3: Non-human entity examples in prompts (AM now extracted)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 | JSON parsing failures | src/pipeline/character_extraction_v2/* | Partial improvement |
+| 2 | Main cast extraction | src/agents/config.py, src/cli.py | Ted as narrator |
+| 2 | Non-human entities | src/pipeline/chapter_summary/summarizer.py | AM in characters_present |
 
 ## Configuration Notes
 - Model: qwen2.5:32b-instruct-q8_0 (JSON compatible)
 - Competitive Mode: single (same model, 3 temperatures)
-- Competitive Stages: characters, structure, summaries
+- Analysis time: 39m 22s
 
-## Output Files
-- HTML: ../output/i_have_no_mouth/report.html
-- JSON: ../output/i_have_no_mouth/analysis.json
+## Next Action
+Run PROMPT_fix.md to address character profile generation (HIGH #1, #2)
 
-## Pipeline Notes
-- Analysis completed in 39m 22s
-- Characters found: 6 (Benny, Ellen, Gorrister, Nimdok, Ted, +1 more)
-- Ted detected as first-person narrator
-- 1 chapter detected
-- Warnings: "Narrator 'Ted' identified but NOT found in main_cast" (may indicate main cast extraction issue)
-- Warnings: "LLM marker proposer returned non-list: <class 'dict'>" (structure detection format issue)
-- Pronunciation flags: 56 words
+The primary issue is that the character profiling pipeline is not populating physical descriptions or meaningful relationships. This may be:
+1. Short story / single chapter causing passage gatherer to not find enough evidence
+2. Profile extraction prompts not tuned for horror/sci-fi character archetypes (captor, victim, unreliable narrator)
+3. Evidence text being gathered but not extracted into structured fields
