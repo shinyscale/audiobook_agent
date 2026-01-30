@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Model:** qwen2.5:32b-instruct-q8_0 (Reverted from qwen3-next due to compatibility issue)
 - **Competitive Mode:** single (all stages enabled)
@@ -149,9 +149,42 @@ From `gui_settings.json`:
 - Context length: 65536 tokens
 - **Note:** qwen3-next:80b MoE model attempted in attempt 3 but incompatible with pipeline
 
-## Next Action
-**Phase:** awaiting_analysis
-**Reason:** Model reverted to qwen2.5:32b-instruct-q8_0 after qwen3-next compatibility failure. Need clean analysis run with known-working model to establish baseline for gatsby attempt 4.
+## Attempt 4 Results: FAILED - Wrapped JSON Prompts Broke qwen2.5:32b
+
+**Root Cause:** The wrapped JSON object prompts added in attempt 3 (to fix qwen3-next) now break qwen2.5:32b structure detection.
+
+**Error Pattern:**
+```
+LLM marker proposer returned non-list: <class 'dict'>
+```
+Repeating indefinitely (stuck in retry loop).
+
+**Diagnosis:**
+- Attempt 3 modified prompts from raw arrays `[...]` to wrapped objects `{"characters": [...]}`
+- This was intended to fix qwen3-next:80b compatibility
+- However, qwen2.5:32b-instruct-q8_0 NOW returns dict objects instead of lists for structure detection
+- The structure detection code expects a list `[]`, receives dict `{...}`
+- This creates an infinite retry loop
+
+**Evidence:**
+1. Attempt 2 succeeded with qwen2.5:32b (before wrapped JSON prompts)
+2. Attempt 3 failed with qwen3-next:80b (prompted the wrapped JSON fix)
+3. Attempt 4 fails with qwen2.5:32b AFTER wrapped JSON prompts applied
+4. Task IDs: ba84258 (initial timeout), bc16e38 (infinite dict error loop, stopped)
+
+**Impact:**
+- Structure detection is broken for qwen2.5:32b
+- The wrapped JSON prompt changes in `src/pipeline/character_extraction_v2/main_cast.py` are incompatible with structure detection prompts
+- Structure detection uses different prompts (likely in `src/pipeline/chapter_detection/` or similar)
+
+**Next Action:**
+**Phase:** awaiting_fix
+**Required Fix:** Revert the wrapped JSON prompt changes from attempt 3, OR apply wrapped JSON format consistently across ALL pipeline stages (structure, characters, summaries, pronunciation).
+
+**Files to Investigate:**
+- `src/pipeline/character_extraction_v2/main_cast.py` (attempt 3 changes)
+- Structure detection prompt files (need to identify and update with wrapped JSON format)
+- Any other pipeline stages that use JSON array output
 
 ## Attempt 3 Results: FAILED - Model Compatibility Issue
 
