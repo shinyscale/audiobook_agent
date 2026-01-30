@@ -122,6 +122,20 @@ This is being tested on berenice. If it works, the same prompt will help all fut
 
 3. **Leverage provider capabilities** - Ollama's `format: "json"`, OpenAI's `response_format`
 
+---
+
+## Relationship Extraction: Use Focused LLM Call (No Keyword Salvage)
+
+If relationship information appears in evidence text (e.g., "beloved cousin named John Donaldson") but the
+structured `relationships` dict is empty, **do NOT** add regex/keyword-list salvage code.
+
+Instead, use a **dedicated second LLM call** that only extracts relationships from:
+- The current character name
+- Other characters (canonical + aliases)
+- The already-extracted evidence statements/quotes
+
+This keeps prompts simple and avoids brittle vocabulary-dependent heuristics.
+
 ### Recent Example (2026-01-28)
 
 **Bad approach (reverted):**

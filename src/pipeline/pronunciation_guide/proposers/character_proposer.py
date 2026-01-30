@@ -101,8 +101,10 @@ class CharacterProposer(BasePronunciationProposer):
                 if len(word) < 2:
                     continue
 
-                # Skip common titles
+                # Skip common titles and military ranks
+                # (universal reference lexicon - helps normalize names, not book-specific filtering)
                 if word_lower.rstrip(".") in {
+                    # Civilian titles
                     "mr",
                     "mrs",
                     "ms",
@@ -111,6 +113,17 @@ class CharacterProposer(BasePronunciationProposer):
                     "sir",
                     "lady",
                     "lord",
+                    # Military ranks (common across many books)
+                    "sergeant",
+                    "corporal",
+                    "captain",
+                    "lieutenant",
+                    "colonel",
+                    "major",
+                    "general",
+                    "private",
+                    "admiral",
+                    "commander",
                 }:
                     continue
 

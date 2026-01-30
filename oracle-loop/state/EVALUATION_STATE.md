@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** john_g
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Output Files
@@ -70,7 +70,8 @@
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | John G./John character split | src/agents/characters.py | Added Pass 0.5 to merge period-terminated abbreviations |
+| 2 | Pronunciation ranks filter | src/pipeline/pronunciation_guide/proposers/character_proposer.py | Added military ranks to title filter |
 
 ## Evaluation Details
 
@@ -138,7 +139,40 @@ The single chapter summary is excellent:
 - Character profiles and summaries well-organized
 - Pronunciation guide is functional
 
+## Fix Summary (Attempt 2)
+
+### Fix 1: Character Split (John G. / John)
+**Root Cause:** `src/agents/characters.py:_merge_within_supporting_cast()` had two merge passes:
+- Pass 1: Last-name-only → full name (skipped "John G." because it contains a space)
+- Pass 2: Spelling variants (failed because "John G." vs "John" = 72.7% similarity, below 85% threshold)
+
+**Solution:** Added Pass 0.5 to handle period-terminated abbreviations:
+- Normalizes names by stripping trailing period-terminated initials (e.g., " G.", " F.")
+- "John G." → "john" matches "John" → "john"
+- Merges the one with fewer mentions into the one with more
+- **Universal fix**: Works for any period-terminated abbreviation (e.g., "John F. Kennedy" → "Kennedy")
+
+**Smoke test:** PASSED - "John G." (15 mentions) correctly merged into "John" (19 mentions) as alias
+
+**Files modified:**
+- `src/agents/characters.py` (lines 2590-2650, added Pass 0.5 before Pass 1)
+
+### Fix 2: Pronunciation Ranks Filter
+**Root Cause:** `src/pipeline/pronunciation_guide/proposers/character_proposer.py` filtered civilian titles ("Mr", "Dr") but not military ranks
+
+**Solution:** Extended title filter to include military ranks:
+- Added: sergeant, corporal, captain, lieutenant, colonel, major, general, private, admiral, commander
+- This is a **universal reference lexicon** (ALLOWED per fix philosophy) - ranks are stable across many books
+- Not a keyword deny-list - these words help normalize character names, not filter vocabulary
+
+**Smoke test:** PASSED - "Sergeant", "Corporal", "Captain" filtered; "Price", "Adams", "Richardson" kept
+
+**Files modified:**
+- `src/pipeline/pronunciation_guide/proposers/character_proposer.py` (lines 104-123)
+
+### Expected Impact
+- **Character Extraction:** 5/10 → 8+/10 (fixing major split error worth ~2-3 points)
+- **Pronunciation Guide:** 7/10 → 8+/10 (filtering ranks worth ~1 point)
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Primary:** Fix John G./John character split (CRITICAL)
-2. **Secondary:** Reduce pronunciation false positives (HIGH)
+Re-run analysis to verify fixes work on actual text

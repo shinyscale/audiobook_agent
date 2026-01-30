@@ -2590,6 +2590,63 @@ class CharacterAgent(Agent):
         chars_to_remove = set()
         chars_with_new_aliases = set()
 
+        # Pass 0.5: Merge period-terminated abbreviations
+        # Handles cases like "John G." (15 mentions) → "John" (19 mentions)
+        # where the period-terminated form has trailing initials that can be stripped
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or "." not in char_name:
+                continue  # Only process names with periods
+
+            # Normalize by removing trailing period-terminated initials (e.g., " G.", " F.")
+            # This converts "John G." → "john" while leaving "John" → "john"
+            import re
+            char_normalized = re.sub(r'\s+[A-Z]\.$', '', char_name).lower().strip()
+
+            # Look for a match with the normalized form
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+
+                other_name = other_char.canonical_name.strip()
+                if not other_name:
+                    continue
+
+                # Normalize the other name the same way
+                other_normalized = re.sub(r'\s+[A-Z]\.$', '', other_name).lower().strip()
+
+                # Check if they match after normalization
+                # "John G." → "john" matches "John" → "john"
+                if char_normalized == other_normalized and char_normalized:
+                    # Exact match after stripping trailing initials
+                    # Merge the one with fewer mentions into the one with more
+                    if char.mention_count <= other_char.mention_count:
+                        # Merge char → other_char
+                        if char_name not in other_char.aliases:
+                            logger.info(
+                                f"Merging within supporting cast (period-terminated abbrev): "
+                                f"'{char_name}' ({char.mention_count} mentions) → "
+                                f"'{other_char.canonical_name}' ({other_char.mention_count} mentions) as alias"
+                            )
+                            other_char.aliases.append(char_name)
+                            chars_with_new_aliases.add(other_char.id)
+                        chars_to_remove.add(idx)
+                    else:
+                        # Merge other_char → char
+                        if other_name not in char.aliases:
+                            logger.info(
+                                f"Merging within supporting cast (period-terminated abbrev): "
+                                f"'{other_name}' ({other_char.mention_count} mentions) → "
+                                f"'{char_name}' ({char.mention_count} mentions) as alias"
+                            )
+                            char.aliases.append(other_name)
+                            chars_with_new_aliases.add(char.id)
+                        chars_to_remove.add(other_idx)
+                    break  # Only merge once per character
+
         # Pass 1: Merge last-name-only characters
         for idx, char in enumerate(supporting_cast):
             if idx in chars_to_remove:
