@@ -83,9 +83,10 @@
     {
       "name": "i_have_no_mouth",
       "file": "Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf",
-      "complete": false,
-      "attempts": 3,
-      "last_score": 8.20,
+      "complete": true,
+      "attempts": 5,
+      "last_score": 8.75,
+      "final_score": 8.75,
       "baseline_score": 6.25
     },
     {
