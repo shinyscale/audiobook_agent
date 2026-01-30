@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Model:** qwen2.5:32b-instruct-q8_0 (Reverted from qwen3-next due to compatibility issue)
 - **Competitive Mode:** single (all stages enabled)
@@ -140,6 +140,7 @@ Output format - return a JSON object with a "characters" array:
 | 2 | Main cast extraction failure (needs diagnosis) | src/pipeline/character_extraction_v2/main_cast.py:479-506, 339-347 | Diagnostic logging added |
 | 3 | JSON format incompatibility | src/pipeline/character_extraction_v2/main_cast.py:47-72, 100-115, 478-483 | Wrapped object prompts - FAILED (qwen3-next incompatible) |
 | 4 | qwen3-next model compatibility | ~/.config/audiobook_prep/gui_settings.json | Model reverted to qwen2.5:32b-instruct-q8_0 |
+| 5 | Wrapped JSON prompts broke qwen2.5:32b | src/pipeline/character_extraction_v2/main_cast.py:47-121 | Reverted to raw array format - awaiting analysis |
 
 ## Configuration Audit
 
@@ -177,14 +178,22 @@ Repeating indefinitely (stuck in retry loop).
 - The wrapped JSON prompt changes in `src/pipeline/character_extraction_v2/main_cast.py` are incompatible with structure detection prompts
 - Structure detection uses different prompts (likely in `src/pipeline/chapter_detection/` or similar)
 
-**Next Action:**
-**Phase:** awaiting_fix
-**Required Fix:** Revert the wrapped JSON prompt changes from attempt 3, OR apply wrapped JSON format consistently across ALL pipeline stages (structure, characters, summaries, pronunciation).
+### Attempt 4 -> 5: Reverted wrapped JSON prompts to restore qwen2.5:32b compatibility
+- **Root cause:** `src/pipeline/character_extraction_v2/main_cast.py` prompts request wrapped JSON `{"characters": [...]}` while structure detection expects raw arrays `[]`
+  - Mixed format expectations confused qwen2.5:32b
+  - Structure detection started returning dicts instead of lists
+  - Created infinite retry loop: "LLM marker proposer returned non-list"
+- **Fix:** Reverted character extraction prompts to raw array format (consistent with structure detection)
+  - Changed `MAIN_CAST_PROMPT` line 57: `"characters": [...]` → raw `[...]`
+  - Changed `CHARACTER_IDENTIFICATION_PROMPT` line 105: `"characters": [...]` → raw `[...]`
+  - Parser already handles both formats via `result.get("characters", result)` fallback
+- **Files modified:** `src/pipeline/character_extraction_v2/main_cast.py` lines 47-121
+- **Smoke test:** PASS - prompt verification confirms raw array format
+- **Rationale:** qwen2.5:32b worked with raw arrays in attempt 2 (score 7.35). Wrapped format was added for qwen3-next (incompatible model). Reverting restores working state.
 
-**Files to Investigate:**
-- `src/pipeline/character_extraction_v2/main_cast.py` (attempt 3 changes)
-- Structure detection prompt files (need to identify and update with wrapped JSON format)
-- Any other pipeline stages that use JSON array output
+**Next Action:**
+**Phase:** awaiting_analysis
+**Expected:** Structure detection should now complete successfully, allowing focus on actual character extraction issues (fragmentation, missing profiles)
 
 ## Attempt 3 Results: FAILED - Model Compatibility Issue
 
