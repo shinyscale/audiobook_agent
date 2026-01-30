@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.1
 - **Competitive Mode:** single
 
@@ -203,15 +203,22 @@ The model `qwen3-next:80b-a3b-instruct-q8_0` returns malformed JSON (reasoning i
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Completed: 2026-01-29 (16m 24s runtime)
+- Completed: 2026-01-29 (Attempt 2: 15m 56s runtime)
 
 ## Pipeline Execution Summary
-- **Total time:** 16m 24s
-- **Total LLM calls:** 76
-- **Total tokens:** 76,542
+- **Total time:** 15m 56s
+- **Total LLM calls:** 75
+- **Total tokens:** 75,437
 - **Chapters found:** 1
-- **Characters extracted:** 6 (all from supporting_cast)
-- **Pronunciation flags:** 56
+- **Characters extracted:** 5
+- **Pronunciation flags:** 55
+
+## Pipeline Notes (Attempt 2)
+- Competitive consensus enabled (3 LLMs, 2/3 supermajority) for all stages
+- Model compatibility warnings persist (qwen3-next returns error format)
+- Model fallback to qwen2.5:32b appears to have been triggered
+- Character count reduced from 6 to 5 (likely "Jesus" filtered out)
+- Ted mention count still shows as 5 (narrator detection may still be an issue)
 
 ## Next Action
 
