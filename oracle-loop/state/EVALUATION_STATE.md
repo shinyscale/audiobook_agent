@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -128,5 +128,24 @@
 
 **Confidence:** HIGH - One-line fix in the correct location (serialization layer)
 
+## Pipeline Notes (Attempt 18)
+Analysis completed successfully in 16m 51s.
+
+Pipeline stages:
+- Structure Detection: 56.9s (1 chapter detected)
+- Chapter Summaries: 2m18s (1 summary)
+- Character Extraction: 23.7s (4 characters: John, Uncle Bill, John Donaldson, Joe Barron)
+- Character Profiles: 4m16s (3 profiles generated)
+- Pronunciation Guide: 4m24s (50 words flagged)
+
+Minor warnings (non-blocking):
+- LLM marker proposer returned dict instead of list (handled gracefully)
+- Narrator 'John Donaldson' identified but not in main_cast (expected for supporting character)
+- Some Ollama json_mode validation errors (handled by fallback logic)
+
+Output files successfully generated:
+- ../output/american_sir/analysis.json (67K)
+- ../output/american_sir/report.html (140K)
+
 ## Next Action
-Re-run analysis to verify relationships are now serialized to output JSON and HTML
+Proceed to evaluation phase to verify relationships are now serialized
