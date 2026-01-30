@@ -2,10 +2,10 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
-- **Model:** qwen3-next:80b-a3b-instruct-q8_0 (MoE, ~3x faster than qwen2.5:32b)
+- **Model:** qwen2.5:32b-instruct-q8_0 (Reverted from qwen3-next due to compatibility issue)
 - **Competitive Mode:** single (all stages enabled)
 
 ## Latest Scores (Attempt 2)
@@ -151,7 +151,7 @@ From `gui_settings.json`:
 
 ## Next Action
 **Phase:** awaiting_analysis
-**Reason:** Model configuration reverted to known-working qwen2.5:32b - re-run analysis to get scoreable results
+**Reason:** Model reverted to qwen2.5:32b-instruct-q8_0 after qwen3-next compatibility failure. Need clean analysis run with known-working model to establish baseline for gatsby attempt 4.
 
 ## Attempt 3 Results: FAILED - Model Compatibility Issue
 
