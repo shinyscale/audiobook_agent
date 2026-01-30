@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Output Files
@@ -174,5 +174,12 @@ The single chapter summary is excellent:
 - **Character Extraction:** 5/10 → 8+/10 (fixing major split error worth ~2-3 points)
 - **Pronunciation Guide:** 7/10 → 8+/10 (filtering ranks worth ~1 point)
 
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 8m 39s
+- Character merging SUCCESS: "John G." and "John" correctly merged as single character with alias
+- Output shows: "John G. (aka John) - 19 mentions"
+- Pronunciation guide generated 47 flags (need evaluation to check if ranks filter worked)
+- Some LLM warnings about JSON validation but pipeline completed successfully
+
 ## Next Action
-Re-run analysis to verify fixes work on actual text
+Evaluate the output to verify fixes resolved the critical issues
