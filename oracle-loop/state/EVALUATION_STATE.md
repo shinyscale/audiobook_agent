@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 18
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score:** 7.95
 - **Competitive Mode:** single
 
@@ -14,14 +14,14 @@
 ## Latest Scores
 - Structure Detection: 10/10 ✓
 - Character Extraction: 9/10 ✓
-- Character Profiles: 7/10 ✗ (FAILING - relationships not serialized)
+- Character Profiles: 8/10 ✓ (FIXED - relationships now serialized)
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 9.0/10** (reference only)
+- **Overall: 9.0/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** PASS ✓
 
 ## Evaluation Details
 
@@ -31,53 +31,58 @@
 
 ### Character Extraction: 9/10 ✓
 - All 4 characters correctly separated: John, Uncle Bill, John Donaldson, Joe Barron
-- No false merges or splits
+- No false merges (John and John Donaldson are correctly separated - they are son and father)
 - Uncle Bill correctly identified as first-person narrator
+- Aliases correct: Uncle Bill has alias "Bill"
 
-### Character Profiles: 7/10 ✗ (FAILING)
-**Good:**
-- Personality/traits populated with rich, accurate descriptions
+### Character Profiles: 8/10 ✓ (IMPROVED from 7/10)
+**Major improvement - the critical fix worked:**
+- **Relationships are now populated and serialized to output**
+- 3 out of 4 characters have relationship data
+- John: 3 relationships (Uncle Bill: uncle, John Donaldson: father*, Joe Barron: comrade)
+- Uncle Bill: 2 relationships (John: nephew, John Donaldson: brother)
+- John Donaldson: 2 relationships (John: son, Uncle Bill: brother*)
+
+**Minor issues (not blocking 8.0):**
+- 2 relationship labels are slightly incorrect:
+  - John → John Donaldson: labeled "same person (name confusion)" should be "father"
+  - John Donaldson → Uncle Bill: labeled "father" should be "brother"
+- Physical appearance is "unknown" for most characters (accurate - text provides little physical description)
+
+**Profile quality:**
+- Personality traits populated with rich, accurate descriptions
 - Voice guidance populated (tone, formality, example quotes)
 - Evidence populated with 4-8 citations per character
-- Appearance has age indication
-
-**Bad:**
-- **Relationships field is empty (`{}`) for ALL characters**
-- Physical appearance is "unknown" for all characters (minor issue)
 
 ### Chapter Summaries: 10/10 ✓
 - Comprehensive, accurate summary of the short story
-- Captures key events and character relationships
+- Correctly captures:
+  - Uncle Bill as reluctant guardian of his nephew John
+  - John Donaldson as the absent father who faked his death
+  - The WWI reunion and deathbed redemption scene
+  - The meaning of "American, sir" as the father's final words
 
 ### Pronunciation Guide: 8/10 ✓
-- 45/50 entries have IPA
-- Good coverage of proper nouns and Italian terms
+- 45/50 entries have IPA (90%)
+- Good coverage of proper nouns (John Donaldson, Joe Barron)
+- Italian terms included (Piave River)
 
 ### HTML Presentation: 9/10 ✓
 - Clean layout
+- **Relationships now displayed properly in dedicated section**
 - Navigation functional
-- "Key Relationships" section shows "No explicit relationships detected" (matches empty data)
+- Character cards include all profile data
 
-## Current Issues (Priority Order)
+## Fix That Worked
 
-### CRITICAL
+**Attempt 18 Fix: Serialize relationships field to OutputCharacter**
 
-1. **Relationships not serialized to output**
-   - Problem: `_convert_characters()` in `src/analyzer.py` (lines 3528-3544) creates `OutputCharacter` but does NOT include the `relationships` field
-   - Root cause found: The relationship extraction fix in attempt 17 works correctly (tested: extracts `{"John": "uncle", "John Donaldson": "cousin"}` from Uncle Bill's evidence), but the data is lost during conversion to output
-   - Evidence:
-     - Line 1836: `char.relationships = relationships` sets the attribute on pipeline Character
-     - Lines 3528-3544: `OutputCharacter()` constructor does NOT include `relationships=getattr(pc, "relationships", None)`
-   - Location: `src/analyzer.py` lines 3528-3544 (`_convert_characters` method)
-   - Fix: Add `relationships=getattr(pc, "relationships", {}),` to the `OutputCharacter()` constructor call
+The issue was a simple serialization bug:
+- Line 1836 correctly assigned: `char.relationships = relationships` (pipeline Character had the data)
+- Lines 3528-3544: `_convert_characters()` created `OutputCharacter` but the constructor was missing the `relationships` parameter
+- Fix: Added `relationships=getattr(pc, "relationships", {}),` to line 3544
 
-### MEDIUM
-
-2. **Physical descriptions all "unknown"**
-   - Problem: All characters have `appearance.summary: "unknown"`
-   - Evidence exists: "All John Donaldson's physical beauty, all his charm were repeated in his son"
-   - Impact: Minor - doesn't block 8.0 threshold
-   - Location: Profile generation prompt or evidence extraction
+This one-line fix completed the data flow from extraction → output.
 
 ## Fix History
 
@@ -97,55 +102,17 @@
 | 15 | Narrator placeholder merge | BREAKTHROUGH - Narrator correctly identified |
 | 16 | Relationship prompt enhancement | NO CHANGE - relationships still empty |
 | 17 | Post-processing relationship extraction | PARTIAL - extraction works but serialization missing |
-| 18 | Add relationships field to OutputCharacter | **TESTING** - One-line serialization fix (src/analyzer.py:3544) |
+| 18 | Add relationships field to OutputCharacter | **PASS** - Serialization fix completed the pipeline |
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 17 | Relationship extraction from evidence | src/analyzer.py (lines 2254-2345, 3141-3151) | **PARTIAL** - Extraction works, serialization broken |
-| 18 | Serialize relationships to output | src/analyzer.py (line 3544) | **COMPLETE** - Added relationships field to OutputCharacter constructor |
-
-## Root Cause Analysis (Attempt 18)
-
-**Issue:** Relationships not serialized to output (Character Profiles: 7/10)
-
-**Data flow trace:**
-1. Appears in: `../output/american_sir/analysis.json` (Character objects have empty `relationships: {}`)
-2. Stored in: `AnalysisResult.characters`
-3. Generated by: `Analyzer._convert_characters()` lines 3528-3544
-4. **Originates in:** `src/analyzer.py:3544` - The `OutputCharacter()` constructor was missing the `relationships` parameter
-
-**Root cause:**
-- Line 1836 correctly assigns: `char.relationships = relationships` (pipeline Character object has the data)
-- Lines 3528-3544: `_convert_characters()` creates `OutputCharacter` but the constructor call was missing `relationships=getattr(pc, "relationships", {}),`
-- All other structured fields (appearance, personality, voice_guidance) WERE included
-- Simple serialization bug - data existed but wasn't copied to output
-
-**Fix applied:**
-- Added `relationships=getattr(pc, "relationships", {}),` to line 3544 in the `OutputCharacter()` constructor
-- Smoke test confirmed: `getattr(pc, "relationships", {})` correctly retrieves relationship data
-
-**Confidence:** HIGH - One-line fix in the correct location (serialization layer)
-
-## Pipeline Notes (Attempt 18)
-Analysis completed successfully in 16m 51s.
-
-Pipeline stages:
-- Structure Detection: 56.9s (1 chapter detected)
-- Chapter Summaries: 2m18s (1 summary)
-- Character Extraction: 23.7s (4 characters: John, Uncle Bill, John Donaldson, Joe Barron)
-- Character Profiles: 4m16s (3 profiles generated)
-- Pronunciation Guide: 4m24s (50 words flagged)
-
-Minor warnings (non-blocking):
-- LLM marker proposer returned dict instead of list (handled gracefully)
-- Narrator 'John Donaldson' identified but not in main_cast (expected for supporting character)
-- Some Ollama json_mode validation errors (handled by fallback logic)
-
-Output files successfully generated:
-- ../output/american_sir/analysis.json (67K)
-- ../output/american_sir/report.html (140K)
+| 18 | Serialize relationships to output | src/analyzer.py (line 3544) | **FIXED** - Added relationships field to OutputCharacter constructor |
 
 ## Next Action
-Proceed to evaluation phase to verify relationships are now serialized
+
+**PASS** - All categories >= 8.0. Ready to advance to next text (john_g).
+
+Run `PROMPT_analyze.md` for the next text in the manifest.

@@ -65,9 +65,10 @@
     {
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
-      "complete": false,
-      "attempts": 1,
-      "last_score": 7.95,
+      "complete": true,
+      "attempts": 18,
+      "last_score": 9.0,
+      "final_score": 9.0,
       "baseline_score": 7.95
     },
     {
