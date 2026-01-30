@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 
@@ -92,9 +92,21 @@
 ## Configuration Notes
 - Model: qwen2.5:32b-instruct-q8_0 (JSON compatible)
 - Competitive Mode: single (same model, 3 temperatures)
-- Analysis time: 39m 22s
+- Competitive Stages: characters, structure, summaries
+- Analysis time: 36m 14s
+
+## Output Files (Attempt 4)
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
+## Pipeline Notes (Attempt 4)
+- Structure: 1 chapter detected (short story, expected)
+- Characters: 6 characters extracted (5 main + AM reconciled from summaries)
+- Profiling: 5 profiles generated with HIGH confidence
+- Analysis completed successfully in 36m 14s
+- Minor warnings: LLM marker proposer returned dict (structure detection fallback to single chapter)
 
 ## Next Action
-Run PROMPT_analyze.md to verify fix
+Run PROMPT_evaluate.md to assess results
 
 The root cause was identified: physical description evidence existed in character.evidence but was not being passed to the profile LLM. The fix adds these evidence quotes to the LLM context, which should resolve the empty appearance.summary issue.
