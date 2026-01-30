@@ -121,7 +121,8 @@ From `_profiling`:
 - `pipeline_char_map` undefined for Lucille, Rosy, Owl-Eyes (minor)
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** running_analysis
 
-Re-run analysis to capture diagnostic logs that reveal why main cast extraction failed.
-Once logs captured, return to fix phase with actual root cause data.
+Analysis started at 2026-01-30 with competitive consensus enabled (single mode, all stages).
+Pipeline running in background with diagnostic logging active.
+Once complete, will transition to awaiting_evaluation phase.
