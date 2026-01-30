@@ -477,6 +477,39 @@ class MainCastExtractor:
 
         # Parse Pass 1 results
         initial_characters = self._parse_pass1_results(result)
+
+        # FALLBACK: If parsing failed due to model incompatibility, retry with a compatible model
+        if not initial_characters and isinstance(result, dict) and ("error" in result or "message" in result):
+            logger.warning(
+                f"Current model ({self.llm.config.model}) returned malformed JSON. "
+                f"Attempting fallback to qwen2.5:32b-instruct-q8_0..."
+            )
+            fallback_config = LLMConfig(
+                provider=self.llm.config.provider,
+                model="qwen2.5:32b-instruct-q8_0",
+                base_url=self.llm.config.base_url,
+                api_key=self.llm.config.api_key,
+                temperature=0.7,
+                max_tokens=self.llm.config.max_tokens,
+                context_length=self.llm.config.context_length,
+            )
+            fallback_client = LLMClient(fallback_config, metrics=self.llm.metrics)
+            result, response = fallback_client.query_json(pass1_prompt, system=system_prompt)
+
+            if response.success and result is not None:
+                initial_characters = self._parse_pass1_results(result)
+                if initial_characters:
+                    logger.info(
+                        f"Fallback successful: {len(initial_characters)} characters extracted with fallback model"
+                    )
+                    # Use fallback client for Pass 2 as well
+                    self.llm = fallback_client
+                else:
+                    logger.error("Fallback model also failed to extract characters")
+                    return []
+            else:
+                logger.error(f"Fallback model query failed: {response.error if response else 'Unknown error'}")
+                return []
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
         # Pass 2: Alias Resolution for each character

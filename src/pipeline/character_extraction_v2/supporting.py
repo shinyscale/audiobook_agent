@@ -180,6 +180,7 @@ class SupportingCastExtractor:
             "god",
             "lord",
             "christ",
+            "jesus",  # Religious exclamation, not character
             "heaven",
             "hell",
             "sir",
