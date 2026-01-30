@@ -122,14 +122,14 @@
       }
     },
     "john_g": {
-      "commit": "a475856096f9364f82484d9cf293b0169c2c8b02",
-      "score": 7.35,
+      "commit": "ff6a2beb3e515286a8ea08f4b35925f797f2d3d4",
+      "score": 8.90,
       "category_scores": {
         "structure": 10,
-        "characters": 5,
-        "profiles": 8,
+        "characters": 9,
+        "profiles": 8.5,
         "summaries": 9,
-        "pronunciation": 7,
+        "pronunciation": 8,
         "presentation": 9
       }
     }

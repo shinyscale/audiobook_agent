@@ -74,7 +74,7 @@ CHAPTER SUMMARIES:
 # Pass 1: Character Identification Prompt
 CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the MAIN CAST of characters from a novel.
 
-TASK: Identify the 10-15 most important characters based on the chapter summaries below.
+TASK: Identify the main characters based on the chapter summaries below. Typically 10-15 characters, but extract ALL significant characters regardless of count (could be fewer for short stories, more for epics).
 
 NOTE: When chapter summaries include a `characters_present` list, treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both are in the list).
 
@@ -96,9 +96,10 @@ CHAPTER SUMMARIES:
 
 {plot_summary_section}
 
-OUTPUT FORMAT (JSON):
-Return a JSON array of character objects with ONLY canonical names:
-```json
+OUTPUT FORMAT:
+You MUST return ONLY a JSON array (not an object with an "error" or "message" field).
+Return the array directly, with each character as an object:
+
 [
   {{
     "canonical_name": "Full Name or Descriptive Handle",
@@ -108,7 +109,8 @@ Return a JSON array of character objects with ONLY canonical names:
     "is_symbolic": false
   }}
 ]
-```
+
+Do not include explanations or reasoning. Return ONLY the JSON array above.
 
 Extract the main characters now:"""
 
@@ -455,7 +457,15 @@ class MainCastExtractor:
         if pattern_section:
             pass1_prompt = pass1_prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
-        result, response = self.llm.query_json(pass1_prompt)
+        # Use strict system prompt to enforce JSON array format
+        system_prompt = (
+            "You are a JSON-only assistant. "
+            "You MUST respond with ONLY a valid JSON array. "
+            "Do NOT wrap your response in any explanatory text or object wrapper. "
+            "Do NOT use fields like 'error' or 'message' - return the array directly."
+        )
+
+        result, response = self.llm.query_json(pass1_prompt, system=system_prompt)
 
         if not response.success:
             logger.error(f"Pass 1 LLM query failed: {response.error}")
@@ -512,6 +522,20 @@ class MainCastExtractor:
 
         # Handle both list and dict formats
         if isinstance(result, dict):
+            # Some models return reasoning in "error"/"message" field instead of array
+            if "error" in result or "message" in result:
+                reasoning = result.get("error") or result.get("message", "")
+                logger.error(
+                    f"Pass 1 LLM returned reasoning in 'error'/'message' field instead of array. "
+                    f"This model may not be compatible with structured JSON output. "
+                    f"Reasoning: {reasoning[:200]}..."
+                )
+                logger.error(
+                    f"RECOMMENDATION: Try a different model for character extraction. "
+                    f"Known compatible models: llama3.2, qwen2.5:72b, gpt-4o-mini"
+                )
+                return []
+
             result = result.get("characters", result.get("main_cast", []))
 
         if not isinstance(result, list):

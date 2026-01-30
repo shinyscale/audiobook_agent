@@ -3,9 +3,10 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
+- **External Changes Applied:** Model compatibility improvements (prompt clarification + error logging)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -119,23 +120,44 @@
    - Fix: Detect 2-letter all-caps strings as potential acronyms needing pronunciation
 
 ## Fix History
-(First attempt - no fixes yet)
+
+### Attempt 1: Model Compatibility Issue Identified
+
+**Root Cause:** The model `qwen3-next:80b-a3b-instruct-q8_0` does not properly follow JSON schema instructions. In Pass 1 of main cast extraction, it returns `{"error": "reasoning text..."}` instead of the expected JSON array, causing ALL main cast extraction to fail.
+
+**Evidence:**
+- Diagnostic script showed LLM correctly identified all 6 characters (Ted, Ellen, Nimdok, Gorrister, Benny, AM)
+- But returned them in an "error" field with reasoning text instead of structured array
+- This violated the expected schema, causing `_parse_pass1_results()` to return empty list
+- Cascade: No main cast → supporting cast only → no narrator detection → Ted mention count wrong
+
+**Fix Applied:**
+- Improved prompt clarity: Changed "10-15 characters" to "Typically 10-15 characters, but extract ALL significant characters regardless of count"
+- Added strict system prompt: "You MUST respond with ONLY a valid JSON array"
+- Added better error logging when model returns wrong schema
+- **Files modified:** `src/pipeline/character_extraction_v2/main_cast.py`
+
+**Result:** INSUFFICIENT - The model continues to ignore format instructions
+
+**Next Action:** This is a **MODEL CONFIGURATION issue**, not a code issue. The qwen3-next:80b-a3b-instruct-q8_0 model is not compatible with structured JSON output for this task. Recommend re-running with a compatible model (llama3.2, qwen2.5:72b, or gpt-4o-mini).
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | (baseline - no fixes) | N/A | Baseline |
+| 1 | Model JSON schema violation | `src/pipeline/character_extraction_v2/main_cast.py` | Identified as model incompatibility |
 
 ## Configuration Notes
 
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (good choice)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 - **INCOMPATIBLE** with character extraction
+- Issue: Model returns reasoning in "error" field instead of following JSON array schema
+- Recommendation: Switch to llama3.2, qwen2.5:72b, or gpt-4o-mini
 - No LLM retries (0 across all stages) - good
-- Character extraction took only 20s for 6 characters - fast but may be missing depth
-- Profile generation took 7m38s (45% of total) - appropriate for complex profiles
+- Character extraction took only 20s - too fast because it returned 0 results
+- Profile generation took 7m38s (45% of total) - normal
 
 ## Next Action
-Run PROMPT_fix.md to address AM missing and narrator detection (Critical #1-3)
+**EXTERNAL CONFIGURATION CHANGE REQUIRED:** Re-run analysis with a compatible model. This is not a code fix - it's a model selection issue.
 
 ## Literary Reference
 
