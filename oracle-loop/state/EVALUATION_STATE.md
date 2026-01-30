@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** running_analysis
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 
@@ -132,7 +132,13 @@ AM was added to the character list via F6 reconciliation (hence the hash ID `25e
 | Ted | "unknown" (acceptable) | ✗ Mischaracterized | Partial | Generic |
 | AM | null (MISSING) | null (MISSING) | null (MISSING) | empty (MISSING) |
 
-## Next Action
-Re-run analysis to verify fix. Expected improvement:
+## Analysis in Progress (Attempt 5)
+Started: 2026-01-30
+Command: audiobook-prep analyze with --competitive-all flag
+Expected completion: ~30-60 minutes
+
+Expected improvement:
 - AM should now receive profile data (appearance, personality, voice_guidance)
 - Character Profiles score should improve from 7/10 to 8+/10
+
+The F6 eligibility fix has been applied (src/analyzer.py:1786-1798), which should allow AM (F6-reconciled character with hash ID) to pass through the profiling pipeline.
