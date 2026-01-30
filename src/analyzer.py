@@ -1783,14 +1783,21 @@ class AudiobookAnalyzer:
                 # Generate profiles for all characters with sufficient mentions
                 # SPECIAL CASE: Include narrators even if they have few explicit mentions
                 # (first-person narrators may use "I" throughout without saying their name)
+                # Helper to identify F6-reconciled characters (they have 12-char hex IDs)
+                def is_f6_reconciled(char_id: str) -> bool:
+                    """F6-reconciled characters have 12-char hash IDs (e.g., 25ec916d56b8)"""
+                    return len(char_id) == 12 and all(c in '0123456789abcdef' for c in char_id)
+
                 eligible_chars = [
                     c
                     for c in pipeline_char_map.characters
                     if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
                     or getattr(c, "is_narrator", False)
+                    or is_f6_reconciled(c.id)  # F6 characters always eligible (important enough to be in summaries)
                 ]
                 logger.info(
-                    f"Generating profiles for {len(eligible_chars)} eligible characters ({MIN_MENTIONS_FOR_PROFILE}+ mentions or narrator)"
+                    f"Generating profiles for {len(eligible_chars)} eligible characters "
+                    f"({MIN_MENTIONS_FOR_PROFILE}+ mentions, narrator, or F6-reconciled)"
                 )
                 profile_count = 0
                 high_conf_count = 0

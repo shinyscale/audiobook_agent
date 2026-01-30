@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 
@@ -82,6 +82,11 @@
   - Result: Benny now has excellent physical description in appearance.summary
   - Note: The fix worked for characters that went through normal profiling
   - Gap: F6-reconciled characters (AM) never entered the profiling pipeline
+- Attempt 5: F6-reconciled characters now always eligible for profiling
+  - Root cause: Profile eligibility filter required mention_count >= 2, but F6 characters use chapter count (AM appeared in 1 chapter → mention_count=1)
+  - Fix: Added F6 ID pattern detection (12-char hex hash) to eligibility check
+  - Smoke test: AM now eligible for profiling (F6-reconciled)
+  - Modified: src/analyzer.py lines 1786-1798
 
 ## Modification History
 
@@ -94,6 +99,7 @@
 | 4 | Empty physical descriptions | src/analyzer.py | Evidence included in LLM context |
 | 4 | Benny missing physical description | src/analyzer.py | ✓ Fixed (appearance.summary populated) |
 | 4 | AM missing profile | - | NOT FIXED (F6 chars skip profiling) |
+| 5 | F6 characters missing profiles | src/analyzer.py:1786-1798 | ✓ Fixed (F6 ID pattern in eligibility) |
 
 ## Root Cause Analysis
 
@@ -127,6 +133,6 @@ AM was added to the character list via F6 reconciliation (hence the hash ID `25e
 | AM | null (MISSING) | null (MISSING) | null (MISSING) | empty (MISSING) |
 
 ## Next Action
-Run PROMPT_fix.md to:
-1. **Priority:** Ensure F6-reconciled characters get profiled (AM needs profile)
-2. Consider improving narrator personality extraction for unreliable narrators
+Re-run analysis to verify fix. Expected improvement:
+- AM should now receive profile data (appearance, personality, voice_guidance)
+- Character Profiles score should improve from 7/10 to 8+/10
