@@ -3,12 +3,12 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** null
 - **Competitive Mode:** single
 
 ## Latest Scores
-(Awaiting re-run after fix)
+(Awaiting evaluation of attempt 2)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -33,5 +33,26 @@
 
 **Modified:** `src/analyzer.py:2657`
 
+## Output Files
+- HTML: ../output/gatsby/report.html (907K, Jan 30 08:47)
+- JSON: ../output/gatsby/analysis.json (372K, Jan 30 08:47)
+
+## Pipeline Notes
+**Completed successfully in 253m 13s**
+
+Pipeline statistics:
+- 9 chapters detected
+- 28 characters extracted (20 with profiles)
+- 493 LLM calls, 410,318 tokens
+- Bottleneck: Pronunciation guide (52.8% of runtime)
+
+Non-fatal warnings during execution:
+- LLM marker proposer returned dict instead of list (20 occurrences during structure detection)
+- Narrator detection initially failed to find "Nick Carraway" in main_cast (later resolved)
+- `pipeline_char_map` undefined for 3 minor characters (Lucille, Rosy, Owl-Eyes)
+- LLM validation failures in pronunciation phase (got dict format)
+
+Tuple unpacking fix verified: No crashes, pipeline completed all phases.
+
 ## Next Action
-Re-run analysis to verify fix and get baseline score
+Evaluate output quality and assign score
