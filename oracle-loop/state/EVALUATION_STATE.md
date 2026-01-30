@@ -1,64 +1,52 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** flowers_for_algernon
+- **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** blocked
+- **Phase:** awaiting_fix
 - **baseline_score:** null
 - **Competitive Mode:** single
 
 ## Latest Scores
-(Analysis failed - OCR required)
+(Analysis failed with error)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | (none yet) | - | - | - |
 
-## Blocking Issue: OCR Tools Not Installed
+## Pipeline Error (Attempt 1)
 
-**Problem:** The PDF `Test_Texts/Flowers_For_Algernon.pdf` is image-based (scanned) and contains no extractable text.
+**Error:** `not enough values to unpack (expected 7, got 6)`
 
-**Root Cause:** The system has `--pdf-ocr` functionality implemented, but neither OCR tool is installed:
-- `ocrmypdf` (recommended) - NOT FOUND
-- `pytesseract + pdf2image` - NOT INSTALLED
+**Stage:** Character profiling (final stage after summaries completed)
 
-**Evidence from Attempt 1:**
-- All 23 pages showed "No text extracted (contains images, may need OCR)"
-- Text extraction rate: 0%
-- Result: 1 chapter, 0 characters, 0 pronunciations
+**Context:**
+- Structure detection: ✓ 9 chapters
+- Summary generation: ✓ 9 summaries
+- Character extraction: ✓ 27 characters found, 1 merged, 2 added from summaries
+- Narrator detection: ✓ Nick Carraway (first-person)
+- Character profiling: ✗ Tuple unpacking error
 
-**Solutions (User Action Required):**
+**Additional Warnings:**
+- Multiple "LLM marker proposer returned non-list" warnings during structure detection
+- "Narrator 'Nick Carraway' identified but NOT found in main_cast" warnings
+- Profile generation failed for 'Lucille': `name 'pipeline_char_map' is not defined`
 
-### Option 1: Install OCR Tools (Recommended)
-```bash
-# Install ocrmypdf (best quality, recommended)
-sudo apt-get install ocrmypdf
+**Pipeline completed stages before failure:**
+1. Ingestion (51,257 words)
+2. Text refinement (removed Gutenberg boilerplate)
+3. Chapter detection (9 chapters)
+4. Summary generation (9 summaries)
+5. Character extraction (29 total characters after merges)
+6. Narrator detection (Nick Carraway)
+7. Character profiling - **FAILED**
 
-# OR install pytesseract alternative
-pip install pytesseract pdf2image
-sudo apt-get install tesseract-ocr poppler-utils
-```
-
-Then re-run with:
-```bash
-audiobook-prep analyze Test_Texts/Flowers_For_Algernon.pdf --pdf-ocr
-```
-
-### Option 2: Provide Text-Extractable Version
-Replace `Test_Texts/Flowers_For_Algernon.pdf` with:
-- A PDF with embedded text layer
-- An EPUB file
-- A TXT file
-- A DOCX file
-
-### Option 3: Skip This Text
-Move to a different test text that has extractable text.
-
-## Output Files (Attempt 1 - Failed)
-- HTML: ../output/flowers_for_algernon/report.html
-- JSON: ../output/flowers_for_algernon/analysis.json
-- Both exist but contain no useful data (0 words)
+**Output files:**
+- ../output/gatsby/analysis.json (OLD - from Jan 27, not updated)
+- ../output/gatsby/report.html (OLD - from Jan 27, not updated)
 
 ## Notes
-Analysis completed in 2m 1s but produced empty result due to OCR requirement.
+Analysis runtime: ~50 minutes before failure.
+Error occurs during character profiling phase, likely in code that returns a tuple.
+Need to investigate tuple unpacking in character profiling code.
