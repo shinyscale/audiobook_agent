@@ -121,6 +121,16 @@ Output format - return a JSON object with a "characters" array:
   2. Switched to qwen3-next:80b MoE model for faster analysis (~3x speed improvement)
 - **Files modified:**
   - `src/pipeline/character_extraction_v2/main_cast.py` - MAIN_CAST_PROMPT, CHARACTER_IDENTIFICATION_PROMPT, system_prompt
+- **Result:** FAILED - qwen3-next model incompatible (returns error objects instead of JSON arrays)
+
+### Attempt 3 -> 4: Reverted to qwen2.5:32b-instruct-q8_0
+- **Root cause:** qwen3-next:80b-a3b-instruct-q8_0 returns `{"error": "..."}` instead of JSON arrays
+  - Structure detection expects list `[]`, receives dict `{"error": "..."}`
+  - Model consistently refuses to follow JSON array format (confirmed in 2 consecutive runs)
+  - Ground truth: Gatsby has clear chapter markers (Roman numerals I-IX), model should detect them
+- **Fix:** Reverted model configuration to known-working qwen2.5:32b-instruct-q8_0
+- **Files modified:** `~/.config/audiobook_prep/gui_settings.json` - all agent models
+- **Rationale:** qwen2.5:32b is slower but reliable; qwen3-next needs separate investigation
 
 ## Modification History
 
@@ -128,17 +138,20 @@ Output format - return a JSON object with a "characters" array:
 |---------|-------|----------------|--------|
 | 1 | Tuple unpacking crash | src/analyzer.py:2657 | Fixed - pipeline runs |
 | 2 | Main cast extraction failure (needs diagnosis) | src/pipeline/character_extraction_v2/main_cast.py:479-506, 339-347 | Diagnostic logging added |
-| 3 | JSON format incompatibility | src/pipeline/character_extraction_v2/main_cast.py:47-72, 100-115, 478-483 | Wrapped object prompts |
+| 3 | JSON format incompatibility | src/pipeline/character_extraction_v2/main_cast.py:47-72, 100-115, 478-483 | Wrapped object prompts - FAILED (qwen3-next incompatible) |
+| 4 | qwen3-next model compatibility | ~/.config/audiobook_prep/gui_settings.json | Model reverted to qwen2.5:32b-instruct-q8_0 |
 
 ## Configuration Audit
 
 From `gui_settings.json`:
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (MoE architecture)
+- Model: qwen2.5:32b-instruct-q8_0 (Dense architecture - slower but reliable)
 - All agents using same model (structure, characters, summaries, pronunciation)
 - Context length: 65536 tokens
+- **Note:** qwen3-next:80b MoE model attempted in attempt 3 but incompatible with pipeline
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
+**Reason:** Model configuration reverted to known-working qwen2.5:32b - re-run analysis to get scoreable results
 
 ## Attempt 3 Results: FAILED - Model Compatibility Issue
 

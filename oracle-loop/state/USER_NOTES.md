@@ -1,10 +1,56 @@
 # User Notes for Oracle Loop
 
-## Current Guidance (Updated 2026-01-30 - JSON Model + Non-Human Entity Fix)
+## Current Guidance (Updated 2026-01-30 - Wrapped JSON Prompts + MoE Model)
 
-### JSON-Capable Model Fallback (NEW)
+### Wrapped JSON Object Prompts (NEW - 2026-01-30)
 
-For models that don't support `json_mode` properly (e.g., `qwen3-next`), a user-configurable fallback is now available.
+Changed prompt format from raw arrays to wrapped objects for consistent JSON output across models.
+
+**Problem:** When prompts requested raw JSON arrays like `[{...}]`, some models (especially MoE models) would return single objects or malformed output.
+
+**Solution:** Request wrapped objects explicitly:
+```
+Output format - return a JSON object with a "characters" array:
+{"characters": [{"canonical_name": "Name", "role": "protagonist", ...}]}
+```
+
+**Testing results:**
+| Model | Raw Array Prompt | Wrapped Object Prompt |
+|-------|------------------|----------------------|
+| qwen2.5:14b | Works | Works |
+| qwen2.5:32b | Works | Works |
+| qwen3-next:80b-a3b-instruct | Single object (broken) | Works |
+| nemotron-3-nano:30b | Works | Works |
+| gpt-oss:20b | Malformed | Malformed |
+| gpt-oss:120b | Malformed | Malformed |
+
+**Files modified:**
+- `src/pipeline/character_extraction_v2/main_cast.py`:
+  - `MAIN_CAST_PROMPT` (lines 47-72) - wrapped object format
+  - `CHARACTER_IDENTIFICATION_PROMPT` (lines 100-115) - wrapped object format
+  - System prompt (line 478) - updated for JSON compatibility
+
+**Code already handles wrapped format:** The `_parse_pass1_results()` and `_parse_profiles()` methods already unwrap `{"characters": [...]}` format.
+
+---
+
+### Oracle Loop Model Configuration (Updated 2026-01-30)
+
+Now using `qwen3-next:80b-a3b-instruct-q8_0` (MoE model) for all phases:
+- **Why:** ~3x faster than dense qwen2.5:32b on DGX Spark (MoE activates ~24B params per forward pass)
+- **JSON compatibility:** Works with wrapped object prompts (updated above)
+- **Config file:** `~/.config/audiobook_prep/gui_settings.json`
+
+| Model | Architecture | Speed on DGX Spark |
+|-------|--------------|-------------------|
+| qwen2.5:32b | Dense (32B active) | Slow (~3+ hours for Gatsby) |
+| qwen3-next:80b | MoE (~24B active) | ~3x faster |
+
+---
+
+### JSON-Capable Model Fallback (Available)
+
+For models that don't support `json_mode` properly, a user-configurable fallback is available.
 
 **CLI Usage:**
 ```bash
@@ -27,9 +73,9 @@ audiobook-prep analyze book.pdf --json-model qwen2.5:32b-instruct-q8_0
 
 ---
 
-### Non-Human Entity Extraction (NEW)
+### Non-Human Entity Extraction
 
-The summarizer prompts now include non-human entity examples to help extract AI, monsters, and supernatural entities with agency.
+The summarizer prompts include non-human entity examples to help extract AI, monsters, and supernatural entities with agency.
 
 **Change in `src/pipeline/chapter_summary/summarizer.py`:**
 ```python
@@ -42,15 +88,6 @@ in active_characters if they act with agency in the chapter."
 ```
 
 **Impact:** For "I Have No Mouth, and I Must Scream", AM (the sentient supercomputer) now appears in `characters_present`.
-
----
-
-### Oracle Loop Model Configuration (Updated 2026-01-30)
-
-The oracle loop is now configured to use `qwen2.5:32b-instruct-q8_0` as the primary model:
-- **Why:** This model properly supports `json_mode` for structured output
-- **Previous:** `qwen3-next:80b-a3b-instruct-q8_0` (JSON incompatible, caused main cast extraction failures)
-- **Config file:** `~/.config/audiobook_prep/gui_settings.json`
 
 ---
 

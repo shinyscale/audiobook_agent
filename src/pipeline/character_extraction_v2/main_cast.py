@@ -46,7 +46,7 @@ class MainCastProfile:
 
 MAIN_CAST_PROMPT = """You are extracting the MAIN CAST from chapter summaries.
 
-Return JSON ONLY.
+Return JSON ONLY. Do not include any explanatory text.
 
 Task:
 - Identify 10–15 plot-central entities (people/creatures AND allowed symbolic objects/forces).
@@ -54,14 +54,18 @@ Task:
 - Do not invent names not supported by the summaries.
 - Provide canonical_name and aliases/variants used in summaries.
 
-Output JSON array, each item:
+Output format - return a JSON object with a "characters" array:
 {
-  "canonical_name": string,
-  "aliases": [string],
-  "role": "protagonist"|"antagonist"|"supporting"|"minor",
-  "description": string,
-  "is_unnamed": boolean,
-  "is_symbolic": boolean
+  "characters": [
+    {
+      "canonical_name": "Name",
+      "aliases": ["Alias1", "Alias2"],
+      "role": "protagonist",
+      "description": "Brief description",
+      "is_unnamed": false,
+      "is_symbolic": false
+    }
+  ]
 }
 
 CHAPTER SUMMARIES:
@@ -97,20 +101,22 @@ CHAPTER SUMMARIES:
 {plot_summary_section}
 
 OUTPUT FORMAT:
-You MUST return ONLY a JSON array (not an object with an "error" or "message" field).
-Return the array directly, with each character as an object:
+You MUST return ONLY valid JSON (not an object with an "error" or "message" field).
+Return a JSON object with a "characters" array:
 
-[
-  {{
-    "canonical_name": "Full Name or Descriptive Handle",
-    "role": "protagonist|antagonist|supporting|minor",
-    "description": "Brief description of character's role",
-    "is_unnamed": false,
-    "is_symbolic": false
-  }}
-]
+{{
+  "characters": [
+    {{
+      "canonical_name": "Full Name or Descriptive Handle",
+      "role": "protagonist|antagonist|supporting|minor",
+      "description": "Brief description of character's role",
+      "is_unnamed": false,
+      "is_symbolic": false
+    }}
+  ]
+}}
 
-Do not include explanations or reasoning. Return ONLY the JSON array above.
+Do not include explanations or reasoning. Return ONLY the JSON object above.
 
 Extract the main characters now:"""
 
@@ -474,12 +480,12 @@ class MainCastExtractor:
         if pattern_section:
             pass1_prompt = pass1_prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
-        # Use strict system prompt to enforce JSON array format
+        # Use strict system prompt to enforce JSON format
         system_prompt = (
             "You are a JSON-only assistant. "
-            "You MUST respond with ONLY a valid JSON array. "
-            "Do NOT wrap your response in any explanatory text or object wrapper. "
-            "Do NOT use fields like 'error' or 'message' - return the array directly."
+            "You MUST respond with ONLY valid JSON. "
+            "Do NOT wrap your response in any explanatory text, markdown code blocks, or additional commentary. "
+            "Do NOT use fields like 'error' or 'message' - return the requested data structure directly."
         )
 
         result, response = self.llm.query_json(pass1_prompt, system=system_prompt)
