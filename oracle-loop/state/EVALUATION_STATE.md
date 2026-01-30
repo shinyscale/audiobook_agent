@@ -3,10 +3,9 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** 6.25
+- **Phase:** awaiting_fix
+- **baseline_score:** 7.1
 - **Competitive Mode:** single
-- **External Changes Applied:** Model compatibility improvements (prompt clarification + error logging)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -15,7 +14,7 @@
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 7/10 ✗ (FAILING)
 - HTML Presentation: 9/10 ✓
-- **Overall: 6.25/10** (weighted)
+- **Overall: 7.1/10** (weighted)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -23,171 +22,180 @@
 ## Score Breakdown
 
 ### Structure Detection: 9/10 ✓
-- Single chapter correctly identified (this is a short story)
-- The warning about LLM returning dict instead of list is concerning but output is correct
-- Minor deduction for missing title extraction (shows "null" for title)
+- Single chapter correctly identified (this is a short story with no chapter divisions)
+- Title shows as "null" instead of extracted title (minor)
+- Appropriate handling for a single-chapter work
 
 ### Character Extraction: 4/10 ✗
+**ROOT CAUSE: Main cast extraction failed completely (0 from main_cast, 6 from supporting_cast)**
+
+The model `qwen3-next:80b-a3b-instruct-q8_0` returns malformed JSON (reasoning in "error" field instead of array), causing ALL main cast extraction to fail. Supporting cast is a fallback that doesn't:
+1. Extract non-human entities with agency (AM)
+2. Identify the narrator
+3. Count narrator self-references
+
 **CRITICAL failures:**
-1. **AM is missing** - The primary antagonist, a sentient supercomputer that torments the survivors, is mentioned 20+ times but not in the character list
-2. **Ted not marked as narrator** - `is_narrator: false` but Ted IS the first-person narrator
-3. **Ted mention count wrong** - Shows 5 mentions but as narrator using "I", Ted is referenced hundreds of times
-4. **"Jesus" is false positive** - The 4 mentions are all exclamations ("Oh, Jesus sweet Jesus..."), not a character
+1. **AM is completely missing** - The sentient supercomputer antagonist has agency (tortures, speaks, transforms), is mentioned 20+ times in summary, yet not in character list
+2. **Ted not marked as narrator** - `is_narrator: false` but Ted IS the first-person narrator using "I" throughout
+3. **Ted mention count is 5, should be hundreds** - Narrator self-references not counted
+
+**HIGH failures:**
+4. **"Jesus" is a false positive** - All 4 mentions are exclamations ("Oh, Jesus sweet Jesus, if there ever was a Jesus..."), not a character
 
 ### Character Profiles: 6/10 ✗
-- Good: Benny's mutilations well-captured, voice tics present
-- Good: Relationships exist for most characters
-- Bad: `physical_description` field is null/unknown for ALL characters despite text having details
-- Bad: Ted/Ellen relationship labeled "spouse" but they're not married (survival/sexual relationship)
-- Bad: Some relationship labels backwards (Benny as Ted's "victim" vs Ted as Benny's killer)
+- Good: Benny's appearance well-captured (blinded, semi-simian, raw flesh)
+- Good: Gorrister's distinguishing features (lantern jaw)
+- Good: Ellen's distinguishing features (ebony features, limp)
+- Good: Relationships exist for 5/6 characters
+- **BAD:** `physical_description` is null for ALL characters despite data existing in `appearance.summary`
+- **BAD:** Ted/Ellen labeled "spouse" (they're not married - survival/sexual relationship)
+- **BAD:** Gorrister->Benny labeled "victim" (inverted - Gorrister is Benny's victim, not vice versa)
 
 ### Chapter Summaries: 9/10 ✓
 - Excellent capture of plot: torment, ice caverns, mercy killings, transformation
-- Correctly identifies all five survivors and AM
-- Appropriate length and detail for narrator prep
-- Minor: Theme extraction ("identity, ambition, loss") is generic
+- Correctly mentions AM as antagonist: "guided by the malevolent AI AM, which controls time, environment, and their bodies"
+- All 5 survivors named
+- Accurate length and narrator-useful detail
 
 ### Pronunciation Guide: 7/10 ✗
-- Good: Main character names have IPA (Gorrister, Nimdok)
-- Good: 50/56 entries have IPA
-- Bad: "Jesus" flagged (common word, false positive)
-- Bad: "hermiene" appears to be OCR error in source, not real word
-- Bad: "wind" flagged with null IPA (common word, homograph but should have both pronunciations)
-- Missing: "AM" pronunciation (should be spelled out "A-M" not "am")
+- 50/56 entries have IPA (89%)
+- Character names (Gorrister, Nimdok) correctly flagged with IPA
+- **BAD:** "Jesus" flagged as proper noun (common exclamation in context - false positive)
+- **BAD:** 6 homographs (wind, read, lead, does, close, subject) have null IPA - should have BOTH pronunciations
+- **BAD:** "AM" not in pronunciation guide - acronym should be spelled "A-M"
 
 ### HTML Presentation: 9/10 ✓
-- Navigation functional
-- Character profiles well-organized with expandable evidence
+- Navigation functional with tab system
+- Character profiles with expandable evidence
 - Performance metrics displayed
-- Minor: Could benefit from highlighting narrator status
+- Well-organized layout
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **AM missing from character list**
-   - Problem: The sentient supercomputer AM is the primary antagonist, mentioned 20+ times in summaries/evidence
-   - Evidence: Summary says "tormented by AM, a sentient, malevolent supercomputer" - it has agency, speaks, and transforms characters
-   - Location: `src/agents/characters.py` or character extraction V2 pipeline
-   - Fix: AM should be extracted as a character. It has agency (tortures, speaks, transforms). Per USER_NOTES: symbolic objects/forces with agency ARE valid extractions. AM is far more than symbolic - it's the central antagonist.
-   - ID pattern: Would need to come from main_cast or supporting detection
+1. **Main cast extraction completely failing - MODEL COMPATIBILITY**
+   - Problem: Model `qwen3-next:80b-a3b-instruct-q8_0` ignores JSON schema, returns reasoning in "error" field
+   - Evidence: 0 characters from main_cast (IDs), all 6 from supporting_cast (supporting_*)
+   - Evidence: Profiling shows only 2 LLM calls for character extraction (12.9s) - way too fast
+   - Location: Model configuration issue, not code issue
+   - **Fix: Switch to a JSON-compliant model (llama3.2, qwen2.5:72b, gpt-4o-mini)**
+   - This is the root cause of issues #2-4
 
-2. **Ted not marked as narrator**
-   - Problem: `is_narrator: false` but Ted is the first-person narrator using "I" throughout
-   - Evidence: All quotes in Ted's evidence are from his POV: "I gave in easily", "I smiled at her"
-   - Location: Narrator detection in `src/agents/characters.py` or summary agent
-   - Fix: First-person narrator detection should identify Ted as narrator
+2. **AM missing from character list**
+   - Problem: The sentient supercomputer AM is the primary antagonist with agency
+   - Evidence: Summary says "the malevolent AI AM, which controls time, environment, and their bodies"
+   - Evidence: AM tortures, speaks ("AM said it with the survey..."), transforms Ted at the end
+   - Blocked by: Issue #1 (main_cast extraction failure)
+   - ID pattern: Would need main_cast or supporting cast detection for non-human entities
 
-3. **Ted mention count severely undercounted (5 vs hundreds)**
-   - Problem: As narrator, Ted's "I" references aren't being counted
-   - Evidence: The text is 5,789 words, first-person throughout, but Ted shows only 5 mentions
-   - Location: Mention counting logic in character extraction
-   - Fix: For first-person narratives, the narrator's self-references should be counted or noted
+3. **Ted not marked as narrator**
+   - Problem: `is_narrator: false` but Ted IS the first-person narrator
+   - Evidence: All evidence quotes are from his POV: "I gave in easily", "I smiled at her"
+   - Blocked by: Issue #1 (narrator detection is in main_cast pipeline)
+   - Location: `src/agents/characters.py` narrator detection
+
+4. **Ted mention count severely wrong (5 vs hundreds)**
+   - Problem: As first-person narrator, Ted's "I" references aren't counted
+   - Evidence: 5,789 word story, first-person throughout, only 5 mentions recorded
+   - Blocked by: Issue #1 (mention counting for narrators)
 
 ### HIGH
 
-4. **"Jesus" is a hallucinated character**
-   - Problem: Listed as character with 4 mentions, but all are exclamations
-   - Evidence: "Oh, Jesus sweet Jesus, if there ever was a Jesus and if there is a God, please please..."
-   - Location: Character extraction filtering
-   - Fix: Exclamations and religious invocations should be filtered. Pattern: "Oh [name]", "[name], if there ever was a [name]"
+5. **"Jesus" is a hallucinated character**
+   - Problem: Listed as character with 4 mentions, but all are religious exclamations
+   - Evidence: "Oh, Jesus sweet Jesus, if there ever was a Jesus and if there is a God..."
    - ID: `supporting_5` - came from supporting cast detection
+   - Location: Supporting cast extraction filtering
+   - Fix: Add exclamation/invocation filtering (pattern: "Oh [name]", "if there [ever] was a [name]")
 
-5. **physical_description null for all characters**
-   - Problem: All 6 characters have `physical_description: null` or "unknown"
-   - Evidence: Text HAS descriptions (Benny's blindness, Ellen's limp) captured in `appearance.distinguishing_features` but not `physical_description`
-   - Location: Profile generation - `physical_description` vs `appearance.summary` field mapping
-   - Fix: Ensure `physical_description` is populated from appearance data
+6. **physical_description null for all characters**
+   - Problem: All 6 characters have `physical_description: null`
+   - Evidence: Data EXISTS in `appearance.summary` (e.g., Benny: "Once handsome, now physically ruined...")
+   - Location: Profile generation field mapping
+   - Fix: Populate `physical_description` from `appearance.summary` in profile generation
 
 ### MEDIUM
 
-6. **Relationship label errors**
-   - Problem: Ted/Ellen as "spouse" incorrect (they're not married); Benny listed as Ted's "victim of mercy killing" is perspective-inverted
-   - Evidence: Text says Ellen "took me twice out of turn" (sexual), no marriage mentioned; Ted kills Benny (Ted is killer, Benny is victim)
-   - Location: Relationship extraction/labeling in profiles
-   - Fix: More nuanced relationship labels; verify subject/object direction
+7. **Relationship label errors**
+   - Problem: Ted/Ellen as "spouse" incorrect (survival/sexual, not married)
+   - Problem: Gorrister->Benny as "victim" is inverted (Benny eats Gorrister)
+   - Location: Relationship extraction in profile generation
+   - Fix: More precise relationship labels; verify subject/object direction
 
-7. **"hermiene" pronunciation entry**
-   - Problem: This appears to be OCR error or typo in source text, not a real word
-   - Evidence: No standard English word "hermiene" exists
-   - Location: Pronunciation detection filtering
-   - Fix: Should be flagged as potential OCR error or validated against dictionary
+8. **Homographs have null IPA**
+   - Problem: wind, read, lead, does, close, subject all have `ipa: null`
+   - Evidence: These need BOTH pronunciations (e.g., wind /wɪnd/ vs /waɪnd/)
+   - Location: Pronunciation IPA generation
+   - Fix: Detect homographs and provide both pronunciations with context
 
-8. **"AM" missing from pronunciation guide**
-   - Problem: AM (the computer) should be flagged for pronunciation as "A-M" (spelled out), not "am"
+9. **"AM" missing from pronunciation guide**
+   - Problem: The acronym "AM" should be flagged for pronunciation as "A-M"
    - Evidence: It's an acronym for "Allied Mastercomputer"
-   - Location: Pronunciation detection for acronyms
-   - Fix: Detect 2-letter all-caps strings as potential acronyms needing pronunciation
+   - Location: Pronunciation detection for 2-letter all-caps strings
+   - Fix: Add acronym detection
+
+### LOW
+
+10. **"Jesus" in pronunciation guide** (minor false positive)
+    - IPA is correct (/ˈdʒiː.zəs/), but common word shouldn't be flagged
+    - Low priority since IPA is accurate
 
 ## Fix History
 
-### Attempt 1: Model Compatibility Issue Identified
+### Attempt 1 (Pre-Analysis): Model Compatibility Identified
 
-**Root Cause:** The model `qwen3-next:80b-a3b-instruct-q8_0` does not properly follow JSON schema instructions. In Pass 1 of main cast extraction, it returns `{"error": "reasoning text..."}` instead of the expected JSON array, causing ALL main cast extraction to fail.
-
-**Evidence:**
-- Diagnostic script showed LLM correctly identified all 6 characters (Ted, Ellen, Nimdok, Gorrister, Benny, AM)
-- But returned them in an "error" field with reasoning text instead of structured array
-- This violated the expected schema, causing `_parse_pass1_results()` to return empty list
-- Cascade: No main cast → supporting cast only → no narrator detection → Ted mention count wrong
+**Issue:** Model `qwen3-next:80b-a3b-instruct-q8_0` violates JSON schema in character extraction
 
 **Fix Applied:**
-- Improved prompt clarity: Changed "10-15 characters" to "Typically 10-15 characters, but extract ALL significant characters regardless of count"
-- Added strict system prompt: "You MUST respond with ONLY a valid JSON array"
-- Added better error logging when model returns wrong schema
-- **Files modified:** `src/pipeline/character_extraction_v2/main_cast.py`
+- Improved prompt clarity in `main_cast.py`
+- Added stricter system prompt for JSON
+- Added error logging
 
-**Result:** INSUFFICIENT - The model continues to ignore format instructions
+**Result:** INSUFFICIENT - Model still ignores format instructions. This is a model limitation, not a prompt issue.
 
-**Next Action:** This is a **MODEL CONFIGURATION issue**, not a code issue. The qwen3-next:80b-a3b-instruct-q8_0 model is not compatible with structured JSON output for this task. Recommend re-running with a compatible model (llama3.2, qwen2.5:72b, or gpt-4o-mini).
+**Recommendation:** This is a **MODEL CONFIGURATION issue**. The qwen3-next model is not compatible with structured JSON output. Options:
+1. Switch to a compatible model (llama3.2, qwen2.5:72b, gpt-4o-mini)
+2. Add retry with fallback model when JSON parsing fails
+3. Add structured output enforcement at provider level
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Model JSON schema violation | `src/pipeline/character_extraction_v2/main_cast.py` | Identified as model incompatibility |
+| 1 | Model JSON schema violation | `src/pipeline/character_extraction_v2/main_cast.py` | No change - model limitation |
 
 ## Configuration Notes
 
-- Model: qwen3-next:80b-a3b-instruct-q8_0 - **INCOMPATIBLE** with character extraction
-- Issue: Model returns reasoning in "error" field instead of following JSON array schema
-- Recommendation: Switch to llama3.2, qwen2.5:72b, or gpt-4o-mini
-- No LLM retries (0 across all stages) - good
-- Character extraction took only 20s - too fast because it returned 0 results
-- Profile generation took 7m38s (45% of total) - normal
+- **Model:** qwen3-next:80b-a3b-instruct-q8_0 - **INCOMPATIBLE** with character extraction JSON schema
+- **Issue:** Returns reasoning in "error" field instead of JSON array
+- **Recommendation:** Switch model or add fallback
+- LLM retries: 0 (no retry on schema failure)
+- Character extraction: 12.9s (too fast - no results)
+- Profile generation: 7m11s (43.7% of total) - normal
 
-## Output Files (Attempt 1, Iteration 2)
+## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Completed: 2026-01-29 19:47 (16m 24s runtime)
+- Completed: 2026-01-29 (16m 24s runtime)
 
 ## Pipeline Execution Summary
 - **Total time:** 16m 24s
 - **Total LLM calls:** 76
 - **Total tokens:** 76,542
-- **LLM retries:** 0
 - **Chapters found:** 1
-- **Characters extracted:** 6 (Benny, Ellen, Gorrister, Nimdok, Ted, +1)
+- **Characters extracted:** 6 (all from supporting_cast)
 - **Pronunciation flags:** 56
 
-### Stage Performance
-- Chapter Detection: 1m0s (6 LLM calls) - 1 chapter with confidence 0H/1M/0L
-- Chapter Summaries: 2m0s (0 LLM calls - uses competitive consensus) - 1 summary with confidence 1H/0M/0L
-- Character Extraction: 12.9s (2 LLM calls) - 6 characters with confidence 0H/6M/0L
-- Character Profiles: 7m11s (15 LLM calls) - 5 profiles with confidence 5H/0M/0L
-- Pronunciation Guide: 5m11s (53 LLM calls) - 56 flags with confidence 15H/41M/0L
-- **Bottleneck:** Character Profiles (43.7% of total time)
-
-### Known Issues from Pipeline
-- **Model compatibility warnings:**
-  - LLM marker proposer returned dict instead of list (structure detection)
-  - Pass 1 LLM returned reasoning in 'error' field instead of array (character extraction)
-  - Ollama json_mode validation errors (pronunciation guide)
-- Model `qwen3-next:80b-a3b-instruct-q8_0` continues to show JSON schema violations
-- Pipeline completed despite errors by falling back to conservative defaults
-
 ## Next Action
-Proceed to EVALUATE phase to score the output against ground truth.
+
+The root cause is **model incompatibility**, not code issues. The fix phase should:
+
+1. **Primary Fix:** Change the default model for character extraction to a JSON-compliant model OR
+2. **Alternative:** Add model fallback logic when main_cast extraction returns empty
+3. After model fix, run analysis again to verify AM extraction, narrator detection, mention counting
+
+**DO NOT** attempt prompt engineering fixes - the model fundamentally ignores JSON format instructions.
 
 ## Literary Reference
 
