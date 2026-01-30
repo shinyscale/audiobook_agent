@@ -3,10 +3,10 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Model:** qwen3-next:80b-a3b-instruct-q8_0 (MoE, ~3x faster than qwen2.5:32b)
-- **Competitive Mode:** single
+- **Competitive Mode:** single (all stages enabled)
 
 ## Latest Scores (Attempt 2)
 - Structure Detection: 10/10
@@ -170,3 +170,9 @@ LLM marker proposer returned non-list: <class 'dict'>
 3. **Option C (Prompt Fix):** Update prompts to handle qwen3-next's behavior
 
 **Recommendation:** Switch back to qwen2.5:32b for reliability, then investigate qwen3-next separately
+
+**Re-run Confirmation (2026-01-30):**
+- Analysis re-run with same configuration immediately failed with identical error
+- qwen3-next:80b-a3b-instruct-q8_0 consistently returns `{"error": "No explicit chapter or section markers..."}` instead of JSON arrays
+- Model is incompatible with current structure detection pipeline
+- Process stopped to avoid wasting compute time
