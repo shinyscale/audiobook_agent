@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 - **External Changes Applied:** Model compatibility improvements (prompt clarification + error logging)
@@ -156,8 +156,38 @@
 - Character extraction took only 20s - too fast because it returned 0 results
 - Profile generation took 7m38s (45% of total) - normal
 
+## Output Files (Attempt 1, Iteration 2)
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+- Completed: 2026-01-29 19:47 (16m 24s runtime)
+
+## Pipeline Execution Summary
+- **Total time:** 16m 24s
+- **Total LLM calls:** 76
+- **Total tokens:** 76,542
+- **LLM retries:** 0
+- **Chapters found:** 1
+- **Characters extracted:** 6 (Benny, Ellen, Gorrister, Nimdok, Ted, +1)
+- **Pronunciation flags:** 56
+
+### Stage Performance
+- Chapter Detection: 1m0s (6 LLM calls) - 1 chapter with confidence 0H/1M/0L
+- Chapter Summaries: 2m0s (0 LLM calls - uses competitive consensus) - 1 summary with confidence 1H/0M/0L
+- Character Extraction: 12.9s (2 LLM calls) - 6 characters with confidence 0H/6M/0L
+- Character Profiles: 7m11s (15 LLM calls) - 5 profiles with confidence 5H/0M/0L
+- Pronunciation Guide: 5m11s (53 LLM calls) - 56 flags with confidence 15H/41M/0L
+- **Bottleneck:** Character Profiles (43.7% of total time)
+
+### Known Issues from Pipeline
+- **Model compatibility warnings:**
+  - LLM marker proposer returned dict instead of list (structure detection)
+  - Pass 1 LLM returned reasoning in 'error' field instead of array (character extraction)
+  - Ollama json_mode validation errors (pronunciation guide)
+- Model `qwen3-next:80b-a3b-instruct-q8_0` continues to show JSON schema violations
+- Pipeline completed despite errors by falling back to conservative defaults
+
 ## Next Action
-**EXTERNAL CONFIGURATION CHANGE REQUIRED:** Re-run analysis with a compatible model. This is not a code fix - it's a model selection issue.
+Proceed to EVALUATE phase to score the output against ground truth.
 
 ## Literary Reference
 
