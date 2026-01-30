@@ -344,6 +344,12 @@ class MainCastExtractor:
             profiles = self._extract_single_pass(summaries_text, plot_section, pattern_hints)
 
         if not profiles:
+            logger.error(
+                f"Main cast extraction returned 0 profiles! This means ALL characters will be extracted via "
+                f"NER as supporting cast, leading to fragmentation. Check logs above for LLM failure details. "
+                f"Number of summaries provided: {len(chapter_summaries)}, First summary length: "
+                f"{len(chapter_summaries[0]) if chapter_summaries else 0} chars"
+            )
             return []
 
         # region agent log
@@ -478,6 +484,14 @@ class MainCastExtractor:
 
         result, response = self.llm.query_json(pass1_prompt, system=system_prompt)
 
+        # DIAGNOSTIC: Log raw response if extraction fails
+        if not response.success or result is None:
+            logger.error(
+                f"Pass 1 LLM extraction failed. Model: {self.llm.config.model}, "
+                f"Success: {response.success}, Result type: {type(result)}, "
+                f"Raw response content (first 500 chars): {response.content[:500] if hasattr(response, 'content') else 'N/A'}"
+            )
+
         # Check if primary model failed JSON and we have a fallback
         primary_failed = (
             not response.success
@@ -491,6 +505,14 @@ class MainCastExtractor:
                 f"retrying with JSON-capable model '{self.json_llm.config.model}'"
             )
             result, response = self.json_llm.query_json(pass1_prompt, system=system_prompt)
+
+            # DIAGNOSTIC: Log fallback result
+            if not response.success or result is None:
+                logger.error(
+                    f"Pass 1 JSON fallback also failed. Model: {self.json_llm.config.model}, "
+                    f"Success: {response.success}, Result type: {type(result)}, "
+                    f"Raw response content (first 500 chars): {response.content[:500] if hasattr(response, 'content') else 'N/A'}"
+                )
 
         if not response.success:
             logger.error(f"Pass 1 LLM query failed: {response.error}")

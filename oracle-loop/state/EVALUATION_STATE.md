@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -80,11 +80,25 @@
 - **Fix:** Added missing `None` for relationships parameter
 - **Result:** Pipeline now completes successfully
 
+### Attempt 2 → 3: Added diagnostic logging for main cast extraction failure
+- **Root cause:** Main cast extraction returned 0 profiles (all characters extracted via NER as supporting cast)
+  - Data investigation: ALL 28 characters have `supporting_*` IDs (including Daisy:179 mentions, Tom:170, Gatsby/James Gatz:275)
+  - No `main_cast_*` IDs found in output
+  - Summaries exist (9 chapters, all populated) - data flow intact
+  - Likely cause: LLM JSON parsing failure or error response (returns empty [])
+- **Fix:** Added diagnostic logging to capture raw LLM response when extraction fails
+  - `src/pipeline/character_extraction_v2/main_cast.py:479-506` - logs model, success status, response content
+  - Logs at BOTH primary and fallback model attempts
+  - Error message clarifies impact: "ALL characters will be extracted via NER as supporting cast, leading to fragmentation"
+- **Result:** Next analysis will reveal exact LLM failure (awaiting re-run)
+- **Smoke test:** Not applicable - diagnostic only, requires re-run to see output
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Tuple unpacking crash | src/analyzer.py:2657 | Fixed - pipeline runs |
+| 2 | Main cast extraction failure (needs diagnosis) | src/pipeline/character_extraction_v2/main_cast.py:479-506, 339-347 | Diagnostic logging added |
 
 ## Configuration Audit
 
@@ -94,16 +108,20 @@ From `analysis.json._config`:
 - Model: qwen2.5:32b-instruct-q8_0 (JSON-capable)
 
 Potential config issues:
-- None identified - model and JSON mode working correctly
+- Main cast extraction silently failed (0 profiles extracted despite valid summaries)
+- Next run will reveal LLM failure details via new diagnostic logging
 
 ## Pipeline Notes
 
 From `_profiling`:
+- Character Extraction stage ran (57s, 3 LLM calls) but produced 0 main cast characters
+- All 28 characters have `supporting_*` IDs (NER-based extraction)
 - Bottleneck: Pronunciation guide (52.8% of runtime)
 - Non-fatal warnings: LLM marker proposer returned dict instead of list (20 occurrences)
 - `pipeline_char_map` undefined for Lucille, Rosy, Owl-Eyes (minor)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Character fragmentation (Critical #1) - merge first-name and full-name entries
-2. Missing physical descriptions (Critical #2) - debug profiling pipeline
+**Phase:** awaiting_analysis
+
+Re-run analysis to capture diagnostic logs that reveal why main cast extraction failed.
+Once logs captured, return to fix phase with actual root cause data.
