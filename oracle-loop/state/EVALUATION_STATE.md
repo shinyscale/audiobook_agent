@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 5
-- **Phase:** running_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 
@@ -132,13 +132,24 @@ AM was added to the character list via F6 reconciliation (hence the hash ID `25e
 | Ted | "unknown" (acceptable) | ✗ Mischaracterized | Partial | Generic |
 | AM | null (MISSING) | null (MISSING) | null (MISSING) | empty (MISSING) |
 
-## Analysis in Progress (Attempt 5)
-Started: 2026-01-30
-Command: audiobook-prep analyze with --competitive-all flag
-Expected completion: ~30-60 minutes
+## Output Files (Attempt 5)
+- HTML: ../output/i_have_no_mouth/report.html (164KB)
+- JSON: ../output/i_have_no_mouth/analysis.json (69KB)
+
+## Pipeline Stats (Attempt 5)
+- Total time: 41m 27s
+- LLM calls: 80
+- Tokens: 80,400
+- Bottleneck: Character Profiles (45.3% of time)
+- Characters extracted: 6 (Benny, Ellen, Gorrister, Nimdok, Ted, AM)
+- Confidence: 6 high, 0 medium, 0 low
+
+## Pipeline Notes
+- Structure detection: Correctly identified as single chapter
+- Character Profiles: AM generated profile (F6 eligibility fix worked!)
+- One warning: "Exception generating profile for 'AM' (attempt 1/3): name 'pipeline_char_map' is not defined" but retried successfully
+- Competitive consensus enabled on all stages (characters, structure, summaries)
 
 Expected improvement:
-- AM should now receive profile data (appearance, personality, voice_guidance)
+- AM should now have profile data (appearance, personality, voice_guidance)
 - Character Profiles score should improve from 7/10 to 8+/10
-
-The F6 eligibility fix has been applied (src/analyzer.py:1786-1798), which should allow AM (F6-reconciled character with hash ID) to pass through the profiling pipeline.
