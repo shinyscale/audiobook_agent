@@ -2416,8 +2416,32 @@ class CharacterAgent(Agent):
                 if supp_idx in supporting_to_remove:
                     break
 
-            # Only process single-word names (potential last names)
+            # NEW: Check for fuzzy full-name match before single-word processing
+            # Handles spelling variants like "Meyer Wolfsheim" vs "Meyer Wolfshiem"
             if " " in supp_name:
+                # Multi-word supporting name - check for fuzzy match with main cast full names
+                for main_idx, main_char in enumerate(main_cast):
+                    main_name = main_char.canonical_name.strip()
+
+                    # Check for fuzzy full-name match (85% threshold)
+                    if names_similar(supp_name, main_name):
+                        # Found a fuzzy match - merge supporting into main
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging full-name spelling variant '{supp_name}' "
+                                f"({supp_char.mention_count} mentions) → "
+                                f"'{main_char.canonical_name}' as alias (fuzzy full-name match)"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+                # If we processed this as a full-name variant, skip single-word processing
+                if supp_idx in supporting_to_remove:
+                    continue
+
+                # Otherwise skip (multi-word names not handled by last-name logic)
                 continue
 
             # Check if this could be a last name of any main cast character

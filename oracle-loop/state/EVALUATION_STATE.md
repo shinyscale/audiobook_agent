@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Latest Scores (Attempt 3)
@@ -100,6 +100,7 @@ Do NOT extract:
 | 1 | Tuple unpacking crash | src/analyzer.py:2657 | Fixed |
 | 2 | Main cast extraction failure | src/pipeline/character_extraction_v2/main_cast.py | Diagnostic logging |
 | 3 | JSON format for qwen3-next | src/pipeline/character_extraction_v2/main_cast.py | Wrapped object prompts - MAJOR IMPROVEMENT (+1.15) |
+| 4 | Wolfsheim/Wolfshiem spelling variants | src/agents/characters.py:2419-2445 | Added fuzzy full-name matching for cross-pipeline merge |
 
 ## Score History
 
@@ -115,8 +116,26 @@ Model: qwen3-next:80b-a3b-instruct-q8_0 (user-specified, DO NOT CHANGE)
 Competitive Mode: single
 Output files regenerated 2026-01-30 15:27
 
+## Fix Applied (Attempt 4)
+
+### Fixed: Meyer Wolfsheim/Wolfshiem Spelling Variant Merge
+
+**Root cause:** `src/agents/characters.py:_merge_lastname_aliases()` line 2420 skipped multi-word supporting cast names, preventing fuzzy matching between "Meyer Wolfsheim" (main cast) and "Meyer Wolfshiem" (supporting cast).
+
+**Fix:** Added fuzzy full-name matching (lines 2419-2445) BEFORE single-word processing. Now checks all multi-word supporting names for 85% similarity with main cast full names.
+
+**Expected impact:** "Meyer Wolfshiem" (supporting_8, 6 mentions) will be merged as an alias of "Meyer Wolfsheim" (main_cast_7, 32 mentions), eliminating the duplicate entry.
+
+**Smoke test:** PASS - `names_similar("Meyer Wolfsheim", "Meyer Wolfshiem")` returns True (0.933 similarity).
+
+**Universality:** This fix helps ANY book with inconsistent character name spelling (e.g., transliteration variants, OCR errors, authorial inconsistency).
+
+### Deferred: Physical Appearance Extraction
+
+**Status:** Root cause not yet identified with high confidence. Summaries contain appearance information ("warm smile", "white suit"), but profiles aren't extracting it for most characters (Gatsby, Daisy, Jordan). Tom Buchanan's profile works correctly, indicating the system CAN extract appearance data.
+
+**Next steps:** Requires deeper investigation into passage gathering and evidence extraction. Deferred to next iteration.
+
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. Meyer Wolfsheim/Wolfshiem spelling variant merge (to reach Character Extraction ≥ 8.0)
-2. Physical appearance extraction improvement (to reach Character Profiles ≥ 8.0)
+Set phase to `awaiting_analysis` and re-run analysis to verify Wolfsheim merge fix.
