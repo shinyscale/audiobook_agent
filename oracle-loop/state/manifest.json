@@ -74,9 +74,10 @@
     {
       "name": "john_g",
       "file": "Test_Texts/John G - Katherine Mayo.txt",
-      "complete": false,
-      "attempts": 1,
-      "last_score": 7.35,
+      "complete": true,
+      "attempts": 2,
+      "last_score": 8.90,
+      "final_score": 8.90,
       "baseline_score": 7.35
     },
     {
