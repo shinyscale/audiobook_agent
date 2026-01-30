@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** flowers_for_algernon
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** blocked
 - **baseline_score:** null
 - **Competitive Mode:** single
 
@@ -15,22 +15,45 @@
 |---------|-------|---------------------|-------|
 | (none yet) | - | - | - |
 
-## Pipeline Error
+## Blocking Issue: OCR Tools Not Installed
 
-**Issue:** PDF contains only images, no extractable text (0 words extracted)
+**Problem:** The PDF `Test_Texts/Flowers_For_Algernon.pdf` is image-based (scanned) and contains no extractable text.
 
-**Evidence:**
+**Root Cause:** The system has `--pdf-ocr` functionality implemented, but neither OCR tool is installed:
+- `ocrmypdf` (recommended) - NOT FOUND
+- `pytesseract + pdf2image` - NOT INSTALLED
+
+**Evidence from Attempt 1:**
 - All 23 pages showed "No text extracted (contains images, may need OCR)"
 - Text extraction rate: 0%
 - Result: 1 chapter, 0 characters, 0 pronunciations
 
-**Required Action:**
-The PDF `Test_Texts/Flowers_For_Algernon.pdf` is image-based and requires OCR. The system suggests using `--pdf-ocr` flag.
+**Solutions (User Action Required):**
 
-**Options:**
-1. Re-run analysis with `--pdf-ocr` flag (if OCR support is implemented)
-2. Convert PDF to OCR-processed text manually
-3. Find an alternate version of the text with embedded text layer
+### Option 1: Install OCR Tools (Recommended)
+```bash
+# Install ocrmypdf (best quality, recommended)
+sudo apt-get install ocrmypdf
+
+# OR install pytesseract alternative
+pip install pytesseract pdf2image
+sudo apt-get install tesseract-ocr poppler-utils
+```
+
+Then re-run with:
+```bash
+audiobook-prep analyze Test_Texts/Flowers_For_Algernon.pdf --pdf-ocr
+```
+
+### Option 2: Provide Text-Extractable Version
+Replace `Test_Texts/Flowers_For_Algernon.pdf` with:
+- A PDF with embedded text layer
+- An EPUB file
+- A TXT file
+- A DOCX file
+
+### Option 3: Skip This Text
+Move to a different test text that has extractable text.
 
 ## Output Files (Attempt 1 - Failed)
 - HTML: ../output/flowers_for_algernon/report.html
