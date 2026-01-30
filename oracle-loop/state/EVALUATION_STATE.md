@@ -5,19 +5,49 @@
 - **Attempt:** 3
 - **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
+- **Model:** qwen3-next:80b-a3b-instruct-q8_0 (MoE, ~3x faster than qwen2.5:32b)
 - **Competitive Mode:** single
 
-## Latest Scores
-- Structure Detection: 10/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING)
-- Character Profiles: 4/10 ✗ (FAILING)
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 9/10 ✓
+## Latest Scores (Attempt 2)
+- Structure Detection: 10/10
+- Character Extraction: 5/10 (FAILING)
+- Character Profiles: 4/10 (FAILING)
+- Chapter Summaries: 9/10
+- Pronunciation Guide: 8/10
+- HTML Presentation: 9/10
 - **Overall: 7.35/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
+
+## Changes for Attempt 3
+
+### Prompt Format Fix (main_cast.py)
+Changed JSON output format from raw arrays to wrapped objects for better model compatibility:
+
+**Before (caused issues with some models):**
+```
+Output JSON array, each item:
+[{"canonical_name": ..., "role": ...}]
+```
+
+**After (consistent across all tested models):**
+```
+Output format - return a JSON object with a "characters" array:
+{"characters": [{"canonical_name": ..., "role": ...}]}
+```
+
+**Why:** Testing showed qwen3-next returns single objects when asked for raw arrays, but properly returns wrapped arrays when the prompt explicitly requests `{"characters": [...]}` format.
+
+### Model Switch: qwen2.5:32b -> qwen3-next:80b
+
+| Aspect | qwen2.5:32b | qwen3-next:80b |
+|--------|-------------|----------------|
+| Architecture | Dense | MoE (Mixture of Experts) |
+| Size | 34GB | 84GB |
+| Active params | 32B | ~24B per forward pass |
+| Speed on DGX Spark | Slow (~3+ hours) | ~3x faster |
+| JSON mode | Native support | Works with wrapped object prompts |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -75,23 +105,22 @@
 
 ## Fix History
 
-### Attempt 1 → 2: Fixed tuple unpacking error in character profiling
+### Attempt 1 -> 2: Fixed tuple unpacking error in character profiling
 - **Root cause:** `src/analyzer.py:2657` - early return missing 7th element
 - **Fix:** Added missing `None` for relationships parameter
 - **Result:** Pipeline now completes successfully
 
-### Attempt 2 → 3: Added diagnostic logging for main cast extraction failure
+### Attempt 2 -> 3: Prompt format + model switch
 - **Root cause:** Main cast extraction returned 0 profiles (all characters extracted via NER as supporting cast)
   - Data investigation: ALL 28 characters have `supporting_*` IDs (including Daisy:179 mentions, Tom:170, Gatsby/James Gatz:275)
   - No `main_cast_*` IDs found in output
   - Summaries exist (9 chapters, all populated) - data flow intact
   - Likely cause: LLM JSON parsing failure or error response (returns empty [])
-- **Fix:** Added diagnostic logging to capture raw LLM response when extraction fails
-  - `src/pipeline/character_extraction_v2/main_cast.py:479-506` - logs model, success status, response content
-  - Logs at BOTH primary and fallback model attempts
-  - Error message clarifies impact: "ALL characters will be extracted via NER as supporting cast, leading to fragmentation"
-- **Result:** Next analysis will reveal exact LLM failure (awaiting re-run)
-- **Smoke test:** Not applicable - diagnostic only, requires re-run to see output
+- **Fix:**
+  1. Updated prompts to request wrapped JSON objects `{"characters": [...]}` instead of raw arrays
+  2. Switched to qwen3-next:80b MoE model for faster analysis (~3x speed improvement)
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` - MAIN_CAST_PROMPT, CHARACTER_IDENTIFICATION_PROMPT, system_prompt
 
 ## Modification History
 
@@ -99,30 +128,39 @@
 |---------|-------|----------------|--------|
 | 1 | Tuple unpacking crash | src/analyzer.py:2657 | Fixed - pipeline runs |
 | 2 | Main cast extraction failure (needs diagnosis) | src/pipeline/character_extraction_v2/main_cast.py:479-506, 339-347 | Diagnostic logging added |
+| 3 | JSON format incompatibility | src/pipeline/character_extraction_v2/main_cast.py:47-72, 100-115, 478-483 | Wrapped object prompts |
 
 ## Configuration Audit
 
-From `analysis.json._config`:
-- Pipeline completed in 253m 13s
-- 493 LLM calls, 410,318 tokens
-- Model: qwen2.5:32b-instruct-q8_0 (JSON-capable)
-
-Potential config issues:
-- Main cast extraction silently failed (0 profiles extracted despite valid summaries)
-- Next run will reveal LLM failure details via new diagnostic logging
-
-## Pipeline Notes
-
-From `_profiling`:
-- Character Extraction stage ran (57s, 3 LLM calls) but produced 0 main cast characters
-- All 28 characters have `supporting_*` IDs (NER-based extraction)
-- Bottleneck: Pronunciation guide (52.8% of runtime)
-- Non-fatal warnings: LLM marker proposer returned dict instead of list (20 occurrences)
-- `pipeline_char_map` undefined for Lucille, Rosy, Owl-Eyes (minor)
+From `gui_settings.json`:
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (MoE architecture)
+- All agents using same model (structure, characters, summaries, pronunciation)
+- Context length: 65536 tokens
 
 ## Next Action
 **Phase:** running_analysis
 
-Analysis started at 2026-01-30 with competitive consensus enabled (single mode, all stages).
-Pipeline running in background with diagnostic logging active.
-Once complete, will transition to awaiting_evaluation phase.
+Running Gatsby attempt 3 with:
+- qwen3-next:80b-a3b-instruct-q8_0 model (MoE architecture)
+- Wrapped JSON object prompts
+- Competitive consensus: ENABLED (single mode - 3 temperatures)
+- Competitive stages: ALL (characters, structure, summaries)
+- Task ID: b064483
+
+Command:
+```
+audiobook-prep analyze ../Test_Texts/gatsby.txt \
+  --html ../output/gatsby/report.html \
+  --output ../output/gatsby/analysis.json \
+  --competitive-consensus \
+  --competitive-all \
+  --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
+```
+
+Expected improvements:
+- Main cast extraction should succeed (wrapped JSON format works with qwen3-next)
+- Competitive consensus reduces hallucination errors (2/3 supermajority required)
+- Analysis should complete ~3x faster (MoE vs dense model)
