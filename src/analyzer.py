@@ -395,6 +395,55 @@ class AudiobookAnalyzer:
             logger.warning(f"Failed to create LLM client for {agent_name}: {e}")
             return None
 
+    def _get_json_llm_client(self) -> Optional[LLMClient]:
+        """
+        Get LLM client configured for JSON tasks.
+
+        Returns None if no json_model configured in orchestrator_config.
+        Returns a client configured with the json_model for use as fallback
+        when the primary model fails JSON parsing.
+
+        This is useful when the primary model (e.g., qwen3-next) doesn't
+        support json_mode properly but a secondary model (e.g., qwen2.5) does.
+        """
+        if not self.orchestrator_config or not self.orchestrator_config.json_model:
+            return None
+
+        if not hasattr(self, "_json_llm_client") or self._json_llm_client is None:
+            try:
+                provider = self.orchestrator_config.default_provider or self.llm_provider
+                base_url = self.orchestrator_config.default_base_url or self.llm_base_url
+
+                if provider == "ollama":
+                    config = LLMConfig.ollama(
+                        model=self.orchestrator_config.json_model,
+                        base_url=base_url,
+                    )
+                elif provider == "openai":
+                    config = LLMConfig.openai(
+                        model=self.orchestrator_config.json_model,
+                        api_key=self.llm_api_key,
+                    )
+                else:
+                    config = LLMConfig.ollama(
+                        model=self.orchestrator_config.json_model,
+                        base_url=base_url,
+                    )
+
+                config.temperature = 0.7
+                config.max_tokens = 32768
+                config.context_length = self.orchestrator_config.context_length
+
+                self._json_llm_client = LLMClient(config, metrics=self._metrics)
+                logger.info(
+                    f"Created JSON-capable LLM client with model: {self.orchestrator_config.json_model}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to create JSON LLM client: {e}")
+                self._json_llm_client = None
+
+        return self._json_llm_client
+
     def _are_quality_gates_enabled(self) -> bool:
         """Check if quality gates are enabled in orchestrator config."""
         return (
@@ -621,10 +670,13 @@ class AudiobookAnalyzer:
                     competitive_config = (
                         self.orchestrator_config.competitive if self.orchestrator_config else None
                     )
+                    # Get JSON-capable fallback client if configured
+                    json_llm = self._get_json_llm_client()
                     character_agent = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
                         competitive_config=competitive_config,
+                        json_llm_client=json_llm,
                     )
                     char_agent_context = AgentContext(
                         text=doc.text,
@@ -1020,6 +1072,8 @@ class AudiobookAnalyzer:
                 def summary_llm_factory():
                     return self._create_llm_client_for_agent("summaries")
 
+                # Get JSON-capable fallback client if configured
+                json_llm_for_summaries = self._get_json_llm_client()
                 summary_pipeline = ChapterSummaryPipeline(
                     llm_client=summary_llm,
                     progress_callback=self._wrap_progress("Chapter Summaries"),
@@ -1041,6 +1095,7 @@ class AudiobookAnalyzer:
                         if self.orchestrator_config and self.orchestrator_config.competitive
                         else None
                     ),
+                    json_llm=json_llm_for_summaries,
                 )
                 summary_map, _ = summary_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
@@ -1083,10 +1138,13 @@ class AudiobookAnalyzer:
                     competitive_config = (
                         self.orchestrator_config.competitive if self.orchestrator_config else None
                     )
+                    # Get JSON-capable fallback client if configured
+                    json_llm = self._get_json_llm_client()
                     character_agent_v2 = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
                         competitive_config=competitive_config,
+                        json_llm_client=json_llm,
                     )
 
                     # Build context with summaries
@@ -2597,6 +2655,28 @@ class AudiobookAnalyzer:
                 for i, c in enumerate(contexts)
             ]
         )
+
+        # Include character.evidence quotes if available (extracted from supporting cast or earlier stages)
+        # This ensures physical descriptions and other traits are available to the profile generator
+        existing_evidence = getattr(character, "evidence", []) or []
+        if existing_evidence:
+            evidence_texts = []
+            for i, ev in enumerate(existing_evidence):
+                if isinstance(ev, dict):
+                    statement = ev.get("statement", "")
+                    quote = ev.get("quote", "")
+                    position = ev.get("position", 0)
+                    if quote:  # Only include if there's an actual quote
+                        evidence_texts.append(
+                            f"[Evidence {i+1}, Position {position}]:\n{statement}: {quote}"
+                        )
+
+            if evidence_texts:
+                evidence_section = "\n\n".join(evidence_texts)
+                context_text += f"\n\n--- Additional Evidence from Character Extraction ---\n\n{evidence_section}"
+                logger.info(
+                    f"Added {len(evidence_texts)} evidence quotes from character.evidence for {character.canonical_name}"
+                )
 
         # Check if this character is the narrator
         narrator_note = ""

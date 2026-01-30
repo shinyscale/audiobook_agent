@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.25
 - **Competitive Mode:** single
 
@@ -72,7 +72,13 @@
 ## Fix History
 - Attempt 1: Fixed JSON schema enforcement for character extraction
 - Attempt 2: Model fallback for JSON incompatibility + Jesus filter (improved to 7.5)
-- Attempt 3: Non-human entity examples in prompts (AM now extracted)
+- Attempt 3: Non-human entity examples in prompts (AM now extracted, score: 8.20)
+- Attempt 4: Include character.evidence quotes in profile generation context
+  - Root cause: Physical descriptions existed in character.evidence field but were NOT included in text passages sent to profile LLM
+  - The LLM only saw context windows around character name mentions, missing evidence extracted earlier
+  - Fix: Added evidence quotes section to profile generation prompt (src/analyzer.py:2658-2679)
+  - Expected impact: Physical descriptions will now be extracted for all characters with evidence
+  - Modified: src/analyzer.py
 
 ## Modification History
 
@@ -81,6 +87,7 @@
 | 1 | JSON parsing failures | src/pipeline/character_extraction_v2/* | Partial improvement |
 | 2 | Main cast extraction | src/agents/config.py, src/cli.py | Ted as narrator |
 | 2 | Non-human entities | src/pipeline/chapter_summary/summarizer.py | AM in characters_present |
+| 4 | Empty physical descriptions | src/analyzer.py | Evidence now included in LLM context |
 
 ## Configuration Notes
 - Model: qwen2.5:32b-instruct-q8_0 (JSON compatible)
@@ -88,9 +95,6 @@
 - Analysis time: 39m 22s
 
 ## Next Action
-Run PROMPT_fix.md to address character profile generation (HIGH #1, #2)
+Run PROMPT_analyze.md to verify fix
 
-The primary issue is that the character profiling pipeline is not populating physical descriptions or meaningful relationships. This may be:
-1. Short story / single chapter causing passage gatherer to not find enough evidence
-2. Profile extraction prompts not tuned for horror/sci-fi character archetypes (captor, victim, unreliable narrator)
-3. Evidence text being gathered but not extracted into structured fields
+The root cause was identified: physical description evidence existed in character.evidence but was not being passed to the profile LLM. The fix adds these evidence quotes to the LLM context, which should resolve the empty appearance.summary issue.

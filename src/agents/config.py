@@ -280,6 +280,11 @@ class OrchestratorConfig:
     default_base_url: str = "http://localhost:11434"
     context_length: int = 32768  # Default context window size
 
+    # JSON-capable model for tasks requiring structured output
+    # If the default model fails JSON parsing, this model will be used as fallback
+    # Set to a model known to support json_mode (e.g., "qwen2.5:32b", "llama3.2")
+    json_model: Optional[str] = None
+
     # Per-agent configs (keyed by agent name)
     agent_configs: dict[str, AgentConfig] = field(default_factory=dict)
 

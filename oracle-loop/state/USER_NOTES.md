@@ -1,6 +1,60 @@
 # User Notes for Oracle Loop
 
-## Current Guidance (Updated 2026-01-29 - Upstream Data Fix Applied)
+## Current Guidance (Updated 2026-01-30 - JSON Model + Non-Human Entity Fix)
+
+### JSON-Capable Model Fallback (NEW)
+
+For models that don't support `json_mode` properly (e.g., `qwen3-next`), a user-configurable fallback is now available.
+
+**CLI Usage:**
+```bash
+audiobook-prep analyze book.pdf --json-model qwen2.5:32b-instruct-q8_0
+```
+
+**How it works:**
+1. Primary model attempts JSON extraction
+2. If JSON parsing fails AND `--json-model` is set, retry with fallback model
+3. Fallback is logged clearly: "Primary model failed JSON extraction, retrying with..."
+
+**Key files:**
+- `src/agents/config.py` - `json_model` field in OrchestratorConfig
+- `src/analyzer.py` - `_get_json_llm_client()` method
+- `src/pipeline/character_extraction_v2/main_cast.py` - fallback in `_extract_single_pass()`, `_extract_two_pass()`
+- `src/pipeline/chapter_summary/summarizer.py` - fallback in summary methods
+- `src/cli.py` - `--json-model` CLI argument
+
+**Note:** This is USER-CONFIGURABLE, not a hardcoded fallback. The user explicitly chooses the fallback model.
+
+---
+
+### Non-Human Entity Extraction (NEW)
+
+The summarizer prompts now include non-human entity examples to help extract AI, monsters, and supernatural entities with agency.
+
+**Change in `src/pipeline/chapter_summary/summarizer.py`:**
+```python
+# JSON example now shows:
+"active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
+
+# With guidance note:
+"Note: Include non-human entities with names (AI systems, creatures, supernatural beings)
+in active_characters if they act with agency in the chapter."
+```
+
+**Impact:** For "I Have No Mouth, and I Must Scream", AM (the sentient supercomputer) now appears in `characters_present`.
+
+---
+
+### Oracle Loop Model Configuration (Updated 2026-01-30)
+
+The oracle loop is now configured to use `qwen2.5:32b-instruct-q8_0` as the primary model:
+- **Why:** This model properly supports `json_mode` for structured output
+- **Previous:** `qwen3-next:80b-a3b-instruct-q8_0` (JSON incompatible, caused main cast extraction failures)
+- **Config file:** `~/.config/audiobook_prep/gui_settings.json`
+
+---
+
+## Previous Guidance (2026-01-29 - Upstream Data Fix Applied)
 
 ### Context-Aware Disambiguation (MAJOR FIX)
 
@@ -146,3 +200,46 @@ This keeps prompts simple and avoids brittle vocabulary-dependent heuristics.
 - Added `json_mode=True` to LLMClient.query() (~14 lines)
 - Ollama now enforces JSON at token-sampling level
 - Provider physically cannot emit tokens that break JSON structure
+
+---
+
+## Hardcoded Model Fallbacks Are Forbidden
+
+**DO NOT** add code that silently swaps to a different model when extraction fails:
+```python
+# BAD - hardcoded model fallback
+if not result:
+    fallback_config = LLMConfig(model="qwen2.5:32b-instruct-q8_0", ...)
+    result = fallback_client.query(...)
+```
+
+**WHY:**
+1. **Environment-specific**: The fallback model may not exist on the user's system
+2. **Masks the problem**: User doesn't know their configured model is incompatible
+3. **Unpredictable behavior**: Different models produce different results silently
+
+### What To Do Instead
+
+1. **Detect model errors at the LLM client layer** (`src/llm/client.py`)
+   - If model returns `{"error": ..., "message": ...}` instead of expected data, treat as failure
+   - Log a clear warning: "This model may not support json_mode properly"
+
+2. **Fail clearly, don't silently swap**
+   - Return empty/None and let the pipeline handle it
+   - User sees the error and can choose a compatible model
+
+3. **Document model requirements**
+   - Some models don't support structured JSON output
+   - Compatible models: llama3.2, qwen2.5, gpt-4o-mini, claude-3
+   - Incompatible: Some reasoning models that ignore format instructions
+
+### Recent Example (2026-01-29)
+
+**Bad approach (reverted):**
+- Oracle loop added 33-line fallback to hardcoded "qwen2.5:32b-instruct-q8_0"
+- Would fail on systems without that exact model
+
+**Good approach (applied):**
+- Added error-response detection in `_extract_json()` (~10 lines)
+- If model returns `{"error": ...}`, logs warning and returns None
+- User sees clear message about model compatibility

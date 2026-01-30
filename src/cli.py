@@ -91,6 +91,13 @@ Examples:
         "--pronunciation-model", type=str, default=None, help="Model for pronunciation guide agent"
     )
     analyze_parser.add_argument(
+        "--json-model",
+        type=str,
+        default=None,
+        help="JSON-capable fallback model for tasks requiring structured output. "
+        "Used when primary model fails JSON parsing (e.g., qwen2.5:32b, llama3.2).",
+    )
+    analyze_parser.add_argument(
         "--html",
         type=str,
         nargs="?",
@@ -323,6 +330,21 @@ def run_analyze(args):
     # Apply context_length to orchestrator config if it exists
     if orchestrator_config:
         orchestrator_config.context_length = args.context_length
+
+    # Apply json_model if specified
+    json_model = getattr(args, "json_model", None)
+    if json_model:
+        from .agents.config import OrchestratorConfig
+
+        # Create orchestrator_config if not already created
+        if orchestrator_config is None:
+            orchestrator_config = OrchestratorConfig(
+                default_model=args.llm_model or "qwen2.5:32b",
+                default_provider="ollama",
+                context_length=args.context_length,
+            )
+        orchestrator_config.json_model = json_model
+        print(f"   JSON fallback model: {json_model}")
 
     # Handle competitive consensus flags
     competitive_models_specified = getattr(args, "competitive_model", None)

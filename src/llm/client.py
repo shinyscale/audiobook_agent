@@ -557,6 +557,7 @@ class LLMClient:
         """Extract JSON from LLM response, handling common formats.
 
         Returns either a dict or list, depending on what the LLM returned.
+        Returns None if the model returns an error-like response.
         """
         # Remove thinking tags (various reasoning models)
         text = self._clean_thinking_tags(text)
@@ -570,6 +571,16 @@ class LLMClient:
         text = text.strip()
         try:
             parsed = json.loads(text)
+            # Check for model error responses - some models return {"error": ...} or {"message": ...}
+            # when they can't fulfill the request. Treat these as failures.
+            if isinstance(parsed, dict):
+                error_keys = {"error", "message", "error_message", "failure"}
+                if error_keys & set(parsed.keys()) and len(parsed) <= 3:
+                    logger.warning(
+                        f"Model returned error-like response instead of expected data: {parsed}. "
+                        f"This model may not support json_mode or structured output properly."
+                    )
+                    return None
             # Accept both dict and list
             if isinstance(parsed, (dict, list)):
                 return parsed

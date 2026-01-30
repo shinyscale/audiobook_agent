@@ -58,11 +58,14 @@ class CharacterAgent(Agent):
         config: Optional[AgentConfig] = None,
         min_grounding_mentions: int = 3,
         competitive_config: Optional[CompetitiveConfig] = None,
+        json_llm_client: Optional[LLMClient] = None,
     ):
         self.llm = llm_client
         self.config = config or AgentConfig()
         self.min_grounding_mentions = min_grounding_mentions
         self.competitive_config = competitive_config
+        # JSON-capable LLM client for fallback when primary model fails JSON parsing
+        self.json_llm = json_llm_client
 
     @property
     def name(self) -> str:
@@ -115,7 +118,11 @@ class CharacterAgent(Agent):
 
         # STEP 1: Extract main cast from summaries (F1)
         logger.info("V2 Step 1: Extracting main cast from summaries")
-        main_cast_extractor = MainCastExtractor(self.llm, self.competitive_config)
+        main_cast_extractor = MainCastExtractor(
+            self.llm,
+            self.competitive_config,
+            json_llm=self.json_llm,
+        )
         profiles = main_cast_extractor.extract(chapter_summaries, plot_summary)
 
         if not profiles:
@@ -430,6 +437,24 @@ class CharacterAgent(Agent):
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
+
+        # STEP 5.0.5: If main cast extraction failed, retry narrator detection with supporting cast
+        # This handles cases where model incompatibility prevents main cast LLM extraction,
+        # but supporting cast NER still finds characters
+        if not main_cast and supporting_cast:
+            logger.info(
+                "Main cast empty but supporting cast found - retrying narrator detection"
+            )
+            narrator_info = narrator_detector.detect(
+                chapter_summaries, supporting_cast, plot_summary
+            )
+            supporting_cast = narrator_detector.update_characters_with_narrator(
+                supporting_cast, narrator_info
+            )
+            logger.info(
+                f"Narrator detection from supporting cast: POV={narrator_info.pov}, "
+                f"narrator={narrator_info.narrator_name}"
+            )
 
         # STEP 5.1: Filter narrator-related entries from supporting cast
         # Handles cases where NER picks up "narrator", "the narrator", etc.

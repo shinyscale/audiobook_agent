@@ -113,10 +113,11 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
-  interact with others, or participate in events. Include the narrator if they participate.
-- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
+  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
+  or symbolic objects that drive the plot. Include the narrator if they participate.
+- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -135,7 +136,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -143,6 +144,8 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
+
+Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -181,10 +184,11 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
-  interact with others, or participate in events. Include the narrator if they participate.
-- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
+  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
+  or symbolic objects that drive the plot. Include the narrator if they participate.
+- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -203,7 +207,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -211,6 +215,8 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
+
+Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -237,6 +243,7 @@ class ChapterSummarizer:
         known_characters: Optional[list[str]] = None,
         summary_length: str = "standard",
         competitive_config: Optional["CompetitiveConfig"] = None,
+        json_llm: Optional[LLMClient] = None,
     ):
         """
         Args:
@@ -246,6 +253,7 @@ class ChapterSummarizer:
             known_characters: List of known character names for reference
             summary_length: Length preference - "brief" (2-3 sentences), "standard" (4-6 sentences), "detailed" (6-8 sentences)
             competitive_config: Optional config for multi-model consensus
+            json_llm: Optional JSON-capable LLM client for fallback when primary fails JSON parsing
         """
         self.llm = llm_client
         self.chunk_size = chunk_size
@@ -253,6 +261,8 @@ class ChapterSummarizer:
         self.known_characters = known_characters or []
         self.summary_length = summary_length
         self.competitive_config = competitive_config
+        # JSON-capable LLM client for fallback when primary model fails JSON parsing
+        self.json_llm = json_llm
 
         # Collect vote records for consensus logging
         self.vote_records: list[dict] = []
@@ -628,6 +638,14 @@ class ChapterSummarizer:
 
         result, _ = self.llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
 
+        # Retry with JSON-capable model if primary failed
+        if result is None and self.json_llm is not None:
+            logger.warning(
+                f"Primary model failed JSON for chapter {chapter_index}, "
+                f"retrying with JSON-capable model '{self.json_llm.config.model}'"
+            )
+            result, _ = self.json_llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
+
         if result is None:
             logger.warning(f"LLM summarization failed for chapter {chapter_index}")
             return self._create_fallback_summary(chapter_index, title, word_count)
@@ -754,6 +772,11 @@ class ChapterSummarizer:
 
         result, _ = self.llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
 
+        # Retry with JSON-capable model if primary failed
+        if result is None and self.json_llm is not None:
+            logger.debug(f"Chunk {chunk_index} retry with JSON-capable model")
+            result, _ = self.json_llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
+
         word_count = len(text.split())
 
         if result is None:
@@ -807,6 +830,14 @@ class ChapterSummarizer:
         )
 
         result, response = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
+
+        # Check if primary model failed and we have a JSON-capable fallback
+        primary_failed = not response.success or result is None or not isinstance(result, dict)
+        if primary_failed and self.json_llm is not None:
+            logger.warning(
+                f"Consolidation retry with JSON-capable model for chapter {chapter_index}"
+            )
+            result, response = self.json_llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
 
         if not response.success:
             # HTTP error or connection failure
