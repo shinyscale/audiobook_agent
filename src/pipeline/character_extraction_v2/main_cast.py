@@ -551,16 +551,6 @@ class MainCastExtractor:
 
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
-        # GATSBY-TRACK: Log Gatsby/Gatz characters after Pass 1
-        gatsby_in_pass1 = [
-            c.canonical_name for c in initial_characters
-            if "gatsby" in c.canonical_name.lower() or "gatz" in c.canonical_name.lower()
-        ]
-        if gatsby_in_pass1:
-            logger.info(f"GATSBY-TRACK [Pass1]: {gatsby_in_pass1}")
-        else:
-            logger.warning("GATSBY-TRACK [Pass1]: NO GATSBY/GATZ FOUND!")
-
         # Pass 2: Alias Resolution for each character
         profiles = []
         for char in initial_characters:
@@ -607,12 +597,6 @@ class MainCastExtractor:
                 char.aliases = [a for a in char.aliases if a.lower() != char.canonical_name.lower()]
 
                 logger.info(f"Found {len(char.aliases)} aliases for {char.canonical_name}")
-
-                # GATSBY-TRACK: Log Gatsby/Gatz characters after Pass 2 alias resolution
-                if "gatsby" in char.canonical_name.lower() or "gatz" in char.canonical_name.lower():
-                    logger.info(
-                        f"GATSBY-TRACK [Pass2]: {char.canonical_name} → aliases={char.aliases}"
-                    )
             else:
                 logger.warning(f"Pass 2 failed for {char.canonical_name}, keeping without aliases")
 

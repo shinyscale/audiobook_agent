@@ -437,7 +437,6 @@ class CharacterAgent(Agent):
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
-        _log_gatsby_status("Step5-NER", supporting_cast, "supporting")
 
         # STEP 5.0.5: Re-run narrator detection with combined cast
         # This catches frame narrators (like Walton in Frankenstein) who appear infrequently by name
@@ -570,8 +569,6 @@ class CharacterAgent(Agent):
             f"V2 Step 5.5 complete: {len(main_cast)} main cast, "
             f"{len(supporting_cast)} supporting after last-name merge"
         )
-        _log_gatsby_status("Step5.5-lastname", main_cast)
-        _log_gatsby_status("Step5.5-lastname", supporting_cast, "supporting")
 
         # STEP 5.6: Merge within supporting cast (last-name-only, spelling variants)
         supporting_cast, supp_aliases_added = self._merge_within_supporting_cast(supporting_cast)
