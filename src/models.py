@@ -280,6 +280,9 @@ class AnalysisResult(BaseModel):
     # Pending merge decisions for human review (co-occurrence validation)
     pending_reviews: list[MergeDecision] = Field(default_factory=list)
 
+    # Pipeline metadata (defensive step counts, merge decisions, etc.)
+    pipeline_metadata: Optional[dict] = None
+
     def get_chapter_summary(self) -> list[dict]:
         """Generate a chapter-by-chapter summary."""
         chapters = [s for s in self.structure if s.type == StructureType.CHAPTER]

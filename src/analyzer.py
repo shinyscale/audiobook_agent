@@ -608,6 +608,19 @@ class AudiobookAnalyzer:
         # Convert glossary if present
         glossary_map = self._convert_glossary(doc)
 
+        # Extract pipeline metadata from character map if available
+        char_pipeline_metadata = None
+        pending_reviews = []
+        if character_map:
+            char_pipeline_metadata = getattr(character_map, 'pipeline_metadata', None) or {}
+            pending_reviews_data = char_pipeline_metadata.get('pending_reviews', [])
+            from .models import MergeDecision
+            for pr in pending_reviews_data:
+                if isinstance(pr, dict):
+                    pending_reviews.append(MergeDecision(**pr))
+                elif isinstance(pr, MergeDecision):
+                    pending_reviews.append(pr)
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -618,6 +631,8 @@ class AudiobookAnalyzer:
             raw_text=doc.text,
             warnings=warnings,
             low_confidence_items=low_confidence,
+            pending_reviews=pending_reviews,
+            pipeline_metadata=char_pipeline_metadata,
         )
 
         # Track analysis duration
@@ -2118,6 +2133,19 @@ class AudiobookAnalyzer:
         consensus_log_data = consensus_collector.build_log()
         consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
 
+        # Extract pipeline metadata from character map (defensive steps, merge decisions, etc.)
+        char_pipeline_metadata = getattr(pipeline_char_map, 'pipeline_metadata', None) or {}
+        pending_reviews_data = char_pipeline_metadata.get('pending_reviews', [])
+
+        # Convert pending_reviews dicts to MergeDecision objects if needed
+        from .models import MergeDecision
+        pending_reviews = []
+        for pr in pending_reviews_data:
+            if isinstance(pr, dict):
+                pending_reviews.append(MergeDecision(**pr))
+            elif isinstance(pr, MergeDecision):
+                pending_reviews.append(pr)
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -2129,6 +2157,8 @@ class AudiobookAnalyzer:
             consensus_log=consensus_log,
             warnings=warnings,
             low_confidence_items=low_confidence,
+            pending_reviews=pending_reviews,
+            pipeline_metadata=char_pipeline_metadata,
         )
 
         # Track analysis duration
