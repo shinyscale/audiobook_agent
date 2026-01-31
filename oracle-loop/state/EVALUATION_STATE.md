@@ -3,14 +3,21 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 02:51 (attempt 1 analysis complete)
+- Last modified: 2026-01-31 05:33 (attempt 2 analysis complete)
+
+## Pipeline Notes
+- Analysis completed successfully with competitive consensus enabled (--competitive-all)
+- Total runtime: ~2h 32m (03:01 to 05:33)
+- Pronunciation stage had 15+ JSON parsing failures (qwen3-next json_mode issues, as documented)
+- 461 pronunciation flags generated
+- Victor Frankenstein now appears in main_cast (was missing in attempt 1)
 
 ## Latest Scores
 - Structure Detection: 7.5/10 ✗ (FAILING - most chapter titles null)
