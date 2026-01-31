@@ -3,23 +3,30 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Last modified: 2026-01-30 19:14:52 (verified AFTER fix commit)
+- Last modified: 2026-01-31 00:12:30 (attempt 5 analysis complete)
 
 ## Pipeline Notes
-- **CRITICAL FAILURE:** LLM chapter marker detection failing in competitive mode
+- **LLM chapter detection fix: SUCCESS** ✓
+  - Structure detection completed successfully (9 chapters found)
+  - No error objects returned from LLM marker proposer
+  - Competitive structure mode working correctly
+- **Analysis completed in 110m 38s**
 - Model: qwen3-next:80b-a3b-instruct-q8_0
 - Competitive stages: characters, structure, summaries (via --competitive-all)
-- Error: LLM marker proposer repeatedly returns `{"error": "No explicit chapter markers found"}`
-- Impact: Structure detection stage cannot complete, blocks entire pipeline
-- Root cause: Model in json_mode returning error objects instead of expected chapter arrays
-- Previous attempt 4 succeeded with same model - regression introduced by competitive structure mode?
+- **Pronunciation stage warnings**: Model returned error objects for some pronunciation batches
+  - These were logged as warnings but did not block completion
+  - 402 pronunciation entries generated, 61 high confidence, 341 medium confidence
+- **GATSBY-TRACK logs**: NO GATSBY/GATZ in supporting cast (Steps 5, 5.5)
+  - But summary shows "Jay Gatsby (aka Gatsby, James Gatz) - 268 mentions"
+  - Suggests Gatsby is in main_cast, not supporting (logging only checked supporting)
+- **Character extraction**: 35 characters total, 23 from main pass, 12 from summaries
 
 ## Latest Scores (Attempt 4 - FRESH EVALUATION)
 
