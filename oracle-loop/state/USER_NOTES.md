@@ -1,5 +1,88 @@
 # User Notes for Oracle Loop
 
+## Current Guidance (Updated 2026-01-31 - Architectural Improvements)
+
+### Co-occurrence Validation (NEW - 2026-01-31)
+
+Added structural validation for merge decisions independent of LLM reasoning.
+
+**What it does:**
+- Computes pairwise Jaccard similarity of text chunk presence for all character pairs
+- If two characters appear in same ~1-page chunks frequently → high confidence they're same person
+- If they never appear together → flag merge for review or block it
+
+**Key thresholds:**
+- Score >= 0.5: High confidence merge (auto-approve)
+- Score 0.2-0.5: Medium confidence (merge with logging)
+- Score < 0.2: Low confidence (flag for TUI review)
+- Score = 0.0: Never co-occur (don't merge)
+
+**Usage:**
+- Merge decisions are recorded in `pipeline_metadata.pending_reviews`
+- Low-confidence merges have `needs_review: true`
+- TUI can display these for narrator to verify
+
+**Key files:**
+- `src/models.py` - `MergeDecision` model
+- `src/agents/characters.py` - `_compute_cooccurrence()`, `_should_merge()`, `_record_merge_decision()`
+
+---
+
+### Consolidated Pass 2 Alias Resolution (NEW - 2026-01-31)
+
+Changed alias resolution from per-character to consolidated view.
+
+**Old approach (problematic):**
+```
+Pass 1: "Who are characters?" → [Victor, the Creature, the narrator, ...]
+Pass 2 (loop): For each character, "What are X's aliases?"
+```
+Problem: When asking about Victor, LLM didn't know "the narrator" was also extracted.
+
+**New approach:**
+```
+Pass 1: "Who are characters?" → [Victor, the Creature, the narrator, ...]
+Pass 2 (single): "Here are ALL characters. Assign aliases AND identify duplicates."
+```
+LLM returns `merge_into` field to indicate duplicates (e.g., "the narrator" merge_into "Victor Frankenstein").
+
+**Benefits:**
+- LLM sees full context before making alias decisions
+- Can identify duplicates upfront (reduces Step 3.6 activations)
+- Falls back to per-character if consolidated fails
+
+**Key files:**
+- `src/pipeline/character_extraction_v2/main_cast.py`:
+  - `CONSOLIDATED_ALIAS_PROMPT` - new prompt with full character list
+  - `_process_consolidated_pass2()` - handles merge_into directives
+  - `_extract_two_pass_per_character()` - fallback to original approach
+
+---
+
+### Defensive Step Measurement (NEW - 2026-01-31)
+
+Steps 3.4, 3.6, 3.7, 3.8 are defensive fixes for upstream LLM errors. Now tracked in metadata.
+
+**What gets tracked:**
+```json
+"defensive_steps": {
+  "step_3_4_same_firstname_merges": 0,
+  "step_3_6_alias_canonical_merges": 0,
+  "step_3_7_titled_splits": 0,
+  "step_3_8_semantic_splits": 0,
+  "total_activations": 0
+}
+```
+
+**How to interpret:**
+- `total_activations = 0`: Upstream extraction worked perfectly
+- `total_activations > 0`: Defensive steps had to fix something
+- High counts suggest upstream extraction needs improvement
+
+**Usage:** After analysis, check `pipeline_metadata.defensive_steps` to see if architectural improvements are reducing defensive step reliance.
+
+---
+
 ## CRITICAL: Model Configuration Rules (DO NOT CHANGE)
 
 **The oracle loop MUST NOT change the model configuration.** The user has explicitly set the model and any changes require user approval.

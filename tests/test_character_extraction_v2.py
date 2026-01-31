@@ -1132,8 +1132,9 @@ class TestV2Integration:
                 total_lines += len(f.readlines())
 
         # V2 should be manageable in size
-        # Updated limit to accommodate two-pass extraction, pattern detection, and agent code
-        assert total_lines < 6000, f"V2 code is {total_lines} lines (should be <6000)"
+        # Updated limit to accommodate two-pass extraction, pattern detection, agent code,
+        # co-occurrence validation, and consolidated Pass 2 alias resolution
+        assert total_lines < 7000, f"V2 code is {total_lines} lines (should be <7000)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""

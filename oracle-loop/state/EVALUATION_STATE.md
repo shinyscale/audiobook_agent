@@ -162,19 +162,32 @@
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**Priority 1 (CRITICAL):** Fix Walton narrator regression
+**External Changes Detected:**
+The following files have been modified outside the oracle loop:
+- `src/agents/characters.py`
+- `src/models.py`
+- `src/pipeline/character_extraction_v2/main_cast.py`
+- `tests/test_character_extraction_v2.py`
+
+**Action Required:** Re-run analysis to test external changes before applying additional fixes.
+
+**Reason:** External changes may have already addressed some or all of the issues identified in attempt 5. Must verify current behavior before making additional modifications.
+
+---
+
+## Issues to Re-Check After Analysis
+
+**Priority 1 (CRITICAL):** Walton narrator regression
 - Investigate why Step 5.0.5 is no longer detecting Walton as narrator
 - The logic from attempt 4 was working - something in attempt 5/6 changes broke it
 
-**Priority 2 (CRITICAL):** Fix physical_description null for all characters
+**Priority 2 (CRITICAL):** physical_description null for all characters
 - Profile generation is completely broken
 - This is a major regression from attempt 4 (which had some profiles)
 - Investigate character profiling pipeline
 
-**Priority 3 (HIGH):** Improve the Creature's mention count and aliases
+**Priority 3 (HIGH):** The Creature's mention count and aliases
 - After semantic split, run grounding to find all mentions
 - Add alias detection for common noun references (daemon, fiend, wretch)
-
-**NOTE:** Do NOT add more architectural complexity. The attempt 5/6 changes may have introduced bugs. Consider reverting recent changes to characters.py if the regressions can't be quickly fixed.

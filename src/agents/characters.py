@@ -20,7 +20,7 @@ import time
 from typing import Optional
 
 from ..llm.client import LLMClient
-from ..models import Character, StructuralElement, StructureType
+from ..models import Character, MergeDecision, StructuralElement, StructureType
 from ..pipeline.character_extraction.models import Character as PipelineCharacter
 from ..pipeline.character_extraction.models import CharacterMap
 from ..pipeline.character_extraction_v2 import (
@@ -66,6 +66,10 @@ class CharacterAgent(Agent):
         self.competitive_config = competitive_config
         # JSON-capable LLM client for fallback when primary model fails JSON parsing
         self.json_llm = json_llm_client
+        # Track merge decisions for TUI review (co-occurrence validation)
+        self._merge_decisions: list[MergeDecision] = []
+        # Store co-occurrence scores computed once after grounding
+        self._cooccurrence: dict[tuple[str, str], float] = {}
 
     @property
     def name(self) -> str:
@@ -180,11 +184,27 @@ class CharacterAgent(Agent):
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
 
+        # STEP 3.3.5: Compute co-occurrence matrix for merge validation
+        # This provides a structural signal independent of LLM reasoning
+        logger.info("V2 Step 3.3.5: Computing co-occurrence matrix for merge validation")
+        self._merge_decisions = []  # Reset for this run
+        self._cooccurrence = self._compute_cooccurrence(main_cast, context.text)
+        logger.info(
+            f"V2 Step 3.3.5 complete: computed {len(self._cooccurrence)} pairwise scores"
+        )
+
         # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
         # This must run BEFORE the main merge to avoid the ambiguity problem where
         # "Daisy" matches multiple full names and gets skipped
         logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
+        main_cast_before_3_4 = len(main_cast)
         main_cast = self._merge_same_firstname_variants(main_cast)
+        step_3_4_merges = main_cast_before_3_4 - len(main_cast)
+        if step_3_4_merges > 0:
+            logger.warning(
+                f"DEFENSIVE STEP 3.4 ACTIVATED: Merged {step_3_4_merges} same-firstname variants "
+                f"(Pass 1 extracted variants as separate characters)"
+            )
         logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
 
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
@@ -194,9 +214,16 @@ class CharacterAgent(Agent):
         # STEP 3.6: Deduplicate alias-canonical conflicts
         # Handles cases like "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical with alias "Myrtle Wilson")
         logger.info("V2 Step 3.6: Deduplicating alias-canonical conflicts")
+        main_cast_before_3_6 = len(main_cast)
         main_cast, alias_dedupe_aliases_added = self._deduplicate_alias_canonical_conflicts(
             main_cast
         )
+        step_3_6_merges = main_cast_before_3_6 - len(main_cast)
+        if step_3_6_merges > 0:
+            logger.warning(
+                f"DEFENSIVE STEP 3.6 ACTIVATED: Merged {step_3_6_merges} alias-canonical conflicts "
+                f"(Pass 1 extracted the same person as multiple characters)"
+            )
         if alias_dedupe_aliases_added:
             within_main_aliases_added.update(alias_dedupe_aliases_added)
 
@@ -227,8 +254,8 @@ class CharacterAgent(Agent):
         main_cast, split_count = self._split_wrongly_merged_titled_characters(main_cast)
         if split_count > 0:
             logger.warning(
-                f"V2 Step 3.7: Split {split_count} wrongly-merged titled character pairs "
-                f"(LLM ignored prompt instructions)"
+                f"DEFENSIVE STEP 3.7 ACTIVATED: Split {split_count} wrongly-merged titled character pairs "
+                f"(Pass 2 merged different people with same title prefix)"
             )
 
         # STEP 3.8: Defensive split for semantic conflicts
@@ -280,8 +307,8 @@ class CharacterAgent(Agent):
         main_cast, semantic_split_count = self._split_semantic_conflicts(main_cast)
         if semantic_split_count > 0:
             logger.warning(
-                f"V2 Step 3.8: Split {semantic_split_count} semantically conflicting alias pairs "
-                f"(LLM merged incompatible entity types)"
+                f"DEFENSIVE STEP 3.8 ACTIVATED: Split {semantic_split_count} semantically conflicting alias pairs "
+                f"(Pass 2 merged incompatible entity types like creature/human)"
             )
 
         # region agent log
@@ -762,6 +789,31 @@ class CharacterAgent(Agent):
         medium = sum(1 for c in all_characters if 0.4 <= c.confidence < 0.7)
         low = sum(1 for c in all_characters if c.confidence < 0.4)
 
+        # Summarize merge decisions for pipeline metadata
+        pending_reviews = [d for d in self._merge_decisions if d.needs_review]
+        merge_summary = {
+            "total_merges": len(self._merge_decisions),
+            "high_confidence": sum(1 for d in self._merge_decisions if d.confidence == "high"),
+            "medium_confidence": sum(1 for d in self._merge_decisions if d.confidence == "medium"),
+            "low_confidence_pending_review": len(pending_reviews),
+        }
+
+        # Track defensive step activations for measurement
+        # These steps fix upstream LLM errors - fewer activations = better upstream extraction
+        defensive_steps = {
+            "step_3_4_same_firstname_merges": step_3_4_merges,
+            "step_3_6_alias_canonical_merges": step_3_6_merges,
+            "step_3_7_titled_splits": split_count,
+            "step_3_8_semantic_splits": semantic_split_count,
+            "total_activations": step_3_4_merges + step_3_6_merges + split_count + semantic_split_count,
+        }
+
+        if defensive_steps["total_activations"] > 0:
+            logger.info(
+                f"Defensive step summary: 3.4={step_3_4_merges}, 3.6={step_3_6_merges}, "
+                f"3.7={split_count}, 3.8={semantic_split_count} (total={defensive_steps['total_activations']})"
+            )
+
         character_map = CharacterMap(
             characters=all_characters,
             low_confidence_characters=[c for c in all_characters if c.confidence < 0.4],
@@ -775,6 +827,9 @@ class CharacterAgent(Agent):
                 "ungrounded_count": grounding_report.total_ungrounded,
                 "narrator_pov": narrator_info.pov,
                 "narrator_name": narrator_info.narrator_name,
+                "merge_decisions": merge_summary,
+                "pending_reviews": [d.model_dump() for d in pending_reviews],
+                "defensive_steps": defensive_steps,
             },
         )
 
@@ -962,6 +1017,153 @@ class CharacterAgent(Agent):
             names.add(char.canonical_name)
             names.update(char.aliases)
         return names
+
+    def _compute_cooccurrence(
+        self,
+        characters: list[Character],
+        text: str,
+        chunk_size: int = 2000,  # ~1 page
+    ) -> dict[tuple[str, str], float]:
+        """
+        Compute co-occurrence scores for all character pairs.
+
+        Co-occurrence is measured by Jaccard similarity of chunk presence:
+        How often do two characters appear in the same text chunks?
+
+        This provides a structural signal independent of LLM reasoning:
+        - High overlap (>0.5): Strong evidence they're the same person
+        - Medium overlap (0.2-0.5): Possible same person, moderate confidence
+        - Low overlap (<0.2): Weak evidence, flag for human review
+
+        Args:
+            characters: List of characters to analyze
+            text: Full text to search for mentions
+            chunk_size: Size of text chunks to use (default ~1 page)
+
+        Returns:
+            Dict mapping (char_a_id, char_b_id) -> overlap_score (0.0-1.0)
+        """
+        if not characters or not text:
+            return {}
+
+        # Split text into chunks
+        chunks = [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+        # For each character, find which chunks they appear in
+        char_chunks: dict[str, set[int]] = {}
+        for char in characters:
+            names = [char.canonical_name] + list(char.aliases)
+            char_chunks[char.id] = set()
+            for i, chunk in enumerate(chunks):
+                chunk_lower = chunk.lower()
+                if any(name.lower() in chunk_lower for name in names):
+                    char_chunks[char.id].add(i)
+
+        # Compute pairwise overlap (Jaccard similarity)
+        cooccurrence: dict[tuple[str, str], float] = {}
+        for i, char_a in enumerate(characters):
+            for char_b in characters[i + 1 :]:
+                a_chunks = char_chunks.get(char_a.id, set())
+                b_chunks = char_chunks.get(char_b.id, set())
+                if a_chunks and b_chunks:
+                    # Jaccard similarity: intersection / union
+                    overlap = len(a_chunks & b_chunks) / len(a_chunks | b_chunks)
+                else:
+                    overlap = 0.0
+                cooccurrence[(char_a.id, char_b.id)] = overlap
+                cooccurrence[(char_b.id, char_a.id)] = overlap  # Symmetric
+
+        return cooccurrence
+
+    def _should_merge(
+        self,
+        char_a: Character,
+        char_b: Character,
+        cooccurrence: dict[tuple[str, str], float],
+        threshold: float = 0.2,
+    ) -> tuple[bool, float, str]:
+        """
+        Determine if two characters should be merged based on co-occurrence.
+
+        Args:
+            char_a: First character
+            char_b: Second character
+            cooccurrence: Pre-computed co-occurrence scores
+            threshold: Minimum score to auto-approve merge (default 0.2)
+
+        Returns:
+            Tuple of (should_merge, score, confidence):
+            - should_merge: True if merge should proceed
+            - score: The co-occurrence score (0.0-1.0)
+            - confidence: "high" (>0.5), "medium" (0.2-0.5), "low" (<0.2)
+        """
+        score = cooccurrence.get((char_a.id, char_b.id), 0.0)
+
+        if score >= 0.5:
+            return True, score, "high"
+        elif score >= threshold:
+            return True, score, "medium"
+        elif score > 0:
+            # They appear together at least once, but rarely
+            # Allow merge but flag as low confidence
+            return True, score, "low"
+        else:
+            # Never appear together - don't merge
+            return False, score, "low"
+
+    def _record_merge_decision(
+        self,
+        source: Character,
+        target: Character,
+        reason: str,
+        step: str,
+    ) -> None:
+        """
+        Record a merge decision for potential TUI review.
+
+        Uses pre-computed co-occurrence score to determine confidence.
+        Low-confidence merges are flagged for human review.
+
+        Args:
+            source: Character being merged (absorbed)
+            target: Character receiving the merge
+            reason: Why merge was proposed
+            step: Which pipeline step triggered this
+        """
+        score = self._cooccurrence.get((source.id, target.id), 0.0)
+
+        if score >= 0.5:
+            confidence = "high"
+        elif score >= 0.2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        decision = MergeDecision(
+            source_id=source.id,
+            target_id=target.id,
+            source_name=source.canonical_name,
+            target_name=target.canonical_name,
+            reason=reason,
+            cooccurrence_score=score,
+            confidence=confidence,
+            needs_review=confidence == "low",
+            step=step,
+        )
+
+        self._merge_decisions.append(decision)
+
+        if decision.needs_review:
+            logger.warning(
+                f"LOW CONFIDENCE MERGE (step {step}): '{source.canonical_name}' → "
+                f"'{target.canonical_name}' (reason: {reason}, score: {score:.3f}) "
+                f"- flagged for human review"
+            )
+        else:
+            logger.debug(
+                f"Merge recorded (step {step}): '{source.canonical_name}' → "
+                f"'{target.canonical_name}' (reason: {reason}, confidence: {confidence}, score: {score:.3f})"
+            )
 
     def _filter_narrator_variants(
         self,
@@ -1544,6 +1746,14 @@ class CharacterAgent(Agent):
                     continue
                 other = main_cast[idx]
 
+                # Record merge decision for TUI review
+                self._record_merge_decision(
+                    source=other,
+                    target=canonical_char,
+                    reason="same_firstname",
+                    step="3.4",
+                )
+
                 # Add other's canonical name as alias
                 if other.canonical_name not in canonical_char.aliases:
                     logger.info(
@@ -1569,6 +1779,15 @@ class CharacterAgent(Agent):
                 single_idx = single_word_names[first_name]
                 if single_idx not in chars_to_remove:
                     single_char = main_cast[single_idx]
+
+                    # Record merge decision for TUI review
+                    self._record_merge_decision(
+                        source=single_char,
+                        target=canonical_char,
+                        reason="firstname_only_to_fullname",
+                        step="3.4",
+                    )
+
                     if single_char.canonical_name not in canonical_char.aliases:
                         logger.info(
                             f"  Also merging first-name-only '{single_char.canonical_name}' → "
@@ -1641,6 +1860,14 @@ class CharacterAgent(Agent):
                     #
                     # BUT: We want to keep the one with MORE mentions as canonical
                     if char.mention_count >= other_char.mention_count:
+                        # Record merge decision for TUI review
+                        self._record_merge_decision(
+                            source=other_char,
+                            target=char,
+                            reason="alias_canonical_conflict",
+                            step="3.6",
+                        )
+
                         # Keep current char, merge other into it
                         logger.info(
                             f"Alias-canonical conflict: merging '{other_char.canonical_name}' "
@@ -1663,6 +1890,14 @@ class CharacterAgent(Agent):
                         chars_with_new_aliases.add(char.id)
                         chars_to_remove.add(other_idx)
                     else:
+                        # Record merge decision for TUI review
+                        self._record_merge_decision(
+                            source=char,
+                            target=other_char,
+                            reason="alias_canonical_conflict",
+                            step="3.6",
+                        )
+
                         # Keep other char, merge current into it
                         logger.info(
                             f"Alias-canonical conflict: merging '{char.canonical_name}' "
@@ -2535,6 +2770,14 @@ class CharacterAgent(Agent):
                 main_idx, match_type = matches[0]
                 main_char = main_cast[main_idx]
 
+                # Record merge decision for TUI review
+                self._record_merge_decision(
+                    source=supp_char,
+                    target=main_char,
+                    reason=f"lastname_{match_type}",
+                    step="5.5",
+                )
+
                 # Check if already an alias
                 if supp_name not in main_char.aliases:
                     logger.info(
@@ -2576,6 +2819,14 @@ class CharacterAgent(Agent):
                 if len(matches_without_mrs) == 1:
                     main_idx, match_type = matches_without_mrs[0]
                     main_char = main_cast[main_idx]
+
+                    # Record merge decision for TUI review
+                    self._record_merge_decision(
+                        source=supp_char,
+                        target=main_char,
+                        reason=f"lastname_disambiguated_{match_type}",
+                        step="5.5",
+                    )
 
                     if supp_name not in main_char.aliases:
                         logger.info(

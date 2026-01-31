@@ -162,6 +162,55 @@ Return a JSON object with all aliases found:
 Find all aliases for {character_name} now:"""
 
 
+# Consolidated Pass 2: All characters together for alias resolution + duplicate detection
+CONSOLIDATED_ALIAS_PROMPT = """You are analyzing characters extracted from chapter summaries of a novel.
+
+## Characters Found in Pass 1
+{character_list}
+
+## Your Task
+
+For EACH character above:
+1. List all aliases (other names/titles/descriptions referring to this person)
+2. Identify if any characters in this list are actually THE SAME PERSON (duplicates)
+
+## Critical Rules
+- If two entries are the same person, mark the LESS COMMON name as "merge_into" the MORE COMMON name
+- Consider: married/maiden names, titles (Mr./Dr./Colonel), nicknames, relationship descriptions ("the narrator", "Victor's father")
+- DO NOT merge characters who are different people with similar names (e.g., siblings, spouses with same surname)
+- Characters with different first names are usually DIFFERENT people (e.g., "George Wilson" ≠ "Myrtle Wilson")
+- Characters with the same title/profession but different names are DIFFERENT people (e.g., "Professor Smith" ≠ "Professor Jones")
+- If a character IS the narrator, DO NOT add "the narrator" as a separate character - add it as an alias instead
+
+## Chapter Summaries (for reference)
+{summaries}
+
+## Output Format
+Return a JSON object with a "characters" array:
+```json
+{{
+  "characters": [
+    {{
+      "canonical_name": "Victor Frankenstein",
+      "aliases": ["Victor", "the narrator"],
+      "uncertain_aliases": [],
+      "merge_into": null
+    }},
+    {{
+      "canonical_name": "the narrator",
+      "aliases": [],
+      "uncertain_aliases": [],
+      "merge_into": "Victor Frankenstein"
+    }}
+  ]
+}}
+```
+
+Note: "merge_into" should be null for characters that are unique, or the canonical_name of the character this entry should merge into.
+
+Analyze all characters now:"""
+
+
 class MainCastExtractor:
     """
     Extracts main cast profiles from chapter summaries.
@@ -551,10 +600,51 @@ class MainCastExtractor:
 
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
-        # Pass 2: Alias Resolution for each character
+        # Pass 2: Consolidated alias resolution with full context
+        # This gives the LLM visibility into ALL characters to prevent conflicts
+        logger.info("Pass 2: Consolidated alias resolution for all characters")
+
+        # Build character list for the prompt
+        character_list = "\n".join(
+            f"- {c.canonical_name} (role: {c.role}, description: {c.description})"
+            for c in initial_characters
+        )
+
+        pass2_prompt = CONSOLIDATED_ALIAS_PROMPT.format(
+            character_list=character_list,
+            summaries=summaries_text,
+        )
+
+        alias_result, alias_response = self.llm.query_json(pass2_prompt, system=system_prompt)
+
+        # Retry with JSON-capable model if primary failed
+        if (not alias_response.success or alias_result is None) and self.json_llm is not None:
+            logger.debug("Pass 2 retry with JSON-capable model")
+            alias_result, alias_response = self.json_llm.query_json(pass2_prompt, system=system_prompt)
+
+        if not alias_response.success or alias_result is None:
+            logger.warning("Consolidated Pass 2 failed, falling back to per-character resolution")
+            return self._extract_two_pass_per_character(initial_characters, summaries_text)
+
+        # Process consolidated results
+        profiles = self._process_consolidated_pass2(initial_characters, alias_result)
+        logger.info(f"Pass 2 complete: {len(profiles)} characters after merge resolution")
+
+        return profiles
+
+    def _extract_two_pass_per_character(
+        self,
+        initial_characters: list[MainCastProfile],
+        summaries_text: str,
+    ) -> list[MainCastProfile]:
+        """
+        Fallback per-character alias resolution (original Pass 2 approach).
+
+        Used when consolidated Pass 2 fails.
+        """
         profiles = []
         for char in initial_characters:
-            logger.info(f"Pass 2: Resolving aliases for {char.canonical_name}")
+            logger.info(f"Pass 2 (fallback): Resolving aliases for {char.canonical_name}")
 
             # Build context about other characters to prevent false grouping
             other_chars = [c.canonical_name for c in initial_characters if c.canonical_name != char.canonical_name]
@@ -601,6 +691,118 @@ class MainCastExtractor:
                 logger.warning(f"Pass 2 failed for {char.canonical_name}, keeping without aliases")
 
             profiles.append(char)
+
+        return profiles
+
+    def _process_consolidated_pass2(
+        self,
+        initial_characters: list[MainCastProfile],
+        alias_result: dict,
+    ) -> list[MainCastProfile]:
+        """
+        Process consolidated Pass 2 results, applying aliases and merges.
+
+        Args:
+            initial_characters: Characters from Pass 1
+            alias_result: LLM response with aliases and merge_into directives
+
+        Returns:
+            Merged list of MainCastProfile with aliases applied
+        """
+        # Build lookup by canonical name
+        char_by_name = {c.canonical_name.lower(): c for c in initial_characters}
+
+        # Track merge relationships
+        merge_map: dict[str, str] = {}  # source_name -> target_name
+
+        # Process LLM response
+        characters_data = alias_result.get("characters", [])
+        if not isinstance(characters_data, list):
+            logger.warning("Consolidated Pass 2 returned invalid format, skipping")
+            return initial_characters
+
+        for char_data in characters_data:
+            if not isinstance(char_data, dict):
+                continue
+
+            canonical_name = char_data.get("canonical_name", "").strip()
+            if not canonical_name:
+                continue
+
+            canonical_lower = canonical_name.lower()
+
+            # Find the matching character from Pass 1
+            char = char_by_name.get(canonical_lower)
+            if not char:
+                # This might be a character the LLM added that wasn't in Pass 1
+                logger.debug(f"Character '{canonical_name}' not found in Pass 1 results, skipping")
+                continue
+
+            # Apply aliases
+            aliases = char_data.get("aliases", [])
+            if isinstance(aliases, list):
+                char.aliases = [a.strip() for a in aliases if isinstance(a, str) and a.strip()]
+                # Remove canonical name from aliases
+                char.aliases = [a for a in char.aliases if a.lower() != canonical_lower]
+
+            # Apply uncertain aliases
+            uncertain = char_data.get("uncertain_aliases", []) or []
+            if isinstance(uncertain, list):
+                char.uncertain_aliases = [
+                    a.strip() for a in uncertain if isinstance(a, str) and a.strip()
+                ]
+
+            # Track merge directive
+            merge_into = char_data.get("merge_into")
+            if merge_into and isinstance(merge_into, str) and merge_into.strip():
+                merge_map[canonical_lower] = merge_into.strip().lower()
+                logger.info(
+                    f"Consolidated Pass 2: '{canonical_name}' should merge into '{merge_into}'"
+                )
+
+        # Apply merges
+        chars_to_remove = set()
+        for source_name, target_name in merge_map.items():
+            source = char_by_name.get(source_name)
+            target = char_by_name.get(target_name)
+
+            if not source or not target:
+                logger.warning(
+                    f"Cannot apply merge: '{source_name}' -> '{target_name}' "
+                    f"(source found: {source is not None}, target found: {target is not None})"
+                )
+                continue
+
+            # Add source's canonical name as alias of target
+            if source.canonical_name not in target.aliases:
+                target.aliases.append(source.canonical_name)
+                logger.info(
+                    f"Merged '{source.canonical_name}' into '{target.canonical_name}' as alias"
+                )
+
+            # Merge source's aliases into target
+            for alias in source.aliases:
+                if alias not in target.aliases and alias.lower() != target.canonical_name.lower():
+                    target.aliases.append(alias)
+
+            # Transfer description if target doesn't have one
+            if not target.description and source.description:
+                target.description = source.description
+
+            # Mark source for removal
+            chars_to_remove.add(source_name)
+
+        # Build final list excluding merged characters
+        profiles = [
+            c for c in initial_characters
+            if c.canonical_name.lower() not in chars_to_remove
+        ]
+
+        if chars_to_remove:
+            logger.info(
+                f"Consolidated Pass 2 merged {len(chars_to_remove)} duplicate entries: "
+                f"{list(chars_to_remove)}"
+            )
 
         return profiles
 
