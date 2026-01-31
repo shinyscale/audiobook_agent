@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 05:33 (attempt 3 analysis complete)
+- Last modified: 2026-01-31 08:32 (attempt 4 analysis complete)
 
 ## Latest Scores (Attempt 3)
 - Structure Detection: 7.5/10 ✗ (FAILING - most chapter titles null)
@@ -90,9 +90,32 @@
    - Impact: Minor - character is correctly extracted, just missing alias
    - Fix: Add "Professor Waldman" as alias
 
+## Pipeline Notes (Attempt 4 - 2026-01-31 08:32)
+
+**Analysis completed successfully in 150m 12s**
+
+Key observations:
+- ✅ Narrator detection: "Robert Walton (epistolary)" detected from summaries
+- ✅ M. Krempe and M. Waldman correctly split (not merged)
+- ⚠️ Character profiling errors: `name 'pipeline_char_map' is not defined` for some characters
+- ⚠️ Pronunciation LLM errors: qwen3-next returning error objects instead of JSON arrays
+- ⚠️ Structure: 27 chapters detected vs 28 expected (TOC enforcement warning)
+
+**Pipeline Metrics:**
+- Total time: 150m 12s
+- LLM calls: 668
+- Tokens: 773,500
+- Characters found: 32 (24 from extraction + 8 from summary reconciliation)
+- Profiles generated: 20/25 eligible characters
+
+**Warnings to investigate in evaluation:**
+1. Character profiling failures (pipeline_char_map undefined)
+2. Pronunciation JSON parsing failures (model compatibility issue)
+3. TOC mismatch (27 detected vs 31 expected from TOC)
+
 ## Fix History
 
-### Attempt 4 Fix (2026-01-31) - AWAITING VERIFICATION
+### Attempt 4 Fix (2026-01-31) - ANALYSIS COMPLETE, AWAITING EVALUATION
 
 **Fixed:**
 1. ✓ Robert Walton narrator detection (CRITICAL issue #1)
