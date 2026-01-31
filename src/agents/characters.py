@@ -467,23 +467,57 @@ class CharacterAgent(Agent):
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
         _log_gatsby_status("Step5-NER", supporting_cast, "supporting")
 
-        # STEP 5.0.5: If main cast extraction failed, retry narrator detection with supporting cast
-        # This handles cases where model incompatibility prevents main cast LLM extraction,
-        # but supporting cast NER still finds characters
-        if not main_cast and supporting_cast:
+        # STEP 5.0.5: Re-run narrator detection with combined cast
+        # This catches frame narrators (like Walton in Frankenstein) who appear infrequently by name
+        # and get extracted into supporting_cast rather than main_cast.
+        # Previous Step 4 only checked main_cast, so we re-check with full character list.
+        if supporting_cast and narrator_info.narrator_name:
+            # If narrator was identified by name but not matched to a character,
+            # try matching against supporting cast as well
+            combined_cast = main_cast + supporting_cast
             logger.info(
-                "Main cast empty but supporting cast found - retrying narrator detection"
+                f"Re-checking narrator '{narrator_info.narrator_name}' against combined cast "
+                f"({len(main_cast)} main + {len(supporting_cast)} supporting)"
             )
-            narrator_info = narrator_detector.detect(
-                chapter_summaries, supporting_cast, plot_summary
+            narrator_info_combined = narrator_detector.detect(
+                chapter_summaries, combined_cast, plot_summary
             )
-            supporting_cast = narrator_detector.update_characters_with_narrator(
-                supporting_cast, narrator_info
-            )
-            logger.info(
-                f"Narrator detection from supporting cast: POV={narrator_info.pov}, "
-                f"narrator={narrator_info.narrator_name}"
-            )
+
+            # If the combined detection found a match (and Step 4 didn't), update narrator info
+            if narrator_info_combined.narrator_character_id and not narrator_info.narrator_character_id:
+                logger.info(
+                    f"Found narrator '{narrator_info_combined.narrator_name}' in supporting cast: "
+                    f"{narrator_info_combined.narrator_character_id}"
+                )
+                narrator_info = narrator_info_combined
+                # Update the character in whichever list they belong to
+                for i, char in enumerate(supporting_cast):
+                    if char.id == narrator_info.narrator_character_id:
+                        supporting_cast[i] = narrator_detector.update_characters_with_narrator(
+                            [char], narrator_info
+                        )[0]
+                        logger.info(f"Marked {char.canonical_name} as narrator in supporting cast")
+                        break
+                for i, char in enumerate(main_cast):
+                    if char.id == narrator_info.narrator_character_id:
+                        main_cast[i] = narrator_detector.update_characters_with_narrator(
+                            [char], narrator_info
+                        )[0]
+                        logger.info(f"Marked {char.canonical_name} as narrator in main cast")
+                        break
+
+            # Handle nested narrators in supporting cast as well
+            if narrator_info_combined.nested_narrators:
+                for narrator_id in narrator_info_combined.nested_narrators:
+                    if narrator_id not in narrator_info.nested_narrators:
+                        # Found a nested narrator in supporting cast that wasn't in main cast
+                        for i, char in enumerate(supporting_cast):
+                            if char.id == narrator_id:
+                                supporting_cast[i].is_narrator = True
+                                logger.info(
+                                    f"Marked {char.canonical_name} as nested narrator in supporting cast"
+                                )
+                                break
 
         # STEP 5.1: Filter narrator-related entries from supporting cast
         # Handles cases where NER picks up "narrator", "the narrator", etc.

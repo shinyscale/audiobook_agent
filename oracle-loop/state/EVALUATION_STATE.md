@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -92,6 +92,27 @@
 
 ## Fix History
 
+### Attempt 4 Fix (2026-01-31) - AWAITING VERIFICATION
+
+**Fixed:**
+1. ✓ Robert Walton narrator detection (CRITICAL issue #1)
+   - Root cause: Narrator detection (Step 4) ran BEFORE supporting cast extraction (Step 5)
+   - Frame narrators with few name mentions get extracted to supporting_cast, not main_cast
+   - Previous fallback (Step 5.0.5) only ran if main_cast was EMPTY (wrong condition)
+   - Fix: Added Step 5.0.5 re-run with combined_cast (main + supporting)
+   - Now checks narrator against ALL characters, not just main_cast
+   - If narrator found in supporting_cast, marks them as is_narrator=true
+   - File modified: src/agents/characters.py (lines 470-523)
+
+**Smoke test:** Code logic verified - re-runs narrator detection with combined cast after supporting extraction
+
+**Deferred for next iteration:**
+- Issue #2 (CRITICAL): Walton "R.W." fragmentation - F6 reconciliation (analyzer.py)
+- Issue #3 (HIGH): Alphonse fragmentation - F6 reconciliation (analyzer.py)
+- Issue #4 (HIGH): Generic groups - F6 reconciliation (analyzer.py)
+- Issue #5 (HIGH): Caroline maiden name - F6 reconciliation (analyzer.py)
+- Issue #6 (MEDIUM): Chapter titles null - Structure detection
+
 ### Attempt 3 Fixes (2026-01-31) - PARTIALLY FAILED
 
 **Intended fixes:**
@@ -108,7 +129,7 @@
 **Root cause analysis:**
 - The fixes were applied to main_cast.py but the characters are being created in OTHER pipelines (supporting_cast, F6 reconciliation)
 - The LLM did not extract Walton or Alphonse into main_cast, so the main_cast.py guidance never applied
-- Need to either: (a) fix main_cast extraction to include these characters, or (b) apply fixes to supporting cast / F6 reconciliation
+- Attempt 4 correctly targets src/agents/characters.py where narrator detection runs
 
 ### Attempt 2 Fixes (2026-01-31)
 
@@ -131,10 +152,9 @@
 | 1 | Initial analysis | N/A | Baseline score 6.35 |
 | 2 | Victor missing, Walton missing, Waldman/Krempe merge | src/pipeline/character_extraction_v2/main_cast.py | Victor FIXED, Walton still failing, Waldman/Krempe now separate |
 | 3 | Walton epistolary narrator, Alphonse relationship refs | src/pipeline/character_extraction_v2/main_cast.py | NO CHANGE - Walton/Alphonse not in main_cast, fixes didn't apply |
+| 4 | Walton narrator detection in supporting_cast | src/agents/characters.py | AWAITING VERIFICATION - re-runs narrator detection with combined cast |
 
-**⚠️ PATTERN DETECTED:** main_cast.py modified 2 times for Walton/Alphonse issues with no improvement. The fix phase MUST target different files:
-- Supporting cast pipeline for Walton narrator detection
-- F6 reconciliation for cross-pipeline merging and generic group filtering
+**Pattern evolution:** Attempt 4 correctly targets characters.py (where narrator detection orchestration happens) instead of main_cast.py (where LLM extraction happens). This addresses the architectural issue of narrator detection timing.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
@@ -143,10 +163,14 @@
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. **CRITICAL:** Walton narrator detection - target supporting.py or analyzer.py, NOT main_cast.py again
-2. **CRITICAL:** Walton "R.W." merge - target F6 reconciliation in analyzer.py
-3. **HIGH:** Alphonse fragmentation - target F6 reconciliation in analyzer.py
-4. **HIGH:** Generic group filtering - target F6 reconciliation in analyzer.py
+Re-run analysis to verify fix for:
+1. **CRITICAL:** Walton narrator detection - should now detect narrators in supporting_cast
 
-**Key insight from attempt 3:** The main_cast pipeline is NOT where Walton and Alphonse are being processed. Fixes must target the pipeline that actually handles these characters (supporting cast and/or F6 reconciliation).
+Expected impact:
+- Walton should now have is_narrator=true
+- Character Extraction score should improve (6.5 → 7.0+)
+
+If fix works, remaining issues for subsequent iterations:
+- Issue #2 (CRITICAL): Walton "R.W." fragmentation
+- Issues #3-5 (HIGH): F6 reconciliation improvements
+- Issue #6 (MEDIUM): Chapter titles
