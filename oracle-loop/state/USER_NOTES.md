@@ -1,5 +1,30 @@
 # User Notes for Oracle Loop
 
+## CRITICAL: Model Configuration Rules (DO NOT CHANGE)
+
+**The oracle loop MUST NOT change the model configuration.** The user has explicitly set the model and any changes require user approval.
+
+### Current Model: `qwen3-next:80b-a3b-instruct-q8_0`
+
+This model is SET BY THE USER and must be used for all analysis. Do NOT:
+- Switch to qwen2.5:32b or any other model
+- Claim "compatibility issues" as a reason to change models
+- Modify `~/.config/audiobook_prep/gui_settings.json`
+
+### If JSON Issues Occur
+
+1. **Use wrapped object prompts** - The prompts in `main_cast.py` request `{"characters": [...]}` format which works with qwen3-next
+2. **If a fallback is needed**, use `nemotron-3-nano:30b` (NOT qwen2.5:32b)
+3. **Report the issue** - Do not silently switch models; document what happened
+
+### Why qwen3-next?
+
+- MoE architecture is ~3x faster than dense qwen2.5:32b on DGX Spark
+- Has already successfully analyzed Gatsby before
+- Works correctly with wrapped JSON object prompts
+
+---
+
 ## Current Guidance (Updated 2026-01-30 - Wrapped JSON Prompts + MoE Model)
 
 ### Wrapped JSON Object Prompts (NEW - 2026-01-30)

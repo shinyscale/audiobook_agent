@@ -147,7 +147,7 @@ run_analysis_with_config() {
         cli_flags+=" --competitive-consensus"
         local competitive_models=$(echo "$config" | jq -r '.competitive_models[]?' 2>/dev/null | tr '\n' ',')
         if [ -n "$competitive_models" ]; then
-            cli_flags+=" --competitive-models ${competitive_models%,}"
+            cli_flags+=" --competitive-model ${competitive_models%,}"
         fi
     fi
 

@@ -54,17 +54,19 @@ Task:
 - Do not invent names not supported by the summaries.
 - Provide canonical_name and aliases/variants used in summaries.
 
-Output format - return a JSON array:
-[
-  {
-    "canonical_name": "Name",
-    "aliases": ["Alias1", "Alias2"],
-    "role": "protagonist",
-    "description": "Brief description",
-    "is_unnamed": false,
-    "is_symbolic": false
-  }
-]
+Output format - return a JSON object with a "characters" array:
+{
+  "characters": [
+    {
+      "canonical_name": "Name",
+      "aliases": ["Alias1", "Alias2"],
+      "role": "protagonist",
+      "description": "Brief description",
+      "is_unnamed": false,
+      "is_symbolic": false
+    }
+  ]
+}
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -100,19 +102,21 @@ CHAPTER SUMMARIES:
 
 OUTPUT FORMAT:
 You MUST return ONLY valid JSON (not an object with an "error" or "message" field).
-Return a JSON array:
+Return a JSON object with a "characters" array:
 
-[
-  {{
-    "canonical_name": "Full Name or Descriptive Handle",
-    "role": "protagonist|antagonist|supporting|minor",
-    "description": "Brief description of character's role",
-    "is_unnamed": false,
-    "is_symbolic": false
-  }}
-]
+{{
+  "characters": [
+    {{
+      "canonical_name": "Full Name or Descriptive Handle",
+      "role": "protagonist|antagonist|supporting|minor",
+      "description": "Brief description of character's role",
+      "is_unnamed": false,
+      "is_symbolic": false
+    }}
+  ]
+}}
 
-Do not include explanations or reasoning. Return ONLY the JSON array above.
+Do not include explanations or reasoning. Return ONLY the JSON object above.
 
 Extract the main characters now:"""
 

@@ -50,15 +50,15 @@
       }
     },
     "gatsby": {
-      "commit": "f1e232343a22a3407f28849a05c560b9600f212a",
-      "score": 8.45,
+      "commit": "70857fa3589915803147892f8ef0f183327aaee5",
+      "score": 8.5,
       "category_scores": {
-        "structure": 8.0,
-        "characters": 6.0,
-        "profiles": 4.0,
-        "summaries": 9.0,
-        "pronunciation": 8.0,
-        "presentation": 8.0
+        "structure": 10,
+        "characters": 7,
+        "profiles": 7.5,
+        "summaries": 9.5,
+        "pronunciation": 8.5,
+        "presentation": 9
       }
     },
     "i_have_no_mouth": {

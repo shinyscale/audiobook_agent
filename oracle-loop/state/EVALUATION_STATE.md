@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## CRITICAL: Output Files Not Updated
@@ -127,17 +127,8 @@ Output files: **STALE** - last modified 2026-01-30 15:27
 
 ## Next Action
 
-**REQUIRED:** Re-run analysis pipeline to test the Wolfsheim fix before evaluation can proceed.
+**REQUIRED:** Re-run analysis pipeline to test the Wolfsheim fuzzy merge fix (commit f038a3b).
 
-```bash
-audiobook-prep analyze ../Test_Texts/gatsby.txt \
-  --html ../output/gatsby/report.html \
-  --output ../output/gatsby/analysis.json \
-  --competitive-all \
-  --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
-  --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
-```
+**Why:** The previous analysis run (attempt 4) did NOT regenerate output files. The files are timestamped 15:27 but the fix was committed at 15:40. The analysis must run now to verify whether the fix worked.
 
-Then return to evaluation phase to verify the fix worked.
+**Note to analyze phase:** After analysis completes, verify that output file timestamps are AFTER the fix commit time (15:40:29).

@@ -647,8 +647,10 @@ class StateParser:
     def check_experiment_running(self) -> bool:
         """Check if experiment-runner.sh is currently running."""
         try:
+            # Use pgrep with full match to avoid false positives from grep/pgrep commands
+            # that contain "experiment-runner.sh" as a search pattern
             result = subprocess.run(
-                ['pgrep', '-f', 'experiment-runner.sh'],
+                ['pgrep', '-f', r'(^|/)experiment-runner\.sh(\s|$)'],
                 capture_output=True,
                 timeout=2
             )
