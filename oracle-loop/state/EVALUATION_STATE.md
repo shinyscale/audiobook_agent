@@ -3,16 +3,22 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
+- **Competitive Mode:** single
 
-## CRITICAL: Output Files Not Updated
+## Output Files
+- HTML: ../output/gatsby/report.html
+- JSON: ../output/gatsby/analysis.json
+- Last modified: 2026-01-30 19:14:52 (AFTER fix commit at 15:40:29)
 
-**The analysis output files are FROM BEFORE the fix was applied:**
-- Output files: modified 2026-01-30 15:27:26
-- Fix commit: 2026-01-30 15:40:29
-
-This means the Wolfsheim fuzzy merge fix **WAS NOT TESTED**. The analysis must be re-run before evaluation can proceed.
+## Pipeline Notes
+- Competitive consensus enabled (single model, 3 temperatures)
+- Competitive stages: characters, structure, summaries (via --competitive-all)
+- Model: qwen3-next:80b-a3b-instruct-q8_0
+- Analysis completed successfully with Wolfsheim fuzzy merge fix applied
+- Minor errors in pronunciation agent (LLM JSON format issues - non-blocking)
+- Profile generation failed for 'Doctor T. J. Eckleburg' (pipeline_char_map not defined)
 
 ## Latest Scores (Attempt 4 - SAME AS ATTEMPT 3)
 
