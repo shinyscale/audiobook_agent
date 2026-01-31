@@ -110,9 +110,10 @@
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
       "complete": false,
-      "attempts": 4,
-      "last_score": 7.88,
-      "baseline_score": 6.35
+      "attempts": 5,
+      "last_score": 7.67,
+      "baseline_score": 6.35,
+      "notes": "Attempt 5: Creature extracted (+0.5 characters), but profiles broken (-1.0) and Walton narrator regressed. Overall 7.67, down from 7.88."
     },
     {
       "name": "dracula",
