@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** running_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Latest Scores (Attempt 3)
@@ -136,9 +136,14 @@ Output files regenerated 2026-01-30 15:27
 
 **Next steps:** Requires deeper investigation into passage gathering and evidence extraction. Deferred to next iteration.
 
-## Current Analysis Run (Attempt 4)
+## Output Files
+- HTML: ../output/gatsby/report.html (485 KB, modified 2026-01-30 15:27)
+- JSON: ../output/gatsby/analysis.json (944 KB, modified 2026-01-30 15:27)
+- Characters extracted: 35
 
-**Started:** 2026-01-30 (timestamp from analysis run)
+## Pipeline Notes (Attempt 4)
+
+**Completed:** 2026-01-30 15:27
 **Command:**
 ```bash
 audiobook-prep analyze ../Test_Texts/gatsby.txt \
@@ -153,8 +158,30 @@ audiobook-prep analyze ../Test_Texts/gatsby.txt \
 
 **Competitive mode:** single (same model at 3 temperatures: 0.5, 0.7, 0.9)
 **Stages:** characters, structure, summaries (using --competitive-all)
-**Background task ID:** bf7ec17
 
-**Expected impact:** Verify that the fuzzy full-name matching fix successfully merges "Meyer Wolfsheim" and "Meyer Wolfshiem" into a single character entry.
+### Issues Encountered
 
-**Status:** Running... (analysis in progress, will update when complete)
+1. **Chapter Detection: LLM returning error objects instead of JSON arrays**
+   - Model: qwen3-next:80b-a3b-instruct-q8_0
+   - All LLM marker proposer calls failed with error responses like `{"error": "No explicit chapter or section markers found..."}`
+   - The model interpreted the task as "explain why no chapters" instead of "extract chapter markers"
+   - Pipeline likely fell back to regex-based detection
+   - Impact: Unknown - need to evaluate chapter detection quality
+
+2. **Character Profiling: Undefined variable crash**
+   - Error: `name 'pipeline_char_map' is not defined`
+   - Character: Doctor T. J. Eckleburg
+   - Failed after 3 retry attempts
+   - Impact: This character's profile was not generated
+
+3. **Pronunciation Guide: LLM returning error objects instead of JSON arrays**
+   - Model: qwen3-next:80b-a3b-instruct-q8_0
+   - Multiple LLM batch enrichment failures with error responses
+   - Examples: "word contains non-standard prefix", "incomplete word", "fictional terms"
+   - Impact: Unknown - need to evaluate pronunciation guide quality
+
+### Successful Stages
+
+- Character extraction completed (35 characters)
+- Output files generated successfully
+- Alias blocking rules working (e.g., "the narrator" correctly blocked as meta-reference)
