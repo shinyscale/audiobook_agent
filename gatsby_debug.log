@@ -1,0 +1,44 @@
+[20:27:07] INFO src.analyzer - LLM health check passed: Model qwen2.5:32b is healthy
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: profiling document (270,648 chars)
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - [DEBUG] TOC end trimmed to 525 using content marker '^\\s{10,}(I|1)\\s*$' at rel=396
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - TOC validation: detected valid Roman numeral sequence, keeping 9 of 17 entries
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: found TOC with 9 entries (pos 129-525)
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - [DEBUG] front_matter_end set to 525 (at line 29, before first chapter marker)
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: front_matter_end=525
+[20:27:07] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: detected conventions: ['roman_numerals_standalone']
+[20:32:15] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: LLM profile: {'document_type': 'novel', 'has_explicit_markers': True, 'structural_conventions': ['roman_numerals', 'numbered_chapters'], 'estimated_chapter_count': 9, 'reasoning': "The document opening includes a Table of Contents with Roman numerals (I-IX), indicating the presence of nine chapters. The first chapter is titled 'I' and follows this convention."}
+[20:32:15] INFO src.pipeline.chapter_detection.profiler - DocumentProfiler: final profile - type=novel, explicit_markers=True, estimated_chapters=9
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex - [DEBUG] RegexProposer: start_position=525 (front_matter_end) at line 29
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex - RegexProposer matches by pattern: {'roman_numeral_centered': 9}
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex - RegexProposer: 9 proposals before size filtering:
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex - RegexProposer: returning 9 proposals
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [525] Chapter I (conf=0.90)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [33599] Chapter II (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [57279] Chapter III (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [89924] Chapter IV (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [120594] Chapter V (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [144218] Chapter VI (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [167102] Chapter VII (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [216445] Chapter VIII (conf=0.85)
+[20:32:15] INFO src.pipeline.chapter_detection.proposers.regex -   [241992] Chapter IX (conf=0.85)
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+[20:37:53] INFO src.pipeline.chapter_detection.validator - ProposalValidator: validating 9 proposals

@@ -17,7 +17,21 @@ from .base import BaseProposer
 logger = logging.getLogger(__name__)
 
 
-MARKER_SYSTEM_PROMPT = """You are a document structure analyst. Your job is to find EXPLICIT chapter or section markers in text.
+MARKER_SYSTEM_PROMPT = """You are a JSON-only document structure analyst.
+
+MANDATORY JSON FORMAT - You MUST use this EXACT structure:
+{"markers": [...]}
+
+FORBIDDEN RESPONSES - These will cause system failure:
+- {"error": "..."} - NEVER use an error field
+- {"message": "..."} - NEVER use a message field
+- Plain text or explanations outside JSON
+- Any JSON structure other than {"markers": [...]}
+
+If you find ZERO markers, respond with: {"markers": []}
+This is still valid and expected. An empty array is correct when no markers exist.
+
+Your job is to find EXPLICIT chapter or section markers in text.
 
 CRITICAL: Base your analysis ONLY on the text provided below.
 Do NOT use any prior knowledge about this book, author, or its structure.
@@ -54,31 +68,45 @@ CRITICAL DISTINCTIONS:
 
 CRITICAL: You must return the EXACT TEXT as it appears. We will search for your text - if you paraphrase, the search will fail."""
 
-MARKER_PROMPT_TEMPLATE = """Find all EXPLICIT chapter/section markers in the following text.
+MARKER_PROMPT_TEMPLATE = """CRITICAL: Return ONLY valid JSON in this EXACT format: {{"markers": [...]}}
+NEVER return {{"error": "..."}} - that format will crash the system.
+If you find no markers, return {{"markers": []}} - this is valid and expected.
+
+Find all EXPLICIT chapter/section markers in the following text.
 
 TEXT:
 {text}
 
-Return a JSON array of chapter markers found. For each marker:
+For each marker include:
 - "marker_text": The EXACT text of the marker as it appears (copy character-for-character)
 - "title": The chapter title/number (e.g., "Chapter 1", "Part Two", "Prologue")
 - "confidence": Your confidence this is a real chapter marker (0.0-1.0)
 - "reasoning": Brief explanation
 
-Example response:
-```json
-[
+REQUIRED JSON FORMAT:
+{{"markers": [
   {{"marker_text": "CHAPTER I", "title": "Chapter 1", "confidence": 0.95, "reasoning": "Explicit chapter marker"}},
   {{"marker_text": "II", "title": "Chapter 2", "confidence": 0.85, "reasoning": "Roman numeral following chapter 1 pattern"}}
-]
-```
+]}}
 
-If no chapter markers are found, return an empty array: []
+REMINDER: If NO markers found, return {{"markers": []}} - Do NOT return an error object.
 
-Respond with ONLY the JSON array, no other text."""
+Your response MUST be ONLY the JSON object, nothing else."""
 
 
-NARRATIVE_SYSTEM_PROMPT = """You are a literary analyst identifying major structural breaks in narratives.
+NARRATIVE_SYSTEM_PROMPT = """You are a JSON-only literary analyst identifying major structural breaks in narratives.
+
+MANDATORY JSON FORMAT - You MUST use this EXACT structure:
+{"breaks": [...]}
+
+FORBIDDEN RESPONSES - These will cause system failure:
+- {"error": "..."} - NEVER use an error field
+- {"message": "..."} - NEVER use a message field
+- Plain text or explanations outside JSON
+- Any JSON structure other than {"breaks": [...]}
+
+If you find ZERO breaks, respond with: {"breaks": []}
+This is still valid and expected. An empty array is correct when no breaks exist.
 
 CRITICAL: Base your analysis ONLY on the text provided below.
 Do NOT use any prior knowledge about this book, author, or its structure.
@@ -99,7 +127,11 @@ You are NOT looking for:
 
 Only identify breaks that would make sense as chapter divisions in a well-structured novel."""
 
-NARRATIVE_PROMPT_TEMPLATE = """Analyze this text for MAJOR narrative breaks that could serve as chapter boundaries.
+NARRATIVE_PROMPT_TEMPLATE = """CRITICAL: Return ONLY valid JSON in this EXACT format: {{"breaks": [...]}}
+NEVER return {{"error": "..."}} - that format will crash the system.
+If you find no breaks, return {{"breaks": []}} - this is valid and expected.
+
+Analyze this text for MAJOR narrative breaks that could serve as chapter boundaries.
 
 TEXT:
 {text}
@@ -109,21 +141,19 @@ For each potential chapter break:
 2. Explain why this is a major structural break
 3. Rate your confidence (0.0-1.0)
 
-Return a JSON array:
-```json
-[
+REQUIRED JSON FORMAT:
+{{"breaks": [
   {{
     "break_text": "The exact sentence where the break occurs (copy verbatim)",
     "transition_type": "time_jump|pov_change|setting_change|plot_division",
     "confidence": 0.7,
     "reasoning": "Why this is a major break"
   }}
-]
-```
+]}}
 
-If no major breaks are found, return: []
+REMINDER: If NO breaks found, return {{"breaks": []}} - Do NOT return an error object.
 
-Respond with ONLY the JSON array."""
+Your response MUST be ONLY the JSON object, nothing else."""
 
 
 class LLMMarkerProposer(BaseProposer):
@@ -217,12 +247,27 @@ class LLMMarkerProposer(BaseProposer):
             )
             return []
 
-        if not isinstance(result, list):
-            logger.warning(f"LLM marker proposer returned non-list: {type(result)}")
+        # Handle wrapped format: {"markers": [...]}
+        if isinstance(result, dict):
+            if "error" in result or "message" in result:
+                logger.warning(
+                    f"LLM marker proposer returned error response: {result}. "
+                    "Model may not support structured output properly."
+                )
+                return []
+            markers = result.get("markers", [])
+            if not isinstance(markers, list):
+                logger.warning(f"LLM marker proposer 'markers' field is not a list: {type(markers)}")
+                return []
+        elif isinstance(result, list):
+            # Backward compatibility: accept raw arrays
+            markers = result
+        else:
+            logger.warning(f"LLM marker proposer returned unexpected type: {type(result)}")
             return []
 
         proposals = []
-        for item in result:
+        for item in markers:
             if not isinstance(item, dict):
                 continue
 
@@ -441,11 +486,27 @@ class LLMNarrativeProposer(BaseProposer):
             )
             return []
 
-        if not isinstance(result, list):
+        # Handle wrapped format: {"breaks": [...]}
+        if isinstance(result, dict):
+            if "error" in result or "message" in result:
+                logger.warning(
+                    f"LLM narrative proposer returned error response: {result}. "
+                    "Model may not support structured output properly."
+                )
+                return []
+            breaks = result.get("breaks", [])
+            if not isinstance(breaks, list):
+                logger.warning(f"LLM narrative proposer 'breaks' field is not a list: {type(breaks)}")
+                return []
+        elif isinstance(result, list):
+            # Backward compatibility: accept raw arrays
+            breaks = result
+        else:
+            logger.warning(f"LLM narrative proposer returned unexpected type: {type(result)}")
             return []
 
         proposals = []
-        for item in result:
+        for item in breaks:
             if not isinstance(item, dict):
                 continue
 

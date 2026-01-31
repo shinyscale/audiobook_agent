@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -197,6 +197,7 @@ GATSBY-TRACK [StepName] main_cast: NO GATSBY/GATZ FOUND!
 | 4 | Wolfsheim/Wolfshiem spelling variants | src/agents/characters.py:2419-2445 | **VERIFIED FIXED** - both variants now merged |
 | 5 | Missing physical appearance data | src/analyzer.py:2608-2645 | Improved mention sampling: first 3 mentions (was 1), 800-char context (was 400), 12 samples (was 10) |
 | 5b | Jay Gatsby missing from main_cast | src/agents/characters.py, src/pipeline/character_extraction_v2/main_cast.py | Added GATSBY-TRACK debug logging to identify exact failure point |
+| 5c | LLM chapter detection returns error objects | src/pipeline/chapter_detection/proposers/llm.py:71-93, 107-129 | **VERIFIED FIXED** - Added explicit "NEVER return error objects" at start and end of prompts |
 
 ## Score History
 
@@ -215,32 +216,24 @@ Output files: Verified fresh - last modified 2026-01-30 19:14:52
 
 ## Next Action
 
-**Run analysis and check GATSBY-TRACK debug logs to identify where Jay Gatsby disappears.**
+**Re-run analysis to verify LLM chapter detection fix and check profile improvements.**
 
-```bash
-# Run analysis with verbose logging
-./oracle-loop/oracle-loop.sh analyze gatsby 2>&1 | tee gatsby_debug.log
-
-# Check GATSBY-TRACK output
-grep "GATSBY-TRACK" gatsby_debug.log
-```
-
-**What we're looking for:**
-1. Pass1 should find "Jay Gatsby" (not "James Gatz")
-2. Pass2 should add "James Gatz" as alias of "Jay Gatsby" (not the reverse)
-3. Identify which step removes "Jay Gatsby" from main_cast
-4. Once failure point identified, implement fix in that step
-
-**Previous Fix Applied (Attempt 5a - Profiles):**
-- **Root cause:** Profile generator sampled only 1 early mention + 9 distributed mentions. Physical descriptions often appear at first in-person meeting (not first name mention), so they were frequently missed.
-- **Change:** Now samples first **3 mentions** (captures introduction scenes), uses **800-char context windows** (was 400), and samples **12 total** (was 10).
-- **Smoke test:** ✅ PASSED - Verified first 3 mentions included, larger context windows working.
-- **Expected impact:** Profiles should increase from 7.5 → 8.0+ as physical descriptions from character introduction scenes are now captured.
-
-**Current Fix Applied (Attempt 5b - Gatsby Debug Logging):**
-- **Problem:** Jay Gatsby (title character) missing from main_cast, appears only as alias of "James Gatz" in supporting cast
-- **Change:** Added `_log_gatsby_status()` helper and GATSBY-TRACK logging after critical pipeline steps
+**Fix Applied (Attempt 5c - LLM Chapter Detection):**
+- **Root cause:** `qwen3-next:80b` in json_mode was returning `{"error": "No markers found..."}` instead of `{"markers": []}` when no markers found, despite prompt instructions.
+- **Change:** Added explicit warnings at **start and end** of prompts:
+  - `CRITICAL: Return ONLY valid JSON in this EXACT format: {"markers": [...]}`
+  - `NEVER return {"error": "..."} - that format will crash the system`
+  - `REMINDER: If NO markers found, return {"markers": []} - Do NOT return an error object`
 - **Files modified:**
-  - `src/agents/characters.py` - tracking after Steps 3, 3.4, 3.5, 3.6, 5, 5.5
-  - `src/pipeline/character_extraction_v2/main_cast.py` - tracking after Pass 1 and Pass 2
-- **Expected outcome:** Logs will show exactly where "Jay Gatsby" disappears, enabling targeted fix
+  - `src/pipeline/chapter_detection/proposers/llm.py` - MARKER_PROMPT_TEMPLATE (lines 71-93), NARRATIVE_PROMPT_TEMPLATE (lines 107-129)
+- **Smoke test:** ✅ PASSED - Model now returns `{"markers": [{"marker_text": "I", "title": "Chapter 1", ...}]}` instead of error object
+- **Expected impact:** Structure detection stage should now complete successfully in competitive mode
+
+**Previous Fixes Still Active:**
+- **Attempt 5a (Profiles):** Improved mention sampling (first 3 mentions, 800-char context, 12 total samples)
+- **Attempt 5b (Debug Logging):** GATSBY-TRACK logging to identify where Jay Gatsby disappears
+
+**What to check in next analysis:**
+1. Does structure detection complete without errors?
+2. Did profile improvements raise Character Profiles from 7.5 → 8.0+?
+3. Do GATSBY-TRACK logs show where Jay Gatsby disappears?

@@ -45,6 +45,29 @@ from .config import AgentConfig, CompetitiveConfig
 logger = logging.getLogger(__name__)
 
 
+def _log_gatsby_status(step_name: str, characters: list, prefix: str = "main_cast") -> None:
+    """Debug helper to track Gatsby/Gatz through pipeline.
+
+    This tracks any character whose canonical name or aliases contain
+    "gatsby" or "gatz" to help diagnose the missing Jay Gatsby issue.
+    """
+    gatsby_chars = []
+    for c in characters:
+        canonical_lower = c.canonical_name.lower()
+        aliases_str = " ".join(c.aliases).lower() if c.aliases else ""
+
+        if any(g in canonical_lower or g in aliases_str for g in ["gatsby", "gatz"]):
+            gatsby_chars.append(
+                f"{c.canonical_name} ({c.mention_count}m, id={getattr(c, 'id', 'N/A')}, "
+                f"aliases={c.aliases[:5] if c.aliases else []})"
+            )
+
+    if gatsby_chars:
+        logger.info(f"GATSBY-TRACK [{step_name}] {prefix}: {gatsby_chars}")
+    else:
+        logger.warning(f"GATSBY-TRACK [{step_name}] {prefix}: NO GATSBY/GATZ FOUND!")
+
+
 class CharacterAgent(Agent):
     """
     V2 Character Agent using summary-driven extraction.
@@ -179,6 +202,7 @@ class CharacterAgent(Agent):
             )
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
+        _log_gatsby_status("Step3-grounding", main_cast)
 
         # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
         # This must run BEFORE the main merge to avoid the ambiguity problem where
@@ -186,10 +210,13 @@ class CharacterAgent(Agent):
         logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
         main_cast = self._merge_same_firstname_variants(main_cast)
         logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
+        _log_gatsby_status("Step3.4-firstname", main_cast)
 
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
         logger.info("V2 Step 3.5: Merging within main cast")
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
+
+        _log_gatsby_status("Step3.5-within-main", main_cast)
 
         # STEP 3.6: Deduplicate alias-canonical conflicts
         # Handles cases like "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical with alias "Myrtle Wilson")
@@ -197,6 +224,7 @@ class CharacterAgent(Agent):
         main_cast, alias_dedupe_aliases_added = self._deduplicate_alias_canonical_conflicts(
             main_cast
         )
+        _log_gatsby_status("Step3.6-alias-dedupe", main_cast)
         if alias_dedupe_aliases_added:
             within_main_aliases_added.update(alias_dedupe_aliases_added)
 
@@ -437,6 +465,7 @@ class CharacterAgent(Agent):
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
+        _log_gatsby_status("Step5-NER", supporting_cast, "supporting")
 
         # STEP 5.0.5: If main cast extraction failed, retry narrator detection with supporting cast
         # This handles cases where model incompatibility prevents main cast LLM extraction,
@@ -535,6 +564,8 @@ class CharacterAgent(Agent):
             f"V2 Step 5.5 complete: {len(main_cast)} main cast, "
             f"{len(supporting_cast)} supporting after last-name merge"
         )
+        _log_gatsby_status("Step5.5-lastname", main_cast)
+        _log_gatsby_status("Step5.5-lastname", supporting_cast, "supporting")
 
         # STEP 5.6: Merge within supporting cast (last-name-only, spelling variants)
         supporting_cast, supp_aliases_added = self._merge_within_supporting_cast(supporting_cast)
