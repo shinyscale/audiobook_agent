@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -13,11 +13,13 @@
 - Last modified: 2026-01-30 19:14:52 (verified AFTER fix commit)
 
 ## Pipeline Notes
-- Competitive consensus enabled (single model, 3 temperatures)
-- Competitive stages: characters, structure, summaries (via --competitive-all)
+- **CRITICAL FAILURE:** LLM chapter marker detection failing in competitive mode
 - Model: qwen3-next:80b-a3b-instruct-q8_0
-- Analysis completed successfully with Wolfsheim fuzzy merge fix applied
-- Output files regenerated and verified with correct timestamps
+- Competitive stages: characters, structure, summaries (via --competitive-all)
+- Error: LLM marker proposer repeatedly returns `{"error": "No explicit chapter markers found"}`
+- Impact: Structure detection stage cannot complete, blocks entire pipeline
+- Root cause: Model in json_mode returning error objects instead of expected chapter arrays
+- Previous attempt 4 succeeded with same model - regression introduced by competitive structure mode?
 
 ## Latest Scores (Attempt 4 - FRESH EVALUATION)
 
@@ -102,6 +104,31 @@
 
 ## Current Issues (Priority Order)
 
+### BLOCKING (NEW - 2026-01-30 Evening)
+
+-1. **LLM chapter marker detection fails in competitive structure mode**
+   - Problem: `qwen3-next:80b-a3b-instruct-q8_0` returns error objects instead of chapter arrays
+   - Error message: `{"error": "No explicit chapter or section markers found in the provided text"}`
+   - Impact: Structure detection cannot complete, blocks entire analysis pipeline
+   - Location: `src/pipeline/chapter_detection/marker_detection.py` - LLM marker proposer
+   - Observed: Attempt 5 (2026-01-30 evening) - multiple analysis runs all stuck at structure detection
+   - Context: Same model succeeded in attempt 4, but attempt 4 evaluation state doesn't show `--competitive-structure` flag usage
+   - Hypothesis: Competitive structure mode (`--competitive-structure`) triggers different code path that breaks with qwen3-next
+   - Required fix: Either (a) fix json_mode handling in competitive structure, or (b) disable competitive structure for qwen3-next
+   - Note: The model KNOWS about Roman numerals I-IX (mentions them in error message) but refuses to extract them
+
+### CRITICAL (NEW - 2026-01-30)
+
+0. **Jay Gatsby missing from main_cast entirely**
+   - Problem: The title character "Jay Gatsby" is NOT in main_cast
+   - Evidence: supporting_11 is "James Gatz" (only 4 actual text occurrences) with 271 mentions
+   - "James Gatz" has aliases: `["Jay Gatsby", "Gatsby", "the host", "Gatsby of West Egg"]`
+   - But "Gatsby" appears ~262 times in text - should be canonical name
+   - Missing ID: main_cast_1 is missing from the ID sequence (0, 2, 3, 4...)
+   - **Debug logging added** - see "Debug Logging" section below
+   - Location: Likely `src/agents/characters.py` Step 3.6 (`_deduplicate_alias_canonical_conflicts`)
+   - Root cause: Unknown - debug logging will identify exact failure point
+
 ### HIGH
 
 1. **Physical appearance data missing for major characters**
@@ -118,11 +145,47 @@
    - Location: `src/pipeline/character_extraction_v2/supporting.py`
    - Fix: Prompt clarification to exclude publications/media titles
 
-3. **Canonical name ordering for Gatsby**
+3. **Canonical name ordering for Gatsby** (SUPERSEDED by issue #0)
    - Problem: supporting_11 uses "James Gatz" as canonical name with "Jay Gatsby" as alias
    - Impact: Minor - narrators more likely to recognize "Jay Gatsby" as primary name
    - Location: `src/pipeline/character_extraction_v2/supporting.py` or cross-pipeline merge logic
-   - Note: Functionally correct (aliases work), but "Jay Gatsby" would be more narrator-friendly
+   - Note: This is actually a symptom of issue #0 - Jay Gatsby should be in main_cast
+
+## Debug Logging (NEW - 2026-01-30)
+
+Added GATSBY-TRACK logging to trace where Jay Gatsby disappears from the pipeline.
+
+**How to use:**
+```bash
+./oracle-loop/oracle-loop.sh analyze gatsby 2>&1 | grep "GATSBY-TRACK"
+```
+
+**Logging locations:**
+| Step | File | What it tracks |
+|------|------|----------------|
+| Pass1 | main_cast.py:547-554 | Characters found in Pass 1 |
+| Pass2 | main_cast.py:594-598 | Aliases resolved for Gatsby/Gatz |
+| Step3-grounding | characters.py:206 | After grounding gate |
+| Step3.4-firstname | characters.py:214 | After firstname merge |
+| Step3.5-within-main | characters.py:219 | After within-main merge |
+| Step3.6-alias-dedupe | characters.py:226 | After alias-canonical dedup (CRITICAL) |
+| Step5-NER | characters.py:470 | Supporting cast from NER |
+| Step5.5-lastname | characters.py:569-570 | After lastname merge |
+
+**Expected output format:**
+```
+GATSBY-TRACK [StepName] main_cast: ['Jay Gatsby (262m, id=main_cast_1, aliases=[Gatsby, ...])]
+```
+Or if missing:
+```
+GATSBY-TRACK [StepName] main_cast: NO GATSBY/GATZ FOUND!
+```
+
+**What to look for:**
+1. Does Pass1 find "Jay Gatsby" or "James Gatz"?
+2. Does Pass2 add "James Gatz" as alias of "Jay Gatsby" or vice versa?
+3. At which step does "Jay Gatsby" disappear from main_cast?
+4. When does "James Gatz" appear in supporting cast with Gatsby's aliases?
 
 ## Fix History
 
@@ -133,6 +196,7 @@
 | 3 | JSON format for qwen3-next | src/pipeline/character_extraction_v2/main_cast.py | Wrapped object prompts - MAJOR IMPROVEMENT (+1.15) |
 | 4 | Wolfsheim/Wolfshiem spelling variants | src/agents/characters.py:2419-2445 | **VERIFIED FIXED** - both variants now merged |
 | 5 | Missing physical appearance data | src/analyzer.py:2608-2645 | Improved mention sampling: first 3 mentions (was 1), 800-char context (was 400), 12 samples (was 10) |
+| 5b | Jay Gatsby missing from main_cast | src/agents/characters.py, src/pipeline/character_extraction_v2/main_cast.py | Added GATSBY-TRACK debug logging to identify exact failure point |
 
 ## Score History
 
@@ -151,10 +215,32 @@ Output files: Verified fresh - last modified 2026-01-30 19:14:52
 
 ## Next Action
 
-Re-run analysis to verify fix for Character Profiles appearance extraction.
+**Run analysis and check GATSBY-TRACK debug logs to identify where Jay Gatsby disappears.**
 
-**Fix Applied (Attempt 5):**
+```bash
+# Run analysis with verbose logging
+./oracle-loop/oracle-loop.sh analyze gatsby 2>&1 | tee gatsby_debug.log
+
+# Check GATSBY-TRACK output
+grep "GATSBY-TRACK" gatsby_debug.log
+```
+
+**What we're looking for:**
+1. Pass1 should find "Jay Gatsby" (not "James Gatz")
+2. Pass2 should add "James Gatz" as alias of "Jay Gatsby" (not the reverse)
+3. Identify which step removes "Jay Gatsby" from main_cast
+4. Once failure point identified, implement fix in that step
+
+**Previous Fix Applied (Attempt 5a - Profiles):**
 - **Root cause:** Profile generator sampled only 1 early mention + 9 distributed mentions. Physical descriptions often appear at first in-person meeting (not first name mention), so they were frequently missed.
 - **Change:** Now samples first **3 mentions** (captures introduction scenes), uses **800-char context windows** (was 400), and samples **12 total** (was 10).
 - **Smoke test:** ✅ PASSED - Verified first 3 mentions included, larger context windows working.
 - **Expected impact:** Profiles should increase from 7.5 → 8.0+ as physical descriptions from character introduction scenes are now captured.
+
+**Current Fix Applied (Attempt 5b - Gatsby Debug Logging):**
+- **Problem:** Jay Gatsby (title character) missing from main_cast, appears only as alias of "James Gatz" in supporting cast
+- **Change:** Added `_log_gatsby_status()` helper and GATSBY-TRACK logging after critical pipeline steps
+- **Files modified:**
+  - `src/agents/characters.py` - tracking after Steps 3, 3.4, 3.5, 3.6, 5, 5.5
+  - `src/pipeline/character_extraction_v2/main_cast.py` - tracking after Pass 1 and Pass 2
+- **Expected outcome:** Logs will show exactly where "Jay Gatsby" disappears, enabling targeted fix
