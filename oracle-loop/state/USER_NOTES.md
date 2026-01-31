@@ -61,45 +61,6 @@ FORBIDDEN RESPONSES - These will cause system failure:
 
 ---
 
-### GATSBY-TRACK Debug Logging (NEW - 2026-01-30)
-
-Added diagnostic logging to trace why Jay Gatsby disappears from main_cast.
-
-**Problem being diagnosed:**
-- Jay Gatsby (title character, ~262 mentions) is NOT in main_cast
-- Instead, "James Gatz" (4 actual mentions) appears in supporting_11 with all Gatsby aliases
-- This suggests something removes "Jay Gatsby" during pipeline processing
-
-**Files modified:**
-- `src/agents/characters.py`:
-  - Added `_log_gatsby_status()` helper function (lines 48-68)
-  - Tracking after: Step3-grounding, Step3.4-firstname, Step3.5-within-main, Step3.6-alias-dedupe, Step5-NER, Step5.5-lastname
-- `src/pipeline/character_extraction_v2/main_cast.py`:
-  - Tracking after Pass1 (lines 546-554)
-  - Tracking after Pass2 for Gatsby/Gatz characters (lines 594-598)
-
-**How to use:**
-```bash
-grep "GATSBY-TRACK" <log_file>
-```
-
-**Output format:**
-```
-GATSBY-TRACK [Pass1]: ['Jay Gatsby']
-GATSBY-TRACK [Pass2]: Jay Gatsby → aliases=['Gatsby', 'the host', ...]
-GATSBY-TRACK [Step3-grounding] main_cast: ['Jay Gatsby (262m, id=main_cast_1, aliases=[...])']
-GATSBY-TRACK [Step3.6-alias-dedupe] main_cast: NO GATSBY/GATZ FOUND!  # ← This shows where it disappeared
-```
-
-**Suspected root cause:** Step 3.6 (`_deduplicate_alias_canonical_conflicts`) may be incorrectly merging/removing Jay Gatsby if:
-1. LLM extracted both "Jay Gatsby" and "James Gatz" in Pass 1
-2. Pass 2 added "Jay Gatsby" as alias of "James Gatz" (wrong direction)
-3. Step 3.6 finds the conflict and keeps "James Gatz" (lower mentions wins incorrectly?)
-
-**After diagnosis:** Once the failing step is identified, implement fix in that specific function.
-
----
-
 ## Previous Guidance (2026-01-30 - Wrapped JSON Prompts + MoE Model)
 
 ### Wrapped JSON Object Prompts (NEW - 2026-01-30)

@@ -165,6 +165,8 @@ The Walton narrator fix worked, but the deeper character extraction issues (Crea
 
 **Phase:** awaiting_analysis
 
+**EXTERNAL CHANGES DETECTED:** Commits `49f7cbc` and `f20043f` applied by user. Must run analysis to verify fix before applying additional changes.
+
 ## Attempt 5 Fix (2026-01-31) - IMPLEMENTED
 
 ### Issue #1 (CRITICAL): The Creature missing from main_cast
