@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -115,15 +115,24 @@
 
 ## Fix History
 - Attempt 1: Initial analysis (baseline)
+- Attempt 2: Fixed Critical #1-3 - narrator detection and alias disambiguation
+  - Root cause: First-person narrators (Victor Frankenstein, Robert Walton) not recognized from summary perspective
+  - Root cause: Pass 2 alias resolution grouped different professors by title without checking if they're the same person
+  - Smoke test: PASS - Prompts updated correctly with narrator detection signals and same-title disambiguation
+  - Modified: src/pipeline/character_extraction_v2/main_cast.py
+    - CHARACTER_IDENTIFICATION_PROMPT: Added explicit narrator detection guidance (lines 78-100)
+    - ALIAS_RESOLUTION_PROMPT: Added same-title/profession disambiguation rule (line 139)
+    - Pass 2 loop: Inject other_characters_context to prevent false grouping (lines 556-575)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Initial analysis | N/A | Baseline score 6.35 |
+| 2 | Critical #1-3: Victor/Walton missing, Waldman/Krempe merge | src/pipeline/character_extraction_v2/main_cast.py | Awaiting re-analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address Critical #1-3 (protagonist missing, narrator missing, false merge)
+Re-run analysis to verify fixes (set phase to awaiting_analysis)
 
 ## Configuration Notes (from _profiling)
 - Total runtime: 154m 15s

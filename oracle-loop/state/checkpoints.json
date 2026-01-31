@@ -50,12 +50,12 @@
       }
     },
     "gatsby": {
-      "commit": "6e400a0e9296392851ad7bc137917311e3ab6275",
-      "score": 8.6,
+      "commit": "5a81bcb3839373c55d76bc46dd1a2b042b9e1c5b",
+      "score": 8.98,
       "category_scores": {
-        "structure": 10,
-        "characters": 8,
-        "profiles": 7.5,
+        "structure": 9.5,
+        "characters": 9,
+        "profiles": 8,
         "summaries": 9.5,
         "pronunciation": 9,
         "presentation": 9

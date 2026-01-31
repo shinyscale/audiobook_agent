@@ -84,13 +84,16 @@ NOTE: When chapter summaries include a `characters_present` list, treat each ent
 
 IMPORTANT RULES:
 1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
-2. Always include the narrator (if a character) and the title character/entity if applicable
+2. **NARRATOR DETECTION (CRITICAL)**: Always include the narrator as a main character. Look for these signals:
+   - Phrases like "letter written by X", "X writes to Y", "X expresses/describes/recounts"
+   - Repeated third-person references to a character across many summaries (e.g., "Victor Frankenstein receiving...", "Victor consumed by...", "Victor's obsessive pursuit...")
+   - If a character's perspective dominates the summaries, they are likely the narrator
 3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
 4. Do NOT invent names not supported by the summaries
 5. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
 6. Do NOT list aliases in this pass
 7. **ROLE ASSIGNMENT**:
-   - **protagonist**: Main character(s), narrators, characters the story follows
+   - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
    - **minor**: Characters with limited appearances
@@ -128,6 +131,8 @@ CHARACTER: {character_name}
 Role: {role}
 Description: {description}
 
+{other_characters_context}
+
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
@@ -136,6 +141,7 @@ IMPORTANT RULES:
 3. For unnamed characters or symbolic entities, include all descriptive handles that refer to the same thing
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 5. Do NOT include names of other characters/entities
+6. CRITICAL: Characters with the same title/profession but different names are DIFFERENT PEOPLE (e.g., "Professor Smith" ≠ "Professor Jones", "Dr. Brown" ≠ "Dr. Green"). Only group names if they clearly refer to the same individual.
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -558,10 +564,19 @@ class MainCastExtractor:
         for char in initial_characters:
             logger.info(f"Pass 2: Resolving aliases for {char.canonical_name}")
 
+            # Build context about other characters to prevent false grouping
+            other_chars = [c.canonical_name for c in initial_characters if c.canonical_name != char.canonical_name]
+            if other_chars:
+                other_chars_text = "OTHER CHARACTERS IN THIS NOVEL:\n" + "\n".join(f"- {name}" for name in other_chars)
+                other_chars_text += "\n\nDo NOT include any of these other characters as aliases unless they are clearly the same person."
+            else:
+                other_chars_text = ""
+
             pass2_prompt = ALIAS_RESOLUTION_PROMPT.format(
                 character_name=char.canonical_name,
                 role=char.role,
                 description=char.description,
+                other_characters_context=other_chars_text,
                 summaries=summaries_text,
             )
 
