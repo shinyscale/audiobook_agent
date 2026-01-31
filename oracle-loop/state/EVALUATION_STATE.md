@@ -3,9 +3,10 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** analysis_in_progress
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
+- **Analysis Started:** 2026-01-31 (background task b4b4f79)
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
@@ -71,11 +72,15 @@
 
 ## Next Action
 
-Re-run analysis (PROMPT_analyze.md) to verify attempt 3 fixes:
-- Expected: Walton extracted as "Robert Walton" in main_cast with is_narrator=true
-- Expected: Alphonse extracted as "Alphonse Frankenstein" in main_cast (not fragmented)
+Analysis running in background (task b4b4f79). When complete, run PROMPT_evaluate.md.
+
+Expected improvements from attempt 3 fixes:
+- Walton extracted as "Robert Walton" in main_cast with is_narrator=true (epistolary narrator guidance)
+- Alphonse extracted as "Alphonse Frankenstein" in main_cast (relationship-based reference guidance)
 
 ## Configuration Notes
-- Total runtime: ~2.5 hours (attempt 2)
-- 717 LLM calls, 860K tokens
-- Model: qwen3-next:80b-a3b-instruct-q8_0
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Competitive consensus: ENABLED (single-model mode, 3 temperatures: 0.5, 0.7, 0.9)
+- Competitive stages: characters, structure, summaries (all enabled via --competitive-all)
+- Attempt 2: ~2.5 hours runtime, 717 LLM calls, 860K tokens
+- Attempt 3: Started 2026-01-31, task b4b4f79
