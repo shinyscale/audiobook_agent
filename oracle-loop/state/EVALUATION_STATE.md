@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -166,6 +166,8 @@ The Walton narrator fix worked, but the deeper character extraction issues (Crea
 **Phase:** awaiting_analysis
 
 **EXTERNAL CHANGES DETECTED:** Commits `49f7cbc` and `f20043f` applied by user. Must run analysis to verify fix before applying additional changes.
+
+The fix in commit `49f7cbc` addresses Issue #1 (CRITICAL) - The Creature missing from main_cast. The `characters_present` field from chapter summaries is now passed to main_cast extraction, which should allow the LLM to see "the Creature" explicitly listed in 13 chapter summaries.
 
 ## Attempt 5 Fix (2026-01-31) - IMPLEMENTED
 
