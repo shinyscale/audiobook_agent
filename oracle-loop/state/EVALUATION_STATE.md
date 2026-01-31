@@ -3,15 +3,14 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** analysis_in_progress
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
-- **Analysis Started:** 2026-01-31 (background task b4b4f79)
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 (attempt 2 analysis)
+- Last modified: 2026-01-31 05:33 (attempt 3 analysis complete)
 
 ## Latest Scores (Attempt 2)
 - Structure Detection: 7.5/10 ✗ (FAILING - most chapter titles null)
@@ -72,7 +71,7 @@
 
 ## Next Action
 
-Analysis running in background (task b4b4f79). When complete, run PROMPT_evaluate.md.
+Run PROMPT_evaluate.md to evaluate attempt 3 results.
 
 Expected improvements from attempt 3 fixes:
 - Walton extracted as "Robert Walton" in main_cast with is_narrator=true (epistolary narrator guidance)
