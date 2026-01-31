@@ -88,11 +88,13 @@ IMPORTANT RULES:
    - Phrases like "letter written by X", "X writes to Y", "X expresses/describes/recounts"
    - Repeated third-person references to a character across many summaries (e.g., "Victor Frankenstein receiving...", "Victor consumed by...", "Victor's obsessive pursuit...")
    - If a character's perspective dominates the summaries, they are likely the narrator
-3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
+   - **EPISTOLARY NARRATIVES**: If early summaries describe letters signed with initials or varying forms (e.g., "R. Walton", "Robert Walton", "R.W.", "Captain Walton"), these refer to ONE narrator - use the FULL NAME form as canonical
+3. Use the most common name form in the summaries as canonical_name (or the FULL NAME form if multiple variants exist)
 4. Do NOT invent names not supported by the summaries
-5. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
-6. Do NOT list aliases in this pass
-7. **ROLE ASSIGNMENT**:
+5. **RELATIONSHIP-BASED REFERENCES**: If summaries frequently mention "his father", "her mother", "the narrator's X", look for the FULL NAME in other summaries and use that as canonical_name (e.g., "his father" + "letter from Alphonse" = "Alphonse Frankenstein"). Include family members who appear across multiple chapters.
+6. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
+7. Do NOT list aliases in this pass
+8. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
