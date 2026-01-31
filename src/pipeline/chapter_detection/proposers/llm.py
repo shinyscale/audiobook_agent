@@ -68,30 +68,25 @@ CRITICAL DISTINCTIONS:
 
 CRITICAL: You must return the EXACT TEXT as it appears. We will search for your text - if you paraphrase, the search will fail."""
 
-MARKER_PROMPT_TEMPLATE = """CRITICAL: Return ONLY valid JSON in this EXACT format: {{"markers": [...]}}
-NEVER return {{"error": "..."}} - that format will crash the system.
-If you find no markers, return {{"markers": []}} - this is valid and expected.
-
-Find all EXPLICIT chapter/section markers in the following text.
+MARKER_PROMPT_TEMPLATE = """Find all EXPLICIT chapter/section markers in the following text.
 
 TEXT:
 {text}
 
 For each marker include:
-- "marker_text": The EXACT text of the marker as it appears (copy character-for-character)
+- "marker_text": The EXACT text as it appears (copy character-for-character)
 - "title": The chapter title/number (e.g., "Chapter 1", "Part Two", "Prologue")
-- "confidence": Your confidence this is a real chapter marker (0.0-1.0)
+- "confidence": Your confidence (0.0-1.0)
 - "reasoning": Brief explanation
 
-REQUIRED JSON FORMAT:
+FORMAT: {{"markers": [...]}}
+
+Example:
 {{"markers": [
-  {{"marker_text": "CHAPTER I", "title": "Chapter 1", "confidence": 0.95, "reasoning": "Explicit chapter marker"}},
-  {{"marker_text": "II", "title": "Chapter 2", "confidence": 0.85, "reasoning": "Roman numeral following chapter 1 pattern"}}
+  {{"marker_text": "CHAPTER I", "title": "Chapter 1", "confidence": 0.95, "reasoning": "Explicit chapter marker"}}
 ]}}
 
-REMINDER: If NO markers found, return {{"markers": []}} - Do NOT return an error object.
-
-Your response MUST be ONLY the JSON object, nothing else."""
+If no markers: {{"markers": []}}"""
 
 
 NARRATIVE_SYSTEM_PROMPT = """You are a JSON-only literary analyst identifying major structural breaks in narratives.
@@ -127,33 +122,25 @@ You are NOT looking for:
 
 Only identify breaks that would make sense as chapter divisions in a well-structured novel."""
 
-NARRATIVE_PROMPT_TEMPLATE = """CRITICAL: Return ONLY valid JSON in this EXACT format: {{"breaks": [...]}}
-NEVER return {{"error": "..."}} - that format will crash the system.
-If you find no breaks, return {{"breaks": []}} - this is valid and expected.
-
-Analyze this text for MAJOR narrative breaks that could serve as chapter boundaries.
+NARRATIVE_PROMPT_TEMPLATE = """Analyze this text for MAJOR narrative breaks that could serve as chapter boundaries.
 
 TEXT:
 {text}
 
-For each potential chapter break:
-1. Copy the EXACT sentence or phrase where the break occurs
-2. Explain why this is a major structural break
-3. Rate your confidence (0.0-1.0)
+For each break include:
+- "break_text": The exact sentence where the break occurs (verbatim)
+- "transition_type": time_jump|pov_change|setting_change|plot_division
+- "confidence": 0.0-1.0
+- "reasoning": Why this is a major break
 
-REQUIRED JSON FORMAT:
+FORMAT: {{"breaks": [...]}}
+
+Example:
 {{"breaks": [
-  {{
-    "break_text": "The exact sentence where the break occurs (copy verbatim)",
-    "transition_type": "time_jump|pov_change|setting_change|plot_division",
-    "confidence": 0.7,
-    "reasoning": "Why this is a major break"
-  }}
+  {{"break_text": "Three months later...", "transition_type": "time_jump", "confidence": 0.8, "reasoning": "Significant time skip"}}
 ]}}
 
-REMINDER: If NO breaks found, return {{"breaks": []}} - Do NOT return an error object.
-
-Your response MUST be ONLY the JSON object, nothing else."""
+If no breaks: {{"breaks": []}}"""
 
 
 class LLMMarkerProposer(BaseProposer):

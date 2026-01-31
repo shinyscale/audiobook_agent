@@ -150,8 +150,9 @@ The Walton narrator fix worked, but the deeper character extraction issues (Crea
 | 2 | Victor missing, Waldman/Krempe merge | main_cast.py | Victor FIXED, Waldman/Krempe FIXED |
 | 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
 | 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton now narrator) |
+| 5 | Creature missing (upstream data) | characters.py, main_cast.py | PENDING (awaiting analysis) |
 
-**Pattern:** Fixes to main_cast.py don't affect characters in supporting_cast or F6 reconciliation. Must target the correct pipeline stage.
+**Pattern:** Fixes to main_cast.py don't affect characters in supporting_cast or F6 reconciliation. Must target the correct pipeline stage. **NEW:** Upstream data issues require fixing data propagation, not extraction logic.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
@@ -162,17 +163,31 @@ The Walton narrator fix worked, but the deeper character extraction issues (Crea
 
 ## Next Action
 
-Fix phase should address **CRITICAL Issue #1: The Creature missing from main_cast**.
+**Phase:** awaiting_analysis
 
-**Root cause analysis:**
-- The Creature has no proper noun name in the text (never named "Frankenstein's monster" or given a name)
-- It's referred to as "the creature", "the monster", "the fiend", "the daemon" - all common nouns with articles
-- NER-based extraction likely misses it entirely
-- F6 reconciliation catches it from summaries but with low mention counts
+## Attempt 5 Fix (2026-01-31) - IMPLEMENTED
 
-**Suggested fix approach:**
-1. The summaries prominently feature "the Creature" - check `active_characters` in chapter summaries
-2. If summaries mention a major unnamed character (creature/monster), promote to main_cast
-3. Or: Add special handling in main_cast extraction for famous unnamed characters with high summary presence
+### Issue #1 (CRITICAL): The Creature missing from main_cast
 
-**Alternative:** Manually review if the Creature appears anywhere in main_cast with a different ID - possible it was merged incorrectly.
+**Root cause (CONFIRMED):**
+- Chapter summaries correctly identify "the Creature" in `characters_present` field (13 chapters)
+- `characters.py:_get_chapter_summaries()` extracted ONLY `.summary` text, ignoring `.characters_present`
+- Main_cast extraction LLM saw prose summaries but NOT the structured character list
+- LLM missed extracting "the Creature" because it only had prose context, not explicit character presence data
+- F6 reconciliation caught it later from `characters_present`, but with low mentions (6 vs should be 44+)
+
+**Fix implemented:**
+1. Modified `src/agents/characters.py:_get_chapter_summaries()` to format summaries with `[Characters: ...]` prefix
+2. Added `_format_summary_with_characters()` helper that prepends character list to prose summary
+3. Updated prompt in `src/pipeline/character_extraction_v2/main_cast.py` to acknowledge this format
+4. Files modified:
+   - `src/agents/characters.py` (lines 881-925)
+   - `src/pipeline/character_extraction_v2/main_cast.py` (line 83)
+
+**Expected impact:**
+- "the Creature" will be explicitly listed in 13 chapter summaries
+- LLM extraction should see it as a recurring major character
+- Should be extracted to main_cast instead of F6 reconciliation
+- Grounding should find 44+ mentions in raw text
+
+**Universality:** This fix helps ANY book where summaries have structured character data. It's a data propagation fix, not book-specific logic.

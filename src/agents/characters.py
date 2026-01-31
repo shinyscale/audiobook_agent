@@ -45,29 +45,6 @@ from .config import AgentConfig, CompetitiveConfig
 logger = logging.getLogger(__name__)
 
 
-def _log_gatsby_status(step_name: str, characters: list, prefix: str = "main_cast") -> None:
-    """Debug helper to track Gatsby/Gatz through pipeline.
-
-    This tracks any character whose canonical name or aliases contain
-    "gatsby" or "gatz" to help diagnose the missing Jay Gatsby issue.
-    """
-    gatsby_chars = []
-    for c in characters:
-        canonical_lower = c.canonical_name.lower()
-        aliases_str = " ".join(c.aliases).lower() if c.aliases else ""
-
-        if any(g in canonical_lower or g in aliases_str for g in ["gatsby", "gatz"]):
-            gatsby_chars.append(
-                f"{c.canonical_name} ({c.mention_count}m, id={getattr(c, 'id', 'N/A')}, "
-                f"aliases={c.aliases[:5] if c.aliases else []})"
-            )
-
-    if gatsby_chars:
-        logger.info(f"GATSBY-TRACK [{step_name}] {prefix}: {gatsby_chars}")
-    else:
-        logger.warning(f"GATSBY-TRACK [{step_name}] {prefix}: NO GATSBY/GATZ FOUND!")
-
-
 class CharacterAgent(Agent):
     """
     V2 Character Agent using summary-driven extraction.
@@ -202,7 +179,6 @@ class CharacterAgent(Agent):
             )
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
-        _log_gatsby_status("Step3-grounding", main_cast)
 
         # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
         # This must run BEFORE the main merge to avoid the ambiguity problem where
@@ -210,13 +186,10 @@ class CharacterAgent(Agent):
         logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
         main_cast = self._merge_same_firstname_variants(main_cast)
         logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
-        _log_gatsby_status("Step3.4-firstname", main_cast)
 
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
         logger.info("V2 Step 3.5: Merging within main cast")
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
-
-        _log_gatsby_status("Step3.5-within-main", main_cast)
 
         # STEP 3.6: Deduplicate alias-canonical conflicts
         # Handles cases like "Myrtle Wilson" (canonical) + "Mrs. Wilson" (canonical with alias "Myrtle Wilson")
@@ -224,7 +197,6 @@ class CharacterAgent(Agent):
         main_cast, alias_dedupe_aliases_added = self._deduplicate_alias_canonical_conflicts(
             main_cast
         )
-        _log_gatsby_status("Step3.6-alias-dedupe", main_cast)
         if alias_dedupe_aliases_added:
             within_main_aliases_added.update(alias_dedupe_aliases_added)
 
@@ -907,13 +879,17 @@ class CharacterAgent(Agent):
         )
 
     def _get_chapter_summaries(self, context: AgentContext) -> list[str]:
-        """Extract chapter summaries from context."""
+        """Extract chapter summaries from context, including characters_present."""
         # Try getting from previous_results (SummaryAgent output)
         summaries_result = context.get_result("summaries")
         if summaries_result:
             # SummaryAgent returns a list of ChapterSummary objects or similar
             if hasattr(summaries_result, "summaries"):
-                return [s.summary for s in summaries_result.summaries if s.summary]
+                return [
+                    self._format_summary_with_characters(s)
+                    for s in summaries_result.summaries
+                    if s.summary
+                ]
             elif isinstance(summaries_result, list):
                 return [
                     s.get("summary") if isinstance(s, dict) else str(s)
@@ -927,11 +903,29 @@ class CharacterAgent(Agent):
             chapters = getattr(context.chapter_map, "chapters", [])
             for ch in chapters:
                 if hasattr(ch, "summary") and ch.summary:
-                    summaries.append(ch.summary)
+                    summaries.append(self._format_summary_with_characters(ch))
             if summaries:
                 return summaries
 
         return []
+
+    def _format_summary_with_characters(self, summary_obj) -> str:
+        """Format a summary object to include characters_present list."""
+        summary_text = summary_obj.summary
+
+        # Check for characters_present or active_characters field
+        characters = None
+        if hasattr(summary_obj, "characters_present"):
+            characters = summary_obj.characters_present
+        elif hasattr(summary_obj, "active_characters"):
+            characters = summary_obj.active_characters
+
+        # If characters list exists and is non-empty, prepend it to the summary
+        if characters:
+            char_list = ", ".join(characters)
+            return f"[Characters: {char_list}]\n{summary_text}"
+
+        return summary_text
 
     def _get_chapters(self, context: AgentContext) -> list[StructuralElement]:
         """Get chapter structural elements from context."""

@@ -80,7 +80,7 @@ CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the 
 
 TASK: Identify the main characters based on the chapter summaries below. Typically 10-15 characters, but extract ALL significant characters regardless of count (could be fewer for short stories, more for epics).
 
-NOTE: When chapter summaries include a `characters_present` list, treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both are in the list).
+NOTE: Chapter summaries include a [Characters: ...] list showing who appears in each chapter. Extract ALL characters who appear multiple times across chapters. Treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both appear in the lists).
 
 IMPORTANT RULES:
 1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
