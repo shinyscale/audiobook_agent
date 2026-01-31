@@ -110,8 +110,8 @@
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
       "complete": false,
-      "attempts": 1,
-      "last_score": 6.35,
+      "attempts": 4,
+      "last_score": 7.88,
       "baseline_score": 6.35
     },
     {

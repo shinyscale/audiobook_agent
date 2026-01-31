@@ -3,167 +3,141 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 08:32 (attempt 4 analysis complete)
+- Last modified: 2026-01-31 (attempt 4 analysis complete)
 
-## Latest Scores (Attempt 3)
-- Structure Detection: 7.5/10 ✗ (FAILING - most chapter titles null)
-- Character Extraction: 6.5/10 ✗ (FAILING - Walton not narrator, Alphonse fragmented, generic groups)
-- Character Profiles: 8/10 ✓
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 8/10 ✓
-- **Overall: 7.83/10** (reference only)
+## Latest Scores (Attempt 4)
+- Structure Detection: 7/10 ✗ (FAILING - 25/28 titles null, Letter 1 missing)
+- Character Extraction: 7/10 ✗ (FAILING - Creature missing from main_cast, fragmentation persists)
+- Character Profiles: 7.5/10 ✗ (FAILING - all appearance="unknown", relationships good)
+- Chapter Summaries: 9.5/10 ✓ (excellent quality, factually accurate)
+- Pronunciation Guide: 9/10 ✓ (436/457 have IPA, good coverage)
+- HTML Presentation: 8.5/10 ✓ (navigation works, character list complete)
+- **Overall: 7.88/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (3 categories below threshold)
+
+## CRITICAL FIX VERIFIED ✓
+
+**Issue #1 from Attempt 3 is FIXED:** Robert Walton (main_cast_0) now correctly has `is_narrator=true`. The frame narrator detection in supporting_cast fix worked.
+
+Narrators now identified: `['Robert Walton', 'Victor Frankenstein']` - Both correct for the nested narrative structure.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Robert Walton NOT marked as narrator**
-   - Problem: Walton is the FRAME narrator of Frankenstein (entire novel is his letters to Margaret) but `is_narrator=false`
-   - Evidence: "Walton" (supporting_5, 8 mentions, is_narrator=false) - should be the primary frame narrator
-   - Impact: Fundamentally misrepresents the novel's narrative structure for audiobook preparation
-   - Location: The epistolary narrator detection fix in attempt 3 was applied to main_cast.py but Walton ended up in supporting_cast, not main_cast
-   - ID Pattern: supporting_5 → supporting cast pipeline
-   - Fix: Either (a) promote Walton to main_cast with is_narrator=true, or (b) ensure supporting cast can also detect frame narrators
-
-2. **Robert Walton fragmented: "Walton" vs "R.W."**
-   - Problem: "Walton" (supporting_5, 8 mentions) and "R.W." (f1b39c083608, 1 mention) are separate entries
-   - Evidence: R.W. is Walton's signature on Letter 3 - same person
-   - ID Patterns: supporting_5 (supporting cast) + f1b39c083608 (F6 reconciliation)
-   - Location: Cross-pipeline merge needed - F6 reconciliation should merge "R.W." with "Walton"
-   - Fix: Add alias recognition for initials → full name in F6 reconciliation (analyzer.py:1220-1240)
+1. **The Creature/Monster missing from main_cast**
+   - Problem: The novel's deuteragonist is only present as two F6 reconciliation entries:
+     - "the Monster" (843d532715f2, 6 mentions)
+     - "The Monster (as hallucinated presence)" (d26c9a7e79ed, 1 mention)
+   - Evidence: The Creature is a central character with extensive narrative presence (has own POV chapters)
+   - Expected: Should be in main_cast with aliases: ["the Creature", "the monster", "the fiend", "the daemon", "the wretch"]
+   - ID Patterns: Both are F6 reconciliation hash IDs → summaries mention the creature but extraction missed it
+   - Impact: Character Extraction cannot score 8.0+ without the deuteragonist
+   - Location: Main cast extraction (`src/pipeline/character_extraction_v2/main_cast.py`) - the Creature may not have a proper noun name that NER detects
+   - Fix: The Creature is referred to as "the creature", "the monster", "the fiend", "the daemon" (common nouns) - extraction may need to handle major non-named characters mentioned prominently in summaries
 
 ### HIGH
 
-3. **Alphonse Frankenstein fragmented into two F6 entries**
-   - Problem: "Alphonse Frankenstein" (cf652e4d2e68, 1 mention) and "The narrator's father" (4542ed769e00, 1 mention) are separate
+2. **Alphonse Frankenstein fragmented**
+   - Problem: Two separate F6 entries:
+     - "Alphonse Frankenstein" (cf652e4d2e68, 1 mention)
+     - "The narrator's father" (4542ed769e00, 1 mention)
    - Evidence: Same person - Victor's father is Alphonse Frankenstein
-   - ID Patterns: Both are 12-char hashes → both from F6 reconciliation
-   - The attempt 3 relationship-based reference guidance did NOT work
-   - Location: F6 reconciliation (analyzer.py:1220-1240)
-   - Fix: F6 reconciliation needs to merge relationship-based references ("The narrator's father") with named characters when context makes them equivalent
+   - ID Patterns: Both 12-char hashes → F6 reconciliation (analyzer.py:1220-1240)
+   - Fix: F6 reconciliation should merge relationship-based references with named characters
 
-4. **Generic groups extracted as characters**
-   - Problem: "the court officials", "Witnesses (fishermen, women)", "the people of the inn" are not characters
-   - Evidence: These are generic group references, not named/significant characters
-   - ID Patterns: All F6 reconciliation (12-char hashes)
-   - Location: F6 reconciliation (analyzer.py:1220-1240) or summary extraction that created them
-   - Fix: Filter out generic group references ("the [noun]s", "witnesses", etc.) from character reconciliation
+3. **Generic groups extracted as characters**
+   - Problem: Non-character groups in character list:
+     - "the people of the inn" (0976d73b1ce1)
+     - "The sailors" (799f6ac74701)
+     - "Old woman (nurse)" (6fdf7040235f)
+   - Evidence: These are generic references, not named/significant characters
+   - ID Patterns: All F6 reconciliation hash IDs
+   - Location: F6 reconciliation or summary extraction
+   - Fix: Filter generic group references from character reconciliation
 
-5. **Caroline Beaufort fragmented**
-   - Problem: "Caroline Beaufort Frankenstein" (main_cast_7, 10 mentions) and "Caroline Beaufort" (1b0ca2c5dd62, 1 mention) separate
-   - Evidence: Same person - Caroline Beaufort is her maiden name, Caroline Beaufort Frankenstein after marriage
-   - ID Patterns: main_cast_7 (main cast) + 1b0ca2c5dd62 (F6 reconciliation)
-   - Location: F6 reconciliation should merge with existing main_cast entry
-   - Fix: Name-shape matching in F6 to recognize maiden name as alias of married name
+4. **Beaufort fragmented from Caroline context**
+   - Problem: "Beaufort" (0e0a948fd562, 1 mention) separate from Caroline Beaufort Frankenstein
+   - Evidence: Beaufort is Caroline's father - contextually related but distinct person (this may actually be CORRECT - they are different people)
+   - Verification: Check if this is Caroline's father or an erroneous split
+   - Note: May not be an error - Beaufort the father is distinct from his daughter Caroline
 
 ### MEDIUM
 
-6. **Chapter titles mostly null**
-   - Problem: Only Letters 2-4 have titles; Letter 1 and all 24 chapters show `title: null`
-   - Evidence: 24/28 structure elements have null titles
+5. **Structure titles mostly null**
+   - Problem: Only 3/28 structure elements have titles (Letters 2-4)
+   - Missing: Letter 1, Chapter I through Chapter XXIV
+   - Evidence: `jq '[.structure[] | .title] | map(select(. == null)) | length'` returns 25
    - Impact: Navigation and chapter reference usability reduced
-   - Location: Structure detection pipeline (chapter_detection/proposers/llm.py or consensus logic)
-   - Fix: Ensure chapter title extraction captures "Letter 1", "Chapter I", "Chapter II", etc.
+   - Location: Structure detection pipeline (`src/pipeline/chapter_detection/proposers/llm.py`)
+   - Fix: Ensure title extraction captures "Letter 1", "Chapter I", "Chapter II", etc.
 
-7. **Victor Frankenstein has "unknown" appearance**
-   - Problem: Main protagonist lacks physical description in profile
-   - Evidence: `appearance.summary: "unknown"` for main_cast_1
+6. **All character profiles have appearance="unknown"**
+   - Problem: 0/32 characters have physical_description populated
+   - Evidence: `jq '[.characters[] | select(.physical_description != null)] | length'` returns 0
+   - Even Victor and the Creature (both extensively described) show "unknown"
    - Location: Character profiling pipeline
-   - Fix: May be limited by source text (Victor doesn't describe himself much), but some details exist
+   - Note: The Creature has one of the most detailed physical descriptions in literature - this should not be "unknown"
+   - Fix: Investigate why appearance extraction is failing completely
 
 ### LOW
 
-8. **M. Waldman not merged with Professor Waldman context**
-   - Problem: "M. Waldman" (supporting_4, 9 mentions) lacks full context
+7. **M. Waldman missing "Professor Waldman" alias**
+   - Problem: "M. Waldman" (main_cast_13, 17 mentions) lacks context
    - Evidence: Text refers to him as both "M. Waldman" and "Professor Waldman"
-   - Impact: Minor - character is correctly extracted, just missing alias
-   - Fix: Add "Professor Waldman" as alias
+   - Impact: Minor - character correctly extracted
+   - Fix: Add alias recognition
 
-## Pipeline Notes (Attempt 4 - 2026-01-31 08:32)
+8. **Monster vs Creature naming inconsistency**
+   - Problem: F6 entries use "the Monster" but literary convention prefers "the Creature"
+   - Impact: Minor stylistic issue
+   - Note: Shelley herself used various terms; "Creature" is modern preference
 
-**Analysis completed successfully in 150m 12s**
+## What Improved in Attempt 4
 
-Key observations:
-- ✅ Narrator detection: "Robert Walton (epistolary)" detected from summaries
-- ✅ M. Krempe and M. Waldman correctly split (not merged)
-- ⚠️ Character profiling errors: `name 'pipeline_char_map' is not defined` for some characters
-- ⚠️ Pronunciation LLM errors: qwen3-next returning error objects instead of JSON arrays
-- ⚠️ Structure: 27 chapters detected vs 28 expected (TOC enforcement warning)
+| Category | Attempt 3 | Attempt 4 | Change |
+|----------|-----------|-----------|--------|
+| Structure | 7.5 | 7.0 | -0.5 (regression - title issue noted more carefully) |
+| Characters | 6.5 | 7.0 | +0.5 (Walton narrator fix) |
+| Profiles | 8.0 | 7.5 | -0.5 (appearance issue not previously noted) |
+| Summaries | 9.0 | 9.5 | +0.5 (confirmed excellent quality) |
+| Pronunciation | 9.0 | 9.0 | - |
+| Presentation | 8.0 | 8.5 | +0.5 |
+| **Overall** | 7.83 | 7.88 | +0.05 |
 
-**Pipeline Metrics:**
-- Total time: 150m 12s
-- LLM calls: 668
-- Tokens: 773,500
-- Characters found: 32 (24 from extraction + 8 from summary reconciliation)
-- Profiles generated: 20/25 eligible characters
-
-**Warnings to investigate in evaluation:**
-1. Character profiling failures (pipeline_char_map undefined)
-2. Pronunciation JSON parsing failures (model compatibility issue)
-3. TOC mismatch (27 detected vs 31 expected from TOC)
+The Walton narrator fix worked, but the deeper character extraction issues (Creature missing) prevent reaching 8.0.
 
 ## Fix History
 
-### Attempt 4 Fix (2026-01-31) - ANALYSIS COMPLETE, AWAITING EVALUATION
-
-**Fixed:**
-1. ✓ Robert Walton narrator detection (CRITICAL issue #1)
-   - Root cause: Narrator detection (Step 4) ran BEFORE supporting cast extraction (Step 5)
-   - Frame narrators with few name mentions get extracted to supporting_cast, not main_cast
-   - Previous fallback (Step 5.0.5) only ran if main_cast was EMPTY (wrong condition)
+### Attempt 4 Fix (2026-01-31) - PARTIALLY SUCCESSFUL
+1. ✓ Robert Walton narrator detection - NOW WORKS
    - Fix: Added Step 5.0.5 re-run with combined_cast (main + supporting)
-   - Now checks narrator against ALL characters, not just main_cast
-   - If narrator found in supporting_cast, marks them as is_narrator=true
-   - File modified: src/agents/characters.py (lines 470-523)
+   - File: src/agents/characters.py (lines 470-523)
+   - Result: Walton now has is_narrator=true
 
-**Smoke test:** Code logic verified - re-runs narrator detection with combined cast after supporting extraction
+**Deferred:**
+- Issue #1 (CRITICAL): Creature missing from main_cast
+- Issue #2 (HIGH): Alphonse fragmentation
+- Issue #3 (HIGH): Generic groups
+- Issue #5 (MEDIUM): Structure titles null
 
-**Deferred for next iteration:**
-- Issue #2 (CRITICAL): Walton "R.W." fragmentation - F6 reconciliation (analyzer.py)
-- Issue #3 (HIGH): Alphonse fragmentation - F6 reconciliation (analyzer.py)
-- Issue #4 (HIGH): Generic groups - F6 reconciliation (analyzer.py)
-- Issue #5 (HIGH): Caroline maiden name - F6 reconciliation (analyzer.py)
-- Issue #6 (MEDIUM): Chapter titles null - Structure detection
+### Attempt 3 Fixes - PARTIALLY FAILED
+1. ❌ Robert Walton epistolary narrator detection - did not apply (Walton in supporting_cast)
+2. ❌ Alphonse relationship references - still fragmented
 
-### Attempt 3 Fixes (2026-01-31) - PARTIALLY FAILED
-
-**Intended fixes:**
-1. ❌ Robert Walton epistolary narrator detection - FIX DID NOT WORK
-   - Added epistolary guidance to CHARACTER_IDENTIFICATION_PROMPT
-   - But Walton ended up in supporting_cast (not main_cast), so the guidance didn't apply
-   - Walton still NOT marked as narrator
-
-2. ❌ Alphonse Frankenstein relationship-based references - FIX DID NOT WORK
-   - Added relationship-based reference guidance to CHARACTER_IDENTIFICATION_PROMPT
-   - But Alphonse still fragmented into two F6 reconciliation entries
-   - Neither entry is in main_cast
-
-**Root cause analysis:**
-- The fixes were applied to main_cast.py but the characters are being created in OTHER pipelines (supporting_cast, F6 reconciliation)
-- The LLM did not extract Walton or Alphonse into main_cast, so the main_cast.py guidance never applied
-- Attempt 4 correctly targets src/agents/characters.py where narrator detection runs
-
-### Attempt 2 Fixes (2026-01-31)
-
-**Fixes that WORKED:**
-1. ✅ Victor Frankenstein now in main_cast (main_cast_1, 55 mentions, is_narrator=true)
-2. ✅ Professor Krempe and M. Waldman are NOW SEPARATE - false merge FIXED
-3. ✅ The Creature has proper appearance description in structured format
-4. ✅ Victor and Creature correctly marked as narrators
-
-**Character Extraction improved from 4/10 to 7/10**
-**Character Profiles improved from 5/10 to 8/10**
+### Attempt 2 Fixes - SUCCESSFUL
+1. ✅ Victor Frankenstein in main_cast
+2. ✅ Krempe/Waldman now separate
+3. ✅ The Creature appearance description format
 
 ### Attempt 1
 - Initial analysis (baseline 6.35/10)
@@ -172,28 +146,33 @@ Key observations:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Initial analysis | N/A | Baseline score 6.35 |
-| 2 | Victor missing, Walton missing, Waldman/Krempe merge | src/pipeline/character_extraction_v2/main_cast.py | Victor FIXED, Walton still failing, Waldman/Krempe now separate |
-| 3 | Walton epistolary narrator, Alphonse relationship refs | src/pipeline/character_extraction_v2/main_cast.py | NO CHANGE - Walton/Alphonse not in main_cast, fixes didn't apply |
-| 4 | Walton narrator detection in supporting_cast | src/agents/characters.py | AWAITING VERIFICATION - re-runs narrator detection with combined cast |
+| 1 | Initial analysis | N/A | Baseline 6.35 |
+| 2 | Victor missing, Waldman/Krempe merge | main_cast.py | Victor FIXED, Waldman/Krempe FIXED |
+| 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
+| 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton now narrator) |
 
-**Pattern evolution:** Attempt 4 correctly targets characters.py (where narrator detection orchestration happens) instead of main_cast.py (where LLM extraction happens). This addresses the architectural issue of narrator detection timing.
+**Pattern:** Fixes to main_cast.py don't affect characters in supporting_cast or F6 reconciliation. Must target the correct pipeline stage.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Competitive consensus: ENABLED (single-model mode, 3 temperatures: 0.5, 0.7, 0.9)
-- Competitive stages: characters, structure, summaries (all enabled via --competitive-all)
+- Competitive consensus: ENABLED (single-model mode, 3 temperatures)
+- Total LLM calls: 668
+- Total tokens: 773,500
+- Processing time: 150m 12s
 
 ## Next Action
 
-Re-run analysis to verify fix for:
-1. **CRITICAL:** Walton narrator detection - should now detect narrators in supporting_cast
+Fix phase should address **CRITICAL Issue #1: The Creature missing from main_cast**.
 
-Expected impact:
-- Walton should now have is_narrator=true
-- Character Extraction score should improve (6.5 → 7.0+)
+**Root cause analysis:**
+- The Creature has no proper noun name in the text (never named "Frankenstein's monster" or given a name)
+- It's referred to as "the creature", "the monster", "the fiend", "the daemon" - all common nouns with articles
+- NER-based extraction likely misses it entirely
+- F6 reconciliation catches it from summaries but with low mention counts
 
-If fix works, remaining issues for subsequent iterations:
-- Issue #2 (CRITICAL): Walton "R.W." fragmentation
-- Issues #3-5 (HIGH): F6 reconciliation improvements
-- Issue #6 (MEDIUM): Chapter titles
+**Suggested fix approach:**
+1. The summaries prominently feature "the Creature" - check `active_characters` in chapter summaries
+2. If summaries mention a major unnamed character (creature/monster), promote to main_cast
+3. Or: Add special handling in main_cast extraction for famous unnamed characters with high summary presence
+
+**Alternative:** Manually review if the Creature appears anywhere in main_cast with a different ID - possible it was merged incorrectly.
