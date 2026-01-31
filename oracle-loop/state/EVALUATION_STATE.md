@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -132,6 +132,7 @@
 | 2 | Main cast extraction failure | src/pipeline/character_extraction_v2/main_cast.py | Diagnostic logging |
 | 3 | JSON format for qwen3-next | src/pipeline/character_extraction_v2/main_cast.py | Wrapped object prompts - MAJOR IMPROVEMENT (+1.15) |
 | 4 | Wolfsheim/Wolfshiem spelling variants | src/agents/characters.py:2419-2445 | **VERIFIED FIXED** - both variants now merged |
+| 5 | Missing physical appearance data | src/analyzer.py:2608-2645 | Improved mention sampling: first 3 mentions (was 1), 800-char context (was 400), 12 samples (was 10) |
 
 ## Score History
 
@@ -150,11 +151,10 @@ Output files: Verified fresh - last modified 2026-01-30 19:14:52
 
 ## Next Action
 
-**Fix Phase Target: Character Profiles appearance extraction**
+Re-run analysis to verify fix for Character Profiles appearance extraction.
 
-The only remaining failing category is Character Profiles (7.5/10). To reach 8.0:
-- Fix the appearance extraction in `src/pipeline/character_profiling/` to populate physical descriptions
-- The text contains appearance data for major characters that isn't being captured
-- This is an upstream data issue - the profile generation gets its data from evidence passages
-
-**Estimated impact:** Fixing appearance extraction for main characters should bring Profiles from 7.5 → 8.0+
+**Fix Applied (Attempt 5):**
+- **Root cause:** Profile generator sampled only 1 early mention + 9 distributed mentions. Physical descriptions often appear at first in-person meeting (not first name mention), so they were frequently missed.
+- **Change:** Now samples first **3 mentions** (captures introduction scenes), uses **800-char context windows** (was 400), and samples **12 total** (was 10).
+- **Smoke test:** ✅ PASSED - Verified first 3 mentions included, larger context windows working.
+- **Expected impact:** Profiles should increase from 7.5 → 8.0+ as physical descriptions from character introduction scenes are now captured.

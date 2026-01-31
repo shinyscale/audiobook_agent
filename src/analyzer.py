@@ -2605,24 +2605,26 @@ class AudiobookAnalyzer:
             total_mentions = len(all_mentions)
             logger.info(f"Generated {total_mentions} synthetic mentions for narrator profile")
 
-        # Sample up to 10 mentions, distributed across the narrative
-        if total_mentions <= 10:
+        # Sample up to 12 mentions, distributed across the narrative
+        # Prioritize early mentions (where physical descriptions typically appear)
+        if total_mentions <= 12:
             sampled_mentions = all_mentions
         else:
-            # ALWAYS include the first mention (where physical descriptions typically appear)
-            first_mention = all_mentions[0]
+            # Include first 3 mentions (captures character introduction scenes where
+            # physical descriptions typically appear, not just first name mention)
+            first_mentions = all_mentions[:min(3, total_mentions)]
 
             # Divide remaining mentions into thirds (early, middle, late) and sample from each
-            remaining_mentions = all_mentions[1:]  # Exclude first mention
+            remaining_mentions = all_mentions[3:]  # Exclude first 3 mentions
             third = len(remaining_mentions) // 3
             early = remaining_mentions[:third]
             middle = remaining_mentions[third : 2 * third]
             late = remaining_mentions[2 * third :]
 
-            # Sample 3 from each third (9 total + 1 first mention = 10 total)
+            # Sample 3 from each third (9 total + 3 first mentions = 12 total)
             import random
 
-            sampled_mentions = [first_mention]  # Start with first mention
+            sampled_mentions = list(first_mentions)  # Start with first 3 mentions
             sampled_mentions.extend(random.sample(early, min(3, len(early))))
             sampled_mentions.extend(random.sample(middle, min(3, len(middle))))
             sampled_mentions.extend(random.sample(late, min(3, len(late))))
@@ -2631,16 +2633,16 @@ class AudiobookAnalyzer:
             sampled_mentions.sort(key=lambda m: m.position)
             logger.info(
                 f"Profile sampling for {character.canonical_name}: "
-                f"Included first mention at position {first_mention.position}, "
-                f"plus {len(sampled_mentions)-1} sampled mentions"
+                f"Included first 3 mentions at positions {[m.position for m in first_mentions]}, "
+                f"plus {len(sampled_mentions)-len(first_mentions)} sampled mentions"
             )
 
         # Gather context snippets from sampled mentions
         contexts = []
         mention_positions = []
         for mention in sampled_mentions:
-            start = max(0, mention.position - 200)  # Increased context window
-            end = min(len(full_text), mention.position + 200)
+            start = max(0, mention.position - 400)  # Increased context window from 200 to 400
+            end = min(len(full_text), mention.position + 400)
             snippet = full_text[start:end].strip()
             # Clean up partial words at boundaries
             if start > 0:
