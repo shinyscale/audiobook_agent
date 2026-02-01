@@ -13,10 +13,10 @@
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
       "complete": false,
       "attempts": 1,
-      "last_score": 5.45,
+      "last_score": 4.20,
       "final_score": null,
-      "baseline_score": 5.45,
-      "notes": "Attempt 1: CRITICAL failures - Missing Montresor (protagonist/narrator), hallucinated plot summary with fictional characters (Alex, Jamie), chapter summary failed. Character Extraction 4/10, Summaries 2/10."
+      "baseline_score": 4.20,
+      "notes": "Attempt 1: CRITICAL failures - Missing Montresor (narrator), hallucinated plot summary (Emma instead of Poe revenge tale), chapter summaries empty. 4 categories failing."
     },
     {
       "name": "masque_of_red_death",
