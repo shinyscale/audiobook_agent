@@ -127,7 +127,7 @@
     {
       "id": "exp_003_gpt_oss",
       "description": "GPT-OSS 120B for all tasks",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "gpt-oss:120b",
@@ -189,11 +189,7 @@
             "presentation": 9
           },
           "status": "failed_screening",
-          "timestamp": "2026-02-01T10:03:00-07:00",
-          "issues": [
-            "CRITICAL: Missed 2 of 3 Roman numeral parts (I., II., III.)",
-            "HIGH: Sergeant-Major Morris and Mrs. White missing profiles despite clear text descriptions"
-          ]
+          "timestamp": "2026-02-01T10:06:25-07:00"
         }
       }
     },
@@ -211,6 +207,34 @@
         "min_mentions": 2,
         "competitive_consensus": true,
         "consensus_samples": 3
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 9.8,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 9.5,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T10:30:50-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.25,
+          "category_scores": {
+            "structure": 10,
+            "characters": 8,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T11:00:49-07:00"
+        }
       }
     },
     {
