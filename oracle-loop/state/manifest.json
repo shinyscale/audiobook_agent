@@ -13,10 +13,10 @@
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
       "complete": true,
       "attempts": 1,
-      "last_score": 9.88,
-      "final_score": 9.88,
+      "last_score": 9.30,
+      "final_score": 9.30,
       "baseline_score": 9.88,
-      "notes": "Re-evaluated 2026-02-01. All categories >= 8.0. Perfect character extraction (3/3), rich profiles with voice guidance, excellent pronunciation coverage (33/36 IPA)."
+      "notes": "Evaluated 2026-02-01. All categories >= 8.0. Perfect structure (single narrative), character extraction (Montresor/Fortunato/Luchresi), excellent pronunciation (92% IPA)."
     },
     {
       "name": "masque_of_red_death",
