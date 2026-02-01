@@ -11,12 +11,12 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": true,
+      "complete": false,
       "attempts": 1,
-      "last_score": 9.30,
-      "final_score": 9.30,
-      "baseline_score": 9.88,
-      "notes": "Evaluated 2026-02-01. All categories >= 8.0. Perfect structure (single narrative), character extraction (Montresor/Fortunato/Luchresi), excellent pronunciation (92% IPA)."
+      "last_score": 5.45,
+      "final_score": null,
+      "baseline_score": 5.45,
+      "notes": "Attempt 1: CRITICAL failures - Missing Montresor (protagonist/narrator), hallucinated plot summary with fictional characters (Alex, Jamie), chapter summary failed. Character Extraction 4/10, Summaries 2/10."
     },
     {
       "name": "masque_of_red_death",

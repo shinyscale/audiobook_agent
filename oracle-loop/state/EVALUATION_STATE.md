@@ -4,73 +4,75 @@
 - **Name:** cask_of_amontillado
 - **Attempt:** 1
 - **Phase:** awaiting_fix
-- **baseline_score:** 8.125
+- **baseline_score:** 5.45
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-- Structure Detection: 10/10 ✓
-- Character Extraction: 7/10 ✗ (FAILING)
-- Character Profiles: 6.5/10 ✗ (FAILING)
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 8.125/10** (reference only)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 4/10 ✗ (FAILING - missing protagonist Montresor)
+- Character Profiles: 5/10 ✗ (FAILING - missing Montresor profile)
+- Chapter Summaries: 2/10 ✗ (FAILING - hallucinated content, failed generation)
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 7/10 ✗ (FAILING - hallucinated plot summary displayed)
+- **Overall: 5.45/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (4 categories below threshold)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Montresor not marked as narrator despite first-person narrative**
-   - Problem: `is_narrator: false` for Montresor, no narrator identified
-   - Evidence: Story opens "The thousand injuries of Fortunato I had borne..." - clearly first-person from Montresor's perspective
-   - The `overview.plot_summary.narrative_style` correctly identifies "first-person retrospective" but this isn't linked to the character
-   - Location: Narrator detection in `src/agents/characters.py` or character extraction pipeline
-   - Fix: When narrative_style is first-person, the LLM should identify which character is narrating. Montresor is the only character who speaks as "I" throughout.
+1. **Missing Montresor (narrator/protagonist)**
+   - Problem: The entire story is told from Montresor's first-person perspective. He commits the murder, plans the revenge, and narrates every event. His name appears explicitly: "For the love of God, Montresor!" and "the Montresors" (his family catacombs).
+   - Evidence: Only 2 characters extracted (Fortunato, Luchresi). Montresor not in character list despite being the protagonist and narrator.
+   - Location: `src/pipeline/character_extraction_v2/` - narrator/main cast detection
+   - Fix: First-person narrators who are named in the text MUST be extracted. The "I" of the story is Montresor. Check if narrator detection is working for named first-person narrators.
+
+2. **Completely hallucinated Plot Summary**
+   - Problem: The plot summary mentions "Alex" and "Jamie" - these characters DO NOT EXIST in "The Cask of Amontillado". The actual story is about Montresor murdering Fortunato by walling him up in catacombs.
+   - Evidence: From report.html lines 643-647: "The story begins with the protagonist, Alex..." - this is 100% hallucinated.
+   - Location: Plot summary generation (possibly `src/pipeline/chapter_summary/` or `src/templates/`)
+   - Fix: The plot summary must be generated FROM the actual text, not generic placeholder content. Validate that summary content matches the book.
 
 ### HIGH
-2. **Montresor classified as "supporting" with 1 mention instead of main character**
-   - Problem: Montresor drives every action in the story as protagonist/antagonist
-   - Evidence: His name is only spoken once ("For the love of God, Montresor!") but he IS the narrator
-   - Location: Character role classification logic
-   - Fix: When a character is the narrator, they should be elevated to main cast regardless of explicit name mention count
-
-3. **Character profiles empty despite extractable textual evidence**
-   - Problem: All 3 characters have `physical_description: null`, `relationships: {}`, `personality_traits: null`
-   - Evidence available in text:
-     - Fortunato: "dressed in motley", "tight-fitting parti-striped dress", "conical cap and bells"
-     - Montresor: Family motto "Nemo me impune lacessit", revenge-driven, cunning
-     - Relationships: Montresor harbors grudge against Fortunato for "thousand injuries"
-   - Location: `src/pipeline/character_profiling/` or profiler agent
-   - Fix: Profile extraction should run against the chapter text to find physical descriptions and relationships
+3. **Chapter summary generation failed**
+   - Problem: Individual chapter summary shows "[Summary generation failed - manual review needed]"
+   - Evidence: report.html line 817
+   - Location: `src/pipeline/chapter_summary/summarizer.py`
+   - Fix: Debug why summary generation failed for this short text (~2,354 words)
 
 ### MEDIUM
-4. **Chapter summary omits the climax (entombment)**
-   - Problem: Summary says "chaining Fortunato within a recess" but doesn't mention Montresor methodically bricking him into the wall alive - the story's defining horror
-   - Evidence: The text describes Montresor layer by layer building a wall of stone
-   - Location: Summary generation in `src/pipeline/chapter_summary/summarizer.py`
-   - Fix: Summarizer may be truncating or the climax is in a section not included in context
+4. **Structure element has null title**
+   - Problem: The single structure element has `title: null` instead of using the story title "The Cask of Amontillado"
+   - Evidence: `jq '.structure[0].title' analysis.json` returns `null`
+   - Location: Structure detection or fallback handling
+   - Fix: When a text has no explicit chapters, use the document title as the structure element title
 
-### LOW
-(None)
+5. **Excessive pronunciation flagging for archaic hyphenation**
+   - Problem: Words like "to-day", "tight-fitting", "web-work" are flagged for pronunciation despite being simple compound words with archaic hyphenation
+   - Evidence: Pronunciations list includes these unnecessary entries
+   - Location: `src/pipeline/pronunciation/`
+   - Fix: Don't flag hyphenated compounds where both parts are common English words
 
 ## Fix History
-- Attempt 1: Initial evaluation (this evaluation)
+- (No previous fixes - this is attempt 1)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | (initial evaluation) | — | Baseline established |
+| - | - | - | - |
+
+## Notes
+
+**Model used:** deepseek-r1:32b for Character Extraction/Profiles/Summaries, qwen2.5:14b for Chapter Detection/Pronunciation
+
+**Root cause hypothesis:** The plot summary appears to be placeholder/template content that was never replaced with actual analysis. The character extraction may have failed to recognize Montresor as the narrator because he refers to himself as "I" and his name only appears when Fortunato addresses him. This is a first-person narrator detection issue.
 
 ## Next Action
 Run PROMPT_fix.md to address:
-1. Narrator detection for first-person narratives (Critical #1)
-2. Narrator role elevation logic (High #2)
-3. Profile extraction for short stories (High #3)
-
-Focus on the narrator detection first - once Montresor is marked as narrator, his role classification should follow. Profile extraction may be a secondary pass issue.
+1. First-person narrator extraction (Critical #1)
+2. Plot summary hallucination (Critical #2)
