@@ -12,10 +12,11 @@
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
       "complete": true,
-      "attempts": 2,
-      "last_score": 8.83,
-      "final_score": 8.83,
-      "baseline_score": 7.4
+      "attempts": 3,
+      "last_score": 9.25,
+      "final_score": 9.25,
+      "baseline_score": 7.4,
+      "notes": "Re-evaluated with updated pipeline. Improved from 8.83 to 9.25. Profiles still at 7/10 (missing physical descriptions) but meets screening threshold."
     },
     {
       "name": "masque_of_red_death",

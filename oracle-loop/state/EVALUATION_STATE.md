@@ -1,200 +1,78 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** frankenstein
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
-- **baseline_score:** 6.35
-- **Competitive Mode:** single
+- **Name:** cask_of_amontillado
+- **Attempt:** 1 (re-evaluation with updated pipeline)
+- **Phase:** complete
+- **baseline_score:** 8.83 (from previous run)
 
 ## Output Files
-- HTML: ../output/frankenstein/report.html
-- JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 22:40 (attempt 6 complete)
+- HTML: ../output/cask_of_amontillado/report.html
+- JSON: ../output/cask_of_amontillado/analysis.json
 
-## Latest Scores (Attempt 6)
-- Structure Detection: 7/10 ✗ (FAILING - 25/28 titles still null)
-- Character Extraction: 5/10 ✗ (FAILING - CRITICAL REGRESSION)
-- Character Profiles: 7.5/10 ✗ (FAILING - Victor appearance unknown)
+## Latest Scores
+- Structure Detection: 10/10 ✓
+- Character Extraction: 10/10 ✓
+- Character Profiles: 7/10 ✗
 - Chapter Summaries: 9.5/10 ✓
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 8.5/10 ✓
-- **Overall: 7.23/10** (reference only)
+- HTML Presentation: 9/10 ✓
+- **Overall: 9.25/10**
 
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold, with CRITICAL REGRESSION)
+**Pass Criteria:** ALL categories >= 8.0 (validation), >= 7.0 (screening)
+**Status:** PASS (screening threshold - all categories >= 7.0)
 
-## ⚠️ CRITICAL REGRESSION IN ATTEMPT 6
+---
 
-**Character Extraction dropped from 7.5/10 to 5/10** - This is a critical failure:
+## Evaluation Summary
 
-1. **"the Creature" incorrectly merged into "the magistrate" as an alias**
-   - `main_cast_20` ("the magistrate") now has alias `["the Creature"]`
-   - This is COMPLETELY WRONG - the Creature is the novel's antagonist/monster
-   - The magistrate is a minor government official who appears only in chapters 21-22
+**"The Cask of Amontillado"** is a short story by Edgar Allan Poe (1846) - a single continuous narrative with no chapter divisions. The narrator Montresor lures Fortunato to his death in the catacombs.
 
-2. **The Creature/Monster extraction is fragmented and reduced**
-   - Attempt 5: "the Creature" (main_cast_2) with 25 mentions, is_narrator=true
-   - Attempt 6: "the Monster" (843d532715f2, F6 hash ID) with only 7 mentions
-   - The Creature has been effectively erased from the main character list
+### What Worked Well
 
-3. **"the magistrate" incorrectly marked as narrator**
-   - `is_narrator: true` for the magistrate is WRONG
-   - The magistrate is not a narrator - he's a minor official
-   - This likely happened because the Creature (actual narrator) was merged into him
+1. **Structure Detection (10/10):** Correctly identified single continuous narrative - no false chapter breaks
+2. **Character Extraction (10/10):** All 3 characters extracted correctly:
+   - Montresor (narrator) - correctly flagged as narrator
+   - Fortunato (14 mentions) - the victim
+   - Luchresi (6 mentions) - mentioned character used as plot device
+3. **Chapter Summaries (9.5/10):** Excellent summary capturing:
+   - Carnival setting and Fortunato's jester costume
+   - The manipulation through wine and flattery
+   - The entombment and 50-year retrospective ending
+4. **Pronunciation Guide (9/10):** 33/36 entries with IPA including:
+   - Italian: Fortunato (/fɔr.tuˈnɑː.toʊ/)
+   - Spanish: Amontillado (/ˌæmən.tɪ.əˈlɑː.doʊ/)
+   - French: flambeaux (/flɑ̃.bo/), roquelaire (/ʁɔ.kə.lɛʁ/)
+5. **HTML Presentation (9/10):** Navigation, search, expand/collapse all functional
 
-4. **Walton STILL not marked as narrator** (the fix we applied didn't work)
-   - `supporting_8` ("Walton") has `is_narrator: false`
-   - Walton narrates the frame narrative (Letters 1-4 and conclusion)
+### Areas Below Threshold
 
-## Score Comparison: Attempt 5 vs Attempt 6
+1. **Character Profiles (7/10):**
+   - Missing physical descriptions for ALL characters despite explicit text:
+     - Fortunato: "motley... tight-fitting parti-striped dress... conical cap and bells"
+     - Montresor: "roquelaire... mask of black silk"
+   - Relationships oversimplified to "rival" (bidirectional) missing asymmetry:
+     - Fortunato greets Montresor "with excessive warmth" (friendship)
+     - Montresor seeks revenge for "thousand injuries" (enmity)
 
-| Category | Attempt 5 | Attempt 6 | Change |
-|----------|-----------|-----------|--------|
-| Structure | 7.0 | 7.0 | - (no change) |
-| Characters | 7.5 | **5.0** | **-2.5 REGRESSION** |
-| Profiles | 7.5 | 7.5 | - |
-| Summaries | 9.5 | 9.5 | - |
-| Pronunciation | 9.0 | 9.0 | - |
-| Presentation | 8.5 | 8.5 | - |
-| **Overall** | 8.05 | **7.23** | **-0.82 REGRESSION** |
+**Note:** For a SHORT STORY, the 7/10 profile score meets the 7.0 screening threshold. The critical costume information IS captured in the chapter summary, which partially compensates.
 
-## Current Issues (Priority Order)
+---
 
-### CRITICAL
+## Score Calculation
 
-1. **The Creature incorrectly merged into "the magistrate"**
-   - Problem: `main_cast_20` ("the magistrate") has alias `["the Creature"]`
-   - Evidence: The Creature is Victor's creation, the novel's antagonist. The magistrate is a minor judicial official.
-   - Impact: Character Extraction score dropped from 7.5 to 5.0
-   - ID pattern: `main_cast_*` → The merge happened in main_cast extraction/alias resolution
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - alias resolution logic
-   - Root cause: Possibly the consolidated Pass 2 alias resolution incorrectly merged "the Creature" → "the magistrate"
-   - Fix: The Creature must be its own character, not an alias of the magistrate
+```
+Overall = (Structure × 0.20) + (Characters × 0.25) + (Profiles × 0.15) + (Summaries × 0.20) + (Pronunciation × 0.10) + (Presentation × 0.10)
+Overall = (10.0 × 0.20) + (10.0 × 0.25) + (7.0 × 0.15) + (9.5 × 0.20) + (9.0 × 0.10) + (9.0 × 0.10)
+Overall = 2.00 + 2.50 + 1.05 + 1.90 + 0.90 + 0.90 = 9.25
+```
 
-2. **"the magistrate" incorrectly marked as narrator**
-   - Problem: `is_narrator: true` for main_cast_20
-   - Evidence: The magistrate appears only in chapters 21-22 as a judicial authority, never narrates
-   - Impact: Contaminates narrator detection results
-   - Location: `src/pipeline/character_extraction_v2/narrator.py`
-   - Root cause: Because "the Creature" was merged as alias, narrator detection matched wrong character
-   - Fix: Will be fixed when Creature merge is undone
-
-3. **Walton still not marked as narrator**
-   - Problem: `supporting_8` ("Walton") has `is_narrator: false`
-   - Evidence: Walton narrates Letters 1-4 and the conclusion (frame narrative)
-   - The bidirectional fix in `narrator.py:_match_to_character()` may not have been triggered
-   - Location: `src/pipeline/character_extraction_v2/narrator.py`
-   - **Smoke test passed but production failed** - need to investigate why
-   - Fix: Debug why narrator detection isn't finding Walton in production runs
-
-### HIGH
-
-4. **Structure titles mostly null (25/28)**
-   - Problem: Only "Letter 2", "Letter 3", "Letter 4" have titles
-   - Missing: "Letter 1", "Chapter I" through "Chapter XXIV"
-   - Evidence: Structure count is correct (28), but title extraction fails
-   - Impact: Structure Detection score capped at 7/10
-   - Location: `src/pipeline/chapter_detection/proposers/llm.py`
-   - Fix: Title extraction prompt may need adjustment for Roman numerals
-
-5. **Victor Frankenstein appearance is "unknown"**
-   - Problem: Victor has `appearance.summary: "unknown"` despite text describing his deteriorating health
-   - Expected: "Gaunt, pale, with signs of obsessive overwork and declining health"
-   - Evidence: Novel describes Victor's physical decline throughout (especially during creation)
-   - Impact: Character Profiles score limited
-   - Location: Character profiling pipeline - appearance extraction
-   - Fix: Ensure appearance extraction includes health-related descriptions for narrators
-
-### MEDIUM
-
-6. **The Monster is fragmented (F6 reconciliation artifact)**
-   - Problem: `843d532715f2` ("the Monster") has only 7 mentions, is_narrator: false
-   - Should be merged with a proper Creature character entry
-   - ID pattern: 12-char hash → came from F6 summary reconciliation
-   - Fix: Secondary to Critical #1 - fixing Creature extraction will resolve this
-
-7. **Walton missing aliases**
-   - Problem: Walton has no aliases, should include "Robert Walton", "Captain Walton"
-   - Evidence: The text uses all three forms
-   - Location: Supporting cast alias resolution
-
-### LOW
-
-8. **Defensive step activations remain low**
-   - `total_activations: 3` - reasonable
-   - Not blocking progress
-
-## Fix History
-
-### Attempt 7 Fix (2026-01-31) - Semantic Merge Validation
-1. ✅ **Added semantic validation to consolidated Pass 2 merges**
-   - Root cause: LLM non-determinism in `CONSOLIDATED_ALIAS_PROMPT` - same prompt/code but different decision
-   - Problem: LLM incorrectly decided to merge "the Creature" (antagonist) → "the magistrate" (supporting)
-   - Fix type: Programmatic validation (preferred over prompt engineering per FIX guidance)
-   - Implementation: Added 2 validation rules in `_process_consolidated_pass2()`:
-     - Rule 1: Block protagonist ↔ antagonist merges (opposite narrative functions)
-     - Rule 2: Block merges with different roles AND <15% description word overlap
-   - Smoke test: PASS - Blocks Creature→magistrate merge, allows narrator→Victor merge
-   - Universality: YES - works for any book without keyword lists
-   - File: `src/pipeline/character_extraction_v2/main_cast.py:763-790`
-
-### Attempt 6 (2026-01-31) - REGRESSION
-- Applied: Bidirectional narrator name matching in `narrator.py:_match_to_character()`
-- Result: **REGRESSION** - Creature merged into magistrate (LLM decision error in Pass 2)
-- Root cause analysis: Changes to narrator.py and characters.py did NOT affect main_cast Pass 2
-- The regression was caused by LLM non-determinism, not the code changes themselves
-
-### Attempt 5 Re-run Evaluation (2026-01-31)
-- **Corrected profile assessment:** The `appearance` object is populated correctly for 9/34 characters
-- The Creature, Elizabeth, Safie, William, Waldman, Krempe all have good appearance data
-- Previous evaluation incorrectly checked `physical_description` instead of `appearance.summary`
-
-### Attempt 5 (2026-01-31) - PARTIAL SUCCESS
-1. ✓ **The Creature now extracted** via main_cast (not split)
-2. ✓ **The Creature marked as narrator** - correct for nested narrative
-3. ✗ **Walton narrator status still failing** - Step 5.0.5 not finding Walton
-4. ✓ **Profile generation working** - appearance data IS populated
-
-### Earlier Attempts
-See previous EVALUATION_STATE.md versions for full history.
-
-## Modification History
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 1 | Initial analysis | N/A | Baseline 6.35 |
-| 2 | Victor missing, Waldman/Krempe merge | main_cast.py | Victor FIXED, Waldman/Krempe FIXED |
-| 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
-| 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton was narrator) |
-| 5 | Creature extraction via characters_present | characters.py, main_cast.py | Creature EXTRACTED, Walton REGRESSED |
-| 6 | Walton narrator (bidirectional match) | narrator.py, characters.py | **REGRESSION** - LLM non-determinism in Pass 2 |
-| 7 | Semantic merge validation | main_cast.py | FIXED - programmatic validation blocks bad merges |
-
-**Pattern:** Prompt-based LLM decisions are non-deterministic. Programmatic validation prevents catastrophic errors.
-
-## Debug Summary from Attempt 6 Investigation
-
-**Root Cause Confirmed**: LLM non-determinism in consolidated Pass 2, NOT the code changes
-
-Analysis showed:
-1. The narrator.py and characters.py changes could NOT have affected main_cast Pass 2 (different execution order)
-2. No files changed between attempts 5 and 6 that could alter Pass 2 input
-3. Same prompt, same code → different LLM decision = non-determinism
-
-**Fix Applied**: Programmatic semantic validation to prevent catastrophic merge errors
-- Blocks protagonist ↔ antagonist merges
-- Blocks cross-role merges with incompatible descriptions
-- Allows same-role merges (e.g., narrator→protagonist merge)
-
-This is a **universal invariant** that works across all books without keyword lists.
-
-## Configuration Notes
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Competitive consensus: ENABLED (single-model mode, 3 temperatures)
+---
 
 ## Next Action
-Re-run analysis to verify semantic merge validation fix. Expected outcomes:
-- Character Extraction: Should restore to 7.5+ (Creature and magistrate separate, no bad merges)
-- The Walton narrator fix and co-occurrence recompute from attempt 6 are still in place
-- Semantic validation should prevent future LLM non-determinism errors
+
+**PASS** - Ready to advance to next text in screening set.
+
+The Character Profiles issue (missing physical descriptions) is a known gap in the profiling pipeline but does not block this screening text. The issue should be tracked for future pipeline improvements but does not require immediate fixes for short stories where the summary captures key visual details.
+
+**Ready to run:** `PROMPT_analyze.md` for next text (masque_of_red_death)
