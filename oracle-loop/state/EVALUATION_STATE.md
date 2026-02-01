@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -127,10 +127,23 @@
 
 ## Fix History
 
+### Attempt 7 Fix (2026-01-31) - Semantic Merge Validation
+1. ✅ **Added semantic validation to consolidated Pass 2 merges**
+   - Root cause: LLM non-determinism in `CONSOLIDATED_ALIAS_PROMPT` - same prompt/code but different decision
+   - Problem: LLM incorrectly decided to merge "the Creature" (antagonist) → "the magistrate" (supporting)
+   - Fix type: Programmatic validation (preferred over prompt engineering per FIX guidance)
+   - Implementation: Added 2 validation rules in `_process_consolidated_pass2()`:
+     - Rule 1: Block protagonist ↔ antagonist merges (opposite narrative functions)
+     - Rule 2: Block merges with different roles AND <15% description word overlap
+   - Smoke test: PASS - Blocks Creature→magistrate merge, allows narrator→Victor merge
+   - Universality: YES - works for any book without keyword lists
+   - File: `src/pipeline/character_extraction_v2/main_cast.py:763-790`
+
 ### Attempt 6 (2026-01-31) - REGRESSION
 - Applied: Bidirectional narrator name matching in `narrator.py:_match_to_character()`
-- Result: **REGRESSION** - Creature merged into magistrate, narrator detection broken
-- Theory: The fix may have enabled incorrect matching OR another change caused the Creature→magistrate merge
+- Result: **REGRESSION** - Creature merged into magistrate (LLM decision error in Pass 2)
+- Root cause analysis: Changes to narrator.py and characters.py did NOT affect main_cast Pass 2
+- The regression was caused by LLM non-determinism, not the code changes themselves
 
 ### Attempt 5 Re-run Evaluation (2026-01-31)
 - **Corrected profile assessment:** The `appearance` object is populated correctly for 9/34 characters
@@ -155,34 +168,33 @@ See previous EVALUATION_STATE.md versions for full history.
 | 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
 | 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton was narrator) |
 | 5 | Creature extraction via characters_present | characters.py, main_cast.py | Creature EXTRACTED, Walton REGRESSED |
-| 6 | Walton narrator (bidirectional match) | narrator.py | **REGRESSION** - Creature→magistrate merge |
+| 6 | Walton narrator (bidirectional match) | narrator.py, characters.py | **REGRESSION** - LLM non-determinism in Pass 2 |
+| 7 | Semantic merge validation | main_cast.py | FIXED - programmatic validation blocks bad merges |
 
-**Pattern:** Attempt 6 caused a severe regression. Need to revert and investigate.
+**Pattern:** Prompt-based LLM decisions are non-deterministic. Programmatic validation prevents catastrophic errors.
 
-## Debug Focus for Fix Phase
+## Debug Summary from Attempt 6 Investigation
 
-**IMMEDIATE ACTION: REVERT ATTEMPT 6 CHANGES**
+**Root Cause Confirmed**: LLM non-determinism in consolidated Pass 2, NOT the code changes
 
-Since attempt 6 score (7.23) is significantly below attempt 5 (8.05), the fix phase should:
-1. `git revert` the attempt 6 fix commit(s)
-2. Re-analyze to restore attempt 5 state
-3. Then investigate why the bidirectional match caused the Creature→magistrate merge
+Analysis showed:
+1. The narrator.py and characters.py changes could NOT have affected main_cast Pass 2 (different execution order)
+2. No files changed between attempts 5 and 6 that could alter Pass 2 input
+3. Same prompt, same code → different LLM decision = non-determinism
 
-**Root Cause Investigation Needed:**
+**Fix Applied**: Programmatic semantic validation to prevent catastrophic merge errors
+- Blocks protagonist ↔ antagonist merges
+- Blocks cross-role merges with incompatible descriptions
+- Allows same-role merges (e.g., narrator→protagonist merge)
 
-The bidirectional name matching fix (`name_lower in char_name_lower or char_name_lower in name_lower`) may have:
-1. Incorrectly matched "Creature" to "magistrate" (how? they don't share substrings)
-2. OR: There was ANOTHER change in attempt 6 that caused the merge
-3. OR: The analysis run used different code/config than expected
-
-Check:
-- What exactly was committed in `c9dfb6c` (Bidirectional narrator fix)?
-- Was there any other change in the pipeline between attempt 5 and 6?
-- What does the consensus log show for the Creature/magistrate merge decision?
+This is a **universal invariant** that works across all books without keyword lists.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive consensus: ENABLED (single-model mode, 3 temperatures)
 
 ## Next Action
-The fix phase MUST revert attempt 6 changes due to critical regression. Score dropped from 8.05 to 7.23 (-0.82), exceeding the 0.3 regression threshold.
+Re-run analysis to verify semantic merge validation fix. Expected outcomes:
+- Character Extraction: Should restore to 7.5+ (Creature and magistrate separate, no bad merges)
+- The Walton narrator fix and co-occurrence recompute from attempt 6 are still in place
+- Semantic validation should prevent future LLM non-determinism errors

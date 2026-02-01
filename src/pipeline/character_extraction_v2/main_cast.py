@@ -760,7 +760,7 @@ class MainCastExtractor:
                     f"Consolidated Pass 2: '{canonical_name}' should merge into '{merge_into}'"
                 )
 
-        # Apply merges
+        # Apply merges with semantic validation
         chars_to_remove = set()
         for source_name, target_name in merge_map.items():
             source = char_by_name.get(source_name)
@@ -772,6 +772,34 @@ class MainCastExtractor:
                     f"(source found: {source is not None}, target found: {target is not None})"
                 )
                 continue
+
+            # SEMANTIC VALIDATION: Check if merge makes sense
+            # Block merges that are semantically incompatible (e.g., "the Creature" → "the magistrate")
+
+            # Rule 1: Don't merge protagonist ↔ antagonist (opposite narrative functions)
+            if source.role != target.role and source.role in ("protagonist", "antagonist") and target.role in ("protagonist", "antagonist"):
+                logger.warning(
+                    f"BLOCKED merge '{source.canonical_name}' ({source.role}) → '{target.canonical_name}' ({target.role}): "
+                    f"Incompatible roles (protagonist/antagonist cannot merge)"
+                )
+                continue
+
+            # Rule 2: Check for semantic incompatibility in descriptions
+            # BUT: Allow merges if roles are the same (e.g., "the narrator" → "Victor" both protagonist)
+            if source.description and target.description and source.role != target.role:
+                # Only apply description check if roles differ (stricter validation for cross-role merges)
+                source_words = set(source.description.lower().split())
+                target_words = set(target.description.lower().split())
+                overlap = len(source_words & target_words)
+                total_unique = len(source_words | target_words)
+
+                if total_unique > 5 and overlap / total_unique < 0.15:
+                    # Less than 15% word overlap in descriptions AND different roles - likely different people
+                    logger.warning(
+                        f"BLOCKED merge '{source.canonical_name}' ({source.role}) → '{target.canonical_name}' ({target.role}): "
+                        f"Different roles with no semantic overlap ({overlap}/{total_unique} words)"
+                    )
+                    continue
 
             # Add source's canonical name as alias of target
             if source.canonical_name not in target.aliases:
