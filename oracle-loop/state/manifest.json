@@ -41,11 +41,11 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": true,
+      "complete": false,
       "attempts": 1,
-      "last_score": 8.78,
-      "final_score": 8.78,
-      "baseline_score": 8.78
+      "last_score": 8.85,
+      "baseline_score": 8.78,
+      "notes": "Attempt 1: Structure Detection 7/10 (missing Part III). Character extraction perfect. Overall 8.85 weighted but FAIL due to structure."
     },
     {
       "name": "gift_of_the_magi",
