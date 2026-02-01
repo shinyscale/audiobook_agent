@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 (attempt 5 re-run evaluated)
+- Last modified: 2026-01-31 22:40 (attempt 6 complete)
 
 ## Latest Scores (Attempt 5 Re-run)
 - Structure Detection: 7/10 ✗ (FAILING - 25/28 titles null)
@@ -203,14 +203,12 @@ The title extraction is only working for "Letter 2/3/4" but missing:
 
 This is likely a prompt issue in the structure detection LLM proposer.
 
-**Phase:** running_analysis
+## Pipeline Notes (Attempt 6)
 
-## Current Analysis Run (Attempt 6)
-
-- Started: 2026-01-31
-- Task ID: bb2776a
-- Command: `audiobook-prep analyze ../Test_Texts/Frankenstein_ebook.txt --competitive-all --structure-model qwen3-next:80b-a3b-instruct-q8_0 ...`
-- Expected runtime: 10-60 minutes
+- Completed: 2026-01-31 22:40
+- Runtime: ~2 hours 40 minutes (longer due to --competitive-all with 3-way voting)
+- Command: `audiobook-prep analyze ../Test_Texts/Frankenstein_ebook.txt --competitive-consensus --competitive-all --structure-model qwen3-next:80b-a3b-instruct-q8_0 ...`
+- No errors or warnings during analysis
 - Expected improvements:
   - Character Extraction: 7.5 → 8.0+ (Walton narrator fix applied)
   - Structure Detection: 7.0 (unchanged - deferred)
