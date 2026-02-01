@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -106,6 +106,28 @@
 
 ## Fix History
 
+### Attempt 6 Fix (2026-01-31) - IN PROGRESS
+1. ✅ **Walton narrator detection FIXED** - Bidirectional name matching
+   - Root cause: `narrator.py:_match_to_character()` used one-directional substring check
+   - Problem: "Robert Walton" (detected name) wasn't matching "Walton" (canonical name)
+   - Fix: Changed line 222 to bidirectional check: `name_lower in char_name_lower or char_name_lower in name_lower`
+   - Smoke test: PASS - Correctly matches both "Victor" → "Victor Frankenstein" and "Robert Walton" → "Walton"
+   - File: `src/pipeline/character_extraction_v2/narrator.py`
+
+2. ⏸️ **Structure titles - DEFERRED** (needs deeper investigation)
+   - Root cause investigation: 25/28 structures have null titles (only Letter 2/3/4 have titles)
+   - Finding: Chapter markers exist in source text at different positions than structure boundaries
+   - Likely cause: Consensus pipeline choosing wrong proposals or not preserving titles
+   - Action: Requires deeper trace through structure detection consensus logic
+   - Deferred to next iteration (different scoring category, more complex fix)
+
+3. ⏸️ **Victor appearance - DEFERRED** (upstream evidence problem)
+   - Root cause investigation: Victor has only 1/7 evidence entries mentioning appearance keywords
+   - That entry is about his mother's death, not Victor's physical state
+   - Finding: Evidence gathering pipeline is not finding passages about Victor's deteriorating health
+   - Fix location: Evidence gathering (upstream), not profile generation
+   - Deferred to next iteration (requires fixing profile evidence gathering pipeline)
+
 ### Attempt 5 Re-run Evaluation (2026-01-31)
 - **Corrected profile assessment:** The `appearance` object is populated correctly for 9/34 characters
 - The Creature, Elizabeth, Safie, William, Waldman, Krempe all have good appearance data
@@ -148,8 +170,9 @@
 | 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
 | 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton was narrator) |
 | 5 | Creature extraction via characters_present | characters.py, main_cast.py | Creature EXTRACTED, Walton REGRESSED |
+| 6 | Walton narrator regression (bidirectional match) | narrator.py | FIXED (smoke test passed) |
 
-**Pattern:** Attempt 5 changes may have broken Walton narrator detection. The Step 5.0.5 logic needs to be verified.
+**Pattern:** Attempt 5 didn't break Step 5.0.5 logic - the bug was always in `narrator.py:_match_to_character()` but only manifested when narrator name ("Robert Walton") was fuller than canonical name ("Walton").
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
@@ -180,8 +203,11 @@ The title extraction is only working for "Letter 2/3/4" but missing:
 
 This is likely a prompt issue in the structure detection LLM proposer.
 
+**Phase:** awaiting_analysis
+
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. Walton narrator detection (CRITICAL) - investigate Step 5.0.5 logic
-2. Structure title extraction (HIGH) - check LLM proposer prompt
+Re-run analysis to verify Walton narrator fix. Expected improvements:
+- Character Extraction: 7.5 → 8.0+ (Walton now marked as narrator)
+- Structure Detection: 7.0 (unchanged - deferred)
+- Character Profiles: 7.5 (unchanged - Victor appearance deferred)

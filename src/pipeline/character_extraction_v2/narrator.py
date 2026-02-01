@@ -218,8 +218,9 @@ class NarratorDetector:
                 if alias.lower() == name_lower:
                     return char.id
 
-            # Partial match (first name or last name)
-            if name_lower in char.canonical_name.lower():
+            # Partial match (bidirectional - handles both "Walton" and "Robert Walton")
+            char_name_lower = char.canonical_name.lower()
+            if name_lower in char_name_lower or char_name_lower in name_lower:
                 return char.id
 
         return None
