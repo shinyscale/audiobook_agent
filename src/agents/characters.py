@@ -569,6 +569,19 @@ class CharacterAgent(Agent):
                         f"{char.mention_count} total mentions (including placeholder)"
                     )
 
+        # STEP 5.4.5: Recompute co-occurrence for ALL characters before cross-cast merges
+        # The initial co-occurrence (step 3.3.5) only covered main_cast.
+        # Now we need scores for supporting→main merges too.
+        all_characters_for_cooccurrence = main_cast + supporting_cast
+        logger.info(
+            f"V2 Step 5.4.5: Recomputing co-occurrence for {len(all_characters_for_cooccurrence)} "
+            f"characters (main + supporting) before cross-cast merges"
+        )
+        self._cooccurrence = self._compute_cooccurrence(all_characters_for_cooccurrence, context.text)
+        logger.info(
+            f"V2 Step 5.4.5 complete: {len(self._cooccurrence)} pairwise scores computed"
+        )
+
         # STEP 5.5: Merge last-name-only supporting characters as aliases
         main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
             main_cast, supporting_cast
