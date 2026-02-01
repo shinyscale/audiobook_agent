@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Last modified: 2026-01-31 16:07 (attempt 5 analysis complete)
+- Last modified: 2026-01-31 19:49 (attempt 5 re-run complete, external changes tested)
 
 ## Latest Scores (Attempt 5)
 - Structure Detection: 7/10 ✗ (FAILING - 25/28 titles null, Letter 1 missing)
@@ -160,20 +160,38 @@
 - Total tokens: 636,570
 - Processing time: 152m 13s
 
-## Next Action
+## Pipeline Notes (Attempt 5 Re-run)
 
-**Phase:** awaiting_analysis
-
-**External Changes Detected:**
-The following files have been modified outside the oracle loop:
+**External Changes Tested:**
 - `src/agents/characters.py`
 - `src/models.py`
 - `src/pipeline/character_extraction_v2/main_cast.py`
 - `tests/test_character_extraction_v2.py`
 
-**Action Required:** Re-run analysis to test external changes before applying additional fixes.
+**Analysis Stats:**
+- Processing time: 156m 57s
+- Total LLM calls: 627
+- Total tokens: 656,188
+- Competitive consensus: ENABLED (single-model mode, 3 temperatures)
+- Stages: characters, structure, summaries
 
-**Reason:** External changes may have already addressed some or all of the issues identified in attempt 5. Must verify current behavior before making additional modifications.
+**Warnings Observed:**
+1. `pipeline_char_map is not defined` - Profile generation failed for several minor characters (Werter, Cornelius Agrippa, the market-woman, the people of the inn)
+2. JSON format errors in pronunciation agent - qwen3-next model returned error messages instead of JSON arrays for many pronunciation requests
+3. Robert Walton narrator detection still failing - "Narrator 'Robert Walton' identified but NOT found in main_cast"
+4. Structure titles still mostly null (25/28)
+5. Defensive steps still activating (step 3.4: same-firstname merges, step 3.7: titled character splits)
+
+**Character Extraction Observations:**
+- The Creature extracted (appears in output with 25 mentions)
+- Victor Frankenstein: 55 mentions
+- Elizabeth Lavenza: 92 mentions
+- Henry Clerval: 82 mentions
+- Total characters: 34 (25 main cast, 9 added from summaries)
+
+## Next Action
+
+**Phase:** awaiting_evaluation
 
 ---
 
