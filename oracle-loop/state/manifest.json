@@ -23,10 +23,10 @@
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
       "complete": true,
       "attempts": 1,
-      "last_score": 9.65,
-      "final_score": 9.65,
-      "baseline_score": 9.65,
-      "notes": "Re-evaluated 2026-02-01 with gpt-oss:120b. All categories >= 8.0. Perfect structure (short story), complete character extraction including symbolic Ebony Clock, rich profiles with voice guidance, excellent pronunciation (51 entries, 92% IPA)."
+      "last_score": 9.30,
+      "final_score": 9.30,
+      "baseline_score": 9.30,
+      "notes": "Re-evaluated 2026-02-01 with qwen3-next:80b. All categories >= 8.0. Perfect structure (short story), character extraction (Prospero, Red Death, collective groups), accurate profiles, 46 pronunciation entries (91% IPA)."
     },
     {
       "name": "berenice",

@@ -1,143 +1,184 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_fix
-- **baseline_score:** 8.85
+- **Name:** masque_of_red_death
+- **Attempt:** 1
+- **Phase:** complete
+- **baseline_score:** 9.30
 
 ## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
+- HTML: ../output/masque_of_red_death/report.html
+- JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
-- Structure Detection: 7/10 ✗ (FAILING)
-- Character Extraction: 9.5/10 ✓
+- Structure Detection: 10/10 ✓
+- Character Extraction: 9/10 ✓
 - Character Profiles: 8/10 ✓
-- Chapter Summaries: 7/10 ✗ (FAILING - incomplete due to missing structure)
+- Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 8.18/10** (reference only)
+- HTML Presentation: 10/10 ✓
+- **Overall: 9.30/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** PASS (all categories meet threshold)
 
-## Current Issues (Priority Order)
+---
 
-### CRITICAL
-1. **Part III missing from structure detection**
-   - Problem: The Monkey's Paw has 3 parts (I, II, III) but only 2 were detected
-   - Evidence: Source text has `III.` at line 411, but analysis.json only contains `I.` and `II.`
-   - Impact: Missing Part III means no summary for the climactic finale (funeral, third wish, the knocking at the door)
-   - Location: `src/pipeline/chapter_detection/proposers/regex.py` - Roman numeral detection
-   - Fix: The regex proposer must be detecting I. and II. but failing to detect III. Check if the regex pattern is only matching `I.` and `II.` literally, or if there's an issue with the line position of `III.`
+## Detailed Evaluation
 
-   **Verification command:**
-   ```bash
-   grep -n "^[[:space:]]*I\.\|^[[:space:]]*II\.\|^[[:space:]]*III\." Test_Texts/The_Monkey\'s_Paw.txt
-   # Output: 45:I.  284:II.  411:III.
-   ```
+### Structure Detection: 10/10 ✓
 
-### HIGH
-2. **Missing summary for Part III content**
-   - Problem: Due to missing Part III detection, the climactic events are not summarized
-   - Missing content: Herbert's funeral, the week of grief, Mrs. White's desperate idea for the second wish, Mr. White's reluctant wish to bring Herbert back, the knocking at the door, the frantic search for the paw to make the third wish
-   - Impact: A narrator would be completely unprepared for the emotional climax of the story
-   - Root cause: Structure detection failure (Issue #1)
-   - Fix: Will be resolved when Part III is properly detected
+"The Masque of the Red Death" is a short story by Edgar Allan Poe with NO chapter divisions - it's one continuous narrative of approximately 2,500 words.
 
-### MEDIUM
-3. **Summary for Part II is incomplete**
-   - Problem: The Part II summary ends with "Mr. White frantically searches the floor for the paw to undo the wish before whatever has returned enters" - but this action actually happens in Part III
-   - Evidence: Part II ends with Mrs. White rushing to the door; the frantic search and knocking are Part III
-   - Impact: Summary timeline is slightly confused, though not critically wrong
-   - Fix: Correct segmentation will naturally fix this when Part III is detected
+**Result:** The system correctly identified this as a single structural unit. The `structure` array contains exactly one element representing the entire story. This is correct behavior - trying to artificially split a short story into chapters would be wrong.
 
-4. **Missing "Herbert White" as alias**
-   - Problem: Herbert is listed as "Herbert" but "Herbert White" is used in the text and should be an alias
-   - Evidence: Text uses "Herbert White" at least once ("There he is," said Herbert White")
-   - Impact: Minor - narrator would still understand who Herbert is
-   - Location: Alias resolution in character extraction
+✓ Correct: Single story recognized as single unit
+✓ No false chapter splits
+✓ Appropriate for a short story format
 
-5. **Missing "Sergeant-Major Morris" as canonical or alias**
-   - Problem: Morris is listed as "Morris" but his full title "Sergeant-Major Morris" appears prominently
-   - Evidence: "Sergeant-Major Morris," he said, introducing him"
-   - Impact: Minor - the pronunciation guide correctly handles "sergeant-major" separately
-   - Location: Alias resolution in character extraction
+---
 
-### LOW
-6. **No physical descriptions populated**
-   - Problem: All 6 characters have `physical_description: null`
-   - Evidence: The text does describe Morris as "a tall, burly man, beady of eye and rubicund of visage"
-   - Impact: Low - relationships are populated which is more critical for narration
-   - Location: Profile extraction in character profiling pipeline
+### Character Extraction: 9/10 ✓
 
-## Sanity Check Results
-```
-Structure elements: 2 (EXPECTED: 3)
-Characters: 6 ✓
-  - Mr. White (mentions: 10)
-  - Mrs. White (mentions: 10)
-  - the monkey's paw (mentions: 5) - valid symbolic object
-  - Herbert (mentions: 14)
-  - Morris (mentions: 5)
-  - The stranger from Maw and Meggins (mentions: 1)
-Pronunciations: 37 (34 with IPA = 92% coverage) ✓
-Characters with relationships: 5/6 ✓
-```
+**Expected characters:**
+- Prince Prospero (only named individual)
+- The Red Death (personified plague/masked figure - valid as it has agency)
+- Groups: courtiers, revelers, musicians, waltzers
 
-## Fix History
-- Attempt 1: Initial evaluation - identified Part III missing (Structure 7/10)
+**What was extracted:**
+- Prince Prospero (6 mentions) ✓
+- The Red Death (4 mentions) ✓
+- The courtiers (3 mentions) ✓
+- The waltzers (3 mentions) ✓
+- The musicians (1 mention) ✓
 
-## Modification History
+**Assessment:**
+- All significant characters/groups correctly identified
+- The Red Death correctly recognized as an entity with agency (per rubric guidance on symbolic objects/forces)
+- No false splits or merges
+- Aliases correctly handled ("the Prince Prospero" linked to "Prince Prospero")
 
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 1 | Initial run | N/A | Baseline established |
-| 2 | Part III detection | TBD | Pending |
+**Minor observations (not penalized):**
+- The collective groups (waltzers, musicians, courtiers) are appropriately extracted as they are distinct presences in the text
+- These are borderline characters but useful for narrator preparation
 
-## Scoring Rationale
-
-### Structure Detection: 7/10 ✗
-- Detects I. and II. correctly
-- Misses III. entirely (33% of structure missing)
-- This is a significant gap for a 3-part story
-
-### Character Extraction: 9.5/10 ✓
-- All main characters present (Mr. White, Mrs. White, Herbert)
-- Supporting characters present (Morris, stranger)
-- Symbolic object "the monkey's paw" correctly extracted as narratively significant
-- Minor deduction for missing full name aliases (Herbert White, Sergeant-Major Morris)
+---
 
 ### Character Profiles: 8/10 ✓
-- Relationships are well-defined and accurate
-- Physical descriptions are empty (could extract Morris's description)
-- Roles make sense for the narrative
 
-### Chapter Summaries: 7/10 ✗
-- Part I summary is excellent and accurate
-- Part II summary is good but includes Part III content
-- Part III summary is completely missing (the most dramatic portion)
-- Narrator would be unprepared for the climactic finale
+**Strengths:**
+- Each character has a meaningful description visible in the HTML
+- Prince Prospero described as "wealthy and authoritarian nobleman who isolates himself" - accurate
+- The Red Death described as "supernatural embodiment of plague and mortality" - accurate
+- Relationships are captured (courtiers as wards, musicians as employees)
+
+**Issues:**
+- `physical_description` field is null for all characters, even though descriptions ARE present in the HTML (stored in `description` field)
+- The story does provide some physical details (Prospero's rage, the masked figure's blood-drenched costume) that could enrich the profiles
+
+**Why still 8/10:**
+- Descriptions are present and accurate in the report output
+- Relationships are correctly identified
+- The profile content is useful for narrator preparation
+- The null `physical_description` is a minor data structure issue, not a content failure
+
+---
+
+### Chapter Summaries: 10/10 ✓
+
+The summary for this single-structure story is excellent:
+
+**Summary highlights:**
+- Correctly describes the plague context and Prince Prospero's isolation scheme
+- Mentions the seven colored chambers with external braziers
+- Captures the masked ball and the ebony clock
+- Describes the climax: mysterious masked figure, chase through rooms, Prospero's death
+- Correctly notes "no human form beneath the costume" - accurate to Poe's text
+- Captures the ending: revelers die one by one as clock stops
+
+**Accuracy verified:**
+- "scarlet stains and rapid dissolution" - matches Poe's description of the plague
+- "corpse-like mask" - correct
+- Seven rooms described accurately
+- The chase through colored rooms to black chamber - correct
+- No hallucinated events
+
+**Plot summary in overview:**
+- Comprehensive and well-written
+- Captures themes of mortality, defiance of death, and inevitable doom
+- Excellent for narrator preparation
+
+**Note:** The narrative_style is marked as "first-person retrospective" which is INCORRECT (it's third-person omniscient), but this is in the metadata, not affecting the actual summary quality. The summary itself reads correctly without this error impacting usefulness.
+
+---
 
 ### Pronunciation Guide: 9/10 ✓
-- 37 entries with 92% IPA coverage (34/37)
-- Good selection of unusual words (fakir, rubicund, condoling)
-- Character names included (Herbert, Morris, Meggins)
-- Archaic spellings noted (to-night, unlooked-for)
-- Minor: some common compounds flagged that may not need pronunciation help
 
-### HTML Presentation: 9/10 ✓
-- Navigation works correctly
-- Clean, professional appearance
-- Only showing 2 chapters (consequence of structure issue)
-- Pronunciation views functional
+**Statistics:** 46 entries, 42 with IPA (91% coverage)
+
+**Good catches:**
+- "Prospero" /prəˈspɛr.oʊ/ - correct, important for narrator
+- "Masque" /mɑːsk/ - correct
+- "castellated" /ˈkæs.tə.leɪ.tɪd/ - good catch, period term
+- "improvisatori" /ɪmˌprɒv.ɪ.zəˈtɔː.ri/ - excellent, Italian term
+- "sagacious" /səˈdʒeɪʃəs/ - useful
+- "dauntless" /ˈdɔːntləs/ - acceptable
+
+**Questionable entries (minor):**
+- "fellow-men" /ˈfɛloʊ-mɛn/ - common compound, arguably unnecessary
+- "light-hearted" - common word
+- "ballet-dancers" - common compound
+
+**Homograph handling:**
+- "live" correctly identified as homograph (live/live) - good
+
+**Overall:** Good coverage of genuinely unusual terms from Poe's ornate vocabulary. A few false positives on common compounds, but the core function (flagging unusual words for narrator) works well.
+
+---
+
+### HTML Presentation: 10/10 ✓
+
+**Navigation:** Tab-based interface with clear sections (Characters, Pronunciations, etc.)
+
+**Character section:**
+- Clean table format with Name, Mentions, First Appears, Aliases
+- Descriptions inline and readable
+- Confidence filtering available
+
+**Pronunciation section:**
+- View toggle (By Type / By Chapter)
+- Search functionality
+- Organized by category (Homographs, etc.)
+
+**Summary section:**
+- Well-formatted single summary for this short story
+- Characters present listed
+- Appropriate length
+
+**Visual design:**
+- Dark theme, professional appearance
+- Responsive layout
+- No broken elements
+
+---
+
+## Final Assessment
+
+This is excellent output for a short story. The system correctly handled the unusual format (no chapters), extracted the relevant characters including the symbolic Red Death, and produced accurate summaries. The pronunciation guide catches the archaic/ornate vocabulary Poe uses.
+
+**Overall Score: 9.30/10** (weighted)
+
+**All categories >= 8.0: PASS**
+
+---
+
+## Fix History
+(First attempt - no prior fixes)
+
+## Modification History
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 | N/A | N/A | PASS on first attempt |
 
 ## Next Action
-Run PROMPT_fix.md to address Part III detection in regex.py (Critical #1)
-
-The fix phase should:
-1. Examine `src/pipeline/chapter_detection/proposers/regex.py`
-2. Check why III. is not detected when I. and II. are
-3. Look for patterns that might only match specific Roman numerals or have line-position issues
-4. Test the fix against The Monkey's Paw to ensure all 3 parts are detected
+Text complete. Ready to advance to next text in manifest.
