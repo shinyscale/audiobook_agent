@@ -42,10 +42,10 @@
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
       "complete": false,
-      "attempts": 2,
-      "last_score": 8.18,
-      "baseline_score": 8.78,
-      "notes": "Attempt 2: Structure Detection 7/10 (missing Part III), Summaries 7/10 (incomplete due to structure). Character extraction 9.5/10. FAIL - 2 categories below 8.0."
+      "attempts": 1,
+      "last_score": 7.90,
+      "baseline_score": 7.90,
+      "notes": "Attempt 1 (fresh analysis): Character Extraction 6/10 - 'the old man' extracted as separate character from Mr. White (false split), 'the old woman' incorrectly aliased to 'the old man'. Structure, Profiles, Summaries, Pronunciation all >= 8.0. FAIL - 1 category below 8.0."
     },
     {
       "name": "gift_of_the_magi",
