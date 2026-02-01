@@ -50,11 +50,11 @@
     {
       "name": "gift_of_the_magi",
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-      "complete": true,
+      "complete": false,
       "attempts": 1,
-      "last_score": 8.78,
-      "final_score": 8.78,
-      "baseline_score": 8.78
+      "last_score": 8.35,
+      "baseline_score": 8.35,
+      "notes": "Attempt 1: Della extracted as supporting_cast (not main_cast), causing empty profile. Character Extraction 7.5/10, Profiles 5.5/10, Pronunciation 7/10. FAIL - 3 categories below 8.0."
     },
     {
       "name": "a_camping_trip",

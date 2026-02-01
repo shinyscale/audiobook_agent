@@ -1,215 +1,103 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** monkeys_paw
+- **Name:** gift_of_the_magi
 - **Attempt:** 1
 - **Phase:** awaiting_fix
-- **baseline_score:** 8.85
+- **baseline_score:** 8.35
 
 ## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
+- HTML: ../output/gift_of_the_magi/report.html
+- JSON: ../output/gift_of_the_magi/analysis.json
 
 ## Latest Scores
-- Structure Detection: 7/10 ✗ (FAILING)
-- Character Extraction: 10/10 ✓
-- Character Profiles: 9/10 ✓
-- Chapter Summaries: 9.5/10 ✓
-- Pronunciation Guide: 9/10 ✓
+- Structure Detection: 10/10 ✓
+- Character Extraction: 7.5/10 ✗ (FAILING)
+- Character Profiles: 5.5/10 ✗ (FAILING)
+- Chapter Summaries: 10/10 ✓
+- Pronunciation Guide: 7/10 ✗ (FAILING)
 - HTML Presentation: 9.5/10 ✓
-- **Overall: 8.85/10** (weighted)
+- **Overall: 8.35/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (Structure Detection below threshold)
-
----
-
-## Evaluation Details
-
-### 2.1 Structure Detection: 7/10 ✗
-
-**Expected:** "The Monkey's Paw" by W.W. Jacobs has **3 parts** (I, II, III)
-**Detected:** Only 2 parts (I, II)
-
-**Evidence from source text:**
-```
-Line 45:  I.
-Line 284: II.
-Line 411: III.
-```
-
-**Issue:** Part III is completely missing from the structure. This is the story's climax:
-- Part III contains: Mrs. White forcing Mr. White to wish Herbert alive, the terrifying knocking at the door, Mr. White's desperate search for the paw, the final wish to undo the horror
-
-**Positive note:** The content summaries in Part II appear to cover some Part III events (mentions the knocking and final wish), suggesting the text was analyzed but structure detection failed to find the third marker.
-
-**Root cause hypothesis:** The regex pattern in `src/pipeline/chapter_detection/proposers/regex.py` may not be finding the "III." marker on line 411. Need to verify if there are formatting differences (spacing, line breaks) that cause the pattern to miss it.
-
----
-
-### 2.2 Character Extraction: 10/10 ✓
-
-**Excellent extraction.** All expected characters identified:
-
-| Expected | Found | Status |
-|----------|-------|--------|
-| Mr. White | ✓ Mr. White (10 mentions) | Correct |
-| Mrs. White | ✓ Mrs. White (10 mentions) | Correct |
-| Herbert White | ✓ Herbert (14 mentions) | Correct |
-| Sergeant-Major Morris | ✓ Morris (5 mentions) | Correct |
-| Stranger from Maw & Meggins | ✓ The stranger from Maw and Meggins (1 mention) | Correct |
-| The monkey's paw | ✓ the monkey's paw (5 mentions) | Correct as symbolic force |
-
-**No false splits or merges.** The monkey's paw extraction as a character-like entity is acceptable per the rubric - it's the driving supernatural force of the story.
-
----
-
-### 2.3 Character Profiles: 9/10 ✓
-
-**Strong profiles for main characters:**
-
-**Mr. White:**
-- Age: elderly ✓
-- Features: thin grey beard ✓ (matches text)
-- Personality: affectionate, impulsive, curious, gullible, remorseful ✓
-- Voice: gentle tone, volatile temperament ✓
-- Relationships: spouse (Mrs. White), son (Herbert), friend (Morris) ✓
-- Quotes captured ✓
-
-**Mrs. White:**
-- Age: elderly ✓ (text says "old lady")
-- Personality: observant, pragmatic, emotionally responsive ✓
-- Voice: gentle, calm temperament ✓
-- Verbal tics: "Tut, tut!" captured ✓
-
-**Herbert:**
-- Age: young ✓
-- Personality: humorous, irreverent, playful ✓
-- Voice: playful, informal, uses contractions like "sha'nt" ✓
-
-**Morris (supporting):**
-- Description in table mentions his role but **lacks the physical description** from text: "tall, burly...beady of eye and rubicund of visage"
-- This is minor as he's a supporting character with limited profile display
-
-**Minor deduction (-1):** Morris's distinctive physical appearance (rubicund visage, beady eyes, tall and burly) not captured in profile. For narrators, knowing Morris looks rough/weathered from his time in India would be useful for voice characterization.
-
----
-
-### 2.4 Chapter Summaries: 9.5/10 ✓
-
-**Excellent summaries that capture the narrative:**
-
-**Part I summary:** ✓
-- Correctly identifies: cold wet night, chess game, Morris's arrival
-- Captures: tales from India, the monkey's paw, the warning, three wishes
-- Accurate: Mr. White wishes for £200, paw twists "as if alive"
-
-**Part II summary:** ✓
-- Covers: calm morning, skepticism about the paw
-- Correctly describes: stranger from Maw & Meggins, Herbert's death in machinery
-- Accurate: £200 compensation (exactly matching the wish)
-- **BONUS:** Summary actually extends into Part III content (knocking, frantic wish)
-
-**Plot summary in overview:** ✓
-- Comprehensive coverage of all three parts
-- Captures themes: loss, grief, tampering with fate
-- Third-person omniscient narrative style correctly identified
-
-**Minor note:** Since Part III structure is missing, the Part II summary has absorbed its content. This is functional but not ideal structurally.
-
----
-
-### 2.5 Pronunciation Guide: 9/10 ✓
-
-**Strong coverage:** 37 entries, 34 with IPA (92%)
-
-**Highlights:**
-- "rubicund" /ruːˈbɪkʌnd/ ✓
-- "fakir" /fəˈkɪər/ ✓ (important for Indian context)
-- "condoling" /kənˈdɒl.ɪŋ/ ✓
-- "sergeant-major" /ˈsɜːr.dʒənt ˈmeɪ.dʒər/ ✓
-- Character names: Herbert, Morris, Meggins ✓
-
-**Homographs identified:**
-- "live" (LIV vs LYVE) ✓
-- "minute" (MIN-it vs my-NOOT) ✓
-
-**Minor gaps (-1):**
-- 3 entries without IPA (8%)
-- Some archaic terms from the late Victorian style could be flagged (e.g., dialect vocabulary)
-
----
-
-### 2.6 HTML Presentation: 9.5/10 ✓
-
-**Well-organized report:**
-- Clean navigation tabs (Overview, Chapters, Characters, Pronunciations)
-- Character profiles with expandable evidence sections
-- Voice guidance boxes highlighted distinctly
-- Relationship display
-- Pronunciation search and filtering
-- Model usage and timing information
-- Dark theme styling
-
-**Functional elements:**
-- Tab switching works
-- Evidence collapsibles present
-- Search/filter for pronunciations
-
-**Minor issues (-0.5):**
-- Only 2 chapters in Chapter Guide (reflects structure detection issue)
-
----
-
-## Overall Calculation
-
-```
-Structure:      7.0  × 0.20 = 1.40
-Characters:    10.0  × 0.25 = 2.50
-Profiles:       9.0  × 0.15 = 1.35
-Summaries:      9.5  × 0.20 = 1.90
-Pronunciation:  9.0  × 0.10 = 0.90
-Presentation:   9.5  × 0.10 = 0.95
-─────────────────────────────
-Overall:                     8.85/10
-```
-
----
+**Status:** FAIL (3 categories below threshold)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Missing Part III in structure detection**
-   - Problem: "The Monkey's Paw" has 3 parts (I, II, III) but only 2 detected
-   - Evidence: Source text line 411 has "III." marker; analysis shows only 2 structure elements
-   - Impact: -3 points on Structure score (10→7)
-   - Location: `src/pipeline/chapter_detection/proposers/regex.py` - Roman numeral pattern
-   - Fix: Verify regex pattern handles "III." at line 411; check for whitespace/formatting issues in source text around that line
+
+1. **Della's profile is nearly empty despite extensive text evidence**
+   - Problem: Della is a co-protagonist with 20 mentions, but her profile contains only a brief body description
+   - Missing: physical_description (text describes her "beautiful brown hair" reaching below her knee), relationships (Jim = spouse), personality traits, voice guidance, evidence citations
+   - Evidence: Jim's profile has all these fields populated; Della's does not
+   - Location: Character profiling pipeline failed to extract evidence for Della
+   - ID: `supporting_0` - extracted as supporting cast, not main cast
+   - Fix: Investigate why Della was classified as "supporting" instead of "main_cast" and why profile generation failed
+
+2. **Della incorrectly classified as "minor" role**
+   - Problem: Della is marked with role "minor" but she is THE protagonist (story told from her perspective, she has the most agency)
+   - Evidence: Della has 20 mentions (same order of magnitude as Jim's 26), and the entire plot centers on her decision-making
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` - role assignment logic
+   - Fix: Role assignment should consider narrative focus, not just mention count
+
+### HIGH
+
+3. **Missing aliases for main characters**
+   - Problem: Neither Della nor Jim have their formal names as aliases
+   - Expected: Della = "Mrs. James Dillingham Young"; Jim = "James Dillingham Young" / "Mr. James Dillingham Young"
+   - Evidence: Text explicitly uses "Mrs. James Dillingham Young, already introduced to you as Della"
+   - Location: Alias resolution in main_cast.py or supporting.py Pass 2
+   - Fix: Alias extraction should capture formal names from the text
+
+4. **Madame Sofronie missing aliases "Madame" and "Mme."**
+   - Problem: Text refers to her as "Madame" (3 occurrences) and "Mme. Sofronie" (sign), but only "Madame Sofronie" is captured
+   - Location: Alias resolution
 
 ### MEDIUM
-2. **Morris physical description missing from profile**
-   - Problem: Morris described as "tall, burly...beady of eye and rubicund of visage" but profile lacks physical_description
-   - Evidence: Text clearly describes him; supporting character table has no physical details
-   - Impact: -1 point on Profiles (10→9)
-   - Location: Supporting cast profiling or profile population for minor characters
-   - Note: Low priority since Morris is a supporting character with limited screen time
 
----
+5. **Pronunciation false positives - common English words flagged**
+   - Problem: Several common/straightforward words flagged unnecessarily:
+     - "week" flagged as "foreign" (it's a common English word)
+     - "eighty-seven" - standard English number
+     - "letter-box", "frying-pan", "To-morrow", "airshaft", "close-lying" - hyphenated compounds that are straightforward
+     - "Della's" - just possessive of already-flagged name
+   - Location: `src/pipeline/pronunciation/` - word flagging logic
+   - Fix: Improve filtering to exclude common English words and simple possessives
+
+6. **Homographs missing IPA disambiguation**
+   - Problem: "live", "tear", "close", "minute" correctly flagged as homographs but have no IPA provided
+   - Evidence: "read" homograph correctly has note "Multiple pronunciations: present tense (REED); past tense (RED)"
+   - Location: `src/pipeline/pronunciation/` - IPA generation for homographs
+   - Fix: Ensure all homographs get pronunciation notes
+
+### LOW
+
+7. **Madame Sofronie has no profile despite text description**
+   - Problem: Text describes her as "large, too white, chilly" but no physical_description captured
+   - This is low priority because she's a minor character with only 1 mention
+
+## Root Cause Analysis
+
+The primary issue is that **Della was extracted as supporting cast instead of main cast**:
+- ID `supporting_0` indicates she came from the supporting cast pipeline
+- This may explain the thin profile - supporting cast may get less intensive profiling
+- Jim (ID `main_cast_0`) has a rich profile while Della does not
+
+**Key question:** Why did the main cast extraction not include Della, the story's viewpoint character?
 
 ## Fix History
-(First attempt - no prior fixes)
+(First attempt - no previous fixes)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | (initial evaluation) | — | Structure: 7/10, need to find missing Part III |
+| 1 | (baseline) | N/A | Score: 8.35/10 |
 
 ## Next Action
+Run PROMPT_fix.md to address:
+1. Critical #1: Investigate why Della's profile is empty
+2. Critical #2: Fix Della's role classification from "minor" to "protagonist"
+3. High #3-4: Improve alias extraction
 
-Run PROMPT_fix.md to address the missing Part III structure detection issue. This is a CRITICAL issue as it causes the Structure Detection score to fall below 8.0 threshold.
-
-Focus investigation on:
-1. Check `src/pipeline/chapter_detection/proposers/regex.py` for Roman numeral patterns
-2. Examine line 411 of the source text for any formatting quirks
-3. Verify if the structure consensus logic is rejecting the third marker
+Focus on understanding why Della was extracted as supporting_cast instead of main_cast - this is likely the root cause of multiple issues.
