@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 6
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** single
 
@@ -12,63 +12,85 @@
 - JSON: ../output/frankenstein/analysis.json
 - Last modified: 2026-01-31 22:40 (attempt 6 complete)
 
-## Latest Scores (Attempt 5 Re-run)
-- Structure Detection: 7/10 ✗ (FAILING - 25/28 titles null)
-- Character Extraction: 7.5/10 ✗ (FAILING - Walton not marked as narrator)
+## Latest Scores (Attempt 6)
+- Structure Detection: 7/10 ✗ (FAILING - 25/28 titles still null)
+- Character Extraction: 5/10 ✗ (FAILING - CRITICAL REGRESSION)
 - Character Profiles: 7.5/10 ✗ (FAILING - Victor appearance unknown)
 - Chapter Summaries: 9.5/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.05/10** (reference only)
+- **Overall: 7.23/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (3 categories below threshold, with CRITICAL REGRESSION)
 
-## What Improved in Attempt 5 Re-run
+## ⚠️ CRITICAL REGRESSION IN ATTEMPT 6
 
-| Category | Attempt 5 | Re-run | Change |
-|----------|-----------|--------|--------|
+**Character Extraction dropped from 7.5/10 to 5/10** - This is a critical failure:
+
+1. **"the Creature" incorrectly merged into "the magistrate" as an alias**
+   - `main_cast_20` ("the magistrate") now has alias `["the Creature"]`
+   - This is COMPLETELY WRONG - the Creature is the novel's antagonist/monster
+   - The magistrate is a minor government official who appears only in chapters 21-22
+
+2. **The Creature/Monster extraction is fragmented and reduced**
+   - Attempt 5: "the Creature" (main_cast_2) with 25 mentions, is_narrator=true
+   - Attempt 6: "the Monster" (843d532715f2, F6 hash ID) with only 7 mentions
+   - The Creature has been effectively erased from the main character list
+
+3. **"the magistrate" incorrectly marked as narrator**
+   - `is_narrator: true` for the magistrate is WRONG
+   - The magistrate is not a narrator - he's a minor official
+   - This likely happened because the Creature (actual narrator) was merged into him
+
+4. **Walton STILL not marked as narrator** (the fix we applied didn't work)
+   - `supporting_8` ("Walton") has `is_narrator: false`
+   - Walton narrates the frame narrative (Letters 1-4 and conclusion)
+
+## Score Comparison: Attempt 5 vs Attempt 6
+
+| Category | Attempt 5 | Attempt 6 | Change |
+|----------|-----------|-----------|--------|
 | Structure | 7.0 | 7.0 | - (no change) |
-| Characters | 7.5 | 7.5 | - (Creature still good, Walton still not narrator) |
-| Profiles | 6.5 | 7.5 | +1.0 (appearance data IS populated, was checking wrong field) |
+| Characters | 7.5 | **5.0** | **-2.5 REGRESSION** |
+| Profiles | 7.5 | 7.5 | - |
 | Summaries | 9.5 | 9.5 | - |
 | Pronunciation | 9.0 | 9.0 | - |
 | Presentation | 8.5 | 8.5 | - |
-| **Overall** | 7.67 | 8.05 | +0.38 (profile assessment corrected) |
-
-### Key Findings from Re-evaluation:
-
-1. **Profile data IS populated** - The `appearance` object has data (9/34 characters with meaningful descriptions). The `physical_description` field being null is expected by the data model - it's the `appearance.summary` field that matters.
-
-2. **The Creature extraction is GOOD:**
-   - Appears as `main_cast_2` (not split_*)
-   - Has 25 mentions (up from 5)
-   - Has alias "the Monster"
-   - Correctly marked as narrator (nested narrative)
-
-3. **Victor correctly marked as narrator** - `is_narrator: true`
-
-4. **Remaining issues are structural:**
-   - Walton narrator status
-   - Structure titles extraction
-   - Victor's appearance description
+| **Overall** | 8.05 | **7.23** | **-0.82 REGRESSION** |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Robert Walton not marked as narrator**
-   - Problem: Walton (`supporting_9`) has `is_narrator: false`
-   - Evidence: Walton narrates the frame narrative (Letters 1-4 and conclusion)
-   - Frankenstein has THREE narrators: Walton (outer frame), Victor (main narrative), Creature (inner narrative)
-   - Impact: Cannot reach Character Extraction 8.0 without this
-   - Location: `src/agents/characters.py` - Step 5.0.5 narrator detection
-   - ID pattern: `supporting_*` → fix must target supporting cast narrator detection
-   - Fix: Step 5.0.5 searches `combined_cast` for narrator matches - verify it's checking supporting characters
+1. **The Creature incorrectly merged into "the magistrate"**
+   - Problem: `main_cast_20` ("the magistrate") has alias `["the Creature"]`
+   - Evidence: The Creature is Victor's creation, the novel's antagonist. The magistrate is a minor judicial official.
+   - Impact: Character Extraction score dropped from 7.5 to 5.0
+   - ID pattern: `main_cast_*` → The merge happened in main_cast extraction/alias resolution
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - alias resolution logic
+   - Root cause: Possibly the consolidated Pass 2 alias resolution incorrectly merged "the Creature" → "the magistrate"
+   - Fix: The Creature must be its own character, not an alias of the magistrate
+
+2. **"the magistrate" incorrectly marked as narrator**
+   - Problem: `is_narrator: true` for main_cast_20
+   - Evidence: The magistrate appears only in chapters 21-22 as a judicial authority, never narrates
+   - Impact: Contaminates narrator detection results
+   - Location: `src/pipeline/character_extraction_v2/narrator.py`
+   - Root cause: Because "the Creature" was merged as alias, narrator detection matched wrong character
+   - Fix: Will be fixed when Creature merge is undone
+
+3. **Walton still not marked as narrator**
+   - Problem: `supporting_8` ("Walton") has `is_narrator: false`
+   - Evidence: Walton narrates Letters 1-4 and the conclusion (frame narrative)
+   - The bidirectional fix in `narrator.py:_match_to_character()` may not have been triggered
+   - Location: `src/pipeline/character_extraction_v2/narrator.py`
+   - **Smoke test passed but production failed** - need to investigate why
+   - Fix: Debug why narrator detection isn't finding Walton in production runs
 
 ### HIGH
 
-2. **Structure titles mostly null (25/28)**
+4. **Structure titles mostly null (25/28)**
    - Problem: Only "Letter 2", "Letter 3", "Letter 4" have titles
    - Missing: "Letter 1", "Chapter I" through "Chapter XXIV"
    - Evidence: Structure count is correct (28), but title extraction fails
@@ -76,62 +98,44 @@
    - Location: `src/pipeline/chapter_detection/proposers/llm.py`
    - Fix: Title extraction prompt may need adjustment for Roman numerals
 
-3. **Victor Frankenstein appearance is "unknown"**
+5. **Victor Frankenstein appearance is "unknown"**
    - Problem: Victor has `appearance.summary: "unknown"` despite text describing his deteriorating health
    - Expected: "Gaunt, pale, with signs of obsessive overwork and declining health"
-   - Evidence: Novel describes Victor's physical decline throughout (especially during his creation frenzy)
+   - Evidence: Novel describes Victor's physical decline throughout (especially during creation)
    - Impact: Character Profiles score limited
    - Location: Character profiling pipeline - appearance extraction
    - Fix: Ensure appearance extraction includes health-related descriptions for narrators
 
 ### MEDIUM
 
-4. **Walton missing aliases**
+6. **The Monster is fragmented (F6 reconciliation artifact)**
+   - Problem: `843d532715f2` ("the Monster") has only 7 mentions, is_narrator: false
+   - Should be merged with a proper Creature character entry
+   - ID pattern: 12-char hash → came from F6 summary reconciliation
+   - Fix: Secondary to Critical #1 - fixing Creature extraction will resolve this
+
+7. **Walton missing aliases**
    - Problem: Walton has no aliases, should include "Robert Walton", "Captain Walton"
    - Evidence: The text uses all three forms
    - Location: Supporting cast alias resolution
-   - Fix: Low priority - character is extracted correctly
-
-5. **The Creature could have more aliases**
-   - Problem: Only alias is "the Monster", missing "the daemon", "the fiend", "the wretch"
-   - Evidence: Novel uses many terms for the Creature
-   - Impact: Minor - main alias captured
-   - Fix: Expand alias detection for common noun references
 
 ### LOW
 
-6. **Minor F6 reconciliation characters**
-   - Some minor characters from summaries added with minimal profiles
-   - Not blocking - expected for minor characters
+8. **Defensive step activations remain low**
+   - `total_activations: 3` - reasonable
+   - Not blocking progress
 
 ## Fix History
 
-### Attempt 6 Fix (2026-01-31) - IN PROGRESS
-1. ✅ **Walton narrator detection FIXED** - Bidirectional name matching
-   - Root cause: `narrator.py:_match_to_character()` used one-directional substring check
-   - Problem: "Robert Walton" (detected name) wasn't matching "Walton" (canonical name)
-   - Fix: Changed line 222 to bidirectional check: `name_lower in char_name_lower or char_name_lower in name_lower`
-   - Smoke test: PASS - Correctly matches both "Victor" → "Victor Frankenstein" and "Robert Walton" → "Walton"
-   - File: `src/pipeline/character_extraction_v2/narrator.py`
-
-2. ⏸️ **Structure titles - DEFERRED** (needs deeper investigation)
-   - Root cause investigation: 25/28 structures have null titles (only Letter 2/3/4 have titles)
-   - Finding: Chapter markers exist in source text at different positions than structure boundaries
-   - Likely cause: Consensus pipeline choosing wrong proposals or not preserving titles
-   - Action: Requires deeper trace through structure detection consensus logic
-   - Deferred to next iteration (different scoring category, more complex fix)
-
-3. ⏸️ **Victor appearance - DEFERRED** (upstream evidence problem)
-   - Root cause investigation: Victor has only 1/7 evidence entries mentioning appearance keywords
-   - That entry is about his mother's death, not Victor's physical state
-   - Finding: Evidence gathering pipeline is not finding passages about Victor's deteriorating health
-   - Fix location: Evidence gathering (upstream), not profile generation
-   - Deferred to next iteration (requires fixing profile evidence gathering pipeline)
+### Attempt 6 (2026-01-31) - REGRESSION
+- Applied: Bidirectional narrator name matching in `narrator.py:_match_to_character()`
+- Result: **REGRESSION** - Creature merged into magistrate, narrator detection broken
+- Theory: The fix may have enabled incorrect matching OR another change caused the Creature→magistrate merge
 
 ### Attempt 5 Re-run Evaluation (2026-01-31)
 - **Corrected profile assessment:** The `appearance` object is populated correctly for 9/34 characters
 - The Creature, Elizabeth, Safie, William, Waldman, Krempe all have good appearance data
-- Previous evaluation incorrectly checked `physical_description` (always null by design) instead of `appearance.summary`
+- Previous evaluation incorrectly checked `physical_description` instead of `appearance.summary`
 
 ### Attempt 5 (2026-01-31) - PARTIAL SUCCESS
 1. ✓ **The Creature now extracted** via main_cast (not split)
@@ -139,27 +143,8 @@
 3. ✗ **Walton narrator status still failing** - Step 5.0.5 not finding Walton
 4. ✓ **Profile generation working** - appearance data IS populated
 
-**Changes implemented:**
-- Upstream data fix: `characters_present` now passed to main_cast extraction
-- Architectural improvements: co-occurrence validation, consolidated Pass 2
-
-### Attempt 4 Fix (2026-01-31) - PARTIALLY SUCCESSFUL
-1. ✓ Robert Walton narrator detection - WAS WORKING (now regressed)
-   - Fix: Added Step 5.0.5 re-run with combined_cast (main + supporting)
-   - File: src/agents/characters.py (lines 470-523)
-   - Result: Walton HAD is_narrator=true in attempt 4
-
-### Attempt 3 Fixes - PARTIALLY FAILED
-1. ❌ Robert Walton epistolary narrator detection - did not apply (Walton in supporting_cast)
-2. ❌ Alphonse relationship references - still fragmented
-
-### Attempt 2 Fixes - SUCCESSFUL
-1. ✅ Victor Frankenstein in main_cast
-2. ✅ Krempe/Waldman now separate
-3. ✅ The Creature appearance description format
-
-### Attempt 1
-- Initial analysis (baseline 6.35/10)
+### Earlier Attempts
+See previous EVALUATION_STATE.md versions for full history.
 
 ## Modification History
 
@@ -170,46 +155,34 @@
 | 3 | Walton narrator, Alphonse refs | main_cast.py | NO CHANGE (wrong file) |
 | 4 | Walton narrator in supporting_cast | characters.py | FIXED (Walton was narrator) |
 | 5 | Creature extraction via characters_present | characters.py, main_cast.py | Creature EXTRACTED, Walton REGRESSED |
-| 6 | Walton narrator regression (bidirectional match) | narrator.py | FIXED (smoke test passed) |
+| 6 | Walton narrator (bidirectional match) | narrator.py | **REGRESSION** - Creature→magistrate merge |
 
-**Pattern:** Attempt 5 didn't break Step 5.0.5 logic - the bug was always in `narrator.py:_match_to_character()` but only manifested when narrator name ("Robert Walton") was fuller than canonical name ("Walton").
+**Pattern:** Attempt 6 caused a severe regression. Need to revert and investigate.
+
+## Debug Focus for Fix Phase
+
+**IMMEDIATE ACTION: REVERT ATTEMPT 6 CHANGES**
+
+Since attempt 6 score (7.23) is significantly below attempt 5 (8.05), the fix phase should:
+1. `git revert` the attempt 6 fix commit(s)
+2. Re-analyze to restore attempt 5 state
+3. Then investigate why the bidirectional match caused the Creature→magistrate merge
+
+**Root Cause Investigation Needed:**
+
+The bidirectional name matching fix (`name_lower in char_name_lower or char_name_lower in name_lower`) may have:
+1. Incorrectly matched "Creature" to "magistrate" (how? they don't share substrings)
+2. OR: There was ANOTHER change in attempt 6 that caused the merge
+3. OR: The analysis run used different code/config than expected
+
+Check:
+- What exactly was committed in `c9dfb6c` (Bidirectional narrator fix)?
+- Was there any other change in the pipeline between attempt 5 and 6?
+- What does the consensus log show for the Creature/magistrate merge decision?
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive consensus: ENABLED (single-model mode, 3 temperatures)
 
-## Debug Focus for Next Fix
-
-**Priority 1: Walton Narrator Detection**
-
-The Step 5.0.5 logic (lines ~470-523 in characters.py) runs narrator detection on combined_cast (main + supporting). Need to verify:
-
-1. Is `combined_cast` actually including supporting characters?
-2. Is the narrator search pattern matching "Robert Walton" or "Walton"?
-3. Is the update correctly applied to supporting cast entries?
-
-Check the logs for:
-```
-"Narrator 'Robert Walton' identified but NOT found in main_cast"
-```
-
-This message suggests the detection finds Walton but can't locate him in the cast to update.
-
-**Priority 2: Structure Titles**
-
-The title extraction is only working for "Letter 2/3/4" but missing:
-- "Letter 1" (first structure element)
-- "Chapter I" through "Chapter XXIV"
-
-This is likely a prompt issue in the structure detection LLM proposer.
-
-## Pipeline Notes (Attempt 6)
-
-- Completed: 2026-01-31 22:40
-- Runtime: ~2 hours 40 minutes (longer due to --competitive-all with 3-way voting)
-- Command: `audiobook-prep analyze ../Test_Texts/Frankenstein_ebook.txt --competitive-consensus --competitive-all --structure-model qwen3-next:80b-a3b-instruct-q8_0 ...`
-- No errors or warnings during analysis
-- Expected improvements:
-  - Character Extraction: 7.5 → 8.0+ (Walton narrator fix applied)
-  - Structure Detection: 7.0 (unchanged - deferred)
-  - Character Profiles: 7.5 (unchanged - Victor appearance deferred)
+## Next Action
+The fix phase MUST revert attempt 6 changes due to critical regression. Score dropped from 8.05 to 7.23 (-0.82), exceeding the 0.3 regression threshold.
