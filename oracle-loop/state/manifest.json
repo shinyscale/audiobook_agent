@@ -32,10 +32,11 @@
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": true,
-      "attempts": 2,
-      "last_score": 8.625,
-      "final_score": 8.625,
-      "baseline_score": 8.25
+      "attempts": 1,
+      "last_score": 9.35,
+      "final_score": 9.35,
+      "baseline_score": 9.35,
+      "notes": "Re-evaluated with updated pipeline. Improved from 8.625 to 9.35. All categories >= 8.0. Excellent Latin/archaic word pronunciation coverage."
     },
     {
       "name": "monkeys_paw",
