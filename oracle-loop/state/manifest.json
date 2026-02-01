@@ -42,10 +42,10 @@
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
       "complete": false,
-      "attempts": 1,
-      "last_score": 7.90,
+      "attempts": 2,
+      "last_score": 7.65,
       "baseline_score": 7.90,
-      "notes": "Attempt 1 (fresh analysis): Character Extraction 6/10 - 'the old man' extracted as separate character from Mr. White (false split), 'the old woman' incorrectly aliased to 'the old man'. Structure, Profiles, Summaries, Pronunciation all >= 8.0. FAIL - 1 category below 8.0."
+      "notes": "Attempt 2: Character Extraction 5/10 - FALSE SPLIT (the old man separate from Mr. White), FALSE MERGE (the old woman aliased to the old man). Profiles 7.5/10 due to fragmentation. FAIL - 2 categories below 8.0."
     },
     {
       "name": "gift_of_the_magi",
