@@ -176,7 +176,24 @@
             "presentation": 10
           },
           "status": "passed_screening",
-          "timestamp": "2026-02-01T09:45:00-07:00"
+          "timestamp": "2026-02-01T09:33:32-07:00"
+        },
+        "monkeys_paw": {
+          "overall": 7.4,
+          "category_scores": {
+            "structure": 3,
+            "characters": 9,
+            "profiles": 6,
+            "summaries": 8,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T10:03:00-07:00",
+          "issues": [
+            "CRITICAL: Missed 2 of 3 Roman numeral parts (I., II., III.)",
+            "HIGH: Sergeant-Major Morris and Mrs. White missing profiles despite clear text descriptions"
+          ]
         }
       }
     },
