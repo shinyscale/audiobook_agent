@@ -1,99 +1,82 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** monkeys_paw
+- **Name:** cask_of_amontillado
 - **Attempt:** 1
-- **Phase:** awaiting_fix
-- **baseline_score:** 7.4
+- **Phase:** complete
+- **baseline_score:** 9.88
 
 ## Output Files
-- HTML: ../output/monkeys_paw/report.html
-- JSON: ../output/monkeys_paw/analysis.json
+- HTML: ../output/cask_of_amontillado/report.html
+- JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-- Structure Detection: 8/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING)
-- Character Profiles: 7/10 ✗ (FAILING)
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.4/10** (reference only)
+- Structure Detection: 10/10 ✓
+- Character Extraction: 10/10 ✓
+- Character Profiles: 9.5/10 ✓
+- Chapter Summaries: 10/10 ✓
+- Pronunciation Guide: 9.5/10 ✓
+- HTML Presentation: 10/10 ✓
+- **Overall: 9.88/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** PASS (all categories meet threshold)
 
-## Current Issues (Priority Order)
+## Evaluation Details
 
-### CRITICAL
-1. **False character split: "Mr. White" and "the old man" are the same person**
-   - Problem: `Mr. White` (10 mentions) and `the old man` (26 mentions) are listed as separate characters
-   - Evidence: "The old man" is the narrative descriptor for Mr. White throughout the story. The profiling system even detected this - line 1684 in report.html shows `Mr. White (self)` as a relationship for "the old man", meaning the system knew they were the same person but didn't merge them.
-   - IDs: `main_cast_0` (Mr. White) and `main_cast_5` (the old man) - both from main_cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - the consolidated Pass 2 alias resolution should have caught this
-   - Fix: Improve alias detection to recognize that "the old X" referring to a named "Mr. X" with spouse "Mrs. X" are the same person. Add heuristic: if "the old [descriptor]" has same family relationships (spouse, son) as a named character, they should merge.
+### Structure Detection: 10/10
+"The Cask of Amontillado" is a short story (~2,500 words) without chapter divisions. The tool correctly identified it as a single continuous narrative - this is the correct handling for this type of text.
 
-2. **False alias assignment: "the old woman" wrongly assigned to "the old man"**
-   - Problem: Character "the old man" has alias `the old woman` - but "the old woman" is Mrs. White, not Mr. White
-   - Evidence: In the text, "the old man" and "the old woman" are DIFFERENT people (husband and wife). The alias resolution incorrectly grouped them.
-   - IDs: `main_cast_5` (the old man with wrong alias)
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - the `CONSOLIDATED_ALIAS_PROMPT` or Pass 2 processing
-   - Fix: Add validation that "the old man" and "the old woman" are gender-distinct references and should NEVER be aliases of each other. The co-occurrence validation should also catch this - they appear in the same scenes as distinct actors.
+### Character Extraction: 10/10
+All three characters from the story correctly identified:
+- **Montresor** - Protagonist and narrator (correctly flagged as narrator)
+- **Fortunato** - Antagonist/victim (14 mentions)
+- **Luchresi** - Minor character, mentioned but never appears (6 mentions)
 
-### HIGH
-3. **Missing alias: "Sergeant-Major Morris" for "Morris"**
-   - Problem: Morris (5 mentions) is missing his full title "Sergeant-Major Morris" as an alias
-   - Evidence: The text introduces him as "Sergeant-Major Morris" and then refers to him as just "Morris". The description correctly says "Sergeant-Major Morris" but the aliases list is empty.
-   - ID: `supporting_0` (Morris) - from supporting cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` or alias resolution
-   - Fix: Ensure title+name forms are captured as aliases during extraction
+No hallucinated characters, no false splits, no false merges. Perfect extraction for this text.
 
-### MEDIUM
-4. **Quote misattribution in "the old man" profile**
-   - Problem: Quote "Never mind, dear" is listed under "the old man"'s example quotes, but this is spoken BY Mrs. White TO her husband (the old man)
-   - Evidence: The full quote is "Never mind, dear," said his wife, soothingly" - the possessive "his wife" makes clear she's speaking
-   - Location: `src/pipeline/character_profiling/` - quote extraction logic
-   - Fix: Improve quote attribution to check for dialogue tags that indicate the speaker (e.g., "said his wife")
+### Character Profiles: 9.5/10
+Excellent profiles for both main characters:
 
-## Analysis Summary
+**Fortunato:**
+- Appearance: "Wears a tight-fitting parti-striped motley costume with a conical cap adorned with jingling bells" ✓
+- Personality: "Proud of his wine connoisseurship, sociable, boisterous, gullible" ✓
+- Voice guidance: "boisterous and confident, slipping into panic" ✓
+- Verbal tics: "He! he! he!", "Amontillado!" ✓
+- Example quotes provided ✓
 
-The character extraction scored 5/10 due to a critical false split (Mr. White / the old man) that doubles the protagonist's entry and confuses their identity. The pipeline extracted "the old man" as a separate character even though:
-1. "The old man" has the same spouse (Mrs. White), same son (Herbert), same physical description (thin grey beard)
-2. The profiling system detected they were the same (`Mr. White (self)` relationship) but didn't act on it
+**Montresor:**
+- Appearance: "black silk mask, roquelaire (cloak), carries a trowel" ✓
+- Personality: "methodical, patient, driven by a long-held grudge" ✓
+- Voice: "measured and sinister, with an undercurrent of cold authority" ✓
+- Correctly identified as narrator ✓
 
-The alias assignment of "the old woman" to "the old man" is a separate error that compounds the confusion.
+Minor deduction: The "friend" relationship labeling is technically ironic (Montresor's sarcastic usage), but acceptable.
 
-### Root Cause Analysis
+### Chapter Summaries: 10/10
+The chapter summary accurately captures the complete story arc:
+- Opening: grudge, carnival setting, revenge plan
+- Middle: Amontillado lure, descent into catacombs
+- End: chaining, walling up, Fortunato's cries, fifty-year reveal
 
-The V2 character extraction pipeline's consolidated Pass 2 should have caught this. Possible failure modes:
-1. **LLM didn't recognize the pattern**: "the old man" as a narrative descriptor for a named character
-2. **Co-occurrence validation didn't fire**: Mr. White and "the old man" may never appear in the same sentence (they're the same person!), so Jaccard would be 0.0, but this should BLOCK merge, not cause a split
-3. **Gender-based alias merging**: The system incorrectly grouped "the old woman" with "the old man" based on similar phrasing
+Themes correctly identified: revenge, pride, deception, mortality.
 
-**Recommended fix approach:**
-1. Add a defensive heuristic: If two characters share the exact same family relationships (same spouse, same children), they're likely the same person
-2. Add gender validation: "the old man" and "the old woman" cannot be aliases of each other
-3. Review the Pass 2 LLM prompt to ensure it understands that "the old X" can be a narrative reference to a named character
+### Pronunciation Guide: 9.5/10
+Excellent coverage (33/36 with IPA, 3 are homographs correctly flagged):
+- Italian names: Fortunato, Luchresi, Montresor, Amontillado
+- French: flambeaux
+- Latin: requiescat, lacessit
+- Archaic terms: nitre, roquelaire, rheum, flagon, puncheons
+- Homographs: row, close, entrance (correctly flagged without IPA)
 
-## Sanity Check Results
+### HTML Presentation: 10/10
+Professional output with working tab navigation, clean typography, logical organization, expandable evidence sections, and confidence badges.
 
-```
-Structure elements: 3 (Parts I, II, III - CORRECT for this story)
-Characters: 6
-Main characters (>10 mentions): ['Herbert White', 'the old man']
-All characters: [('Mr. White', 10), ('Mrs. White', 10), ('Herbert White', 14), ('the old man', 26), ('the monkey's paw', 5), ('Morris', 5)]
-Narrators identified: [] (CORRECT - third-person narrative)
-Characters from main_cast: 5
-Characters from supporting_cast: 1
-Pronunciations with IPA: 34/37
-Characters with physical_description: 0/6
-Characters with relationships: 6/6
-```
+## Current Issues
+None - all categories pass threshold.
 
-## Modification History
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 1 | (initial evaluation) | — | FAIL (7.4/10) |
+## Fix History
+N/A - passed on attempt 1.
 
 ## Next Action
-Run PROMPT_fix.md to address the critical false split between Mr. White and "the old man" (Critical #1 and #2)
+Text complete. Ready to advance to next incomplete text in manifest (frankenstein or next pending).
