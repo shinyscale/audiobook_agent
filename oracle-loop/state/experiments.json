@@ -10,78 +10,316 @@
       "american_sir",
       "john_g"
     ],
-    "validation": ["i_have_no_mouth", "flowers_for_algernon"],
-    "regression": ["gatsby", "frankenstein", "dracula"]
+    "validation": [
+      "i_have_no_mouth",
+      "flowers_for_algernon"
+    ],
+    "regression": [
+      "gatsby",
+      "frankenstein",
+      "dracula"
+    ]
   },
-
   "category_regression_tolerance": 0.5,
   "screening_threshold": 7.0,
   "validation_threshold": 8.0,
-
   "experiments": [
     {
-      "id": "exp_001_baseline",
-      "description": "Current production config",
-      "status": "baseline",
-      "created": "2026-01-27",
+      "id": "exp_001_qwen3_next_moe",
+      "description": "Qwen3-next 80B MoE for all tasks - baseline for simplified pipeline",
+      "status": "failed_screening",
+      "created": "2026-01-31",
       "config": {
-        "character_model": "qwen2.5:32b",
-        "structure_model": "qwen2.5:14b",
-        "summary_model": "qwen2.5:32b",
-        "pronunciation_model": "qwen2.5:14b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
         "context_length": 32768,
         "min_mentions": 2,
         "competitive_consensus": false
       },
       "results": {
         "cask_of_amontillado": {
-          "overall": 8.90,
+          "overall": 9.25,
           "category_scores": {
-            "structure": 10.0,
-            "characters": 8.0,
-            "profiles": 8.0,
-            "summaries": 9.0,
-            "pronunciation": 9.0,
-            "presentation": 9.0
+            "structure": 10,
+            "characters": 10,
+            "profiles": 7,
+            "summaries": 9.5,
+            "pronunciation": 9,
+            "presentation": 9
           },
-          "status": "passed"
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T06:49:44-07:00"
         },
         "masque_of_red_death": {
-          "overall": 9.35,
+          "overall": 9.0,
           "category_scores": {
-            "structure": 10.0,
-            "characters": 9.0,
-            "profiles": 8.0,
-            "summaries": 10.0,
-            "pronunciation": 9.0,
-            "presentation": 10.0
+            "structure": 10,
+            "characters": 9,
+            "profiles": 8,
+            "summaries": 9,
+            "pronunciation": 8.5,
+            "presentation": 9.5
           },
-          "status": "passed"
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T07:04:23-07:00"
         },
         "berenice": {
-          "overall": 9.10,
+          "overall": 9.35,
           "category_scores": {
-            "structure": 10.0,
-            "characters": 9.0,
-            "profiles": 8.0,
-            "summaries": 9.0,
-            "pronunciation": 9.0,
-            "presentation": 9.0
+            "structure": 10,
+            "characters": 9,
+            "profiles": 9,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 10
           },
-          "status": "passed"
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T07:20:16-07:00"
         },
         "monkeys_paw": {
-          "overall": 9.20,
+          "overall": 7.4,
           "category_scores": {
-            "structure": 10.0,
-            "characters": 9.0,
-            "profiles": 8.0,
-            "summaries": 10.0,
-            "pronunciation": 9.0,
-            "presentation": 9.0
+            "structure": 8,
+            "characters": 5,
+            "profiles": 7,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 9
           },
-          "status": "passed"
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T07:38:45-07:00"
         }
+      }
+    },
+    {
+      "id": "exp_002_qwen3_next_competitive",
+      "description": "Qwen3-next 80B MoE with competitive consensus enabled",
+      "status": "failed_screening",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_samples": 3
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 7.4,
+          "category_scores": {
+            "structure": 8,
+            "characters": 5,
+            "profiles": 7,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T07:50:19-07:00"
+        }
+      }
+    },
+    {
+      "id": "exp_003_gpt_oss",
+      "description": "GPT-OSS 120B for all tasks",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "gpt-oss:120b",
+        "structure_model": "gpt-oss:120b",
+        "summary_model": "gpt-oss:120b",
+        "pronunciation_model": "gpt-oss:120b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 9.88,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9.5,
+            "summaries": 10,
+            "pronunciation": 9.5,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T08:16:23-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.65,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T08:50:55-07:00"
+        },
+        "berenice": {
+          "overall": 9.75,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T09:45:00-07:00"
+        }
+      }
+    },
+    {
+      "id": "exp_004_gpt_oss_competitive",
+      "description": "GPT-OSS 120B with competitive consensus enabled",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "gpt-oss:120b",
+        "structure_model": "gpt-oss:120b",
+        "summary_model": "gpt-oss:120b",
+        "pronunciation_model": "gpt-oss:120b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_samples": 3
+      }
+    },
+    {
+      "id": "exp_005_nemotron",
+      "description": "Nemotron 30B for all tasks",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "nemotron-3-nano:30b",
+        "structure_model": "nemotron-3-nano:30b",
+        "summary_model": "nemotron-3-nano:30b",
+        "pronunciation_model": "nemotron-3-nano:30b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      }
+    },
+    {
+      "id": "exp_006_nemotron_competitive",
+      "description": "Nemotron 30B with competitive consensus enabled",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "nemotron-3-nano:30b",
+        "structure_model": "nemotron-3-nano:30b",
+        "summary_model": "nemotron-3-nano:30b",
+        "pronunciation_model": "nemotron-3-nano:30b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_samples": 3
+      }
+    },
+    {
+      "id": "exp_007_deepseek_r1",
+      "description": "DeepSeek-R1 32B reasoning model for character extraction",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "deepseek-r1:32b",
+        "structure_model": "qwen2.5:14b",
+        "summary_model": "deepseek-r1:32b",
+        "pronunciation_model": "qwen2.5:14b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      }
+    },
+    {
+      "id": "exp_008_mixed_moe_fast",
+      "description": "MoE for characters, faster models for other tasks",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen2.5:14b",
+        "summary_model": "qwen2.5:32b",
+        "pronunciation_model": "qwen2.5:14b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      }
+    },
+    {
+      "id": "exp_009_mixed_moe_competitive_chars",
+      "description": "MoE with competitive consensus for characters only",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen2.5:14b",
+        "summary_model": "qwen2.5:32b",
+        "pronunciation_model": "qwen2.5:14b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_samples": 3,
+        "competitive_agents": [
+          "characters"
+        ]
+      }
+    },
+    {
+      "id": "exp_010_qwen3_next_5_samples",
+      "description": "Qwen3-next with 5-sample competitive consensus",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_samples": 5
+      }
+    },
+    {
+      "id": "exp_011_gpt_oss_chars_qwen_rest",
+      "description": "GPT-OSS for characters, Qwen for other tasks",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "gpt-oss:120b",
+        "structure_model": "qwen2.5:14b",
+        "summary_model": "qwen2.5:32b",
+        "pronunciation_model": "qwen2.5:14b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      }
+    },
+    {
+      "id": "exp_012_min_mentions_3",
+      "description": "Qwen3-next with min_mentions=3 (stricter grounding)",
+      "status": "pending",
+      "created": "2026-01-31",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 3,
+        "competitive_consensus": false
       }
     }
   ]
