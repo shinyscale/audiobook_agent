@@ -203,11 +203,15 @@ The title extraction is only working for "Letter 2/3/4" but missing:
 
 This is likely a prompt issue in the structure detection LLM proposer.
 
-**Phase:** awaiting_analysis
+**Phase:** running_analysis
 
-## Next Action
+## Current Analysis Run (Attempt 6)
 
-Re-run analysis to verify Walton narrator fix. Expected improvements:
-- Character Extraction: 7.5 → 8.0+ (Walton now marked as narrator)
-- Structure Detection: 7.0 (unchanged - deferred)
-- Character Profiles: 7.5 (unchanged - Victor appearance deferred)
+- Started: 2026-01-31
+- Task ID: bb2776a
+- Command: `audiobook-prep analyze ../Test_Texts/Frankenstein_ebook.txt --competitive-all --structure-model qwen3-next:80b-a3b-instruct-q8_0 ...`
+- Expected runtime: 10-60 minutes
+- Expected improvements:
+  - Character Extraction: 7.5 → 8.0+ (Walton narrator fix applied)
+  - Structure Detection: 7.0 (unchanged - deferred)
+  - Character Profiles: 7.5 (unchanged - Victor appearance deferred)
