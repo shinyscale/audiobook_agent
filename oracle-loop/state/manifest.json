@@ -33,10 +33,10 @@
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": true,
       "attempts": 1,
-      "last_score": 9.35,
-      "final_score": 9.35,
-      "baseline_score": 9.35,
-      "notes": "Re-evaluated with updated pipeline. Improved from 8.625 to 9.35. All categories >= 8.0. Excellent Latin/archaic word pronunciation coverage."
+      "last_score": 9.85,
+      "final_score": 9.85,
+      "baseline_score": 9.85,
+      "notes": "Re-evaluated 2026-02-01. All categories >= 8.0. Perfect structure (short story), character extraction (Egaeus/Berenice), excellent Latin/archaic pronunciation (81 entries, 100% IPA)."
     },
     {
       "name": "monkeys_paw",

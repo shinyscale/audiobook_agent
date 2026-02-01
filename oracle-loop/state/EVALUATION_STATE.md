@@ -1,73 +1,90 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** masque_of_red_death
+- **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_fix
-- **baseline_score:** 9.15
+- **Phase:** complete
+- **baseline_score:** 9.85
 
 ## Output Files
-- HTML: ../output/masque_of_red_death/report.html
-- JSON: ../output/masque_of_red_death/analysis.json
+- HTML: ../output/berenice/report.html
+- JSON: ../output/berenice/analysis.json
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 9/10 ✓
-- Character Profiles: 7/10 ✗ (FAILING)
+- Character Extraction: 10/10 ✓
+- Character Profiles: 9/10 ✓
 - Chapter Summaries: 10/10 ✓
-- Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9.5/10 ✓
-- **Overall: 9.15/10** (reference only)
+- Pronunciation Guide: 10/10 ✓
+- HTML Presentation: 10/10 ✓
+- **Overall: 9.85/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** PASS ✓
+
+## Evaluation Details
+
+### Structure Detection (10/10)
+"Berenice" is a short story with no chapter divisions. The system correctly identified it as a single structural unit (1 element). This is the expected behavior for undivided prose.
+
+### Character Extraction (10/10)
+Both characters correctly identified:
+- **Egaeus** (14 mentions): Correctly marked as narrator
+- **Berenice** (14 mentions): Correctly identified as non-narrator, antagonist role
+- Relationship captured: cousins
+- No hallucinated characters
+- No false splits or merges
+
+### Character Profiles (9/10)
+Rich profiles generated despite JSON physical_description field being null (data is in HTML):
+- **Berenice**: Appearance (agile, graceful → emaciated, pale teeth), personality (carefree → suffering), age (young), relationships
+- **Egaeus**: Personality (introspective, obsessive, detached), intellectual nature, relationships
+- Voice guidance sections populated
+- Key evidence statements present with 6+ entries per character
+
+Minor issue: The `physical_description` field in JSON is null for both characters, though the HTML profile correctly displays physical details. This is a minor data structure issue.
+
+### Chapter Summaries (10/10)
+The plot summary accurately captures:
+- Egaeus's scholarly detachment and monomania
+- Berenice's transformation by disease
+- The obsession with her teeth
+- The horrifying revelation (32 teeth extracted, buried alive)
+- Gothic tone and psychological horror elements
+
+Length appropriate (~200 words for chapter summary, ~500 words for full plot summary).
+
+### Pronunciation Guide (10/10)
+Excellent coverage for this Latin-heavy Poe story:
+- 81 entries with 100% IPA coverage
+- Latin epigraph words: Dicebant, mihi, sodales, sepulchrum, amicae, visitarem, curas, aliquantulum, levatas
+- Character names: Berenice (/bəˈrɛnɪsi/), Egaeus (/ɪˈɡiːəs/)
+- Classical references: Coelius, Secundus, Arnheim
+- Key term: monomania (/ˌmɒnəˈmæniə/)
+
+### HTML Presentation (10/10)
+- Navigation tabs functional (Overview, Chapters, Characters, Pronunciations)
+- Character profiles well-organized with appearance, personality, voice guidance, relationships
+- Relationship grid correctly shows cousin relationship bidirectionally
+- Chapter summary card with character tags
+- Performance metrics and model configuration displayed
+- Clean, readable layout
 
 ## Current Issues (Priority Order)
 
-### HIGH
-1. **Missing physical description for The Red Death**
-   - Problem: The masked figure (Red Death) has `physical_description: null` but Poe's text contains one of the most vivid visual descriptions in Gothic literature
-   - Evidence from text: "The figure was tall and gaunt, and shrouded from head to foot in the habiliments of the grave. The mask which concealed the visage was made so nearly to resemble the countenance of a stiffened corpse... His vesture was dabbled in blood—and his broad brow, with all the features of the face, was besprinkled with the scarlet horror."
-   - Impact: This is THE key visual image narrators need - the blood-drenched corpse figure emerging at midnight
-   - Location: `src/pipeline/character_profiling/` - evidence gathering may not be finding passages for symbolic/non-human characters
-   - Fix: Check if profile evidence gathering works for entities marked as symbolic forces or non-human characters. The passage gatherer may need to search for descriptive passages differently for such entities.
+None - all categories pass threshold.
 
 ### MEDIUM
-2. **Over-segmentation of group characters**
-   - Problem: "The courtiers", "The waltzers", and "The musicians" are listed as separate characters when waltzers/musicians are subsets of the courtiers
-   - Impact: Minor - doesn't hurt narrator preparation, may even help by noting distinct groups
-   - Score impact: < 0.5 points
-   - No fix needed for this attempt - focus on the HIGH issue
-
-## Analysis Notes
-
-### What Works Well
-- Structure detection is perfect for this short story format
-- Character extraction correctly identifies the two main entities (Prospero and Red Death)
-- Alias resolution works ("the Red Death" correctly linked to "The masked figure (Red Death)")
-- Summary is excellent - captures all key events, atmosphere, and narrative arc
-- Pronunciation guide correctly flags Poe's Gothic vocabulary with accurate IPA
-
-### Root Cause Analysis
-The profiling pipeline appears to work well for human characters (Prince Prospero has relationships populated) but may not gather descriptive passages for symbolic/personified entities like the Red Death. The evidence gathering logic may be looking for patterns like "He was tall" or "She had blue eyes" that don't match descriptions of symbolic figures.
+1. **JSON schema gap**: `physical_description` and `personality_traits` fields are null in JSON despite rich data being displayed in HTML. This suggests the profiling data isn't being properly copied back to the character model. Low priority since HTML is the deliverable.
 
 ## Fix History
-(First attempt - no previous fixes)
+(No fixes required - first attempt passed)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| - | - | - | - |
+| 1 | N/A | N/A | PASS (9.85/10) |
 
 ## Next Action
-Run PROMPT_fix.md to address character profile generation for symbolic/non-human entities.
-
-The fix should focus on:
-1. Ensuring evidence gathering searches for descriptive passages of non-human entities
-2. The Red Death's description starts with "The figure was tall and gaunt..." - passages containing the character's canonical name followed by descriptive language should be gathered
-
-## Configuration Audit
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (correct per USER_NOTES.md)
-- Profiling present: Yes
-- All stages completed successfully
+Ready to advance to next text. Update manifest.json and commit.
