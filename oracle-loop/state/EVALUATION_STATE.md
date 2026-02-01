@@ -4,7 +4,7 @@
 - **Name:** monkeys_paw
 - **Attempt:** 1
 - **Phase:** awaiting_fix
-- **baseline_score:** 6.5
+- **baseline_score:** 7.4
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
@@ -22,109 +22,78 @@
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
 
-## Score Breakdown
-
-### Structure Detection: 8/10 ✓
-- **Correct:** 3 parts detected matching the story's I, II, III structure
-- **Correct:** All confidence levels are "high"
-- **Minor issue:** Part I and II titles are `null`, only Part III has title "III"
-- The story uses Roman numerals (I, II, III) - first two weren't captured but boundaries are correct
-
-### Character Extraction: 5/10 ✗
-- **CRITICAL:** "the old man" (26 mentions) extracted as SEPARATE character from "Mr. White" (10 mentions)
-- **CRITICAL:** "the old woman" incorrectly listed as alias of "the old man" instead of being Mrs. White
-- These are epithets used in Part III to refer to Mr. and Mrs. White in their grief
-- System even detected `"Mr. White": "self"` in relationships but didn't merge
-- Morris missing "Sergeant-Major" title in aliases (appears in chapter summaries as "Sergeant-Major Morris")
-- Symbolic object "the monkey's paw" correctly extracted (acceptable per rubric)
-
-### Character Profiles: 7/10 ✗
-- **No physical_description for any character** (0/6 have this field populated)
-- Relationships are generally correct where present
-- Evidence collection is good
-- Voice guidance is useful
-- "the old man" profile has rich detail but belongs merged into Mr. White
-
-### Chapter Summaries: 9/10 ✓
-- All 3 summaries are accurate and capture key events
-- Part I: Correctly describes Morris's arrival, the paw's history, the first wish
-- Part II: Correctly describes Herbert's death, the two hundred pounds compensation
-- Part III: Correctly describes the second wish, the knocking, the third wish
-- Good length and detail for narrator preparation
-
-### Pronunciation Guide: 9/10 ✓
-- 34/37 entries have IPA transcriptions
-- Good coverage: "fakir", "fakirs", "rubicund", "condoling", "Meggins"
-- Minor: Some common words flagged (e.g., "to-night" - archaic spelling)
-- No major false positives
-
-### HTML Presentation: 9/10 ✓
-- Clean navigation with tabbed interface
-- Proper styling with dark theme
-- Print-friendly CSS
-- Mobile responsive
-- Good organization of character profiles
-
 ## Current Issues (Priority Order)
 
 ### CRITICAL
+1. **False character split: "Mr. White" and "the old man" are the same person**
+   - Problem: `Mr. White` (10 mentions) and `the old man` (26 mentions) are listed as separate characters
+   - Evidence: "The old man" is the narrative descriptor for Mr. White throughout the story. The profiling system even detected this - line 1684 in report.html shows `Mr. White (self)` as a relationship for "the old man", meaning the system knew they were the same person but didn't merge them.
+   - IDs: `main_cast_0` (Mr. White) and `main_cast_5` (the old man) - both from main_cast pipeline
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - the consolidated Pass 2 alias resolution should have caught this
+   - Fix: Improve alias detection to recognize that "the old X" referring to a named "Mr. X" with spouse "Mrs. X" are the same person. Add heuristic: if "the old [descriptor]" has same family relationships (spouse, son) as a named character, they should merge.
 
-1. **False character split: "the old man" vs "Mr. White"**
-   - Problem: "the old man" (26 mentions) and "Mr. White" (10 mentions) are separate entries
-   - Evidence: In Part III, W.W. Jacobs uses "the old man" and "the old woman" as epithets for Mr. and Mrs. White. The system's own relationship data shows `"Mr. White": "self"` under "the old man", proving it recognized the identity.
-   - Location: Character extraction V2 - likely in `src/pipeline/character_extraction_v2/main_cast.py` or post-processing merge logic
-   - Fix: Need to recognize epithet patterns (definite article + descriptor = possible alias). The "self" relationship is a strong signal that should trigger a merge.
-   - ID patterns: `main_cast_1` (Mr. White), `main_cast_5` (the old man) - both from main cast pipeline
-
-2. **False character merge: "the old woman" aliased to "the old man"**
-   - Problem: "the old woman" is listed as an alias of "the old man"
-   - Evidence: "the old woman" refers to Mrs. White, not Mr. White. They are different people (husband and wife).
-   - Location: Same as above - alias resolution is grouping same-structure epithets incorrectly
-   - Fix: When merging epithets, check gender markers (old man/old woman = different genders = different people)
+2. **False alias assignment: "the old woman" wrongly assigned to "the old man"**
+   - Problem: Character "the old man" has alias `the old woman` - but "the old woman" is Mrs. White, not Mr. White
+   - Evidence: In the text, "the old man" and "the old woman" are DIFFERENT people (husband and wife). The alias resolution incorrectly grouped them.
+   - IDs: `main_cast_5` (the old man with wrong alias)
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - the `CONSOLIDATED_ALIAS_PROMPT` or Pass 2 processing
+   - Fix: Add validation that "the old man" and "the old woman" are gender-distinct references and should NEVER be aliases of each other. The co-occurrence validation should also catch this - they appear in the same scenes as distinct actors.
 
 ### HIGH
-
-3. **Morris missing full title**
-   - Problem: Character entry is just "Morris" but text uses "Sergeant-Major Morris"
-   - Evidence: Chapter summary says "Sergeant-Major Morris" shows up. Full title appears in character_present lists.
-   - Location: Alias resolution in `src/pipeline/character_extraction_v2/main_cast.py`
-   - Fix: Add "Sergeant-Major Morris" as alias or make it canonical name
+3. **Missing alias: "Sergeant-Major Morris" for "Morris"**
+   - Problem: Morris (5 mentions) is missing his full title "Sergeant-Major Morris" as an alias
+   - Evidence: The text introduces him as "Sergeant-Major Morris" and then refers to him as just "Morris". The description correctly says "Sergeant-Major Morris" but the aliases list is empty.
+   - ID: `supporting_0` (Morris) - from supporting cast pipeline
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` or alias resolution
+   - Fix: Ensure title+name forms are captured as aliases during extraction
 
 ### MEDIUM
+4. **Quote misattribution in "the old man" profile**
+   - Problem: Quote "Never mind, dear" is listed under "the old man"'s example quotes, but this is spoken BY Mrs. White TO her husband (the old man)
+   - Evidence: The full quote is "Never mind, dear," said his wife, soothingly" - the possessive "his wife" makes clear she's speaking
+   - Location: `src/pipeline/character_profiling/` - quote extraction logic
+   - Fix: Improve quote attribution to check for dialogue tags that indicate the speaker (e.g., "said his wife")
 
-4. **Physical descriptions empty for all characters**
-   - Problem: `physical_description` is `null` for all 6 characters
-   - Evidence: The text DOES have physical descriptions (e.g., "thin grey beard" is captured in evidence for "the old man")
-   - Location: `src/pipeline/character_profiling/` - the `physical_description` field isn't being populated even though evidence exists
-   - Fix: Extract physical description from evidence statements that mention appearance
+## Analysis Summary
 
-5. **Structure titles incomplete**
-   - Problem: Parts I and II have `null` titles, only Part III captured "III"
-   - Evidence: The story structure is "I", "II", "III" - all should be captured
-   - Location: `src/pipeline/chapter_detection/`
-   - Fix: Ensure Roman numeral detection works for all parts, not just the last one
+The character extraction scored 5/10 due to a critical false split (Mr. White / the old man) that doubles the protagonist's entry and confuses their identity. The pipeline extracted "the old man" as a separate character even though:
+1. "The old man" has the same spouse (Mrs. White), same son (Herbert), same physical description (thin grey beard)
+2. The profiling system detected they were the same (`Mr. White (self)` relationship) but didn't act on it
 
-## Fix Guidance for Character Split Issue
+The alias assignment of "the old woman" to "the old man" is a separate error that compounds the confusion.
 
-The epithet merge issue is the most impactful. Key observations:
+### Root Cause Analysis
 
-1. **Strong signal exists:** The relationship `"Mr. White": "self"` under "the old man" is a clear indicator they're the same person
-2. **Gender should block merges:** "old man" and "old woman" should NEVER be aliases (gender mismatch)
-3. **Pattern to recognize:** Definite article + age/descriptor (the old man, the young woman, the fat man) often refers to an already-named character in the same scene/chapter
+The V2 character extraction pipeline's consolidated Pass 2 should have caught this. Possible failure modes:
+1. **LLM didn't recognize the pattern**: "the old man" as a narrative descriptor for a named character
+2. **Co-occurrence validation didn't fire**: Mr. White and "the old man" may never appear in the same sentence (they're the same person!), so Jaccard would be 0.0, but this should BLOCK merge, not cause a split
+3. **Gender-based alias merging**: The system incorrectly grouped "the old woman" with "the old man" based on similar phrasing
 
-Suggested fix approach:
-- In post-processing merge logic, when a character has a "self" relationship to another character, automatically merge them
-- Add gender-aware validation to prevent aliasing "old man" to "old woman"
-- This is a generic fix (relationship-based merge) that should work for any book
+**Recommended fix approach:**
+1. Add a defensive heuristic: If two characters share the exact same family relationships (same spouse, same children), they're likely the same person
+2. Add gender validation: "the old man" and "the old woman" cannot be aliases of each other
+3. Review the Pass 2 LLM prompt to ensure it understands that "the old X" can be a narrative reference to a named character
 
-## Fix History
-(First attempt - no prior fixes)
+## Sanity Check Results
+
+```
+Structure elements: 3 (Parts I, II, III - CORRECT for this story)
+Characters: 6
+Main characters (>10 mentions): ['Herbert White', 'the old man']
+All characters: [('Mr. White', 10), ('Mrs. White', 10), ('Herbert White', 14), ('the old man', 26), ('the monkey's paw', 5), ('Morris', 5)]
+Narrators identified: [] (CORRECT - third-person narrative)
+Characters from main_cast: 5
+Characters from supporting_cast: 1
+Pronunciations with IPA: 34/37
+Characters with physical_description: 0/6
+Characters with relationships: 6/6
+```
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | (baseline evaluation) | N/A | Baseline established |
+| 1 | (initial evaluation) | — | FAIL (7.4/10) |
 
 ## Next Action
-Run PROMPT_fix.md to address the critical character split issues (the old man/Mr. White merge)
+Run PROMPT_fix.md to address the critical false split between Mr. White and "the old man" (Critical #1 and #2)
