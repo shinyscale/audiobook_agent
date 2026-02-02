@@ -11,94 +11,84 @@
 - JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-- Structure Detection: 7/10 ✗ (Short story with no chapters - correctly identified as 1 "chapter", but structure could be more elegant)
-- Character Extraction: 4/10 ✗ (FAILING - Missing Montresor, the narrator/protagonist)
-- Character Profiles: 3/10 ✗ (FAILING - No physical descriptions, Fortunato's costume not captured)
-- Chapter Summaries: 0/10 ✗ (FAILING - Completely hallucinated plot about "Emma" instead of Poe's revenge tale)
-- Pronunciation Guide: 9/10 ✓ (Good: Amontillado, Fortunato, Luchresi, flambeaux, roquelaire all flagged with IPA)
-- HTML Presentation: 8/10 ✓ (Functional navigation, clean layout)
+- Structure Detection: 7/10 ✓ (acceptable - short story with no chapters)
+- Character Extraction: 2/10 ✗ (FAILING - Missing narrator/protagonist Montresor)
+- Character Profiles: 5/10 ✗ (FAILING - Fortunato's profile exists but missing Montresor entirely)
+- Chapter Summaries: 0/10 ✗ (FAILING - Summary generation completely failed)
+- Pronunciation Guide: 9/10 ✓ (Good coverage including Amontillado, Montresor, Fortunato, Italian/French terms)
+- HTML Presentation: 7/10 ✗ (FAILING - Navigation works but shows failed summary and incomplete character data)
 - **Overall: 4.20/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (4 categories below threshold)
+**Status:** FAIL (5 categories below threshold)
+
+## Expected Ground Truth
+
+**The Cask of Amontillado** by Edgar Allan Poe:
+- **Structure:** Single continuous short story (no chapters) - 1 structure element is correct
+- **Main Characters:**
+  - **Montresor** - First-person narrator, protagonist, the murderer seeking revenge
+  - **Fortunato** - The victim, a wine connoisseur, manipulated to his death
+- **Supporting Characters:**
+  - **Luchresi** - Mentioned wine expert, never appears, used as manipulation tool
+- **Narrator:** Montresor (first-person)
+- **Plot:** Montresor lures Fortunato to his catacombs with promise of rare Amontillado wine, then chains and walls him alive as revenge for an unspecified insult
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
+1. **Missing main character: Montresor**
+   - Problem: The narrator and protagonist is completely absent from character list
+   - Evidence: Only Fortunato and Luchresi extracted; Montresor tells the entire story in first person ("I had borne the thousand injuries of Fortunato")
+   - Source: Both characters came from `supporting_*` IDs (supporting cast pipeline), not main_cast
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - first-person narrators not being extracted
+   - Fix: First-person narrator detection needs to identify "I" as a character and resolve to Montresor (his name appears in text: "For the love of God, Montresor!")
 
-1. **Missing Montresor - the narrator and protagonist**
-   - Problem: Montresor is the first-person narrator who enacts the entire revenge plot. He is NOT in the character list.
-   - Evidence: Text uses "I" throughout. Montresor's name appears 3 times: "catacombs of the Montresors", "The Montresors were a great family", and Fortunato's final cry "For the love of God, Montresor!"
-   - Root cause: First-person narrator detection failure. The narrator rarely states their own name - it only appears in Fortunato's dialogue and family references.
-   - Location: `src/pipeline/character_extraction_v2/` - narrator detection logic
-   - Fix: Must detect first-person narrator from "I" pronoun usage AND extract the name from any mentions (even rare ones). The family reference "the Montresors" and dialogue "Montresor!" should trigger narrator name detection.
-
-2. **Plot summary is 100% hallucinated**
-   - Problem: Summary describes "Emma, a recent graduate pursuing writing dreams in the big city" with characters "Jack", "mother", "grandmother"
-   - Evidence: The actual story is about Montresor luring Fortunato into catacombs and walling him in alive for revenge. ZERO connection to the output.
-   - Root cause: The overview/plot_summary generation completely failed and produced a generic fiction template instead of analyzing the actual text.
-   - Location: `src/agents/` - whatever generates `overview.plot_summary`
-   - Fix: The plot summary LLM call is not receiving or using the actual text content. Must verify text is passed to this stage.
-
-3. **Chapter summary failed completely**
-   - Problem: Shows "[Summary generation failed - manual review needed]" in HTML
-   - Evidence: `chapter_summaries` array is empty (length 0) in JSON
-   - Root cause: Summary generation pipeline crashed or timed out. Note: "Chapter Summaries" took 20 minutes per profiling - may have hit timeout.
-   - Location: `src/pipeline/chapter_summary/` or `src/agents/summary_agent.py`
-   - Fix: Check why summary generation failed. May be related to the hallucinated plot_summary issue.
+2. **Summary generation completely failed**
+   - Problem: Chapter summary shows "[Summary generation failed - manual review needed]"
+   - Evidence: `summaries` field is `null` in analysis.json
+   - Location: `src/pipeline/chapter_summary/summarizer.py` or `src/agents/summary_agent.py`
+   - Fix: Check why summary generation returned null/failed - likely LLM call issue or structure detection problem
 
 ### HIGH
+3. **Fortunato incorrectly marked as "minor" role**
+   - Problem: Fortunato is labeled as "minor" when he is a main character (the antagonist/victim)
+   - Evidence: HTML shows `<span class="tag">minor</span>` for Fortunato
+   - Location: Role classification in `src/pipeline/character_extraction_v2/`
+   - Fix: Role classification needs improvement - a character with 14 mentions in a 2,354 word story is significant
 
-4. **No physical descriptions extracted**
-   - Problem: Fortunato's vivid costume is described in text but `physical_description` is null
-   - Evidence from text: "The man wore motley. He had on a tight-fitting parti-striped dress, and his head was surmounted by the conical cap and bells."
-   - Location: `src/pipeline/character_profiling/`
-   - Fix: Physical description extraction needs to capture costume/appearance details from narrative.
-
-5. **Fortunato incorrectly marked as "minor" role**
-   - Problem: Fortunato is labeled `"role": "minor"` but he's one of only two characters and the central victim
-   - Evidence: 14 mentions in a 2,358 word story = extremely significant
-   - Location: Role classification logic in character extraction
-   - Fix: For very short texts, threshold for "major" role should be adjusted, or use relative frequency not absolute counts.
+4. **No narrator identified**
+   - Problem: `is_narrator: false` for all characters, but this is clearly first-person narration
+   - Evidence: Story begins with "I" and maintains first-person throughout
+   - Location: Narrator detection in character extraction pipeline
+   - Fix: Detect first-person perspective and identify narrator
 
 ### MEDIUM
+5. **Structure element has null title**
+   - Problem: The single structure element has `title: null` instead of a meaningful title
+   - Evidence: `jq '.structure[] | {title: .title}'` returns `{"title": null}`
+   - Location: `src/pipeline/chapter_detection/`
+   - Fix: For short stories without chapter markers, use story title as section title
 
-6. **Luchresi may not warrant separate entry**
-   - Problem: Luchresi never appears in the story - he's only mentioned as a comparison to manipulate Fortunato
-   - Note: This could be acceptable since he IS a named character referenced multiple times (6 mentions)
-   - Recommendation: Consider adding a "mentioned_only" flag for characters who never physically appear
-
-## Sanity Check Results
-```
-Structure elements: 1
-Characters: 2 (Fortunato, Luchresi)
-Pronunciations: 36 (33 with IPA)
-Main characters (>5 mentions): ['Fortunato', 'Luchresi']
-Narrators identified: [] ← CRITICAL FAILURE
-Characters from main_cast: 0
-Characters from supporting_cast: 2
-Characters from F6 reconciliation: 0
-```
-
-## Configuration Audit
-- Model used: qwen3-next:80b-a3b-instruct-q8_0 (as specified by user)
-- Chapter Summaries stage took 20 minutes (1200 seconds) - suspicious timeout behavior
-- Character Extraction took 4 minutes - reasonable for this short text
-- No LLM retries recorded
-
-## Fix History
-- (First attempt - no prior fixes)
+6. **No physical description populated for characters**
+   - Problem: `physical_description` is empty for all characters (0/2)
+   - Evidence: Sanity check shows "Characters with physical_description: 0/2"
+   - Note: Fortunato DOES have appearance info in HTML ("Wears a tight-fitting parti-striped dress and a conical cap with bells") but it's not in the structured `physical_description` field
+   - Location: Profile population in `src/pipeline/character_profiling/`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | N/A - first attempt | N/A | Baseline: 4.20/10 |
+| 1 | Initial analysis | N/A | FAIL - Montresor missing, summaries failed |
+
+## Configuration Audit Notes
+
+- Model: `qwen3-next:80b-a3b-instruct-q8_0` for characters (per USER_NOTES requirement)
+- Summaries model: `qwen2.5:32b`
+- Config appears correct; issue is likely in extraction logic, not configuration
 
 ## Next Action
 Run PROMPT_fix.md to address:
-1. CRITICAL: First-person narrator detection (Montresor extraction)
-2. CRITICAL: Plot summary hallucination (verify text is passed to LLM)
-3. CRITICAL: Chapter summary generation failure
-
-Priority: Fix narrator detection first, as Montresor is essential. Then investigate why plot_summary and chapter_summaries both failed - may be related root cause (text not reaching LLM properly).
+1. First-person narrator extraction (Critical #1) - Montresor must be detected
+2. Summary generation failure (Critical #2)

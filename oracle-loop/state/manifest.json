@@ -16,7 +16,7 @@
       "last_score": 4.20,
       "final_score": null,
       "baseline_score": 4.20,
-      "notes": "Attempt 1: CRITICAL failures - Missing Montresor (narrator), hallucinated plot summary (Emma instead of Poe revenge tale), chapter summaries empty. 4 categories failing."
+      "notes": "Attempt 1: CRITICAL - Missing Montresor (narrator/protagonist), summary generation failed (null). 5 categories failing."
     },
     {
       "name": "masque_of_red_death",
