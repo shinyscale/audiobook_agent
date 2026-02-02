@@ -604,7 +604,7 @@
     {
       "id": "exp_015_minimal_viable_models",
       "description": "Smallest models per stage - test compute savings on mechanical tasks",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-02-01",
       "config": {
         "structure_model": "qwen2.5:14b",
@@ -642,7 +642,20 @@
             "presentation": 9
           },
           "status": "passed_screening",
-          "timestamp": "2026-02-01T20:36:43-07:00"
+          "timestamp": "2026-02-01T20:36:56-07:00"
+        },
+        "berenice": {
+          "overall": 7.35,
+          "category_scores": {
+            "structure": 9,
+            "characters": 6,
+            "profiles": 7,
+            "summaries": 6,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T21:16:58-07:00"
         }
       }
     }

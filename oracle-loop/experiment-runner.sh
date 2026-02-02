@@ -194,6 +194,7 @@ EOF
         --dangerously-skip-permissions \
         --output-format=stream-json \
         --model opus \
+        --verbose \
         2>&1 | tee "$log_file"
 
     return ${PIPESTATUS[0]}
