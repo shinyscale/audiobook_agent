@@ -40,56 +40,69 @@
       },
       "results": {
         "cask_of_amontillado": {
-          "overall": 9.25,
+          "overall": 9.95,
           "category_scores": {
             "structure": 10,
             "characters": 10,
-            "profiles": 7,
-            "summaries": 9.5,
-            "pronunciation": 9,
-            "presentation": 9
-          },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T06:49:44-07:00"
-        },
-        "masque_of_red_death": {
-          "overall": 9.0,
-          "category_scores": {
-            "structure": 10,
-            "characters": 9,
-            "profiles": 8,
-            "summaries": 9,
-            "pronunciation": 8.5,
-            "presentation": 9.5
-          },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T07:04:23-07:00"
-        },
-        "berenice": {
-          "overall": 9.35,
-          "category_scores": {
-            "structure": 10,
-            "characters": 9,
-            "profiles": 9,
-            "summaries": 9,
-            "pronunciation": 9,
+            "profiles": 10,
+            "summaries": 10,
+            "pronunciation": 9.5,
             "presentation": 10
           },
           "status": "passed_screening",
-          "timestamp": "2026-02-01T07:20:16-07:00"
+          "timestamp": "2026-02-01T11:27:38-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.15,
+          "category_scores": {
+            "structure": 10,
+            "characters": 9,
+            "profiles": 7,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 9.5
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T11:43:02-07:00"
+        },
+        "berenice": {
+          "overall": 9.85,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 10,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T11:59:58-07:00"
         },
         "monkeys_paw": {
-          "overall": 7.4,
+          "overall": 8.85,
           "category_scores": {
-            "structure": 8,
-            "characters": 5,
-            "profiles": 7,
-            "summaries": 9,
+            "structure": 7,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 9.5,
             "pronunciation": 9,
-            "presentation": 9
+            "presentation": 9.5
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T12:19:45-07:00"
+        },
+        "gift_of_the_magi": {
+          "overall": 8.35,
+          "category_scores": {
+            "structure": 10,
+            "characters": 7.5,
+            "profiles": 5.5,
+            "summaries": 10,
+            "pronunciation": 7,
+            "presentation": 9.5
           },
           "status": "failed_screening",
-          "timestamp": "2026-02-01T07:38:45-07:00"
+          "timestamp": "2026-02-01T12:29:00-07:00"
         }
       }
     },
@@ -110,17 +123,56 @@
       },
       "results": {
         "cask_of_amontillado": {
-          "overall": 7.4,
+          "overall": 8.18,
+          "category_scores": {
+            "structure": 7,
+            "characters": 9.5,
+            "profiles": 8,
+            "summaries": 7,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T12:40:35-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.30,
+          "category_scores": {
+            "structure": 10,
+            "characters": 9,
+            "profiles": 8,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T12:56:27-07:00"
+        },
+        "berenice": {
+          "overall": 9.85,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 10,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T13:12:09-07:00"
+        },
+        "monkeys_paw": {
+          "overall": 7.90,
           "category_scores": {
             "structure": 8,
-            "characters": 5,
-            "profiles": 7,
+            "characters": 6,
+            "profiles": 8,
             "summaries": 9,
             "pronunciation": 9,
             "presentation": 9
           },
           "status": "failed_screening",
-          "timestamp": "2026-02-01T07:50:19-07:00"
+          "timestamp": "2026-02-01T13:33:58-07:00"
         }
       }
     },
@@ -140,63 +192,24 @@
       },
       "results": {
         "cask_of_amontillado": {
-          "overall": 9.88,
+          "overall": 7.90,
           "category_scores": {
-            "structure": 10,
-            "characters": 10,
-            "profiles": 9.5,
-            "summaries": 10,
-            "pronunciation": 9.5,
-            "presentation": 10
-          },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T08:16:23-07:00"
-        },
-        "masque_of_red_death": {
-          "overall": 9.65,
-          "category_scores": {
-            "structure": 10,
-            "characters": 10,
-            "profiles": 9,
-            "summaries": 10,
-            "pronunciation": 9,
-            "presentation": 10
-          },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T08:50:55-07:00"
-        },
-        "berenice": {
-          "overall": 9.75,
-          "category_scores": {
-            "structure": 10,
-            "characters": 10,
-            "profiles": 9,
-            "summaries": 10,
-            "pronunciation": 9,
-            "presentation": 10
-          },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T09:33:32-07:00"
-        },
-        "monkeys_paw": {
-          "overall": 7.4,
-          "category_scores": {
-            "structure": 3,
-            "characters": 9,
-            "profiles": 6,
-            "summaries": 8,
+            "structure": 8,
+            "characters": 6,
+            "profiles": 8,
+            "summaries": 9,
             "pronunciation": 9,
             "presentation": 9
           },
           "status": "failed_screening",
-          "timestamp": "2026-02-01T10:06:25-07:00"
+          "timestamp": "2026-02-01T13:58:34-07:00"
         }
       }
     },
     {
       "id": "exp_004_gpt_oss_competitive",
       "description": "GPT-OSS 120B with competitive consensus enabled",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "gpt-oss:120b",
@@ -210,37 +223,37 @@
       },
       "results": {
         "cask_of_amontillado": {
-          "overall": 9.8,
+          "overall": 9.45,
           "category_scores": {
             "structure": 10,
-            "characters": 10,
-            "profiles": 9,
-            "summaries": 10,
+            "characters": 9.5,
+            "profiles": 8.5,
+            "summaries": 9.5,
             "pronunciation": 9.5,
-            "presentation": 10
+            "presentation": 9.5
           },
           "status": "passed_screening",
-          "timestamp": "2026-02-01T10:30:50-07:00"
+          "timestamp": "2026-02-01T14:26:39-07:00"
         },
         "masque_of_red_death": {
-          "overall": 9.25,
+          "overall": 7.65,
           "category_scores": {
             "structure": 10,
-            "characters": 8,
-            "profiles": 9,
-            "summaries": 10,
+            "characters": 5,
+            "profiles": 7.5,
+            "summaries": 9,
             "pronunciation": 9,
-            "presentation": 10
+            "presentation": 9
           },
-          "status": "passed_screening",
-          "timestamp": "2026-02-01T11:00:49-07:00"
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T14:59:29-07:00"
         }
       }
     },
     {
       "id": "exp_005_nemotron",
       "description": "Nemotron 30B for all tasks",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "nemotron-3-nano:30b",
@@ -250,12 +263,53 @@
         "context_length": 32768,
         "min_mentions": 2,
         "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 9.30,
+          "category_scores": {
+            "structure": 10,
+            "characters": 9,
+            "profiles": 8,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 9.5
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T15:05:55-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 8.9,
+          "category_scores": {
+            "structure": 10,
+            "characters": 8,
+            "profiles": 7,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 9.5
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T15:11:21-07:00"
+        },
+        "berenice": {
+          "overall": 7.65,
+          "category_scores": {
+            "structure": 9,
+            "characters": 5,
+            "profiles": 6.5,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T15:19:02-07:00"
+        }
       }
     },
     {
       "id": "exp_006_nemotron_competitive",
       "description": "Nemotron 30B with competitive consensus enabled",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "nemotron-3-nano:30b",
@@ -266,12 +320,27 @@
         "min_mentions": 2,
         "competitive_consensus": true,
         "consensus_samples": 3
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 8.125,
+          "category_scores": {
+            "structure": 10,
+            "characters": 7,
+            "profiles": 6.5,
+            "summaries": 8,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T15:24:36-07:00"
+        }
       }
     },
     {
       "id": "exp_007_deepseek_r1",
       "description": "DeepSeek-R1 32B reasoning model for character extraction",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "deepseek-r1:32b",
@@ -281,12 +350,27 @@
         "context_length": 32768,
         "min_mentions": 2,
         "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 5.45,
+          "category_scores": {
+            "structure": 9,
+            "characters": 4,
+            "profiles": 5,
+            "summaries": 2,
+            "pronunciation": 8,
+            "presentation": 7
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T16:26:07-07:00"
+        }
       }
     },
     {
       "id": "exp_008_mixed_moe_fast",
       "description": "MoE for characters, faster models for other tasks",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
@@ -296,12 +380,27 @@
         "context_length": 32768,
         "min_mentions": 2,
         "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 4.20,
+          "category_scores": {
+            "structure": 7,
+            "characters": 4,
+            "profiles": 3,
+            "summaries": 0,
+            "pronunciation": 9,
+            "presentation": 8
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T16:58:27-07:00"
+        }
       }
     },
     {
       "id": "exp_009_mixed_moe_competitive_chars",
       "description": "MoE with competitive consensus for characters only",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
@@ -315,12 +414,27 @@
         "competitive_agents": [
           "characters"
         ]
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 4.20,
+          "category_scores": {
+            "structure": 7,
+            "characters": 2,
+            "profiles": 5,
+            "summaries": 0,
+            "pronunciation": 9,
+            "presentation": 7
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T18:09:53-07:00"
+        }
       }
     },
     {
       "id": "exp_010_qwen3_next_5_samples",
       "description": "Qwen3-next with 5-sample competitive consensus",
-      "status": "pending",
+      "status": "failed_screening",
       "created": "2026-01-31",
       "config": {
         "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
@@ -331,6 +445,21 @@
         "min_mentions": 2,
         "competitive_consensus": true,
         "consensus_samples": 5
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 4.20,
+          "category_scores": {
+            "structure": 7,
+            "characters": 2,
+            "profiles": 5,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 7
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T18:22:05-07:00"
+        }
       }
     },
     {
@@ -346,6 +475,14 @@
         "context_length": 32768,
         "min_mentions": 2,
         "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 0,
+          "category_scores": {},
+          "status": "failed_analysis",
+          "timestamp": "2026-02-01T18:43:02-07:00"
+        }
       }
     },
     {
@@ -361,6 +498,139 @@
         "context_length": 32768,
         "min_mentions": 3,
         "competitive_consensus": false
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 0,
+          "category_scores": {},
+          "status": "failed_analysis",
+          "timestamp": "2026-02-01T19:03:03-07:00"
+        }
+      }
+    },
+    {
+      "id": "exp_013_multi_model_consensus",
+      "description": "Multi-model competitive consensus - run Qwen3-next and GPT-OSS, select best",
+      "status": "failed_screening",
+      "created": "2026-02-01",
+      "config": {
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": true,
+        "consensus_models": [
+          "qwen3-next:80b-a3b-instruct-q8_0",
+          "gpt-oss:120b"
+        ],
+        "consensus_mode": "multi_model"
+      },
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 8.9,
+          "category_scores": {
+            "structure": 9,
+            "characters": 10,
+            "profiles": 6,
+            "summaries": 10,
+            "pronunciation": 8,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T19:18:22-07:00"
+        }
+      }
+    },
+    {
+      "id": "exp_014_best_per_stage",
+      "description": "Best model per pipeline stage - Qwen3-next for characters/profiles, Nemotron for mechanical tasks",
+      "status": "failed_screening",
+      "created": "2026-02-01",
+      "config": {
+        "structure_model": "nemotron-3-nano:30b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "profile_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "nemotron-3-nano:30b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "notes": "Characters/Profiles/Summaries: Qwen3-next (best overall). Structure/Pronunciation: Nemotron 30B (mechanical tasks, saves compute).",
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 9.30,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T19:29:47-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.55,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 9,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T19:37:15-07:00"
+        },
+        "berenice": {
+          "overall": 7.80,
+          "category_scores": {
+            "structure": 9,
+            "characters": 5,
+            "profiles": 7,
+            "summaries": 9,
+            "pronunciation": 10,
+            "presentation": 9
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-01T19:47:41-07:00"
+        }
+      }
+    },
+    {
+      "id": "exp_015_minimal_viable_models",
+      "description": "Smallest models per stage - test compute savings on mechanical tasks",
+      "status": "pending",
+      "created": "2026-02-01",
+      "config": {
+        "structure_model": "qwen2.5:14b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "profile_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen2.5:32b",
+        "pronunciation_model": "qwen2.5:14b",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "notes": "Structure/Pronunciation: 14B (regex-heavy, mechanical). Characters/Profiles: 80B MoE (needs understanding). Summaries: 32B (well-understood task).",
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 9.65,
+          "category_scores": {
+            "structure": 10,
+            "characters": 10,
+            "profiles": 9,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 10
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T20:20:00-07:00"
+        }
       }
     }
   ]

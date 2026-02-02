@@ -1,86 +1,116 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** berenice
+- **Name:** cask_of_amontillado
 - **Attempt:** 1
-- **Phase:** awaiting_fix
-- **baseline_score:** 7.80
+- **Phase:** complete
+- **baseline_score:** 9.65
 
 ## Output Files
-- HTML: ../output/berenice/report.html
-- JSON: ../output/berenice/analysis.json
+- HTML: ../output/cask_of_amontillado/report.html
+- JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING)
-- Character Profiles: 7/10 ✗ (FAILING)
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 10/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.80/10** (reference only)
+- Structure Detection: 10/10 ✓
+- Character Extraction: 10/10 ✓
+- Character Profiles: 9/10 ✓
+- Chapter Summaries: 10/10 ✓
+- Pronunciation Guide: 9/10 ✓
+- HTML Presentation: 10/10 ✓
+- **Overall: 9.65/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** PASS
+
+## Evaluation Details
+
+### Structure Detection: 10/10 ✓
+"The Cask of Amontillado" is a SHORT STORY with no chapter divisions - the text is a single continuous narrative. The tool correctly detected this as 1 structural element rather than artificially splitting it. The overview correctly describes it as "1 chapters" and there is no front/back matter to handle.
+
+### Character Extraction: 10/10 ✓
+All three significant characters are correctly identified:
+1. **Montresor** - Correctly identified as narrator (first-person), protagonist
+2. **Fortunato** - Correctly identified as antagonist, 14 mentions
+3. **Luchresi** - Correctly identified as supporting character (6 mentions, never appears in person)
+
+No false splits, no false merges, no hallucinated characters. The relationship between all three (rivalry over wine expertise) is correctly captured.
+
+### Character Profiles: 9/10 ✓
+Excellent profiles for both main characters:
+
+**Fortunato:**
+- ✓ Physical description: motley attire, parti-striped dress, conical cap and bells, black silk mask, roquelaire
+- ✓ Personality: proud, confident, easily manipulated, connoisseur
+- ✓ Voice guidance: tone shifts from boastful to pleading, verbal tic of referencing Luchresi
+- ✓ Quotes captured including his characteristic laughter "Ha! ha! ha! --he! he! he!"
+- ✓ 8 evidence citations
+
+**Montresor:**
+- ✓ Personality: manipulative, patient, calculating, emotionally controlled
+- ✓ Voice guidance: authoritative, formal, repeating "Amontillado" and justification phrases
+- ✓ 11 evidence citations capturing his deceptive behavior
+- ✓ Correctly marked as narrator
+- Minor: Physical appearance is "unknown" (technically accurate - Poe provides no description)
+
+**Luchresi:**
+- ✓ Correctly described as "a rhetorical device" who never appears directly
+
+Deducted 1 point: Relationships listed as "rival" for all three, which is too simplistic. Montresor's relationship to Fortunato is more accurately "victim" or "enemy" while Luchresi is merely a "rival" mentioned to manipulate Fortunato. However, this is a minor nuance.
+
+### Chapter Summaries: 10/10 ✓
+Both the plot summary and chapter summary are excellent:
+- ✓ Captures all key events: carnival meeting, luring with Amontillado, descent into catacombs, chaining, walling up
+- ✓ Notes Fortunato's intoxication and motley attire
+- ✓ Captures the psychological manipulation
+- ✓ Accurate tone: "calculated trap", "cold defiance", "methodical execution"
+- ✓ Themes correctly identified: revenge, betrayal, moral ambiguity
+- ✓ Narrative style correctly identified as "first-person retrospective"
+- ✓ No hallucinated events
+
+### Pronunciation Guide: 9/10 ✓
+36 pronunciation entries with 33 having IPA (92% coverage). Excellent coverage of:
+- ✓ Character names: Fortunato, Montresor, Luchresi (all with IPA)
+- ✓ Wine terms: Amontillado, De Grave, Medoc
+- ✓ French terms: flambeaux, roquelaire
+- ✓ Italian/architectural: catacombs, nitre
+- ✓ Homographs identified: row, close
+- ✓ Context examples provided
+
+Minor issues:
+- "flambeaux" IPA shown as /flæmˈboʊso/ - pronunciation note says French influence but the IPA seems slightly off (should be closer to /flæmˈboʊ/ or the plural /flæmˈboʊz/)
+- This is a very minor quibble for a word that is clear from context
+
+### HTML Presentation: 10/10 ✓
+- ✓ Clean, professional appearance
+- ✓ Tab-based navigation works (Overview, Chapters, Characters, Pronunciation)
+- ✓ Statistics cards at top (words, duration, chapters, characters, pronunciations)
+- ✓ Model usage and timing breakdown included
+- ✓ Evidence citations expandable with "Source Evidence" details
+- ✓ Pronunciation search and filter functionality
+- ✓ Confidence badges on all items
+- ✓ Relationship section with visual cards
+
+## Configuration Audit
+
+Model Configuration (from overview.model_usage):
+- Chapter Detection: qwen2.5:14b ✓
+- Chapter Summaries: qwen2.5:32b ✓
+- Character Extraction: qwen3-next:80b-a3b-instruct-q8_0 ✓
+- Character Profiles: qwen3-next:80b-a3b-instruct-q8_0 ✓
+- Pronunciation Guide: qwen2.5:14b ✓
+
+This matches the exp_015 "minimal viable models" configuration - using the large MoE for complex character work and smaller models for mechanical tasks. Processing completed in ~33 minutes total.
+
+No configuration issues found.
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
+### NONE
 
-1. **First-person narrator Egaeus not identified as narrator**
-   - Problem: Egaeus is marked `is_narrator: false` and `role: supporting` with only 1 mention
-   - Evidence: "Berenice" is told entirely in first-person by Egaeus. The story opens with first-person narration ("Misery is manifold...") and continues throughout from his perspective.
-   - Observed: `{"name": "Egaeus", "is_narrator": false, "role": "supporting", "mentions": 1}`
-   - Expected: `{"name": "Egaeus", "is_narrator": true, "role": "protagonist", "mentions": ~50+}`
-   - Location: Narrator detection in `src/pipeline/character_extraction_v2/main_cast.py` or summary-based narrator inference
-   - Root cause: In first-person narratives, the narrator's name appears rarely in the text (they use "I" instead). The system likely relies on mention count, which fails for first-person narrators.
-   - Fix approach: First-person narrator detection should check chapter summaries (which DO identify "the narrator Egaeus") or use the prose perspective analysis to identify the "I" voice.
-
-2. **Character roles inverted: Berenice marked as antagonist, Egaeus as supporting**
-   - Problem: Berenice is `role: antagonist` when she's actually a passive victim
-   - Problem: Egaeus is `role: supporting` when he's the protagonist/narrator
-   - Evidence: Egaeus is the one with agency (the obsession, the grave robbery, the teeth extraction). Berenice is a victim of his madness.
-   - Location: Role assignment logic in character extraction pipeline
-   - Fix approach: For first-person narratives, the narrator should default to protagonist role, not supporting.
-
-### HIGH
-
-3. **Egaeus mention count severely underestimated (1 vs actual)**
-   - Problem: Egaeus shows 1 mention when his name appears in the text
-   - Evidence: The name "Egaeus" does appear explicitly in the text at least once, but the system shows only 1 mention
-   - Note: This may be somewhat expected for first-person narrators (they use "I" not their name), but the character profile IS populated with personality traits, suggesting the system did find evidence about him
-   - Location: Mention counting in `src/agents/characters.py` or `src/pipeline/character_extraction_v2/`
-   - Impact: Low mention count may have caused him to be filtered to "supporting" role
-
-### MEDIUM
-
-4. **Egaeus physical_description is null**
-   - Problem: No physical description extracted for Egaeus
-   - Evidence: The text does describe his condition ("I was born in the library..." "my temperament..."). His melancholic, sickly nature is described.
-   - Location: Profile extraction in `src/pipeline/character_profiling/`
-   - Note: First-person narrators rarely describe themselves physically, so this may be acceptable
-
-## Analysis Notes
-
-The chapter summaries correctly identify Egaeus as narrator ("the narrator Egaeus"), but this information isn't propagating back to mark him as `is_narrator: true`. The summary agent understands the narrative structure better than the character extraction pipeline.
-
-**Root Cause Hypothesis:** The character extraction V2 pipeline uses mention counts and role detection that don't account for first-person narrator patterns where:
-- The narrator's name appears rarely (they use "I")
-- The narrator is the protagonist but isn't labeled as such
-- Other characters (like Berenice) appear more prominently by name
-
-**Suggested Fix Strategy:**
-1. Add narrator inference from chapter summaries - if summaries mention "the narrator X", mark character X as narrator
-2. For first-person narratives, ensure narrator gets protagonist role by default
-3. Don't penalize first-person narrators for low mention counts
+All categories exceed the 8.0 threshold. No fixes required.
 
 ## Fix History
-(none - first attempt)
-
-## Modification History
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 1 | (awaiting fix) | | |
+N/A - Passed on first attempt
 
 ## Next Action
-Run PROMPT_fix.md to address first-person narrator detection (Critical #1, #2)
+**PASS** - Update manifest.json and advance to next text in screening set.
