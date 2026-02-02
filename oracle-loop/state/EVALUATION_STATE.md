@@ -1,14 +1,14 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** cask_of_amontillado
-- **Attempt:** 2
+- **Name:** masque_of_red_death
+- **Attempt:** 1
 - **Phase:** complete
-- **baseline_score:** 4.20
+- **baseline_score:** 9.55
 
 ## Output Files
-- HTML: ../output/cask_of_amontillado/report.html
-- JSON: ../output/cask_of_amontillado/analysis.json
+- HTML: ../output/masque_of_red_death/report.html
+- JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -16,160 +16,120 @@
 - Character Profiles: 9/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 9.30/10**
+- HTML Presentation: 10/10 ✓
+- **Overall: 9.55/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** PASS (all categories at or above 8.0)
-
----
+**Status:** PASS (all categories at or above threshold)
 
 ## Evaluation Details
 
 ### 1. Structure Detection: 10/10 ✓
 
-**Expected:** "The Cask of Amontillado" is a short story with NO chapter divisions - it's a single continuous narrative.
+"The Masque of the Red Death" is a **short story** (~2,400 words), not a novel with chapters. The tool correctly identified:
+- Single continuous narrative (1 structure element)
+- Word count: 2,443 words
+- Estimated duration: ~16 minutes
 
-**Found:** The system correctly identified this as a single structure element (1 "chapter" representing the complete story).
-
-**Assessment:** Perfect. The tool correctly handled this non-chaptered short story format. Word count (2354) and duration estimate (15.7 min) are reasonable for the ~2400-word story.
-
----
+This is **100% correct** for this text. There are no chapter divisions to detect - the story is a single continuous piece of Gothic allegory.
 
 ### 2. Character Extraction: 10/10 ✓
 
-**Expected Characters:**
-- **Montresor** (narrator, protagonist, first-person speaker) - FOUND ✓
-- **Fortunato** (victim, antagonist) - FOUND ✓
-- **Luchresi** (mentioned but never appears, used as a manipulation tool) - FOUND ✓
+The text has exactly **2 named characters**:
+1. **Prince Prospero** - the wealthy nobleman protagonist
+2. **The Red Death** - the personified plague/spectral antagonist
 
-**Assessment:** All three significant characters are correctly identified:
-- Montresor is correctly marked as `is_narrator: true`
-- Fortunato is labeled as antagonist (appropriate given he's the target of revenge)
-- Luchresi is appropriately classified as supporting (6 mentions, never appears)
+Both are correctly identified with:
+- Prince Prospero: 6 mentions, alias "the Prince Prospero"
+- The Red Death: 4 mentions
 
-No false splits, no false merges, no hallucinated characters. The extraction is comprehensive for this short story.
+The "thousand courtiers" are mentioned but are nameless background figures, not individual characters. No hallucinated characters, no false splits, no false merges. The extraction is **perfect** for this allegorical short story.
 
----
+**Note:** The Red Death as a "character" is appropriate per the evaluation rubric - it's a symbolic force with agency that drives the plot.
 
 ### 3. Character Profiles: 9/10 ✓
 
-**Fortunato's Profile:**
-- Physical description: "Wears a jester's motley costume" ✓ (accurate to text: "tight-fitting parti-striped dress" and "conical cap with bells")
-- Personality: "Proud of wine expertise, easily manipulated by vanity" ✓ (text confirms his "connoisseurship in wine")
-- Voice guidance: "boisterous then desperate" ✓ (accurate progression in story)
-- Quotes: Appropriate examples including "Amontillado, A pipe? Impossible!" and "Ha! ha! ha! --he! he! he!"
-- Relationships: Montresor (rival), Luchresi (rival) ✓
-- Evidence: 7 well-chosen citations ✓
+Profiles are accurate and useful:
+- **Prince Prospero**: "wealthy and arrogant nobleman who attempts to escape death by isolating himself and his courtiers in a fortified abbey" - accurate to the text
+- **The Red Death**: "personified plague that infiltrates Prince Prospero's fortified abbey, manifesting as a spectral figure dressed in blood-dabbled robes" - accurate
+- Relationship correctly identified as "rival" (appropriate for antagonist vs protagonist)
 
-**Montresor's Profile:**
-- Correctly identified as narrator and protagonist ✓
-- Age: "elderly" ✓ (story ends "For the half of a century no mortal has disturbed them")
-- Personality: "Calm, calculating, manipulative" ✓
-- Voice guidance: "authoritative", "formal" ✓
-- Verbal tics: "repetition of 'Amontillado'" ✓
-- Evidence: 9 well-chosen citations ✓
-
-**Luchresi's Profile:**
-- Appropriately minimal (he never appears)
-- Description: "connoisseur of wine whose opinion is invoked by Montresor to manipulate Fortunato" ✓
-
-**Minor Issue:** Montresor's physical description is "unknown" - this is accurate since Poe provides none, but the system could have noted his dark cloak ("roquelaire") and mask of black silk. Not a significant gap.
-
----
+Minor deduction: `physical_description` field is empty for both characters despite text describing the Red Death's appearance and Prospero's "features." However, descriptions appear in the profile text itself.
 
 ### 4. Chapter Summaries: 9/10 ✓
 
-**Summary Content:**
-> "The chapter opens with the narrator, Montresor, vowing revenge against Fortunato for an unspecified insult, resolving to punish him with impunity during the chaotic carnival season..."
+The single summary excellently captures:
+- ✓ Setting: "secluded castellated abbey" with "seven elaborately themed rooms"
+- ✓ The masquerade ball setting with "grotesque revelers"
+- ✓ The appearance of the mysterious figure "dressed as the Red Death itself"
+- ✓ The climax: Prospero's pursuit and death in "the black chamber"
+- ✓ The denouement: "One by one, the revelers die"
+- ✓ The symbolic ending: "the ebony clock stops"
 
-**Assessment:**
-- Captures all key events: ✓ revenge vow, carnival encounter, descent to catacombs, chaining, entombment
-- Characters present correctly listed (Montresor, Fortunato) ✓
-- No hallucinated events ✓
-- Timeline correct ("fifty years later, the crime remains undiscovered") ✓
-- Length appropriate (~140 words) ✓
-- Tone captured (methodical horror) ✓
+The summary is accurate, captures the Gothic atmosphere, and would be highly useful for a narrator's preparation.
 
-**Minor Issue:** Summary doesn't mention the Masonic exchange (trowel reveal), which is a notable moment. However, this doesn't detract significantly.
-
----
+Minor deduction: Could mention the allegorical theme (inevitability of death) more explicitly, but this is optional.
 
 ### 5. Pronunciation Guide: 9/10 ✓
 
-**Total Entries:** 36 pronunciations flagged
-**IPA Coverage:** 33/36 (92%)
+Strong pronunciation coverage:
+- **45 words flagged** with **41 having IPA** (91% coverage)
+- Correctly flags difficult words:
+  - "Prospero" (/ˈprɒspɛroʊ/) - important for the protagonist's name
+  - "improvisatori" (/ɪmprəˌvɪzətɔːri/) - Italian plural
+  - "castellated" (/kæˈstɛləˌtɪd/) - architectural term
+  - "sagacious" (/səˈɡeɪʃəs/) - period vocabulary
+  - "candelabrum" - Latin-derived
 
-**Key Terms Correctly Flagged:**
-- **Fortunato** - IPA: /for.tuˈnaː.to/ with helpful "FOR-tu-NAH-toh" ✓
-- **Montresor** - IPA: /mɒnˈtrɛsɔr/ with "MON-TREH-SOR" ✓
-- **Luchresi** - IPA: /luːˈkrɛsi/ with "LOO-KREH-zee" ✓
-- **Amontillado** - Correctly flagged as unusual Spanish wine name ✓
-- **flambeaux** - French plural correctly flagged ✓
-- **nitre** - Period-specific chemistry term ✓
-- **roquelaire** - Obscure French garment term ✓
-- **connoisseurship** - Complex word flagged ✓
+- Homographs correctly identified (4 entries)
+- Foreign term identified (1 entry)
 
-**Homographs Correctly Identified:**
-- "row" (line vs. argument)
-- "close" (near vs. shut)
+Minor issues:
+- Some common compound words flagged (e.g., "fellow-men", "light-hearted") - these are false positives
+- "Avator" appears to be a typo in the source text (should be "Avatar") - correctly flagged
+- 39 "unknown" reason words - could use better categorization
 
-**Assessment:** Excellent coverage. All the important foreign and unusual terms are flagged. IPA appears accurate. No obvious common words incorrectly flagged as false positives.
+### 6. HTML Presentation: 10/10 ✓
 
----
+The HTML report is excellent:
+- ✓ Clean, professional dark theme design
+- ✓ Tab navigation works (Overview, Chapters, Characters, Pronunciations, Glossary)
+- ✓ Character relationships displayed clearly
+- ✓ Pronunciation guide has multiple views (By Type, By Chapter)
+- ✓ Search functionality present
+- ✓ Print-friendly CSS included
+- ✓ Responsive design for mobile
+- ✓ Confidence filtering option for characters
 
-### 6. HTML Presentation: 9/10 ✓
-
-**Navigation:** Tabs work (Characters, Pronunciations, etc.) ✓
-**Character Profiles:** Well-structured with collapsible evidence sections ✓
-**Pronunciation Guide:** Searchable, viewable by type or chapter ✓
-**Confidence Badges:** Visual indicators present ✓
-**Typography:** Readable and professional ✓
-
-**Assessment:** Clean, functional presentation appropriate for narrator preparation use.
-
----
-
-## Final Calculation
+## Score Calculation
 
 ```
 Overall = (
-    Structure × 0.20 +      (10 × 0.20 = 2.00)
-    Characters × 0.25 +     (10 × 0.25 = 2.50)
-    Profiles × 0.15 +       (9 × 0.15 = 1.35)
-    Summaries × 0.20 +      (9 × 0.20 = 1.80)
-    Pronunciation × 0.10 +  (9 × 0.10 = 0.90)
-    Presentation × 0.10     (9 × 0.10 = 0.90)
-) = 9.45/10
+    Structure × 0.20     = 10 × 0.20 = 2.00
+  + Characters × 0.25    = 10 × 0.25 = 2.50
+  + Profiles × 0.15      = 9 × 0.15  = 1.35
+  + Summaries × 0.20     = 9 × 0.20  = 1.80
+  + Pronunciation × 0.10 = 9 × 0.10  = 0.90
+  + Presentation × 0.10  = 10 × 0.10 = 1.00
+) = 9.55/10
 ```
 
-**Overall: 9.45/10** (rounded to 9.30 for consistency with commit format)
+## Result: PASS
 
----
+All categories are at 8.0 or above. The tool handled this short allegorical story correctly:
+- Recognized it as a single-unit short story (no artificial chapter splits)
+- Extracted exactly the two named characters that exist
+- Generated an accurate, atmospheric summary
+- Flagged appropriate pronunciation challenges for a narrator
 
 ## Current Issues (Priority Order)
 
-None blocking. All categories pass the 8.0 threshold.
-
-### LOW (polish items, not blocking)
-1. Montresor could include note about his black mask and roquelaire as physical details
-2. Summary could mention the Masonic trowel exchange
-
----
+*None requiring fixes - all thresholds met*
 
 ## Fix History
-- Attempt 1 (baseline 4.20): Critical issues - Montresor was missing, summaries were null
-- Attempt 2: All issues resolved through pipeline improvements made during other text evaluations
 
----
-
-## Modification History
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 1→2 | Missing narrator, null summaries | (fixes from other texts) | Fixed |
-
----
+*N/A - passed on first attempt*
 
 ## Next Action
-**PASS** - Update manifest.json and advance to next text in queue.
+
+This text is **COMPLETE**. Update manifest.json and advance to the next text in the evaluation queue.
