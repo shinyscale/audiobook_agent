@@ -1,116 +1,73 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** cask_of_amontillado
-- **Attempt:** 1
+- **Name:** masque_of_red_death
+- **Attempt:** 1 (exp_015_minimal_viable_models)
 - **Phase:** complete
-- **baseline_score:** 9.65
+- **Experiment:** exp_015_minimal_viable_models
 
 ## Output Files
-- HTML: ../output/cask_of_amontillado/report.html
-- JSON: ../output/cask_of_amontillado/analysis.json
+- HTML: ../output/masque_of_red_death/report.html
+- JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 10/10 ✓
-- Character Profiles: 9/10 ✓
+- Character Extraction: 9/10 ✓
+- Character Profiles: 8/10 ✓
 - Chapter Summaries: 10/10 ✓
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 10/10 ✓
-- **Overall: 9.65/10**
+- HTML Presentation: 9/10 ✓
+- **Overall: 9.25/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** PASS
 
-## Evaluation Details
+## Evaluation Notes
 
-### Structure Detection: 10/10 ✓
-"The Cask of Amontillado" is a SHORT STORY with no chapter divisions - the text is a single continuous narrative. The tool correctly detected this as 1 structural element rather than artificially splitting it. The overview correctly describes it as "1 chapters" and there is no front/back matter to handle.
+### Structure Detection (10/10)
+"The Masque of the Red Death" is a short story (~2,400 words), not a chaptered novel. The tool correctly identified it as a single continuous text. Perfect handling.
 
-### Character Extraction: 10/10 ✓
-All three significant characters are correctly identified:
-1. **Montresor** - Correctly identified as narrator (first-person), protagonist
-2. **Fortunato** - Correctly identified as antagonist, 14 mentions
-3. **Luchresi** - Correctly identified as supporting character (6 mentions, never appears in person)
+### Character Extraction (9/10)
+For this short allegory, there are only two characters:
+- **Prince Prospero** (6 mentions, correctly extracted)
+- **The Red Death figure** (the personified death, correctly extracted as "the mysterious Red Death figure")
 
-No false splits, no false merges, no hallucinated characters. The relationship between all three (rivalry over wine expertise) is correctly captured.
+The thousand guests are unnamed background characters. Extraction is complete and accurate.
 
-### Character Profiles: 9/10 ✓
-Excellent profiles for both main characters:
+### Character Profiles (8/10)
+Profiles are appropriately thin given the source material's brevity. Poe provides minimal character development in this allegorical tale:
+- Prince Prospero: Described as wealthy, defiant nobleman - accurate ✓
+- Red Death figure: No detailed description (appropriate, the figure is described only through its costume)
+- Relationship "rival" between Prospero and Red Death is acceptable
 
-**Fortunato:**
-- ✓ Physical description: motley attire, parti-striped dress, conical cap and bells, black silk mask, roquelaire
-- ✓ Personality: proud, confident, easily manipulated, connoisseur
-- ✓ Voice guidance: tone shifts from boastful to pleading, verbal tic of referencing Luchresi
-- ✓ Quotes captured including his characteristic laughter "Ha! ha! ha! --he! he! he!"
-- ✓ 8 evidence citations
+### Chapter Summaries (10/10)
+The summary accurately captures all key plot elements:
+- Red Death disease devastating the land ✓
+- Prince retreating to abbey with thousand guests ✓
+- Seven color-coded rooms ✓
+- Midnight appearance of masked figure ✓
+- Prince's pursuit and death ✓
+- All guests dying ✓
 
-**Montresor:**
-- ✓ Personality: manipulative, patient, calculating, emotionally controlled
-- ✓ Voice guidance: authoritative, formal, repeating "Amontillado" and justification phrases
-- ✓ 11 evidence citations capturing his deceptive behavior
-- ✓ Correctly marked as narrator
-- Minor: Physical appearance is "unknown" (technically accurate - Poe provides no description)
+### Pronunciation Guide (9/10)
+46 entries with 91% IPA coverage. Good catches:
+- "Prospero" (proper name)
+- "improvisatori" (Italian loanword)
+- "castellated" (architectural term)
+- "candelabrum"
+Some mild false positives (hyphenated compounds like "light-hearted") but nothing problematic.
 
-**Luchresi:**
-- ✓ Correctly described as "a rhetorical device" who never appears directly
+### HTML Presentation (9/10)
+Clean, functional output with working navigation, proper stats, and professional appearance. Minor issue: "0 Main Characters" in stats (Prince Prospero classified as "Supporting" rather than "Main").
 
-Deducted 1 point: Relationships listed as "rival" for all three, which is too simplistic. Montresor's relationship to Fortunato is more accurately "victim" or "enemy" while Luchresi is merely a "rival" mentioned to manipulate Fortunato. However, this is a minor nuance.
-
-### Chapter Summaries: 10/10 ✓
-Both the plot summary and chapter summary are excellent:
-- ✓ Captures all key events: carnival meeting, luring with Amontillado, descent into catacombs, chaining, walling up
-- ✓ Notes Fortunato's intoxication and motley attire
-- ✓ Captures the psychological manipulation
-- ✓ Accurate tone: "calculated trap", "cold defiance", "methodical execution"
-- ✓ Themes correctly identified: revenge, betrayal, moral ambiguity
-- ✓ Narrative style correctly identified as "first-person retrospective"
-- ✓ No hallucinated events
-
-### Pronunciation Guide: 9/10 ✓
-36 pronunciation entries with 33 having IPA (92% coverage). Excellent coverage of:
-- ✓ Character names: Fortunato, Montresor, Luchresi (all with IPA)
-- ✓ Wine terms: Amontillado, De Grave, Medoc
-- ✓ French terms: flambeaux, roquelaire
-- ✓ Italian/architectural: catacombs, nitre
-- ✓ Homographs identified: row, close
-- ✓ Context examples provided
-
-Minor issues:
-- "flambeaux" IPA shown as /flæmˈboʊso/ - pronunciation note says French influence but the IPA seems slightly off (should be closer to /flæmˈboʊ/ or the plural /flæmˈboʊz/)
-- This is a very minor quibble for a word that is clear from context
-
-### HTML Presentation: 10/10 ✓
-- ✓ Clean, professional appearance
-- ✓ Tab-based navigation works (Overview, Chapters, Characters, Pronunciation)
-- ✓ Statistics cards at top (words, duration, chapters, characters, pronunciations)
-- ✓ Model usage and timing breakdown included
-- ✓ Evidence citations expandable with "Source Evidence" details
-- ✓ Pronunciation search and filter functionality
-- ✓ Confidence badges on all items
-- ✓ Relationship section with visual cards
-
-## Configuration Audit
-
-Model Configuration (from overview.model_usage):
-- Chapter Detection: qwen2.5:14b ✓
-- Chapter Summaries: qwen2.5:32b ✓
-- Character Extraction: qwen3-next:80b-a3b-instruct-q8_0 ✓
-- Character Profiles: qwen3-next:80b-a3b-instruct-q8_0 ✓
-- Pronunciation Guide: qwen2.5:14b ✓
-
-This matches the exp_015 "minimal viable models" configuration - using the large MoE for complex character work and smaller models for mechanical tasks. Processing completed in ~33 minutes total.
-
-No configuration issues found.
-
-## Current Issues (Priority Order)
-
-### NONE
-
-All categories exceed the 8.0 threshold. No fixes required.
-
-## Fix History
-N/A - Passed on first attempt
+## Configuration Used (exp_015)
+| Phase | Model |
+|-------|-------|
+| Structure | qwen2.5:14b |
+| Character Extraction | qwen3-next:80b-a3b-instruct-q8_0 |
+| Character Profiles | qwen3-next:80b-a3b-instruct-q8_0 |
+| Summaries | qwen2.5:32b |
+| Pronunciation | qwen2.5:14b |
 
 ## Next Action
-**PASS** - Update manifest.json and advance to next text in screening set.
+PASS - Advance to next text in screening queue (berenice)

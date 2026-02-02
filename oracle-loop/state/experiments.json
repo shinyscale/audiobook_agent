@@ -629,7 +629,20 @@
             "presentation": 10
           },
           "status": "passed_screening",
-          "timestamp": "2026-02-01T20:20:00-07:00"
+          "timestamp": "2026-02-01T20:22:54-07:00"
+        },
+        "masque_of_red_death": {
+          "overall": 9.25,
+          "category_scores": {
+            "structure": 10,
+            "characters": 9,
+            "profiles": 8,
+            "summaries": 10,
+            "pronunciation": 9,
+            "presentation": 9
+          },
+          "status": "passed_screening",
+          "timestamp": "2026-02-01T20:36:43-07:00"
         }
       }
     }
