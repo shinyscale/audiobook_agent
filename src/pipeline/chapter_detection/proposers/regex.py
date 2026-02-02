@@ -74,6 +74,14 @@ CHAPTER_PATTERNS = [
         description="roman_numeral_line",
         is_hard_boundary=False,
     ),
+    # Roman numeral with trailing period (e.g., "I.", "II.", "III.")
+    # Common in classic literature - HARD BOUNDARY since the period is explicit
+    ChapterPattern(
+        re.compile(r"^\s*([IVXLC]+)\.\s*$", re.MULTILINE),
+        confidence=0.90,
+        description="roman_numeral_with_period",
+        is_hard_boundary=True,
+    ),
     # Arabic numeral only (centered) - HARD BOUNDARY when centered
     ChapterPattern(
         re.compile(r"^\s{10,}(\d{1,3})\s*$", re.MULTILINE),
