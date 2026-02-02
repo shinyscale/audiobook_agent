@@ -11,84 +11,92 @@
 - JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-- Structure Detection: 7/10 ✓ (acceptable - short story with no chapters)
-- Character Extraction: 2/10 ✗ (FAILING - Missing narrator/protagonist Montresor)
-- Character Profiles: 5/10 ✗ (FAILING - Fortunato's profile exists but missing Montresor entirely)
-- Chapter Summaries: 0/10 ✗ (FAILING - Summary generation completely failed)
-- Pronunciation Guide: 9/10 ✓ (Good coverage including Amontillado, Montresor, Fortunato, Italian/French terms)
-- HTML Presentation: 7/10 ✗ (FAILING - Navigation works but shows failed summary and incomplete character data)
+- Structure Detection: 7/10 ✗ (FAILING - below 8.0)
+- Character Extraction: 2/10 ✗ (CRITICAL FAILURE)
+- Character Profiles: 5/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 9/10 ✓
+- HTML Presentation: 7/10 ✗ (FAILING - presentation reflects extraction issues)
 - **Overall: 4.20/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (5 categories below threshold)
-
-## Expected Ground Truth
-
-**The Cask of Amontillado** by Edgar Allan Poe:
-- **Structure:** Single continuous short story (no chapters) - 1 structure element is correct
-- **Main Characters:**
-  - **Montresor** - First-person narrator, protagonist, the murderer seeking revenge
-  - **Fortunato** - The victim, a wine connoisseur, manipulated to his death
-- **Supporting Characters:**
-  - **Luchresi** - Mentioned wine expert, never appears, used as manipulation tool
-- **Narrator:** Montresor (first-person)
-- **Plot:** Montresor lures Fortunato to his catacombs with promise of rare Amontillado wine, then chains and walls him alive as revenge for an unspecified insult
+**Status:** FAIL (4 categories below threshold)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Missing main character: Montresor**
-   - Problem: The narrator and protagonist is completely absent from character list
-   - Evidence: Only Fortunato and Luchresi extracted; Montresor tells the entire story in first person ("I had borne the thousand injuries of Fortunato")
-   - Source: Both characters came from `supporting_*` IDs (supporting cast pipeline), not main_cast
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - first-person narrators not being extracted
-   - Fix: First-person narrator detection needs to identify "I" as a character and resolve to Montresor (his name appears in text: "For the love of God, Montresor!")
-
-2. **Summary generation completely failed**
-   - Problem: Chapter summary shows "[Summary generation failed - manual review needed]"
-   - Evidence: `summaries` field is `null` in analysis.json
-   - Location: `src/pipeline/chapter_summary/summarizer.py` or `src/agents/summary_agent.py`
-   - Fix: Check why summary generation returned null/failed - likely LLM call issue or structure detection problem
+1. **Narrator (Montresor) not detected by main_cast extraction**
+   - Problem: Montresor, the first-person narrator and protagonist, was NOT detected by the character extraction pipeline
+   - Evidence: His character has `id: e3bdcd5e8982` (12-char hash = F6 summary reconciliation), not `main_cast_*`
+   - Evidence: Only 1 mention recorded, but he is the narrator of the ENTIRE story
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` - first-person narrator detection
+   - Why this matters: The narrator's name "Montresor" appears explicitly in the text ("the name is Montresor", "my family's coat of arms Montresor")
+   - Fix: The main_cast extraction needs to recognize first-person narrators when they explicitly name themselves in the text
 
 ### HIGH
-3. **Fortunato incorrectly marked as "minor" role**
-   - Problem: Fortunato is labeled as "minor" when he is a main character (the antagonist/victim)
-   - Evidence: HTML shows `<span class="tag">minor</span>` for Fortunato
-   - Location: Role classification in `src/pipeline/character_extraction_v2/`
-   - Fix: Role classification needs improvement - a character with 14 mentions in a 2,354 word story is significant
+2. **Montresor profile severely incomplete**
+   - Problem: The narrator's profile has no relationships, voice guidance, or detailed traits
+   - Evidence: `relationships: {}` when Montresor clearly has a relationship with Fortunato (revenge/enemy)
+   - Evidence: No voice guidance for the character who speaks the most in the story
+   - Location: `src/pipeline/character_profiling/` - profile generation for narrator characters
+   - Fix: Narrator characters need profile extraction from their first-person speech patterns, not just third-person descriptions
 
-4. **No narrator identified**
-   - Problem: `is_narrator: false` for all characters, but this is clearly first-person narration
-   - Evidence: Story begins with "I" and maintains first-person throughout
-   - Location: Narrator detection in character extraction pipeline
-   - Fix: Detect first-person perspective and identify narrator
+3. **Structure detection shows "Chapter 1" for a chaptersless short story**
+   - Problem: "The Cask of Amontillado" is a single short story with NO chapters
+   - Evidence: Structure detected with `title: null` and labeled as "Chapter 1"
+   - Location: `src/pipeline/chapter_detection/` - short story handling
+   - Fix: For short stories without chapter breaks, detect as single unified work, not "Chapter 1"
 
 ### MEDIUM
-5. **Structure element has null title**
-   - Problem: The single structure element has `title: null` instead of a meaningful title
-   - Evidence: `jq '.structure[] | {title: .title}'` returns `{"title": null}`
-   - Location: `src/pipeline/chapter_detection/`
-   - Fix: For short stories without chapter markers, use story title as section title
+4. **HTML presentation reflects upstream extraction issues**
+   - Problem: Montresor's profile card is nearly empty compared to Fortunato's rich profile
+   - Evidence: Fortunato has appearance, personality, voice guidance; Montresor has only a brief description
+   - Location: This is a downstream effect of #1 and #2
+   - Fix: Fixing upstream extraction issues will automatically fix this
 
-6. **No physical description populated for characters**
-   - Problem: `physical_description` is empty for all characters (0/2)
-   - Evidence: Sanity check shows "Characters with physical_description: 0/2"
-   - Note: Fortunato DOES have appearance info in HTML ("Wears a tight-fitting parti-striped dress and a conical cap with bells") but it's not in the structured `physical_description` field
-   - Location: Profile population in `src/pipeline/character_profiling/`
+## Fix History
+(First attempt)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Initial analysis | N/A | FAIL - Montresor missing, summaries failed |
+| 1 | (Initial evaluation) | N/A | Score: 4.20/10 |
 
-## Configuration Audit Notes
+## Experiment Context
 
-- Model: `qwen3-next:80b-a3b-instruct-q8_0` for characters (per USER_NOTES requirement)
-- Summaries model: `qwen2.5:32b`
-- Config appears correct; issue is likely in extraction logic, not configuration
+This is experiment `exp_009_mixed_moe_competitive_chars` using:
+- character_model: qwen3-next:80b-a3b-instruct-q8_0
+- structure_model: qwen2.5:14b
+- summary_model: qwen2.5:32b
+- competitive_consensus: true (for characters only)
+
+Previous experiments on this text:
+- exp_001 (qwen3-next baseline): 9.95/10 (PASSED)
+- exp_002 (qwen3-next competitive): 8.18/10 (PASSED)
+- exp_003 (gpt-oss): 7.90/10 (failed)
+- exp_004 (gpt-oss competitive): 9.45/10 (PASSED)
+- exp_005 (nemotron): 9.30/10 (PASSED)
+- exp_006 (nemotron competitive): 8.125/10 (failed)
+- exp_007 (deepseek-r1): 5.45/10 (failed)
+- exp_008 (mixed MoE fast): 4.20/10 (failed)
+
+**Pattern observed:** Mixed-model configurations using smaller models for structure (qwen2.5:14b) and summaries (qwen2.5:32b) are failing. The configurations that passed use the same model throughout.
+
+## Root Cause Analysis
+
+The critical failures in this experiment appear to stem from:
+
+1. **Mixed model coordination issue**: When different models are used for character extraction vs. summaries, the narrator detection may not propagate correctly through F6 reconciliation
+
+2. **Smaller structure model**: qwen2.5:14b for structure may not have enough capability to properly identify single-work short stories vs. chaptered works
+
+3. **Character extraction pipeline**: First-person narrator detection relies on summary data, but with different models, the handoff may be incomplete
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. First-person narrator extraction (Critical #1) - Montresor must be detected
-2. Summary generation failure (Critical #2)
+This experiment (exp_009) should be marked as FAILED in experiments.json. The oracle loop should:
+1. Mark this experiment as failed_screening
+2. Move to the next experiment in the queue
+3. If all experiments are exhausted, summarize findings for user review
+
+**NOTE:** This is an EXPERIMENT evaluation, not a code fix loop. The pipeline code itself passed with other configurations (exp_001, exp_002, exp_004, exp_005). The issue is the MODEL CONFIGURATION, not the code.
