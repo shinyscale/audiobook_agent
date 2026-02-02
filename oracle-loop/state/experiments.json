@@ -658,6 +658,150 @@
           "timestamp": "2026-02-01T21:16:58-07:00"
         }
       }
+    },
+    {
+      "id": "exp_016_structure_qwen3_4b",
+      "description": "Structure: qwen3:4b-instruct (2.5GB) - smallest viable?",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen3:4b-instruct",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_017_structure_qwen2_5_7b",
+      "description": "Structure: qwen2.5:7b (4.7GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen2.5:7b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_018_structure_qwen3_8b",
+      "description": "Structure: qwen3:8b (5.2GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen3:8b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_019_structure_qwen2_5_14b",
+      "description": "Structure: qwen2.5:14b (9GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen2.5:14b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_020_structure_qwen3_14b",
+      "description": "Structure: qwen3:14b (9.3GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen3:14b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_021_structure_gpt_oss_20b",
+      "description": "Structure: gpt-oss:20b (13GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "gpt-oss:20b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_022_structure_mistral_24b",
+      "description": "Structure: mistral-small3.2:24b (15GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "mistral-small3.2:24b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_023_structure_gemma3_27b",
+      "description": "Structure: gemma3:27b (17GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "gemma3:27b",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
+    },
+    {
+      "id": "exp_024_structure_qwen3_30b",
+      "description": "Structure: qwen3:30b-instruct (18GB)",
+      "status": "pending",
+      "created": "2026-02-02",
+      "config": {
+        "structure_model": "qwen3:30b-instruct",
+        "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "summary_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "pronunciation_model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "context_length": 32768,
+        "min_mentions": 2,
+        "competitive_consensus": false
+      },
+      "results": {}
     }
   ]
 }
