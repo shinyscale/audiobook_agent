@@ -551,8 +551,6 @@ print_summary() {
 # ==========================================
 
 main() {
-    local experiment_id="${1:-}"
-
     echo ""
     echo "========================================"
     echo "  Experiment Framework"
@@ -565,44 +563,53 @@ main() {
         exit 1
     fi
 
-    if [ -n "$experiment_id" ]; then
-        # Run specific experiment
-        if run_experiment "$experiment_id"; then
-            echo ""
-            read -p "Promote $experiment_id to baseline? [y/N] " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                promote_to_baseline "$experiment_id"
-            fi
-        fi
+    # Collect experiment IDs to run
+    local experiments_to_run=()
+
+    if [ $# -gt 0 ]; then
+        # Run specified experiments
+        experiments_to_run=("$@")
+        log_info "Running ${#experiments_to_run[@]} specified experiment(s): ${experiments_to_run[*]}"
     else
-        # Run all pending experiments
+        # No arguments - show help instead of running all
+        echo "Usage: $0 <experiment_id> [experiment_id2] [experiment_id3] ..."
+        echo ""
+        echo "Examples:"
+        echo "  $0 exp_016_structure_qwen3_4b"
+        echo "  $0 exp_016_structure_qwen3_4b exp_017_structure_qwen2_5_7b exp_018_structure_qwen3_8b"
+        echo ""
+        echo "Pending experiments:"
         local pending=$(get_pending_experiments)
-
         if [ -z "$pending" ]; then
-            log_info "No pending experiments"
-            print_summary
-            exit 0
+            echo "  (none)"
+        else
+            for exp_id in $pending; do
+                local desc=$(get_experiment "$exp_id" | jq -r '.description')
+                echo "  $exp_id - $desc"
+            done
         fi
-
-        local passed_experiments=""
-
-        for exp_id in $pending; do
-            if run_experiment "$exp_id"; then
-                passed_experiments+="$exp_id "
-            fi
-        done
-
+        echo ""
         print_summary
+        exit 0
+    fi
 
-        # Offer to promote if any experiments passed
-        if [ -n "$passed_experiments" ]; then
-            echo ""
-            echo "Experiments that passed all gates: $passed_experiments"
-            read -p "Promote one to baseline? Enter experiment ID (or press Enter to skip): " -r
-            if [ -n "$REPLY" ]; then
-                promote_to_baseline "$REPLY"
-            fi
+    local passed_experiments=""
+
+    for exp_id in "${experiments_to_run[@]}"; do
+        if run_experiment "$exp_id"; then
+            passed_experiments+="$exp_id "
+        fi
+    done
+
+    print_summary
+
+    # Offer to promote if any experiments passed
+    if [ -n "$passed_experiments" ]; then
+        echo ""
+        echo "Experiments that passed all gates: $passed_experiments"
+        read -p "Promote one to baseline? Enter experiment ID (or press Enter to skip): " -r
+        if [ -n "$REPLY" ]; then
+            promote_to_baseline "$REPLY"
         fi
     fi
 }
