@@ -32,10 +32,10 @@
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": false,
-      "attempts": 1,
-      "last_score": 7.80,
+      "attempts": 2,
+      "last_score": 7.35,
       "baseline_score": 7.80,
-      "notes": "Attempt 1: First-person narrator Egaeus not identified (is_narrator: false, role: supporting). Berenice incorrectly marked as antagonist. Character Extraction 5/10, Profiles 7/10. FAIL - 2 categories below 8.0."
+      "notes": "Attempt 2: Egaeus correctly identified as narrator (fixed from attempt 1). CRITICAL: Mad'selle Salle (historical dancer) hallucinated as a character who interacts with Egaeus - she's only a literary reference. Summary hallucinates that she informs Egaeus of death (actually an unnamed servant). Character Extraction 6/10, Profiles 7/10, Summaries 6/10. FAIL - 3 categories below 8.0."
     },
     {
       "name": "monkeys_paw",
