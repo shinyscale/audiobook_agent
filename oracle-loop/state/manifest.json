@@ -11,12 +11,12 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": false,
-      "attempts": 1,
-      "last_score": 4.20,
-      "final_score": null,
+      "complete": true,
+      "attempts": 2,
+      "last_score": 9.45,
+      "final_score": 9.45,
       "baseline_score": 4.20,
-      "notes": "Attempt 1: CRITICAL - Missing Montresor (narrator/protagonist), summary generation failed (null). 5 categories failing."
+      "notes": "PASS: All categories >= 8.0. Structure 10/10 (short story correctly identified), Characters 10/10 (Montresor/Fortunato/Luchresi), Profiles 9/10, Summaries 9/10, Pronunciation 9/10 (36 entries, 92% IPA), HTML 9/10."
     },
     {
       "name": "masque_of_red_death",
