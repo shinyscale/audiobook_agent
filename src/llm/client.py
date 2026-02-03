@@ -41,9 +41,12 @@ class LLMConfig:
 
     @classmethod
     def ollama(
-        cls, model: str = "llama3.2", base_url: str = "http://localhost:11434"
+        cls,
+        model: str = "llama3.2",
+        base_url: str = "http://localhost:11434",
+        think: Optional[Union[bool, str]] = None,
     ) -> "LLMConfig":
-        return cls(provider="ollama", model=model, base_url=base_url)
+        return cls(provider="ollama", model=model, base_url=base_url, think=think)
 
     @classmethod
     def openai(cls, model: str = "gpt-4o-mini", api_key: Optional[str] = None) -> "LLMConfig":
