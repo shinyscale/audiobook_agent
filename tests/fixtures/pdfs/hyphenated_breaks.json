@@ -1,0 +1,8 @@
+{
+  "name": "hyphenated_breaks",
+  "description": "Words split across lines with hyphens",
+  "expected_clean": "The extraordinary circumstances of their meeting would never be forgotten by anyone who witnessed it.\n\nShe remembered the conversation they had shared, the understanding that passed between them without words.",
+  "issues": [
+    "hyphenated_line_breaks"
+  ]
+}

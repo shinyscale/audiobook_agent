@@ -287,10 +287,10 @@ CHARACTER_SUBSTITUTIONS = {
     "woulcl": "would",
     "coulcl": "could",
     "shoulcl": "should",
-    # Common ligature issues (fi, fl, ff)
-    "f i": "fi",        # Broken fi ligature
-    "f l": "fl",        # Broken fl ligature
-    "f f": "ff",        # Broken ff ligature
+    # Note: ligature issues (fi, fl, ff) are handled separately in
+    # repair_broken_ligatures() with context-aware patterns that
+    # require word characters on both sides to avoid false positives
+    # like "of imaginary" -> "ofimaginary"
 }
 
 
@@ -349,13 +349,14 @@ def repair_broken_ligatures(text: str) -> tuple[str, int]:
     repairs = 0
 
     # Patterns for broken ligatures
-    # These are fairly safe to repair as "f i" in the middle of a word is rare
+    # Require 2+ chars before the 'f' to avoid matching word boundaries like "of imaginary"
+    # Single-char words like "of" followed by space + "i" are almost always word boundaries
     ligature_patterns = [
-        (r'\bf\s+f\s+i', 'ffi'),   # f f i → ffi
-        (r'\bf\s+f\s+l', 'ffl'),   # f f l → ffl
-        (r'(\w)f\s+i(\w)', r'\1fi\2'),  # ...f i... → ...fi...
-        (r'(\w)f\s+l(\w)', r'\1fl\2'),  # ...f l... → ...fl...
-        (r'(\w)f\s+f(\w)', r'\1ff\2'),  # ...f f... → ...ff...
+        (r'\bf\s+f\s+i', 'ffi'),   # f f i → ffi (word start)
+        (r'\bf\s+f\s+l', 'ffl'),   # f f l → ffl (word start)
+        (r'([a-z]{2,})f\s+i([a-z])', r'\1fi\2'),  # ...f i... → ...fi... (2+ chars before f)
+        (r'([a-z]{2,})f\s+l([a-z])', r'\1fl\2'),  # ...f l... → ...fl... (2+ chars before f)
+        (r'([a-z]{2,})f\s+f([a-z])', r'\1ff\2'),  # ...f f... → ...ff... (2+ chars before f)
     ]
 
     for pattern, replacement in ligature_patterns:

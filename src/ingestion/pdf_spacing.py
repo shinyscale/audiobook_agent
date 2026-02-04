@@ -236,7 +236,8 @@ def _looks_concatenated(word: str) -> bool:
 
     # Look for patterns like "thecat" -> "the" + "cat"
     # Check if we can find a common word at the start
-    for length in range(2, min(8, len(word_lower) - 2)):
+    # Range goes from 2 to len-1 (leaving at least 2 chars for suffix)
+    for length in range(2, min(8, len(word_lower) - 1)):
         prefix = word_lower[:length]
         if prefix in COMMON_WORDS:
             suffix = word_lower[length:]
@@ -310,17 +311,36 @@ def _fix_token(token: str) -> tuple[str, int]:
     Handles punctuation and preserves case.
     Also handles punctuation in the middle of tokens (e.g., "nerves,andfillsmewith").
     """
-    # First, try to handle tokens with punctuation in the middle
-    # Split by common punctuation that might join concatenated words
-    if re.search(r"\w[,;:]\w", token):
+    # Check for ANY embedded punctuation (not just ,;:)
+    # This catches quotes, hyphens, periods, etc. in the middle of tokens
+    if re.search(r"\w[^\w]+\w", token):
         # Has punctuation between word characters - split and process each part
-        parts = re.split(r"([,;:])", token)
+        parts = re.split(r"([^\w]+)", token)
         total_spaces = 0
         result_parts = []
-        for part in parts:
-            if part in ",;:":
+        for i, part in enumerate(parts):
+            if not part:
+                continue
+            if re.match(r"^[^\w]+$", part):
+                # Pure punctuation - check if we need to add space after it
+                next_part = parts[i + 1] if i + 1 < len(parts) else ""
+
+                # Add space after sentence-ending punctuation before capital letter
+                if part in ".?!" and next_part and next_part[0].isupper():
+                    result_parts.append(part + " ")
+                    total_spaces += 1
+                    continue
+
+                # Add space after comma/semicolon/colon before a letter (not a digit)
+                # This handles "nerves,and" -> "nerves, and"
+                if part in ",;:" and next_part and next_part[0].isalpha():
+                    result_parts.append(part + " ")
+                    total_spaces += 1
+                    continue
+
                 result_parts.append(part)
             else:
+                # Word part - try to fix spacing
                 fixed_part, added = _fix_single_word(part)
                 result_parts.append(fixed_part)
                 total_spaces += added
@@ -366,14 +386,125 @@ _COMMON_SHORT_CONCATENATIONS = {
     "forthe": "for the",
     "fromthe": "from the",
     "withthe": "with the",
+    "andthe": "and the",
+    "butthe": "but the",
+    "isthe": "is the",
+    "asthe": "as the",
+    "wasthe": "was the",
     "ofan": "of an",
     "ofmy": "of my",
     "tomy": "to my",
     "asI": "as I",
     "ifI": "if I",
+    "andI": "and I",
+    "butI": "but I",
+    "thatI": "that I",
+    "whenI": "when I",
+    # preposition + this/that/a
+    "ofthis": "of this",
+    "inthis": "in this",
+    "tothis": "to this",
+    "ofthat": "of that",
+    "inthat": "in that",
+    "ofa": "of a",
+    "ina": "in a",
+    "toa": "to a",
+    "asa": "as a",
+    "fora": "for a",
+    # verb + pronoun patterns
+    "ismy": "is my",
+    "wasmy": "was my",
+    "isit": "is it",
+    "wasit": "was it",
+    "isto": "is to",
+    "wasto": "was to",
     # Do/Did patterns
     "Doyou": "Do you",
     "Didyou": "Did you",
+    # "than" patterns (common in comparisons)
+    "thanto": "than to",
+    "thanthe": "than the",
+    "thana": "than a",
+    "thanan": "than an",
+    "thanI": "than I",
+    "thanany": "than any",
+    # "if" patterns
+    "ifI": "if I",
+    "ifthe": "if the",
+    "ifa": "if a",
+    # "my" + noun patterns (common in old texts)
+    "myday": "my day",
+    "myown": "my own",
+    "mylife": "my life",
+    "myheart": "my heart",
+    "myhead": "my head",
+    "myhome": "my home",
+    "myhand": "my hand",
+    "myhands": "my hands",
+    "myeyes": "my eyes",
+    "myears": "my ears",
+    "myfather": "my father",
+    "mymother": "my mother",
+    "mydear": "my dear",
+    "mymind": "my mind",
+    "mysoul": "my soul",
+    "myfriend": "my friend",
+    "myself": "myself",  # Valid word, but catches "my self" OCR errors
+    # "his/her" + noun patterns
+    "hisown": "his own",
+    "hishand": "his hand",
+    "hishands": "his hands",
+    "hishead": "his head",
+    "hiseyes": "his eyes",
+    "hisface": "his face",
+    "hislife": "his life",
+    "hisheart": "his heart",
+    "herface": "her face",
+    "hereyes": "her eyes",
+    "herhand": "her hand",
+    "herhands": "her hands",
+    "herhead": "her head",
+    "herheart": "her heart",
+    "herlife": "her life",
+    "herown": "her own",
+    # "a" + adjective/noun patterns (single letter article)
+    "aword": "a word",
+    "aman": "a man",
+    "awoman": "a woman",
+    "amoment": "a moment",
+    "aplace": "a place",
+    "abook": "a book",
+    "aletter": "a letter",
+    "achild": "a child",
+    "asmall": "a small",
+    "agreat": "a great",
+    "alarge": "a large",
+    "along": "a long",
+    "ashort": "a short",
+    "ayoung": "a young",
+    "afew": "a few",
+    "alittle": "a little",
+    "agood": "a good",
+    "abad": "a bad",
+    "anew": "a new",
+    "aworse": "a worse",
+    "abetter": "a better",
+    "amost": "a most",
+    "avery": "a very",
+    # Uppercase I concatenated with other words (common OCR error)
+    # Pattern: word + I + word
+    "asIam": "as I am",
+    "asIwas": "as I was",
+    "asIhad": "as I had",
+    "asIhave": "as I have",
+    "thatIam": "that I am",
+    "thatIwas": "that I was",
+    "thatIhad": "that I had",
+    "thatIhave": "that I have",
+    "whatIam": "what I am",
+    "whatIwas": "what I was",
+    "whatIhad": "what I had",
+    "whatIhave": "what I have",
 }
 
 
@@ -418,20 +549,52 @@ def _fix_single_word(token: str) -> tuple[str, int]:
     if short_fix:
         return prefix + short_fix + suffix, short_fix.count(" ")
 
-    # Skip very short words (can't be concatenated)
-    if len(word) < 6:
+    # Skip very short words (can't be concatenated) - but check for patterns first
+    if len(word) < 5:
         return token, 0
 
-    # For words 6-10 chars, only fix if they clearly look concatenated
-    if len(word) < MIN_SUSPICIOUS_LENGTH:
+    # For words 5-7 chars, only fix if they clearly look concatenated
+    if len(word) < 8:
         if not _looks_concatenated(word):
             return token, 0
+
+    # For longer words (8+ chars), always try segmentation if word is not in dictionary
+    # This catches cases like "trialwas", "familybeing" that don't have common prefixes
+    if len(word) >= 8 and _HAS_WORDSEGMENT:
+        _ensure_wordsegment_loaded()
+        word_lower = word.lower()
+        word_freq = wordsegment.UNIGRAMS.get(word_lower, 0)
+
+        # If word is not in dictionary, try to segment
+        if word_freq == 0:
+            segments = wordsegment.segment(word_lower)
+            if len(segments) >= 2:
+                # Check if all segments are valid words
+                all_valid = all(
+                    wordsegment.UNIGRAMS.get(seg, 0) > 1000000
+                    for seg in segments
+                )
+                if all_valid:
+                    # Reconstruct with proper case
+                    result = []
+                    pos = 0
+                    for seg in segments:
+                        seg_len = len(seg)
+                        original_segment = word[pos : pos + seg_len]
+                        short_fix = _fix_common_short_concatenation(original_segment)
+                        if short_fix:
+                            result.append(short_fix)
+                        else:
+                            result.append(original_segment)
+                        pos += seg_len
+                    segmented = " ".join(result)
+                    return prefix + segmented + suffix, segmented.count(" ")
 
     # Skip if it's a valid word (in dictionary)
     if _is_valid_word(word):
         return token, 0
 
-    # Try to segment
+    # Try to segment (standard path for words that look concatenated)
     segmented = _segment_word(word)
 
     if segmented == word:
@@ -487,8 +650,25 @@ def _is_valid_word(word: str) -> bool:
     if _HAS_WORDSEGMENT:
         # Lazy-load wordsegment data if needed
         _ensure_wordsegment_loaded()
-        # If the word is in the dictionary, it's valid
-        if word_lower in wordsegment.UNIGRAMS:
+
+        # Even if word is in UNIGRAMS, check if segmentation produces higher-frequency results
+        # This handles cases like "whenthe" which appears in web data due to OCR errors
+        word_freq = wordsegment.UNIGRAMS.get(word_lower, 0)
+
+        if word_freq > 0:
+            segments = wordsegment.segment(word_lower)
+            if len(segments) >= 2:
+                # Calculate minimum frequency of segments (weakest link)
+                min_segment_freq = min(
+                    wordsegment.UNIGRAMS.get(seg, 0) for seg in segments
+                )
+                # If all segments are more common than the concatenated word,
+                # it's likely a concatenation error, not a valid word
+                # Use a threshold ratio to avoid false positives on rare valid words
+                if min_segment_freq > word_freq * 100:
+                    return False
+
+            # Word is in dictionary and segmentation doesn't clearly improve it
             return True
 
     # Common long valid words

@@ -1,0 +1,8 @@
+{
+  "name": "broken_ligatures",
+  "description": "Broken ligatures (fi, fl, ff split with spaces)",
+  "expected_clean": "The official document was difficult to read. It was full of suffering\nand affliction, describing the difference between right and wrong.\n\nThe sufficient evidence was finally found after many efforts.",
+  "issues": [
+    "broken_ligatures"
+  ]
+}

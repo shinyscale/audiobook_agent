@@ -1,0 +1,8 @@
+{
+  "name": "ocr_character_subs",
+  "description": "Common OCR character substitution errors",
+  "expected_clean": "The quick brown fox jumped over the lazy dog. When the sun set,\nthey all went home. With great care, the father carried his child\nthrough the door.\n\nThis was something they had never seen before. Nothing could\nprepare them for what was about to happen.",
+  "issues": [
+    "ocr_character_substitutions"
+  ]
+}

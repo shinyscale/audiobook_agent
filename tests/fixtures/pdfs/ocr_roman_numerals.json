@@ -1,0 +1,8 @@
+{
+  "name": "ocr_roman_numerals",
+  "description": "Roman numerals corrupted by OCR (II->IT, III->ITI)",
+  "expected_clean": "CHAPTER II\n\nThe story begins here with chapter two.\n\nCHAPTER III\n\nThis is chapter three of the tale.\n\nCHAPTER IV\n\nAnd here we have chapter four.\n\nLETTER VII\n\nA letter from the seventh correspondence.",
+  "issues": [
+    "ocr_roman_numerals"
+  ]
+}

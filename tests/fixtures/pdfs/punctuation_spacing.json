@@ -1,0 +1,8 @@
+{
+  "name": "punctuation_spacing",
+  "description": "Missing spaces after punctuation",
+  "expected_clean": "The end came quickly. No one expected it. What happened next\nsurprised everyone.\n\n\"Hello,\" said the man. \"How are you?\" she replied. They talked\nfor hours; never once did they mention the past.",
+  "issues": [
+    "punctuation_spacing"
+  ]
+}

@@ -280,8 +280,8 @@ def _should_merge(word_start: str, word_end: str) -> bool:
             return True
 
         # Case 2: First fragment is a valid standalone word - don't merge
-        # But only if it's substantial enough (more than 2 chars)
-        if word_start.lower() in _spell and len(word_start) > 2:
+        # Include 2-letter words like "to", "no", "us", "on", "in", etc.
+        if word_start.lower() in _spell and len(word_start) >= 2:
             return False
 
         # Case 3: Neither fragment is valid alone, combined not recognized

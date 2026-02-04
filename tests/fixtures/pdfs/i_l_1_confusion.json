@@ -1,0 +1,8 @@
+{
+  "name": "i_l_1_confusion",
+  "description": "Confusion between I, l (lowercase L), and 1",
+  "expected_clean": "CHAPTER I\n\nIn the beginning, I was alone. The number 1 haunted me, as did\nevery instance where I appeared instead of I.\n\n\"What shall I do?\" I asked myself. It seemed impossible.",
+  "issues": [
+    "i_l_1_confusion"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "split_words",
+  "description": "Words split at line breaks without hyphens (proper nouns)",
+  "expected_clean": "Henry Clerval was the son of a merchant of Geneva. The young Frankenstein family had known them for years.\n\nThey traveled to Ingolstadt together, where Clerval would study languages while Victor pursued his scientific interests.",
+  "issues": [
+    "split_words_no_hyphen"
+  ]
+}

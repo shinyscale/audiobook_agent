@@ -1,0 +1,8 @@
+{
+  "name": "missing_spaces",
+  "description": "Text with missing word spaces (common in old/scanned PDFs)",
+  "expected_clean": "CHAPTER I\n\nThe morning sun rose over the quiet village of Millbrook. Sarah walked\ndown the cobblestone street, her footsteps echoing in the early silence.\n\nShe had lived here all her life, yet today everything felt different.\nThe familiar shops and houses seemed to hold secrets she had never noticed\nbefore. Perhaps it was the letter in her pocket that changed everything.",
+  "issues": [
+    "missing_spaces"
+  ]
+}

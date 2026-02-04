@@ -159,6 +159,25 @@ class TestShouldMerge:
         result = _should_merge("re", "mark")
         assert result is True  # "remark" is valid
 
+    def test_two_letter_words_prevent_merge(self):
+        """Test that 2-letter valid words prevent incorrect merging.
+
+        This was a bug where words like "to", "no", "us" at line endings
+        would incorrectly merge with the next word because the check was
+        `len(word_start) > 2` instead of `>= 2`.
+
+        Regression test for: "attached to\\nthe" becoming "attached tothe"
+        """
+        # These 2-letter words should NOT merge when combined is invalid
+        assert _should_merge("to", "the") is False
+        assert _should_merge("no", "blood") is False
+        assert _should_merge("us", "followed") is False
+        assert _should_merge("on", "top") is False
+
+        # Note: "in" + "side" -> "inside" IS valid, so merge is allowed
+        # Same with "an" + "other" -> "another"
+        # This is correct behavior - we only block merge when combined is invalid
+
 
 class TestIntegration:
     """Integration tests combining dehyphenation and rejoining."""

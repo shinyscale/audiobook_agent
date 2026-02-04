@@ -1,0 +1,6 @@
+{
+  "name": "clean_text",
+  "description": "Properly formatted text with no issues",
+  "expected_clean": "CHAPTER I\n\nThe morning sun rose over the quiet village of Millbrook. Sarah walked\ndown the cobblestone street, her footsteps echoing in the early silence.\n\nShe had lived here all her life, yet today everything felt different.\nThe familiar shops and houses seemed to hold secrets she had never noticed\nbefore. Perhaps it was the letter in her pocket that changed everything.\n\nCHAPTER II\n\nThree days had passed since the letter arrived. Sarah sat in the garden,\nreading it for the hundredth time. The words still made no sense to her.",
+  "issues": []
+}

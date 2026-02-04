@@ -1,0 +1,12 @@
+{
+  "name": "mixed_issues_realistic",
+  "description": "Combination of issues like a realistic old scanned PDF",
+  "expected_clean": "CHAPTER II\n\nThe morning sun rose over the quiet village of Millbrook. Sarah walked down the cobblestone street, her footsteps echoing in the early silence.\n\nCHAPTER III\n\nShe had lived here all her life, yet today everything felt different. The familiar shops and houses seemed to hold secrets she had never noticed before. Perhaps it was the letter in her pocket that changed everything.",
+  "issues": [
+    "ocr_roman_numerals",
+    "ocr_character_substitutions",
+    "missing_spaces",
+    "split_words_no_hyphen",
+    "punctuation_spacing"
+  ]
+}
