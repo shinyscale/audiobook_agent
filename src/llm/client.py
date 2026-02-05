@@ -28,13 +28,14 @@ class LLMConfig:
     base_url: Optional[str] = None  # For Ollama/LM Studio
     api_key: Optional[str] = None
     temperature: float = 0.7  # Model-recommended default for local LLMs
-    max_tokens: int = 4096
-    context_length: int = 32768  # Context window size (num_ctx for Ollama)
+    max_tokens: int = 8192
+    context_length: int = 65536  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = (
         None  # Reasoning control: False, True, "low", "medium", "high"
     )
     # Additional sampling parameters
     # Qwen3 auto-applies: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+    # gpt-oss auto-applies: max_tokens=16384, context_length=131072, presence_penalty=0.5
     top_p: Optional[float] = None  # Nucleus sampling threshold
     top_k: Optional[int] = None  # Top-k sampling limit
     presence_penalty: Optional[float] = None  # 0-2, reduces repetition
@@ -105,7 +106,16 @@ class LLMClient:
         if self.config.provider == "ollama":
             import httpx
 
-            self._client = httpx.Client(base_url=self.config.base_url, timeout=1200.0)
+            # Use separate timeouts for better control with large models
+            # Connect timeout: 60s (model loading can take time)
+            # Read/Write timeout: 1200s (20 min for large model inference)
+            timeout = httpx.Timeout(
+                connect=60.0,  # Connection establishment
+                read=1200.0,   # Reading response (inference time)
+                write=60.0,    # Writing request
+                pool=60.0,     # Waiting for connection from pool
+            )
+            self._client = httpx.Client(base_url=self.config.base_url, timeout=timeout)
             self._httpx = httpx  # Store for error handling
 
         elif self.config.provider == "openai":
@@ -254,12 +264,20 @@ class LLMClient:
                 self.config.top_p = 0.8
             if self.config.top_k is None:
                 self.config.top_k = 20
-            # Increase max_tokens if at default (4096) - Qwen3 recommends 16384
-            if self.config.max_tokens <= 4096:
+            # Increase max_tokens if at default (8192) - Qwen3 recommends 16384
+            if self.config.max_tokens <= 8192:
                 self.config.max_tokens = 16384
             # Moderate presence_penalty reduces repetition (0-2 range, 1.0 is balanced)
             if self.config.presence_penalty is None:
                 self.config.presence_penalty = 1.0
+        elif "gpt-oss" in model_lower:
+            # gpt-oss:120b supports 128K context natively
+            if self.config.max_tokens <= 8192:
+                self.config.max_tokens = 16384
+            if self.config.context_length <= 65536:
+                self.config.context_length = 131072
+            if self.config.presence_penalty is None:
+                self.config.presence_penalty = 0.5
 
         # Use provided overrides or fall back to config
         effective_temp = temperature if temperature is not None else self.config.temperature
