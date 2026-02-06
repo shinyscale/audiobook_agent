@@ -125,7 +125,7 @@ MODELS = [
 # Maximum retries for model loading
 MAX_LOAD_RETRIES = 3
 LOAD_RETRY_DELAY = 10  # seconds
-LOAD_TIMEOUT = 120  # seconds - shorter timeout for load test (not 1200s inference timeout)
+LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
 
 
 def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bool, float, str]:
@@ -360,28 +360,22 @@ def load_or_generate_summaries(text: str, text_name: str) -> list[str]:
 def run_character_extraction(
     summaries: list[str],
     model: str,
-) -> tuple[list[MainCastProfile], float, float, bool]:
+) -> tuple[list[MainCastProfile], float]:
     """Run MainCastExtractor with a specific model.
+
+    Model must already be loaded (caller handles load_model).
 
     Args:
         summaries: Chapter summaries to extract characters from
         model: Model to use for extraction
 
     Returns:
-        Tuple of (profiles, analysis_time_seconds, load_time_seconds, load_success)
+        Tuple of (profiles, analysis_time_seconds)
     """
     # Create LLM client
     llm_config = LLMConfig.ollama(model=model)
     llm_client = LLMClient(llm_config)
 
-    # Load model and measure load time (separate from analysis time)
-    load_success, load_time, load_msg = load_model(model)
-    if not load_success:
-        print(f"  WARNING: Model load failed for {model}: {load_msg}")
-        print(f"  Skipping analysis (load failed)")
-        return [], 0.0, load_time, False
-
-    # Start timing analysis AFTER model is loaded
     start = time.time()
 
     # Create extractor
@@ -394,7 +388,7 @@ def run_character_extraction(
     )
 
     elapsed = time.time() - start
-    return profiles, elapsed, load_time, load_success
+    return profiles, elapsed
 
 
 # =============================================================================
@@ -571,8 +565,8 @@ def is_completed(results: dict, text_name: str, model: str) -> bool:
     model_result = results["texts"][text_name].get("models", {}).get(model)
     if model_result is None:
         return False
-    # Consider it completed if it has a status that isn't ERROR
-    return model_result.get("status") not in (None, "ERROR")
+    # Consider it completed if it has a status that isn't ERROR or LOAD_FAILED
+    return model_result.get("status") not in (None, "ERROR", "LOAD_FAILED")
 
 
 def generate_summary(results: dict, models_to_test: list, texts_to_test: list) -> dict:
@@ -774,34 +768,31 @@ def main():
     print("=" * 70)
     print(f"Texts: {texts_to_test}")
     print(f"Models: {len(models_to_test)} models")
+    print("Loop order: models (outer) → texts (inner) to minimize model swaps")
     if resume_mode:
         print("Mode: RESUME (skipping completed combinations)")
     print("=" * 70)
 
+    # Pre-load all texts and generate/load summaries (model-independent work)
+    loaded_texts = {}  # text_name -> (summaries, expected)
     for text_name in texts_to_test:
         text_path = TEST_TEXTS[text_name]
         expected = EXPECTED_CHARACTERS[text_name]
 
-        print(f"\n{'='*70}")
-        print(f"TEXT: {text_name}")
-        print(f"Required characters: {expected['required']}")
-        print(f"Expected narrator: {expected.get('narrator', 'None (third-person)')}")
-        print(f"{'='*70}")
+        print(f"\n[LOAD] {text_name}")
 
-        # Check if file exists
         if not text_path.exists():
-            print(f"ERROR: Text file not found: {text_path}")
+            print(f"  ERROR: Text file not found: {text_path}")
             continue
 
-        # Load text
         try:
             text = load_text(text_path)
         except Exception as e:
-            print(f"ERROR loading text: {e}")
+            print(f"  ERROR loading text: {e}")
             continue
 
         text_size = len(text)
-        print(f"Size: {text_size:,} characters")
+        print(f"  Size: {text_size:,} characters")
 
         # Initialize or preserve existing text entry
         if text_name not in results["texts"]:
@@ -818,67 +809,79 @@ def main():
                 results["texts"][text_name]["models"] = {}
 
         # Load or generate summaries (cached)
-        print("\n[SUMMARIES]")
         try:
             summaries = load_or_generate_summaries(text, text_name)
-            print(f"  Using {len(summaries)} chapter summaries")
+            print(f"  {len(summaries)} chapter summaries")
         except Exception as e:
             print(f"  ERROR generating summaries: {e}")
             import traceback
             traceback.print_exc()
             continue
 
-        # Run each model
-        for model in models_to_test:
-            model_short = model.split(":")[0]
+        loaded_texts[text_name] = (summaries, expected)
 
-            # Skip if already completed in resume mode
+    print(f"\nLoaded {len(loaded_texts)}/{len(texts_to_test)} texts successfully")
+
+    # Run models in outer loop to minimize model swaps
+    for model in models_to_test:
+        model_short = model.split(":")[0]
+
+        print(f"\n{'='*70}")
+        print(f"MODEL: {model}")
+        print(f"{'='*70}")
+
+        # Load model once for all texts
+        load_success, load_time, load_msg = load_model(model)
+        if not load_success:
+            print(f"  LOAD FAILED: {load_msg}")
+            print(f"  Skipping all texts for this model")
+            for text_name in loaded_texts:
+                results["texts"][text_name]["models"][model] = {
+                    "status": "LOAD_FAILED",
+                    "load_time_seconds": round(load_time, 2),
+                    "load_success": False,
+                }
+            save_results(results, models_to_test, texts_to_test)
+            continue
+
+        print(f"  Loaded in {load_time:.1f}s")
+
+        for text_name, (summaries, expected) in loaded_texts.items():
             if resume_mode and is_completed(results, text_name, model):
-                print(f"\n[{model_short}] SKIPPED (already completed)")
+                print(f"\n  [{text_name}] SKIPPED (already completed)")
                 continue
 
-            print(f"\n[{model_short}] Running...")
+            print(f"\n  [{text_name}] Extracting characters...")
 
             try:
-                profiles, analysis_time, load_time, load_success = run_character_extraction(summaries, model)
+                profiles, analysis_time = run_character_extraction(summaries, model)
+                score = score_result(profiles, expected)
 
-                if not load_success:
-                    # Record load failure without scoring
-                    results["texts"][text_name]["models"][model] = {
-                        "status": "LOAD_FAILED",
-                        "load_time_seconds": round(load_time, 2),
-                        "load_success": False,
-                    }
-                    print(f"  Status: LOAD_FAILED (skipped analysis)")
-                    print(f"  Load time: {load_time:.1f}s")
-                else:
-                    score = score_result(profiles, expected)
+                results["texts"][text_name]["models"][model] = {
+                    **score,
+                    "time_seconds": round(analysis_time, 2),
+                    "load_time_seconds": round(load_time, 2),
+                    "load_success": True,
+                    "total_time_seconds": round(analysis_time + load_time, 2),
+                }
 
-                    results["texts"][text_name]["models"][model] = {
-                        **score,
-                        "time_seconds": round(analysis_time, 2),
-                        "load_time_seconds": round(load_time, 2),
-                        "load_success": load_success,
-                        "total_time_seconds": round(analysis_time + load_time, 2),
-                    }
-
-                    print(f"  Found: {score['characters_found']}")
-                    print(f"  Status: {score['status']} | Overall: {score['overall']:.1f}/10")
-                    print(f"  Recall: {score['recall']:.1f} | Precision: {score['precision']:.1f} | "
-                          f"Alias: {score['alias_quality']:.1f} | Narrator: {score['narrator']:.1f}")
-                    print(f"  Time: {analysis_time:.1f}s (load: {load_time:.1f}s, total: {analysis_time + load_time:.1f}s)")
-                    if score['required_missing']:
-                        print(f"  Missing: {score['required_missing']}")
-                    if score['hallucinations']:
-                        print(f"  HALLUCINATIONS: {score['hallucinations']}")
+                print(f"    Found: {score['characters_found']}")
+                print(f"    Status: {score['status']} | Overall: {score['overall']:.1f}/10")
+                print(f"    Recall: {score['recall']:.1f} | Precision: {score['precision']:.1f} | "
+                      f"Alias: {score['alias_quality']:.1f} | Narrator: {score['narrator']:.1f}")
+                print(f"    Time: {analysis_time:.1f}s")
+                if score['required_missing']:
+                    print(f"    Missing: {score['required_missing']}")
+                if score['hallucinations']:
+                    print(f"    HALLUCINATIONS: {score['hallucinations']}")
 
             except Exception as e:
-                print(f"  ERROR: {e}")
+                print(f"    ERROR: {e}")
                 import traceback
                 traceback.print_exc()
                 results["texts"][text_name]["models"][model] = {"error": str(e), "status": "ERROR"}
 
-            # Save incrementally after each model
+            # Save incrementally after each text
             save_results(results, models_to_test, texts_to_test)
 
     # Print summary table
@@ -905,10 +908,14 @@ def main():
                 r = results["texts"][text_name]["models"][model]
                 if "error" in r:
                     row += f" | {'ERR':>10}"
-                else:
+                elif r.get("status") == "LOAD_FAILED":
+                    row += f" | {'LOAD':>10}"
+                elif "overall" in r:
                     status_marker = "+" if r["status"] == "PASS" else "-"
                     row += f" | {r['overall']:.1f}{status_marker:>5}"
                     scores.append(r["overall"])
+                else:
+                    row += f" | {'?':>10}"
             else:
                 row += f" | {'-':>10}"
 

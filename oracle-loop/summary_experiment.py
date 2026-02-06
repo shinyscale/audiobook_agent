@@ -271,7 +271,7 @@ def detect_chapters(text: str, text_name: str) -> list[dict]:
 # Maximum retries for model loading
 MAX_LOAD_RETRIES = 3
 LOAD_RETRY_DELAY = 10  # seconds
-LOAD_TIMEOUT = 120  # seconds - shorter timeout for load test (not 1200s inference timeout)
+LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
 
 
 def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bool, float, str]:
@@ -360,8 +360,10 @@ def run_summarization(
     text: str,
     chapters: list[dict],
     model: str,
-) -> tuple[list[ChapterSummary], float, float, bool]:
+) -> tuple[list[ChapterSummary], float]:
     """Run ChapterSummarizer with a specific model.
+
+    Model must already be loaded (caller handles load_model).
 
     Args:
         text: Full text content
@@ -369,20 +371,12 @@ def run_summarization(
         model: Model to use for summarization
 
     Returns:
-        Tuple of (summaries, analysis_time_seconds, load_time_seconds, load_success)
+        Tuple of (summaries, analysis_time_seconds)
     """
     # Create LLM client
     llm_config = LLMConfig.ollama(model=model)
     llm_client = LLMClient(llm_config)
 
-    # Load model and measure load time (separate from analysis time)
-    load_success, load_time, load_msg = load_model(model)
-    if not load_success:
-        print(f"  WARNING: Model load failed for {model}: {load_msg}")
-        print(f"  Skipping analysis (load failed)")
-        return [], 0.0, load_time, False
-
-    # Start timing analysis AFTER model is loaded
     start = time.time()
 
     # Create summarizer
@@ -403,7 +397,7 @@ def run_summarization(
         summaries.append(summary)
 
     elapsed = time.time() - start
-    return summaries, elapsed, load_time, load_success
+    return summaries, elapsed
 
 
 # =============================================================================
@@ -600,7 +594,7 @@ def is_completed(results: dict, text_name: str, model: str) -> bool:
     model_result = results["texts"][text_name].get("models", {}).get(model)
     if model_result is None:
         return False
-    return model_result.get("status") not in (None, "ERROR")
+    return model_result.get("status") not in (None, "ERROR", "LOAD_FAILED")
 
 
 def generate_summary_stats(results: dict, models_to_test: list, texts_to_test: list) -> dict:
@@ -811,33 +805,32 @@ def main():
     print("=" * 70)
     print(f"Texts: {texts_to_test}")
     print(f"Models: {len(models_to_test)} models")
+    print("Loop order: models (outer) → texts (inner) to minimize model swaps")
     if resume_mode:
         print("Mode: RESUME (skipping completed combinations)")
     print("=" * 70)
 
+    # Pre-load all texts and detect chapters (model-independent work)
+    loaded_texts = {}  # text_name -> (text, chapters, expected)
     for text_name in texts_to_test:
         text_path = TEST_TEXTS[text_name]
         expected = EXPECTED_CONTENT[text_name]
 
-        print(f"\n{'='*70}")
-        print(f"TEXT: {text_name}")
-        print(f"Required characters: {expected['required_characters']}")
-        print(f"Key events: {expected['key_events'][:5]}...")
-        print(f"{'='*70}")
+        print(f"\n[LOAD] {text_name}")
 
         if not text_path.exists():
-            print(f"ERROR: Text file not found: {text_path}")
+            print(f"  ERROR: Text file not found: {text_path}")
             continue
 
         try:
             text = load_text(text_path)
         except Exception as e:
-            print(f"ERROR loading text: {e}")
+            print(f"  ERROR loading text: {e}")
             continue
 
-        print(f"Size: {len(text):,} characters")
+        print(f"  Size: {len(text):,} characters")
 
-        # Initialize text entry
+        # Initialize text entry in results
         if text_name not in results["texts"]:
             results["texts"][text_name] = {
                 "expected": {
@@ -852,60 +845,73 @@ def main():
                 results["texts"][text_name]["models"] = {}
 
         # Detect/load chapters (cached, deterministic)
-        print("\n[STRUCTURE]")
         try:
             chapters = detect_chapters(text, text_name)
-            print(f"  Using {len(chapters)} chapters")
+            print(f"  {len(chapters)} chapters")
         except Exception as e:
             print(f"  ERROR detecting chapters: {e}")
             continue
 
-        # Run each model
-        for model in models_to_test:
-            model_short = model.split(":")[0]
+        loaded_texts[text_name] = (text, chapters, expected)
 
+    print(f"\nLoaded {len(loaded_texts)}/{len(texts_to_test)} texts successfully")
+
+    # Run models in outer loop to minimize model swaps
+    for model in models_to_test:
+        model_short = model.split(":")[0]
+
+        print(f"\n{'='*70}")
+        print(f"MODEL: {model}")
+        print(f"{'='*70}")
+
+        # Load model once for all texts
+        load_success, load_time, load_msg = load_model(model)
+        if not load_success:
+            print(f"  LOAD FAILED: {load_msg}")
+            print(f"  Skipping all texts for this model")
+            for text_name in loaded_texts:
+                results["texts"][text_name]["models"][model] = {
+                    "status": "LOAD_FAILED",
+                    "load_time_seconds": round(load_time, 2),
+                    "load_success": False,
+                }
+            save_results(results, models_to_test, texts_to_test)
+            continue
+
+        print(f"  Loaded in {load_time:.1f}s")
+
+        for text_name, (text, chapters, expected) in loaded_texts.items():
             if resume_mode and is_completed(results, text_name, model):
-                print(f"\n[{model_short}] SKIPPED (already completed)")
+                print(f"\n  [{text_name}] SKIPPED (already completed)")
                 continue
 
-            print(f"\n[{model_short}] Running summarization...")
+            print(f"\n  [{text_name}] Summarizing ({len(chapters)} chapters)...")
 
             try:
-                summaries, analysis_time, load_time, load_success = run_summarization(text, chapters, model)
+                summaries, analysis_time = run_summarization(text, chapters, model)
+                score = score_result(summaries, expected)
 
-                if not load_success:
-                    # Record load failure without scoring
-                    results["texts"][text_name]["models"][model] = {
-                        "status": "LOAD_FAILED",
-                        "load_time_seconds": round(load_time, 2),
-                        "load_success": False,
-                    }
-                    print(f"  Status: LOAD_FAILED (skipped analysis)")
-                    print(f"  Load time: {load_time:.1f}s")
-                else:
-                    score = score_result(summaries, expected)
+                results["texts"][text_name]["models"][model] = {
+                    **score,
+                    "time_seconds": round(analysis_time, 2),
+                    "load_time_seconds": round(load_time, 2),
+                    "load_success": True,
+                    "total_time_seconds": round(analysis_time + load_time, 2),
+                    "num_chapters": len(chapters),
+                }
 
-                    results["texts"][text_name]["models"][model] = {
-                        **score,
-                        "time_seconds": round(analysis_time, 2),
-                        "load_time_seconds": round(load_time, 2),
-                        "load_success": load_success,
-                        "total_time_seconds": round(analysis_time + load_time, 2),
-                        "num_chapters": len(chapters),
-                    }
-
-                    print(f"  Characters found: {score['characters_found'][:5]}..." if len(score['characters_found']) > 5 else f"  Characters found: {score['characters_found']}")
-                    print(f"  Status: {score['status']} | Overall: {score['overall']:.1f}/10")
-                    print(f"  CharRecall: {score['char_recall']:.1f} | CharPrecision: {score['char_precision']:.1f} | "
-                          f"Alias: {score['alias_quality']:.1f} | Events: {score['event_coverage']:.1f}")
-                    if score['required_missing']:
-                        print(f"  Missing chars: {score['required_missing']}")
-                    if score['forbidden_found']:
-                        print(f"  HALLUCINATIONS: {score['forbidden_found']}")
-                    print(f"  Time: {analysis_time:.1f}s (load: {load_time:.1f}s, total: {analysis_time + load_time:.1f}s)")
+                print(f"    Characters found: {score['characters_found'][:5]}..." if len(score['characters_found']) > 5 else f"    Characters found: {score['characters_found']}")
+                print(f"    Status: {score['status']} | Overall: {score['overall']:.1f}/10")
+                print(f"    CharRecall: {score['char_recall']:.1f} | CharPrecision: {score['char_precision']:.1f} | "
+                      f"Alias: {score['alias_quality']:.1f} | Events: {score['event_coverage']:.1f}")
+                if score['required_missing']:
+                    print(f"    Missing chars: {score['required_missing']}")
+                if score['forbidden_found']:
+                    print(f"    HALLUCINATIONS: {score['forbidden_found']}")
+                print(f"    Time: {analysis_time:.1f}s")
 
             except Exception as e:
-                print(f"  ERROR: {e}")
+                print(f"    ERROR: {e}")
                 import traceback
                 traceback.print_exc()
                 results["texts"][text_name]["models"][model] = {"error": str(e), "status": "ERROR"}
@@ -936,12 +942,16 @@ def main():
                 r = results["texts"][text_name]["models"][model]
                 if "error" in r:
                     row += f" | {'ERR':>8}"
-                else:
+                elif r.get("status") == "LOAD_FAILED":
+                    row += f" | {'LOAD':>8}"
+                elif "overall" in r:
                     status_marker = "+" if r["status"] == "PASS" else "-"
                     row += f" | {r['overall']:.1f}{status_marker:>3}"
                     scores.append(r["overall"])
                     char_score = (r.get("char_recall", 0) + r.get("char_precision", 0) + r.get("alias_quality", 0)) / 3
                     char_scores.append(char_score)
+                else:
+                    row += f" | {'?':>8}"
             else:
                 row += f" | {'-':>8}"
 
