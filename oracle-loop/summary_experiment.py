@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Summary Generation Experiment
+Summary Generation Experiment (End-to-End)
 
-Tests ChapterSummarizer across multiple models on short stories with known content.
-Evaluates both summary quality AND character list quality (the [Characters: ...] output).
+Tests which summary model produces the best summaries for downstream character
+extraction. Uses a fixed extraction model (qwen2.5:32b) so that differences
+in results are driven by summary quality, not extraction quality.
 
-Key insight: The character list in summaries feeds into MainCastExtractor, so
-poor character lists here cause downstream failures in character extraction.
+Two-phase design:
+  Phase 1: Load each summary model, generate summaries for all texts
+  Phase 2: Load extraction model once, run character extraction on every
+           model's summaries, score extraction results against ground truth
 
 Usage:
     python oracle-loop/summary_experiment.py           # Run all models on all texts
@@ -18,7 +21,6 @@ Results saved to: oracle-loop/state/summary_results.json
 """
 
 import json
-import re
 import sys
 import time
 from datetime import datetime
@@ -36,120 +38,69 @@ from src.llm.client import LLMClient, LLMConfig
 from src.pipeline.chapter_detection.pipeline import ChapterDetectionPipeline
 from src.pipeline.chapter_summary.summarizer import ChapterSummarizer
 from src.pipeline.chapter_summary.models import ChapterSummary
+from src.pipeline.character_extraction_v2.main_cast import MainCastExtractor, MainCastProfile
 
 
 # =============================================================================
-# GROUND TRUTH - Expected content for each test text
+# GROUND TRUTH - Expected characters for each test text
 # =============================================================================
 
-EXPECTED_CONTENT = {
+EXPECTED_CHARACTERS = {
     "cask_of_amontillado": {
-        # Characters that MUST appear in the character list
-        "required_characters": ["Montresor", "Fortunato"],
-        # Characters that should NOT appear (hallucinations, minor mentions)
-        "forbidden_characters": ["Luchresi"],  # Only mentioned, never appears
-        # Aliases that should be grouped (same person)
-        "alias_groups": [
-            # No complex aliases in this story
-        ],
-        # Key events that should be mentioned in summary
-        "key_events": [
-            "carnival",  # Setting is carnival season
-            "catacombs",  # Goes to catacombs
-            "wine",  # Amontillado wine is the lure
-            "chain",  # Fortunato is chained
-            "wall",  # Walled up alive
-        ],
-        # Things that should NOT be treated as characters
-        "non_characters": ["Amontillado", "catacombs", "carnival"],
+        "required": ["Montresor", "Fortunato"],
+        "forbidden": [],
+        "aliases": {
+            "Montresor": ["the narrator"],
+            "Fortunato": [],
+        },
     },
     "gift_of_the_magi": {
-        "required_characters": ["Della", "Jim"],
-        "forbidden_characters": ["Queen of Sheba", "King Solomon"],  # Biblical allusions, not characters
-        "alias_groups": [
-            ["Jim", "James Dillingham Young"],  # Same person
-            ["Della", "Mrs. James Dillingham Young"],  # Same person
-        ],
-        "key_events": [
-            "hair",  # Della sells her hair
-            "watch",  # Jim sells his watch
-            "combs",  # Gift of combs
-            "chain",  # Gift of watch chain
-            "Christmas",  # It's Christmas
-        ],
-        "non_characters": ["combs", "watch", "chain", "flat"],
+        "required": ["Della", "Jim"],
+        "forbidden": [],
+        "aliases": {
+            "Della": ["Mrs. James Dillingham Young"],
+            "Jim": ["James Dillingham Young", "Mr. James Dillingham Young"],
+        },
     },
     "monkeys_paw": {
-        "required_characters": ["Mr. White", "Mrs. White", "Herbert", "Morris"],
-        "forbidden_characters": [],
-        "alias_groups": [
-            ["Mr. White", "the old man", "father"],
-            ["Mrs. White", "the old woman", "mother"],
-            ["Herbert White", "Herbert"],
-            ["Sergeant-Major Morris", "Morris", "the sergeant-major"],
-        ],
-        "key_events": [
-            "paw",  # The monkey's paw
-            "wish",  # Making wishes
-            "200",  # 200 pounds compensation
-            "machinery",  # Herbert caught in machinery
-            "knock",  # Knocking at the door
-        ],
-        "non_characters": ["paw", "fire", "door"],
+        "required": ["Mr. White", "Mrs. White", "Herbert White", "Sergeant-Major Morris"],
+        "forbidden": [],
+        "aliases": {
+            "Mr. White": ["the old man", "father"],
+            "Mrs. White": ["the old woman", "mother"],
+            "Herbert White": ["Herbert"],
+            "Sergeant-Major Morris": ["Morris", "the sergeant-major"],
+        },
     },
     "berenice": {
-        "required_characters": ["Egaeus", "Berenice"],
-        "forbidden_characters": ["Mad'selle Salle"],  # Dancer mentioned in passing
-        "alias_groups": [
-            ["Egaeus", "the narrator"],
-        ],
-        "key_events": [
-            "teeth",  # Obsession with teeth
-            "library",  # Setting in library
-            "illness",  # Berenice's illness
-            "tomb",  # Violation of tomb
-            "box",  # Box with teeth
-        ],
-        "non_characters": ["teeth", "library", "box"],
+        "required": ["Egaeus", "Berenice"],
+        "forbidden": ["Mad'selle Salle"],
+        "aliases": {
+            "Egaeus": ["the narrator"],
+            "Berenice": [],
+        },
     },
     "masque_of_red_death": {
-        "required_characters": ["Prince Prospero", "Red Death"],
-        "forbidden_characters": [],
-        "alias_groups": [
-            ["Prince Prospero", "Prospero"],
-            ["the Red Death", "Red Death", "the masked figure"],
-        ],
-        "key_events": [
-            "plague",  # The Red Death plague
-            "abbey",  # Castellated abbey
-            "masquerade",  # Masquerade ball
-            "rooms",  # Seven colored rooms
-            "clock",  # Ebony clock
-            "midnight",  # Strikes midnight
-        ],
-        "non_characters": ["clock", "abbey", "rooms"],
+        "required": ["Prince Prospero", "the Red Death"],
+        "forbidden": [],
+        "aliases": {
+            "Prince Prospero": ["Prospero"],
+            "the Red Death": ["Red Death"],
+        },
     },
     "i_have_no_mouth": {
-        "required_characters": ["AM", "Ted", "Gorrister", "Benny", "Nimdok", "Ellen"],
-        "forbidden_characters": [],
-        "alias_groups": [
-            ["AM", "the computer", "Allied Mastercomputer"],
-            ["Ted", "the narrator"],
-        ],
-        "key_events": [
-            "computer",  # AM is a computer
-            "torture",  # Eternal torture
-            "ice",  # Ice caverns
-            "food",  # Canned food
-            "kill",  # Ted kills the others
-        ],
-        "non_characters": ["ice", "caverns", "cans"],
+        "required": ["AM", "Ted", "Gorrister", "Benny", "Nimdok", "Ellen"],
+        "forbidden": [],
+        "aliases": {
+            "AM": ["the computer", "Allied Mastercomputer"],
+            "Ted": ["the narrator"],
+        },
     },
 }
 
 
 # =============================================================================
-# MODELS TO TEST
+# MODELS TO TEST (as summary generators)
 # =============================================================================
 
 MODELS = [
@@ -165,6 +116,9 @@ MODELS = [
     "qwen3-next:80b-a3b-instruct-q8_0",
     "gpt-oss:120b",
 ]
+
+# Fixed extraction model - used to score all summaries equally
+EXTRACTION_MODEL = "qwen2.5:32b"
 
 
 # =============================================================================
@@ -265,10 +219,9 @@ def detect_chapters(text: str, text_name: str) -> list[dict]:
 
 
 # =============================================================================
-# MODEL PRE-WARMING (for large models like gpt-oss)
+# MODEL LOADING
 # =============================================================================
 
-# Maximum retries for model loading
 MAX_LOAD_RETRIES = 3
 LOAD_RETRY_DELAY = 30  # seconds - give Ollama time to finish unloading large models
 LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
@@ -276,21 +229,6 @@ LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
 
 def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bool, float, str]:
     """Load a model and measure the loading time.
-
-    This serves two purposes:
-    1. Ensures the model is fully loaded before analysis begins
-    2. Measures the load/swap time as a separate metric
-
-    Uses a direct httpx call with a shorter timeout (120s) instead of going
-    through LLMClient which has a 1200s timeout for inference. This prevents
-    20-minute hangs when model swaps fail.
-
-    For models already loaded in Ollama, this will be very fast (~1s).
-    For models that need to be swapped in, this captures the full swap time.
-
-    Args:
-        model: Model name
-        base_url: Ollama base URL
 
     Returns:
         Tuple of (success, load_time_seconds, message)
@@ -302,7 +240,6 @@ def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bo
     load_start = time.time()
     last_error = None
 
-    # Use shorter timeout for load test - 120s is plenty for model swap
     timeout = httpx.Timeout(connect=30.0, read=LOAD_TIMEOUT, write=30.0, pool=30.0)
 
     for attempt in range(MAX_LOAD_RETRIES):
@@ -311,7 +248,6 @@ def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bo
             time.sleep(LOAD_RETRY_DELAY)
 
         try:
-            # Send a simple query directly to Ollama to force model load
             with httpx.Client(base_url=base_url, timeout=timeout) as client:
                 response = client.post(
                     "/api/generate",
@@ -336,7 +272,6 @@ def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bo
         except httpx.TimeoutException as e:
             last_error = f"Timeout after {LOAD_TIMEOUT}s: {e}"
             print(f"  Load TIMEOUT (attempt {attempt + 1}): {last_error}")
-            # Timeouts are worth retrying - model might be swapping
             continue
 
         except Exception as e:
@@ -349,40 +284,33 @@ def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bo
 
 
 # =============================================================================
-# CORE SUMMARIZATION
+# PHASE 1: SUMMARY GENERATION
 # =============================================================================
 
-def run_summarization(
+def generate_summaries(
     text: str,
     chapters: list[dict],
     model: str,
-) -> tuple[list[ChapterSummary], float]:
-    """Run ChapterSummarizer with a specific model.
+) -> tuple[list[str], float]:
+    """Generate summaries for all chapters using the specified model.
 
     Model must already be loaded (caller handles load_model).
 
-    Args:
-        text: Full text content
-        chapters: List of chapter dicts with start/end positions
-        model: Model to use for summarization
-
     Returns:
-        Tuple of (summaries, analysis_time_seconds)
+        Tuple of (summary_strings, analysis_time_seconds)
+        Each summary string includes the [Characters: ...] annotation.
     """
-    # Create LLM client
     llm_config = LLMConfig.ollama(model=model)
     llm_client = LLMClient(llm_config)
 
     start = time.time()
 
-    # Create summarizer
     summarizer = ChapterSummarizer(
         llm_client=llm_client,
         summary_length="detailed",
     )
 
-    # Summarize each chapter
-    summaries = []
+    summary_strings = []
     for ch in chapters:
         chapter_text = text[ch["start"]:ch["end"]]
         summary = summarizer.summarize_chapter(
@@ -390,15 +318,44 @@ def run_summarization(
             chapter_index=ch["index"],
             chapter_title=ch["title"],
         )
-        summaries.append(summary)
+
+        # Build summary text with character list (as expected by MainCastExtractor)
+        chars_list = (summary.active_characters or []) + (summary.mentioned_characters or [])
+        if chars_list:
+            chars_str = f"\n[Characters: {', '.join(chars_list)}]"
+        else:
+            chars_str = ""
+
+        summary_strings.append(f"{summary.summary}{chars_str}")
 
     elapsed = time.time() - start
-    return summaries, elapsed
+    return summary_strings, elapsed
 
 
 # =============================================================================
-# SCORING
+# PHASE 2: CHARACTER EXTRACTION & SCORING
 # =============================================================================
+
+def run_extraction(summaries: list[str], model: str) -> tuple[list[MainCastProfile], float]:
+    """Run character extraction on summaries using the specified model.
+
+    Model must already be loaded (caller handles load_model).
+
+    Returns:
+        Tuple of (profiles, analysis_time_seconds)
+    """
+    llm_config = LLMConfig.ollama(model=model)
+    llm_client = LLMClient(llm_config)
+
+    start = time.time()
+    extractor = MainCastExtractor(llm_client=llm_client)
+    profiles = extractor.extract(
+        chapter_summaries=summaries,
+        use_two_pass=True,
+    )
+    elapsed = time.time() - start
+    return profiles, elapsed
+
 
 def normalize_name(name: str) -> str:
     """Normalize a character name for comparison."""
@@ -409,162 +366,100 @@ def names_match(name1: str, name2: str) -> bool:
     """Check if two names match (case-insensitive, handles substrings)."""
     n1 = normalize_name(name1)
     n2 = normalize_name(name2)
-
-    # Exact match
     if n1 == n2:
         return True
-
-    # Substring match (e.g., "Morris" matches "Sergeant-Major Morris")
     if n1 in n2 or n2 in n1:
         return True
-
     return False
 
 
-def extract_character_list(summaries: list[ChapterSummary]) -> list[str]:
-    """Extract all characters mentioned in summaries."""
-    all_chars = set()
-    for summary in summaries:
-        # Get active and mentioned characters
-        all_chars.update(summary.active_characters or [])
-        all_chars.update(summary.mentioned_characters or [])
-    return list(all_chars)
+def find_character(profiles: list[MainCastProfile], target_name: str) -> Optional[MainCastProfile]:
+    """Find a character profile matching the target name (including aliases)."""
+    for profile in profiles:
+        if names_match(profile.canonical_name, target_name):
+            return profile
+        for alias in profile.aliases:
+            if names_match(alias, target_name):
+                return profile
+    return None
 
 
-def find_in_list(char_list: list[str], target: str) -> bool:
-    """Check if a character is in the list (fuzzy match)."""
-    for char in char_list:
-        if names_match(char, target):
-            return True
-    return False
-
-
-def check_alias_grouping(summaries: list[ChapterSummary], alias_groups: list[list[str]]) -> tuple[int, int]:
-    """Check if aliases are properly grouped (appear together, not separately).
-
-    Returns: (correct_groups, total_groups)
-    """
-    if not alias_groups:
-        return 0, 0
-
-    all_chars = extract_character_list(summaries)
-    correct = 0
-    total = len(alias_groups)
-
-    for group in alias_groups:
-        # Find which aliases from this group appear in the character list
-        found_aliases = []
-        for alias in group:
-            if find_in_list(all_chars, alias):
-                found_aliases.append(alias)
-
-        # Good: only one alias from the group appears (properly merged)
-        # Bad: multiple aliases from the group appear separately
-        if len(found_aliases) <= 1:
-            correct += 1
-        # If 0 found, that's also "correct" for this metric (no split)
-
-    return correct, total
-
-
-def check_key_events(summaries: list[ChapterSummary], key_events: list[str]) -> tuple[int, int]:
-    """Check if key events are mentioned in summaries.
-
-    Returns: (found_events, total_events)
-    """
-    # Combine all summary text
-    all_text = " ".join(s.summary.lower() for s in summaries)
-
-    found = 0
-    for event in key_events:
-        if event.lower() in all_text:
-            found += 1
-
-    return found, len(key_events)
-
-
-def score_result(summaries: list[ChapterSummary], expected: dict) -> dict:
-    """Score the summarization result.
+def score_extraction(profiles: list[MainCastProfile], expected: dict) -> dict:
+    """Score character extraction results against ground truth.
 
     Metrics (weights):
-    - Character Recall (25%): Found all required characters?
-    - Character Precision (25%): No forbidden characters (hallucinations)?
-    - Alias Quality (25%): Aliases properly grouped (not split)?
-    - Event Coverage (25%): Key events mentioned in summary?
+    - Recall (40%): Found all required characters?
+    - Precision (30%): No hallucinated characters?
+    - Alias Quality (30%): Are aliases correctly grouped?
 
     Returns:
         Dictionary with scores and details
     """
-    required_chars = expected["required_characters"]
-    forbidden_chars = expected.get("forbidden_characters", [])
-    alias_groups = expected.get("alias_groups", [])
-    key_events = expected.get("key_events", [])
-
-    # Extract character list from summaries
-    char_list = extract_character_list(summaries)
+    required = expected["required"]
+    forbidden = expected.get("forbidden", [])
+    expected_aliases = expected.get("aliases", {})
 
     # Check required characters (recall)
     found_required = []
     missing_required = []
-    for req in required_chars:
-        if find_in_list(char_list, req):
-            found_required.append(req)
+    for req_name in required:
+        if find_character(profiles, req_name):
+            found_required.append(req_name)
         else:
-            missing_required.append(req)
+            missing_required.append(req_name)
 
-    recall_score = len(found_required) / len(required_chars) if required_chars else 1.0
+    recall_score = len(found_required) / len(required) if required else 1.0
 
-    # Check forbidden characters (precision)
-    found_forbidden = []
-    for forbidden in forbidden_chars:
-        if find_in_list(char_list, forbidden):
-            found_forbidden.append(forbidden)
+    # Check for forbidden characters (precision)
+    hallucinations = []
+    for forbidden_name in forbidden:
+        if find_character(profiles, forbidden_name):
+            hallucinations.append(forbidden_name)
 
-    # Precision: penalize for each forbidden character found
-    if forbidden_chars:
-        precision_score = 1.0 - (len(found_forbidden) / len(forbidden_chars))
-    else:
-        precision_score = 1.0
+    precision_score = 0.0 if hallucinations else 1.0
 
-    # Check alias grouping
-    correct_groups, total_groups = check_alias_grouping(summaries, alias_groups)
-    alias_score = correct_groups / total_groups if total_groups > 0 else 1.0
+    # Check alias quality
+    alias_scores = []
+    for char_name, expected_char_aliases in expected_aliases.items():
+        profile = find_character(profiles, char_name)
+        if not profile or not expected_char_aliases:
+            continue
 
-    # Check key events
-    found_events, total_events = check_key_events(summaries, key_events)
-    event_score = found_events / total_events if total_events > 0 else 1.0
+        found_aliases = 0
+        for exp_alias in expected_char_aliases:
+            if any(names_match(a, exp_alias) for a in profile.aliases):
+                found_aliases += 1
+
+        if expected_char_aliases:
+            alias_scores.append(found_aliases / len(expected_char_aliases))
+
+    alias_quality = sum(alias_scores) / len(alias_scores) if alias_scores else 1.0
 
     # Calculate overall score (weighted average, scale to 0-10)
     overall = (
-        recall_score * 0.25 +
-        precision_score * 0.25 +
-        alias_score * 0.25 +
-        event_score * 0.25
+        recall_score * 0.40 +
+        precision_score * 0.30 +
+        alias_quality * 0.30
     ) * 10.0
 
     # Determine status
-    if recall_score == 1.0 and precision_score == 1.0 and alias_score >= 0.75:
+    if recall_score == 1.0 and precision_score == 1.0:
         status = "PASS"
-    elif recall_score >= 0.75 and precision_score >= 0.75:
+    elif recall_score >= 0.75 and precision_score == 1.0:
         status = "PARTIAL"
     else:
         status = "FAIL"
 
     return {
-        "char_recall": round(recall_score * 10, 2),
-        "char_precision": round(precision_score * 10, 2),
-        "alias_quality": round(alias_score * 10, 2),
-        "event_coverage": round(event_score * 10, 2),
+        "recall": round(recall_score * 10, 2),
+        "precision": round(precision_score * 10, 2),
+        "alias_quality": round(alias_quality * 10, 2),
         "overall": round(overall, 2),
         "status": status,
-        "characters_found": char_list,
+        "characters_found": [p.canonical_name for p in profiles],
         "required_found": found_required,
         "required_missing": missing_required,
-        "forbidden_found": found_forbidden,
-        "alias_groups_correct": correct_groups,
-        "alias_groups_total": total_groups,
-        "events_found": found_events,
-        "events_total": total_events,
+        "hallucinations": hallucinations,
     }
 
 
@@ -596,11 +491,10 @@ def is_completed(results: dict, text_name: str, model: str) -> bool:
 def generate_summary_stats(results: dict, models_to_test: list, texts_to_test: list) -> dict:
     """Generate summary statistics from results."""
     summary = {
+        "extraction_model": EXTRACTION_MODEL,
         "models_tested": len(models_to_test),
         "texts_tested": len(texts_to_test),
         "champion_model": None,
-        "best_for_characters": None,
-        "best_for_events": None,
         "model_rankings": {},
         "perfect_models": [],
     }
@@ -617,17 +511,11 @@ def generate_summary_stats(results: dict, models_to_test: list, texts_to_test: l
     }
 
     model_scores = {}
-    model_char_scores = {}
-    model_event_scores = {}
-    model_pass_counts = {}
 
     for model in models_to_test:
         scores = []
-        char_scores = []
-        event_scores = []
-        analysis_times = []
-        load_times = []
-        total_times = []
+        summary_times = []
+        extraction_times = []
         pass_count = 0
 
         for text_name in texts_to_test:
@@ -635,63 +523,36 @@ def generate_summary_stats(results: dict, models_to_test: list, texts_to_test: l
                 model_result = results["texts"][text_name].get("models", {}).get(model)
                 if model_result and "overall" in model_result:
                     scores.append(model_result["overall"])
-                    # Character score = average of recall + precision + alias
-                    char_score = (
-                        model_result.get("char_recall", 0) +
-                        model_result.get("char_precision", 0) +
-                        model_result.get("alias_quality", 0)
-                    ) / 3
-                    char_scores.append(char_score)
-                    event_scores.append(model_result.get("event_coverage", 0))
                     if model_result.get("status") == "PASS":
                         pass_count += 1
-                    # Timing stats
-                    if "time_seconds" in model_result:
-                        analysis_times.append(model_result["time_seconds"])
-                    if "load_time_seconds" in model_result:
-                        load_times.append(model_result["load_time_seconds"])
-                    if "total_time_seconds" in model_result:
-                        total_times.append(model_result["total_time_seconds"])
+                    if "summary_time" in model_result:
+                        summary_times.append(model_result["summary_time"])
+                    if "extraction_time" in model_result:
+                        extraction_times.append(model_result["extraction_time"])
 
         if scores:
             avg_score = sum(scores) / len(scores)
-            avg_char = sum(char_scores) / len(char_scores)
-            avg_event = sum(event_scores) / len(event_scores)
-
             model_scores[model] = avg_score
-            model_char_scores[model] = avg_char
-            model_event_scores[model] = avg_event
-            model_pass_counts[model] = pass_count
 
             ranking_entry = {
                 "avg_score": round(avg_score, 2),
-                "avg_char_score": round(avg_char, 2),
-                "avg_event_score": round(avg_event, 2),
                 "pass_count": pass_count,
                 "total_texts": len(texts_to_test),
                 "size_gb": model_sizes.get(model, "unknown"),
             }
 
-            # Add timing stats if available
-            if analysis_times:
-                ranking_entry["avg_analysis_time"] = round(sum(analysis_times) / len(analysis_times), 2)
-            if load_times:
-                ranking_entry["avg_load_time"] = round(sum(load_times) / len(load_times), 2)
-            if total_times:
-                ranking_entry["avg_total_time"] = round(sum(total_times) / len(total_times), 2)
+            if summary_times:
+                ranking_entry["avg_summary_time"] = round(sum(summary_times) / len(summary_times), 2)
+            if extraction_times:
+                ranking_entry["avg_extraction_time"] = round(sum(extraction_times) / len(extraction_times), 2)
 
             summary["model_rankings"][model] = ranking_entry
 
         if pass_count == len(texts_to_test):
             summary["perfect_models"].append(model)
 
-    # Find champions
     if model_scores:
         summary["champion_model"] = max(model_scores, key=model_scores.get)
-    if model_char_scores:
-        summary["best_for_characters"] = max(model_char_scores, key=model_char_scores.get)
-    if model_event_scores:
-        summary["best_for_events"] = max(model_event_scores, key=model_event_scores.get)
 
     return summary
 
@@ -757,7 +618,6 @@ def main():
             break
 
     if model_filter:
-        # Filter to just the specified model
         matching = [m for m in MODELS if model_filter in m]
         if matching:
             models_to_test = matching
@@ -786,6 +646,7 @@ def main():
             results = {
                 "experiment_date": datetime.now().strftime("%Y-%m-%d"),
                 "experiment_timestamp": datetime.now().isoformat(),
+                "extraction_model": EXTRACTION_MODEL,
                 "texts": {},
                 "summary": {},
             }
@@ -793,25 +654,29 @@ def main():
         results = {
             "experiment_date": datetime.now().strftime("%Y-%m-%d"),
             "experiment_timestamp": datetime.now().isoformat(),
+            "extraction_model": EXTRACTION_MODEL,
             "texts": {},
             "summary": {},
         }
 
     print("=" * 70)
-    print("SUMMARY GENERATION EXPERIMENT")
+    print("SUMMARY MODEL EXPERIMENT (End-to-End)")
     print("=" * 70)
     print(f"Texts: {texts_to_test}")
-    print(f"Models: {len(models_to_test)} models")
-    print("Loop order: models (outer) → texts (inner) to minimize model swaps")
+    print(f"Summary models: {len(models_to_test)} models")
+    print(f"Extraction model: {EXTRACTION_MODEL} (fixed)")
+    print(f"Scoring: character extraction quality on generated summaries")
     if resume_mode:
         print("Mode: RESUME (skipping completed combinations)")
     print("=" * 70)
 
-    # Pre-load all texts and detect chapters (model-independent work)
+    # =========================================================================
+    # PRE-LOAD: Load all texts and detect chapters
+    # =========================================================================
     loaded_texts = {}  # text_name -> (text, chapters, expected)
     for text_name in texts_to_test:
         text_path = TEST_TEXTS[text_name]
-        expected = EXPECTED_CONTENT[text_name]
+        expected = EXPECTED_CHARACTERS[text_name]
 
         print(f"\n[LOAD] {text_name}")
 
@@ -831,8 +696,7 @@ def main():
         if text_name not in results["texts"]:
             results["texts"][text_name] = {
                 "expected": {
-                    "required_characters": expected["required_characters"],
-                    "key_events": expected["key_events"],
+                    "required": expected["required"],
                 },
                 "char_count": len(text),
                 "models": {},
@@ -853,13 +717,32 @@ def main():
 
     print(f"\nLoaded {len(loaded_texts)}/{len(texts_to_test)} texts successfully")
 
-    # Run models in outer loop to minimize model swaps
+    # =========================================================================
+    # PHASE 1: Generate summaries with each model
+    # =========================================================================
+    print(f"\n{'='*70}")
+    print("PHASE 1: SUMMARY GENERATION")
+    print(f"{'='*70}")
+
+    # model -> {text_name -> (summary_strings, time)}
+    model_summaries = {}
+
     for model in models_to_test:
         model_short = model.split(":")[0]
 
         print(f"\n{'='*70}")
-        print(f"MODEL: {model}")
+        print(f"SUMMARY MODEL: {model}")
         print(f"{'='*70}")
+
+        # Check if all texts already have results for this model (resume)
+        if resume_mode:
+            all_done = all(
+                is_completed(results, text_name, model)
+                for text_name in loaded_texts
+            )
+            if all_done:
+                print(f"  All texts already completed, skipping generation")
+                continue
 
         # Load model once for all texts
         load_success, load_time, load_msg = load_model(model)
@@ -877,6 +760,8 @@ def main():
 
         print(f"  Loaded in {load_time:.1f}s")
 
+        model_summaries[model] = {}
+
         for text_name, (text, chapters, expected) in loaded_texts.items():
             if resume_mode and is_completed(results, text_name, model):
                 print(f"\n  [{text_name}] SKIPPED (already completed)")
@@ -885,46 +770,93 @@ def main():
             print(f"\n  [{text_name}] Summarizing ({len(chapters)} chapters)...")
 
             try:
-                summaries, analysis_time = run_summarization(text, chapters, model)
-                score = score_result(summaries, expected)
+                summary_strings, summary_time = generate_summaries(text, chapters, model)
+                model_summaries[model][text_name] = (summary_strings, summary_time)
+                print(f"    Generated {len(summary_strings)} summaries in {summary_time:.1f}s")
 
-                results["texts"][text_name]["models"][model] = {
-                    **score,
-                    "time_seconds": round(analysis_time, 2),
-                    "load_time_seconds": round(load_time, 2),
-                    "load_success": True,
-                    "total_time_seconds": round(analysis_time + load_time, 2),
-                    "num_chapters": len(chapters),
-                }
-
-                print(f"    Characters found: {score['characters_found'][:5]}..." if len(score['characters_found']) > 5 else f"    Characters found: {score['characters_found']}")
-                print(f"    Status: {score['status']} | Overall: {score['overall']:.1f}/10")
-                print(f"    CharRecall: {score['char_recall']:.1f} | CharPrecision: {score['char_precision']:.1f} | "
-                      f"Alias: {score['alias_quality']:.1f} | Events: {score['event_coverage']:.1f}")
-                if score['required_missing']:
-                    print(f"    Missing chars: {score['required_missing']}")
-                if score['forbidden_found']:
-                    print(f"    HALLUCINATIONS: {score['forbidden_found']}")
-                print(f"    Time: {analysis_time:.1f}s")
+                # Show summary lengths as a quality indicator
+                total_chars = sum(len(s) for s in summary_strings)
+                print(f"    Total summary length: {total_chars:,} chars")
 
             except Exception as e:
                 print(f"    ERROR: {e}")
                 import traceback
                 traceback.print_exc()
                 results["texts"][text_name]["models"][model] = {"error": str(e), "status": "ERROR"}
+                save_results(results, models_to_test, texts_to_test)
 
-            save_results(results, models_to_test, texts_to_test)
+    # =========================================================================
+    # PHASE 2: Extract characters and score (fixed extraction model)
+    # =========================================================================
+    # Only run if there are summaries to score
+    models_to_score = [m for m in models_to_test if m in model_summaries and model_summaries[m]]
+    if not models_to_score:
+        print("\nNo new summaries to score (all completed or failed)")
+    else:
+        print(f"\n{'='*70}")
+        print(f"PHASE 2: CHARACTER EXTRACTION (using {EXTRACTION_MODEL})")
+        print(f"{'='*70}")
 
-    # Print summary table
+        # Load extraction model once
+        load_success, load_time, load_msg = load_model(EXTRACTION_MODEL)
+        if not load_success:
+            print(f"  FATAL: Extraction model failed to load: {load_msg}")
+            print(f"  Cannot score any summaries!")
+        else:
+            print(f"  Extraction model loaded in {load_time:.1f}s")
+
+            for model in models_to_score:
+                model_short = model.split(":")[0]
+                print(f"\n  --- Scoring summaries from: {model} ---")
+
+                for text_name, (summary_strings, summary_time) in model_summaries[model].items():
+                    expected = loaded_texts[text_name][2]  # (text, chapters, expected)
+
+                    print(f"\n  [{text_name}] Extracting characters...")
+
+                    try:
+                        profiles, extraction_time = run_extraction(summary_strings, EXTRACTION_MODEL)
+                        score = score_extraction(profiles, expected)
+
+                        results["texts"][text_name]["models"][model] = {
+                            **score,
+                            "summary_time": round(summary_time, 2),
+                            "extraction_time": round(extraction_time, 2),
+                            "load_success": True,
+                            "num_summaries": len(summary_strings),
+                            "total_summary_chars": sum(len(s) for s in summary_strings),
+                        }
+
+                        print(f"    Found: {score['characters_found']}")
+                        print(f"    Status: {score['status']} | Overall: {score['overall']:.1f}/10")
+                        print(f"    Recall: {score['recall']:.1f} | Precision: {score['precision']:.1f} | "
+                              f"Alias: {score['alias_quality']:.1f}")
+                        print(f"    Summary: {summary_time:.1f}s | Extraction: {extraction_time:.1f}s")
+                        if score['required_missing']:
+                            print(f"    Missing: {score['required_missing']}")
+                        if score['hallucinations']:
+                            print(f"    HALLUCINATIONS: {score['hallucinations']}")
+
+                    except Exception as e:
+                        print(f"    ERROR: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        results["texts"][text_name]["models"][model] = {"error": str(e), "status": "ERROR"}
+
+                    save_results(results, models_to_test, texts_to_test)
+
+    # =========================================================================
+    # SUMMARY TABLE
+    # =========================================================================
     print("\n" + "=" * 70)
-    print("SUMMARY")
+    print(f"RESULTS (extraction model: {EXTRACTION_MODEL})")
     print("=" * 70)
 
-    header = f"{'Model':<35}"
+    header = f"{'Summary Model':<35}"
     for text_name in texts_to_test:
         short_name = text_name[:8]
         header += f" | {short_name:>8}"
-    header += f" | {'Avg':>6} | {'Char':>5}"
+    header += f" | {'Avg':>6}"
     print(header)
     print("-" * len(header))
 
@@ -932,7 +864,6 @@ def main():
         model_short = model.split(":")[0][:33]
         row = f"{model_short:<35}"
         scores = []
-        char_scores = []
 
         for text_name in texts_to_test:
             if text_name in results["texts"] and model in results["texts"][text_name]["models"]:
@@ -945,8 +876,6 @@ def main():
                     status_marker = "+" if r["status"] == "PASS" else "-"
                     row += f" | {r['overall']:.1f}{status_marker:>3}"
                     scores.append(r["overall"])
-                    char_score = (r.get("char_recall", 0) + r.get("char_precision", 0) + r.get("alias_quality", 0)) / 3
-                    char_scores.append(char_score)
                 else:
                     row += f" | {'?':>8}"
             else:
@@ -954,10 +883,9 @@ def main():
 
         if scores:
             avg = sum(scores) / len(scores)
-            char_avg = sum(char_scores) / len(char_scores)
-            row += f" | {avg:>6.1f} | {char_avg:>5.1f}"
+            row += f" | {avg:>6.1f}"
         else:
-            row += f" | {'-':>6} | {'-':>5}"
+            row += f" | {'-':>6}"
 
         print(row)
 
@@ -965,11 +893,7 @@ def main():
     print("\n" + "-" * 70)
     print("KEY FINDINGS:")
     if results["summary"].get("champion_model"):
-        print(f"  Overall champion: {results['summary']['champion_model']}")
-    if results["summary"].get("best_for_characters"):
-        print(f"  Best for characters: {results['summary']['best_for_characters']}")
-    if results["summary"].get("best_for_events"):
-        print(f"  Best for events: {results['summary']['best_for_events']}")
+        print(f"  Best summary model: {results['summary']['champion_model']}")
     if results["summary"].get("perfect_models"):
         print(f"  Perfect models: {', '.join(results['summary']['perfect_models'])}")
 
