@@ -55,6 +55,31 @@ ALL_MODELS = [
 ]
 
 
+def get_recall(result: dict) -> float:
+    """Get recall score, handling both old and new field names."""
+    return result.get("recall", result.get("char_recall", 0))
+
+
+def get_precision(result: dict) -> float:
+    """Get precision score, handling both old and new field names."""
+    return result.get("precision", result.get("char_precision", 0))
+
+
+def get_hallucinations(result: dict) -> list:
+    """Get hallucinations list, handling both old and new field names."""
+    return result.get("hallucinations", result.get("forbidden_found", []))
+
+
+def get_summary_time(result: dict) -> float:
+    """Get summary generation time, handling both old and new field names."""
+    return result.get("summary_time", result.get("time_seconds", 0))
+
+
+def get_extraction_time(result: dict) -> float:
+    """Get extraction time, handling both old and new field names."""
+    return result.get("extraction_time", result.get("load_time_seconds", 0))
+
+
 class SummaryState:
     """Parsed state from summary_results.json."""
 
@@ -62,6 +87,7 @@ class SummaryState:
         self.experiment_date: str = ""
         self.experiment_timestamp: str = ""
         self.extraction_model: str = ""
+        self.is_end_to_end: bool = False
         self.texts: dict = {}
         self.summary: dict = {}
         self.file_exists: bool = False
@@ -81,6 +107,7 @@ class SummaryState:
             state.experiment_date = data.get("experiment_date", "")
             state.experiment_timestamp = data.get("experiment_timestamp", "")
             state.extraction_model = data.get("extraction_model", "")
+            state.is_end_to_end = "extraction_model" in data
             state.texts = data.get("texts", {})
             state.summary = data.get("summary", {})
         except Exception as e:
@@ -192,7 +219,8 @@ class StatusPanel(Static):
         if state.experiment_timestamp:
             lines.append(Text(f"Started: {state.experiment_timestamp}", style="dim"))
 
-        return Panel(Group(*lines), title="Summary Experiment (End-to-End)", border_style="blue")
+        title = "Summary Experiment (End-to-End)" if state.is_end_to_end else "Summary Experiment (Legacy)"
+        return Panel(Group(*lines), title=title, border_style="blue")
 
 
 class ResultsTable(Static):
@@ -240,8 +268,8 @@ class ResultsTable(Static):
                 elif "overall" in result:
                     overall = result["overall"]
                     scores.append(overall)
-                    recall_scores.append(result.get("recall", 0))
-                    precision_scores.append(result.get("precision", 0))
+                    recall_scores.append(get_recall(result))
+                    precision_scores.append(get_precision(result))
                     if status == "PASS":
                         cells.append(Text(f"{overall:.1f}+", style="green"))
                     elif status == "PARTIAL":
@@ -298,18 +326,19 @@ class SummaryPanel(Static):
         rankings = summary.get("model_rankings", {})
         if rankings:
             lines.append(Text(""))
-            lines.append(Text("Rankings (Score | Sum.T | Ext.T | Pass):", style="bold underline"))
+            lines.append(Text("Rankings (Score | Time 1 | Time 2 | Pass):", style="bold underline"))
             sorted_models = sorted(rankings.items(), key=lambda x: x[1].get("avg_score", 0), reverse=True)
             for model, data in sorted_models:
                 model_short = MODEL_SHORT_NAMES.get(model, model)
                 avg = data.get("avg_score", 0)
                 passes = data.get("pass_count", 0)
                 total = data.get("total_texts", 0)
-                sum_t = data.get("avg_summary_time", 0)
-                ext_t = data.get("avg_extraction_time", 0)
+                # Handle both old (avg_analysis_time/avg_load_time) and new (avg_summary_time/avg_extraction_time)
+                t1 = data.get("avg_summary_time", data.get("avg_analysis_time", 0))
+                t2 = data.get("avg_extraction_time", data.get("avg_load_time", 0))
                 size = data.get("size_gb", "?")
                 style = "green" if passes == total and total > 0 else ("yellow" if passes > 0 else "red")
-                time_str = f"{sum_t:>6.1f}s | {ext_t:>6.1f}s" if sum_t or ext_t else "     -  |      - "
+                time_str = f"{t1:>6.1f}s | {t2:>6.1f}s" if t1 or t2 else "     -  |      - "
                 lines.append(Text(f"  {model_short:<14} {avg:>4.1f} | {time_str} | {passes}/{total}  ({size}GB)", style=style))
 
         return Panel(Group(*lines) if lines else Text("No summary yet"), title="Key Findings", border_style="green")
@@ -357,20 +386,23 @@ class DetailsPanel(Static):
         lines.append(Text(""))
 
         lines.append(Text("Scores:", style="underline"))
-        lines.append(Text(f"  Recall:        {latest_result.get('recall', 0):>5.1f}/10  (40%)"))
-        lines.append(Text(f"  Precision:     {latest_result.get('precision', 0):>5.1f}/10  (30%)"))
-        lines.append(Text(f"  Alias Quality: {latest_result.get('alias_quality', 0):>5.1f}/10  (30%)"))
+        lines.append(Text(f"  Recall:        {get_recall(latest_result):>5.1f}/10"))
+        lines.append(Text(f"  Precision:     {get_precision(latest_result):>5.1f}/10"))
+        lines.append(Text(f"  Alias Quality: {latest_result.get('alias_quality', 0):>5.1f}/10"))
+        # Show event coverage if present (old format)
+        if "event_coverage" in latest_result:
+            lines.append(Text(f"  Event Cov:     {latest_result['event_coverage']:>5.1f}/10"))
         lines.append(Text(f"  Overall:       {latest_result.get('overall', 0):>5.1f}/10", style="bold"))
 
         lines.append(Text(""))
         lines.append(Text("Timing:", style="underline"))
-        sum_t = latest_result.get("summary_time", 0)
-        ext_t = latest_result.get("extraction_time", 0)
-        lines.append(Text(f"  Summary gen:   {sum_t:>6.1f}s"))
-        lines.append(Text(f"  Extraction:    {ext_t:>6.1f}s"))
-        lines.append(Text(f"  Total:         {sum_t + ext_t:>6.1f}s", style="bold"))
+        sum_t = get_summary_time(latest_result)
+        ext_t = get_extraction_time(latest_result)
+        lines.append(Text(f"  Summary/Analysis: {sum_t:>6.1f}s"))
+        lines.append(Text(f"  Extract/Load:     {ext_t:>6.1f}s"))
+        lines.append(Text(f"  Total:            {sum_t + ext_t:>6.1f}s", style="bold"))
 
-        # Summary quality info
+        # Summary quality info (new format only)
         num_sums = latest_result.get("num_summaries", 0)
         total_chars = latest_result.get("total_summary_chars", 0)
         if num_sums:
@@ -386,9 +418,9 @@ class DetailsPanel(Static):
         if missing:
             lines.append(Text(f"Missing: {', '.join(missing)}", style="red"))
 
-        hallucinations = latest_result.get("hallucinations", [])
-        if hallucinations:
-            lines.append(Text(f"Hallucinations: {', '.join(hallucinations)}", style="red bold"))
+        halls = get_hallucinations(latest_result)
+        if halls:
+            lines.append(Text(f"Hallucinations: {', '.join(halls)}", style="red bold"))
 
         return Panel(Group(*lines), title="Latest Result", border_style="cyan")
 
