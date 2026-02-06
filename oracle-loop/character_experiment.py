@@ -124,7 +124,7 @@ MODELS = [
 
 # Maximum retries for model loading
 MAX_LOAD_RETRIES = 3
-LOAD_RETRY_DELAY = 10  # seconds
+LOAD_RETRY_DELAY = 30  # seconds - give Ollama time to finish unloading large models
 LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
 
 
@@ -184,12 +184,8 @@ def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bo
             else:
                 last_error = f"HTTP {response.status_code}: {response.text[:200]}"
                 print(f"  Load attempt {attempt + 1} failed: {last_error}")
-                # Check for specific error that indicates model swap issue
-                if "EOF" in str(last_error) or "load request" in str(last_error):
-                    print(f"  Model swap in progress, will retry...")
-                    continue
-                # For other errors, don't retry
-                break
+                # Retry on any non-200 - model swap errors have various messages
+                continue
 
         except httpx.TimeoutException as e:
             last_error = f"Timeout after {LOAD_TIMEOUT}s: {e}"
