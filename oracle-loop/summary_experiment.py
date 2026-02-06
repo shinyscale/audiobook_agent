@@ -721,8 +721,9 @@ def load_text(text_path: Path) -> str:
     from src.ingestion.refine import _strip_gutenberg_boilerplate
 
     if text_path.suffix.lower() == ".pdf":
-        from src.ingestion.pdf import extract_text_from_pdf
-        text = extract_text_from_pdf(str(text_path))
+        from src.ingestion.pdf import PDFIngester
+        doc = PDFIngester().extract(text_path)
+        text = doc.text
     else:
         text = text_path.read_text()
 
