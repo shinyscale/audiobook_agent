@@ -485,7 +485,7 @@ def is_completed(results: dict, text_name: str, model: str) -> bool:
     model_result = results["texts"][text_name].get("models", {}).get(model)
     if model_result is None:
         return False
-    return model_result.get("status") not in (None, "ERROR", "LOAD_FAILED")
+    return model_result.get("status") not in (None, "ERROR", "LOAD_FAILED", "SUMMARIZED")
 
 
 def generate_summary_stats(results: dict, models_to_test: list, texts_to_test: list) -> dict:
@@ -775,11 +775,17 @@ def main():
             try:
                 summary_strings, summary_time = generate_summaries(text, chapters, model)
                 model_summaries[model][text_name] = (summary_strings, summary_time)
-                print(f"    Generated {len(summary_strings)} summaries in {summary_time:.1f}s")
-
-                # Show summary lengths as a quality indicator
                 total_chars = sum(len(s) for s in summary_strings)
-                print(f"    Total summary length: {total_chars:,} chars")
+                print(f"    Generated {len(summary_strings)} summaries in {summary_time:.1f}s ({total_chars:,} chars)")
+
+                # Write intermediate status so monitor can track Phase 1 progress
+                results["texts"][text_name]["models"][model] = {
+                    "status": "SUMMARIZED",
+                    "summary_time": round(summary_time, 2),
+                    "num_summaries": len(summary_strings),
+                    "total_summary_chars": total_chars,
+                }
+                save_results(results, models_to_test, texts_to_test)
 
             except Exception as e:
                 print(f"    ERROR: {e}")

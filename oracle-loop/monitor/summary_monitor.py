@@ -100,6 +100,7 @@ class SummaryState:
         """Get progress counters."""
         total_combos = len(ALL_TEXTS) * len(ALL_MODELS)
         load_failed = 0
+        summarized = 0
         scored = 0
         errors = 0
 
@@ -116,12 +117,15 @@ class SummaryState:
                     load_failed += 1
                 elif status == "ERROR" or "error" in result:
                     errors += 1
+                elif status == "SUMMARIZED":
+                    summarized += 1
                 elif "overall" in result:
                     scored += 1
 
         return {
             "total_combos": total_combos,
             "load_failed": load_failed,
+            "summarized": summarized,
             "scored": scored,
             "errors": errors,
         }
@@ -131,11 +135,11 @@ class SummaryState:
         progress = self.get_progress()
         if not self.texts:
             return "waiting"
-        total = progress["scored"] + progress["load_failed"] + progress["errors"]
-        if total == 0:
+        activity = progress["scored"] + progress["summarized"] + progress["load_failed"] + progress["errors"]
+        if activity == 0:
             return "loading_texts"
         non_failed = progress["total_combos"] - progress["load_failed"] - progress["errors"]
-        if progress["scored"] >= non_failed and non_failed > 0:
+        if non_failed > 0 and progress["scored"] >= non_failed:
             return "done"
         if self.is_end_to_end:
             if progress["scored"] > 0:
@@ -177,12 +181,16 @@ class StatusPanel(Static):
 
         lines.append(mode)
 
+        summarized = progress["summarized"]
         scored = progress["scored"]
         failed = progress["load_failed"]
         errors = progress["errors"]
         total = progress["total_combos"]
 
-        parts = [f"Scored: {scored}/{total - failed - errors}"]
+        parts = []
+        if summarized:
+            parts.append(f"Summaries generated: {summarized}")
+        parts.append(f"Scored: {scored}/{total - failed - errors}")
         if failed:
             parts.append(f"Load Failed: {failed}")
         if errors:
@@ -256,6 +264,8 @@ class ResultsTable(Static):
                     cells.append(Text("FAIL", style="red dim"))
                 elif "error" in result:
                     cells.append(Text("ERR", style="red"))
+                elif status == "SUMMARIZED":
+                    cells.append(Text("GEN", style="cyan dim"))
                 elif "overall" in result:
                     overall = result["overall"]
                     scores.append(overall)
