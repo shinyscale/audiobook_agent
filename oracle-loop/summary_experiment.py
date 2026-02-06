@@ -717,6 +717,9 @@ def main():
 
     print(f"\nLoaded {len(loaded_texts)}/{len(texts_to_test)} texts successfully")
 
+    # Save immediately so the monitor sees the new format
+    save_results(results, models_to_test, texts_to_test)
+
     # =========================================================================
     # PHASE 1: Generate summaries with each model
     # =========================================================================
