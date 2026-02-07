@@ -171,12 +171,25 @@ CONSOLIDATED_ALIAS_PROMPT = """You are analyzing characters extracted from chapt
 ## Your Task
 
 For EACH character above:
-1. List all aliases (other names/titles/descriptions referring to this person)
+1. List ALL aliases (every other name, title, or description referring to this person)
 2. Identify if any characters in this list are actually THE SAME PERSON (duplicates)
 
-## Critical Rules
+## Alias Rules — Be Thorough
+
+Include EVERY variant used in the summaries. Common alias types to look for:
+
+- **Shortened names**: first-name-only or last-name-only forms (e.g., "Herbert White" → "Herbert", "Prince Prospero" → "Prospero")
+- **Title variations**: with or without title/rank (e.g., "Sergeant-Major Morris" → "Morris", "the sergeant-major")
+- **Family/role terms**: if summaries refer to a character as "father", "mother", "the old man", "the old woman", etc., include these as aliases for the named character they describe
+- **Descriptive handles**: phrases like "the stranger", "the creature", "the old man" that refer to a named character
+- **Narrator references**: if a character IS the first-person narrator, include "the narrator" as their alias
+- **Formal/informal forms**: married names, maiden names, full name vs. nickname
+
+Scan every chapter summary for references to each character — aliases often appear in chapters where the proper name is not used.
+
+## Merge Rules
+
 - If two entries are the same person, mark the LESS COMMON name as "merge_into" the MORE COMMON name
-- Consider: married/maiden names, titles (Mr./Dr./Colonel), nicknames, relationship descriptions ("the narrator", "Victor's father")
 - DO NOT merge characters who are different people with similar names (e.g., siblings, spouses with same surname)
 - Characters with different first names are usually DIFFERENT people (e.g., "George Wilson" ≠ "Myrtle Wilson")
 - Characters with the same title/profession but different names are DIFFERENT people (e.g., "Professor Smith" ≠ "Professor Jones")
@@ -192,7 +205,7 @@ Return a JSON object with a "characters" array:
   "characters": [
     {{
       "canonical_name": "Victor Frankenstein",
-      "aliases": ["Victor", "the narrator"],
+      "aliases": ["Victor", "Frankenstein", "the narrator"],
       "uncertain_aliases": [],
       "merge_into": null
     }},
@@ -725,7 +738,7 @@ class MainCastExtractor:
             if not isinstance(char_data, dict):
                 continue
 
-            canonical_name = char_data.get("canonical_name", "").strip()
+            canonical_name = self._clean_canonical_name(char_data.get("canonical_name", "").strip())
             if not canonical_name:
                 continue
 
@@ -793,7 +806,11 @@ class MainCastExtractor:
                 overlap = len(source_words & target_words)
                 total_unique = len(source_words | target_words)
 
-                if total_unique > 5 and overlap / total_unique < 0.15:
+                # Descriptive handles (e.g., "the old man") are valid merge sources
+                # even with different roles and low description overlap
+                source_is_descriptive = self._is_descriptive_handle(source.canonical_name)
+
+                if total_unique > 5 and overlap / total_unique < 0.15 and not source_is_descriptive:
                     # Less than 15% word overlap in descriptions AND different roles - likely different people
                     logger.warning(
                         f"BLOCKED merge '{source.canonical_name}' ({source.role}) → '{target.canonical_name}' ({target.role}): "
@@ -834,6 +851,19 @@ class MainCastExtractor:
 
         return profiles
 
+    @staticmethod
+    def _clean_canonical_name(name: str) -> str:
+        """Strip parenthetical qualifiers from canonical names.
+
+        LLMs sometimes produce verbose canonical names like:
+          "the Red Death (as a spectral figure)"
+          "Herbert (the son)"
+        Strip the parenthetical to get a clean canonical name.
+        """
+        import re
+        cleaned = re.sub(r"\s*\(.*?\)\s*", " ", name).strip()
+        return cleaned if cleaned else name
+
     def _parse_pass1_results(self, result: list | dict) -> list[MainCastProfile]:
         """Parse Pass 1 character identification results."""
         profiles = []
@@ -864,7 +894,7 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = item.get("canonical_name", "").strip()
+            canonical = self._clean_canonical_name(item.get("canonical_name", "").strip())
             if not canonical:
                 continue
 
@@ -897,7 +927,7 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = item.get("canonical_name", "").strip()
+            canonical = self._clean_canonical_name(item.get("canonical_name", "").strip())
             if not canonical:
                 continue
 
@@ -1053,11 +1083,19 @@ class MainCastExtractor:
                 # "reader" / "audience" are similar meta-references
                 meta_references = {"narrator", "the narrator", "reader", "the reader", "audience", "the audience"}
                 if alias_lower in meta_references:
-                    logger.warning(
-                        f"BLOCKED alias: '{alias}' is a meta-reference (storytelling device), "
-                        f"not a valid character alias for '{profile.canonical_name}'"
-                    )
-                    continue
+                    # Exception: "the narrator" / "narrator" is valid for protagonists
+                    # in first-person narratives (e.g., Montresor, Egaeus, Ted)
+                    if alias_lower in ("narrator", "the narrator") and profile.role == "protagonist":
+                        logger.info(
+                            f"ALLOWED alias: '{alias}' for protagonist '{profile.canonical_name}' "
+                            f"(narrator is a valid alias for first-person protagonist)"
+                        )
+                    else:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' is a meta-reference (storytelling device), "
+                            f"not a valid character alias for '{profile.canonical_name}'"
+                        )
+                        continue
 
                 # NOTE: Object keyword blocking for aliases (clock, door, etc.) is handled by
                 # CharacterAgent._is_valid_alias() which runs during merge operations.
@@ -1238,16 +1276,21 @@ class MainCastExtractor:
                                         has_similar_part = True
                                         break
 
-                        if not shared_parts and not has_similar_part:
+                        # Descriptive handles (e.g., "the old man", "father") are valid
+                        # aliases even without co-occurrence or name overlap
+                        is_descriptive = self._is_descriptive_handle(alias)
+
+                        if not shared_parts and not has_similar_part and not is_descriptive:
                             logger.warning(
                                 f"BLOCKED alias: '{alias}' and '{profile.canonical_name}' appear in summaries "
                                 f"but NEVER co-occur in the same chapter and have no name overlap"
                             )
                             continue
                         else:
+                            reason = "descriptive handle" if is_descriptive else "share name parts or have similar surname"
                             logger.info(
                                 f"ALLOWED alias despite no co-occurrence: '{alias}' → '{profile.canonical_name}' "
-                                f"(share name parts or have similar surname, likely birth name/former identity)"
+                                f"({reason})"
                             )
 
                 # Passed verification
@@ -1779,6 +1822,44 @@ Return JSON:
 
         return votes
 
+    def _is_descriptive_handle(self, name: str) -> bool:
+        """Check if a name is a generic descriptive handle (not a proper name).
+
+        Descriptive handles like "the old man", "father", "the stranger" are
+        valid aliases for characters even when they don't co-occur or share
+        name parts with the canonical name.
+        """
+        name_lower = name.lower().strip()
+
+        descriptive_handles = {
+            # Family relationships
+            "father", "mother", "son", "daughter", "brother", "sister",
+            "uncle", "aunt", "grandfather", "grandmother", "grandchild",
+            "husband", "wife", "spouse", "parent", "child",
+            # Age/gender descriptors
+            "the old man", "the old woman", "the old one",
+            "the young man", "the young woman",
+            "the elder", "the younger",
+            # Generic role descriptors
+            "the visitor", "the guest", "the stranger",
+            "the traveler", "the merchant", "the soldier",
+            "the sergeant-major",
+            # Narrative role descriptors
+            "the narrator", "narrator",
+        }
+
+        if name_lower in descriptive_handles:
+            return True
+
+        # Match patterns like "the <adjective> <noun>" (e.g., "the tall man")
+        if name_lower.startswith("the ") and len(name_lower.split()) <= 4:
+            # Check if it lacks any capitalized proper-noun words (after "the")
+            words = name.strip().split()[1:]  # skip "the"
+            if all(w[0].islower() for w in words if w):
+                return True
+
+        return False
+
     def _are_different_titled_people(self, name1: str, name2: str) -> bool:
         """
         Check if two names represent different people based on different title prefixes.
@@ -1817,7 +1898,8 @@ Return JSON:
         name1_lower = name1.lower().strip()
         name2_lower = name2.lower().strip()
 
-        if name1_lower in generic_descriptors or name2_lower in generic_descriptors:
+        if (name1_lower in generic_descriptors or name2_lower in generic_descriptors
+                or self._is_descriptive_handle(name1) or self._is_descriptive_handle(name2)):
             # Generic descriptors are valid aliases for anyone
             logger.debug(
                 f"_are_different_titled_people: '{name1}' + '{name2}' -> False "
