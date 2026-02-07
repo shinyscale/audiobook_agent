@@ -759,6 +759,9 @@ def main():
                     "load_success": False,
                 }
             save_results(results, models_to_test, texts_to_test)
+            # Give Ollama time to recover from the failed load
+            print(f"  Waiting 60s for Ollama to recover...")
+            time.sleep(60)
             continue
 
         print(f"  Loaded in {load_time:.1f}s")
@@ -805,6 +808,10 @@ def main():
         print(f"\n{'='*70}")
         print(f"PHASE 2: CHARACTER EXTRACTION (using {EXTRACTION_MODEL})")
         print(f"{'='*70}")
+
+        # Give Ollama time to settle between phases (especially after large model failures)
+        print(f"  Waiting 30s for Ollama to settle before loading extraction model...")
+        time.sleep(30)
 
         # Load extraction model once
         load_success, load_time, load_msg = load_model(EXTRACTION_MODEL)
@@ -881,6 +888,8 @@ def main():
                     row += f" | {'ERR':>8}"
                 elif r.get("status") == "LOAD_FAILED":
                     row += f" | {'LOAD':>8}"
+                elif r.get("status") == "SUMMARIZED":
+                    row += f" | {'GEN':>8}"
                 elif "overall" in r:
                     status_marker = "+" if r["status"] == "PASS" else "-"
                     row += f" | {r['overall']:.1f}{status_marker:>3}"
