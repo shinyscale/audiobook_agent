@@ -219,68 +219,10 @@ def detect_chapters(text: str, text_name: str) -> list[dict]:
 
 
 # =============================================================================
-# MODEL LOADING
+# MODEL LOADING (shared via ollama_manager)
 # =============================================================================
 
-MAX_LOAD_RETRIES = 3
-LOAD_RETRY_DELAY = 30  # seconds - give Ollama time to finish unloading large models
-LOAD_TIMEOUT = 300  # seconds - allow time for large model swaps
-
-
-def load_model(model: str, base_url: str = "http://localhost:11434") -> tuple[bool, float, str]:
-    """Load a model and measure the loading time.
-
-    Returns:
-        Tuple of (success, load_time_seconds, message)
-    """
-    import httpx
-
-    print(f"  Loading model {model}...")
-
-    load_start = time.time()
-    last_error = None
-
-    timeout = httpx.Timeout(connect=30.0, read=LOAD_TIMEOUT, write=30.0, pool=30.0)
-
-    for attempt in range(MAX_LOAD_RETRIES):
-        if attempt > 0:
-            print(f"  Load retry {attempt}/{MAX_LOAD_RETRIES-1} after {LOAD_RETRY_DELAY}s delay...")
-            time.sleep(LOAD_RETRY_DELAY)
-
-        try:
-            with httpx.Client(base_url=base_url, timeout=timeout) as client:
-                response = client.post(
-                    "/api/generate",
-                    json={
-                        "model": model,
-                        "prompt": "Hello. Reply with just 'OK'.",
-                        "stream": False,
-                    },
-                )
-
-            load_time = time.time() - load_start
-
-            if response.status_code == 200:
-                print(f"  Model loaded in {load_time:.1f}s (attempt {attempt + 1})")
-                return True, load_time, "Model loaded"
-            else:
-                last_error = f"HTTP {response.status_code}: {response.text[:200]}"
-                print(f"  Load attempt {attempt + 1} failed: {last_error}")
-                # Retry on any non-200 - model swap errors have various messages
-                continue
-
-        except httpx.TimeoutException as e:
-            last_error = f"Timeout after {LOAD_TIMEOUT}s: {e}"
-            print(f"  Load TIMEOUT (attempt {attempt + 1}): {last_error}")
-            continue
-
-        except Exception as e:
-            last_error = str(e)
-            print(f"  Load EXCEPTION (attempt {attempt + 1}): {e}")
-
-    load_time = time.time() - load_start
-    print(f"  Load FAILED after {MAX_LOAD_RETRIES} attempts ({load_time:.1f}s): {last_error}")
-    return False, load_time, last_error or "Unknown error"
+from ollama_manager import load_model
 
 
 # =============================================================================
@@ -759,9 +701,6 @@ def main():
                     "load_success": False,
                 }
             save_results(results, models_to_test, texts_to_test)
-            # Give Ollama time to recover from the failed load
-            print(f"  Waiting 60s for Ollama to recover...")
-            time.sleep(60)
             continue
 
         print(f"  Loaded in {load_time:.1f}s")
@@ -808,10 +747,6 @@ def main():
         print(f"\n{'='*70}")
         print(f"PHASE 2: CHARACTER EXTRACTION (using {EXTRACTION_MODEL})")
         print(f"{'='*70}")
-
-        # Give Ollama time to settle between phases (especially after large model failures)
-        print(f"  Waiting 30s for Ollama to settle before loading extraction model...")
-        time.sleep(30)
 
         # Load extraction model once
         load_success, load_time, load_msg = load_model(EXTRACTION_MODEL)
