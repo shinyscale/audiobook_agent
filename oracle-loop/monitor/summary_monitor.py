@@ -147,6 +147,55 @@ class SummaryState:
             return "phase1"
         return "running"
 
+    def get_current_model(self) -> Optional[str]:
+        """Infer which model is currently being processed.
+
+        Looks for the first model in order that has some but not all texts done.
+        """
+        for model in ALL_MODELS:
+            has_any = False
+            has_all = True
+            for text_name in ALL_TEXTS:
+                if text_name not in self.texts:
+                    has_all = False
+                    continue
+                models = self.texts[text_name].get("models", {})
+                if model in models:
+                    has_any = True
+                else:
+                    has_all = False
+            if has_any and not has_all:
+                return model
+        # Check for first model with no entries at all
+        for model in ALL_MODELS:
+            has_any = False
+            for text_name in ALL_TEXTS:
+                if text_name in self.texts:
+                    models = self.texts[text_name].get("models", {})
+                    if model in models:
+                        has_any = True
+                        break
+            if not has_any:
+                return model
+        return None
+
+    def find_latest_entry(self) -> Optional[tuple[str, str, dict]]:
+        """Find the most recently added result entry (any status).
+
+        Walks models in order, then texts in order, returns the last
+        entry that exists. This approximates "most recent" since the
+        experiment writes results sequentially.
+        """
+        latest = None
+        for model in ALL_MODELS:
+            for text_name in ALL_TEXTS:
+                if text_name not in self.texts:
+                    continue
+                models = self.texts[text_name].get("models", {})
+                if model in models:
+                    latest = (text_name, model, models[model])
+        return latest
+
 
 class StatusPanel(Static):
     def __init__(self, id: str = None):
@@ -187,15 +236,33 @@ class StatusPanel(Static):
         errors = progress["errors"]
         total = progress["total_combos"]
 
-        parts = []
-        if summarized:
-            parts.append(f"Summaries generated: {summarized}")
-        parts.append(f"Scored: {scored}/{total - failed - errors}")
-        if failed:
-            parts.append(f"Load Failed: {failed}")
-        if errors:
-            parts.append(f"Errors: {errors}")
-        lines.append(Text("  ".join(parts)))
+        if phase == "phase1":
+            scorable = total - failed - errors
+            lines.append(Text(f"Summaries generated: {summarized}/{scorable}"))
+        elif phase in ("phase2", "done"):
+            scorable = total - failed - errors
+            parts = [f"Scored: {scored}/{scorable}"]
+            if summarized:
+                parts.append(f"Awaiting scoring: {summarized}")
+            lines.append(Text("  ".join(parts)))
+        else:
+            parts = []
+            if summarized:
+                parts.append(f"Summaries: {summarized}")
+            if scored:
+                parts.append(f"Scored: {scored}")
+            if failed:
+                parts.append(f"Failed: {failed}")
+            if errors:
+                parts.append(f"Errors: {errors}")
+            if parts:
+                lines.append(Text("  ".join(parts)))
+
+        # Show current model being worked on
+        current = state.get_current_model()
+        if current and phase in ("phase1", "running"):
+            current_short = MODEL_SHORT_NAMES.get(current, current)
+            lines.append(Text(f"Current model: {current_short}", style="cyan"))
 
         if state.is_end_to_end and state.extraction_model:
             ext_short = MODEL_SHORT_NAMES.get(state.extraction_model, state.extraction_model)
@@ -229,10 +296,13 @@ class ResultsTable(Static):
             return Panel(Text("Waiting for results...", style="dim"), title="Results")
 
         state = self.state
+        phase = state.get_phase()
 
-        # Scoring explanation at top
         if state.is_end_to_end:
-            title = "Results: Which summary model helps character extraction most? (0-10 scale)"
+            if phase == "phase1":
+                title = "Phase 1: Summary Generation Time (seconds)"
+            else:
+                title = "Results: Which summary model helps character extraction most? (0-10)"
         else:
             title = "Results: Summary char-list quality (0-10, OLD scoring - run new experiment)"
 
@@ -248,7 +318,8 @@ class ResultsTable(Static):
         for model in ALL_MODELS:
             model_short = MODEL_SHORT_NAMES.get(model, model[:12])
             cells = [model_short]
-            scores = []
+            scores = []       # for scored results (0-10)
+            gen_times = []     # for SUMMARIZED results (seconds)
 
             for text_name in ALL_TEXTS:
                 if text_name not in state.texts:
@@ -265,7 +336,10 @@ class ResultsTable(Static):
                 elif "error" in result:
                     cells.append(Text("ERR", style="red"))
                 elif status == "SUMMARIZED":
-                    cells.append(Text("GEN", style="cyan dim"))
+                    # Show generation time instead of just "GEN"
+                    t = result.get("summary_time", 0)
+                    gen_times.append(t)
+                    cells.append(Text(f"{t:.0f}s", style="cyan"))
                 elif "overall" in result:
                     overall = result["overall"]
                     scores.append(overall)
@@ -278,9 +352,13 @@ class ResultsTable(Static):
                 else:
                     cells.append(Text("?", style="dim"))
 
+            # AVG column: show score average if available, else time average
             if scores:
                 avg = sum(scores) / len(scores)
                 cells.append(Text(f"{avg:.1f}", style="bold white"))
+            elif gen_times:
+                avg_t = sum(gen_times) / len(gen_times)
+                cells.append(Text(f"{avg_t:.0f}s", style="cyan"))
             else:
                 cells.append(Text("-", style="dim"))
 
@@ -298,9 +376,64 @@ class RankingsPanel(Static):
         self.refresh()
 
     def render(self):
-        if not self.state or not self.state.summary:
-            return Panel(Text("Waiting for results...", style="dim"), title="Rankings")
+        state = self.state
+        if not state:
+            return Panel(Text("Waiting...", style="dim"), title="Rankings")
 
+        phase = state.get_phase()
+
+        # During Phase 1, show generation time summary instead of empty rankings
+        if phase == "phase1" and state.is_end_to_end:
+            return self._render_phase1_summary()
+
+        if not state.summary:
+            return Panel(Text("Waiting for Phase 2 scoring...", style="dim"), title="Rankings")
+
+        return self._render_rankings()
+
+    def _render_phase1_summary(self):
+        """Show per-model summary generation stats during Phase 1."""
+        state = self.state
+        lines = []
+        lines.append(Text("Summary generation progress by model:", style="bold underline"))
+        lines.append(Text(""))
+        lines.append(Text(f"{'Model':<14}  {'Texts':>5}  {'Avg Time':>8}  {'Total Chars':>11}", style="bold"))
+
+        for model in ALL_MODELS:
+            model_short = MODEL_SHORT_NAMES.get(model, model[:12])
+            times = []
+            total_chars = 0
+            status = None
+
+            for text_name in ALL_TEXTS:
+                if text_name not in state.texts:
+                    continue
+                models = state.texts[text_name].get("models", {})
+                if model not in models:
+                    continue
+                result = models[model]
+                s = result.get("status", "")
+                if s == "SUMMARIZED":
+                    times.append(result.get("summary_time", 0))
+                    total_chars += result.get("total_summary_chars", 0)
+                elif s == "LOAD_FAILED":
+                    status = "FAIL"
+
+            if status == "FAIL":
+                lines.append(Text(f"{model_short:<14}  {'LOAD FAILED':>5}", style="red dim"))
+            elif times:
+                avg_t = sum(times) / len(times)
+                style = "cyan"
+                lines.append(Text(
+                    f"{model_short:<14}  {len(times):>5}  {avg_t:>7.0f}s  {total_chars:>11,}",
+                    style=style,
+                ))
+            # Skip models with no entries yet (still waiting)
+
+        return Panel(Group(*lines) if lines else Text("Waiting..."), title="Phase 1 Progress", border_style="cyan")
+
+    def _render_rankings(self):
+        """Show scored rankings (Phase 2 / done)."""
         state = self.state
         summary = state.summary
         lines = []
@@ -324,11 +457,10 @@ class RankingsPanel(Static):
         if rankings:
             lines.append(Text(""))
 
-            # Build header based on format
             if state.is_end_to_end:
-                lines.append(Text("Model          Score  SumGen  Extract  Pass", style="bold underline"))
+                lines.append(Text(f"{'':>2} {'Model':<14} {'Score':>5}  {'SumGen':>6}  {'Extract':>7}  {'Pass':>4}", style="bold underline"))
             else:
-                lines.append(Text("Model          Score  Analys   Load   Pass", style="bold underline"))
+                lines.append(Text(f"{'':>2} {'Model':<14} {'Score':>5}  {'Analys':>6}  {'Load':>7}  {'Pass':>4}", style="bold underline"))
 
             sorted_models = sorted(rankings.items(), key=lambda x: x[1].get("avg_score", 0), reverse=True)
             for i, (model, data) in enumerate(sorted_models):
@@ -353,9 +485,9 @@ class RankingsPanel(Static):
 
                 rank = f"#{i+1}"
                 t1_s = f"{t1:>5.0f}s" if t1 else "    -"
-                t2_s = f"{t2:>5.0f}s" if t2 else "    -"
+                t2_s = f"{t2:>6.0f}s" if t2 else "     -"
                 lines.append(Text(
-                    f"{rank:>2} {model_short:<14} {avg:>4.1f}  {t1_s}  {t2_s}   {passes}/{total}",
+                    f"{rank:>2} {model_short:<14} {avg:>5.1f}  {t1_s}  {t2_s}   {passes}/{total}",
                     style=style,
                 ))
 
@@ -380,55 +512,66 @@ class DetailsPanel(Static):
 
         state = self.state
 
-        # Find the most recently added scored result
-        latest_text = latest_model = latest_result = None
-        for text_name in reversed(ALL_TEXTS):
-            if text_name not in state.texts:
-                continue
-            models = state.texts[text_name].get("models", {})
-            for model in reversed(ALL_MODELS):
-                if model not in models:
-                    continue
-                result = models[model]
-                if "overall" in result:
-                    latest_text, latest_model, latest_result = text_name, model, result
-                    break
-            if latest_result:
-                break
+        # Find the latest entry - prefer scored, fall back to any
+        latest = state.find_latest_entry()
+        if not latest:
+            return Panel(Text("No results yet", style="dim"), title="Latest Result")
 
-        if not latest_result:
-            return Panel(Text("No scored results yet", style="dim"), title="Latest Result")
+        latest_text, latest_model, latest_result = latest
+        status = latest_result.get("status", "?")
 
         lines = []
         model_short = MODEL_SHORT_NAMES.get(latest_model, latest_model)
         lines.append(Text(f"{latest_text} | {model_short}", style="bold cyan"))
 
-        status = latest_result.get("status", "?")
-        style = "green" if status == "PASS" else ("yellow" if status == "PARTIAL" else "red")
-        lines.append(Text(f"Status: {status}  Overall: {latest_result.get('overall', 0):.1f}/10", style=style))
-        lines.append(Text(""))
+        if status == "SUMMARIZED":
+            # Phase 1 detail view
+            lines.append(Text(f"Status: SUMMARIZED (awaiting extraction)", style="cyan"))
+            lines.append(Text(""))
+            t = latest_result.get("summary_time", 0)
+            n = latest_result.get("num_summaries", 0)
+            chars = latest_result.get("total_summary_chars", 0)
+            lines.append(Text(f"  Generation time: {t:.1f}s"))
+            lines.append(Text(f"  Summaries: {n}"))
+            lines.append(Text(f"  Total chars: {chars:,}"))
+            if n > 0:
+                lines.append(Text(f"  Avg chars/summary: {chars // n:,}"))
 
-        # Scores - adapt labels to format
-        recall = state.get_result_field(latest_result, "recall", "char_recall")
-        precision = state.get_result_field(latest_result, "precision", "char_precision")
-        alias = latest_result.get("alias_quality", 0)
+        elif status == "LOAD_FAILED":
+            lines.append(Text(f"Status: LOAD FAILED", style="red"))
+            t = latest_result.get("load_time_seconds", 0)
+            lines.append(Text(f"  Load time: {t:.1f}s"))
 
-        lines.append(Text(f"  Recall:    {recall:>5.1f}/10  (found required characters?)"))
-        lines.append(Text(f"  Precision: {precision:>5.1f}/10  (no hallucinated characters?)"))
-        lines.append(Text(f"  Alias:     {alias:>5.1f}/10  (aliases grouped correctly?)"))
-        if "event_coverage" in latest_result:
-            lines.append(Text(f"  Events:    {latest_result['event_coverage']:>5.1f}/10  (key plot events mentioned?)"))
+        elif "overall" in latest_result:
+            # Scored result detail view
+            style = "green" if status == "PASS" else ("yellow" if status == "PARTIAL" else "red")
+            lines.append(Text(f"Status: {status}  Overall: {latest_result.get('overall', 0):.1f}/10", style=style))
+            lines.append(Text(""))
 
-        lines.append(Text(""))
-        chars = latest_result.get("characters_found", [])
-        if chars:
-            lines.append(Text(f"Found: {', '.join(chars)}", style="cyan"))
-        missing = latest_result.get("required_missing", [])
-        if missing:
-            lines.append(Text(f"Missing: {', '.join(missing)}", style="red"))
-        halls = latest_result.get("hallucinations", latest_result.get("forbidden_found", []))
-        if halls:
-            lines.append(Text(f"Hallucinated: {', '.join(halls)}", style="red bold"))
+            recall = state.get_result_field(latest_result, "recall", "char_recall")
+            precision = state.get_result_field(latest_result, "precision", "char_precision")
+            alias = latest_result.get("alias_quality", 0)
+
+            lines.append(Text(f"  Recall:    {recall:>5.1f}/10  (found required characters?)"))
+            lines.append(Text(f"  Precision: {precision:>5.1f}/10  (no hallucinated characters?)"))
+            lines.append(Text(f"  Alias:     {alias:>5.1f}/10  (aliases grouped correctly?)"))
+            if "event_coverage" in latest_result:
+                lines.append(Text(f"  Events:    {latest_result['event_coverage']:>5.1f}/10  (key plot events mentioned?)"))
+
+            lines.append(Text(""))
+            chars = latest_result.get("characters_found", [])
+            if chars:
+                lines.append(Text(f"Found: {', '.join(chars)}", style="cyan"))
+            missing = latest_result.get("required_missing", [])
+            if missing:
+                lines.append(Text(f"Missing: {', '.join(missing)}", style="red"))
+            halls = latest_result.get("hallucinations", latest_result.get("forbidden_found", []))
+            if halls:
+                lines.append(Text(f"Hallucinated: {', '.join(halls)}", style="red bold"))
+
+        elif "error" in latest_result:
+            lines.append(Text(f"Status: ERROR", style="red"))
+            lines.append(Text(f"  {latest_result['error'][:200]}", style="red dim"))
 
         return Panel(Group(*lines), title="Latest Result", border_style="cyan")
 
@@ -436,7 +579,7 @@ class DetailsPanel(Static):
 class SummaryMonitorApp(App):
     CSS = """
     Screen { layout: grid; grid-size: 2 3; grid-columns: 1fr 1fr; grid-rows: auto 1fr auto; }
-    #status { column-span: 2; height: auto; max-height: 8; }
+    #status { column-span: 2; height: auto; max-height: 9; }
     #results { column-span: 2; height: 100%; }
     #rankings { height: auto; min-height: 18; }
     #details { height: auto; min-height: 18; }
