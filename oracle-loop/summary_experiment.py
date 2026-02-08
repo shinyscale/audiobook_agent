@@ -134,6 +134,25 @@ EXPECTED_CHARACTERS = {
             "Safie": ["the Arabian"],
         },
     },
+    "dracula": {
+        "required": [
+            "Count Dracula", "Jonathan Harker", "Mina Harker",
+            "Abraham Van Helsing", "Dr. John Seward", "Lucy Westenra",
+            "Arthur Holmwood", "Quincey Morris", "Renfield",
+        ],
+        "forbidden": [],
+        "aliases": {
+            "Count Dracula": ["Dracula", "the Count"],
+            "Jonathan Harker": ["Jonathan", "Harker"],
+            "Mina Harker": ["Mina", "Mina Murray", "Mrs. Harker", "Madam Mina"],
+            "Abraham Van Helsing": ["Van Helsing", "Professor Van Helsing"],
+            "Dr. John Seward": ["Dr. Seward", "Seward", "Jack Seward"],
+            "Lucy Westenra": ["Lucy", "Miss Westenra"],
+            "Arthur Holmwood": ["Arthur", "Lord Godalming"],
+            "Quincey Morris": ["Quincey", "Morris"],
+            "Renfield": ["Mr. Renfield"],
+        },
+    },
 }
 
 
@@ -173,6 +192,7 @@ TEST_TEXTS = {
     # Novels (Tier 2)
     "gatsby": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/gatsby.txt"),
     "frankenstein": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/Frankenstein_ebook.txt"),
+    "dracula": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/Dracula - Bram Stoker.txt"),
 }
 
 
