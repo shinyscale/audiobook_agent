@@ -60,11 +60,14 @@ IMPORTANT - Do NOT mark these as chapter markers:
 - Bibliography citations or index references
 - Back matter that references chapters (appendix, notes, etc.)
 - Text that MENTIONS a chapter number but isn't a STRUCTURAL HEADING
+- Sub-section headers that recur throughout the text (e.g., diary entry headers like "Dr. Smith's Diary", letter headers like "Letter from John", journal dates). These divide content WITHIN chapters, not between them.
+- Character names or speaker attributions appearing as headers within a chapter
 
 CRITICAL DISTINCTIONS:
 - STRUCTURAL MARKER: "Chapter 5" appearing as a HEADING that divides the book into sections
 - NOT A MARKER: "...as explained in Chapter 5, the character..." (just a textual reference)
 - SCENE BREAK: "--------" or "***" marking a transition WITHIN a chapter (NOT a chapter boundary)
+- NOT A MARKER: A recurring header like a character's diary or journal entry (e.g., "Jonathan's Journal", "Dr. Smith's Diary") that appears many times throughout the text. These are sub-sections within chapters, not chapter boundaries themselves. Look for the higher-level structure (e.g., "Chapter I", "Chapter II") that contains these entries.
 
 CRITICAL: You must return the EXACT TEXT as it appears. We will search for your text - if you paraphrase, the search will fail."""
 

@@ -113,6 +113,27 @@ EXPECTED_CHARACTERS = {
             "George Wilson": ["Wilson"],
         },
     },
+    "frankenstein": {
+        "required": [
+            "Victor Frankenstein", "the creature", "Robert Walton",
+            "Elizabeth Lavenza", "Henry Clerval", "Alphonse Frankenstein",
+            "William Frankenstein", "Justine Moritz", "Felix De Lacey",
+            "Safie",
+        ],
+        "forbidden": [],
+        "aliases": {
+            "Victor Frankenstein": ["Victor", "Frankenstein"],
+            "the creature": ["the monster", "the wretch", "the daemon"],
+            "Robert Walton": ["Walton"],
+            "Elizabeth Lavenza": ["Elizabeth"],
+            "Henry Clerval": ["Clerval", "Henry"],
+            "Alphonse Frankenstein": ["Alphonse"],
+            "William Frankenstein": ["William"],
+            "Justine Moritz": ["Justine"],
+            "Felix De Lacey": ["Felix"],
+            "Safie": ["the Arabian"],
+        },
+    },
 }
 
 
@@ -151,6 +172,7 @@ TEST_TEXTS = {
     "i_have_no_mouth": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf"),
     # Novels (Tier 2)
     "gatsby": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/gatsby.txt"),
+    "frankenstein": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/Frankenstein_ebook.txt"),
 }
 
 

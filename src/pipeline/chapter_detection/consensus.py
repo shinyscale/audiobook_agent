@@ -422,7 +422,16 @@ class ConsensusBuilder:
                 f"  [{c.center_position}] '{c.best_title}' -> score={c.combined_score:.2f}"
             )
 
-        # 3.5. Competitive boundary validation (if enabled)
+        # 3.5a. Filter recurring sub-section headers (e.g., diary entries, letters)
+        pre_subsection_count = len(scored_clusters)
+        scored_clusters = self._filter_recurring_subsection_headers(scored_clusters)
+        if len(scored_clusters) != pre_subsection_count:
+            logger.info(
+                f"ConsensusBuilder: recurring header filter removed "
+                f"{pre_subsection_count - len(scored_clusters)} clusters"
+            )
+
+        # 3.5b. Competitive boundary validation (if enabled)
         if self._use_competitive_structure():
             pre_competitive_count = len(scored_clusters)
             scored_clusters = self._competitive_boundary_validation(scored_clusters, text)
@@ -610,6 +619,78 @@ class ConsensusBuilder:
                 cluster.combined_score = min(1.0, cluster.combined_score + 0.1)
 
         return clusters
+
+    def _filter_recurring_subsection_headers(
+        self,
+        clusters: list[ProposalCluster],
+    ) -> list[ProposalCluster]:
+        """Remove clusters whose titles indicate recurring sub-section headers.
+
+        Books structured as diaries, letters, or journals often have repeating
+        headers like "Dr. Smith's Diary" or "Letter from John" that appear many
+        times throughout the text. These are sub-sections within chapters, not
+        chapter boundaries. If the same base title appears 3+ times, it's
+        almost certainly a recurring sub-section header.
+
+        Hard boundaries (explicit "Chapter N" markers) are never filtered.
+        """
+        if len(clusters) < 4:
+            return clusters
+
+        # Normalize titles for grouping: lowercase, strip dates/numbers
+        def _normalize_title(title: str) -> str:
+            if not title:
+                return ""
+            t = title.lower().strip()
+            # Strip trailing dates, numbers, and punctuation
+            t = re.sub(r"[\d]+[a-z]*\s*$", "", t)  # trailing numbers
+            t = re.sub(r"\b\d{1,2}\s+\w+\.?\s*$", "", t)  # "25 September."
+            t = re.sub(r"[,.\-—]+\s*$", "", t)  # trailing punctuation
+            t = re.sub(r"\bcontinued\b", "", t)
+            return t.strip()
+
+        # Count how often each normalized title appears
+        title_counts: dict[str, int] = {}
+        for cluster in clusters:
+            if not cluster.best_title or cluster.best_title == "(untitled)":
+                continue
+            normalized = _normalize_title(cluster.best_title)
+            if not normalized:
+                continue
+            title_counts[normalized] = title_counts.get(normalized, 0) + 1
+
+        # Identify recurring titles (3+ occurrences)
+        recurring = {t for t, count in title_counts.items() if count >= 3}
+        if not recurring:
+            return clusters
+
+        logger.info(
+            f"Recurring sub-section headers detected: "
+            f"{', '.join(repr(t) for t in recurring)}"
+        )
+
+        filtered = []
+        for cluster in clusters:
+            # Never filter hard boundaries (explicit chapter markers)
+            if cluster.is_hard_boundary:
+                filtered.append(cluster)
+                continue
+
+            if not cluster.best_title or cluster.best_title == "(untitled)":
+                filtered.append(cluster)
+                continue
+
+            normalized = _normalize_title(cluster.best_title)
+            if normalized in recurring:
+                logger.debug(
+                    f"Filtered recurring header at {cluster.center_position}: "
+                    f"'{cluster.best_title}' (pattern: '{normalized}')"
+                )
+                continue
+
+            filtered.append(cluster)
+
+        return filtered
 
     def _select_boundaries(
         self,
