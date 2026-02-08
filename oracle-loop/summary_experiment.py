@@ -96,6 +96,23 @@ EXPECTED_CHARACTERS = {
             "Ted": ["the narrator"],
         },
     },
+    # --- Novels (Tier 2) ---
+    "gatsby": {
+        "required": [
+            "Nick Carraway", "Jay Gatsby", "Tom Buchanan", "Daisy Buchanan",
+            "Jordan Baker", "Myrtle Wilson", "George Wilson",
+        ],
+        "forbidden": [],
+        "aliases": {
+            "Nick Carraway": ["Nick", "the narrator"],
+            "Jay Gatsby": ["Gatsby", "James Gatz"],
+            "Tom Buchanan": ["Tom"],
+            "Daisy Buchanan": ["Daisy", "Daisy Fay"],
+            "Jordan Baker": ["Jordan", "Miss Baker"],
+            "Myrtle Wilson": ["Myrtle", "Mrs. Wilson"],
+            "George Wilson": ["Wilson"],
+        },
+    },
 }
 
 
@@ -132,6 +149,8 @@ TEST_TEXTS = {
     "berenice": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/Berenice - Poe.txt"),
     "masque_of_red_death": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/Masque of the Red Death - Poe.txt"),
     "i_have_no_mouth": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf"),
+    # Novels (Tier 2)
+    "gatsby": Path("/home/zacharymandrews/Tools/audiobook_agent/Test_Texts/gatsby.txt"),
 }
 
 

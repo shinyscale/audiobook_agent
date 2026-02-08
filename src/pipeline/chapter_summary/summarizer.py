@@ -506,7 +506,7 @@ class ChapterSummarizer:
         # Merge key_events with voting
         event_counts: Counter = Counter()
         for result in results:
-            events = result.get("key_events", [])
+            events = result.get("key_events") or []
             for event in events:
                 # Normalize event for comparison (lowercase, strip)
                 normalized = event.lower().strip()
@@ -515,7 +515,7 @@ class ChapterSummarizer:
         # Keep events with enough votes, preserve original casing from first occurrence
         event_originals: dict[str, str] = {}
         for result in results:
-            for event in result.get("key_events", []):
+            for event in result.get("key_events") or []:
                 normalized = event.lower().strip()
                 if normalized not in event_originals:
                     event_originals[normalized] = event
@@ -530,9 +530,9 @@ class ChapterSummarizer:
         active_char_counts: Counter = Counter()
         mentioned_char_counts: Counter = Counter()
         for result in results:
-            for char in result.get("active_characters", []):
+            for char in result.get("active_characters") or []:
                 active_char_counts[char.strip()] += 1
-            for char in result.get("mentioned_characters", []):
+            for char in result.get("mentioned_characters") or []:
                 mentioned_char_counts[char.strip()] += 1
 
         consensus_active = [char for char, count in active_char_counts.items() if count >= min_votes]
@@ -543,7 +543,7 @@ class ChapterSummarizer:
         best_score = -1
         for result in results:
             summary = result.get("summary", "")
-            events = result.get("key_events", [])
+            events = result.get("key_events") or []
             # Score = number of events that made it to consensus
             score = sum(
                 1 for e in events
@@ -564,7 +564,7 @@ class ChapterSummarizer:
         # Secondary tones - any tone mentioned by 2+ models
         secondary_tone_counts: Counter = Counter()
         for result in results:
-            for tone in result.get("secondary_tones", []):
+            for tone in result.get("secondary_tones") or []:
                 if tone in self._valid_tones():
                     secondary_tone_counts[tone] += 1
         secondary_tones = [
@@ -797,8 +797,8 @@ class ChapterSummarizer:
         return ChunkSummary(
             chunk_index=chunk_index,
             summary=result.get("summary", ""),
-            key_events=result.get("key_events", []),
-            characters_mentioned=result.get("characters_mentioned", []),
+            key_events=result.get("key_events") or [],
+            characters_mentioned=result.get("characters_mentioned") or [],
             tone=tone,
             word_count=word_count,
         )
@@ -912,7 +912,7 @@ class ChapterSummarizer:
             primary_tone = "reflective"
 
         secondary_tones = []
-        for t in result.get("secondary_tones", []):
+        for t in result.get("secondary_tones") or []:
             if t in self._valid_tones() and t != primary_tone:
                 secondary_tones.append(t)
 
@@ -922,18 +922,18 @@ class ChapterSummarizer:
 
         # Handle new active/mentioned character format with backward compatibility
         if "active_characters" in result:
-            active_characters = result.get("active_characters", [])
-            mentioned_characters = result.get("mentioned_characters", [])
+            active_characters = result.get("active_characters") or []
+            mentioned_characters = result.get("mentioned_characters") or []
         else:
             # Old format: all characters_present treated as active
-            active_characters = result.get("characters_present", [])
+            active_characters = result.get("characters_present") or []
             mentioned_characters = []
 
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
             summary=result.get("summary", ""),
-            key_events=result.get("key_events", []),
+            key_events=result.get("key_events") or [],
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,

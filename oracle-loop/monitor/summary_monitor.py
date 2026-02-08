@@ -45,9 +45,16 @@ MODEL_SHORT_NAMES = {
 }
 
 ALL_TEXTS = [
-    "cask_of_amontillado", "gift_of_the_magi", "monkeys_paw",
-    "berenice", "masque_of_red_death", "i_have_no_mouth",
+    "gatsby",
+    "frankenstein",
+    "dracula",
 ]
+
+TEXT_SHORT_NAMES = {
+    "gatsby": "gatsby",
+    "frankenstein": "franken",
+    "dracula": "dracula",
+}
 
 ALL_MODELS = [
     "qwen2.5:7b", "qwen2.5:14b", "qwen3:14b", "mistral-small3.2:24b",
@@ -276,9 +283,9 @@ class StatusPanel(Static):
         if state.experiment_timestamp:
             lines.append(Text(f"Started: {state.experiment_timestamp}", style="dim"))
 
-        title = "Summary Experiment"
+        title = "Summary Experiment — Tier 2 (Novels)"
         if state.is_end_to_end:
-            title += " (End-to-End)"
+            title += " — End-to-End"
         return Panel(Group(*lines), title=title, border_style="blue")
 
 
@@ -310,8 +317,8 @@ class ResultsTable(Static):
         table.add_column("Summary Model", style="cyan", width=14)
 
         for text_name in ALL_TEXTS:
-            short = text_name.replace("_", "")[:7]
-            table.add_column(short, justify="center", width=8)
+            short = TEXT_SHORT_NAMES.get(text_name, text_name[:8])
+            table.add_column(short, justify="center", width=12)
 
         table.add_column("AVG", justify="right", width=6, style="bold")
 
@@ -336,19 +343,25 @@ class ResultsTable(Static):
                 elif "error" in result:
                     cells.append(Text("ERR", style="red"))
                 elif status == "SUMMARIZED":
-                    # Show generation time instead of just "GEN"
+                    # Show generation time + chapter count
                     t = result.get("summary_time", 0)
+                    n = result.get("num_summaries", 0)
                     gen_times.append(t)
-                    cells.append(Text(f"{t:.0f}s", style="cyan"))
+                    label = f"{t:.0f}s {n}ch" if n else f"{t:.0f}s"
+                    cells.append(Text(label, style="cyan"))
                 elif "overall" in result:
                     overall = result["overall"]
                     scores.append(overall)
+                    # Show R(ecall)/A(lias) breakdown alongside score
+                    r = state.get_result_field(result, "recall", "char_recall", 0)
+                    a = result.get("alias_quality", 0)
+                    detail = f"{overall:.1f} R{r:.0f}A{a:.0f}"
                     if status == "PASS":
-                        cells.append(Text(f"{overall:.1f}", style="green"))
+                        cells.append(Text(detail, style="green"))
                     elif status == "PARTIAL":
-                        cells.append(Text(f"{overall:.1f}", style="yellow"))
+                        cells.append(Text(detail, style="yellow"))
                     else:
-                        cells.append(Text(f"{overall:.1f}", style="red"))
+                        cells.append(Text(detail, style="red"))
                 else:
                     cells.append(Text("?", style="dim"))
 
@@ -363,6 +376,26 @@ class ResultsTable(Static):
                 cells.append(Text("-", style="dim"))
 
             table.add_row(*cells)
+
+        # Footer row: text metadata (word count, expected chars)
+        meta_cells = [Text("chars/expect", style="dim italic")]
+        for text_name in ALL_TEXTS:
+            if text_name in state.texts:
+                text_data = state.texts[text_name]
+                char_count = text_data.get("char_count", 0)
+                expected = text_data.get("expected", {})
+                n_required = len(expected.get("required", []))
+                if char_count:
+                    words = char_count // 5  # rough word estimate
+                    label = f"{words // 1000}kw {n_required}exp"
+                else:
+                    label = f"{n_required}exp"
+                meta_cells.append(Text(label, style="dim"))
+            else:
+                meta_cells.append(Text("-", style="dim"))
+        meta_cells.append(Text("", style="dim"))
+        table.add_row(*meta_cells, end_section=False)
+
         return table
 
 
@@ -397,12 +430,13 @@ class RankingsPanel(Static):
         lines = []
         lines.append(Text("Summary generation progress by model:", style="bold underline"))
         lines.append(Text(""))
-        lines.append(Text(f"{'Model':<14}  {'Texts':>5}  {'Avg Time':>8}  {'Total Chars':>11}", style="bold"))
+        lines.append(Text(f"{'Model':<14}  {'Texts':>5}  {'Avg Time':>8}  {'Chapters':>8}  {'Total Chars':>11}", style="bold"))
 
         for model in ALL_MODELS:
             model_short = MODEL_SHORT_NAMES.get(model, model[:12])
             times = []
             total_chars = 0
+            total_chapters = 0
             status = None
 
             for text_name in ALL_TEXTS:
@@ -416,6 +450,7 @@ class RankingsPanel(Static):
                 if s == "SUMMARIZED":
                     times.append(result.get("summary_time", 0))
                     total_chars += result.get("total_summary_chars", 0)
+                    total_chapters += result.get("num_summaries", 0)
                 elif s == "LOAD_FAILED":
                     status = "FAIL"
 
@@ -425,7 +460,7 @@ class RankingsPanel(Static):
                 avg_t = sum(times) / len(times)
                 style = "cyan"
                 lines.append(Text(
-                    f"{model_short:<14}  {len(times):>5}  {avg_t:>7.0f}s  {total_chars:>11,}",
+                    f"{model_short:<14}  {len(times):>5}  {avg_t:>7.0f}s  {total_chapters:>8}  {total_chars:>11,}",
                     style=style,
                 ))
             # Skip models with no entries yet (still waiting)
@@ -458,7 +493,7 @@ class RankingsPanel(Static):
             lines.append(Text(""))
 
             if state.is_end_to_end:
-                lines.append(Text(f"{'':>2} {'Model':<14} {'Score':>5}  {'SumGen':>6}  {'Extract':>7}  {'Pass':>4}", style="bold underline"))
+                lines.append(Text(f"{'':>2} {'Model':<14} {'Score':>5}  {'R':>2} {'P':>2} {'A':>2}  {'SumGen':>6}  {'Pass':>4}", style="bold underline"))
             else:
                 lines.append(Text(f"{'':>2} {'Model':<14} {'Score':>5}  {'Analys':>6}  {'Load':>7}  {'Pass':>4}", style="bold underline"))
 
@@ -469,13 +504,6 @@ class RankingsPanel(Static):
                 passes = data.get("pass_count", 0)
                 total = data.get("total_texts", 0)
 
-                if state.is_end_to_end:
-                    t1 = data.get("avg_summary_time", 0)
-                    t2 = data.get("avg_extraction_time", 0)
-                else:
-                    t1 = data.get("avg_analysis_time", 0)
-                    t2 = data.get("avg_load_time", 0)
-
                 if passes == total and total > 0:
                     style = "green"
                 elif passes > 0:
@@ -484,12 +512,39 @@ class RankingsPanel(Static):
                     style = "red"
 
                 rank = f"#{i+1}"
-                t1_s = f"{t1:>5.0f}s" if t1 else "    -"
-                t2_s = f"{t2:>6.0f}s" if t2 else "     -"
-                lines.append(Text(
-                    f"{rank:>2} {model_short:<14} {avg:>5.1f}  {t1_s}  {t2_s}   {passes}/{total}",
-                    style=style,
-                ))
+
+                if state.is_end_to_end:
+                    t1 = data.get("avg_summary_time", 0)
+                    # Compute avg R/P/A across texts for this model
+                    r_vals, p_vals, a_vals = [], [], []
+                    for text_name in ALL_TEXTS:
+                        if text_name not in state.texts:
+                            continue
+                        models = state.texts[text_name].get("models", {})
+                        if model not in models:
+                            continue
+                        result = models[model]
+                        if "overall" in result:
+                            r_vals.append(state.get_result_field(result, "recall", "char_recall", 0))
+                            p_vals.append(state.get_result_field(result, "precision", "char_precision", 0))
+                            a_vals.append(result.get("alias_quality", 0))
+                    avg_r = sum(r_vals) / len(r_vals) if r_vals else 0
+                    avg_p = sum(p_vals) / len(p_vals) if p_vals else 0
+                    avg_a = sum(a_vals) / len(a_vals) if a_vals else 0
+                    t1_s = f"{t1:>5.0f}s" if t1 else "    -"
+                    lines.append(Text(
+                        f"{rank:>2} {model_short:<14} {avg:>5.1f}  {avg_r:>2.0f} {avg_p:>2.0f} {avg_a:>2.0f}  {t1_s}   {passes}/{total}",
+                        style=style,
+                    ))
+                else:
+                    t1 = data.get("avg_analysis_time", 0)
+                    t2 = data.get("avg_load_time", 0)
+                    t1_s = f"{t1:>5.0f}s" if t1 else "    -"
+                    t2_s = f"{t2:>6.0f}s" if t2 else "     -"
+                    lines.append(Text(
+                        f"{rank:>2} {model_short:<14} {avg:>5.1f}  {t1_s}  {t2_s}   {passes}/{total}",
+                        style=style,
+                    ))
 
         if not lines:
             lines.append(Text("No rankings yet", style="dim"))
@@ -557,6 +612,20 @@ class DetailsPanel(Static):
             lines.append(Text(f"  Alias:     {alias:>5.1f}/10  (aliases grouped correctly?)"))
             if "event_coverage" in latest_result:
                 lines.append(Text(f"  Events:    {latest_result['event_coverage']:>5.1f}/10  (key plot events mentioned?)"))
+
+            # Timing info
+            sum_t = latest_result.get("summary_time", 0)
+            ext_t = latest_result.get("extraction_time", 0)
+            n_ch = latest_result.get("num_summaries", 0)
+            if sum_t or ext_t:
+                timing_parts = []
+                if sum_t:
+                    timing_parts.append(f"Summary: {sum_t:.0f}s")
+                if ext_t:
+                    timing_parts.append(f"Extract: {ext_t:.0f}s")
+                if n_ch:
+                    timing_parts.append(f"Chapters: {n_ch}")
+                lines.append(Text(f"  {' | '.join(timing_parts)}", style="dim"))
 
             lines.append(Text(""))
             chars = latest_result.get("characters_found", [])
