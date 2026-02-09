@@ -1846,16 +1846,24 @@ Return JSON:
             "the sergeant-major",
             # Narrative role descriptors
             "the narrator", "narrator",
+            # Title/rank used as standalone reference
+            "the professor", "the doctor", "the captain",
+            "the lord", "the count", "the baron", "the colonel",
+            "the reverend", "the sergeant", "the inspector",
         }
 
         if name_lower in descriptive_handles:
             return True
 
-        # Match patterns like "the <adjective> <noun>" (e.g., "the tall man")
+        # Match patterns like "the <words>" with 2-4 total words
+        # Covers descriptive handles even when capitalized (e.g., "the Count",
+        # "the Arabian", "the Creature") — these are character descriptions,
+        # not proper multi-word names like "the Great Gatsby"
         if name_lower.startswith("the ") and len(name_lower.split()) <= 4:
-            # Check if it lacks any capitalized proper-noun words (after "the")
-            words = name.strip().split()[1:]  # skip "the"
-            if all(w[0].islower() for w in words if w):
+            words_after_the = name_lower.split()[1:]
+            # Allow if none of the words look like a multi-part proper name
+            # (single descriptive words are fine even if capitalized in original)
+            if len(words_after_the) <= 2:
                 return True
 
         return False
@@ -1909,7 +1917,7 @@ Return JSON:
 
         # Extract titles and surnames
         # M. = Monsieur (French equivalent of Mr.)
-        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+(.+)$"
+        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.|Professor|Prof\.|Lord|Lady|Sir|Dame|Count|Countess|Baron|Baroness|Captain|Capt\.|Colonel|Col\.|Sergeant|Sgt\.|Reverend|Rev\.|Father|Brother|Sister|Madame|Mme\.|Monsieur)\s+(.+)$"
 
         match1 = re.match(title_pattern, name1, flags=re.IGNORECASE)
         match2 = re.match(title_pattern, name2, flags=re.IGNORECASE)
@@ -1949,15 +1957,26 @@ Return JSON:
         # If the titled surname doesn't match the untitled name at all, different people
         # "Catherine" (single name) + "Mrs. McKee" → different people
         # "Gatsby" + "Mr. Gatsby" → same person
+        #
+        # Honorific titles that strongly indicate identity (Mr./Mrs./Miss/Ms./Dr./M.)
+        # are more reliable for blocking than rank/nobility titles (Lord, Count,
+        # Professor, Captain, etc.) which characters may acquire or be known by
+        # separately from their given name.
         elif match1 and not match2:
             # name1 has title, name2 doesn't
+            title1 = match1.group(1).lower().rstrip(".")
             surname1 = match1.group(2).strip().lower()
             name2_lower = name2.lower()
 
             # If the untitled name is NOT contained in the surname, different people
             # Exception: substring relationships are OK ("Gatsby" in "Mr. Gatsby")
+            # Only block for identity titles (Mr./Mrs./Miss/Ms./Dr./M.) — rank
+            # titles (Lord, Count, Professor, etc.) may represent the same person
+            # under a different name (e.g., "Lord Godalming" = "Arthur Holmwood")
+            identity_titles = {"mr.", "mrs.", "miss", "ms.", "dr.", "m."}
             if name2_lower not in surname1 and surname1 not in name2_lower:
-                return True
+                if match1.group(1).lower() in identity_titles:
+                    return True
 
         elif match2 and not match1:
             # name2 has title, name1 doesn't
@@ -1965,8 +1984,10 @@ Return JSON:
             name1_lower = name1.lower()
 
             # If the untitled name is NOT contained in the surname, different people
+            identity_titles = {"mr.", "mrs.", "miss", "ms.", "dr.", "m."}
             if name1_lower not in surname2 and surname2 not in name1_lower:
-                return True
+                if match2.group(1).lower() in identity_titles:
+                    return True
 
         # Otherwise, no conflict
         return False
