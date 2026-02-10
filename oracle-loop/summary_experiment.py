@@ -376,14 +376,37 @@ def names_match(name1: str, name2: str) -> bool:
     return False
 
 
-def find_character(profiles: list[MainCastProfile], target_name: str) -> Optional[MainCastProfile]:
-    """Find a character profile matching the target name (including aliases)."""
+def find_character(
+    profiles: list[MainCastProfile],
+    target_name: str,
+    known_aliases: list[str] = None,
+) -> Optional[MainCastProfile]:
+    """Find a character profile matching the target name (including aliases).
+
+    Args:
+        profiles: List of extracted character profiles to search
+        target_name: The expected character name to find
+        known_aliases: Optional list of known aliases for the target character
+            from ground truth. Enables bidirectional matching — if a profile's
+            canonical name matches a known alias, it counts as a match.
+            (e.g., found "Lord Godalming" matches expected "Arthur Holmwood"
+            because "Lord Godalming" is a known alias of Arthur Holmwood)
+    """
     for profile in profiles:
         if names_match(profile.canonical_name, target_name):
             return profile
         for alias in profile.aliases:
             if names_match(alias, target_name):
                 return profile
+        # Bidirectional: check if the profile's canonical name or aliases
+        # match any known alias of the target character
+        if known_aliases:
+            for known_alias in known_aliases:
+                if names_match(profile.canonical_name, known_alias):
+                    return profile
+                for alias in profile.aliases:
+                    if names_match(alias, known_alias):
+                        return profile
     return None
 
 
@@ -406,7 +429,8 @@ def score_extraction(profiles: list[MainCastProfile], expected: dict) -> dict:
     found_required = []
     missing_required = []
     for req_name in required:
-        if find_character(profiles, req_name):
+        req_aliases = expected_aliases.get(req_name, [])
+        if find_character(profiles, req_name, known_aliases=req_aliases):
             found_required.append(req_name)
         else:
             missing_required.append(req_name)
@@ -424,13 +448,18 @@ def score_extraction(profiles: list[MainCastProfile], expected: dict) -> dict:
     # Check alias quality
     alias_scores = []
     for char_name, expected_char_aliases in expected_aliases.items():
-        profile = find_character(profiles, char_name)
+        profile = find_character(profiles, char_name, known_aliases=expected_char_aliases)
         if not profile or not expected_char_aliases:
             continue
 
         found_aliases = 0
         for exp_alias in expected_char_aliases:
-            if any(names_match(a, exp_alias) for a in profile.aliases):
+            # Check both aliases AND canonical name — if the extraction picked
+            # an alternative canonical name (e.g., "Lord Godalming" instead of
+            # "Arthur Holmwood"), the canonical name itself is a valid "found alias"
+            if names_match(profile.canonical_name, exp_alias):
+                found_aliases += 1
+            elif any(names_match(a, exp_alias) for a in profile.aliases):
                 found_aliases += 1
 
         if expected_char_aliases:
