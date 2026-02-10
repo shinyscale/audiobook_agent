@@ -1762,191 +1762,119 @@ class AudiobookAnalyzer:
                 logger.warning(f"Early narrator detection failed: {e}")
                 print(f"   Narrator detection skipped (error: {e})")
 
-        # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
+        # Step 4.6: Generate Character Profiles using profiling pipeline (F2, F3)
         # Adaptive threshold based on text length
-        # For short texts (< 5000 words), use a lower threshold
-        # For normal texts (5000-50000 words), use standard threshold
-        # For long texts (> 50000 words), maintain standard threshold
         word_count = len(doc.text.split())
         if word_count < 5000:
-            # Short story: profile characters with 2+ mentions
             MIN_MENTIONS_FOR_PROFILE = 2
             logger.info(
                 f"Short text detected ({word_count} words) - using MIN_MENTIONS_FOR_PROFILE = 2"
             )
         else:
-            # Standard threshold for longer texts
             MIN_MENTIONS_FOR_PROFILE = 5
 
-        # Use characters-specific LLM client for profiles (same model as character extraction)
         profile_llm = self._get_agent_llm_client("characters") or llm
-        if profile_llm:
+        if profile_llm and pipeline_char_map.characters:
             print("📋 Generating character profiles...")
             self._write_progress(
                 "Character Profiles",
                 profile_llm.config.model if profile_llm and profile_llm.config else None,
             )
             with self._metrics.stage("Character Profiles") as ctx:
-                # Set model info from LLM client config (before running)
                 if profile_llm and profile_llm.config:
                     ctx.set_model(profile_llm.config.model, profile_llm.config.provider)
 
-                # F3: Initialize moral valence classifier
-                moral_valence_classifier = MoralValenceClassifier(profile_llm)
-                logger.info("F3: Moral valence classification enabled")
+                from .pipeline.character_profiling.pipeline import (
+                    CharacterProfilingPipeline,
+                    character_to_identified,
+                )
 
-                # Generate profiles for all characters with sufficient mentions
-                # SPECIAL CASE: Include narrators even if they have few explicit mentions
-                # (first-person narrators may use "I" throughout without saying their name)
                 # Helper to identify F6-reconciled characters (they have 12-char hex IDs)
                 def is_f6_reconciled(char_id: str) -> bool:
-                    """F6-reconciled characters have 12-char hash IDs (e.g., 25ec916d56b8)"""
                     return len(char_id) == 12 and all(c in '0123456789abcdef' for c in char_id)
 
+                # Filter to eligible characters
                 eligible_chars = [
                     c
                     for c in pipeline_char_map.characters
                     if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
                     or getattr(c, "is_narrator", False)
-                    or is_f6_reconciled(c.id)  # F6 characters always eligible (important enough to be in summaries)
+                    or is_f6_reconciled(c.id)
                 ]
                 logger.info(
                     f"Generating profiles for {len(eligible_chars)} eligible characters "
                     f"({MIN_MENTIONS_FOR_PROFILE}+ mentions, narrator, or F6-reconciled)"
                 )
+
+                # Convert pipeline Characters to IdentifiedCharacters for profiling pipeline
+                identified = [character_to_identified(c) for c in eligible_chars]
+
+                # Run the profiling pipeline (skips identification, only profiles)
+                profiling = CharacterProfilingPipeline(
+                    llm_client=profile_llm,
+                    generate_rich_profiles=True,
+                    progress_callback=self._wrap_progress("Character Profiles"),
+                )
+                narrative_style = "first-person" if narrator_detected else "unknown"
+                profile_map = profiling.profile_existing_characters(
+                    characters=identified,
+                    full_text=doc.text,
+                    chapter_map=chapter_map,
+                    summary_map=summary_map,
+                    narrator_name=narrator_detected,
+                    narrative_style=narrative_style,
+                    source_file=str(file_path),
+                )
+
+                # Map profiles back to pipeline Characters
                 profile_count = 0
                 high_conf_count = 0
                 medium_conf_count = 0
                 low_conf_count = 0
 
-                # Build character name list for collision detection and relationship extraction
-                # This helps avoid assigning evidence to the wrong character when names overlap
-                # (e.g., "John" vs "John Donaldson", "Mary" vs "Mary Smith")
-                all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
+                for char in eligible_chars:
+                    profile = profile_map.get_profile(char.canonical_name)
+                    if not profile:
+                        low_conf_count += 1
+                        continue
 
-                # F2: Initialize summary evidence extractor with character names for collision detection
-                summary_evidence_extractor = None
-                if summary_map:
-                    summary_evidence_extractor = SummaryEvidenceExtractor(
-                        profile_llm,
-                        all_character_names  # Required for detecting name substring collisions
-                    )
-                    logger.info("F2: Summary evidence extraction enabled with collision detection")
+                    # Store structured profile fields
+                    char.appearance = profile.appearance.to_dict()
+                    char.personality = profile.personality.to_dict()
+                    char.voice_guidance = profile.voice_guidance.to_dict()
+                    char.description = profile.personality.summary
+                    char.profile_confidence = profile.confidence
 
-                for i, char in enumerate(eligible_chars):
-                    logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
-
-                    # F2: Extract summary evidence for this character
-                    summary_evidence = None
-                    if summary_evidence_extractor and summary_map:
-                        try:
-                            # Check if this character is the narrator
-                            is_char_narrator = (
-                                narrator_detected and char.canonical_name == narrator_detected
-                            )
-                            narrative_style = "first-person" if narrator_detected else "unknown"
-
-                            summary_evidence = summary_evidence_extractor.extract_evidence(
-                                char.canonical_name,
-                                char.aliases,
-                                summary_map,
-                                is_narrator=is_char_narrator,
-                                narrative_style=narrative_style,
-                            )
-                            if summary_evidence.evidence:
-                                logger.debug(
-                                    f"F2: Found {len(summary_evidence.evidence)} summary evidence items "
-                                    f"for {char.canonical_name}"
-                                )
-                        except Exception as e:
-                            logger.warning(
-                                f"F2: Summary evidence extraction failed for {char.canonical_name}: {e}"
-                            )
-
-                    # F3: Classify moral valence to constrain profile generation
-                    moral_valence = None
-                    try:
-                        # Get character role from extraction (if available)
-                        role = "supporting"  # Default
-                        # Gather some context passages for valence classification
-                        char_contexts = []
-                        for mention in char.mentions[:10]:  # Sample up to 10 mentions
-                            start = max(0, mention.position - 200)
-                            end = min(len(doc.text), mention.position + 200)
-                            char_contexts.append(doc.text[start:end])
-
-                        moral_valence = moral_valence_classifier.classify_character(
-                            char.canonical_name,
-                            role,
-                            char_contexts,
-                        )
-                        if moral_valence:
-                            logger.debug(
-                                f"F3: Moral valence for {char.canonical_name}: "
-                                f"{moral_valence.valence.value} (confidence={moral_valence.confidence:.2f})"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"F3: Moral valence classification failed for {char.canonical_name}: {e}"
+                    # Convert relationships from list[CharacterRelationship] to dict
+                    if profile.relationships:
+                        char.relationships = {
+                            r.character: r.relationship_type
+                            for r in profile.relationships
+                        }
+                        logger.info(
+                            f"Assigned relationships for {char.canonical_name}: "
+                            f"{char.relationships}"
                         )
 
-                    # Generate profile with enhanced context
-                    profile, evidence, confidence, appearance, personality, voice_guidance, relationships = (
-                        self._generate_character_profile(
-                            profile_llm,
-                            char,
-                            doc.text,
-                            chapter_map=chapter_map,
-                            summary_evidence=summary_evidence,
-                            moral_valence=moral_valence,
-                            all_character_names=all_character_names,
-                        )
-                    )
+                    # Store evidence
+                    if profile.evidence:
+                        char.profile_evidence = [
+                            {
+                                "statement": e.statement,
+                                "quote": e.quote,
+                                "chapter": e.chapter,
+                            }
+                            for e in profile.evidence
+                        ]
 
-                    # Store structured profile fields FIRST (F8: Simplified Character Output)
-                    # These should be saved even if the profile description is empty,
-                    # since the LLM may have extracted relationships/appearance/etc.
-                    # but failed to generate the prose description.
-                    char.appearance = appearance
-                    char.personality = personality
-                    char.voice_guidance = voice_guidance
-                    # Always assign relationships, even if None (will use model default {})
-                    # This ensures we don't silently skip assignment when LLM provides data
-                    if relationships is not None:
-                        char.relationships = relationships
-                        logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
-
-                    if profile:
-                        char.description = profile
-                        profile_count += 1
-
-                        # Store evidence in character
-                        char.profile_evidence = evidence
-                        char.profile_confidence = confidence
-
-                        # Track confidence distribution
-                        if confidence >= 0.7:
-                            high_conf_count += 1
-                        elif confidence >= 0.4:
-                            medium_conf_count += 1
-                        else:
-                            low_conf_count += 1
-                            logger.warning(
-                                f"Low confidence profile for {char.canonical_name}: {confidence:.2f}"
-                            )
+                    profile_count += 1
+                    if profile.confidence >= 0.7:
+                        high_conf_count += 1
+                    elif profile.confidence >= 0.4:
+                        medium_conf_count += 1
                     else:
-                        char.profile_confidence = None
                         low_conf_count += 1
 
-                    # Update real-time progress
-                    self._metrics.update_stage_progress(
-                        items_processed=i + 1,
-                        high=high_conf_count,
-                        medium=medium_conf_count,
-                        low=low_conf_count,
-                    )
-
-                # Record metrics with confidence breakdown
                 ctx.record_items(
                     total=len(eligible_chars),
                     high_confidence=high_conf_count,

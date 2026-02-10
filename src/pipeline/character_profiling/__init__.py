@@ -37,7 +37,7 @@ from .narrator_commentary import (
     NarratorCommentaryResult,
 )
 from .passage_gatherer import CharacterPassage, CharacterPassageGatherer
-from .pipeline import CharacterProfilingPipeline, profile_characters
+from .pipeline import CharacterProfilingPipeline, character_to_identified, profile_characters
 from .reconciler import CharacterReconciler, reconcile_characters, verify_handoff_candidates
 from .summary_evidence import (
     CharacterSummaryEvidence,
@@ -98,6 +98,7 @@ __all__ = [
     "detect_handoffs",
     # Pipeline
     "CharacterProfilingPipeline",
+    "character_to_identified",
     "profile_characters",
     # Converter
     "profile_to_character",
