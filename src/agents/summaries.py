@@ -15,6 +15,7 @@ from ..pipeline.chapter_summary import (
     ChapterSummary,
     ChapterSummaryMap,
     ChapterSummaryPipeline,
+    SummaryVerificationGate,
 )
 from ..pipeline.llm import LLMClient
 from .base import (
@@ -398,6 +399,24 @@ class SummaryAgent(Agent):
             for summary in low_conf_summaries[:3]:  # Verify up to 3
                 llm_issues = self._llm_verify_summary(summary)
                 issues.extend(llm_issues)
+
+        # Check 6: Summary Verification Gate (character hallucination detection)
+        svg = SummaryVerificationGate()
+        svg_result = svg.verify(summary_map.summaries)
+        if svg_result.has_flags:
+            for flag in svg_result.flagged_characters:
+                severity = "warning" if flag.source == "regex" else "info"
+                issues.append(
+                    VerificationIssue(
+                        description=f"SVG: {flag.name} — {flag.reason}",
+                        severity=severity,
+                    )
+                )
+            if svg_result.llm_prompt:
+                suggestions.append(
+                    f"SVG flagged {len(svg_result.flagged_characters)} suspicious characters. "
+                    f"Run LLM verification prompt for deeper analysis."
+                )
 
         # Determine if passed
         error_count = sum(1 for i in issues if i.severity == "error")

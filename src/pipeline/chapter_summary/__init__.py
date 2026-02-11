@@ -12,6 +12,12 @@ from .models import (
 )
 from .pipeline import ChapterSummaryPipeline, summarize_chapters
 from .summarizer import ChapterSummarizer
+from .summary_verification import (
+    SummaryVerificationGate,
+    SVGResult,
+    FlaggedCharacter,
+)
+
 
 __all__ = [
     "ChapterSummary",
@@ -23,4 +29,7 @@ __all__ = [
     "ChapterSummaryPipeline",
     "ChapterSummarizer",
     "summarize_chapters",
+    "SummaryVerificationGate",
+    "SVGResult",
+    "FlaggedCharacter",
 ]
