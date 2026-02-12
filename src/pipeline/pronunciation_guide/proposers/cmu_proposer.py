@@ -267,6 +267,7 @@ COMMON_WORDS_WHITELIST = {
     "love",
     "hope",
     "faith",
+    "belief",
     "truth",
     "justice",
     "house",
@@ -652,7 +653,8 @@ class CMUProposer(BasePronunciationProposer):
         """
         Detect OCR artifacts (missing spaces between words).
 
-        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the), "himselffelt" (himself felt)
+        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the), "himselffelt" (himself felt),
+                  "himselfin" (himself in), "beliefin" (belief in)
 
         Strategy: Check if the word looks like a concatenation of known English words.
         Key constraint: At least one part must be a COMMON word (in whitelist) to avoid
@@ -662,7 +664,7 @@ class CMUProposer(BasePronunciationProposer):
 
         # Strategy: Try splitting at different positions
         # For "himselffelt" (11 chars), try splits at positions 3-8
-        min_part_length = 3  # Minimum length for each part
+        min_part_length = 2  # Reduced from 3 to catch "in" (2 chars)
         max_split_pos = len(word_lower) - min_part_length
 
         for split_pos in range(min_part_length, max_split_pos + 1):
@@ -675,9 +677,16 @@ class CMUProposer(BasePronunciationProposer):
             prefix_known = prefix in self.known_words
             remainder_known = remainder in self.known_words
 
+            # A word is a valid known word if it's either:
+            # - In the CMU dictionary, OR
+            # - In the common words whitelist (which includes stopwords not in CMU)
+            prefix_valid = prefix_known or prefix_common
+            remainder_valid = remainder_known or remainder_common
+
             # OCR artifacts typically involve at least one COMMON word
+            # AND both parts must be valid English words (in CMU or whitelist)
             # This prevents false positives like "flambeaux" = "flam" + "beaux"
-            if (prefix_common or remainder_common) and (prefix_known and remainder_known):
+            if (prefix_common or remainder_common) and (prefix_valid and remainder_valid):
                 logger.debug(
                     f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
                 )

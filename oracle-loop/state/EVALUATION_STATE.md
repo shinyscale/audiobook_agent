@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.98
 
 ## Output Files
@@ -126,6 +126,16 @@ Navigation functional, well-organized with tabs. Search and filtering work. Conf
   - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
   - Result: Pronunciation 6.5→7.5 (3 false positives removed, 2 artifacts remain)
 
+- Attempt 3 → 4: Improved OCR artifact detection for concatenated words
+  - Root cause: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py:_is_ocr_artifact()` - logic too strict
+  - Smoke test: PASS - "himselfin" and "beliefin" now correctly detected as artifacts
+  - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` lines 651-686
+  - Changes:
+    1. Reduced min_part_length from 3 to 2 (to catch short words like "in")
+    2. Fixed validation logic to accept words in CMU dict OR common words whitelist (previously required both in CMU, which failed for stopwords)
+    3. Added "belief" to common words whitelist
+  - Expected result: Pronunciation 7.5→8.0+ (removes "himselfin" and "beliefin" artifacts)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -133,6 +143,7 @@ Navigation functional, well-organized with tabs. Search and filtering work. Conf
 | 1 | Structure detection missed I./II./III. markers | `src/pipeline/chapter_detection/proposers/regex.py` | Fixed: 3 parts detected. Score 4→8.5 |
 | 2 | Pronunciation false positives (sideboard, sightless, mantelpiece) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Fixed: 3 entries removed. Score 6.5→7.5 |
 | 2 | Concatenation artifacts (himselfin, beliefin) | (investigated but not fixed - root cause not found) | No change: artifacts still present |
+| 3 | Concatenation artifacts (himselfin, beliefin) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Fixed: Improved _is_ocr_artifact() heuristic. Smoke test passed |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (MoE) — appropriate
@@ -142,8 +153,4 @@ Navigation functional, well-organized with tabs. Search and filtering work. Conf
 - Temperatures at 0.7 across all agents — acceptable
 
 ## Next Action
-Run PROMPT_fix.md to address concatenation artifacts in pronunciation (HIGH #1). Two approaches:
-1. **Preferred:** Add concatenation detection heuristic in pronunciation filtering — if a candidate "word" can be decomposed into two common English words, skip it. This is tractable and targeted.
-2. **Alternative:** Add diagnostic logging to text refinement pipeline to find upstream concatenation source. Previous investigation failed to find it.
-
-The fix needs to bring pronunciation from 7.5 → 8.0+ (remove 2 non-word artifacts).
+Re-run analysis to verify fix brings pronunciation from 7.5 → 8.0+.
