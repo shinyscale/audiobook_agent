@@ -3,13 +3,26 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- **Analysis completed in 30m 22s**
+- **NEW ERROR**: F6 reconciliation failed with: `'MentionResult' object has no attribute 'total_count'`
+  - This is different from the `supporting_strategies` error fixed in attempt 5
+  - F6 is now crashing at a different point (accessing MentionResult.total_count)
+- **PERSISTING ERROR**: Narrator detection failed with: `'CharacterMention' object has no attribute 'chapter_idx'`
+- Montresor still missing from character list (fallback still failing)
+- Competitive consensus ran successfully (3 LLMs, 2/3 supermajority) for characters, structure, summaries
+- 2 characters extracted: Fortunato (14 mentions), Luchresi (6 mentions)
+- 37 pronunciation flags generated
+- Warning: F19 flagged 5 potentially ungrounded evidence quotes for Fortunato
+- LLM errors on pronunciation for "himselffelt" and batch enrichment (model returning error dicts instead of data)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
