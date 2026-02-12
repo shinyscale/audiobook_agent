@@ -11,111 +11,74 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": true,
-      "attempts": 2,
-      "last_score": 9.45,
-      "final_score": 9.45,
-      "baseline_score": 4.20,
-      "notes": "PASS: All categories >= 8.0. Structure 10/10 (short story correctly identified), Characters 10/10 (Montresor/Fortunato/Luchresi), Profiles 9/10, Summaries 9/10, Pronunciation 9/10 (36 entries, 92% IPA), HTML 9/10."
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": true,
-      "attempts": 1,
-      "last_score": 9.55,
-      "final_score": 9.55,
-      "baseline_score": 9.30,
-      "notes": "Re-evaluated 2026-02-01. All categories >= 8.0. Structure 10/10 (short story), Characters 10/10 (Prospero, Red Death), Profiles 9/10, Summaries 9/10, Pronunciation 9/10 (45 entries, 91% IPA), HTML 10/10."
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": false,
-      "attempts": 2,
-      "last_score": 7.35,
-      "baseline_score": 7.80,
-      "notes": "Attempt 2: Egaeus correctly identified as narrator (fixed from attempt 1). CRITICAL: Mad'selle Salle (historical dancer) hallucinated as a character who interacts with Egaeus - she's only a literary reference. Summary hallucinates that she informs Egaeus of death (actually an unnamed servant). Character Extraction 6/10, Profiles 7/10, Summaries 6/10. FAIL - 3 categories below 8.0."
+      "attempts": 0
     },
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
       "complete": false,
-      "attempts": 3,
-      "last_score": 7.65,
-      "baseline_score": 7.90,
-      "notes": "Attempt 3: Character Extraction 5/10 - FALSE SPLIT (the old man separate from Mr. White), FALSE MERGE (the old woman aliased to the old man). Profiles 6.5/10 due to fragmentation. FAIL - 2 categories below 8.0."
+      "attempts": 0
     },
     {
       "name": "gift_of_the_magi",
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
       "complete": false,
-      "attempts": 1,
-      "last_score": 8.35,
-      "baseline_score": 8.35,
-      "notes": "Attempt 1: Della extracted as supporting_cast (not main_cast), causing empty profile. Character Extraction 7.5/10, Profiles 5.5/10, Pronunciation 7/10. FAIL - 3 categories below 8.0."
+      "attempts": 0
     },
     {
       "name": "a_camping_trip",
       "file": "Test_Texts/A Camping Trip.txt",
-      "complete": true,
-      "attempts": 2,
-      "last_score": 9.20,
-      "final_score": 9.20,
-      "baseline_score": 8.85
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
-      "complete": true,
-      "attempts": 18,
-      "last_score": 9.0,
-      "final_score": 9.0,
-      "baseline_score": 7.95
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "john_g",
       "file": "Test_Texts/John G - Katherine Mayo.txt",
-      "complete": true,
-      "attempts": 2,
-      "last_score": 8.90,
-      "final_score": 8.90,
-      "baseline_score": 7.35
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "i_have_no_mouth",
       "file": "Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf",
-      "complete": true,
-      "attempts": 5,
-      "last_score": 8.75,
-      "final_score": 8.75,
-      "baseline_score": 6.25
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "flowers_for_algernon",
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
-      "complete": true,
-      "attempts": 0,
-      "final_score": "SKIPPED",
-      "notes": "Scanned PDF - needs OCR"
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
-      "complete": true,
-      "attempts": 5,
-      "last_score": 8.98,
-      "final_score": 8.98,
-      "baseline_score": 7.35
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
       "complete": false,
-      "attempts": 5,
-      "last_score": 7.67,
-      "baseline_score": 6.35,
-      "notes": "Attempt 5: Creature extracted (+0.5 characters), but profiles broken (-1.0) and Walton narrator regressed. Overall 7.67, down from 7.88."
+      "attempts": 0
     },
     {
       "name": "dracula",

@@ -21,6 +21,22 @@ from .mention_search import MentionResult
 logger = logging.getLogger(__name__)
 
 
+def adaptive_min_mentions(word_count: int, default: int = 3) -> int:
+    """Scale minimum mention threshold by text length.
+
+    Short stories have tiny casts where characters may only be named
+    a handful of times before the text switches to pronouns.
+
+    Thresholds:
+        <=7,500 words  (short story) -> 1 mention
+        >7,500 words   (novella+)    -> default (3)
+    """
+    if word_count <= 7_500:
+        return 1
+    return default
+
+
+
 @dataclass
 class GroundingResult:
     """Result of grounding validation for a character."""

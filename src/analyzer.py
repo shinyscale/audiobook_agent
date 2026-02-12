@@ -1642,9 +1642,44 @@ class AudiobookAnalyzer:
                         f"F6: Found {len(missing_names)} character(s) in summaries but not in character list: {missing_names}"
                     )
 
-                    # Create minimal character entries for missing names
-                    # We'll give them medium confidence since they come from LLM summaries
+                    # DEFENSIVE: Verify each name has grounding in the raw text before creating
+                    # This prevents hallucinated characters from summary LLM errors (e.g., literary references)
+                    from .pipeline.character_extraction_v2.mention_search import MentionSearcher
+                    searcher = MentionSearcher(full_text=document.normalized_text, chapters=document.chapters)
+
+                    verified_names = []
                     for name in missing_names:
+                        # Create a temporary Character to search for mentions
+                        temp_char = Character(
+                            id="temp",
+                            canonical_name=name,
+                            aliases=[],
+                            mentions=[],
+                            first_appearance_chapter=0,
+                            mention_count=0,
+                            chapters_present=[],
+                            confidence=0.0,
+                        )
+
+                        # Search for mentions in raw text
+                        mention_result = searcher.search_character(temp_char)
+
+                        if mention_result.total_count >= 1:
+                            verified_names.append(name)
+                            logger.debug(f"F6: '{name}' verified with {mention_result.total_count} text mentions")
+                        else:
+                            logger.warning(
+                                f"F6: Rejecting '{name}' - appears in summary but has 0 text mentions (likely hallucination)"
+                            )
+
+                    if not verified_names:
+                        logger.info("F6: All candidate names rejected (no text grounding)")
+                    else:
+                        logger.info(f"F6: {len(verified_names)}/{len(missing_names)} names verified with text grounding")
+
+                    # Create minimal character entries for verified names only
+                    # We'll give them medium confidence since they come from LLM summaries
+                    for name in verified_names:
                         # Find which chapters this character appears in (from summaries)
                         chapters_present = []
                         for summary in summary_map.summaries:
@@ -1680,8 +1715,8 @@ class AudiobookAnalyzer:
 
                         pipeline_char_map.characters.append(new_character)
 
-                    print(f"   Added {len(missing_names)} character(s) from chapter summaries")
-                    logger.info(f"F6: Added characters: {', '.join(missing_names)}")
+                    print(f"   Added {len(verified_names)} character(s) from chapter summaries (verified with text grounding)")
+                    logger.info(f"F6: Added characters: {', '.join(verified_names)}")
                 else:
                     logger.info("F6: All characters from summaries already in character list")
             except Exception as e:

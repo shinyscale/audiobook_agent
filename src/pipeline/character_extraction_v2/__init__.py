@@ -13,7 +13,7 @@ We formalize this into a character list with aliases provided upfront,
 eliminating the need for complex merge heuristics.
 """
 
-from .grounding import GroundingGate, GroundingReport
+from .grounding import GroundingGate, GroundingReport, adaptive_min_mentions
 from .main_cast import MainCastExtractor, MainCastProfile
 from .mention_search import MentionResult, MentionSearcher
 from .narrator import NarratorDetector, NarratorInfo
@@ -26,6 +26,7 @@ __all__ = [
     "MentionResult",
     "GroundingGate",
     "GroundingReport",
+    "adaptive_min_mentions",
     "NarratorDetector",
     "NarratorInfo",
     "SupportingCastExtractor",

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80 (from attempt 1)
 
 ## Output Files
@@ -70,19 +70,34 @@
 
 ## Fix History
 - Attempt 1: Initial analysis, scored 7.80/10 - same issues present
+- Attempt 2: Fixed Mad'selle Salle hallucination (two-layer fix)
+  - **Root cause:** Summary LLM extracted literary references as if they were story participants; F6 blindly trusted summary character lists
+  - **Data flow trace:**
+    1. Source text: "Of Mad'selle Salle it has been well said..." (literary comparison in quoted French)
+    2. Summary LLM: Listed "Mad'selle Salle" in `active_characters` (should have been in `mentioned_characters` or omitted)
+    3. F6 Reconciliation: Created Character with hash ID `977f29a86b3a` (no grounding verification)
+    4. Summary generation: Hallucinated "Mad'selle Salle informs Egaeus of Berenice's death" (false narrative)
+  - **Fix #1 (Upstream - summarizer.py):** Added prompt guidance to exclude historical/literary figures mentioned only in comparisons/quotations
+  - **Fix #2 (Defensive - analyzer.py F6):** Added grounding verification before creating characters from summary lists
+  - **Smoke test:** Pending re-analysis
+  - **Modified:**
+    - `src/pipeline/chapter_summary/summarizer.py` (lines 115-126, 186-197)
+    - `src/analyzer.py` (lines 1640-1690)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Initial analysis | N/A | Baseline established |
-| 2 | Regenerated output (unknown changes) | Unknown | Same issues persist |
+| 2 | Mad'selle Salle hallucination | summarizer.py, analyzer.py | Awaiting verification |
 
 ## Next Action
-Run PROMPT_fix.md to address the "Mad'selle Salle" hallucination (Critical #1). The core fix should be in the character extraction prompts to distinguish between:
-- Characters who participate in the story's action (extract)
-- Historical/literary figures mentioned only for comparison or illustration (do not extract)
+Re-run analysis to verify the two-layer fix for hallucinated literary references:
+1. Summary prompts now exclude historical/literary figures mentioned only in comparisons
+2. F6 reconciliation now verifies grounding in raw text before creating characters
 
-This is a prompt engineering fix in `src/pipeline/character_extraction_v2/main_cast.py`, specifically in `CHARACTER_IDENTIFICATION_PROMPT` or `MAIN_CAST_PROMPT` to add guidance like:
-- "Do NOT extract historical figures, authors, or famous persons mentioned only in comparisons, quotations, or literary references"
-- "Only extract characters who PARTICIPATE in the story's events or interact with other characters"
+Expected outcomes:
+- Mad'selle Salle should NOT appear in summaries' `active_characters` lists
+- If she does appear (prompt guidance fails), F6 will reject her (0 grounding mentions)
+- Summary narrative should NOT include hallucinated interactions with Mad'selle Salle
+- The unnamed servant should still not be extracted (separate issue - needs descriptive character support)

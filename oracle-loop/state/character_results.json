@@ -1,0 +1,62 @@
+{
+  "experiment_date": "2026-02-05",
+  "experiment_timestamp": "2026-02-05T08:55:38.467640",
+  "texts": {
+    "cask_of_amontillado": {
+      "expected": {
+        "required": [
+          "Montresor",
+          "Fortunato"
+        ],
+        "narrator": "Montresor"
+      },
+      "char_count": 13029,
+      "models": {
+        "gpt-oss:120b": {
+          "recall": 10.0,
+          "precision": 10.0,
+          "alias_quality": 0.0,
+          "narrator": 10.0,
+          "overall": 7.5,
+          "status": "PASS",
+          "characters_found": [
+            "Montresor",
+            "Fortunato",
+            "Luchresi",
+            "Lady Fortunato"
+          ],
+          "required_found": [
+            "Montresor",
+            "Fortunato"
+          ],
+          "required_missing": [],
+          "hallucinations": [],
+          "time_seconds": 41.38,
+          "load_time_seconds": 1.19,
+          "load_success": true,
+          "total_time_seconds": 42.56
+        }
+      }
+    }
+  },
+  "summary": {
+    "models_tested": 1,
+    "texts_tested": 1,
+    "champion_model": "gpt-oss:120b",
+    "smallest_passing_model": "gpt-oss:120b",
+    "model_rankings": {
+      "gpt-oss:120b": {
+        "avg_score": 7.5,
+        "pass_count": 1,
+        "total_texts": 1,
+        "size_gb": 120,
+        "avg_analysis_time": 41.38,
+        "avg_load_time": 1.19,
+        "avg_total_time": 42.56
+      }
+    },
+    "perfect_models": [
+      "gpt-oss:120b"
+    ]
+  }
+}

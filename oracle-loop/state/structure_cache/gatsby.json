@@ -1,0 +1,60 @@
+{
+  "text_name": "gatsby",
+  "generated_at": "2026-02-07T16:58:50.011761",
+  "chapters": [
+    {
+      "index": 1,
+      "title": "I",
+      "start": 531,
+      "end": 33606
+    },
+    {
+      "index": 2,
+      "title": "II",
+      "start": 33606,
+      "end": 57277
+    },
+    {
+      "index": 3,
+      "title": "III",
+      "start": 57277,
+      "end": 89910
+    },
+    {
+      "index": 4,
+      "title": "IV",
+      "start": 89910,
+      "end": 120577
+    },
+    {
+      "index": 5,
+      "title": "V",
+      "start": 120577,
+      "end": 144186
+    },
+    {
+      "index": 6,
+      "title": "VI",
+      "start": 144186,
+      "end": 167062
+    },
+    {
+      "index": 7,
+      "title": "VII",
+      "start": 167062,
+      "end": 216365
+    },
+    {
+      "index": 8,
+      "title": "VIII",
+      "start": 216365,
+      "end": 241909
+    },
+    {
+      "index": 9,
+      "title": "IX",
+      "start": 241909,
+      "end": 270725
+    }
+  ]
+}

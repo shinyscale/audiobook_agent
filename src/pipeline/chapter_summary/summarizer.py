@@ -119,6 +119,11 @@ CRITICAL CHARACTER DISTINCTION:
 - "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
   discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
+DO NOT include in active_characters:
+- Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
+- Authors or famous persons cited as examples or allusions
+- Names appearing only in metaphors, similes, or literary references
+
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
 
@@ -189,6 +194,11 @@ CRITICAL CHARACTER DISTINCTION:
   or symbolic objects that drive the plot. Include the narrator if they participate.
 - "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
   discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
+
+DO NOT include in active_characters:
+- Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
+- Authors or famous persons cited as examples or allusions
+- Names appearing only in metaphors, similes, or literary references
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.

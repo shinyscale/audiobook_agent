@@ -29,6 +29,7 @@ from ..pipeline.character_extraction_v2 import (
     MentionSearcher,
     NarratorDetector,
     SupportingCastExtractor,
+    adaptive_min_mentions,
 )
 from ..utils.similarity import names_similar, string_similarity
 from ..utils.debug_log import append_debug_event
@@ -164,9 +165,16 @@ class CharacterAgent(Agent):
         characters = searcher.update_characters_with_mentions(characters, mention_results)
 
         # STEP 3: Apply grounding gate (F2b)
-        logger.info("V2 Step 3: Applying grounding gate")
+        word_count = len(context.text.split())
+        effective_min_mentions = adaptive_min_mentions(
+            word_count, default=self.min_grounding_mentions
+        )
+        logger.info(
+            f"V2 Step 3: Applying grounding gate "
+            f"(~{word_count:,} words, threshold={effective_min_mentions})"
+        )
         grounding_gate = GroundingGate(
-            min_mentions=self.min_grounding_mentions,
+            min_mentions=effective_min_mentions,
             remove_ungrounded_aliases=True,
         )
         grounding_report = grounding_gate.apply(characters, mention_results)
@@ -233,7 +241,7 @@ class CharacterAgent(Agent):
         main_cast_names = self._collect_all_names(main_cast)
         supporting_extractor = SupportingCastExtractor(
             context.text,
-            min_mentions=3,  # Lowered to capture narrators with few explicit name mentions
+            min_mentions=effective_min_mentions,
         )
         supporting_cast = supporting_extractor.extract(main_cast_names)
 

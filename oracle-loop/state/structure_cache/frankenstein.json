@@ -1,0 +1,174 @@
+{
+  "text_name": "frankenstein",
+  "generated_at": "2026-02-08T07:06:58.567132",
+  "chapters": [
+    {
+      "index": 1,
+      "title": "Chapter 2",
+      "start": 1000,
+      "end": 7254
+    },
+    {
+      "index": 2,
+      "title": "Letter 2",
+      "start": 7254,
+      "end": 14606
+    },
+    {
+      "index": 3,
+      "title": "Letter 3",
+      "start": 14606,
+      "end": 16309
+    },
+    {
+      "index": 4,
+      "title": "Letter 4",
+      "start": 16309,
+      "end": 31484
+    },
+    {
+      "index": 5,
+      "title": "Chapter 6",
+      "start": 31484,
+      "end": 41636
+    },
+    {
+      "index": 6,
+      "title": "Chapter 7",
+      "start": 41636,
+      "end": 54340
+    },
+    {
+      "index": 7,
+      "title": "Chapter 8",
+      "start": 54340,
+      "end": 69610
+    },
+    {
+      "index": 8,
+      "title": "Chapter 9",
+      "start": 69610,
+      "end": 84038
+    },
+    {
+      "index": 9,
+      "title": "Chapter 10",
+      "start": 84038,
+      "end": 97015
+    },
+    {
+      "index": 10,
+      "title": "Chapter 11",
+      "start": 97015,
+      "end": 112520
+    },
+    {
+      "index": 11,
+      "title": "Chapter 12",
+      "start": 112520,
+      "end": 132365
+    },
+    {
+      "index": 12,
+      "title": "Chapter 13",
+      "start": 132365,
+      "end": 149635
+    },
+    {
+      "index": 13,
+      "title": "Chapter 14",
+      "start": 149635,
+      "end": 162069
+    },
+    {
+      "index": 14,
+      "title": "Chapter 15",
+      "start": 162069,
+      "end": 175054
+    },
+    {
+      "index": 15,
+      "title": "Chapter 16",
+      "start": 175054,
+      "end": 190976
+    },
+    {
+      "index": 16,
+      "title": "Chapter 17",
+      "start": 190976,
+      "end": 202941
+    },
+    {
+      "index": 17,
+      "title": "Chapter 18",
+      "start": 202941,
+      "end": 214518
+    },
+    {
+      "index": 18,
+      "title": "Chapter 19",
+      "start": 214518,
+      "end": 224963
+    },
+    {
+      "index": 19,
+      "title": "Chapter 20",
+      "start": 224963,
+      "end": 242079
+    },
+    {
+      "index": 20,
+      "title": "Chapter 21",
+      "start": 242079,
+      "end": 259630
+    },
+    {
+      "index": 21,
+      "title": "Chapter 22",
+      "start": 259630,
+      "end": 269883
+    },
+    {
+      "index": 22,
+      "title": "Chapter 23",
+      "start": 269883,
+      "end": 286016
+    },
+    {
+      "index": 23,
+      "title": "Chapter 24",
+      "start": 286016,
+      "end": 300830
+    },
+    {
+      "index": 24,
+      "title": "Chapter 25",
+      "start": 300830,
+      "end": 319863
+    },
+    {
+      "index": 25,
+      "title": "Chapter 26",
+      "start": 319863,
+      "end": 340315
+    },
+    {
+      "index": 26,
+      "title": "Chapter 27",
+      "start": 340315,
+      "end": 359336
+    },
+    {
+      "index": 27,
+      "title": "Chapter 28",
+      "start": 359336,
+      "end": 373375
+    },
+    {
+      "index": 28,
+      "title": "Chapter 29",
+      "start": 373375,
+      "end": 419007
+    }
+  ]
+}
