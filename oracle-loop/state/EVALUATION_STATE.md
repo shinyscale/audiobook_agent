@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.15
 - **Competitive Mode:** single
 
@@ -62,13 +62,25 @@
    - Fix: When a text has only one structural unit, use the work's title as the chapter title.
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 2: Fixed Latin phrase false extraction (HIGH #1)
+  - Root cause: `supporting.py::_is_valid_name()` didn't filter multi-word foreign language phrases
+  - Smoke test: PASS - "amicae visitarem" now filtered, English names allowed
+  - Modified: `src/pipeline/character_extraction_v2/supporting.py`
+  - Approach: Added `_is_likely_foreign_phrase()` using universal grammatical patterns (Latin/Greek verb endings), not vocabulary lists
+  - Impact: Should filter Latin/Greek/foreign epigraph fragments in any book
+
+- Attempt 2: Added 8 common words to pronunciation exceptions (HIGH #2)
+  - Root cause: CMU and Foreign proposers lacking these common English words in exception lists
+  - Smoke test: PASS - All 8 words ("sentiments", "refracted", "sentient", "conformation", "tarried", "emaciation", "multiform", "aslant") now in both lists
+  - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `foreign_proposer.py`
+  - Note: Added TODO to replace deny-list approach with frequency-based filtering (wordfreq library)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | HIGH #1: Latin phrase false extraction | supporting.py | awaiting_analysis |
+| 2 | HIGH #2: Pronunciation false positives | cmu_proposer.py, foreign_proposer.py | awaiting_analysis |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (correct per user settings)
@@ -84,6 +96,7 @@
 | 1 | 8.15 | - | Baseline. Characters 7/10, Pronunciation 7/10 |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. HIGH #1: Remove false "amicae visitarem" character extraction
-2. HIGH #2: Add 8 common English words to pronunciation exception list
+Re-run analysis to verify fixes for HIGH #1 and HIGH #2.
+Expected improvements:
+- Characters: 7/10 → 8+/10 (remove false "amicae visitarem" extraction)
+- Pronunciation: 7/10 → 8+/10 (reduce false positives by 8 words)

@@ -557,6 +557,8 @@ COMMON_WORDS_WHITELIST = {
     "gentlemen",
     "ladies",
     # Common English words that may not be in CMU (fix for false positive flagging)
+    # NOTE: This deny-list approach is temporary - should be replaced with frequency-based
+    # filtering (e.g., wordfreq library) to avoid endless list expansion.
     "away",
     "dauntless",
     "magnificence",
@@ -565,6 +567,15 @@ COMMON_WORDS_WHITELIST = {
     "convulsed",
     "unutterable",
     "decorum",
+    # Additional common words flagged in berenice analysis (attempt 1)
+    "sentiments",
+    "refracted",
+    "sentient",
+    "conformation",
+    "tarried",
+    "emaciation",
+    "multiform",
+    "aslant",
 }
 
 # Contraction fragments that result from tokenization

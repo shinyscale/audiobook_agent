@@ -99,6 +99,8 @@ ENGLISH_EXCEPTIONS = {
     "conscious",
     "delicious",
     # Common English adverbs/direction words (fix for false foreign detection)
+    # NOTE: This deny-list approach is temporary - should be replaced with frequency-based
+    # filtering (e.g., wordfreq library) to avoid endless list expansion.
     "away",
     "dauntless",
     "magnificence",
@@ -107,6 +109,15 @@ ENGLISH_EXCEPTIONS = {
     "convulsed",
     "unutterable",
     "decorum",
+    # Additional common words flagged in berenice analysis (attempt 1)
+    "sentiments",
+    "refracted",
+    "sentient",
+    "conformation",
+    "tarried",
+    "emaciation",
+    "multiform",
+    "aslant",
     "mysterious",
     "suspicious",
     "ambitious",
