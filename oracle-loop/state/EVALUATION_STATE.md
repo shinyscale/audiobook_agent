@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -11,27 +11,14 @@
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
 
-## Pipeline Notes (Attempt 5)
-- **Analysis completed in 30m 22s**
-- **NEW ERROR**: F6 reconciliation failed with: `'MentionResult' object has no attribute 'total_count'`
-  - This is different from the `supporting_strategies` error fixed in attempt 5
-  - F6 is now crashing at a different point (accessing MentionResult.total_count)
-- **PERSISTING ERROR**: Narrator detection failed with: `'CharacterMention' object has no attribute 'chapter_idx'`
-- Montresor still missing from character list (fallback still failing)
-- Competitive consensus ran successfully (3 LLMs, 2/3 supermajority) for characters, structure, summaries
-- 2 characters extracted: Fortunato (14 mentions), Luchresi (6 mentions)
-- 37 pronunciation flags generated
-- Warning: F19 flagged 5 potentially ungrounded evidence quotes for Fortunato
-- LLM errors on pronunciation for "himselffelt" and batch enrichment (model returning error dicts instead of data)
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7/10 ✗ (FAILING)
+- Character Extraction: 6.5/10 ✗ (FAILING)
 - Character Profiles: 4/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 6/10 ✗ (FAILING)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.40/10** (reference only)
+- **Overall: 7.18/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -43,26 +30,27 @@
 | 2 | 6.65 | -0.10 | Bogus chars fixed (+1), but Montresor still missing. Fortunato profile improved but still has issues |
 | 3 | 7.58 | +0.83 | Montresor now in character list (fallback worked), but profile generation failed. F6 still broken. |
 | 4 | 7.40 | +0.65 | Attempt 4 fix introduced NEW error (Character constructor missing `supporting_strategies`). Same symptoms as attempt 3. Pronunciation false positive rate increased. |
+| 5 | 7.18 | +0.43 | `supporting_strategies` fix applied but F6 now fails with NEW error (`MentionResult.total_count`). Narrator fallback fails with `CharacterMention.chapter_idx`. Montresor STILL missing. Regression from attempt 3. |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Character constructor call missing `supporting_strategies` argument — blocks both F6 and narrator fallback**
-   - Problem: Both F6 reconciliation AND narrator fallback fail with: `Character.__init__() missing 1 required positional argument: 'supporting_strategies'`
-   - Evidence: Error logged during analyze phase. Montresor appears in character list but with `mention_count: 1` and completely empty profile (no appearance, personality, voice, relationships).
-   - Root cause: The attempt 4 fix modified how `Character` objects are constructed in F6 and narrator fallback, but the `Character` model requires a `supporting_strategies` argument that wasn't provided.
-   - **Fix approach:**
-     1. Check `src/models.py` for the `Character` class definition to see all required fields including `supporting_strategies`
-     2. Find the Character constructor calls in `src/analyzer.py` (F6 reconciliation ~line 1640-1720 and narrator fallback ~line 1769-1807)
-     3. Add the missing `supporting_strategies` argument (likely an empty list `[]` or appropriate default)
-     4. **IMPORTANT**: Also check if MentionSearcher import and usage from attempt 4 fix is correct — does it exist and return the expected data format?
-   - Impact: -3.5 on Character Profiles (protagonist has no profile), -1 on Character Extraction (mention count wrong)
-   - Location: `src/analyzer.py` — both F6 reconciliation and narrator fallback blocks
-   - **This is the SAME root issue for the 3rd consecutive attempt.** The file `src/analyzer.py` has been modified 4 times without successfully creating a valid `Character` object. The fix phase MUST:
-     1. Read the actual `Character` model definition in `src/models.py` to see ALL required fields
-     2. Find working examples of Character construction elsewhere in the codebase (e.g., in `src/pipeline/character_extraction_v2/`)
-     3. Copy that pattern exactly rather than guessing at constructor arguments
+1. **Montresor missing from character list — F6 and narrator fallback BOTH crash with different errors (5th consecutive attempt)**
+   - Problem: Montresor, the protagonist and first-person narrator, is not in the character list. Only 2 characters extracted (Fortunato and Luchresi).
+   - Evidence: `pipeline_metadata.narrator_name = "Montresor"` and `characters_present = ["Montresor", "Fortunato"]` in chapter summary, but Montresor is not in the `characters` array.
+   - **F6 error**: `'MentionResult' object has no attribute 'total_count'` (per EVALUATION_STATE notes from analyze phase)
+   - **Narrator fallback error**: `'CharacterMention' object has no attribute 'chapter_idx'` (per EVALUATION_STATE notes from analyze phase)
+   - **ROOT CAUSE ANALYSIS**: The attempt 4 fix added `MentionSearcher` usage to populate narrator fallback data, but the objects returned by `MentionSearcher` (`MentionResult`, `CharacterMention`) don't have the attributes the code expects. This has been a recurring pattern — the code keeps guessing at class APIs without reading their definitions.
+   - **FIX APPROACH — THE FIX PHASE MUST:**
+     1. **Read the actual class definitions** for `MentionResult` and `CharacterMention` (likely in `src/pipeline/character_extraction_v2/` or `src/models.py`) to see their actual attributes
+     2. **Read the `MentionSearcher` class** to understand what it returns and what attributes are available
+     3. **Find working examples** of how `MentionResult`/`CharacterMention` are used elsewhere in the codebase (grep for attribute access patterns)
+     4. Fix the attribute access in both F6 reconciliation AND narrator fallback to use correct attribute names
+     5. **If MentionSearcher is too complex to integrate correctly**, consider a SIMPLER fallback: just create a minimal Character object with the narrator name, basic role, and let the profiling pipeline fill in the rest. The attempt 3 approach (before MentionSearcher was added) at least got Montresor into the character list with `mention_count: 1`.
+   - Impact: -3.5 on Character Profiles (protagonist has no profile), -1.5 on Character Extraction (protagonist missing entirely)
+   - Location: `src/analyzer.py` — F6 reconciliation block (~line 1640-1720) and narrator fallback block (~line 1769-1807)
+   - **ESCALATION NOTE**: This is the SAME core issue for the **5th consecutive attempt**. `src/analyzer.py` has been modified in attempts 3, 4, and 5 without successfully getting Montresor into the character list with a working profile. Each fix introduces a NEW AttributeError because the code doesn't read the class definitions before using them. **The fix phase MUST read the source code of `MentionSearcher`, `MentionResult`, and `CharacterMention` before writing any code.**
 
 ### HIGH
 
@@ -88,26 +76,25 @@
    - **NOTE**: This is a prompt improvement, not a keyword deny-list. Per USER_NOTES.md, keyword lists are forbidden.
 
 3. **Fortunato's role labeled "antagonist" — he is the victim**
-   - Problem: In "The Cask of Amontillado," Montresor is the villain-protagonist who murders Fortunato. Fortunato is the victim. Labeling Fortunato "antagonist" is inaccurate.
-   - Evidence: Fortunato is lured into the catacombs and sealed alive. He commits no villainous acts in the story.
-   - Location: Role assignment in `src/pipeline/character_extraction_v2/main_cast.py` (Pass 1)
+   - Problem: In "The Cask of Amontillado," Montresor is the villain-protagonist who murders Fortunato. Fortunato is the victim. Labeling Fortunato "antagonist" is misleading.
+   - Evidence: Fortunato is lured into the catacombs and sealed alive. He commits no villainous acts.
+   - Location: Role assignment in character extraction pipeline
    - Impact: Score -0.5 on Character Extraction
-   - Note: This is an LLM judgment call that may improve when Montresor gets properly profiled. **Deprioritize — fix CRITICAL #1 first.**
+   - Note: This is an LLM judgment call that may improve when Montresor gets properly extracted as protagonist. **Deprioritize — fix CRITICAL #1 first.**
 
 ### MEDIUM
 
-4. **Fortunato personality_summary and personality_traits are null**
-   - Problem: While Fortunato has good appearance and voice_guidance data, the personality fields are empty.
-   - Evidence: `personality_summary: null`, `personality_traits: null` in analysis.json
-   - Location: Character profiling pipeline
+4. **Fortunato personality_summary, personality_traits, and temperament are null**
+   - Problem: While Fortunato has appearance data and voice_guidance, personality fields are completely empty.
+   - Evidence: `personality_summary: null`, `personality_traits: null`, `temperament: null` in analysis.json. The HTML report does show a "Personality" section but it appears to be auto-generated from other fields rather than the dedicated personality extraction.
+   - Location: Character profiling pipeline — personality extraction stage
    - Impact: Score -0.5 on Character Profiles
-   - Note: May be related to the Character constructor issues or profiling pipeline. Could improve after CRITICAL #1 is fixed.
+   - Note: The personality_summary shown in the HTML ("Fortunato is a villainous antagonist whose arrogance and pride make him vulnerable...") appears to come from the `appearance.summary` or a generated fallback, not the dedicated personality fields.
 
 5. **Relationship labels oversimplified — all "rival"**
-   - Problem: Fortunato→Montresor: "rival", Luchresi→Fortunato: "rival", Luchresi→Montresor: "rival". None are accurate:
+   - Problem: Fortunato→Montresor: "rival", Luchresi→Fortunato: "rival". None are accurate:
      - Fortunato→Montresor: friend/acquaintance (Fortunato doesn't know Montresor plans murder)
      - Luchresi→Fortunato: professional competitor in wine connoisseurship
-     - Luchresi→Montresor: no meaningful relationship (Montresor uses his name as manipulation tool)
    - Location: Relationship extraction in character profiling pipeline
    - Impact: Score -0.5 on Character Profiles
 
@@ -119,7 +106,7 @@
 ### LOW
 
 7. **Missing pronunciation: "In pace requiescat" (full Latin phrase)**
-   - Note: "requiescat" alone IS flagged with IPA. Full phrase context would be a nice-to-have.
+   - Note: "requiescat" alone IS flagged with IPA. Full phrase context would be nice-to-have.
 
 8. **Homographs "row", "close", "entrance" lack IPA (by design)**
    - Note: Correct behavior — context-dependent notes provided instead. No fix needed.
@@ -137,16 +124,25 @@ To cross 8.0 in all three failing categories:
      - Relationships: Fortunato (acquaintance/victim)
    - Fortunato also needs personality_summary populated (currently null)
 
-2. **Character Extraction (7 → 8): fix Montresor's mention_count**
-   - Currently 1, should be ~4-8 based on direct name mentions in text
-   - Will be fixed automatically when F6/narrator fallback creates a properly-populated Character
+2. **Character Extraction (6.5 → 8): Get Montresor into the character list**
+   - Currently missing entirely — should be listed as protagonist/narrator
+   - Will be fixed when F6/narrator fallback successfully creates a Character object
+   - Fortunato's role should ideally switch from "antagonist" to "victim" or similar
 
 3. **Pronunciation (6 → 8): reduce false positive rate from 38% to <15%**
    - Remove/don't flag ~10 common words
    - Remove OCR artifact "himselffelt"
    - Keep all the good entries (23 genuinely useful pronunciation aids)
 
-**Priority:** CRITICAL #1 is the single most impactful fix. It would push Character Profiles from 4 to ~7-8 and Character Extraction from 7 to 8. Pronunciation fix is independent and can be done in parallel.
+**Priority:** CRITICAL #1 is the single most impactful fix. Getting Montresor into the character list with a proper profile would push Character Profiles from 4 to ~7-8 and Character Extraction from 6.5 to 8+. Pronunciation fix is independent and can be done in parallel.
+
+**MANDATORY FOR FIX PHASE:** Before writing ANY code that touches `MentionSearcher`, `MentionResult`, or `CharacterMention`, the fix phase MUST:
+1. `grep -rn "class MentionResult" src/` to find the definition
+2. `grep -rn "class CharacterMention" src/` to find the definition
+3. `grep -rn "class MentionSearcher" src/` to find the definition
+4. Read those class definitions to understand the actual API
+5. Find at least ONE working usage example in the codebase
+6. Only THEN write the fix using correct attribute names
 
 ## Configuration Audit
 
@@ -161,9 +157,10 @@ To cross 8.0 in all three failing categories:
 
 ### Processing Issues
 - 0 LLM retries, 0 JSON parse failures — model worked cleanly for all stages
-- F6 reconciliation crashes with `Character.__init__() missing 1 required positional argument: 'supporting_strategies'`
-- Narrator fallback crashes with same error
-- Character profiling ran but produced null personality for Fortunato, empty profile for Montresor
+- F6 reconciliation crashes with `'MentionResult' object has no attribute 'total_count'`
+- Narrator fallback crashes with `'CharacterMention' object has no attribute 'chapter_idx'`
+- Character profiling ran but produced null personality for Fortunato, no entry for Montresor
+- 2 JSON parse failures in Pronunciation (for "himselffelt" and batch enrichment)
 
 ## Fix History
 
@@ -194,12 +191,12 @@ To cross 8.0 in all three failing categories:
    - **Smoke test passed** (298 tests) but the error only manifests at runtime during analysis, not in unit tests
 
 ### Attempt 5 Fixes Applied
-1. **CRITICAL #1 (Character constructor missing supporting_strategies) - FIXED**
-   - **Root cause:** Two temporary Character objects (lines 1653, 1793) were missing the required `supporting_strategies` argument
+1. **CRITICAL #1 (Character constructor missing supporting_strategies) - FIXED but new errors revealed**
    - **Fix:** Added `supporting_strategies=[]` to both temp_char and temp_narrator Character constructors
-   - **Files modified:** `src/analyzer.py` (lines 1662, 1802)
-   - **Smoke test:** PASS - 298 tests passed (8 known failures in test_semantic_conflicts.py)
-   - **Expected impact:** F6 reconciliation and narrator fallback will now work correctly. Montresor should get proper profile data.
+   - **Result:** `supporting_strategies` error is gone, but TWO NEW attribute errors surfaced:
+     - F6: `'MentionResult' object has no attribute 'total_count'`
+     - Narrator fallback: `'CharacterMention' object has no attribute 'chapter_idx'`
+   - These errors were hidden behind the `supporting_strategies` error before. They originate from the attempt 4 `MentionSearcher` integration which was never properly validated.
 
 ## Modification History
 
@@ -210,13 +207,12 @@ To cross 8.0 in all three failing categories:
 | 3 | F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | Partially fixed — new error revealed |
 | 3 | Narrator not added to character list | `src/analyzer.py:1769-1807` | Fixed — fallback works, but profile fails |
 | 4 | F6 reconciliation AttributeError | `src/analyzer.py:1648` | Fixed attribute name — but new constructor error |
-| 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | MentionSearcher added — but Character constructor error |
-| 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed — added missing argument to temp Character objects |
+| 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | MentionSearcher added — but Character constructor error + wrong attribute access |
+| 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed constructor — but MentionSearcher attribute errors now visible |
+
+**Pattern detected:** `src/analyzer.py` has been modified 5 times for the same root issue. Each fix reveals another layer of AttributeErrors because the code is guessing at class APIs. The fix phase MUST read class definitions before writing code.
 
 ## Next Action
-Run PROMPT_analyze.md to verify:
-1. F6 reconciliation and narrator fallback now work correctly
-2. Montresor gets a proper profile (appearance, personality, voice guidance)
-3. Mention count for Montresor is correct (should be 4-8, not 1)
-
-Note: Pronunciation false positives (HIGH #2) remain unfixed. Will address in next iteration if scores don't pass.
+Run PROMPT_fix.md to address:
+1. **CRITICAL #1**: Read `MentionSearcher`, `MentionResult`, `CharacterMention` class definitions, then fix attribute access in F6 reconciliation and narrator fallback. **OR** simplify by reverting to the attempt 3 approach (minimal Character object) which at least got Montresor into the list.
+2. **HIGH #2**: Improve pronunciation flagging prompt to reduce false positives.
