@@ -1645,7 +1645,7 @@ class AudiobookAnalyzer:
                     # DEFENSIVE: Verify each name has grounding in the raw text before creating
                     # This prevents hallucinated characters from summary LLM errors (e.g., literary references)
                     from .pipeline.character_extraction_v2.mention_search import MentionSearcher
-                    searcher = MentionSearcher(full_text=document.normalized_text, chapters=document.chapters)
+                    searcher = MentionSearcher(full_text=doc.normalized_text, chapters=doc.chapters)
 
                     verified_names = []
                     for name in missing_names:
@@ -1765,6 +1765,46 @@ class AudiobookAnalyzer:
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"
                     )
+
+                    # FALLBACK: If narrator is detected but NOT in character list, add them
+                    # This is a safety net in case F6 reconciliation failed or narrator was filtered out
+                    narrator_in_chars = any(
+                        narrator_info.narrator_name.lower() in c.canonical_name.lower()
+                        or any(narrator_info.narrator_name.lower() in alias.lower() for alias in c.aliases)
+                        for c in pipeline_char_map.characters
+                    )
+
+                    if not narrator_in_chars:
+                        logger.warning(
+                            f"Narrator '{narrator_info.narrator_name}' identified but NOT found in character list. "
+                            f"Adding as character (safety fallback). "
+                            f"Available characters: {[c.canonical_name for c in pipeline_char_map.characters]}"
+                        )
+
+                        # Create a minimal Character entry for the narrator
+                        import hashlib
+                        narrator_id = hashlib.md5(narrator_info.narrator_name.encode()).hexdigest()[:12]
+
+                        narrator_character = Character(
+                            id=narrator_id,
+                            canonical_name=narrator_info.narrator_name,
+                            aliases=[],
+                            mentions=[],
+                            first_appearance_chapter=0,
+                            mention_count=1,  # Minimal mention count
+                            chapters_present=[0],  # Assume chapter 0 for now
+                            confidence=narrator_info.confidence,
+                            supporting_strategies=["narrator_detection_fallback"],
+                            description="",  # Will be filled by profile generation
+                            character_type=CharacterType.STORY,
+                        )
+
+                        # Mark as narrator
+                        narrator_character.is_narrator = True
+
+                        pipeline_char_map.characters.append(narrator_character)
+                        print(f"   Added narrator '{narrator_info.narrator_name}' to character list (fallback)")
+                        logger.info(f"Narrator fallback: Added '{narrator_info.narrator_name}' with confidence {narrator_info.confidence:.2f}")
                 else:
                     print("   No definitive narrator identified yet")
                     logger.info("Early narrator detection: No narrator identified")

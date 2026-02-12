@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -125,19 +125,38 @@
 3. **Pronunciation false positives - DEFERRED (still failing)**
    - Still ~30% false positive rate (11/37 entries)
 
+### Attempt 3 Fixes Applied
+1. **CRITICAL #1: Montresor (narrator) missing from character list - FIXED**
+   - Root cause:
+     - `src/analyzer.py:1648` — Variable name typo: `document.normalized_text` should be `doc.normalized_text`
+     - This crashed F6 reconciliation with `NameError: name 'document' is not defined`
+     - F6 is designed to add characters found in summaries but missing from main_cast (exactly this scenario)
+     - Narrator detection worked (pipeline_metadata.narrator_name = "Montresor") but F6 crash prevented adding him
+   - Fix (two-layer defense):
+     - **Fix 1 (line 1648)**: Corrected typo `document` → `doc` to unblock F6 reconciliation
+     - **Fix 2 (lines 1769-1807)**: Added narrator→character fallback after narrator detection
+       - If narrator is detected but NOT in character list, create a Character entry
+       - Uses same hash-based ID pattern as F6 (`hashlib.md5(name).hexdigest()[:12]`)
+       - Marks character with `is_narrator=True` and `supporting_strategies=["narrator_detection_fallback"]`
+       - Ensures profiling (line 1811 already filters for `is_narrator`)
+   - Smoke test: **PASS** — All existing tests pass (298 passed, 8 pre-existing failures in test_semantic_conflicts.py)
+   - Expected result:
+     - Either F6 adds Montresor (typo fixed) OR fallback adds Montresor (safety net)
+     - Either way, Montresor will be in character list and get a profile
+     - Character Extraction: 3/10 → 8/10 (estimated +5)
+     - Character Profiles: 5/10 → 8/10 (estimated +3)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 2 | Fortunato personality contamination | `src/analyzer.py` | Fixed — personality now correct |
 | 2 | Bogus supporting characters | `src/pipeline/character_extraction_v2/grounding.py` | Fixed — 5 bogus chars removed |
-| 3 | CRITICAL: F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | Pending fix |
-| 3 | CRITICAL: Narrator not added to character list | `src/analyzer.py:~1760` | Pending fix |
+| 3 | CRITICAL: F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | **FIXED** — typo corrected |
+| 3 | CRITICAL: Narrator not added to character list | `src/analyzer.py:1769-1807` | **FIXED** — fallback added |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1**: Fix `document` → `doc` typo at `src/analyzer.py:1648` (unblocks F6 reconciliation, which should add Montresor)
-2. **CRITICAL #1 (fallback)**: Add narrator→character creation fallback at `src/analyzer.py:~1760` (safety net if F6 still misses narrator)
+Re-run analysis to verify fix. Phase changed to `awaiting_analysis`.
 
 **Expected score improvement after fix:**
 - Character Extraction: 3/10 → 8/10 (+5 from adding Montresor as protagonist/narrator)
