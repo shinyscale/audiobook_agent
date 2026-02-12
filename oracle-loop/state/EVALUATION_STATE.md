@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -11,24 +11,14 @@
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
 
-## Pipeline Notes (Attempt 2)
-- **CRITICAL ERROR:** "F6 character reconciliation failed: name 'document' is not defined" - Code error in character reconciliation
-- **CHARACTER EXTRACTION FAILURE:** Montresor (protagonist/narrator) was NOT extracted as a character
-  - Multiple warnings: "Narrator 'Montresor' identified but NOT found in main_cast. Available characters: ['Fortunato']"
-  - Final state: Only Fortunato and Luchresi were extracted
-  - This is a CATASTROPHIC failure - the story's protagonist is missing
-- **HALLUCINATION WARNING:** "F19: Profile for 'Fortunato' has 5 potentially ungrounded evidence quotes - may indicate hallucination"
-- **JSON VALIDATION:** "LLM validation failed (got dict), keeping batch candidates" - Minor validation issue
-- Competitive consensus enabled for all stages (characters, structure, summaries)
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 4/10 ✗ (FAILING)
-- Character Profiles: 4/10 ✗ (FAILING)
+- Character Extraction: 3/10 ✗ (FAILING)
+- Character Profiles: 5/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 7/10 ✗ (FAILING)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.75/10** (reference only)
+- **Overall: 6.65/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -37,84 +27,70 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.75 | 0.0 | Baseline. 5 bogus supporting chars, Fortunato profile is Montresor's |
+| 2 | 6.65 | -0.10 | Bogus chars fixed (+1), but Montresor still missing. Fortunato profile improved but still has issues |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Fortunato's personality profile describes MONTRESOR, not Fortunato**
-   - Problem: Fortunato's personality says "A cruel and calculating antagonist who manipulates and murders with cold precision, exploiting vulnerability to satisfy a personal vendetta." This is verbatim a description of Montresor's actions, not Fortunato's.
-   - Evidence: Fortunato is the VICTIM who is lured into the catacombs and entombed alive. He is proud, trusting, boastful about wine connoisseurship, and intoxicated. The traits listed ("manipulative, calculating, cruel, deceptive, vengeful, emotionally detached") are all Montresor's traits.
-   - Root cause: The character profiling LLM likely confused the two characters due to first-person narration. Montresor narrates his own cruel actions, and the profiler attributed those actions to Fortunato instead.
-   - Location: `src/pipeline/character_profiling/` — the profiling pipeline's evidence gathering or LLM prompt is confusing narrator actions with the profiled character.
-   - Impact: Score -3 on Character Profiles. A narrator reading this would voice Fortunato completely wrong.
-
-2. **5 of 6 supporting characters are bogus (not real characters)**
-   - Problem: The supporting cast contains:
-     - "Cask of Amontillado" — the story title, not a character
-     - "Edgar Allan Poe" — the author, not a character in the story
-     - "lacessit" — a Latin word from the family motto "Nemo me impune lacessit"
-     - "De Grave" — a type of wine (Graves/De Grâve), not a person
-     - "--yes" — a parsing artifact from dialogue punctuation
-   - Evidence: Only "Luchresi" is a legitimate character (a wine expert mentioned but never appearing on-page)
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` — supporting cast extraction is pulling in non-character entities
-   - All have `supporting_*` IDs, so the problem is specifically in the supporting cast pipeline
-   - Impact: Score -4 on Character Extraction. These entries are garbage data.
+1. **Montresor (protagonist/narrator) NOT extracted as a character**
+   - Problem: The story's protagonist and narrator is completely absent from the character list. The pipeline correctly identifies him as narrator (`pipeline_metadata.narrator_name: "Montresor"`) but he never makes it into the character list.
+   - Root cause: **Variable name typo** at `src/analyzer.py:1648` — `document.normalized_text` should be `doc.normalized_text`. This crashes F6 character reconciliation with `NameError: name 'document' is not defined`, preventing Montresor from being added via summary-based reconciliation.
+   - Evidence: Log shows "F6 character reconciliation failed: name 'document' is not defined" and "Narrator 'Montresor' identified but NOT found in main_cast. Available characters: ['Fortunato']"
+   - The F6 reconciliation step (analyzer.py lines 1640-1720) is designed to find characters appearing in chapter summaries but missing from main_cast — exactly this scenario. But it crashes before executing.
+   - **Two fixes needed:**
+     1. **Fix the typo**: `src/analyzer.py:1648` — change `document` to `doc` (same variable used everywhere else in the method, e.g., lines 813, 814, 829, 1777)
+     2. **Add narrator→character fallback**: In `src/analyzer.py` around line 1760, if narrator is detected but not in character list AND F6 didn't add them, create a Character entry for the narrator. The profile filter at line 1811 already handles narrators with `or getattr(c, "is_narrator", False)`.
+   - Impact: Score -5 on Character Extraction, -3 on Character Profiles. This is the single biggest issue blocking progress.
 
 ### HIGH
 
-3. **Fortunato labeled as "antagonist" role — misleading for narrator**
-   - Problem: Fortunato's role is listed as "antagonist" but he is the victim of Montresor's revenge plot. While Montresor is the protagonist-narrator, Fortunato is best described as "victim" or at most a secondary character who is deceived and murdered.
-   - Evidence: Montresor says "The thousand injuries of Fortunato I had borne..." suggesting Fortunato wronged him, but the entire story shows Fortunato as a trusting, somewhat foolish man being led to his death. In narrative terms, Montresor is both protagonist and villain.
-   - Location: Character extraction role assignment in `src/pipeline/character_extraction_v2/main_cast.py`
-   - Impact: Score -0.5 on Character Extraction.
+2. **Fortunato labeled "antagonist" with "villainous" moral alignment — inaccurate**
+   - Problem: Fortunato is the VICTIM in this story. Montresor is both protagonist and villain. Fortunato is a proud, trusting, somewhat foolish man lured to his death. Labeling him "antagonist" with "villainous" moral alignment is misleading for narrator preparation.
+   - Evidence: Fortunato is chained up and entombed alive — he's the victim, not the antagonist. His traits (gullible, overconfident, prideful) are correct but don't support "villainous."
+   - Location: Role assignment in `src/pipeline/character_extraction_v2/main_cast.py` and moral alignment in profiling pipeline
+   - Impact: Score -1 on Character Extraction, -0.5 on Character Profiles
+   - Note: This is an LLM judgment issue, not easily fixed generically. Deprioritize in favor of CRITICAL #1.
 
-4. **Pronunciation false positives: common English words flagged**
-   - Problem: Several common English words are flagged that any narrator would know:
-     - "Cask" — common English word
-     - "Edgar", "Allan", "Poe" — the author's name (shouldn't be in pronunciation guide for the story text)
-     - "De" — common word
-     - "tight-fitting", "to-day", "web-work" — hyphenated compounds, not pronunciation challenges
-     - "cough's", "leer" — common English words
-     - "Unsheathing", "reapproached", "re-erected", "re-echoed" — standard English with common prefixes
-   - Evidence: ~12 of 42 entries are false positives (common words a narrator wouldn't need help with)
-   - Location: `src/pipeline/pronunciation/` — the pronunciation flagging threshold is too aggressive
-   - Impact: Score -1.5 on Pronunciation. Dilutes the useful entries with noise.
+3. **Fortunato's physical description attributes Montresor's clothing to Fortunato**
+   - Problem: Description says "wears a black silk mask and roquelaire (as described in context of Montresor, but implied Fortunato is similarly attired)" — the roquelaire and black silk mask are Montresor's clothing, NOT Fortunato's. Fortunato wears a jester's motley with bells (correctly noted elsewhere).
+   - Evidence: Poe's text: "I suffered him to hurry me to my palazzo...I had on a black silk mask..." — this is Montresor speaking.
+   - Location: `src/pipeline/character_profiling/` — passage gatherer may still have some narrator contamination for physical descriptions
+   - Impact: Score -0.5 on Character Profiles
 
-5. **"himselffelt" is an OCR artifact flagged as a pronunciation entry**
-   - Problem: "himselffelt" (IPA: /hɪmˈsɛlfˌfɛlt/) is not a real word — it's two words ("himself felt") fused by an OCR/text extraction error. The OCR repair stage fixed 1 broken ligature but missed this one.
-   - Evidence: No such word exists in the original Poe text
-   - Location: `src/ingestion/refine.py` (OCR repair) or pronunciation pipeline should reject obviously compound artifacts
-   - Impact: Score -0.5 on Pronunciation.
+4. **Pronunciation false positives (~30% rate)**
+   - Problem: 11 of 37 entries are common words a narrator wouldn't need help with:
+     - Common compounds: "tight-fitting", "web-work", "mason-work"
+     - Archaic spelling: "to-day" (obvious pronunciation)
+     - Common words: "cough's", "leer", "Grave"
+     - Standard prefixed words: "Unsheathing", "reapproached", "re-echoed", "re-erected"
+   - Location: `src/pipeline/pronunciation/` — flagging threshold too aggressive
+   - Impact: Score -1.5 on Pronunciation
+
+5. **OCR artifact "himselffelt" still present in pronunciation guide**
+   - Problem: "himselffelt" (/hɪmˈsɛlfˌfɛlt/) is two fused words ("himself felt"), not a real word
+   - Location: `src/ingestion/refine.py` (OCR repair) or pronunciation pipeline should reject compound artifacts
+   - Impact: Score -0.5 on Pronunciation
 
 ### MEDIUM
 
-6. **Montresor's mention count is only 1 (should be higher)**
-   - Problem: Montresor is listed with only 1 mention, but as the first-person narrator who is also referenced by name multiple times by Fortunato ("For the love of God, Montresor!"), the count should be higher.
-   - Evidence: The name "Montresor" appears at least 3-4 times in the text (once in the narrator's self-identification, and in Fortunato's final plea). The count of 1 suggests only explicit NER matches are counted, missing dialogue references.
-   - Location: Mention counting in character extraction pipeline
-   - Impact: Minor metadata inaccuracy.
-
-7. **Montresor-Fortunato relationship labeled "rival" — inaccurate**
-   - Problem: Both characters list each other as "rival" but their relationship is more accurately "victim-murderer" or "acquaintance turned victim." "Rival" implies competition between equals, which doesn't capture the predator-prey dynamic.
-   - Evidence: Montresor methodically lures and murders Fortunato. While Montresor claims past "injuries," the story depicts a calculated murder, not a rivalry.
+6. **Relationship labels inaccurate**
+   - Problem: Fortunato-Montresor labeled "rival" (should be something like "victim-murderer" or "acquaintance"). Luchresi-Fortunato also labeled "rival" (should be "professional competitor" or "fellow connoisseur"). Fortunato's "moral_alignment: villainous" is wrong.
    - Location: Relationship extraction in character profiling pipeline
-   - Impact: Minor but misleading for narrator preparation.
+   - Impact: Score -0.5 on Character Profiles
 
-8. **Luchresi has relationship "tool" with Montresor — unclear label**
-   - Problem: Luchresi is listed with relationship `"Montresor": "tool"`. While Luchresi IS used as a tool by Montresor (mentioned to provoke Fortunato's pride), the relationship label "tool" is an unusual category that may confuse narrators.
-   - Location: Relationship extraction in character profiling
-   - Impact: Minor presentation issue.
+7. **Narrative style inconsistency in overview**
+   - Problem: `overview.structure.narrative_style` says "unknown" while `overview.plot_summary.narrative_style` correctly says "first-person retrospective"
+   - Location: `src/analyzer.py` — structure overview vs plot summary use different detection paths
+   - Impact: Minor metadata inconsistency
 
 ### LOW
 
-9. **Homographs "row", "close", "entrance" lack IPA (by design)**
-   - Note: These 3 homographs have null IPA but provide context-dependent pronunciation notes. This is actually correct behavior for homographs — not a real issue. Noting for completeness.
+8. **Missing pronunciation: "In pace requiescat" (closing Latin phrase)**
+   - Note: "requiescat" alone IS flagged. The full phrase context would be helpful but not critical.
 
-10. **Missing pronunciation: "In pace requiescat" (closing Latin phrase)**
-    - Problem: The story's famous closing Latin phrase "In pace requiescat!" is not in the pronunciation guide, though "requiescat" alone IS flagged. The full phrase context would be helpful.
-    - Location: Pronunciation pipeline
-    - Impact: Very minor.
+9. **Homographs "row", "close", "entrance" lack IPA (by design)**
+   - Note: Correct behavior for homographs — context-dependent pronunciation notes provided instead.
 
 ## Configuration Audit
 
@@ -129,44 +105,44 @@
 
 ### Processing Issues
 - 0 LLM retries, 0 JSON parse failures — model worked cleanly
-- Character Extraction: 2 high confidence (main cast), 6 medium confidence (supporting) — the medium confidence entries are the bogus ones
-- Character Profiles: 3 high confidence, 0 low — but one of those "high confidence" profiles (Fortunato) has the wrong personality
+- Character Extraction: 1 high confidence (main cast), 1 medium confidence (supporting) — improved from attempt 1
+- Character Profiles: 2 high confidence, 0 low — Fortunato personality now correctly about Fortunato (fix worked)
+- F6 reconciliation crash prevented narrator from being added (CRITICAL #1)
 
 ## Fix History
 
-### Attempt 2 Fixes
-1. **CRITICAL #1: Fortunato personality profile contamination - FIXED**
-   - Root cause: `src/analyzer.py:1828` - narrative_style set to "unknown" instead of "first-person" when narrator_detected was None
-   - This disabled the perspective filter in passage_gatherer.py, allowing narrator-perspective passages to contaminate non-narrator profiles
-   - Fix: Changed narrative_style detection to use text-based analysis (`is_first_person_text(doc.text)`) instead of narrator detection confidence
-   - Modified: `src/analyzer.py` line 1828-1832
-   - Expected impact: +3 on Character Profiles (fixes Fortunato's contaminated personality)
+### Attempt 2 Fixes Applied
+1. **CRITICAL #1 (old): Fortunato personality profile contamination - FIXED (VERIFIED)**
+   - Root cause: `src/analyzer.py:1828` - narrative_style set to "unknown" instead of "first-person"
+   - Fix: Changed narrative_style detection to use text-based analysis
+   - Result: **FIXED** — Fortunato's personality now correctly describes Fortunato (gullible, overconfident, prideful) instead of Montresor's traits. Profile score improved from 4/10 to 5/10.
 
-2. **CRITICAL #2: 5 bogus supporting characters - FIXED**
-   - Root cause: `src/pipeline/character_extraction_v2/grounding.py:24-36` - adaptive_min_mentions() returned 1 for short stories
-   - This allowed any NER-detected entity with a single mention to pass through (author names, titles, foreign words, etc.)
-   - Fix: Raised the floor of adaptive_min_mentions from 1 to 2 for short stories
-   - Modified: `src/pipeline/character_extraction_v2/grounding.py` line 35
-   - Expected impact: +4 on Character Extraction (removes 5 bogus characters: "Cask of Amontillado", "Edgar Allan Poe", "lacessit", "De Grave", "--yes")
+2. **CRITICAL #2 (old): 5 bogus supporting characters - FIXED (VERIFIED)**
+   - Root cause: `src/pipeline/character_extraction_v2/grounding.py:24-36` - adaptive_min_mentions() returned 1
+   - Fix: Raised floor of adaptive_min_mentions from 1 to 2
+   - Result: **FIXED** — All 5 bogus characters removed. Only Luchresi remains (correct).
 
-3. **Pronunciation false positives - DEFERRED**
-   - Issue: ~12 of 42 entries are common words (29% false positive rate)
-   - Root cause analysis: Multiple causes - hyphenated word tokenization, OCR artifacts, author names in bylines, CMU dictionary gaps
-   - Decision: Deferred to next iteration - requires more comprehensive fix (possibly rethinking CMU-based approach)
-   - Would gain +1.5-2.0 points but not critical for passing threshold
+3. **Pronunciation false positives - DEFERRED (still failing)**
+   - Still ~30% false positive rate (11/37 entries)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | CRITICAL #1: Narrative style detection | `src/analyzer.py` | Awaiting test |
-| 2 | CRITICAL #2: Bogus supporting characters | `src/pipeline/character_extraction_v2/grounding.py` | Awaiting test |
+| 2 | Fortunato personality contamination | `src/analyzer.py` | Fixed — personality now correct |
+| 2 | Bogus supporting characters | `src/pipeline/character_extraction_v2/grounding.py` | Fixed — 5 bogus chars removed |
+| 3 | CRITICAL: F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | Pending fix |
+| 3 | CRITICAL: Narrator not added to character list | `src/analyzer.py:~1760` | Pending fix |
 
 ## Next Action
-Set phase to `awaiting_analysis` and re-run analysis to verify fixes.
+Run PROMPT_fix.md to address:
+1. **CRITICAL #1**: Fix `document` → `doc` typo at `src/analyzer.py:1648` (unblocks F6 reconciliation, which should add Montresor)
+2. **CRITICAL #1 (fallback)**: Add narrator→character creation fallback at `src/analyzer.py:~1760` (safety net if F6 still misses narrator)
 
-**Expected score improvement:**
-- Character Extraction: 4/10 → 8/10 (+4 from removing 5 bogus characters)
-- Character Profiles: 4/10 → 7/10 (partial fix - Fortunato personality fixed, but role label "antagonist" still misleading)
-- Pronunciation: 7/10 (unchanged - deferred)
-- **Estimated new score: 7.42/10** (still below 8.0 threshold, but significant progress)
+**Expected score improvement after fix:**
+- Character Extraction: 3/10 → 8/10 (+5 from adding Montresor as protagonist/narrator)
+- Character Profiles: 5/10 → 8/10 (+3 from Montresor getting a profile, existing narrator filter at line 1811 ensures profiling)
+- Pronunciation: 7/10 (unchanged — deferred)
+- **Estimated new score: ~8.15/10**
+
+**Note:** Pronunciation (7/10) will still be below threshold. If CRITICAL #1 is fixed and Characters+Profiles pass, the remaining blocker will be pronunciation false positives (HIGH #4 and #5).
