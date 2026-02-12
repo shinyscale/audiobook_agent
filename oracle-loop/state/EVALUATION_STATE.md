@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 6)
+- Analysis completed in 29m 15s
+- Montresor successfully added to character list (1 mention) via reconciliation or narrator fallback
+- 3 characters total: Fortunato (14 mentions), Luchresi (6 mentions), Montresor (1 mention)
+- 3 profiles generated (including Montresor!)
+- Pronunciation: 27 words flagged (reduced from 37 in previous attempts)
+- Competitive consensus active on all 3 stages (characters, structure, summaries)
+- F19 warnings: Ungrounded evidence quotes detected for all 3 profiles
+- LLM batch enrichment failed for pronunciation (but individual entries still processed)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
