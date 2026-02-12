@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.98
 
 ## Output Files
@@ -83,13 +83,17 @@
 | 1 | 6.98 | - | Baseline. Structure detection major failure (3 parts → 1 chapter) |
 
 ## Fix History
-(No fixes yet — first attempt)
+- Attempt 1 → 2: Fixed structure detection for Roman numerals with periods (I., II., III.)
+  - Root cause: `src/pipeline/chapter_detection/proposers/regex.py` - `_extract_title()` method did not handle `pattern_type == "roman_numeral_with_period"`, causing titles to retain trailing period which broke sequential pattern detection
+  - Modified: `src/pipeline/chapter_detection/proposers/regex.py` line 301
+  - Test suite: All 298 tests pass (10 skipped)
+  - Cascades fix: This will also fix the "Chapter summaries lack per-section granularity" issue (HIGH #3)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Structure detection missed I./II./III. markers | `src/pipeline/chapter_detection/proposers/regex.py` | Fixed: Added "roman_numeral_with_period" to pattern handling in `_extract_title()` |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (MoE) — appropriate
@@ -99,4 +103,7 @@
 - Structure detection: 10 LLM calls for 1 item with medium confidence — suggests the LLM tried but couldn't find structure markers
 
 ## Next Action
-Run PROMPT_fix.md to address structure detection (Critical #1) as top priority. This will cascade-fix the summary granularity issue (High #3). Then address pronunciation artifacts (High #2) and profile issues (Medium #4-6).
+Re-run analysis with structure detection fix applied. Expect:
+- Structure: 3 chapters detected (I., II., III.)
+- Summaries: 3 per-part summaries instead of 1 single summary
+- Pronunciation artifacts (himselfin, beliefin) may resolve or may need separate investigation if they persist

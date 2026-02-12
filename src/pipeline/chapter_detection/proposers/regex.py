@@ -298,7 +298,7 @@ class RegexProposer(BaseProposer):
                 return f"{base}: {groups[2].strip()}"
             return base
 
-        elif pattern_type in ["roman_numeral_centered", "roman_numeral_line"]:
+        elif pattern_type in ["roman_numeral_centered", "roman_numeral_line", "roman_numeral_with_period"]:
             return f"Chapter {groups[0]}"
 
         elif pattern_type == "arabic_numeral_centered":
