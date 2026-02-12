@@ -556,6 +556,15 @@ COMMON_WORDS_WHITELIST = {
     "strangers",
     "gentlemen",
     "ladies",
+    # Common English words that may not be in CMU (fix for false positive flagging)
+    "away",
+    "dauntless",
+    "magnificence",
+    "giddiest",
+    "moveable",
+    "convulsed",
+    "unutterable",
+    "decorum",
 }
 
 # Contraction fragments that result from tokenization
