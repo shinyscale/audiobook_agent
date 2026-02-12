@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.15
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/berenice/report.html
 - JSON: ../output/berenice/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 31m 21s
+- Competitive consensus enabled on all 3 stages (characters, structure, summaries)
+- Found 2 characters: Berenice (14 mentions), Egaeus (1 mention)
+- 54 pronunciation flags (46 unknown, 6 foreign, 2 proper_noun)
+- OCR repair: fixed 1 broken ligature
+- Warnings: F6 hallucination detected (servant maiden), F19 ungrounded evidence quotes
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
