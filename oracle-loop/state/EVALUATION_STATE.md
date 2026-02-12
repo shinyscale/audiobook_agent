@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -155,13 +155,34 @@
 | 3 | CRITICAL: F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | **FIXED** — typo corrected |
 | 3 | CRITICAL: Narrator not added to character list | `src/analyzer.py:1769-1807` | **FIXED** — fallback added |
 
-## Next Action
-Re-run analysis to verify fix. Phase changed to `awaiting_analysis`.
+## Pipeline Notes (Attempt 3)
 
-**Expected score improvement after fix:**
-- Character Extraction: 3/10 → 8/10 (+5 from adding Montresor as protagonist/narrator)
-- Character Profiles: 5/10 → 8/10 (+3 from Montresor getting a profile, existing narrator filter at line 1811 ensures profiling)
-- Pronunciation: 7/10 (unchanged — deferred)
-- **Estimated new score: ~8.15/10**
+**Execution Time:** 31m 7s
 
-**Note:** Pronunciation (7/10) will still be below threshold. If CRITICAL #1 is fixed and Characters+Profiles pass, the remaining blocker will be pronunciation false positives (HIGH #4 and #5).
+**Key Observations:**
+
+1. **F6 reconciliation still failed** - Different error than before:
+   - Previous error (attempt 2): `NameError: name 'document' is not defined` (typo at line 1648)
+   - New error (attempt 3): `'ExtractedDocument' object has no attribute 'normalized_text'`
+   - This suggests the typo fix revealed a deeper issue with the ExtractedDocument interface
+
+2. **Narrator fallback activated successfully:**
+   - Log shows: "Narrator 'Montresor' identified but NOT found in character list. Adding as character (safety fallback)."
+   - Montresor was added to character list (shown in summary: 3 characters including Montresor)
+   - However, profile generation failed: "Profile generation failed for Montresor: None"
+
+3. **Competitive consensus active:**
+   - "Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)"
+   - Applied to characters, structure, summaries stages
+
+4. **Profile quality warnings:**
+   - "F19: Profile for 'Fortunato' has 3 potentially ungrounded evidence quotes - may indicate hallucination"
+   - This may affect Character Profiles score
+
+5. **Pronunciation LLM issues:**
+   - Model returned error responses instead of structured JSON for some pronunciation queries
+   - Example: Rejected "himselffelt" as invalid word (OCR artifact)
+   - May affect Pronunciation Guide score
+
+**Next Action:**
+Phase changed to `awaiting_evaluation`. Evaluation phase will determine if fixes improved scores.
