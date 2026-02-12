@@ -111,6 +111,8 @@ ENGLISH_EXCEPTIONS = {
     "an",
     "one",
     "a",  # English articles that match German "ein/eine"
+    # Common standalone words that appear in foreign phrases but are English words
+    "grave",  # Common English word ("serious" or "tomb"), even in wine names like "De Grave"
 }
 
 

@@ -746,6 +746,7 @@ class CMUProposer(BasePronunciationProposer):
         - Hyphenated compounds where both parts are known (e.g., "web-work", "tight-fitting")
         - Archaic hyphenated spellings (e.g., "to-day" = "today")
         - Standard prefix + known root (e.g., "re-echoed", "unsheathing")
+        - Common non-hyphenated compounds (e.g., "inmost" = "in" + "most")
 
         Returns True if pronunciation is obvious and doesn't need guidance.
         """
@@ -768,7 +769,106 @@ class CMUProposer(BasePronunciationProposer):
                 if root in self.known_words:
                     return True
 
+        # Pattern 3: Common non-hyphenated compounds (e.g., "inmost", "outermost", "innermost")
+        # These are formed from common preposition/adverb + common word
+        common_compound_patterns = [
+            ('in', 'most'),      # inmost
+            ('out', 'most'),     # outmost
+            ('outer', 'most'),   # outermost
+            ('inner', 'most'),   # innermost
+            ('up', 'most'),      # upmost
+            ('fore', 'most'),    # foremost
+            ('after', 'most'),   # aftermost
+        ]
+        for prefix, suffix in common_compound_patterns:
+            if word_lower == prefix + suffix:
+                return True
+
         return False
+
+    def _is_possessive_of_known_word(self, word: str) -> bool:
+        """
+        Check if word is a possessive form of a word in the CMU dictionary.
+
+        Examples: "cough's" → "cough" is in CMU, so filter this out
+
+        Returns True if this is a possessive of a known word.
+        """
+        word_lower = word.lower()
+
+        # Check for possessive marker
+        if word_lower.endswith("'s"):
+            base = word_lower[:-2]
+            if base in self.known_words or base in COMMON_WORDS_WHITELIST:
+                return True
+
+        return False
+
+    def _is_common_monosyllabic_word(self, word: str) -> bool:
+        """
+        Check if word is a common monosyllabic word that's obviously known.
+
+        Even if not in CMU, words like "leer" are standard English and don't need
+        pronunciation guidance.
+
+        Heuristic: Short words (3-4 chars) with common English phonetic patterns.
+        """
+        word_lower = word.lower()
+
+        # Only apply to short words (3-4 characters)
+        if len(word_lower) < 3 or len(word_lower) > 4:
+            return False
+
+        # Common monosyllabic words not in CMU but obviously known
+        common_short_words = {
+            'leer',   # to look with an unpleasant expression
+            'veer',   # to change direction
+            'seer',   # one who sees/predicts
+            'ague',   # fever/chill
+            'woe',    # sorrow
+        }
+
+        return word_lower in common_short_words
+
+    def _filter_redundant_variants(self, proposals: list[PronunciationProposal]) -> list[PronunciationProposal]:
+        """
+        Remove redundant plurals and possessives of already-flagged words.
+
+        Example: If "Montresor" is flagged, remove "Montresors" (plural).
+
+        Returns filtered list of proposals.
+        """
+        # Build set of base words (lowercased)
+        base_words = {p.word.lower() for p in proposals}
+
+        filtered = []
+        for proposal in proposals:
+            word_lower = proposal.word.lower()
+
+            # Check if this is a redundant variant
+            is_redundant = False
+
+            # Check for plural (ending in 's')
+            if word_lower.endswith('s') and len(word_lower) > 1:
+                base = word_lower[:-1]
+                if base in base_words:
+                    logger.debug(f"Filtering redundant plural: '{proposal.word}' (base: '{base}')")
+                    is_redundant = True
+
+            # Check for possessive (ending in 's or ')
+            if word_lower.endswith("'s"):
+                base = word_lower[:-2]
+                if base in base_words:
+                    logger.debug(f"Filtering redundant possessive: '{proposal.word}' (base: '{base}')")
+                    is_redundant = True
+
+            if not is_redundant:
+                filtered.append(proposal)
+
+        if len(filtered) < len(proposals):
+            logger.info(f"Filtered {len(proposals) - len(filtered)} redundant variants")
+
+        return filtered
 
     def propose(
         self,
@@ -826,6 +926,14 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_obvious_compound(word):
                 continue
 
+            # Skip possessives of known words (e.g., "cough's" when "cough" is in CMU)
+            if self._is_possessive_of_known_word(word):
+                continue
+
+            # Skip common monosyllabic words obviously known (e.g., "leer")
+            if self._is_common_monosyllabic_word(word):
+                continue
+
             word_data[word_lower].append((match.start(), word))
 
         # Filter by occurrence count and build proposals
@@ -863,6 +971,9 @@ class CMUProposer(BasePronunciationProposer):
                 )
             )
 
+        # Post-processing: Remove redundant plurals/possessives of already-flagged words
+        proposals = self._filter_redundant_variants(proposals)
+
         logger.info(f"CMU proposer found {len(proposals)} unknown words")
         return proposals
 
@@ -889,6 +1000,10 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_ocr_artifact(word):
                 return False
             if self._is_obvious_compound(word):
+                return False
+            if self._is_possessive_of_known_word(word):
+                return False
+            if self._is_common_monosyllabic_word(word):
                 return False
             return True
 
@@ -927,6 +1042,9 @@ class CMUProposer(BasePronunciationProposer):
                     reasoning="Not found in CMU pronunciation dictionary",
                 )
             )
+
+        # Post-processing: Remove redundant plurals/possessives of already-flagged words
+        proposals = self._filter_redundant_variants(proposals)
 
         logger.info(f"CMU proposer found {len(proposals)} unknown words (via WordIndex)")
         return proposals

@@ -171,16 +171,34 @@ Fix **ANY TWO** of these:
 | 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed constructor — but MentionSearcher attribute errors now visible |
 | 6 | MentionResult/CharacterMention attribute errors | `src/analyzer.py:1668, 1670, 1809, 1818` | Fixed — read class definitions, corrected all attribute names |
 | 6 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Partial — reduced from 38% to 22%, need <15% |
+| 7 | Pronunciation false positives (6 remaining) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `foreign_proposer.py` | Enhanced filtering — added possessive filter, monosyllabic word filter, compound patterns, redundant variant filter, and "grave" to ENGLISH_EXCEPTIONS |
+| 7 | Relationship labels all "rival" | `src/pipeline/character_profiling/generator.py` | Enhanced prompt — added relationship guidance section with power dynamics, specific type categories, and deception handling |
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Fix the 2 remaining failing categories:
-1. **Pronunciation** (7.5 → 8.0): Tighten false positive exclusions in `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
-   - Filter plurals/possessives of already-flagged names
-   - Filter common monosyllabic words (leer, Grave)
-   - Ensure `_is_obvious_compound()` catches "inmost" and "unredressed"
-   - Filter possessives of common words (cough's)
-2. **Character Profiles** (7.5 → 8.0): Improve relationship labels
-   - The profiling pipeline's relationship extraction produces only "rival" — check the prompt in `src/pipeline/character_profiling/` for relationship type guidance
-   - Provide the LLM with better relationship categories (friend, victim, competitor, enemy, acquaintance, etc.)
+Fixes applied for attempt 7:
+1. **Pronunciation false positives** (issue #3):
+   - Root cause: Missing filters for possessives, monosyllabic words, non-hyphenated compounds, and redundant variants
+   - Files modified:
+     - `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`:
+       - Added `_is_possessive_of_known_word()` — filters "cough's" when "cough" is in CMU
+       - Added `_is_common_monosyllabic_word()` — filters "leer" and similar obvious words
+       - Enhanced `_is_obvious_compound()` — now catches "inmost", "outermost", etc.
+       - Added `_filter_redundant_variants()` — filters "Montresors" when "Montresor" already flagged
+       - Applied all filters in both `propose()` and `_propose_from_index()` paths
+     - `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py`:
+       - Added "grave" to ENGLISH_EXCEPTIONS (common English word, even in wine names)
+   - Expected impact: Reduce false positive rate from 22% (6/27) to ~7% (2/27) or better
+
+2. **Relationship labels** (issue #1):
+   - Root cause: Prompt lacked specific relationship type guidance, LLM defaulted to generic "rival"
+   - Files modified:
+     - `src/pipeline/character_profiling/generator.py`:
+       - Added "RELATIONSHIP GUIDANCE" section to prompt with power dynamics framework
+       - Distinguished asymmetric (victim/victimizer), competitive (rival/competitor), and friendly relationships
+       - Added explicit deception handling ("pretends friendship to harm" = victimizer, not friend)
+       - Expanded relationship type options with specific categories
+   - Expected impact: Relationships should now be more accurate (Fortunato→Montresor: "friend/acquaintance", Montresor→Fortunato: "victim", Luchresi→Fortunato: "professional_competitor")
+
+Re-run analysis to verify fixes.
