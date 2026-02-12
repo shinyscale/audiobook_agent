@@ -279,6 +279,8 @@ COMMON_WORDS_WHITELIST = {
     "table",
     "chair",
     "bed",
+    "sideboard",
+    "mantelpiece",
     "garden",
     "street",
     "road",
@@ -576,6 +578,8 @@ COMMON_WORDS_WHITELIST = {
     "emaciation",
     "multiform",
     "aslant",
+    # Additional common words flagged in monkeys_paw analysis (attempt 2)
+    "sightless",
 }
 
 # Contraction fragments that result from tokenization
