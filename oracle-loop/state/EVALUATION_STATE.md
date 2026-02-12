@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -174,8 +174,16 @@ Fix **ANY TWO** of these:
 | 7 | Pronunciation false positives (6 remaining) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `foreign_proposer.py` | Enhanced filtering — added possessive filter, monosyllabic word filter, compound patterns, redundant variant filter, and "grave" to ENGLISH_EXCEPTIONS |
 | 7 | Relationship labels all "rival" | `src/pipeline/character_profiling/generator.py` | Enhanced prompt — added relationship guidance section with power dynamics, specific type categories, and deception handling |
 
+## Pipeline Notes (Attempt 7)
+- Analysis completed in 30m 17s
+- Competitive consensus enabled for characters, structure, and summaries (3 LLMs, 2/3 supermajority)
+- 3 characters detected: Fortunato (14 mentions), Luchresi (6 mentions), Montresor (1 mention)
+- 22 pronunciation flags (down from 27 in attempt 6)
+- F19 warnings: ungrounded evidence quotes for Fortunato (3) and Montresor (4)
+- 1 LLM batch enrichment failure in pronunciation guide (JSON parse error)
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
 
 Fixes applied for attempt 7:
 1. **Pronunciation false positives** (issue #3):
