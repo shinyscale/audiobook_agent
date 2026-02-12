@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -168,10 +168,33 @@ To cross 8.0 in all failing categories:
 | 4 | F6 reconciliation AttributeError | `src/analyzer.py:1648` | Fixed — `normalized_text` → `text` |
 | 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | Fixed — now populates real mentions via MentionSearcher |
 
-## Next Action
-**Phase:** awaiting_analysis
+## Pipeline Notes - Attempt 4
 
-Re-run analysis to verify:
-1. F6 reconciliation works OR narrator fallback creates properly-populated character
-2. Montresor gets a complete profile (appearance, personality, voice guidance)
-3. Pronunciation false positives reduced (may need separate fix)
+### Analysis Completed With Errors
+
+**New Critical Error Discovered:**
+```
+F6 character reconciliation failed: Character.__init__() missing 1 required positional argument: 'supporting_strategies'
+Early narrator detection failed: Character.__init__() missing 1 required positional argument: 'supporting_strategies'
+```
+
+**Impact:**
+- Both F6 reconciliation AND narrator fallback failed due to incorrect Character constructor call
+- The fix from attempt 4 introduced a new error or exposed an existing API mismatch
+- Montresor is in the character list but with: `mention_count: 1`, `profile: null`
+- Same symptoms as attempt 3 (Montresor present but no profile)
+
+**Pronunciation Stage Hung:**
+- LLM returned error responses instead of JSON:
+  - `{'error': 'Invalid JSON format. The response must be a JSON array containing one object per word.'}`
+  - `{'error': "The provided examples contain inaccuracies..."}` (model complaining about example pronunciation guidance)
+- Process stuck in retry loop, had to be killed after 26+ minutes
+- Pronunciation guide: 0 entries (failed completely)
+
+**Files Generated:**
+- ../output/cask_of_amontillado/analysis.json ✓ (3 characters, 1 chapter, 0 pronunciation)
+- ../output/cask_of_amontillado/report.html ✓
+
+**Next Phase:** awaiting_evaluation
+
+The attempt 4 fixes did NOT work. The Character constructor issue must be resolved before Montresor can be properly added via either F6 or narrator fallback.
