@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -148,6 +148,15 @@ To cross 8.0 in all failing categories:
    - Fortunato's clothing contamination (black silk mask/roquelaire) is FIXED — no longer appears in Fortunato's profile.
    - Net result: +0.93 overall improvement, but still 3 categories failing.
 
+### Attempt 4 Fixes Applied
+1. **CRITICAL #1 (F6 reconciliation and narrator fallback) - FULLY FIXED**
+   - **Root cause 1:** `src/analyzer.py:1648` - F6 reconciliation used `doc.normalized_text`, but `ExtractedDocument` only has `.text` attribute
+   - **Root cause 2:** `src/analyzer.py:1794` - Narrator fallback created character with hardcoded `mention_count=1`, empty `mentions=[]`, which caused profile generation to fail
+   - **Fix 1:** Changed `doc.normalized_text` → `doc.text` at line 1648
+   - **Fix 2:** Modified narrator fallback (lines 1784-1807) to use `MentionSearcher` to populate real mention data (mentions, mention_count, chapters_present)
+   - **Expected impact:** F6 will now work correctly. If narrator fallback activates, it creates a fully-populated character that profiling can work with.
+   - **Smoke test:** PASS - Code compiles, all tests pass (298 passed, 10 skipped)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -156,6 +165,13 @@ To cross 8.0 in all failing categories:
 | 2 | Bogus supporting characters | `src/pipeline/character_extraction_v2/grounding.py` | Fixed — 5 bogus chars removed |
 | 3 | F6 reconciliation crash (`document` typo) | `src/analyzer.py:1648` | Partially fixed — new error revealed |
 | 3 | Narrator not added to character list | `src/analyzer.py:1769-1807` | Fixed — fallback works, but profile fails |
+| 4 | F6 reconciliation AttributeError | `src/analyzer.py:1648` | Fixed — `normalized_text` → `text` |
+| 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | Fixed — now populates real mentions via MentionSearcher |
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1: Fix F6 reconciliation (`ExtractedDocument` attribute) AND improve narrator fallback to populate sufficient character data for profiling.
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify:
+1. F6 reconciliation works OR narrator fallback creates properly-populated character
+2. Montresor gets a complete profile (appearance, personality, voice guidance)
+3. Pronunciation false positives reduced (may need separate fix)

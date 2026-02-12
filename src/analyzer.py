@@ -1645,7 +1645,7 @@ class AudiobookAnalyzer:
                     # DEFENSIVE: Verify each name has grounding in the raw text before creating
                     # This prevents hallucinated characters from summary LLM errors (e.g., literary references)
                     from .pipeline.character_extraction_v2.mention_search import MentionSearcher
-                    searcher = MentionSearcher(full_text=doc.normalized_text, chapters=doc.chapters)
+                    searcher = MentionSearcher(full_text=doc.text, chapters=doc.chapters)
 
                     verified_names = []
                     for name in missing_names:
@@ -1781,18 +1781,40 @@ class AudiobookAnalyzer:
                             f"Available characters: {[c.canonical_name for c in pipeline_char_map.characters]}"
                         )
 
-                        # Create a minimal Character entry for the narrator
+                        # Create a Character entry for the narrator with proper mention data
                         import hashlib
                         narrator_id = hashlib.md5(narrator_info.narrator_name.encode()).hexdigest()[:12]
+
+                        # Search for actual mentions in the text
+                        from .pipeline.character_extraction_v2.mention_search import MentionSearcher
+                        searcher = MentionSearcher(full_text=doc.text, chapters=doc.chapters)
+
+                        # Create temporary character to search for mentions
+                        temp_narrator = Character(
+                            id="temp",
+                            canonical_name=narrator_info.narrator_name,
+                            aliases=[],
+                            mentions=[],
+                            first_appearance_chapter=0,
+                            mention_count=0,
+                            chapters_present=[],
+                            confidence=0.0,
+                        )
+
+                        mention_result = searcher.search_character(temp_narrator)
+
+                        # Determine chapters_present from mention positions
+                        chapters_present = sorted(set(m.chapter_idx for m in mention_result.mentions))
+                        first_chapter = chapters_present[0] if chapters_present else 0
 
                         narrator_character = Character(
                             id=narrator_id,
                             canonical_name=narrator_info.narrator_name,
                             aliases=[],
-                            mentions=[],
-                            first_appearance_chapter=0,
-                            mention_count=1,  # Minimal mention count
-                            chapters_present=[0],  # Assume chapter 0 for now
+                            mentions=mention_result.mentions,
+                            first_appearance_chapter=first_chapter,
+                            mention_count=mention_result.total_count,
+                            chapters_present=chapters_present,
                             confidence=narrator_info.confidence,
                             supporting_strategies=["narrator_detection_fallback"],
                             description="",  # Will be filled by profile generation
@@ -1803,8 +1825,8 @@ class AudiobookAnalyzer:
                         narrator_character.is_narrator = True
 
                         pipeline_char_map.characters.append(narrator_character)
-                        print(f"   Added narrator '{narrator_info.narrator_name}' to character list (fallback)")
-                        logger.info(f"Narrator fallback: Added '{narrator_info.narrator_name}' with confidence {narrator_info.confidence:.2f}")
+                        print(f"   Added narrator '{narrator_info.narrator_name}' to character list (fallback) with {mention_result.total_count} mentions")
+                        logger.info(f"Narrator fallback: Added '{narrator_info.narrator_name}' with {mention_result.total_count} mentions, confidence {narrator_info.confidence:.2f}")
                 else:
                     print("   No definitive narrator identified yet")
                     logger.info("Early narrator detection: No narrator identified")
