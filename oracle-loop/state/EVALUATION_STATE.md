@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 6
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -11,27 +11,17 @@
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
 
-## Pipeline Notes (Attempt 6)
-- Analysis completed in 29m 15s
-- Montresor successfully added to character list (1 mention) via reconciliation or narrator fallback
-- 3 characters total: Fortunato (14 mentions), Luchresi (6 mentions), Montresor (1 mention)
-- 3 profiles generated (including Montresor!)
-- Pronunciation: 27 words flagged (reduced from 37 in previous attempts)
-- Competitive consensus active on all 3 stages (characters, structure, summaries)
-- F19 warnings: Ungrounded evidence quotes detected for all 3 profiles
-- LLM batch enrichment failed for pronunciation (but individual entries still processed)
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6.5/10 ✗ (FAILING)
-- Character Profiles: 4/10 ✗ (FAILING)
+- Character Extraction: 8/10 ✓
+- Character Profiles: 7.5/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 6/10 ✗ (FAILING)
+- Pronunciation Guide: 7.5/10 ✗ (FAILING)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.18/10** (reference only)
+- **Overall: 8.33/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (2 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -41,118 +31,91 @@
 | 3 | 7.58 | +0.83 | Montresor now in character list (fallback worked), but profile generation failed. F6 still broken. |
 | 4 | 7.40 | +0.65 | Attempt 4 fix introduced NEW error (Character constructor missing `supporting_strategies`). Same symptoms as attempt 3. Pronunciation false positive rate increased. |
 | 5 | 7.18 | +0.43 | `supporting_strategies` fix applied but F6 now fails with NEW error (`MentionResult.total_count`). Narrator fallback fails with `CharacterMention.chapter_idx`. Montresor STILL missing. Regression from attempt 3. |
+| 6 | 8.33 | +1.58 | **Major breakthrough!** Montresor now has full profile. MentionResult/CharacterMention attribute errors fixed. Pronunciation false positives reduced from 38% to 22%. 2 categories still failing (Profiles 7.5, Pronunciation 7.5). |
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-
-1. **Montresor missing from character list — F6 and narrator fallback BOTH crash with different errors (5th consecutive attempt)**
-   - Problem: Montresor, the protagonist and first-person narrator, is not in the character list. Only 2 characters extracted (Fortunato and Luchresi).
-   - Evidence: `pipeline_metadata.narrator_name = "Montresor"` and `characters_present = ["Montresor", "Fortunato"]` in chapter summary, but Montresor is not in the `characters` array.
-   - **F6 error**: `'MentionResult' object has no attribute 'total_count'` (per EVALUATION_STATE notes from analyze phase)
-   - **Narrator fallback error**: `'CharacterMention' object has no attribute 'chapter_idx'` (per EVALUATION_STATE notes from analyze phase)
-   - **ROOT CAUSE ANALYSIS**: The attempt 4 fix added `MentionSearcher` usage to populate narrator fallback data, but the objects returned by `MentionSearcher` (`MentionResult`, `CharacterMention`) don't have the attributes the code expects. This has been a recurring pattern — the code keeps guessing at class APIs without reading their definitions.
-   - **FIX APPROACH — THE FIX PHASE MUST:**
-     1. **Read the actual class definitions** for `MentionResult` and `CharacterMention` (likely in `src/pipeline/character_extraction_v2/` or `src/models.py`) to see their actual attributes
-     2. **Read the `MentionSearcher` class** to understand what it returns and what attributes are available
-     3. **Find working examples** of how `MentionResult`/`CharacterMention` are used elsewhere in the codebase (grep for attribute access patterns)
-     4. Fix the attribute access in both F6 reconciliation AND narrator fallback to use correct attribute names
-     5. **If MentionSearcher is too complex to integrate correctly**, consider a SIMPLER fallback: just create a minimal Character object with the narrator name, basic role, and let the profiling pipeline fill in the rest. The attempt 3 approach (before MentionSearcher was added) at least got Montresor into the character list with `mention_count: 1`.
-   - Impact: -3.5 on Character Profiles (protagonist has no profile), -1.5 on Character Extraction (protagonist missing entirely)
-   - Location: `src/analyzer.py` — F6 reconciliation block (~line 1640-1720) and narrator fallback block (~line 1769-1807)
-   - **ESCALATION NOTE**: This is the SAME core issue for the **5th consecutive attempt**. `src/analyzer.py` has been modified in attempts 3, 4, and 5 without successfully getting Montresor into the character list with a working profile. Each fix introduces a NEW AttributeError because the code doesn't read the class definitions before using them. **The fix phase MUST read the source code of `MentionSearcher`, `MentionResult`, and `CharacterMention` before writing any code.**
-
 ### HIGH
 
-2. **Pronunciation false positive rate ~38% (14 of 37 entries are common words)**
-   - Problem: These entries are common English words a narrator doesn't need help pronouncing:
-     - Common hyphenated compounds: "tight-fitting", "web-work", "mason-work"
-     - Archaic spelling of obvious word: "to-day"
-     - Common English words: "cough's", "leer", "Grave"
-     - Standard prefixed words: "Unsheathing", "reapproached", "re-echoed", "re-erected"
-     - Redundant: "Montresors" (plural of already-listed "Montresor")
-     - OCR artifact: "himselffelt" (fused "himself felt")
-     - Arguably common: "unredressed", "gesticulation"
-   - Good entries (23 of 37): Character names, Amontillado, flambeaux, nitre, roquelaire, connoisseurship, gemmary, puncheons, requiescat, impune, lacessit, hearken/hearkened, parti-striped, rheum, imposture, flagon, homographs
-   - Location: `src/pipeline/pronunciation/` — the flagging prompt needs exclusion guidance
-   - Fix: Add to the pronunciation flagging prompt instructions to NOT flag:
-     - Simple hyphenated compounds of common English words (tight-fitting, web-work, mason-work)
-     - Common English words with obvious pronunciation (leer, cough's, Grave)
-     - Words with standard English prefixes re-/un- where pronunciation is obvious
-     - Archaic hyphenated spellings of common words (to-day = today)
-     - Plurals/possessives of names already in the list
-     - OCR artifacts (strings that appear to be fused/concatenated words)
-   - Impact: Score -2 on Pronunciation
-   - **NOTE**: This is a prompt improvement, not a keyword deny-list. Per USER_NOTES.md, keyword lists are forbidden.
+1. **Relationship labels oversimplified — all "rival" (impacts Character Profiles)**
+   - Problem: All three characters have relationships labeled "rival":
+     - Fortunato→Montresor: "rival" — should be "friend/acquaintance" (Fortunato doesn't know about Montresor's intentions)
+     - Montresor→Fortunato: "rival" — should be "victim" or "target of revenge"
+     - Luchresi→Fortunato: "rival" — should be "professional competitor" (in wine connoisseurship)
+   - Evidence: The text shows Fortunato trusts Montresor, calling him "my friend." Montresor feigns concern and friendship. They are not rivals.
+   - Location: Relationship extraction in character profiling pipeline (`src/pipeline/character_profiling/`)
+   - Impact: -0.5 on Character Profiles
+   - **Note:** This is an LLM judgment issue. The profiling pipeline's relationship extraction prompt may need to provide better relationship type options beyond "rival."
 
-3. **Fortunato's role labeled "antagonist" — he is the victim**
-   - Problem: In "The Cask of Amontillado," Montresor is the villain-protagonist who murders Fortunato. Fortunato is the victim. Labeling Fortunato "antagonist" is misleading.
-   - Evidence: Fortunato is lured into the catacombs and sealed alive. He commits no villainous acts.
+2. **Montresor appearance missing roquelaire and black silk mask**
+   - Problem: Montresor's appearance only mentions "conceals a trowel beneath his cloak." The text explicitly describes him wearing a roquelaire (short cloak) and a black silk mask.
+   - Evidence: From the text: "I had on a silk mask" and "drawing a roquelaire closely about my person"
+   - Location: Passage gathering for Montresor in character profiling. Since Montresor entered via F6 reconciliation with only 1 mention, the passage gatherer may not have found enough direct text references.
+   - Impact: -0.5 on Character Profiles
+   - **Root cause analysis:** Montresor's `mention_count: 1` and empty `mentions: []` means the passage gatherer has minimal data to work with. The F6 reconciliation creates a Character object but doesn't populate full mention data. The profiling pipeline then has to work with limited context.
+
+3. **Pronunciation: ~22% false positive rate (6 of 27 entries are common/redundant words)**
+   - Problem: These entries shouldn't be flagged:
+     - "Montresors" — plural of already-listed "Montresor" (redundant)
+     - "cough's" — very common word
+     - "leer" — common English word
+     - "inmost" — common English word
+     - "Grave" — common English word (could be homograph, but context is clear)
+     - "unredressed" — standard English word with common prefix
+   - "gesticulation" is borderline — keep it, it's uncommon enough.
+   - Location: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` — the pattern-based exclusions from attempt 6 caught many false positives but missed these
+   - Impact: -0.5 on Pronunciation
+   - **Fix approach:**
+     - Add exclusion for plurals/possessives of names already in the pronunciation list (Montresors when Montresor exists)
+     - The `_is_obvious_compound()` filter already handles re-/un- prefixed words but missed "unredressed" — check if it's actually being called for this word
+     - Common monosyllabic English words like "leer", "Grave" should be filtered by a more aggressive common-word check. The CMU proposer may need to check if the word (lowercased) is in the CMU dictionary as a common English word (not a name). If it IS in CMU with an obvious pronunciation, don't flag it.
+     - "cough's" — possessives of common words should be filtered
+     - "inmost" — a standard English compound (in + most) should be caught by compound detection
+
+4. **Fortunato's role labeled "antagonist" instead of "victim"**
+   - Problem: Fortunato is not the antagonist — he's the victim. Montresor is the villain-protagonist. In literary terms, the "antagonist" opposes the protagonist, but Fortunato doesn't oppose Montresor — he's oblivious to Montresor's plan.
    - Location: Role assignment in character extraction pipeline
-   - Impact: Score -0.5 on Character Extraction
-   - Note: This is an LLM judgment call that may improve when Montresor gets properly extracted as protagonist. **Deprioritize — fix CRITICAL #1 first.**
+   - Impact: -0.5 on Character Extraction (but scored 8.0, so this is a buffer issue — fixing helps but isn't strictly needed to pass)
+   - **Deprioritize** — Character Extraction already passes at 8.0. Fix if easy, skip if complex.
 
 ### MEDIUM
 
-4. **Fortunato personality_summary, personality_traits, and temperament are null**
-   - Problem: While Fortunato has appearance data and voice_guidance, personality fields are completely empty.
-   - Evidence: `personality_summary: null`, `personality_traits: null`, `temperament: null` in analysis.json. The HTML report does show a "Personality" section but it appears to be auto-generated from other fields rather than the dedicated personality extraction.
-   - Location: Character profiling pipeline — personality extraction stage
-   - Impact: Score -0.5 on Character Profiles
-   - Note: The personality_summary shown in the HTML ("Fortunato is a villainous antagonist whose arrogance and pride make him vulnerable...") appears to come from the `appearance.summary` or a generated fallback, not the dedicated personality fields.
-
-5. **Relationship labels oversimplified — all "rival"**
-   - Problem: Fortunato→Montresor: "rival", Luchresi→Fortunato: "rival". None are accurate:
-     - Fortunato→Montresor: friend/acquaintance (Fortunato doesn't know Montresor plans murder)
-     - Luchresi→Fortunato: professional competitor in wine connoisseurship
-   - Location: Relationship extraction in character profiling pipeline
-   - Impact: Score -0.5 on Character Profiles
+5. **Montresor's evidence quotes are from the summary, not direct text**
+   - Problem: The `evidence` array in Montresor's appearance section contains a quote from the chapter summary ("begins sealing him alive behind a stone wall using a trowel concealed beneath his cloak") rather than direct text from the story.
+   - Evidence: F19 warnings during analysis noted "ungrounded evidence quotes" for all 3 profiles
+   - Location: Character profiling pipeline — evidence gathering
+   - Impact: -0.5 on Character Profiles
+   - **Root cause:** Same as issue #2 — Montresor's low mention count limits what the passage gatherer can find, so it falls back to summary text.
 
 6. **Narrative style inconsistency in overview**
    - Problem: `overview.structure.narrative_style` says "unknown" while `overview.plot_summary.narrative_style` correctly says "first-person retrospective"
    - Location: `src/analyzer.py` — structure overview generation
-   - Impact: Minor (-0.5 on Structure Detection)
+   - Impact: Minor (-0.5 on Structure Detection, but already passes at 9.0)
 
 ### LOW
 
-7. **Missing pronunciation: "In pace requiescat" (full Latin phrase)**
-   - Note: "requiescat" alone IS flagged with IPA. Full phrase context would be nice-to-have.
-
-8. **Homographs "row", "close", "entrance" lack IPA (by design)**
-   - Note: Correct behavior — context-dependent notes provided instead. No fix needed.
+7. **Double-quoted example quotes in HTML**
+   - Problem: Example quotes render as `""Amontillado!""` (double double-quotes) in the HTML
+   - Location: HTML template rendering — likely the evidence/quotes are stored with quotes already, and the template adds more
+   - Impact: Minor formatting issue (-0.5 on Presentation, but already passes at 8.5)
 
 ## What Needs to Happen to Pass
 
-To cross 8.0 in all three failing categories:
+Only 2 categories need fixing, and both are close to threshold:
 
-1. **Character Profiles (4 → 8): THE BIGGEST GAP — fix CRITICAL #1**
-   - Montresor MUST get a proper profile. He needs:
-     - Appearance: black silk mask, roquelaire (short cloak)
-     - Personality: cold, calculating, vindictive, patient, darkly ironic
-     - Speech patterns: formal, ironic, manipulative, uses polite concern as weapon
-     - Voice guidance: controlled, chilling narration that reveals calculation
-     - Relationships: Fortunato (acquaintance/victim)
-   - Fortunato also needs personality_summary populated (currently null)
+### Character Profiles (7.5 → 8.0): Need +0.5 points
+Fix **ANY TWO** of these:
+- **Relationships** (issue #1): Improve from "rival" to more accurate labels → +0.5
+- **Montresor appearance** (issue #2): Add roquelaire/mask details → +0.5
+- **Evidence grounding** (issue #5): Use direct text instead of summary → +0.5
 
-2. **Character Extraction (6.5 → 8): Get Montresor into the character list**
-   - Currently missing entirely — should be listed as protagonist/narrator
-   - Will be fixed when F6/narrator fallback successfully creates a Character object
-   - Fortunato's role should ideally switch from "antagonist" to "victim" or similar
+### Pronunciation Guide (7.5 → 8.0): Need +0.5 points
+- **Reduce false positives** (issue #3): Remove 3-4 of the 6 identified false positives → +0.5
 
-3. **Pronunciation (6 → 8): reduce false positive rate from 38% to <15%**
-   - Remove/don't flag ~10 common words
-   - Remove OCR artifact "himselffelt"
-   - Keep all the good entries (23 genuinely useful pronunciation aids)
-
-**Priority:** CRITICAL #1 is the single most impactful fix. Getting Montresor into the character list with a proper profile would push Character Profiles from 4 to ~7-8 and Character Extraction from 6.5 to 8+. Pronunciation fix is independent and can be done in parallel.
-
-**MANDATORY FOR FIX PHASE:** Before writing ANY code that touches `MentionSearcher`, `MentionResult`, or `CharacterMention`, the fix phase MUST:
-1. `grep -rn "class MentionResult" src/` to find the definition
-2. `grep -rn "class CharacterMention" src/` to find the definition
-3. `grep -rn "class MentionSearcher" src/` to find the definition
-4. Read those class definitions to understand the actual API
-5. Find at least ONE working usage example in the codebase
-6. Only THEN write the fix using correct attribute names
+**Priority order for fix phase:**
+1. Pronunciation false positives (issue #3) — independent, quick win, pattern-based
+2. Relationship labels (issue #1) — high impact on Profiles score
+3. Montresor appearance detail (issue #2) — nice to have but harder to fix (root cause is low mention count)
 
 ## Configuration Audit
 
@@ -162,70 +125,38 @@ To cross 8.0 in all three failing categories:
 - Context length 32768 — sufficient for this short story
 
 ### Chunking Configuration
-- `character_llm_chunk_chars: 5000` — fine for a ~13K character story (2-3 chunks)
-- `summary_chunk_words: 2500` — appropriate, story fits in one chunk
+- `character_llm_chunk_chars: 5000` — fine for ~13K character story
+- `summary_chunk_words: 2500` — appropriate
 
 ### Processing Issues
-- 0 LLM retries, 0 JSON parse failures — model worked cleanly for all stages
-- F6 reconciliation crashes with `'MentionResult' object has no attribute 'total_count'`
-- Narrator fallback crashes with `'CharacterMention' object has no attribute 'chapter_idx'`
-- Character profiling ran but produced null personality for Fortunato, no entry for Montresor
-- 2 JSON parse failures in Pronunciation (for "himselffelt" and batch enrichment)
+- 0 LLM retries, 0 JSON parse failures for most stages — clean execution
+- 1 JSON parse failure in Pronunciation (batch enrichment)
+- F6 reconciliation now works (attribute errors fixed in attempt 6)
+- All 3 character profiles generated successfully with HIGH confidence
+- Montresor successfully reconciled via F6 with correct role and narrator status
 
 ## Fix History
 
 ### Attempt 2 Fixes Applied
-1. **CRITICAL #1 (old): Fortunato personality profile contamination - FIXED (VERIFIED)**
-   - Root cause: `src/analyzer.py:1828` - narrative_style set to "unknown" instead of "first-person"
-   - Fix: Changed narrative_style detection to use text-based analysis
-   - Result: **FIXED** — Fortunato personality now correctly about Fortunato.
-
-2. **CRITICAL #2 (old): 5 bogus supporting characters - FIXED (VERIFIED)**
-   - Root cause: `src/pipeline/character_extraction_v2/grounding.py:24-36` - adaptive_min_mentions() returned 1
-   - Fix: Raised floor from 1 to 2
-   - Result: **FIXED** — All 5 bogus characters removed.
+1. **Fortunato personality contamination - FIXED (VERIFIED)**
+2. **5 bogus supporting characters - FIXED (VERIFIED)**
 
 ### Attempt 3 Fixes Applied
-1. **CRITICAL: Montresor missing from character list - PARTIALLY FIXED**
-   - Fix 1 (typo `document` → `doc`): Applied but F6 still fails with new error (`ExtractedDocument` has no `normalized_text`)
-   - Fix 2 (narrator fallback): **WORKS** — Montresor added to character list successfully
-   - BUT: Profile generation failed for Montresor (empty profile). The fallback creates a minimal Character object that the profiling pipeline can't work with.
-   - Fortunato's clothing contamination (black silk mask/roquelaire) is FIXED — no longer appears in Fortunato's profile.
+1. **Montresor missing - PARTIALLY FIXED** (narrator fallback works, but profile fails)
 
 ### Attempt 4 Fixes Applied
-1. **CRITICAL #1 (F6 reconciliation and narrator fallback) - FAILED**
-   - **Fix 1:** Changed `doc.normalized_text` → `doc.text` at line 1648
-   - **Fix 2:** Modified narrator fallback to use `MentionSearcher` to populate real mention data
-   - **Result:** Both fixes introduced NEW error: `Character.__init__() missing 1 required positional argument: 'supporting_strategies'`
-   - The Character constructor signature was not checked before modifying the constructor calls
-   - **Smoke test passed** (298 tests) but the error only manifests at runtime during analysis, not in unit tests
+1. **F6 reconciliation and narrator fallback - FAILED** (introduced Character constructor error)
 
 ### Attempt 5 Fixes Applied
-1. **CRITICAL #1 (Character constructor missing supporting_strategies) - FIXED but new errors revealed**
-   - **Fix:** Added `supporting_strategies=[]` to both temp_char and temp_narrator Character constructors
-   - **Result:** `supporting_strategies` error is gone, but TWO NEW attribute errors surfaced:
-     - F6: `'MentionResult' object has no attribute 'total_count'`
-     - Narrator fallback: `'CharacterMention' object has no attribute 'chapter_idx'`
-   - These errors were hidden behind the `supporting_strategies` error before. They originate from the attempt 4 `MentionSearcher` integration which was never properly validated.
+1. **Character constructor missing supporting_strategies - FIXED** (but new MentionSearcher attribute errors)
 
 ### Attempt 6 Fixes Applied
-1. **CRITICAL #1: MentionResult/CharacterMention attribute errors - FIXED**
-   - **Root cause:** `src/analyzer.py` used wrong attribute names when accessing `MentionSearcher` results
-     - Line 1668, 1670, 1818: Used `total_count` instead of `total_mentions` (MentionResult attribute)
-     - Line 1809: Used `chapter_idx` instead of `chapter_index` (CharacterMention attribute)
-   - **Fix:** Read actual class definitions in `src/pipeline/character_extraction_v2/mention_search.py` and `src/models.py`, then corrected all attribute names
-   - **Smoke test:** Verified correct attributes exist on dataclasses before deployment
-   - **Test results:** 298 tests passed (excluding 1 pre-existing failure in test_semantic_conflicts.py)
-
-2. **HIGH #2: Pronunciation false positive rate ~38% - FIXED**
-   - **Root cause:** CMU proposer flagging obvious compounds and common derivations
-   - **Fix:** Added universal pattern-based exclusions (NOT word-specific deny-lists):
-     - `_is_obvious_compound()`: Filters hyphenated compounds (tight-fitting), archaic spellings (to-day), standard prefixes (re-/un- + known root)
-     - Enhanced `_is_ocr_artifact()`: Now detects longer concatenations (himselffelt = himself + felt) with safeguard against false positives (requires at least one COMMON word)
-     - Added reflexive pronouns to whitelist (myself, himself, etc.) for OCR detection
-   - **Location:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
-   - **Smoke test:** All 10 test cases passed (filters false positives, keeps genuine foreign words)
-   - **Expected impact:** False positive rate should drop from 38% to <15%
+1. **MentionResult/CharacterMention attribute errors - FIXED (VERIFIED)**
+   - All attribute names corrected after reading actual class definitions
+   - **Result:** Montresor now in character list with full profile — the 5-attempt saga is RESOLVED
+2. **Pronunciation false positives reduced from 38% to 22% - PARTIALLY FIXED**
+   - Pattern-based exclusions catch obvious compounds, OCR artifacts, standard prefixes
+   - Still ~6 false positives remaining (cough's, leer, inmost, Grave, Montresors, unredressed)
 
 ## Modification History
 
@@ -239,12 +170,17 @@ To cross 8.0 in all three failing categories:
 | 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | MentionSearcher added — but Character constructor error + wrong attribute access |
 | 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed constructor — but MentionSearcher attribute errors now visible |
 | 6 | MentionResult/CharacterMention attribute errors | `src/analyzer.py:1668, 1670, 1809, 1818` | Fixed — read class definitions, corrected all attribute names |
-| 6 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Fixed — pattern-based exclusions added |
+| 6 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Partial — reduced from 38% to 22%, need <15% |
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis to verify:
-1. Montresor now appears in character list (F6 and/or narrator fallback should succeed)
-2. Montresor receives a proper profile
-3. Pronunciation false positive rate reduced significantly
+Fix the 2 remaining failing categories:
+1. **Pronunciation** (7.5 → 8.0): Tighten false positive exclusions in `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+   - Filter plurals/possessives of already-flagged names
+   - Filter common monosyllabic words (leer, Grave)
+   - Ensure `_is_obvious_compound()` catches "inmost" and "unredressed"
+   - Filter possessives of common words (cough's)
+2. **Character Profiles** (7.5 → 8.0): Improve relationship labels
+   - The profiling pipeline's relationship extraction produces only "rival" — check the prompt in `src/pipeline/character_profiling/` for relationship type guidance
+   - Provide the LLM with better relationship categories (friend, victim, competitor, enemy, acquaintance, etc.)
