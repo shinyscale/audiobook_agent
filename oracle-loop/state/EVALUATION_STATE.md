@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- **CRITICAL ERROR:** "F6 character reconciliation failed: name 'document' is not defined" - Code error in character reconciliation
+- **CHARACTER EXTRACTION FAILURE:** Montresor (protagonist/narrator) was NOT extracted as a character
+  - Multiple warnings: "Narrator 'Montresor' identified but NOT found in main_cast. Available characters: ['Fortunato']"
+  - Final state: Only Fortunato and Luchresi were extracted
+  - This is a CATASTROPHIC failure - the story's protagonist is missing
+- **HALLUCINATION WARNING:** "F19: Profile for 'Fortunato' has 5 potentially ungrounded evidence quotes - may indicate hallucination"
+- **JSON VALIDATION:** "LLM validation failed (got dict), keeping batch candidates" - Minor validation issue
+- Competitive consensus enabled for all stages (characters, structure, summaries)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
