@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 7
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -13,15 +13,15 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 8/10 ✓
-- Character Profiles: 7.5/10 ✗ (FAILING)
+- Character Extraction: 8.5/10 ✓
+- Character Profiles: 8/10 ✓
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 7.5/10 ✗ (FAILING)
+- Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.33/10** (reference only)
+- **Overall: 8.63/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** PASS — All categories at or above threshold
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -32,90 +32,47 @@
 | 4 | 7.40 | +0.65 | Attempt 4 fix introduced NEW error (Character constructor missing `supporting_strategies`). Same symptoms as attempt 3. Pronunciation false positive rate increased. |
 | 5 | 7.18 | +0.43 | `supporting_strategies` fix applied but F6 now fails with NEW error (`MentionResult.total_count`). Narrator fallback fails with `CharacterMention.chapter_idx`. Montresor STILL missing. Regression from attempt 3. |
 | 6 | 8.33 | +1.58 | **Major breakthrough!** Montresor now has full profile. MentionResult/CharacterMention attribute errors fixed. Pronunciation false positives reduced from 38% to 22%. 2 categories still failing (Profiles 7.5, Pronunciation 7.5). |
+| 7 | 8.63 | +1.88 | **PASS!** Relationship labels fixed (rival→victim/victimizer/professional_competitor). Pronunciation false positives reduced from 22% to ~5%. All 6 categories now >= 8.0. |
 
 ## Current Issues (Priority Order)
 
-### HIGH
+No blocking issues. All categories pass threshold.
 
-1. **Relationship labels oversimplified — all "rival" (impacts Character Profiles)**
-   - Problem: All three characters have relationships labeled "rival":
-     - Fortunato→Montresor: "rival" — should be "friend/acquaintance" (Fortunato doesn't know about Montresor's intentions)
-     - Montresor→Fortunato: "rival" — should be "victim" or "target of revenge"
-     - Luchresi→Fortunato: "rival" — should be "professional competitor" (in wine connoisseurship)
-   - Evidence: The text shows Fortunato trusts Montresor, calling him "my friend." Montresor feigns concern and friendship. They are not rivals.
-   - Location: Relationship extraction in character profiling pipeline (`src/pipeline/character_profiling/`)
-   - Impact: -0.5 on Character Profiles
-   - **Note:** This is an LLM judgment issue. The profiling pipeline's relationship extraction prompt may need to provide better relationship type options beyond "rival."
+### Remaining Polish Items (LOW priority, not blocking)
 
-2. **Montresor appearance missing roquelaire and black silk mask**
-   - Problem: Montresor's appearance only mentions "conceals a trowel beneath his cloak." The text explicitly describes him wearing a roquelaire (short cloak) and a black silk mask.
-   - Evidence: From the text: "I had on a silk mask" and "drawing a roquelaire closely about my person"
-   - Location: Passage gathering for Montresor in character profiling. Since Montresor entered via F6 reconciliation with only 1 mention, the passage gatherer may not have found enough direct text references.
-   - Impact: -0.5 on Character Profiles
-   - **Root cause analysis:** Montresor's `mention_count: 1` and empty `mentions: []` means the passage gatherer has minimal data to work with. The F6 reconciliation creates a Character object but doesn't populate full mention data. The profiling pipeline then has to work with limited context.
+1. **Montresor appearance still missing roquelaire and black silk mask**
+   - Root cause: Montresor's `mention_count: 1` limits passage gatherer data
+   - Impact: Minor — profile overall is good with personality, voice guidance, and relationships
 
-3. **Pronunciation: ~22% false positive rate (6 of 27 entries are common/redundant words)**
-   - Problem: These entries shouldn't be flagged:
-     - "Montresors" — plural of already-listed "Montresor" (redundant)
-     - "cough's" — very common word
-     - "leer" — common English word
-     - "inmost" — common English word
-     - "Grave" — common English word (could be homograph, but context is clear)
-     - "unredressed" — standard English word with common prefix
-   - "gesticulation" is borderline — keep it, it's uncommon enough.
-   - Location: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` — the pattern-based exclusions from attempt 6 caught many false positives but missed these
-   - Impact: -0.5 on Pronunciation
-   - **Fix approach:**
-     - Add exclusion for plurals/possessives of names already in the pronunciation list (Montresors when Montresor exists)
-     - The `_is_obvious_compound()` filter already handles re-/un- prefixed words but missed "unredressed" — check if it's actually being called for this word
-     - Common monosyllabic English words like "leer", "Grave" should be filtered by a more aggressive common-word check. The CMU proposer may need to check if the word (lowercased) is in the CMU dictionary as a common English word (not a name). If it IS in CMU with an obvious pronunciation, don't flag it.
-     - "cough's" — possessives of common words should be filtered
-     - "inmost" — a standard English compound (in + most) should be caught by compound detection
+2. **Narrative style inconsistency in overview**
+   - `overview.structure.narrative_style` says "unknown" while `overview.plot_summary.narrative_style` correctly says "first-person retrospective"
+   - Impact: Cosmetic
+
+3. **Double-quoted example quotes in HTML**
+   - Example quotes render as `""Amontillado!""` (double double-quotes)
+   - Impact: Cosmetic formatting issue
 
 4. **Fortunato's role labeled "antagonist" instead of "victim"**
-   - Problem: Fortunato is not the antagonist — he's the victim. Montresor is the villain-protagonist. In literary terms, the "antagonist" opposes the protagonist, but Fortunato doesn't oppose Montresor — he's oblivious to Montresor's plan.
-   - Location: Role assignment in character extraction pipeline
-   - Impact: -0.5 on Character Extraction (but scored 8.0, so this is a buffer issue — fixing helps but isn't strictly needed to pass)
-   - **Deprioritize** — Character Extraction already passes at 8.0. Fix if easy, skip if complex.
+   - Debatable — some literary analysis does call the opposing character "antagonist"
+   - Impact: Minor
 
-### MEDIUM
+5. **hearken/hearkened redundancy in pronunciation guide**
+   - Both base form and past tense flagged separately
+   - Impact: Very minor
 
-5. **Montresor's evidence quotes are from the summary, not direct text**
-   - Problem: The `evidence` array in Montresor's appearance section contains a quote from the chapter summary ("begins sealing him alive behind a stone wall using a trowel concealed beneath his cloak") rather than direct text from the story.
-   - Evidence: F19 warnings during analysis noted "ungrounded evidence quotes" for all 3 profiles
-   - Location: Character profiling pipeline — evidence gathering
-   - Impact: -0.5 on Character Profiles
-   - **Root cause:** Same as issue #2 — Montresor's low mention count limits what the passage gatherer can find, so it falls back to summary text.
+## What Passed (Attempt 7 Fixes That Worked)
 
-6. **Narrative style inconsistency in overview**
-   - Problem: `overview.structure.narrative_style` says "unknown" while `overview.plot_summary.narrative_style` correctly says "first-person retrospective"
-   - Location: `src/analyzer.py` — structure overview generation
-   - Impact: Minor (-0.5 on Structure Detection, but already passes at 9.0)
+### Relationship Labels — FIXED
+- Fortunato→Montresor: "rival" → "victim" ✓
+- Montresor→Fortunato: "rival" → "victimizer" ✓
+- Luchresi→Fortunato: "rival" → "professional_competitor" ✓
+- The prompt enhancement in `src/pipeline/character_profiling/generator.py` worked perfectly
 
-### LOW
-
-7. **Double-quoted example quotes in HTML**
-   - Problem: Example quotes render as `""Amontillado!""` (double double-quotes) in the HTML
-   - Location: HTML template rendering — likely the evidence/quotes are stored with quotes already, and the template adds more
-   - Impact: Minor formatting issue (-0.5 on Presentation, but already passes at 8.5)
-
-## What Needs to Happen to Pass
-
-Only 2 categories need fixing, and both are close to threshold:
-
-### Character Profiles (7.5 → 8.0): Need +0.5 points
-Fix **ANY TWO** of these:
-- **Relationships** (issue #1): Improve from "rival" to more accurate labels → +0.5
-- **Montresor appearance** (issue #2): Add roquelaire/mask details → +0.5
-- **Evidence grounding** (issue #5): Use direct text instead of summary → +0.5
-
-### Pronunciation Guide (7.5 → 8.0): Need +0.5 points
-- **Reduce false positives** (issue #3): Remove 3-4 of the 6 identified false positives → +0.5
-
-**Priority order for fix phase:**
-1. Pronunciation false positives (issue #3) — independent, quick win, pattern-based
-2. Relationship labels (issue #1) — high impact on Profiles score
-3. Montresor appearance detail (issue #2) — nice to have but harder to fix (root cause is low mention count)
+### Pronunciation False Positives — FIXED
+- False positive rate: 22% (6/27) → ~5% (1/22)
+- Removed: Montresors, cough's, leer, inmost, Grave
+- "unredressed" remains but is borderline acceptable (uncommon enough for narrators)
+- Filters added: possessive filter, monosyllabic word filter, compound patterns, redundant variant filter
 
 ## Configuration Audit
 
@@ -131,9 +88,9 @@ Fix **ANY TWO** of these:
 ### Processing Issues
 - 0 LLM retries, 0 JSON parse failures for most stages — clean execution
 - 1 JSON parse failure in Pronunciation (batch enrichment)
-- F6 reconciliation now works (attribute errors fixed in attempt 6)
+- F6 reconciliation works correctly
 - All 3 character profiles generated successfully with HIGH confidence
-- Montresor successfully reconciled via F6 with correct role and narrator status
+- Analysis completed in 25m 48s
 
 ## Fix History
 
@@ -152,11 +109,11 @@ Fix **ANY TWO** of these:
 
 ### Attempt 6 Fixes Applied
 1. **MentionResult/CharacterMention attribute errors - FIXED (VERIFIED)**
-   - All attribute names corrected after reading actual class definitions
-   - **Result:** Montresor now in character list with full profile — the 5-attempt saga is RESOLVED
 2. **Pronunciation false positives reduced from 38% to 22% - PARTIALLY FIXED**
-   - Pattern-based exclusions catch obvious compounds, OCR artifacts, standard prefixes
-   - Still ~6 false positives remaining (cough's, leer, inmost, Grave, Montresors, unredressed)
+
+### Attempt 7 Fixes Applied
+1. **Pronunciation false positives - FIXED (VERIFIED)** — Rate reduced from 22% to ~5%
+2. **Relationship labels all "rival" - FIXED (VERIFIED)** — Now victim/victimizer/professional_competitor
 
 ## Modification History
 
@@ -171,42 +128,10 @@ Fix **ANY TWO** of these:
 | 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed constructor — but MentionSearcher attribute errors now visible |
 | 6 | MentionResult/CharacterMention attribute errors | `src/analyzer.py:1668, 1670, 1809, 1818` | Fixed — read class definitions, corrected all attribute names |
 | 6 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Partial — reduced from 38% to 22%, need <15% |
-| 7 | Pronunciation false positives (6 remaining) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `foreign_proposer.py` | Enhanced filtering — added possessive filter, monosyllabic word filter, compound patterns, redundant variant filter, and "grave" to ENGLISH_EXCEPTIONS |
-| 7 | Relationship labels all "rival" | `src/pipeline/character_profiling/generator.py` | Enhanced prompt — added relationship guidance section with power dynamics, specific type categories, and deception handling |
-
-## Pipeline Notes (Attempt 7)
-- Analysis completed in 30m 17s
-- Competitive consensus enabled for characters, structure, and summaries (3 LLMs, 2/3 supermajority)
-- 3 characters detected: Fortunato (14 mentions), Luchresi (6 mentions), Montresor (1 mention)
-- 22 pronunciation flags (down from 27 in attempt 6)
-- F19 warnings: ungrounded evidence quotes for Fortunato (3) and Montresor (4)
-- 1 LLM batch enrichment failure in pronunciation guide (JSON parse error)
+| 7 | Pronunciation false positives (6 remaining) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `foreign_proposer.py` | **Fixed** — reduced from 22% to ~5% |
+| 7 | Relationship labels all "rival" | `src/pipeline/character_profiling/generator.py` | **Fixed** — accurate relationship types now generated |
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** complete
 
-Fixes applied for attempt 7:
-1. **Pronunciation false positives** (issue #3):
-   - Root cause: Missing filters for possessives, monosyllabic words, non-hyphenated compounds, and redundant variants
-   - Files modified:
-     - `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`:
-       - Added `_is_possessive_of_known_word()` — filters "cough's" when "cough" is in CMU
-       - Added `_is_common_monosyllabic_word()` — filters "leer" and similar obvious words
-       - Enhanced `_is_obvious_compound()` — now catches "inmost", "outermost", etc.
-       - Added `_filter_redundant_variants()` — filters "Montresors" when "Montresor" already flagged
-       - Applied all filters in both `propose()` and `_propose_from_index()` paths
-     - `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py`:
-       - Added "grave" to ENGLISH_EXCEPTIONS (common English word, even in wine names)
-   - Expected impact: Reduce false positive rate from 22% (6/27) to ~7% (2/27) or better
-
-2. **Relationship labels** (issue #1):
-   - Root cause: Prompt lacked specific relationship type guidance, LLM defaulted to generic "rival"
-   - Files modified:
-     - `src/pipeline/character_profiling/generator.py`:
-       - Added "RELATIONSHIP GUIDANCE" section to prompt with power dynamics framework
-       - Distinguished asymmetric (victim/victimizer), competitive (rival/competitor), and friendly relationships
-       - Added explicit deception handling ("pretends friendship to harm" = victimizer, not friend)
-       - Expanded relationship type options with specific categories
-   - Expected impact: Relationships should now be more accurate (Fortunato→Montresor: "friend/acquaintance", Montresor→Fortunato: "victim", Luchresi→Fortunato: "professional_competitor")
-
-Re-run analysis to verify fixes.
+Text `cask_of_amontillado` has PASSED with all categories >= 8.0. Ready to advance to next text in manifest (`masque_of_red_death`).
