@@ -1659,6 +1659,7 @@ class AudiobookAnalyzer:
                             mention_count=0,
                             chapters_present=[],
                             confidence=0.0,
+                            supporting_strategies=[],  # Temporary character, no strategies yet
                         )
 
                         # Search for mentions in raw text
@@ -1799,6 +1800,7 @@ class AudiobookAnalyzer:
                             mention_count=0,
                             chapters_present=[],
                             confidence=0.0,
+                            supporting_strategies=[],  # Temporary character, no strategies yet
                         )
 
                         mention_result = searcher.search_character(temp_narrator)
