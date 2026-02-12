@@ -3,30 +3,21 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.98
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed in 41m 9s
-- Competitive consensus ENABLED (single mode: 3 temperatures)
-- All 3 stages using competitive mode: characters, structure, summaries
-- 84 LLM calls total (130,848 tokens)
-- Warnings: LLM batch enrichment failed for pronunciation (JSON parsing error)
-- F19 warnings: All 6 character profiles have potentially ungrounded evidence quotes
-- 3 chapters detected, 6 characters extracted, 22 pronunciation flags
-
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
 - Character Extraction: 9/10 ✓
 - Character Profiles: 8.5/10 ✓
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 6.5/10 ✗ (FAILING)
+- Pronunciation Guide: 7.5/10 ✗ (FAILING)
 - HTML Presentation: 8/10 ✓
-- **Overall: 8.38/10** (reference only)
+- **Overall: 8.48/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold)
@@ -35,170 +26,124 @@
 
 ### Structure Detection: 8.5/10 ✓
 
-The critical fix worked — 3 parts are now correctly detected (I, II, III). Chapter 1 has title "I" but chapters 2 and 3 have `null` titles (should be "II" and "III"). This is cosmetic — the HTML renders "Chapter 2" and "Chapter 3" without the Roman numeral titles. The structure itself is correct and the summaries are properly split. Minor deduction for missing titles.
+Unchanged from attempt 2. 3 parts correctly detected (I, II, III). Chapter 1 has title "I" but chapters 2 and 3 have `null` titles (should be "II" and "III"). Structure itself is correct and summaries are properly split.
 
 ### Character Extraction: 9/10 ✓
 
 All significant characters correctly identified:
-- **Main cast (4):** Mr. White (42 mentions), Mrs. White (26), Herbert White (15), Sergeant-Major Morris (13) — all correct
-- **Supporting (2):** "the stranger" (Maw & Meggins representative, 2 mentions), "the monkey's paw" (symbolic object/force, 5 mentions) — both appropriate
+- **Main cast (6):** Mr. White (26 mentions), Herbert White (29), Mrs. White (10), Sergeant-Major Morris (13), the stranger (2), the monkey's paw (10)
+- Aliases well-grouped: Mr. White = "the old man", "the husband"; Herbert = "Herbert", "son"; Morris = "Morris", "the sergeant-major"; the paw = "the paw"
 
-Aliases are well-grouped: Mr. White = "the old man", "White", "the husband"; Herbert = "Herbert", "the son"; Morris = "Morris", "the sergeant-major". No false splits, no false merges, no hallucinated characters.
-
-Minor issue: Chapter 3's `characters_present` lists "the old woman" which is NOT listed as an alias of Mrs. White. This means the chapter tracking references an unlinked name variant. Similarly "the old man" appears correctly as a Mr. White alias but the asymmetry is notable.
+Minor: Chapter 3's `characters_present` uses "the old man" and "the old woman" instead of canonical names. "the old woman" is NOT an alias of Mrs. White.
 
 ### Character Profiles: 8.5/10 ✓
 
-Major improvement over attempt 1:
-- **No more spectacles hallucination** — Mr. White's appearance now correctly states "thin grey beard" and "frail physical presence"
-- **No more misattributed Arabian Nights quote** — Herbert's quotes are all correctly his own lines
-- **Morris's relationship to Mr. White is now "acquaintance"** (was "victimizer" in attempt 1) — Mr. White → Morris is "mentor" which is reasonable
-- Voice guidance is excellent across all 4 main characters — tone, dialect, verbal tics, example quotes
-- Morris's physical description ("beady of eye, rubicund of visage") is accurately pulled from the text
+Excellent structured profiles with `appearance`, `personality`, and `voice_guidance` sections:
+- Mr. White: "thin grey beard", "frail physical presence", voice "quiet, trembling...shifts from gentle and weary to panicked and desperate" — all accurate
+- Morris: relationship correctly "acquaintance" (not "victimizer")
+- No spectacles hallucination, no misattributed quotes
+- Rich voice guidance with dialect notes, verbal tics, example quotes
 
-Minor issues:
-- "the stranger" is described as a "villainous figure" — this is editorialized. He's a company representative delivering bad news under painful circumstances, not a villain. But this is a minor LLM interpretation issue.
-- Mrs. White's personality description is somewhat harsh ("manipulative, emotionally volatile") — she's a grieving mother, but this is within the range of reasonable interpretation
+Minor: "the stranger" described as having "no visible empathy or remorse" — text says he was "visibly uneasy", suggesting discomfort, not cold indifference. Minor LLM interpretation issue.
 
 ### Chapter Summaries: 9/10 ✓
 
-All 3 summaries are accurate, detailed, and useful for narrator preparation:
-- **Part I:** Correctly captures the chess game, Morris's arrival, the paw's backstory, the first wish for £200, the paw twisting
-- **Part II:** Accurately describes Herbert leaving for work, the stranger from Maw and Meggins, Herbert's death, the £200 compensation coincidence
-- **Part III:** Correctly captures Mrs. White's demand to wish Herbert back, the knocking at the door, the third wish, the empty road
+All 3 summaries accurate, detailed, and useful for narrator preparation:
+- **Part I:** Correctly captures chess game, Morris's arrival, paw backstory, first wish, paw twisting
+- **Part II:** Accurately describes Herbert leaving, stranger from Maw & Meggins, Herbert's death, £200 compensation
+- **Part III:** Correctly captures grief, second wish, knocking, frantic search for paw, third wish, empty road
 
-No hallucinated events. Tone and atmosphere well-conveyed. Lengths are appropriate (130-170 words each). Plot summary in overview is also excellent and accurate.
+No hallucinated events. Good atmosphere. Appropriate length (130-180 words each).
 
-### Pronunciation Guide: 6.5/10 ✗ (FAILING)
+### Pronunciation Guide: 7.5/10 ✗ (FAILING)
 
-**Good entries:**
-- "fakir" (/fəˈkɪər/) — essential for this story, correctly flagged
-- "rubicund" (/ruːˈbɪkʌnd/) — uncommon word, useful for narrator
-- "antimacassar" (/ˌæn.ti.məˈkæs.ɑːr/) — period-specific term, excellent catch
-- "condoling", "condoled" — less common words, appropriate
-- "bibulous", "avaricious", "shamefacedly", "betokened", "apathetically" — legitimate uncommon words
-- "Meggins" — proper noun from the story, useful
-- Homographs "live", "minute", "separate" — good catches with context
+**Improvement from attempt 2:** 3 false positives removed (sideboard, sightless, mantelpiece). Fix confirmed working.
 
-**Problems:**
-1. **"himselfin" and "beliefin"** — These are text refinement artifacts (concatenated "himself in" and "belief in"). Not real words. IPA generated for non-words.
-2. **"sideboard"** — Common English word, false positive. Every narrator knows this word.
-3. **"sightless"** — Common English word, false positive. Standard vocabulary.
-4. **"mantelpiece"** — Common English word, false positive. Standard household term.
-5. **3 entries lack IPA** — "live", "minute", "separate" have no IPA (homographs show alternate pronunciations in notes instead, which is fine but inconsistent format)
+**Good entries (20/22):**
+- Proper nouns: Herbert, Sergeant-Major, Morris, Meggins — all useful for narrator
+- Essential story terms: fakir, antimacassar, rubicund — uncommon words correctly flagged
+- Useful uncommon words: condoling, condoled, shamefacedly, betokened, avaricious, bibulous, apathetically, unlooked-for, Leastways, instalment
+- Homographs: live, minute, separate — context-dependent pronunciation noted
 
-The false positives and text refinement artifacts bring this below threshold.
+**Remaining problems (2/22):**
+1. **"himselfin"** — text processing artifact (should be "himself in"). Non-word with generated IPA.
+2. **"beliefin"** — text processing artifact (should be "belief in"). Non-word with generated IPA.
+
+These are upstream text refinement bugs, not pronunciation system failures. The pronunciation system correctly flagged them as unusual (they ARE non-words). But their presence reduces guide quality — a narrator seeing "himselfin: /hɪmˈsɛlfɪn/" would be confused.
 
 ### HTML Presentation: 8/10 ✓
 
-- Navigation works (tabs for Chapters, Characters, Pronunciations)
-- Well-organized with main characters getting full profiles and supporting characters in table format
-- Confidence badges and metadata displayed cleanly
-- Grammar fixed: now says "3 chapters" (was "1 chapters" in attempt 1)
-- Pronunciation guide has useful search and view-toggle features
-
-Minor issues:
-- Chapter 3 characters shown as "the old man" and "the old woman" — these should display as their canonical names (Mr. White, Mrs. White)
-- "the old woman" is not a recognized alias of Mrs. White, so it shows as an unlinked reference
+Navigation functional, well-organized with tabs. Search and filtering work. Confidence badges displayed. Grammar correct ("3 chapters"). Minor: Chapter 3 shows "the old man" and "the old woman" instead of canonical names.
 
 ## Current Issues (Priority Order)
 
 ### HIGH
-1. **Pronunciation false positives: "sideboard", "sightless", "mantelpiece"**
-   - Problem: Common English words flagged for pronunciation guidance. These are standard vocabulary any narrator would know without help.
-   - Evidence: All three are common words with straightforward pronunciation
-   - Location: `src/pipeline/pronunciation/` — word frequency filtering
-   - Fix: These should be caught by the common word exception list or frequency-based filtering. "sideboard" (rank ~8000), "sightless" (rank ~12000), "mantelpiece" (rank ~10000) are all well within normal vocabulary.
+1. **Text refinement concatenation artifacts create non-word pronunciation entries**
+   - Problem: "himselfin" and "beliefin" appear in pronunciation guide. These are "himself in" and "belief in" with spaces stripped during text processing.
+   - Evidence: Source text has proper spacing. Output concatenates words at some boundary.
+   - Location: `src/ingestion/refine.py` — text refinement is concatenating words. Previous investigation (attempt 2) could not pinpoint the exact location despite extensive tracing.
+   - Alternative fix: Add a concatenation detection heuristic in the pronunciation filtering stage. If a "word" can be split into two real English words at a boundary, skip it. This treats the symptom but is more tractable than the upstream bug.
+   - Impact: Fixing this should bring pronunciation from 7.5 → 8.0+
 
-2. **Pronunciation artifacts: "himselfin" and "beliefin" are concatenated words**
-   - Problem: Text refinement merged "himself in" → "himselfin" and "belief in" → "beliefin". The pronunciation system correctly flags these as unusual (they ARE non-words), but the root cause is upstream.
-   - Evidence: These "words" don't exist in English. They're artifacts of `src/ingestion/refine.py` incorrectly removing spaces.
-   - Location: `src/ingestion/refine.py` — text refinement concatenating words at line breaks
-   - Fix: Fix the upstream text refinement bug that strips spaces between words. Alternatively, add a heuristic to detect and skip words that look like concatenations (contains a real word prefix + real word suffix with no separator). The refinement fix is the proper solution.
+   **Previous investigation results (from attempt 2 fix notes):**
+   - Source file has proper spacing: "himself in" and "belief in" with spaces
+   - PDF-specific code (_rejoin_split_words, _dehyphenate) should NOT run for TXT files
+   - `_should_merge()` logic returns False for these cases when tested in isolation
+   - Concatenation source was NOT found after extensive tracing
+   - Recommendation: Either add diagnostic logging OR add concatenation detection heuristic in pronunciation filter
 
 ### MEDIUM
-3. **Chapter 3 characters_present uses unlinked aliases**
-   - Problem: Chapter 3's `characters_present` lists "the old man" and "the old woman" instead of canonical names. "the old man" is a Mr. White alias but "the old woman" is NOT listed as a Mrs. White alias, so it displays as an unresolved reference in the HTML.
-   - Evidence: `jq '.structure[2].characters_present'` shows `["the old man", "the old woman"]`; Mrs. White's aliases are only `["White"]`
-   - Location: Summary agent's character presence detection OR alias resolution
-   - Fix: Either add "the old woman" as an alias of Mrs. White, or normalize `characters_present` to canonical names using the alias map before export.
+2. **Chapter 3 characters_present uses unlinked aliases**
+   - Problem: `characters_present` shows `["the old man", "the old woman"]` instead of canonical names
+   - "the old woman" is NOT in Mrs. White's alias list
+   - Location: Summary agent character presence detection or alias normalization
+   - Fix: Normalize characters_present to canonical names using alias map
 
-4. **Chapters 2 and 3 have null titles**
-   - Problem: Structure shows title "I" for chapter 1 but `null` for chapters 2 and 3. They should be "II" and "III".
-   - Evidence: `jq '.structure[] | .title'` shows `"I"`, `null`, `null`
-   - Location: `src/pipeline/chapter_detection/` — title extraction for Roman numeral patterns
-   - Fix: The regex fix correctly detected the pattern but may only be extracting the title for the first match. Check if all detected markers get their title populated.
+3. **Chapters 2 and 3 have null titles**
+   - Problem: Structure shows title "I" for chapter 1 but `null` for chapters 2 and 3
+   - Location: `src/pipeline/chapter_detection/` — title extraction
+   - Fix: Ensure all detected Roman numeral markers get their title populated
 
 ### LOW
-5. **"the stranger" described as "villainous"**
-   - Problem: The Maw & Meggins representative is described as "a villainous figure who delivers devastating news with cold formality, exploiting social decorum to mask his role in a fatal tragedy." He's just a company representative — there's no evidence he's villainous or "exploiting" anything.
-   - Evidence: The text shows him as uncomfortable and reluctant: "visibly uneasy"
-   - Location: Character profiling LLM interpretation
-   - Fix: LLM temperature or prompt issue — minor, doesn't affect narrator preparation significantly
+4. **"the stranger" characterized without empathy when text shows unease**
+   - Problem: Profile says "no visible empathy or remorse" but text says "visibly uneasy"
+   - Location: LLM profiling interpretation
+   - Fix: Minor, doesn't significantly affect narrator preparation
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.98 | - | Baseline. Structure detection major failure (3 parts → 1 chapter) |
 | 2 | 8.38 | +1.40 | Structure fixed. Profiles improved. Pronunciation still failing (6.5/10) |
+| 3 | 8.48 | +1.50 | 3 pronunciation false positives fixed. Artifacts remain (7.5/10) |
 
 ## Fix History
 - Attempt 1 → 2: Fixed structure detection for Roman numerals with periods (I., II., III.)
-  - Root cause: `src/pipeline/chapter_detection/proposers/regex.py` - `_extract_title()` method did not handle `pattern_type == "roman_numeral_with_period"`, causing titles to retain trailing period which broke sequential pattern detection
   - Modified: `src/pipeline/chapter_detection/proposers/regex.py` line 301
-  - Test suite: All 298 tests pass (10 skipped)
-  - Cascades: Structure fix resolved chapter summaries (3 per-part summaries now generated) and fixed "1 chapters" grammar
+  - Result: Structure 4→8.5, Summaries 7→9
+
+- Attempt 2 → 3: Added "sideboard", "sightless", "mantelpiece" to pronunciation whitelist
+  - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+  - Result: Pronunciation 6.5→7.5 (3 false positives removed, 2 artifacts remain)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Structure detection missed I./II./III. markers | `src/pipeline/chapter_detection/proposers/regex.py` | Fixed: 3 parts detected. Score 4→8.5 |
-| 1 | Chapter summaries lack granularity (cascade) | (resolved by structure fix) | Fixed: 3 summaries generated. Score 7→9 |
-| 1 | Morris "victimizer" relationship | (resolved by re-run with different LLM generation) | Fixed: Now "acquaintance"/"mentor" |
-| 1 | Spectacles hallucination | (resolved by re-run) | Fixed: No longer present |
-| 1 | Misattributed Arabian Nights quote | (resolved by re-run) | Fixed: No longer present |
+| 2 | Pronunciation false positives (sideboard, sightless, mantelpiece) | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Fixed: 3 entries removed. Score 6.5→7.5 |
+| 2 | Concatenation artifacts (himselfin, beliefin) | (investigated but not fixed - root cause not found) | No change: artifacts still present |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (MoE) — appropriate
-- No retries or JSON parse failures in main stages
-- LLM batch enrichment failed in pronunciation stage (JSON parsing error) — may explain some pronunciation quality issues
-- All characters high confidence — good
+- No LLM retries in any stage — clean execution
+- Stage durations: Chapter Detection 313s, Summaries 229s, Characters 286s, Profiles 772s, Pronunciation 115s
 - `character_llm_chunk_chars: 5000` — adequate for this short story
 - Temperatures at 0.7 across all agents — acceptable
 
 ## Next Action
-Run PROMPT_fix.md to address pronunciation false positives (HIGH #1, #2). Focus on:
-1. Adding "sideboard", "sightless", "mantelpiece" to common word exceptions or improving frequency filtering
-2. Fixing text refinement concatenation bug ("himselfin", "beliefin") in `src/ingestion/refine.py`
-These two fixes should bring Pronunciation from 6.5 to 8.0+.
+Run PROMPT_fix.md to address concatenation artifacts in pronunciation (HIGH #1). Two approaches:
+1. **Preferred:** Add concatenation detection heuristic in pronunciation filtering — if a candidate "word" can be decomposed into two common English words, skip it. This is tractable and targeted.
+2. **Alternative:** Add diagnostic logging to text refinement pipeline to find upstream concatenation source. Previous investigation failed to find it.
 
-## Fix History (Attempt 2 → 3)
-
-### Fix #1: Pronunciation False Positives (HIGH priority, COMPLETE)
-- **Issue:** Common words "sideboard", "sightless", "mantelpiece" incorrectly flagged for pronunciation
-- **Root cause:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` - `COMMON_WORDS_WHITELIST` (lines 21-583) missing these common household/descriptive terms
-- **Fix:** Added 3 words to whitelist:
-  - "sideboard", "mantelpiece" → added after "bed" (line 281) in furniture section
-  - "sightless" → added at end (line 582) with comment noting monkeys_paw analysis
-- **Modified:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
-- **Fix type:** Verification/invariant enforcement (common word exception list - allowed as reference lexicon)
-- **Universality:** YES - these are common English words across all texts
-- **Expected impact:** Pronunciation score should improve from 6.5 to ~8.0+
-
-### Fix #2: Concatenation Artifacts (HIGH priority, DEFERRED)
-- **Issue:** "himselfin" and "beliefin" are text processing artifacts (should be "himself in", "belief in")
-- **Root cause investigation:** INCOMPLETE after extensive tracing
-  - Source file has proper spacing: "himself in" and "belief in" with spaces
-  - Output has concatenations: "himselfin" and "beliefin"
-  - Traced through TXT ingestion, refinement, normalization - concatenation source not found
-  - PDF-specific code (_rejoin_split_words, _dehyphenate) should NOT run for TXT files
-  - `_should_merge()` logic returns False for these cases when tested in isolation
-- **Status:** DEFERRED for deeper investigation
-- **Recommendation:** 
-  1. Add diagnostic logging to track text transformations through the pipeline
-  2. Or: Add concatenation detection heuristic in pronunciation filter (though this feels like treating symptoms)
-  3. The pronunciation system correctly identified these as unusual - the bug is upstream in text processing
-
-## Next Action
-Set phase to `awaiting_analysis` to re-run with fix #1. The false positive fix alone may be sufficient to pass threshold (need 1.5 points to go from 6.5→8.0). Concatenation artifacts can be addressed in a follow-up iteration if needed.
+The fix needs to bring pronunciation from 7.5 → 8.0+ (remove 2 non-word artifacts).
