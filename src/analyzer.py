@@ -1665,9 +1665,9 @@ class AudiobookAnalyzer:
                         # Search for mentions in raw text
                         mention_result = searcher.search_character(temp_char)
 
-                        if mention_result.total_count >= 1:
+                        if mention_result.total_mentions >= 1:
                             verified_names.append(name)
-                            logger.debug(f"F6: '{name}' verified with {mention_result.total_count} text mentions")
+                            logger.debug(f"F6: '{name}' verified with {mention_result.total_mentions} text mentions")
                         else:
                             logger.warning(
                                 f"F6: Rejecting '{name}' - appears in summary but has 0 text mentions (likely hallucination)"
@@ -1806,7 +1806,7 @@ class AudiobookAnalyzer:
                         mention_result = searcher.search_character(temp_narrator)
 
                         # Determine chapters_present from mention positions
-                        chapters_present = sorted(set(m.chapter_idx for m in mention_result.mentions))
+                        chapters_present = sorted(set(m.chapter_index for m in mention_result.mentions if m.chapter_index is not None))
                         first_chapter = chapters_present[0] if chapters_present else 0
 
                         narrator_character = Character(
@@ -1815,7 +1815,7 @@ class AudiobookAnalyzer:
                             aliases=[],
                             mentions=mention_result.mentions,
                             first_appearance_chapter=first_chapter,
-                            mention_count=mention_result.total_count,
+                            mention_count=mention_result.total_mentions,
                             chapters_present=chapters_present,
                             confidence=narrator_info.confidence,
                             supporting_strategies=["narrator_detection_fallback"],

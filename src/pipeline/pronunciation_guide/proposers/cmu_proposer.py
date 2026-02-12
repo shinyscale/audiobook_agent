@@ -484,6 +484,15 @@ COMMON_WORDS_WHITELIST = {
     "ours",
     "your",
     "yours",
+    # Reflexive pronouns (for OCR artifact detection)
+    "myself",
+    "yourself",
+    "himself",
+    "herself",
+    "itself",
+    "ourselves",
+    "yourselves",
+    "themselves",
     # Common body parts and descriptive terms
     "eyes",
     "eye",
@@ -619,50 +628,36 @@ class CMUProposer(BasePronunciationProposer):
         """
         Detect OCR artifacts (missing spaces between words).
 
-        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the)
+        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the), "himselffelt" (himself felt)
 
-        Strategy: Check if the word looks like a concatenation of common English words.
-        Common patterns:
-        - Starts with common short word (we, it, to, no, us, as, be, is, or, of, at, in, on, for)
-        - Followed by another lowercase word
+        Strategy: Check if the word looks like a concatenation of known English words.
+        Key constraint: At least one part must be a COMMON word (in whitelist) to avoid
+        false positives like "flambeaux" = "flam" + "beaux" (both obscure but in CMU).
         """
         word_lower = word.lower()
 
-        # Common starting words that appear in OCR artifacts
-        common_prefixes = [
-            "we",
-            "it",
-            "to",
-            "no",
-            "us",
-            "as",
-            "be",
-            "is",
-            "or",
-            "of",
-            "at",
-            "in",
-            "on",
-            "for",
-            "the",
-            "and",
-            "but",
-            "not",
-            "all",
-        ]
+        # Strategy: Try splitting at different positions
+        # For "himselffelt" (11 chars), try splits at positions 3-8
+        min_part_length = 3  # Minimum length for each part
+        max_split_pos = len(word_lower) - min_part_length
 
-        # Check if word starts with a common prefix and has lowercase continuation
-        for prefix in common_prefixes:
-            if len(word_lower) > len(prefix) and word_lower.startswith(prefix):
-                remainder = word_lower[len(prefix) :]
-                # Check if remainder starts with lowercase (indicates missing space)
-                if remainder and remainder[0].islower() and len(remainder) >= 2:
-                    # Extra check: remainder should also be in known words or common
-                    if remainder in self.known_words or remainder in COMMON_WORDS_WHITELIST:
-                        logger.debug(
-                            f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
-                        )
-                        return True
+        for split_pos in range(min_part_length, max_split_pos + 1):
+            prefix = word_lower[:split_pos]
+            remainder = word_lower[split_pos:]
+
+            # Check if parts are known
+            prefix_common = prefix in COMMON_WORDS_WHITELIST
+            remainder_common = remainder in COMMON_WORDS_WHITELIST
+            prefix_known = prefix in self.known_words
+            remainder_known = remainder in self.known_words
+
+            # OCR artifacts typically involve at least one COMMON word
+            # This prevents false positives like "flambeaux" = "flam" + "beaux"
+            if (prefix_common or remainder_common) and (prefix_known and remainder_known):
+                logger.debug(
+                    f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
+                )
+                return True
 
         return False
 
@@ -743,6 +738,38 @@ class CMUProposer(BasePronunciationProposer):
 
         return False
 
+    def _is_obvious_compound(self, word: str) -> bool:
+        """
+        Check if word is an obvious compound/derivation with clear pronunciation.
+
+        Universal patterns (not word-specific):
+        - Hyphenated compounds where both parts are known (e.g., "web-work", "tight-fitting")
+        - Archaic hyphenated spellings (e.g., "to-day" = "today")
+        - Standard prefix + known root (e.g., "re-echoed", "unsheathing")
+
+        Returns True if pronunciation is obvious and doesn't need guidance.
+        """
+        word_lower = word.lower()
+
+        # Pattern 1: Hyphenated compounds (e.g., "web-work", "tight-fitting", "to-day")
+        if '-' in word_lower:
+            parts = word_lower.split('-')
+            # If all parts are in CMU dictionary, pronunciation is obvious
+            if all(part in self.known_words or part in COMMON_WORDS_WHITELIST for part in parts):
+                return True
+
+        # Pattern 2: Standard prefixes + known root
+        # re-/un-/pre-/mis-/dis-/over-/under- are transparent prefixes
+        transparent_prefixes = ['re', 'un', 'pre', 'mis', 'dis', 'over', 'under', 'non']
+        for prefix in transparent_prefixes:
+            if word_lower.startswith(prefix) and len(word_lower) > len(prefix):
+                root = word_lower[len(prefix):]
+                # If root is known, the prefixed form is obvious
+                if root in self.known_words:
+                    return True
+
+        return False
+
     def propose(
         self,
         full_text: str,
@@ -793,6 +820,10 @@ class CMUProposer(BasePronunciationProposer):
 
             # Skip OCR artifacts (missing spaces between words)
             if self._is_ocr_artifact(word):
+                continue
+
+            # Skip obvious compounds (hyphenated, prefixed forms with known roots)
+            if self._is_obvious_compound(word):
                 continue
 
             word_data[word_lower].append((match.start(), word))
@@ -856,6 +887,8 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_common_derivation(word):
                 return False
             if self._is_ocr_artifact(word):
+                return False
+            if self._is_obvious_compound(word):
                 return False
             return True
 

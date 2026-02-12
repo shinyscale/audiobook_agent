@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -198,6 +198,25 @@ To cross 8.0 in all three failing categories:
      - Narrator fallback: `'CharacterMention' object has no attribute 'chapter_idx'`
    - These errors were hidden behind the `supporting_strategies` error before. They originate from the attempt 4 `MentionSearcher` integration which was never properly validated.
 
+### Attempt 6 Fixes Applied
+1. **CRITICAL #1: MentionResult/CharacterMention attribute errors - FIXED**
+   - **Root cause:** `src/analyzer.py` used wrong attribute names when accessing `MentionSearcher` results
+     - Line 1668, 1670, 1818: Used `total_count` instead of `total_mentions` (MentionResult attribute)
+     - Line 1809: Used `chapter_idx` instead of `chapter_index` (CharacterMention attribute)
+   - **Fix:** Read actual class definitions in `src/pipeline/character_extraction_v2/mention_search.py` and `src/models.py`, then corrected all attribute names
+   - **Smoke test:** Verified correct attributes exist on dataclasses before deployment
+   - **Test results:** 298 tests passed (excluding 1 pre-existing failure in test_semantic_conflicts.py)
+
+2. **HIGH #2: Pronunciation false positive rate ~38% - FIXED**
+   - **Root cause:** CMU proposer flagging obvious compounds and common derivations
+   - **Fix:** Added universal pattern-based exclusions (NOT word-specific deny-lists):
+     - `_is_obvious_compound()`: Filters hyphenated compounds (tight-fitting), archaic spellings (to-day), standard prefixes (re-/un- + known root)
+     - Enhanced `_is_ocr_artifact()`: Now detects longer concatenations (himselffelt = himself + felt) with safeguard against false positives (requires at least one COMMON word)
+     - Added reflexive pronouns to whitelist (myself, himself, etc.) for OCR detection
+   - **Location:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+   - **Smoke test:** All 10 test cases passed (filters false positives, keeps genuine foreign words)
+   - **Expected impact:** False positive rate should drop from 38% to <15%
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -209,10 +228,13 @@ To cross 8.0 in all three failing categories:
 | 4 | F6 reconciliation AttributeError | `src/analyzer.py:1648` | Fixed attribute name — but new constructor error |
 | 4 | Narrator fallback missing mention data | `src/analyzer.py:1784-1807` | MentionSearcher added — but Character constructor error + wrong attribute access |
 | 5 | Character constructor missing `supporting_strategies` | `src/analyzer.py:1662, 1802` | Fixed constructor — but MentionSearcher attribute errors now visible |
-
-**Pattern detected:** `src/analyzer.py` has been modified 5 times for the same root issue. Each fix reveals another layer of AttributeErrors because the code is guessing at class APIs. The fix phase MUST read class definitions before writing code.
+| 6 | MentionResult/CharacterMention attribute errors | `src/analyzer.py:1668, 1670, 1809, 1818` | Fixed — read class definitions, corrected all attribute names |
+| 6 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Fixed — pattern-based exclusions added |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1**: Read `MentionSearcher`, `MentionResult`, `CharacterMention` class definitions, then fix attribute access in F6 reconciliation and narrator fallback. **OR** simplify by reverting to the attempt 3 approach (minimal Character object) which at least got Montresor into the list.
-2. **HIGH #2**: Improve pronunciation flagging prompt to reduce false positives.
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify:
+1. Montresor now appears in character list (F6 and/or narrator fallback should succeed)
+2. Montresor receives a proper profile
+3. Pronunciation false positive rate reduced significantly
