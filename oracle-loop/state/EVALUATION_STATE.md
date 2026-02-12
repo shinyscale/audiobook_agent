@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.98
 
 ## Output Files
@@ -102,8 +102,18 @@
 - `character_llm_chunk_chars: 5000` — adequate for this short story (~4000 words)
 - Structure detection: 10 LLM calls for 1 item with medium confidence — suggests the LLM tried but couldn't find structure markers
 
+## Pipeline Execution Notes (Attempt 2)
+- **Completion time:** 42m 0s
+- **Structure Detection:** ✅ 3 chapters detected (I., II., III.) - **CRITICAL FIX CONFIRMED**
+- **Summaries:** ✅ 3 chapter summaries generated (was 1 in attempt 1)
+- **Characters:** 6 characters extracted (all high confidence)
+- **Pronunciation:** 25 words flagged
+- **Warnings:**
+  - LLM batch enrichment failed in pronunciation stage (JSON parsing error)
+  - Ungrounded quotes warnings for all 6 characters (F19)
+  - Model returned error about JSON array vs object mismatch
+- **Competitive consensus:** Enabled on all stages (characters, structure, summaries) with 2/3 supermajority
+- **Output files:** ../output/monkeys_paw/analysis.json, ../output/monkeys_paw/report.html
+
 ## Next Action
-Re-run analysis with structure detection fix applied. Expect:
-- Structure: 3 chapters detected (I., II., III.)
-- Summaries: 3 per-part summaries instead of 1 single summary
-- Pronunciation artifacts (himselfin, beliefin) may resolve or may need separate investigation if they persist
+Proceed to evaluation phase to score this attempt and compare against baseline (6.98)
