@@ -28,11 +28,15 @@ def adaptive_min_mentions(word_count: int, default: int = 3) -> int:
     a handful of times before the text switches to pronouns.
 
     Thresholds:
-        <=7,500 words  (short story) -> 1 mention
+        <=7,500 words  (short story) -> 2 mentions (floor to avoid NER false positives)
         >7,500 words   (novella+)    -> default (3)
+
+    Note: A floor of 2 is necessary because NER-based supporting cast extraction
+    produces many false positives (author names, titles, foreign words, etc.) that
+    appear only once. A character mentioned only once is almost never a real character.
     """
     if word_count <= 7_500:
-        return 1
+        return 2  # Floor of 2 to filter NER false positives
     return default
 
 

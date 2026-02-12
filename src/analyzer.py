@@ -1825,7 +1825,11 @@ class AudiobookAnalyzer:
                     generate_rich_profiles=True,
                     progress_callback=self._wrap_progress("Character Profiles"),
                 )
-                narrative_style = "first-person" if narrator_detected else "unknown"
+                # Detect narrative style from text itself, not narrator detection confidence
+                # This ensures first-person perspective filtering works even if narrator
+                # name detection had low confidence
+                from .pipeline.character_profiling.perspective_filter import is_first_person_text
+                narrative_style = "first-person" if is_first_person_text(doc.text) else "third-person"
                 profile_map = profiling.profile_existing_characters(
                     characters=identified,
                     full_text=doc.text,

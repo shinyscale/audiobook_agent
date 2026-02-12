@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score: 6.75**
 - **Competitive Mode:** single
 
@@ -123,16 +123,40 @@
 - Character Profiles: 3 high confidence, 0 low — but one of those "high confidence" profiles (Fortunato) has the wrong personality
 
 ## Fix History
-(First attempt — no previous fixes)
+
+### Attempt 2 Fixes
+1. **CRITICAL #1: Fortunato personality profile contamination - FIXED**
+   - Root cause: `src/analyzer.py:1828` - narrative_style set to "unknown" instead of "first-person" when narrator_detected was None
+   - This disabled the perspective filter in passage_gatherer.py, allowing narrator-perspective passages to contaminate non-narrator profiles
+   - Fix: Changed narrative_style detection to use text-based analysis (`is_first_person_text(doc.text)`) instead of narrator detection confidence
+   - Modified: `src/analyzer.py` line 1828-1832
+   - Expected impact: +3 on Character Profiles (fixes Fortunato's contaminated personality)
+
+2. **CRITICAL #2: 5 bogus supporting characters - FIXED**
+   - Root cause: `src/pipeline/character_extraction_v2/grounding.py:24-36` - adaptive_min_mentions() returned 1 for short stories
+   - This allowed any NER-detected entity with a single mention to pass through (author names, titles, foreign words, etc.)
+   - Fix: Raised the floor of adaptive_min_mentions from 1 to 2 for short stories
+   - Modified: `src/pipeline/character_extraction_v2/grounding.py` line 35
+   - Expected impact: +4 on Character Extraction (removes 5 bogus characters: "Cask of Amontillado", "Edgar Allan Poe", "lacessit", "De Grave", "--yes")
+
+3. **Pronunciation false positives - DEFERRED**
+   - Issue: ~12 of 42 entries are common words (29% false positive rate)
+   - Root cause analysis: Multiple causes - hyphenated word tokenization, OCR artifacts, author names in bylines, CMU dictionary gaps
+   - Decision: Deferred to next iteration - requires more comprehensive fix (possibly rethinking CMU-based approach)
+   - Would gain +1.5-2.0 points but not critical for passing threshold
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | CRITICAL #1: Narrative style detection | `src/analyzer.py` | Awaiting test |
+| 2 | CRITICAL #2: Bogus supporting characters | `src/pipeline/character_extraction_v2/grounding.py` | Awaiting test |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Fortunato personality profile contamination (profiling pipeline confusing narrator with profiled character)
-2. CRITICAL #2: 5 bogus supporting characters (supporting cast extraction pulling in non-characters)
-3. HIGH #4-5: Pronunciation false positives
+Set phase to `awaiting_analysis` and re-run analysis to verify fixes.
+
+**Expected score improvement:**
+- Character Extraction: 4/10 → 8/10 (+4 from removing 5 bogus characters)
+- Character Profiles: 4/10 → 7/10 (partial fix - Fortunato personality fixed, but role label "antagonist" still misleading)
+- Pronunciation: 7/10 (unchanged - deferred)
+- **Estimated new score: 7.42/10** (still below 8.0 threshold, but significant progress)
