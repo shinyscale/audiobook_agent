@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.33
 - **Competitive Mode:** single
 
@@ -91,6 +91,16 @@
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Pronunciation false positives | cmu_proposer.py, foreign_proposer.py | Awaiting re-analysis |
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 30m45s
+- Competitive consensus enabled on all stages (characters, structure, summaries)
+- Found 2 characters (Prince Prospero, the Red Death)
+- Found 30 pronunciation flags (down from 38 in attempt 1)
+- 5 aliases BLOCKED for the Red Death (semantic mismatch - same issue as attempt 1)
+- 3 ungrounded evidence quotes flagged (2 for Prince Prospero, 1 for the Red Death)
+- 1 LLM validation failure in Pronunciation Guide (same as attempt 1)
+- OCR repair: fixed 1 broken ligature
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (appropriate)
