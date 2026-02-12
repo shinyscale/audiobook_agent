@@ -2,13 +2,22 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.98
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed in 41m 9s
+- Competitive consensus ENABLED (single mode: 3 temperatures)
+- All 3 stages using competitive mode: characters, structure, summaries
+- 84 LLM calls total (130,848 tokens)
+- Warnings: LLM batch enrichment failed for pronunciation (JSON parsing error)
+- F19 warnings: All 6 character profiles have potentially ungrounded evidence quotes
+- 3 chapters detected, 6 characters extracted, 22 pronunciation flags
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
