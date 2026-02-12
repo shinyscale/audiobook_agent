@@ -3,8 +3,8 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
+- **Phase:** awaiting_fix
+- **baseline_score: 6.75**
 - **Competitive Mode:** single
 
 ## Output Files
@@ -12,18 +12,127 @@
 - JSON: ../output/cask_of_amontillado/analysis.json
 
 ## Latest Scores
-(Awaiting first analysis)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 4/10 ✗ (FAILING)
+- Character Profiles: 4/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 7/10 ✗ (FAILING)
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 6.75/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (3 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
+| 1 | 6.75 | 0.0 | Baseline. 5 bogus supporting chars, Fortunato profile is Montresor's |
+
+## Current Issues (Priority Order)
+
+### CRITICAL
+
+1. **Fortunato's personality profile describes MONTRESOR, not Fortunato**
+   - Problem: Fortunato's personality says "A cruel and calculating antagonist who manipulates and murders with cold precision, exploiting vulnerability to satisfy a personal vendetta." This is verbatim a description of Montresor's actions, not Fortunato's.
+   - Evidence: Fortunato is the VICTIM who is lured into the catacombs and entombed alive. He is proud, trusting, boastful about wine connoisseurship, and intoxicated. The traits listed ("manipulative, calculating, cruel, deceptive, vengeful, emotionally detached") are all Montresor's traits.
+   - Root cause: The character profiling LLM likely confused the two characters due to first-person narration. Montresor narrates his own cruel actions, and the profiler attributed those actions to Fortunato instead.
+   - Location: `src/pipeline/character_profiling/` — the profiling pipeline's evidence gathering or LLM prompt is confusing narrator actions with the profiled character.
+   - Impact: Score -3 on Character Profiles. A narrator reading this would voice Fortunato completely wrong.
+
+2. **5 of 6 supporting characters are bogus (not real characters)**
+   - Problem: The supporting cast contains:
+     - "Cask of Amontillado" — the story title, not a character
+     - "Edgar Allan Poe" — the author, not a character in the story
+     - "lacessit" — a Latin word from the family motto "Nemo me impune lacessit"
+     - "De Grave" — a type of wine (Graves/De Grâve), not a person
+     - "--yes" — a parsing artifact from dialogue punctuation
+   - Evidence: Only "Luchresi" is a legitimate character (a wine expert mentioned but never appearing on-page)
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` — supporting cast extraction is pulling in non-character entities
+   - All have `supporting_*` IDs, so the problem is specifically in the supporting cast pipeline
+   - Impact: Score -4 on Character Extraction. These entries are garbage data.
+
+### HIGH
+
+3. **Fortunato labeled as "antagonist" role — misleading for narrator**
+   - Problem: Fortunato's role is listed as "antagonist" but he is the victim of Montresor's revenge plot. While Montresor is the protagonist-narrator, Fortunato is best described as "victim" or at most a secondary character who is deceived and murdered.
+   - Evidence: Montresor says "The thousand injuries of Fortunato I had borne..." suggesting Fortunato wronged him, but the entire story shows Fortunato as a trusting, somewhat foolish man being led to his death. In narrative terms, Montresor is both protagonist and villain.
+   - Location: Character extraction role assignment in `src/pipeline/character_extraction_v2/main_cast.py`
+   - Impact: Score -0.5 on Character Extraction.
+
+4. **Pronunciation false positives: common English words flagged**
+   - Problem: Several common English words are flagged that any narrator would know:
+     - "Cask" — common English word
+     - "Edgar", "Allan", "Poe" — the author's name (shouldn't be in pronunciation guide for the story text)
+     - "De" — common word
+     - "tight-fitting", "to-day", "web-work" — hyphenated compounds, not pronunciation challenges
+     - "cough's", "leer" — common English words
+     - "Unsheathing", "reapproached", "re-erected", "re-echoed" — standard English with common prefixes
+   - Evidence: ~12 of 42 entries are false positives (common words a narrator wouldn't need help with)
+   - Location: `src/pipeline/pronunciation/` — the pronunciation flagging threshold is too aggressive
+   - Impact: Score -1.5 on Pronunciation. Dilutes the useful entries with noise.
+
+5. **"himselffelt" is an OCR artifact flagged as a pronunciation entry**
+   - Problem: "himselffelt" (IPA: /hɪmˈsɛlfˌfɛlt/) is not a real word — it's two words ("himself felt") fused by an OCR/text extraction error. The OCR repair stage fixed 1 broken ligature but missed this one.
+   - Evidence: No such word exists in the original Poe text
+   - Location: `src/ingestion/refine.py` (OCR repair) or pronunciation pipeline should reject obviously compound artifacts
+   - Impact: Score -0.5 on Pronunciation.
+
+### MEDIUM
+
+6. **Montresor's mention count is only 1 (should be higher)**
+   - Problem: Montresor is listed with only 1 mention, but as the first-person narrator who is also referenced by name multiple times by Fortunato ("For the love of God, Montresor!"), the count should be higher.
+   - Evidence: The name "Montresor" appears at least 3-4 times in the text (once in the narrator's self-identification, and in Fortunato's final plea). The count of 1 suggests only explicit NER matches are counted, missing dialogue references.
+   - Location: Mention counting in character extraction pipeline
+   - Impact: Minor metadata inaccuracy.
+
+7. **Montresor-Fortunato relationship labeled "rival" — inaccurate**
+   - Problem: Both characters list each other as "rival" but their relationship is more accurately "victim-murderer" or "acquaintance turned victim." "Rival" implies competition between equals, which doesn't capture the predator-prey dynamic.
+   - Evidence: Montresor methodically lures and murders Fortunato. While Montresor claims past "injuries," the story depicts a calculated murder, not a rivalry.
+   - Location: Relationship extraction in character profiling pipeline
+   - Impact: Minor but misleading for narrator preparation.
+
+8. **Luchresi has relationship "tool" with Montresor — unclear label**
+   - Problem: Luchresi is listed with relationship `"Montresor": "tool"`. While Luchresi IS used as a tool by Montresor (mentioned to provoke Fortunato's pride), the relationship label "tool" is an unusual category that may confuse narrators.
+   - Location: Relationship extraction in character profiling
+   - Impact: Minor presentation issue.
+
+### LOW
+
+9. **Homographs "row", "close", "entrance" lack IPA (by design)**
+   - Note: These 3 homographs have null IPA but provide context-dependent pronunciation notes. This is actually correct behavior for homographs — not a real issue. Noting for completeness.
+
+10. **Missing pronunciation: "In pace requiescat" (closing Latin phrase)**
+    - Problem: The story's famous closing Latin phrase "In pace requiescat!" is not in the pronunciation guide, though "requiescat" alone IS flagged. The full phrase context would be helpful.
+    - Location: Pronunciation pipeline
+    - Impact: Very minor.
+
+## Configuration Audit
+
+### Model Configuration
+- All agents use `qwen3-next:80b-a3b-instruct-q8_0` — appropriate per user configuration
+- Temperature 0.7 for all — could be lower (0.3-0.5) for character extraction to reduce hallucination
+- Context length 32768 — sufficient for this short story
+
+### Chunking Configuration
+- `character_llm_chunk_chars: 5000` — fine for a ~13K character story (2-3 chunks)
+- `summary_chunk_words: 2500` — appropriate, story is ~2353 words so fits in one chunk
+
+### Processing Issues
+- 0 LLM retries, 0 JSON parse failures — model worked cleanly
+- Character Extraction: 2 high confidence (main cast), 6 medium confidence (supporting) — the medium confidence entries are the bogus ones
+- Character Profiles: 3 high confidence, 0 low — but one of those "high confidence" profiles (Fortunato) has the wrong personality
+
+## Fix History
+(First attempt — no previous fixes)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
 | (none yet) | - | - | - |
 
-## Pipeline Notes
-- Completed in 32m 25s
-- Found 8 characters, 1 chapter (short story)
-- Competitive consensus enabled for all stages (characters, structure, summaries)
-- Minor warnings:
-  - 1-4 potentially ungrounded evidence quotes in character profiles (Montresor, Fortunato)
-  - Pronunciation agent had 2 JSON parsing failures (model compatibility issue)
-  - 1 broken ligature fixed during OCR repair
+## Next Action
+Run PROMPT_fix.md to address:
+1. CRITICAL #1: Fortunato personality profile contamination (profiling pipeline confusing narrator with profiled character)
+2. CRITICAL #2: 5 bogus supporting characters (supporting cast extraction pulling in non-characters)
+3. HIGH #4-5: Pronunciation false positives
