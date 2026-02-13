@@ -158,6 +158,14 @@ class CharacterAgent(Agent):
         characters = self._merge_title_variants(characters)
         logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
 
+        # STEP 1.6: Split same-name characters when summaries disambiguate them
+        # Example: "John Donaldson (the father)" and "John Donaldson (the son)" in summaries
+        # should create two separate character entries, not one conflated entry
+        characters = self._split_disambiguated_same_name_characters(
+            characters, chapter_summaries
+        )
+        logger.info(f"V2 Step 1.6 complete: {len(characters)} after same-name disambiguation split")
+
         # STEP 2: Search for mentions (F2)
         logger.info("V2 Step 2: Searching for character mentions")
         searcher = MentionSearcher(context.text, chapters)
@@ -235,6 +243,25 @@ class CharacterAgent(Agent):
             f"V2 Step 4 complete: POV={narrator_info.pov}, "
             f"narrator={narrator_info.narrator_name}"
         )
+
+        # STEP 4.5: Fallback narrator matching if LLM detection didn't find character ID
+        # This handles cases where the narrator name is correct but matching failed
+        if narrator_info.narrator_name and not narrator_info.narrator_character_id:
+            logger.warning(
+                f"Narrator '{narrator_info.narrator_name}' identified but not matched to character. "
+                f"Attempting fallback matching..."
+            )
+            # Try fuzzy matching with current main_cast
+            from ..utils.similarity import names_similar
+            for char in main_cast:
+                if names_similar(char.canonical_name, narrator_info.narrator_name, threshold=0.7):
+                    logger.info(
+                        f"Fallback match: '{narrator_info.narrator_name}' → '{char.canonical_name}' (ID: {char.id})"
+                    )
+                    narrator_info.narrator_character_id = char.id
+                    char.is_narrator = True
+                    char.narrative_role = f"{narrator_info.pov.title()} narrator"
+                    break
 
         # STEP 5: Extract supporting cast (F3)
         logger.info("V2 Step 5: Extracting supporting cast via NER")
