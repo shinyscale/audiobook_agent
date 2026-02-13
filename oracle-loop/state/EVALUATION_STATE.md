@@ -3,13 +3,24 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
-- **Competitive Mode:** single
+- **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
-- HTML: ../output/american_sir/report.html
-- JSON: ../output/american_sir/analysis.json
+- HTML: ../output/american_sir/report.html (updated 2026-02-13 01:46)
+- JSON: ../output/american_sir/analysis.json (updated 2026-02-13 01:46)
+
+## Pipeline Notes (Attempt 2)
+- ✅ Analysis completed successfully in 36m 35s
+- ✅ Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- ✅ Found 5 characters (down from 6 in attempt 1 - Red Cross likely filtered)
+- ✅ Uncle Bill correctly identified as first-person narrator
+- ⚠️ LLM batch enrichment failed for pronunciation guide (JSON parse error)
+- ⚠️ Some potentially ungrounded evidence quotes in profiles (John, Uncle Bill, Ted)
+- Pipeline used qwen3-next:80b-a3b-instruct-q8_0 for all agents
+- Total LLM calls: 71, Total tokens: 104,278
+- Bottleneck: Character Profiles (26.1% of time, 9m33s)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
