@@ -2,34 +2,32 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Attempt:** 3
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
-- HTML: ../output/american_sir/report.html (updated 2026-02-13 01:46)
-- JSON: ../output/american_sir/analysis.json (updated 2026-02-13 01:46)
+- HTML: ../output/american_sir/report.html
+- JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 2)
-- ✅ Analysis completed successfully in 36m 35s
-- ✅ Competitive consensus enabled for all 3 stages (characters, structure, summaries)
-- ✅ Found 5 characters (down from 6 in attempt 1 - Red Cross likely filtered)
-- ✅ Uncle Bill correctly identified as first-person narrator
-- ⚠️ LLM batch enrichment failed for pronunciation guide (JSON parse error)
-- ⚠️ Some potentially ungrounded evidence quotes in profiles (John, Uncle Bill, Ted)
+## Pipeline Notes (Attempt 3)
+- ✅ Analysis completed successfully
+- ✅ Red Cross organization filtered (Fix 2 worked)
+- ✅ Ted Frith now has alias "Ted" and 5 mentions (up from 2) (Fix 3 partially worked)
+- ❌ Father/son John Donaldson split DID NOT FIRE (Fix 1 failed — code exists but reads wrong data source)
+- ⚠️ "Teddy" still missing as alias for Ted Frith
+- ⚠️ Step 1.6 reads `chapters` (StructuralElement from `_get_chapters`) which has empty `characters_present` at CharacterAgent runtime. The `characters_present` data is only in the summary objects, not the chapter map's structural elements.
 - Pipeline used qwen3-next:80b-a3b-instruct-q8_0 for all agents
-- Total LLM calls: 71, Total tokens: 104,278
-- Bottleneck: Character Profiles (26.1% of time, 9m33s)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 6/10 ✗
+- Character Extraction: 7/10 ✗
 - Character Profiles: 8/10 ✓
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 6/10 ✗
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.00/10** (reference only)
+- **Overall: 7.33/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (4 categories below threshold)
@@ -38,279 +36,243 @@
 
 ### 2.1 Structure Detection: 7/10 ✗
 
-"American, Sir!" is a continuous short story (~548 lines, ~5000 words) with NO chapter divisions, headings, or section breaks. The tool detected 2 "chapters" (both with `title: null`), splitting the story roughly at the narrative shift from Uncle Bill's backstory to John's wartime account.
+"American, Sir!" is a continuous short story (~5000 words) with NO chapter divisions, headings, or section breaks. The tool detected 2 sections (both with `title: null`). This is the same result as attempts 1 and 2.
 
-**Assessment:** While a 2-section split is reasonable for narrator prep (the story has a natural narrative shift), the story has zero structural markers. For a text this short with no markers, 1 section would be more accurate. Deducting because:
+**Assessment:** A 2-section split is workable for narrator prep (the story has a natural shift from backstory to wartime narrative), but:
 - Both sections have null titles — not useful for navigation
-- The split point is somewhat arbitrary (a narrator could prepare the whole text as one unit)
-- However, this is not catastrophic — 2 sections are workable
+- For a text this short with no structural markers, 1 section would be more accurate
+- The split point is somewhat arbitrary
 
-### 2.2 Character Extraction: 6/10 ✗
+Score unchanged from attempt 2 — no structure fixes were attempted.
+
+### 2.2 Character Extraction: 7/10 ✗
+
+**Improvements from attempt 2:**
+- ✅ Red Cross filtered out (was listed as supporting character, now removed)
+- ✅ Ted Frith has alias "Ted" (was missing) and 5 mentions (was 2)
+- Total characters: 5 (down from 6 — Red Cross removed)
+
+**Still broken:**
+
+1. **Father/son John Donaldson NOT split (CRITICAL — Fix 1 failed).** There is still only ONE "John Donaldson" entry (main_cast_1) conflating two distinct characters:
+   - The FATHER: 55+ years old, embezzler who faked his death, lived in Italy 20 years, died as stretcher-bearer
+   - The SON: ~23 years old, Uncle Bill's ward, Yale student, ambulance driver, narrator of war story
+
+   **Root cause identified:** Step 1.6 (`_split_disambiguated_same_name_characters`) reads `characters_present` from `chapters` parameter (StructuralElement objects from `_get_chapters`), but these objects have EMPTY `characters_present` at CharacterAgent runtime. The `characters_present` data is in the *summary objects* (via `context.previous_results["summaries"]`), not in the chapter_map's StructuralElements. The StructuralElements only get `characters_present` populated during final output assembly in `_convert_chapters()` (analyzer.py:2575-2600), which runs AFTER all agents.
+
+2. **"the father" listed as alias of John Donaldson** — Since the split didn't fire, "the father" appears as an alias of the single conflated entry, which is misleading.
+
+3. **John Donaldson marked as narrator: true** — Both characters are tagged as narrators (John as secondary narrator of the war story, which is correct for the son), but since they're conflated, the narrator tag applies ambiguously.
+
+4. **Ted Frith missing "Teddy" alias (MINOR)** — Text uses "Teddy" 2x to refer to Ted Frith but this wasn't captured.
 
 **What works:**
 - Uncle Bill correctly identified as protagonist and first-person narrator
-- John Donaldson correctly identified as secondary narrator (nested narrative)
 - Margaret Donaldson, Joe Barron, Ted Frith all present
-- "Johnny" is no longer a separate character (fix from attempt 1 helped somewhat)
+- Red Cross correctly filtered
+- No hallucinated characters
 
-**What fails:**
-
-1. **Father/son John Donaldson NOT split (CRITICAL - still broken from attempt 1).** There is still only ONE "John Donaldson" entry (main_cast_1). The Rule 6 prompt change was made in attempt 1 but did not produce two separate characters. The single entry conflates:
-   - The FATHER: 55+ years old, embezzler who faked his death, lived in Italy 20 years, died as stretcher-bearer
-   - The SON: ~23 years old, Uncle Bill's ward, Yale student, ambulance driver, narrator of war story
-   The profile appearance describes the father ("tall, dark-complexioned man with striking blue eyes"), the relationships reference both father and son contexts, and the character is tagged as "secondary narrator" (which applies to the son).
-
-2. **Ted Frith alias/mention count issue (MEDIUM).** Ted Frith appears as a single entry (good — the `_merge_obvious_aliases()` fix worked for some merges), BUT:
-   - Mention count is only 2 (should be ~7 including "Ted" 5x, "Teddy" 2x, "Ted Firth" variant)
-   - No aliases listed (should have: Ted, Teddy, Ted Firth)
-   - The merge function may have merged names but not accumulated mention counts or aliases
-
-3. **"Red Cross" still extracted as a character (HIGH).** An organization with no agency, personality, or speech.
-
-4. **Missing character: Morgan (LOW).** Named character at line 207 with agency ("Morgan had a thought") but only 1 mention.
+Score improved from 6→7 (Red Cross removed +0.5, Ted aliases +0.5), but father/son conflation remains the critical blocker.
 
 ### 2.3 Character Profiles: 8/10 ✓
 
-**Major improvement from attempt 1.** Profiles are now rendered in the HTML with rich detail.
+**John Donaldson profile (conflated but detailed):**
+- Appearance describes the father: "olive complexion, blue eyes with thickset lashes, shabby but dignified bearing" — accurate for the father
+- Personality: "morally ambiguous man who committed financial fraud" — accurate for the father
+- Voice guidance: "repeats 'American, sir' with solemn emphasis" — accurate for the father
+- Relationships: "Uncle Bill (victimizer)" — odd label, should be "cousin" or "ward-of"; "John Donaldson (the son) (parent)" — correct; "Margaret Donaldson (spouse)" — correct
+- The profile is rich and accurate FOR THE FATHER, but the son's profile is entirely missing since they're conflated
 
-**Uncle Bill profile — Good:**
-- Appearance: "elderly, grizzled, small man" — accurate to text ("I am crabbed", "small", "grizzled")
-- Personality: "deeply principled and self-sacrificing" — accurate
-- Voice guidance: "low, measured, gravelly tone" — appropriate
-- Dialect: "formal American English with old-fashioned phrasing" — accurate
-- Relationships: "John Donaldson (the son): mentor" — correct; "John Donaldson (the father): father" — WRONG (Uncle Bill is John Sr.'s cousin, not his father)
-- Example quotes look correct
-
-**John Donaldson profile — Mixed (conflated):**
-- Appearance describes the FATHER (correct for that character): "tall, dark-complexioned man with striking blue eyes"
-- Personality describes the FATHER's arc — accurate for him
-- Voice guidance is for the FATHER ("American, sir" catchphrase) — accurate
-- Relationships: "Margaret Donaldson: spouse" — correct for father; "Uncle Bill: acquaintance" — should be "cousin" or "benefactor"
-- The profile would be EXCELLENT if it were clearly labeled as the father's profile, but since the entry conflates both characters, the son's profile is entirely missing
+**Uncle Bill profile (good):**
+- Appearance: "elderly, grizzled, small man" — accurate
+- Personality: "self-sacrificing, emotionally reserved but deeply loyal" — accurate
+- Voice guidance: "low, measured, restrained tone" — appropriate
+- Relationships: "John (the nephew) (mentor)" — correct; "John Donaldson (the father) (ally)" — should be "cousin"; "Margaret Donaldson (ally)" — acceptable
+- Example quotes are accurate and well-chosen
 
 **Issues:**
-- Uncle Bill's relationship to John Sr. labeled as "father" — should be "cousin"
-- Uncle Bill's relationship to Margaret labeled as "acquaintance" — they have a more complex relationship (she's his cousin's widow who sent him a letter)
-- The `physical_description` JSON field is still null for all characters, though HTML renders profile data (data model issue, not content issue)
+- Uncle Bill's relationship to John Sr. labeled "ally" — should be "cousin"
+- Uncle Bill's relationship to John Sr. labeled "victimizer" in John's profile — very odd characterization. Uncle Bill *helped* John Sr., not victimized him
+- The `physical_description` JSON field is still null for all characters (data model issue)
+
+Score: 8/10 — the profiles are rich and mostly accurate, but the relationship labels are sometimes odd and the conflated John Donaldson means the son has no profile.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗
 
-**Chapter 1 summary — Mostly accurate but with errors:**
+**Section 1 summary — Mostly accurate:**
 - Correctly captures: young John's letter, Uncle Bill's emotional response, backstory about John Sr.
-- Error: "parents died in an accident" — text says John Sr.'s parents died, but doesn't specify an accident for them specifically. The father's death was described as a "hunting accident" (possibly suicide).
-- Error: "split it with John" — accurate
-- Error: `characters_present` only lists "Narrator" — should list Uncle Bill, John Donaldson (referenced), Margaret Donaldson (her letter is quoted), young John (his letter opens the chapter)
+- ✅ Correctly uses "cousin" context ("a charismatic Yale classmate whom he once shared a room, ponies, and travels with")
+- Issue: `characters_present` only lists "Narrator" — should list Uncle Bill, John Donaldson, Margaret Donaldson, young John
 
-**Chapter 2 summary — Major error persists:**
-- Error: "deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN (text line 28), NOT his sister. This is a factual hallucination.
+**Section 2 summary — Major factual error persists:**
+- Error: "his deceased sister's son" — John Sr. was Uncle Bill's COUSIN (text line 28: "a cousin, who had come to be this lad's father"), NOT his sister's son. This is an LLM hallucination that has persisted across all attempts.
 - Otherwise comprehensive and detailed — covers the war service, meeting the father, deathbed reunion
-- `characters_present` correctly lists: Uncle Bill, John Donaldson (the son), John Donaldson (the father) — this is good and shows the summary agent CAN distinguish father/son even though the character extractor didn't split them
+- `characters_present` correctly lists: Uncle Bill, John Donaldson (the son), John Donaldson (the father) — this shows the summary agent CAN distinguish father/son
+
+Score unchanged from attempt 2 — no summary fixes were attempted.
 
 ### 2.5 Pronunciation Guide: 6/10 ✗
 
-30 pronunciation entries for a ~5000-word short story remains excessive. The same issue from attempt 1 persists.
+29 pronunciation entries (down from 30 — "Cross" likely removed with Red Cross filtering).
 
 **Genuinely useful entries (~10):** Caporetto, Piave, Solferino, Tagliamento, Bersagliari, Venetia, Guerre, Bordeaux, Frith, mayn't
 
-**Homographs (acceptable — 5):** live, minute, read, close, moderate — these are useful for narrators
+**Homographs (acceptable — 5):** live, minute, read, close, moderate — useful for narrators
 
-**False positives (~15):** Bill, Ted, Joe, Cross, Donaldson's (duplicate of Donaldson), Margaret, was, whippersnapper, thriftless, thickset, manliness, orderlies, dum-dums, Donaldson, Joe Barron
+**False positives (~14):** Bill, Ted, Joe, Donaldson, Donaldson's (duplicate), Margaret, Barron, was, whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies
 
-**IPA error:** "Barron" given as `/bəˈrɒn/` (buh-RON) — should be `/ˈbær.ən/` (BARE-un) with stress on first syllable.
+**IPA issues:**
+- "Barron" given as `/bəˈrɒn/` (buh-RON) — should be `/ˈbær.ən/` (BARE-un)
+- "orderlies" given as `/ˈɔːr.dər.laɪz/` — should be `/ˈɔːr.dər.liz/`
+
+Score unchanged — pronunciation false positive filtering was not addressed in this attempt.
 
 ### 2.6 HTML Presentation: 9/10 ✓
 
-The HTML report is well-organized with functional navigation, character profiles with rich formatting (appearance, personality, voice guidance sections), pronunciation guide with type/chapter views and search. No broken elements observed.
+Well-organized HTML report with functional navigation, rich character profiles, pronunciation guide. No broken elements.
+- Minor: Both chapter sections show "null" for titles
 
-Minor: Both chapter sections show "null" for titles instead of something more descriptive.
+Score unchanged.
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (6 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6 × 0.10) + (9 × 0.10)
-        = 1.40 + 1.50 + 1.20 + 1.50 + 0.60 + 0.90
-        = 7.10
+Overall = (7 × 0.20) + (7 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6 × 0.10) + (9 × 0.10)
+        = 1.40 + 1.75 + 1.20 + 1.50 + 0.60 + 0.90
+        = 7.35
 ```
 
-**Overall: 7.10/10**
+**Overall: 7.35/10**
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Father/son John Donaldson NOT split — Rule 6 prompt change insufficient**
-   - Problem: Still only one "John Donaldson" entry (main_cast_1) conflating two distinct characters with different ages, life stories, and roles. The Rule 6 prompt change from attempt 1 did not produce separate entries.
-   - Evidence: The father is "fifty-five or over", an embezzler who faked his death 20 years ago and died as a stretcher-bearer. The son is ~23, Uncle Bill's ward, an ambulance driver who narrates the war story. They appear in different time periods and have completely different arcs.
-   - ID pattern: `main_cast_1` → main cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
-   - Previous fix attempt: Added Rule 6 to `CHARACTER_IDENTIFICATION_PROMPT` (attempt 1) — DID NOT WORK
-   - Fix: The prompt-only approach was insufficient. The LLM may be seeing both characters under the same name and merging them at the response level. Consider:
-     a. Adding explicit same-name disambiguation in the post-processing code (not just the prompt)
-     b. Checking if the chapter summaries' `characters_present` already distinguish "John Donaldson (the son)" vs "John Donaldson (the father)" — if so, use that signal to split the main_cast entry
-     c. The summary agent already correctly identified both in Chapter 2's `characters_present` — leverage this downstream
+1. **Father/son John Donaldson NOT split — Step 1.6 reads wrong data source**
+   - Problem: Still only one "John Donaldson" entry (main_cast_1) conflating father (55+, embezzler, died as stretcher-bearer) and son (~23, ambulance driver, narrator of war story).
+   - Root cause: `_split_disambiguated_same_name_characters()` (characters.py:1285) reads `characters_present` from `chapters` parameter, but `_get_chapters()` (line 775) creates StructuralElement objects from `context.chapter_map` which do NOT have `characters_present` populated at CharacterAgent runtime. The data is in the summary objects (`context.previous_results["summaries"]`), not the chapter map.
+   - Evidence: `jq '.structure[1].characters_present'` shows `["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"]` in the FINAL output, but that's populated by `_convert_chapters()` (analyzer.py:2575-2600) AFTER all agents finish.
+   - Location: `src/agents/characters.py` — `_split_disambiguated_same_name_characters()` (line 1285) and `_get_chapters()` (line 775)
+   - Fix: Modify Step 1.6 to read `characters_present` from the summary objects instead of the chapters. The summary data is already available via `self._get_chapter_summaries(context)`. The method signature should take `chapter_summaries` (the summary objects) instead of or in addition to `chapters`, and iterate over their `characters_present` fields.
+   - This fix also requires the method to extract `characters_present` correctly from the summary objects (they use `active_characters` field with a `characters_present` property — see `src/pipeline/chapter_summary/models.py:63`).
 
 ### HIGH
 
-2. **"Red Cross" extracted as a character — organization filtering needed**
-   - Problem: "Red Cross" (supporting_1, 4 mentions) is an organization, not a character
-   - Evidence: All mentions are organizational references ("under our Red Cross", "Red Cross uniform")
-   - ID pattern: `supporting_1` → supporting cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/supporting.py`
-   - Fix: Add organization-type entity filtering. SpaCy NER tags "Red Cross" as ORG, not PERSON — use the NER label to filter. Only entities tagged PERSON should be extracted as characters.
-
-3. **Ted Frith aliases and mention count not accumulated**
-   - Problem: Ted Frith (supporting_3) shows only 2 mentions and no aliases, but "Ted" (5x), "Teddy" (2x), "Ted Firth" (variant spelling) all refer to the same person
-   - Evidence: Text lines 274, 281, 284, 288, 323, 345, 422 all refer to Ted Frith
-   - ID pattern: `supporting_3` → supporting cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` — `_merge_obvious_aliases()` may be merging entries but not accumulating aliases/mention counts
-   - Fix: When merging, the merged entry should: (a) accumulate mention counts from all merged entries, (b) add the shorter/variant names as aliases
-
-4. **Excessive pronunciation false positives (15 of 30 entries are common English)**
-   - Problem: Common names (Bill, Ted, Joe, Margaret, Johnny), common words (was, Cross), standard vocabulary (whippersnapper, manliness, orderlies, thickset, thriftless) flagged
-   - Useful entries: ~10 Italian/French place names + "mayn't" + Frith
+2. **Excessive pronunciation false positives (14 of 29 entries are common English)**
+   - Problem: Common names (Bill, Ted, Joe, Margaret), common words (was), standard vocabulary (whippersnapper, manliness, orderlies, thickset, thriftless, dum-dums) flagged unnecessarily
+   - Useful entries: ~10 Italian/French place names + "mayn't" + Frith + 5 homographs
    - Location: `src/pipeline/pronunciation/` or `src/agents/pronunciation_agent.py`
-   - Fix: Filter out entries where: (a) word is a common English given name, (b) word is in a standard English dictionary and not foreign/archaic, (c) word is a possessive duplicate of an already-flagged word. This has been a persistent issue across multiple texts.
+   - Fix: Improve the prompt to focus on GENUINELY unusual words: foreign terms, archaic words, names with non-obvious pronunciation. Exclude common English vocabulary and common given names. The prompt should specify: "Do NOT flag common English first names (Bill, Ted, Joe, Margaret, etc.), common English words found in any standard dictionary (was, orderlies, manliness, etc.), or possessive forms of already-flagged words."
+   - Impact: +2 to Pronunciation (6→8)
 
-5. **Barron IPA incorrect: `/bəˈrɒn/` should be `/ˈbær.ən/`**
-   - Problem: Stress on wrong syllable (buh-RON vs BARE-un)
-   - Location: Pronunciation IPA generation
-   - Fix: This is an LLM IPA accuracy issue — hard to fix generically
+3. **Chapter 2 summary factual error: "sister" instead of "cousin"**
+   - Problem: "his deceased sister's son" — John Sr. was Uncle Bill's COUSIN (text line 28: "a cousin, who had come to be this lad's father"), NOT his sister
+   - Location: Summary generation — LLM hallucination
+   - Fix: Difficult to fix generically (LLM-generated content). Could potentially be addressed by lowering summary temperature.
 
 ### MEDIUM
 
-6. **Chapter 2 summary says "sister" instead of "cousin"**
-   - Problem: "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN (line 28: "a cousin, who had come to be this lad's father")
-   - Location: Summary generation — LLM hallucination
-   - Fix: Difficult to fix generically (LLM-generated content)
-
-7. **Chapter 1 characters_present only lists "Narrator"**
-   - Problem: Should identify Uncle Bill, John Donaldson, Margaret Donaldson, young John as characters discussed in this section
+4. **Chapter 1 `characters_present` only lists "Narrator"**
+   - Problem: Should identify Uncle Bill, John Donaldson, Margaret Donaldson as characters discussed/referenced
    - Location: Summary agent / character presence detection
-   - Fix: Characters who are discussed/referenced (not just physically present) should be included
+   - Fix: Characters who are discussed (not just physically present) should be included
 
-8. **Uncle Bill's relationship to John Sr. labeled "father" — should be "cousin"**
-   - Problem: In Uncle Bill's relationship list, "John Donaldson (the father): father" makes no sense — Uncle Bill is John Sr.'s COUSIN, not his father
+5. **Uncle Bill relationship labels inaccurate**
+   - Problem: "John Donaldson (the father) (ally)" should be "cousin"; "Uncle Bill (victimizer)" in John's profile is wrong (Uncle Bill helped John Sr.)
    - Location: Character profiling — relationship extraction
-   - Fix: LLM-generated relationship labels; hard to fix generically
+   - Fix: LLM-generated labels; hard to fix generically
 
-9. **Structure: Short story with no chapter markers split into 2 null-titled sections**
-   - Problem: The story has zero structural markers (no "Chapter" headings, no section breaks, no dividers). Two null-titled sections are less useful than one section with a clear title.
-   - Location: `src/pipeline/chapter_detection/` — may need a threshold for minimum structural evidence before splitting
-   - Fix: For very short texts with no detected markers, consider treating the entire text as one section. This is MEDIUM because the 2-section split doesn't break usability.
+6. **Structure: 2 null-titled sections for a continuous short story**
+   - Problem: No structural markers in text → 2 null-titled sections less useful than 1 titled section
+   - Location: Chapter detection — needs threshold for minimum structural evidence
+   - Fix: For very short texts with no markers, treat as one section
 
 ### LOW
 
-10. **`physical_description` JSON field null for all characters despite HTML showing appearance data**
-    - Problem: HTML profiles render appearance info but the JSON `physical_description` field is null
-    - Location: Data model / export — profile data stored in a different field
-    - Impact: API consumers expecting `physical_description` won't find it
+7. **Ted Frith missing "Teddy" alias**
+   - Problem: Text uses "Teddy" 2x to refer to Ted Frith but this wasn't captured as alias
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` — nickname matching rules
+   - Fix: Add nickname variant matching for common diminutives
+
+8. **`physical_description` JSON field null for all characters**
+   - Problem: HTML profiles render appearance data but JSON `physical_description` field is null
+   - Location: Data model / export — profile data stored differently
+   - Impact: API consumers expecting this field won't find it
 
 ## Fix History
 
 ### Attempt 1 - Fix 1: Supporting cast alias resolution
-- **Issue addressed:** Critical #1 (attempt 1) - False character split (Ted Frith / Ted / Johnny)
+- **Issue addressed:** False character split (Ted Frith / Ted / Johnny)
 - **Fix:** Added `_merge_obvious_aliases()` in `supporting.py`
-- **Result:** Partially fixed — Ted Frith is now one entry, Johnny removed. BUT mention counts not accumulated (2 instead of ~7) and no aliases listed.
+- **Result:** Partially fixed — Ted Frith merged, Johnny removed. Mention counts not accumulated.
 - **Modified:** `src/pipeline/character_extraction_v2/supporting.py`
 
 ### Attempt 1 - Fix 2: Same-name disambiguation in main cast
-- **Issue addressed:** Critical #2 (attempt 1) - Father/son conflation
+- **Issue addressed:** Father/son conflation
 - **Fix:** Added Rule 6 to `CHARACTER_IDENTIFICATION_PROMPT`
-- **Result:** NO CHANGE — still one conflated "John Donaldson" entry. Prompt-only approach insufficient.
+- **Result:** NO CHANGE — prompt-only approach insufficient
 - **Modified:** `src/pipeline/character_extraction_v2/main_cast.py`
 
 ### Attempt 1 - Fix 3: Frame vs embedded narrator detection
+- **Issue addressed:** Wrong narrator identification
+- **Fix:** Updated `NARRATOR_DETECTION_PROMPT` in `narrator.py`
+- **Result:** FIXED — Uncle Bill now correctly tagged as first-person narrator
+- **Modified:** `src/pipeline/character_extraction_v2/narrator.py`
 
 ### Attempt 3 - Fix 1: Same-name character split via summary disambiguation
-- **Issue addressed:** Critical #1 (attempt 2) - Father/son John Donaldson conflation
-- **Root cause:** `src/agents/characters.py` - LLM merges same-name characters despite summaries using disambiguating labels like "John (the father)" and "John (the son)"
-- **Fix:** Added Step 1.6 `_split_disambiguated_same_name_characters()` post-processing method that:
-  - Scans chapter `characters_present` fields for disambiguating labels (e.g., "(the father)", "(the son)")
-  - Splits characters with 2+ distinct labels into separate Character objects
-  - Programmatic, deterministic - no prompt changes
-- **Modified:** `src/agents/characters.py` (lines 161-165 in run(), new method at line 1285)
-- **Expected impact:** +1.0 to Character Extraction, +0.5 to Profiles (father/son now separate)
+- **Issue addressed:** Father/son John Donaldson conflation
+- **Fix:** Added Step 1.6 `_split_disambiguated_same_name_characters()` in characters.py
+- **Result:** DID NOT FIRE — method reads `characters_present` from `chapters` (StructuralElements from `_get_chapters`), but those objects have empty `characters_present` at CharacterAgent runtime. The data is in the summary objects.
+- **Modified:** `src/agents/characters.py` (lines 161-165, 1285-1360)
 
 ### Attempt 3 - Fix 2: Organization entity filtering
-- **Issue addressed:** High #2 (attempt 2) - "Red Cross" extracted as character (ORG entity)
-- **Root cause:** `src/pipeline/character_extraction_v2/supporting.py` line 111 accepts both PERSON and ORG NER labels to catch mis-tagged names, but admits actual organizations
-- **Fix:** Added `_is_organization_name()` method with universal organizational indicators:
-  - Checks for org suffixes (company, corporation, university, etc.)
-  - Checks small reference list of org patterns (Red Cross, Pentagon, FBI, etc.)
-  - Only filters ORG-labeled entities (trusts PERSON labels)
-  - Uses universal signals, NOT book-specific vocabulary deny-lists
-- **Modified:** `src/pipeline/character_extraction_v2/supporting.py` (new method at line 404, called at line 132)
-- **Expected impact:** +0.5 to Character Extraction (org entities filtered)
+- **Issue addressed:** "Red Cross" extracted as character
+- **Fix:** Added `_is_organization_name()` method with universal org indicators
+- **Result:** FIXED — Red Cross no longer appears in character list
+- **Modified:** `src/pipeline/character_extraction_v2/supporting.py`
 
 ### Attempt 3 - Fix 3: Spelling variant merge + alias accumulation
-- **Issue addressed:** High #3 (attempt 2) - Ted Frith shows 2 mentions instead of ~7, no aliases saved
-- **Root cause:** `_merge_obvious_aliases()` merged counts but:
-  1. Didn't catch spelling variants ("Ted Frith" vs "Ted Firth")
-  2. Didn't save merged names as aliases (SupportingCharacter had no aliases field)
-- **Fix:** 
-  - Added Rule 4 for spelling variants using Levenshtein distance <= 1
-  - Added `_is_spelling_variant()` helper method
-  - Added `aliases` field to SupportingCharacter dataclass
-  - Updated merge logic to save merged names as aliases
-  - Updated `_to_characters()` to transfer aliases to Character objects
-- **Modified:** `src/pipeline/character_extraction_v2/supporting.py` (dataclass line 30, Rule 4 line 541, new method line 582, alias tracking line 557, _to_characters line 645)
-- **Expected impact:** +0.5 to Character Extraction (Ted Frith now has correct mentions + aliases)
-- **Issue addressed:** Critical #3 (attempt 1) - Wrong narrator identification
-- **Fix:** Updated `NARRATOR_DETECTION_PROMPT` in `narrator.py`
-- **Result:** FIXED — Uncle Bill now correctly tagged as first-person narrator, John Donaldson as secondary narrator
-- **Modified:** `src/pipeline/character_extraction_v2/narrator.py`
+- **Issue addressed:** Ted Frith shows 2 mentions, no aliases
+- **Fix:** Added Rule 4 for spelling variants, added aliases field to SupportingCharacter
+- **Result:** PARTIALLY FIXED — Ted Frith now has alias "Ted" and 5 mentions, but "Teddy" still missing
+- **Modified:** `src/pipeline/character_extraction_v2/supporting.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|---------|
+|---------|-------|----------------|--------|
 | 1 | Ted split | `supporting.py` | Partial fix (merged but no alias/count accumulation) |
 | 1 | Father/son conflation | `main_cast.py` (prompt only) | No change — prompt insufficient |
 | 1 | Wrong narrator | `narrator.py` | Fixed |
-| 3 | Father/son conflation | `characters.py` (Step 1.6 post-processing) | Programmatic split via summary labels |
-| 3 | Red Cross organization | `supporting.py` (org filter) | Filter ORG entities using universal indicators |
-| 3 | Ted Frith aliases/counts | `supporting.py` (spelling variants + alias saving) | Rule 4 + alias field added |
+| 3 | Father/son conflation | `characters.py` (Step 1.6 post-processing) | **No change — reads wrong data source** |
+| 3 | Red Cross organization | `supporting.py` (org filter) | Fixed |
+| 3 | Ted Frith aliases/counts | `supporting.py` (spelling variants + alias saving) | Partial fix (Ted alias, 5 mentions, but Teddy missing) |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - No LLM retries across any stage (good)
-- 0 JSON parse failures except 1 in pronunciation (minor)
-- `character_llm_chunk_chars: 5000` is reasonable for a 27KB text
-- Temperature 0.7 across all agents — could be lower for character extraction (0.3-0.5) for more deterministic results
-- Character Profiles was the bottleneck at 513s (24% of total), but produced high-quality results
+- 1 JSON parse failure in pronunciation (minor, same as before)
+- Temperature 0.7 across all agents — could be lower for character extraction (0.3-0.5)
+- Character Profiles was the bottleneck at 573s (largest stage)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
-| 1 | 6.60 | - | Baseline. Major issues: father/son conflation, Ted split, wrong narrator, pronunciation false positives |
-| 2 | 7.10 | +0.50 | Narrator fixed, Ted partially merged, profiles improved. Father/son still conflated, pronunciation still noisy |
+| 1 | 6.60 | — | Baseline. Major issues: father/son conflation, Ted split, wrong narrator, pronunciation false positives |
+| 2 | 7.10 | +0.50 | Narrator fixed, Ted partially merged, profiles improved. Father/son still conflated. |
+| 3 | 7.35 | +0.75 | Red Cross filtered, Ted aliases improved. Father/son split code didn't fire (wrong data source). |
 
-## Priority Fix Order for Attempt 3
+## Priority Fix Order for Attempt 4
 
 Focus on the 4 failing categories. Highest-impact fixes:
 
-1. **Father/son split (Critical #1)** — This is the single biggest blocker. Prompt-only approach failed. Need code-level post-processing to split same-name characters when evidence shows two distinct people. The chapter summaries ALREADY distinguish them — use that signal. (+1 to Character Extraction, +0.5 to Profiles)
+1. **Fix Step 1.6 data source (Critical #1)** — Change `_split_disambiguated_same_name_characters()` to read `characters_present` from the summary objects (available via `_get_chapter_summaries(context)`) instead of from the `chapters` StructuralElements. The summary objects have the correct data. (+1 to Character Extraction, +0.5 to Profiles)
 
-2. **Red Cross organization filter (High #2)** — Filter ORG-tagged NER entities from character list. (+0.5 to Character Extraction)
+2. **Pronunciation false positive filtering (High #2)** — Improve the pronunciation prompt to not flag common English names and standard vocabulary. (+2 to Pronunciation, pushing it from 6→8)
 
-3. **Ted Frith alias/count accumulation (High #3)** — Fix `_merge_obvious_aliases()` to accumulate mention counts and populate aliases. (+0.5 to Character Extraction)
-
-4. **Pronunciation false positive filtering (High #4)** — Filter common English names and standard vocabulary. (+1.5 to Pronunciation)
-
-These 4 fixes should push Character Extraction from 6→8+, Pronunciation from 6→8+, and help Structure/Summaries indirectly.
-
+These 2 fixes should push Character Extraction from 7→8+ and Pronunciation from 6→8+, making 4 of 6 categories pass. Structure (7) and Summaries (7.5) remain below threshold but are harder to fix generically. If the father/son split works correctly, the summaries' `characters_present` improvement could push Summaries slightly higher.
 
 ## Next Action
-Re-run analysis to verify fixes for:
-1. ✅ Father/son split (Step 1.6 post-processing in characters.py)
-2. ✅ Red Cross organization filter (supporting.py org filter)  
-3. ✅ Ted Frith alias/count accumulation (supporting.py spelling variants + alias saving)
-
-**Expected score improvement:**
-- Character Extraction: 6 → 8+ (father/son split +1.0, Red Cross filter +0.5, Ted aliases +0.5)
-- Profiles: 8 → 8+ (father/son profiles now separate)
-- Summaries: 7.5 → 7.5 (no changes)
-- Pronunciation: 6 → 6 (deferred - would need vocabulary filtering)
-- Structure: 7 → 7 (no changes)
-
-**Note:** Pronunciation false positive filtering (High #4) was NOT addressed in this attempt to limit scope to 3 fixes. This can be addressed in attempt 4 if needed.
+Run PROMPT_fix.md to address:
+1. Step 1.6 data source fix (Critical #1) — one targeted code change in characters.py
+2. Pronunciation false positive filtering (High #2)
