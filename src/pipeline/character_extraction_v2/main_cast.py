@@ -92,7 +92,11 @@ IMPORTANT RULES:
 3. Use the most common name form in the summaries as canonical_name (or the FULL NAME form if multiple variants exist)
 4. Do NOT invent names not supported by the summaries
 5. **RELATIONSHIP-BASED REFERENCES**: If summaries frequently mention "his father", "her mother", "the narrator's X", look for the FULL NAME in other summaries and use that as canonical_name (e.g., "his father" + "letter from Alphonse" = "Alphonse Frankenstein"). Include family members who appear across multiple chapters.
-6. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
+6. **CHARACTERS WITH IDENTICAL NAMES (CRITICAL)**: If summaries clearly describe TWO distinct people with the EXACT SAME name (e.g., a father and son both named "John Donaldson"), you MUST create TWO separate character entries with disambiguation in the canonical_name field:
+   - Example: "John Donaldson (the father)" and "John Donaldson (the son)"
+   - Example: "Robert Walton Sr." and "Robert Walton Jr."
+   - Look for biographical differences: different ages, different time periods, different relationships, one deceased while the other is alive
+   - If uncertain whether they are the same person or different people, create separate entries with disambiguation
 7. Do NOT list aliases in this pass
 8. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows

@@ -149,6 +149,9 @@ class SupportingCastExtractor:
         # Sort by mention count (most mentioned first)
         supporting.sort(key=lambda x: -x.mention_count)
 
+        # Merge obvious aliases (e.g., "Ted Frith" and "Ted")
+        supporting = self._merge_obvious_aliases(supporting)
+
         # Convert to Character objects
         characters = self._to_characters(supporting)
 
@@ -396,6 +399,100 @@ class SupportingCastExtractor:
         if name_lower.startswith("mont ") and len(name_lower) > 5:
             logger.debug(f"Filtering '{name}' as likely geographic entity (Mont prefix)")
             return True
+
+        return False
+
+    def _merge_obvious_aliases(
+        self,
+        supporting: list[SupportingCharacter],
+    ) -> list[SupportingCharacter]:
+        """
+        Merge obvious aliases in supporting characters using deterministic rules.
+
+        Examples:
+        - "Ted Frith" and "Ted" → merge into "Ted Frith" with "Ted" as alias
+        - "Dr. Watson" and "Watson" → merge into "Dr. Watson"
+        - "Johnny" may be a nickname for "John" if both exist
+
+        Uses simple substring and common nickname patterns (no LLM calls).
+        """
+        if len(supporting) < 2:
+            return supporting
+
+        # Track which characters have been merged
+        merged_indices = set()
+        result = []
+
+        for i, char in enumerate(supporting):
+            if i in merged_indices:
+                continue
+
+            # Normalize for comparison
+            name_norm = self._normalize_name(char.name)
+            words_in_name = set(name_norm.split())
+
+            # Look for shorter names that might be aliases
+            for j in range(i + 1, len(supporting)):
+                if j in merged_indices:
+                    continue
+
+                other = supporting[j]
+                other_norm = self._normalize_name(other.name)
+                other_words = set(other_norm.split())
+
+                should_merge = False
+
+                # Rule 1: Substring match (shorter name is substring of longer)
+                # "Ted" is substring of "Ted Frith"
+                if other_norm in name_norm or name_norm in other_norm:
+                    should_merge = True
+                    logger.debug(f"Merging '{other.name}' into '{char.name}' (substring match)")
+
+                # Rule 2: Common word overlap (single-word vs multi-word)
+                # "Ted" and "Ted Frith" share "ted"
+                elif len(other_words) == 1 and other_words.issubset(words_in_name):
+                    should_merge = True
+                    logger.debug(f"Merging '{other.name}' into '{char.name}' (word overlap)")
+
+                # Rule 3: Common nickname patterns
+                # "Johnny" for "John", "Teddy" for "Ted", "Billy" for "Bill"
+                elif self._is_likely_nickname(other_norm, words_in_name):
+                    should_merge = True
+                    logger.debug(f"Merging '{other.name}' into '{char.name}' (nickname pattern)")
+
+                if should_merge:
+                    # Merge: add mention counts, track as merged
+                    char.mention_count += other.mention_count
+                    char.first_position = min(char.first_position, other.first_position)
+                    merged_indices.add(j)
+
+            result.append(char)
+
+        logger.info(f"Merged {len(merged_indices)} alias candidates in supporting cast")
+        return result
+
+    def _is_likely_nickname(self, nickname: str, full_name_words: set[str]) -> bool:
+        """
+        Check if a single-word name is a likely nickname for a longer name.
+
+        Common patterns:
+        - "Johnny" for "John"
+        - "Teddy" for "Ted" or "Theodore"
+        - "Billy" for "Bill" or "William"
+        - "Tommy" for "Tom" or "Thomas"
+        """
+        # Common -y/-ie diminutive endings
+        if nickname.endswith('y') or nickname.endswith('ie'):
+            base = nickname[:-1] if nickname.endswith('y') else nickname[:-2]
+
+            # Check if base matches any word in the full name
+            for word in full_name_words:
+                if word.startswith(base):
+                    return True
+
+                # Special cases: "Johnny" for "John", "Billy" for "Bill"
+                if base.endswith('nn') and (base[:-2] + 'n' in word or base[:-1] in word):
+                    return True
 
         return False
 

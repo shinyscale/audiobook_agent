@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single
 
@@ -118,13 +118,49 @@
     - This would be moot if Ted/Ted Frith are properly merged (Critical #1).
 
 ## Fix History
-(First attempt - no previous fixes)
+
+### Attempt 1 - Fix 1: Supporting cast alias resolution
+- **Issue addressed:** Critical #1 - False character split (Ted Frith / Ted / Johnny)
+- **Root cause:** Supporting cast extractor had NO alias resolution or merge logic - all NER-extracted names treated as separate characters
+- **Fix:** Added deterministic merge logic (`_merge_obvious_aliases()`) in `supporting.py` after NER extraction
+- **Approach:**
+  - Substring matching: "Ted" merges into "Ted Frith" (shorter name is substring of longer)
+  - Word overlap: Single-word names that appear in multi-word names (e.g., "Ted" in "Ted Frith")
+  - Nickname patterns: Common -y/-ie diminutives (e.g., "Johnny" for "John", "Teddy" for "Ted")
+  - Conservative: No LLM calls, deterministic rules only
+- **Smoke test:** PASS - Correctly merged "Ted" (5 mentions) + "Ted Frith" (2 mentions) → "Ted Frith" (7 mentions)
+- **Modified:** `src/pipeline/character_extraction_v2/supporting.py`
+- **Universal applicability:** YES - Applies to all books with characters called by multiple names
+
+### Attempt 1 - Fix 2: Same-name disambiguation in main cast
+- **Issue addressed:** Critical #2 - Father/son conflation (both named "John Donaldson")
+- **Root cause:** Prompt had rules for "similar names" (John vs John Donaldson) but not for EXACT name duplicates with different biographies
+- **Fix:** Added Rule 6 to `CHARACTER_IDENTIFICATION_PROMPT` in `main_cast.py`:
+  - "If summaries clearly describe TWO distinct people with the EXACT SAME name, you MUST create TWO separate character entries with disambiguation"
+  - Examples: "John Donaldson (the father)" and "John Donaldson (the son)"
+  - Look for biographical differences: different ages, time periods, relationships, one deceased while other is alive
+- **Smoke test:** N/A (prompt change, requires full re-analysis to verify)
+- **Modified:** `src/pipeline/character_extraction_v2/main_cast.py`
+- **Universal applicability:** YES - Common in literature (Hamlet Sr./Jr., Russian novels with multiple "Ivan"s, etc.)
+
+### Attempt 1 - Fix 3: Frame vs embedded narrator detection
+- **Issue addressed:** Critical #3 - Wrong narrator identification (John marked as narrator instead of Uncle Bill)
+- **Root cause:** Narrator detection prompt didn't distinguish frame narrator (outermost voice) from embedded narrators (characters who tell stories within the frame)
+- **Fix:** Updated `NARRATOR_DETECTION_PROMPT` in `narrator.py`:
+  - Emphasized "identify the PRIMARY/FRAME narrator as the narrator_name"
+  - Added instruction: "The frame narrator is the one whose voice opens and closes the story"
+  - Clarified distinction: narrator_name = frame narrator, nested_narrators = all narrators in order
+- **Smoke test:** N/A (prompt change, requires full re-analysis to verify)
+- **Modified:** `src/pipeline/character_extraction_v2/narrator.py`
+- **Universal applicability:** YES - Standard narrative structure in Frankenstein, Wuthering Heights, Heart of Darkness, etc.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Critical #1 (Ted split) | `src/pipeline/character_extraction_v2/supporting.py` | Added `_merge_obvious_aliases()` method |
+| 1 | Critical #2 (father/son) | `src/pipeline/character_extraction_v2/main_cast.py` | Added Rule 6 for exact name duplicates |
+| 1 | Critical #3 (wrong narrator) | `src/pipeline/character_extraction_v2/narrator.py` | Emphasized frame narrator detection |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
@@ -139,4 +175,9 @@
 | 1 | 6.60 | - | Baseline. Major issues: father/son conflation, Ted split, wrong narrator, pronunciation false positives |
 
 ## Next Action
-Run PROMPT_fix.md to address Critical issues #1-3 first (character split/merge errors and narrator misidentification), then HIGH issues #4-7.
+Re-run analysis with fixes applied to verify:
+1. Ted Frith/Ted merge (supporting cast alias resolution)
+2. Father/son John Donaldson split (same-name disambiguation)
+3. Uncle Bill identified as primary narrator (frame narrator detection)
+
+Run PROMPT_analyze.md for attempt 2.
