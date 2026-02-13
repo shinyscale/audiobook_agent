@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -247,6 +247,8 @@ Overall = (7 × 0.20) + (7 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6 × 0.10) 
 | 3 | Father/son conflation | `characters.py` (Step 1.6 post-processing) | **No change — reads wrong data source** |
 | 3 | Red Cross organization | `supporting.py` (org filter) | Fixed |
 | 3 | Ted Frith aliases/counts | `supporting.py` (spelling variants + alias saving) | Partial fix (Ted alias, 5 mentions, but Teddy missing) |
+| 4 | Father/son conflation | `characters.py` (Step 1.6 data source fix) | **Smoke test PASS — now reads from summary objects** |
+| 4 | Pronunciation false positives | `character_proposer.py` (filter short common names) | Added CMU dictionary check for <=4 char names |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
@@ -272,7 +274,23 @@ Focus on the 4 failing categories. Highest-impact fixes:
 
 These 2 fixes should push Character Extraction from 7→8+ and Pronunciation from 6→8+, making 4 of 6 categories pass. Structure (7) and Summaries (7.5) remain below threshold but are harder to fix generically. If the father/son split works correctly, the summaries' `characters_present` improvement could push Summaries slightly higher.
 
+## Fix History
+
+### Attempt 4 - Fix 1: Step 1.6 data source correction
+- **Issue addressed:** Father/son John Donaldson not split (Critical #1)
+- **Root cause:** `_split_disambiguated_same_name_characters()` read from `chapters` (StructuralElements with empty `characters_present`), but data is in summary objects
+- **Fix:** Changed method to read from `chapter_summaries` parameter (summary objects with `active_characters`/`characters_present` fields)
+- **Smoke test:** PASS — Split correctly produces 2 John Donaldsons: "John Donaldson (the father)" and "John Donaldson (the son)"
+- **Modified:** `src/agents/characters.py` (lines 164, 1285-1360)
+
+### Attempt 4 - Fix 2: Pronunciation common name filtering
+- **Issue addressed:** Excessive pronunciation false positives (High #2) — common names Bill, Ted, Joe, Margaret flagged unnecessarily
+- **Root cause:** CharacterProposer flags ALL character name words, even common given names with obvious pronunciation
+- **Fix:** Added universal heuristic — skip names <=4 chars that exist in CMU dictionary (Bill, Ted, Joe, Ann, Mary, etc. are all in CMU)
+- **Approach:** Programmatic check (not keyword list) — uses CMU dictionary as reference lexicon
+- **Modified:** `src/pipeline/pronunciation_guide/proposers/character_proposer.py` (lines 1-11, 20-44, 130-141)
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Step 1.6 data source fix (Critical #1) — one targeted code change in characters.py
-2. Pronunciation false positive filtering (High #2)
+**Phase:** awaiting_analysis
+
+Re-run analysis on american_sir to verify fixes work in full pipeline.

@@ -5,7 +5,7 @@ Flags character names from the character extraction pipeline for pronunciation a
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Set
 
 from ..models import PronunciationFlag, PronunciationProposal
 from .base import BasePronunciationProposer
@@ -30,6 +30,20 @@ class CharacterProposer(BasePronunciationProposer):
         self.whitelist = COMMON_WORDS_WHITELIST.copy()
         if additional_whitelist:
             self.whitelist.update(additional_whitelist)
+
+        # Load CMU dictionary for common name detection
+        self.cmu_words = self._load_cmu_dict()
+
+    def _load_cmu_dict(self) -> Set[str]:
+        """Load words from CMU dictionary for common name detection."""
+        try:
+            import pronouncing
+            words = set(pronouncing.cmudict.dict().keys())
+            logger.debug(f"Loaded {len(words)} words from CMU dictionary for CharacterProposer")
+            return words
+        except ImportError:
+            logger.warning("pronouncing library not available, common name detection limited")
+            return set()
 
     def propose(
         self,
@@ -125,6 +139,17 @@ class CharacterProposer(BasePronunciationProposer):
                     "admiral",
                     "commander",
                 }:
+                    continue
+
+                # Skip short common names with obvious pronunciation
+                # Universal heuristic: If name is <=4 chars AND in CMU dictionary,
+                # it's likely a common given name (Bill, Ted, Joe, Ann, Mary, etc.)
+                # that doesn't need pronunciation guidance for narrators
+                if len(word) <= 4 and self.cmu_words and word_lower in self.cmu_words:
+                    logger.debug(
+                        f"Skipping short common name '{word}' "
+                        "(in CMU dictionary, pronunciation obvious)"
+                    )
                     continue
 
                 seen_words.add(word_lower)

@@ -161,7 +161,7 @@ class CharacterAgent(Agent):
         # STEP 1.6: Split same-name characters based on summary disambiguation
         # If summaries consistently use labels like "John (the father)" and "John (the son)",
         # split them into separate characters
-        characters = self._split_disambiguated_same_name_characters(characters, chapters)
+        characters = self._split_disambiguated_same_name_characters(characters, chapter_summaries)
         logger.info(f"V2 Step 1.6 complete: {len(characters)} after same-name disambiguation split")
 
         # STEP 2: Search for mentions (F2)
@@ -1283,30 +1283,52 @@ class CharacterAgent(Agent):
         return merged
 
     def _split_disambiguated_same_name_characters(
-        self, 
-        characters: list[Character], 
-        chapters: list[StructuralElement]
+        self,
+        characters: list[Character],
+        chapter_summaries: list
     ) -> list[Character]:
         """
         Split characters with the same name when summaries use disambiguating labels.
-        
-        Example: If summaries refer to "John Donaldson (the father)" and 
-        "John Donaldson (the son)", this splits the single "John Donaldson" 
+
+        Example: If summaries refer to "John Donaldson (the father)" and
+        "John Donaldson (the son)", this splits the single "John Donaldson"
         character into two separate characters.
-        
-        This addresses cases where the LLM merges same-name characters despite 
+
+        This addresses cases where the LLM merges same-name characters despite
         the summaries providing clear disambiguation.
+
+        Args:
+            characters: List of characters extracted from main cast
+            chapter_summaries: List of summary objects with characters_present/active_characters data
         """
         import re
         from collections import defaultdict
-        
+
         # Group characters by base name (without disambiguation labels)
         name_groups = defaultdict(list)
         for char in characters:
             # Extract base name (remove parenthetical labels if present)
             base_name = re.sub(r'\s*\([^)]+\)\s*$', '', char.canonical_name).strip()
             name_groups[base_name].append(char)
-        
+
+        # Extract characters_present from summaries
+        # Summaries can be strings (formatted with characters) or objects with active_characters field
+        all_characters_in_summaries = []
+        for summary in chapter_summaries:
+            # Try to get characters_present from summary object
+            if hasattr(summary, 'characters_present'):
+                all_characters_in_summaries.extend(summary.characters_present)
+            elif hasattr(summary, 'active_characters'):
+                all_characters_in_summaries.extend(summary.active_characters)
+            elif isinstance(summary, str):
+                # Parse formatted summary string like "[Characters: A, B]\nSummary text..."
+                lines = summary.split('\n', 1)
+                if lines and lines[0].startswith('[Characters:'):
+                    # Extract character names from "[Characters: A, B, C]"
+                    char_text = lines[0][len('[Characters:'):-1].strip()  # Remove "[Characters:" and "]"
+                    chars = [c.strip() for c in char_text.split(',')]
+                    all_characters_in_summaries.extend(chars)
+
         # For each base name, check if summaries distinguish multiple people
         result = []
         for base_name, char_list in name_groups.items():
@@ -1314,33 +1336,29 @@ class CharacterAgent(Agent):
                 # No conflation - multiple characters already exist
                 result.extend(char_list)
                 continue
-            
+
             char = char_list[0]
-            
+
             # Check if summaries use disambiguating labels for this name
             labels_found = set()
-            for chapter in chapters:
-                if not hasattr(chapter, 'characters_present') or not chapter.characters_present:
-                    continue
-                
-                for char_ref in chapter.characters_present:
-                    # Match pattern like "John Donaldson (the father)"
-                    match = re.match(
-                        r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$',
-                        char_ref,
-                        re.IGNORECASE
-                    )
-                    if match:
-                        label = match.group(1).strip()
-                        labels_found.add(label)
-            
+            for char_ref in all_characters_in_summaries:
+                # Match pattern like "John Donaldson (the father)"
+                match = re.match(
+                    r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$',
+                    char_ref,
+                    re.IGNORECASE
+                )
+                if match:
+                    label = match.group(1).strip()
+                    labels_found.add(label)
+
             # If we found 2+ distinct labels, split the character
             if len(labels_found) >= 2:
                 logger.info(
                     f"Splitting '{base_name}' into {len(labels_found)} characters "
                     f"based on summary labels: {sorted(labels_found)}"
                 )
-                
+
                 # Create separate character for each label
                 for i, label in enumerate(sorted(labels_found)):
                     new_char = Character(
@@ -1356,7 +1374,7 @@ class CharacterAgent(Agent):
             else:
                 # No split needed
                 result.append(char)
-        
+
         return result
 
 
