@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
@@ -184,15 +184,24 @@ The single chapter summary is comprehensive and accurate:
 - HTML: (not generated due to pipeline failure - fixed, ready for re-analysis)
 - JSON: (not generated due to pipeline failure - fixed, ready for re-analysis)
 
-## Pipeline Errors
+## Output Files
+- HTML: ../output/a_camping_trip/report.html
+- JSON: ../output/a_camping_trip/analysis.json
+- Analysis completed: 2026-02-12 23:30
+- Total runtime: 49m 56s
 
-**Attempt 3 Analysis Failure - NEW ERROR:**
-- Error: `'list' object has no attribute 'get'`
-- Location: Character profile generation (after character extraction completed successfully)
-- Evidence: Character extraction found 7 characters, but profiling failed
-- Root cause: Unknown - needs investigation
-- Status: Requires fix phase
+## Pipeline Notes
+- Competitive consensus enabled across all stages (characters, structure, summaries)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 for all agents
+- Found 7 characters initially, 8 total after reconciliation
+- 1 character from summary reconciliation: boat-keeper
+- Pronunciation stage had 1 JSON parse failure (non-critical)
+- 73 LLM calls, 125,865 tokens total
+- Character Profiles was the bottleneck (15m 22s, 30.8% of time)
 
-## Next Action
-**Phase:** awaiting_fix
-Fix the character profiling error that prevents analysis from completing
+## Key Observations from Analysis
+- ✅ "Milt" now listed as alias for "Milton Jennings" (CRITICAL issue potentially fixed!)
+- ✅ Ambiguous surname filtering working correctly ("Stewart", "Jennings" removed)
+- ⚠️  F19 warnings: Multiple characters flagged for potentially ungrounded quotes
+- ⚠️  F6: "young man with oars" rejected (appears in summary but 0 text mentions)
+- ⚠️  LOW CONFIDENCE MERGE: 'Stewart' → 'Lincoln Stewart' (score: 0.182) - flagged for review
