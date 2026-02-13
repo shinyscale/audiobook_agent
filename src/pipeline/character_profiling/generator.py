@@ -339,6 +339,9 @@ class CharacterProfileGenerator:
             )
             return profile
 
+        # Unwrap if model returned a JSON array instead of object
+        if isinstance(result, list) and len(result) > 0:
+            result = result[0]
         # Parse and populate profile
         profile = self._parse_profile_response(profile, result, passages, character.canonical_name)
 
