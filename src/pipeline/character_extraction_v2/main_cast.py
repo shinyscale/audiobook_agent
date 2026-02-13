@@ -1308,6 +1308,46 @@ class MainCastExtractor:
             profile.aliases = verified_aliases
             verified_profiles.append(profile)
 
+        # RULE 3: Remove ambiguous bare surnames when multiple characters share the surname
+        # If "Jennings" is an alias for "Milton Jennings" but "Mr. Jennings" also exists,
+        # remove "Jennings" as it's ambiguous (prevents cross-talk during narration)
+        logger.info("Checking for ambiguous bare surname aliases...")
+
+        # Build a set of all surnames present in character canonical names
+        surname_to_characters = {}
+        for profile in verified_profiles:
+            # Extract last word from multi-word names as potential surname
+            name_parts = profile.canonical_name.split()
+            if len(name_parts) >= 2:
+                # Last part is likely surname (handles "Milton Jennings", "Mr. Jennings", etc.)
+                surname = name_parts[-1].strip(".,;:")
+                if surname:
+                    surname_lower = surname.lower()
+                    if surname_lower not in surname_to_characters:
+                        surname_to_characters[surname_lower] = []
+                    surname_to_characters[surname_lower].append(profile.canonical_name)
+
+        # Filter out ambiguous bare surnames from aliases
+        for profile in verified_profiles:
+            filtered_aliases = []
+            for alias in profile.aliases:
+                alias_lower = alias.lower()
+                # Check if this alias is a bare surname shared by multiple characters
+                if alias_lower in surname_to_characters and len(surname_to_characters[alias_lower]) > 1:
+                    logger.warning(
+                        f"REMOVED ambiguous bare surname alias: '{alias}' for '{profile.canonical_name}' "
+                        f"(shared by: {surname_to_characters[alias_lower]})"
+                    )
+                    continue
+                filtered_aliases.append(alias)
+            
+            if len(filtered_aliases) < len(profile.aliases):
+                logger.info(
+                    f"Filtered ambiguous surnames for '{profile.canonical_name}': "
+                    f"{len(profile.aliases)} -> {len(filtered_aliases)} aliases"
+                )
+            profile.aliases = filtered_aliases
+
         return verified_profiles
 
     def _detect_patterns(self, summaries_text: str, plot_summary: Optional[str] = None) -> dict[str, list[str]]:
@@ -1748,6 +1788,46 @@ class MainCastExtractor:
 
             profile.aliases = verified_aliases
             verified_profiles.append(profile)
+
+        # RULE 3: Remove ambiguous bare surnames when multiple characters share the surname
+        # If "Jennings" is an alias for "Milton Jennings" but "Mr. Jennings" also exists,
+        # remove "Jennings" as it's ambiguous (prevents cross-talk during narration)
+        logger.info("Checking for ambiguous bare surname aliases...")
+
+        # Build a set of all surnames present in character canonical names
+        surname_to_characters = {}
+        for profile in verified_profiles:
+            # Extract last word from multi-word names as potential surname
+            name_parts = profile.canonical_name.split()
+            if len(name_parts) >= 2:
+                # Last part is likely surname (handles "Milton Jennings", "Mr. Jennings", etc.)
+                surname = name_parts[-1].strip(".,;:")
+                if surname:
+                    surname_lower = surname.lower()
+                    if surname_lower not in surname_to_characters:
+                        surname_to_characters[surname_lower] = []
+                    surname_to_characters[surname_lower].append(profile.canonical_name)
+
+        # Filter out ambiguous bare surnames from aliases
+        for profile in verified_profiles:
+            filtered_aliases = []
+            for alias in profile.aliases:
+                alias_lower = alias.lower()
+                # Check if this alias is a bare surname shared by multiple characters
+                if alias_lower in surname_to_characters and len(surname_to_characters[alias_lower]) > 1:
+                    logger.warning(
+                        f"REMOVED ambiguous bare surname alias: '{alias}' for '{profile.canonical_name}' "
+                        f"(shared by: {surname_to_characters[alias_lower]})"
+                    )
+                    continue
+                filtered_aliases.append(alias)
+            
+            if len(filtered_aliases) < len(profile.aliases):
+                logger.info(
+                    f"Filtered ambiguous surnames for '{profile.canonical_name}': "
+                    f"{len(profile.aliases)} -> {len(filtered_aliases)} aliases"
+                )
+            profile.aliases = filtered_aliases
 
         return verified_profiles
 

@@ -86,15 +86,15 @@
       }
     },
     "gift_of_the_magi": {
-      "commit": "955db62649799ba94164d2b7bf7fff25799da4fe",
-      "score": 8.78,
+      "commit": "8bdd71a415a825044a34acdd0dac7d1efca771fb",
+      "score": 9.00,
       "category_scores": {
-        "structure": 9,
-        "characters": 10,
+        "structure": 10,
+        "characters": 9,
         "profiles": 8,
-        "summaries": 9,
-        "pronunciation": 8.5,
-        "presentation": 9
+        "summaries": 9.5,
+        "pronunciation": 8,
+        "presentation": 8.5
       }
     },
     "a_camping_trip": {

@@ -2252,6 +2252,7 @@ class CharacterAgent(Agent):
                     "dan": ["daniel"],
                     "dave": ["david"],
                     "steve": ["stephen", "steven"],
+                    "milt": ["milton"],
                 }
                 main_lower = main_name.lower()
                 supp_first_lower = supp_firstname.lower()
