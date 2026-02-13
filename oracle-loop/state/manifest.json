@@ -46,8 +46,9 @@
     {
       "name": "a_camping_trip",
       "file": "Test_Texts/A Camping Trip.txt",
-      "complete": false,
-      "attempts": 2
+      "complete": true,
+      "attempts": 3,
+      "final_score": 8.88
     },
     {
       "name": "american_sir",
