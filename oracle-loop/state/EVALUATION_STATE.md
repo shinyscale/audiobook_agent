@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,12 +12,14 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Completed in 36m 47s
-- 4 characters extracted (2 main_cast, 2 supporting — main cast pipeline RESTORED)
+- Completed in 37m 27s
+- 4 characters extracted (John Donaldson: 30 mentions, Uncle Bill: 18 mentions, Joe Barron: 3 mentions, Ted Frith: 5 mentions)
 - 2 chapters detected
-- 24 pronunciation entries
-- No LLM retries across any stage
-- 1 JSON parse failure in pronunciation (minor)
+- 25 pronunciation entries (11 unknown, 5 foreign, 5 homograph, 4 proper_noun)
+- 73 LLM calls total, 109,481 tokens
+- 1 JSON parse failure in pronunciation (model compatibility issue with batch enrichment)
+- Competitive consensus ENABLED for characters, structure, and summaries (2/3 supermajority voting)
+- Bottleneck: Character Profiles (25.9% of time, 9m 42s)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
