@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gift_of_the_magi
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.50
 
 ## Latest Scores
@@ -61,13 +61,45 @@
    - Fix: Title extraction should look for the actual title, not just the first line of the file.
 
 ## Fix History
-(First attempt - no previous fixes)
+
+### Attempt 1, Fix 1: Cross-pipeline alias resolution and name fragment filtering
+
+**Fixed Issues:**
+- CRITICAL #1: Jim / James Dillingham Young false split
+- CRITICAL #2: "Dillingham" extracted as separate character
+
+**Root Cause Analysis:**
+- Issue #1: Main cast extraction from summaries captured "Jim" (nickname used in summary), but NER found "James Dillingham Young" (formal name in text). No cross-pipeline merge for nickname→formal name.
+- Issue #2: "Dillingham" is a middle name discussed as a word in the text ("The 'Dillingham' had been flung to the breeze"), not a person reference. Supporting cast NER extracted it as a character.
+
+**Changes Made:**
+1. Enhanced reverse pass in `_merge_lastname_aliases()` to check **first name** matching (not just last name)
+2. Added **common nickname mapping** (Jim↔James, Bill↔William, etc.) as a recognition lexicon
+3. When nickname matches formal name, **upgrade canonical** to the fuller formal name (e.g., "Jim" → "James Dillingham Young" with "Jim" as alias)
+4. Added `_filter_name_fragments()` to filter middle names from supporting cast after all merges complete
+
+**Files Modified:**
+- `src/agents/characters.py`:
+  - Lines 2119-2165: Enhanced reverse pass with firstname matching and nickname recognition
+  - Lines 1356-1411: Added `_filter_name_fragments()` method
+  - Lines 575-583: Added Step 5.10.6 to call fragment filter
+
+**Smoke Test:** PASS
+- Created mock "Jim" (main) + "James Dillingham Young" (supporting) + "Dillingham" (supporting)
+- Verified merge produced: "James Dillingham Young" (canonical) with "Jim" (alias)
+- Verified "Dillingham" was filtered out as middle name fragment
+
+**Full Test Suite:** PASS (298 passed, 10 skipped)
+
+**Expected Impact:**
+- Character Extraction score: 5/10 → ~9/10 (fixes 2 critical false splits)
+- Should resolve both CRITICAL issues without introducing regressions
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (first attempt) | — | — | — |
+| 1 | CRITICAL #1 & #2 (Jim/James split, Dillingham false char) | src/agents/characters.py | Tests PASS, awaiting re-analysis |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (correct per user config)
@@ -77,4 +109,6 @@
 - No configuration issues identified
 
 ## Next Action
-Run PROMPT_fix.md to address character extraction issues (Critical #1 and #2) and relationship type (High #3). Pronunciation issues (Medium #4 and #5) are secondary priority.
+Re-run analysis to verify fixes for CRITICAL issues #1 and #2.
+
+**Phase:** awaiting_analysis

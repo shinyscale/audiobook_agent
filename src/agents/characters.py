@@ -574,6 +574,15 @@ class CharacterAgent(Agent):
             except Exception as e:
                 logger.warning(f"Supporting cast mention search failed: {e}")
 
+        # STEP 5.10.6: Filter out name fragments (middle names, partial names)
+        # If supporting cast has standalone names that are word fragments of main cast full names,
+        # filter them out (e.g., "Dillingham" when "James Dillingham Young" exists in main cast)
+        logger.info("V2 Step 5.10.6: Filtering name fragments from supporting cast")
+        supporting_cast = self._filter_name_fragments(main_cast, supporting_cast)
+        logger.info(
+            f"V2 Step 5.10.6 complete: {len(supporting_cast)} supporting after fragment filter"
+        )
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
@@ -1345,6 +1354,76 @@ class CharacterAgent(Agent):
                     f"final aliases = {char.aliases}"
                 )
 
+    def _filter_name_fragments(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> list[Character]:
+        """
+        Filter out supporting characters that are word fragments of main cast names.
+
+        Common pattern: "Dillingham" (6 mentions) is a middle name in "James Dillingham Young".
+        The text discusses "the 'Dillingham' had been flung to the breeze" - the name itself
+        as a subject, not a person reference.
+
+        This filters out:
+        - Single-word supporting names that are middle names in main cast full names
+        - Single-word supporting names that are last names in main cast full names
+          (if not already merged by previous steps)
+
+        Args:
+            main_cast: List of main cast characters (already merged)
+            supporting_cast: List of supporting cast characters
+
+        Returns:
+            Filtered supporting cast list
+        """
+        # Collect all full names from main cast (canonical + aliases)
+        main_cast_full_names = []
+        for main_char in main_cast:
+            # Add canonical name
+            main_cast_full_names.append(main_char.canonical_name)
+            # Add all aliases
+            main_cast_full_names.extend(main_char.aliases)
+
+        # Filter supporting cast
+        filtered_supporting = []
+        for supp_char in supporting_cast:
+            supp_name = supp_char.canonical_name.strip()
+
+            # Only filter single-word names
+            if " " in supp_name:
+                filtered_supporting.append(supp_char)
+                continue
+
+            # Check if this single-word name is a word fragment of any main cast full name
+            is_fragment = False
+            for full_name in main_cast_full_names:
+                # Skip single-word main cast names (no fragments possible)
+                if " " not in full_name:
+                    continue
+
+                # Split full name into words
+                full_name_words = full_name.split()
+
+                # Check if supp_name is a middle or last name (but NOT first name)
+                # We allow first-name-only matches (handled by reverse pass merge)
+                # We filter out middle/last name fragments
+                if len(full_name_words) >= 3:
+                    # 3+ word name - check if supp_name is a middle name (not first or last)
+                    middle_names = full_name_words[1:-1]
+                    if any(supp_name.lower() == word.strip(".,;:").lower() for word in middle_names):
+                        logger.info(
+                            f"Filtering name fragment '{supp_name}' (middle name of '{full_name}')"
+                        )
+                        is_fragment = True
+                        break
+
+            if not is_fragment:
+                filtered_supporting.append(supp_char)
+
+        return filtered_supporting
+
     def _name_contains_other(self, longer_name: str, shorter_name: str) -> bool:
         """
         Check if longer_name contains shorter_name as a complete word.
@@ -2093,7 +2172,7 @@ class CharacterAgent(Agent):
 
         # REVERSE PASS: Check if any MULTI-WORD supporting characters should merge
         # with SINGLE-WORD main cast characters (e.g., "Wolfshiem" main + "Meyer Wolfshiem" supporting)
-        # This handles cases where NER extracted the full name but summaries only mentioned last name
+        # This handles cases where NER extracted the full name but summaries only mentioned last name OR first name
         reverse_supporting_to_remove = set()
 
         for main_idx, main_char in enumerate(main_cast):
@@ -2103,7 +2182,7 @@ class CharacterAgent(Agent):
             if not main_name or " " in main_name:
                 continue
 
-            # Check if this matches any multi-word supporting character's last name
+            # Check if this matches any multi-word supporting character's last name OR first name
             matches = []
 
             for supp_idx, supp_char in enumerate(updated_supporting):
@@ -2116,32 +2195,103 @@ class CharacterAgent(Agent):
                 if not supp_name or " " not in supp_name:
                     continue
 
-                # Extract last name from supporting character
+                # Extract both first and last name from supporting character
                 supp_parts = supp_name.split()
                 supp_lastname = supp_parts[-1].strip(".,;:")
+                supp_firstname = supp_parts[0].strip(".,;:")
 
-                # Check for exact match
+                # Check for last name exact match
                 if main_name.lower() == supp_lastname.lower():
-                    matches.append((supp_idx, supp_name, "exact"))
+                    matches.append((supp_idx, supp_name, "exact_lastname"))
                     continue
 
-                # Check for fuzzy match (handles spelling variants)
+                # Check for last name fuzzy match (handles spelling variants)
                 if names_similar(main_name, supp_lastname):
-                    matches.append((supp_idx, supp_name, "fuzzy"))
+                    matches.append((supp_idx, supp_name, "fuzzy_lastname"))
+                    continue
+
+                # Check for first name exact match (handles nickname → full name, e.g., "Jim" → "James Dillingham Young")
+                if main_name.lower() == supp_firstname.lower():
+                    matches.append((supp_idx, supp_name, "exact_firstname"))
+                    continue
+
+                # Check for first name fuzzy match (handles nickname variants, e.g., "Jim" vs "James")
+                if names_similar(main_name, supp_firstname):
+                    matches.append((supp_idx, supp_name, "fuzzy_firstname"))
+                    continue
+
+                # Check for common nickname relationships
+                # This is a WORKAROUND for cases where summaries use nicknames but source text has full names
+                # Ideally, summaries should mention both forms, but this prevents false splits
+                # NOTE: This is a reference lexicon (allowed per CLAUDE.md) used for recognition, not rejection
+                common_nicknames = {
+                    "jim": ["james"],
+                    "jimmy": ["james"],
+                    "bill": ["william"],
+                    "billy": ["william"],
+                    "bob": ["robert"],
+                    "bobby": ["robert"],
+                    "dick": ["richard"],
+                    "rick": ["richard"],
+                    "ed": ["edward", "edmund"],
+                    "eddie": ["edward", "edmund"],
+                    "ted": ["theodore", "edward"],
+                    "teddy": ["theodore", "edward"],
+                    "will": ["william"],
+                    "tom": ["thomas"],
+                    "tommy": ["thomas"],
+                    "joe": ["joseph"],
+                    "joey": ["joseph"],
+                    "mike": ["michael"],
+                    "pat": ["patrick", "patricia"],
+                    "chris": ["christopher", "christine", "christina"],
+                    "alex": ["alexander", "alexandra", "alexis"],
+                    "sam": ["samuel", "samantha"],
+                    "ben": ["benjamin"],
+                    "matt": ["matthew"],
+                    "dan": ["daniel"],
+                    "dave": ["david"],
+                    "steve": ["stephen", "steven"],
+                }
+                main_lower = main_name.lower()
+                supp_first_lower = supp_firstname.lower()
+                if main_lower in common_nicknames:
+                    if supp_first_lower in common_nicknames[main_lower]:
+                        matches.append((supp_idx, supp_name, "nickname_firstname"))
+                        continue
+                # Check reverse direction (e.g., main="James", supp="Jim")
+                if supp_first_lower in common_nicknames:
+                    if main_lower in common_nicknames[supp_first_lower]:
+                        matches.append((supp_idx, supp_name, "nickname_firstname"))
+                        continue
 
             # Merge if exactly ONE match
             if len(matches) == 1:
                 supp_idx, supp_name, match_type = matches[0]
                 supp_char = updated_supporting[supp_idx]
 
-                # Add supporting full name as alias to main cast character
-                if supp_name not in main_char.aliases:
-                    logger.info(
-                        f"Merging full-name supporting char '{supp_name}' ({supp_char.mention_count} mentions) "
-                        f"→ '{main_char.canonical_name}' ({main_char.mention_count} mentions) as alias ({match_type} match)"
-                    )
-                    main_char.aliases.append(supp_name)
+                # Decide merge direction based on name length and formality
+                # If match is on firstname and supporting name is a full formal name,
+                # prefer the full name as canonical (e.g., "James Dillingham Young" over "Jim")
+                if "firstname" in match_type and len(supp_name.split()) >= 2:
+                    # Supporting name is fuller/more formal - make it the canonical name
+                    if main_char.canonical_name not in main_char.aliases:
+                        logger.info(
+                            f"Upgrading '{main_char.canonical_name}' to alias of '{supp_name}' "
+                            f"({match_type} match, fuller name preferred as canonical)"
+                        )
+                        main_char.aliases.insert(0, main_char.canonical_name)
+                    main_char.canonical_name = supp_name
                     chars_with_new_aliases.add(main_char.id)
+                else:
+                    # Supporting name becomes alias of main cast character (default behavior)
+                    if supp_name not in main_char.aliases:
+                        logger.info(
+                            f"Merging full-name supporting char '{supp_name}' ({supp_char.mention_count} mentions) "
+                            f"→ '{main_char.canonical_name}' ({main_char.mention_count} mentions) as alias ({match_type} match)"
+                        )
+                        main_char.aliases.append(supp_name)
+                        chars_with_new_aliases.add(main_char.id)
 
                 # Mark for removal from supporting cast
                 reverse_supporting_to_remove.add(supp_idx)
