@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,14 +11,14 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- ✅ Analysis completed successfully
-- ✅ Red Cross organization filtered (Fix 2 worked)
-- ✅ Ted Frith now has alias "Ted" and 5 mentions (up from 2) (Fix 3 partially worked)
-- ❌ Father/son John Donaldson split DID NOT FIRE (Fix 1 failed — code exists but reads wrong data source)
-- ⚠️ "Teddy" still missing as alias for Ted Frith
-- ⚠️ Step 1.6 reads `chapters` (StructuralElement from `_get_chapters`) which has empty `characters_present` at CharacterAgent runtime. The `characters_present` data is only in the summary objects, not the chapter map's structural elements.
+## Pipeline Notes (Attempt 4)
+- ✅ Analysis completed successfully in 37m 57s
+- ✅ Competitive consensus enabled on all stages (characters, structure, summaries)
+- 🔍 Character extraction: 4 characters found (including "John" - need to verify if father/son split occurred)
+- ⚠️ LLM validation failed in pronunciation guide (JSON format error)
+- ⚠️ Profile validation warnings: ungrounded evidence quotes for John, Uncle Bill, Ted Frith
 - Pipeline used qwen3-next:80b-a3b-instruct-q8_0 for all agents
+- Total: 57 LLM calls, 89,168 tokens processed
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
