@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Analysis completed successfully in 35m 23s
+- Narrator correctly detected: "Uncle Bill (first-person)"
+- 6 characters extracted (need to verify if father/son John Donaldson are now split)
+- 30 pronunciation flags (same as attempt 1 - may still have false positives)
+- Warnings: F19 ungrounded evidence quotes for Uncle Bill (3) and John Donaldson (6)
+- Competitive consensus enabled for characters, structure, and summaries (2/3 supermajority)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
