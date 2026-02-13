@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.50
 
 ## Latest Scores
@@ -108,7 +108,25 @@
 - Chunking is appropriate for this short story (single chunk)
 - No configuration issues identified
 
-## Next Action
-Re-run analysis to verify fixes for CRITICAL issues #1 and #2.
+## Output Files (Attempt 2)
+- HTML: ../output/gift_of_the_magi/report.html
+- JSON: ../output/gift_of_the_magi/analysis.json
 
-**Phase:** awaiting_analysis
+## Pipeline Notes (Attempt 2)
+- ✅ Analysis completed successfully in 27m 2s
+- ✅ Competitive consensus enabled (3 LLMs, 2/3 supermajority) for characters, structure, summaries
+- Character extraction results:
+  - Della (aka Dell) - 22 mentions
+  - James Dillingham Young (aka Jim) - 29 mentions
+  - Sofronie - 2 mentions
+- **Key observation:** Jim and James Dillingham Young are now merged (shown as one character)
+- **Key observation:** "Dillingham" is NOT extracted as a separate character
+- Warnings:
+  - F19: Profile for 'Della' has 3 potentially ungrounded evidence quotes
+  - F19: Profile for 'James Dillingham Young' has 2 potentially ungrounded evidence quotes
+  - LLM batch enrichment failed for pronunciation guide (model returned error-like response)
+
+## Next Action
+Proceed to evaluation phase to score the results and compare to baseline (7.50/10).
+
+**Phase:** awaiting_evaluation
