@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Analysis completed successfully in 37m 9s
+- 5 characters extracted (Margaret Donaldson now present)
+- Still shows single "John" entry with 30 mentions (father/son conflation persists)
+- Competitive consensus enabled: 2/3 supermajority across 3 temperatures
+- Warnings: blocked alias (Uncle Bill/narrator), ungrounded evidence quotes, LLM batch enrichment failed
+- 27 pronunciation flags generated
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
