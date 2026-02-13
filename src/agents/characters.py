@@ -158,12 +158,6 @@ class CharacterAgent(Agent):
         characters = self._merge_title_variants(characters)
         logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
 
-        # STEP 1.6: Split same-name characters based on summary disambiguation
-        # If summaries consistently use labels like "John (the father)" and "John (the son)",
-        # split them into separate characters
-        characters = self._split_disambiguated_same_name_characters(characters, chapter_summaries)
-        logger.info(f"V2 Step 1.6 complete: {len(characters)} after same-name disambiguation split")
-
         # STEP 2: Search for mentions (F2)
         logger.info("V2 Step 2: Searching for character mentions")
         searcher = MentionSearcher(context.text, chapters)

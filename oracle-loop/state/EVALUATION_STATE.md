@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Attempt:** 5
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -242,6 +242,13 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **Result:** PARTIAL SUCCESS — Bill, Ted, Joe, Margaret removed, but many longer false positives remain
 - **Modified:** `src/pipeline/pronunciation_guide/proposers/character_proposer.py`
 
+### Attempt 5 - Fix 1: Revert Step 1.6 implementation
+- **Issue addressed:** CRITICAL #1 - Main cast pipeline produces 0 characters (regression from attempt 4)
+- **Root cause:** `src/agents/characters.py:164` - Attempt 4 changed Step 1.6 to read from `chapter_summaries`, causing main_cast_count to drop to 0
+- **Fix:** Removed Step 1.6 entirely (lines 161-165) to restore attempt 3 baseline
+- **Smoke test:** Import successful
+- **Modified:** `src/agents/characters.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -254,8 +261,9 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 3 | Ted Frith aliases/counts | `supporting.py` (spelling variants + alias saving) | Partial fix |
 | 4 | Father/son conflation | `characters.py` (Step 1.6 data source fix) | **REGRESSION — main cast now produces 0 characters** |
 | 4 | Pronunciation false positives | `character_proposer.py` (CMU filter for short names) | Partial fix (short names removed, long words remain) |
+| 5 | Main cast regression | `characters.py` (remove Step 1.6 entirely) | TBD - reverted to attempt 3 baseline |
 
-**⚠️ STUCK PATTERN DETECTED:** `characters.py` has been modified 3 times (attempts 3, 3, 4) targeting the father/son split, and each time either failed or caused regression. The attempt 4 change is the prime suspect for the main_cast_count=0 regression.
+**⚠️ STUCK PATTERN DETECTED:** `characters.py` has been modified 4 times (attempts 3, 3, 4, 5) targeting the father/son split. Attempt 5 reverts the attempt 4 regression. The father/son conflation remains unsolved and should be addressed with a DIFFERENT approach (not Step 1.6 post-processing).
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -275,7 +283,16 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 
 3. **Pronunciation prompt improvement** — After character extraction is fixed, improve the pronunciation LLM prompt to not flag standard English dictionary words. The CMU short-name filter works for names like Bill/Ted/Joe but doesn't help with whippersnapper/thriftless/manliness/orderlies/was.
 
-## Next Action
-**Phase:** awaiting_fix
+### Attempt 5 - Fix 1: Revert Step 1.6 implementation
+- **Issue addressed:** CRITICAL #1 - Main cast pipeline produces 0 characters (regression from attempt 4)
+- **Root cause:** `src/agents/characters.py:164` - Attempt 4 changed Step 1.6 to read from `chapter_summaries` instead of `chapters`. This caused main_cast_count to drop from 2+ to 0.
+- **Analysis:** The Step 1.6 split logic looks for parenthetical disambiguation patterns like "John Donaldson (the father)" in summaries, but the actual summaries use natural language like "John's father". The split logic never fires anyway. The change to `chapter_summaries` exposed a latent bug or data flow issue that caused all main cast characters to be lost.
+- **Fix:** Removed Step 1.6 entirely (lines 161-165). This restores the pipeline to the attempt 3 state before the regression.
+- **Smoke test:** Import successful
+- **Result:** TBD - needs full analysis run
+- **Modified:** `src/agents/characters.py` (removed lines 161-165)
 
-Run PROMPT_fix.md. Priority: investigate and fix the main_cast_count=0 regression in `characters.py`, then address pronunciation false positives.
+## Next Action
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify main cast pipeline is restored.
