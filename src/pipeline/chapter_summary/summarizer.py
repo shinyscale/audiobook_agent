@@ -119,6 +119,12 @@ CRITICAL CHARACTER DISTINCTION:
 - "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
   discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
+SAME-NAME DISAMBIGUATION:
+If the chapter contains multiple distinct characters who share the same name (e.g., father and son both named "John Smith",
+or a Sr. and Jr.), disambiguate them in active_characters using brief parenthetical qualifiers:
+- Examples: "John Smith (the father)", "John Smith (the son)", "James Wilson Sr.", "James Wilson Jr."
+- Use the clearest distinguisher from the text: generational (father/son), age (elder/younger), or title (Sr./Jr.)
+
 DO NOT include in active_characters:
 - Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
 - Authors or famous persons cited as examples or allusions
@@ -194,6 +200,12 @@ CRITICAL CHARACTER DISTINCTION:
   or symbolic objects that drive the plot. Include the narrator if they participate.
 - "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
   discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
+
+SAME-NAME DISAMBIGUATION:
+If the chapter contains multiple distinct characters who share the same name (e.g., father and son both named "John Smith",
+or a Sr. and Jr.), disambiguate them in active_characters using brief parenthetical qualifiers:
+- Examples: "John Smith (the father)", "John Smith (the son)", "James Wilson Sr.", "James Wilson Jr."
+- Use the clearest distinguisher from the text: generational (father/son), age (elder/younger), or title (Sr./Jr.)
 
 DO NOT include in active_characters:
 - Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")

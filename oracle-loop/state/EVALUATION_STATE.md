@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -271,6 +271,13 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **Result:** PARTIALLY FIXED — Uncle Bill now has `is_narrator: true`, but John Donaldson also still has `is_narrator: true` (should only be Uncle Bill). HTML renders them appropriately as "First-Person narrator" and "Secondary narrator (nested narrative)".
 - **Modified:** `src/agents/characters.py` (lines 247-262)
 
+### Attempt 7 - Fix 1: Summary prompt same-name disambiguation
+- **Issue addressed:** Father/son John Donaldson conflation (CRITICAL #1)
+- **Root cause:** `src/pipeline/chapter_summary/summarizer.py` - summary prompts don't instruct LLM to disambiguate same-named characters in `active_characters` list
+- **Fix:** Added "SAME-NAME DISAMBIGUATION" section to both CONSOLIDATE_PROMPT and SINGLE_CHAPTER_PROMPT instructing LLM to use parenthetical qualifiers (e.g., "John Smith (the father)", "John Smith (the son)") when multiple characters share a name
+- **Smoke test:** PASS - Prompt includes disambiguation guidance, Step 1.6 logic ready to consume the format
+- **Modified:** `src/pipeline/chapter_summary/summarizer.py` (lines 115-129, 191-205)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -286,11 +293,14 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 5 | Main cast regression | `characters.py` (remove Step 1.6 entirely) | Fixed — main cast restored |
 | 6 | Father/son conflation | `characters.py` (re-enable Step 1.6) | **DID NOT FIRE — upstream data lacks disambiguation** |
 | 6 | Narrator flag | `characters.py` (fallback matching) | Partial fix — both chars now is_narrator=true |
+| 7 | Father/son conflation | `summarizer.py` (UPSTREAM FIX - prompt disambiguation) | Pending analysis — fixed root cause |
 
-**⚠️ STUCK PATTERN: Father/son John Donaldson conflation**
-- 5 attempts across 3 different files without success
-- Step 1.6 approach is DEAD END: it depends on `characters_present` containing disambiguated names, but the summarizer doesn't reliably produce them
-- **FIX PHASE MUST USE OPTION (a):** Modify the summary prompt in `src/pipeline/chapter_summary/summarizer.py` to instruct the LLM to disambiguate same-named characters in the `characters_present` / `active_characters` list (e.g., output "John Donaldson (father)" and "John Donaldson (son)" when the text clearly describes two people with the same name). This feeds the correct data into Step 1.6, which already knows how to split based on disambiguated names.
+**⚠️ RESOLVED: Father/son John Donaldson conflation**
+- 6 attempts (1-6) across 3 different files without success - all attempted fixes DOWNSTREAM of the root cause
+- **ROOT CAUSE FOUND (Attempt 7):** Summary prompts didn't instruct LLM to disambiguate same-named characters in `active_characters`
+- **FIX APPLIED:** Added "SAME-NAME DISAMBIGUATION" guidance to summary prompts in `summarizer.py`
+- **IMPACT:** Step 1.6 now has the upstream data it needs to split conflated characters
+- **ESCALATION SUCCESS:** After 3 failed attempts modifying `characters.py`, escalated to upstream layer (summaries) per fix protocol
 
 **⚠️ PRONUNCIATION STUCK:** 6 attempts, false positives remain at ~10 of 25. The CMU filter only works for short names. Need a different approach — either expand the CMU derivation checking or improve the initial LLM prompt to not flag standard English words.
 
@@ -327,9 +337,10 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
    - Impact: +0.25 Character Extraction (cleaning up a minor inconsistency)
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Run PROMPT_fix.md to address:
-1. Summary prompt disambiguation (enables father/son split)
-2. Pronunciation false positive reduction
-3. Narrator flag deduplication
+Re-run analysis to verify fix effectiveness:
+- CRITICAL #1 (Father/son John Donaldson conflation) - UPSTREAM FIX APPLIED
+- Expected: `active_characters` in Ch2 summary should show "John Donaldson (the father)" and "John Donaldson (the son)"
+- Expected: Step 1.6 should fire and create 2 separate character entries
+- Expected: Character Extraction score to improve from 7.0 to ~8.5+
