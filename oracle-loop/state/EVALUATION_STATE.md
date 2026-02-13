@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.98
 
 ## Output Files
@@ -152,5 +152,13 @@ Navigation functional, well-organized with tabs. Search and filtering work. Conf
 - `character_llm_chunk_chars: 5000` — adequate for this short story
 - Temperatures at 0.7 across all agents — acceptable
 
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 37m 16s
+- Competitive consensus enabled (3 LLMs, 2/3 supermajority) for characters, structure, summaries
+- Total of 60 LLM calls, 93,348 tokens
+- Bottleneck: Character Profiles (32.1% of time)
+- Warnings: Some ungrounded evidence quotes in profiles (F19 warnings)
+- LLM batch enrichment failed with JSON parsing error (pronunciation stage)
+
 ## Next Action
-Re-run analysis to verify fix brings pronunciation from 7.5 → 8.0+.
+Evaluate results to verify fix brings pronunciation from 7.5 → 8.0+.
