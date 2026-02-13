@@ -184,6 +184,15 @@ The single chapter summary is comprehensive and accurate:
 - HTML: (not generated due to pipeline failure - fixed, ready for re-analysis)
 - JSON: (not generated due to pipeline failure - fixed, ready for re-analysis)
 
+## Pipeline Errors
+
+**Attempt 3 Analysis Failure - NEW ERROR:**
+- Error: `'list' object has no attribute 'get'`
+- Location: Character profile generation (after character extraction completed successfully)
+- Evidence: Character extraction found 7 characters, but profiling failed
+- Root cause: Unknown - needs investigation
+- Status: Requires fix phase
+
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run analysis to verify the nickname merge fix works correctly and "Milt" merges with "Milton Jennings"
+**Phase:** awaiting_fix
+Fix the character profiling error that prevents analysis from completing
