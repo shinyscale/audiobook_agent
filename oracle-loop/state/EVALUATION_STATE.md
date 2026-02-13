@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
@@ -141,11 +141,13 @@ The single chapter summary is comprehensive and accurate:
 - Result: Fixed — bare "Jennings" and "Stewart" no longer appear as aliases
 
 ### Attempt 2 → Attempt 3 Fixes
-**CRITICAL #1: Multi-word main cast to single-word supporting nickname merge**
+**CRITICAL #1: Multi-word main cast to single-word supporting nickname merge (PIPELINE ERROR - FIXED)**
 - Root cause: `src/agents/characters.py:_merge_lastname_aliases():2178-2183` — loop skips multi-word main cast names
-- Smoke test: PASS — logic verified, all tests pass (8 pre-existing semantic_conflicts failures unrelated)
+- Smoke test attempt 3: FAIL — variable scoping error introduced
+- Fix for attempt 3b: Moved `common_nicknames` dictionary to function scope
+- Smoke test attempt 3b: PASS — module imports, all 298 tests pass
 - Modified: src/agents/characters.py
-- Fix: Added second reverse pass to check single-word supporting characters against multi-word main cast first names via nickname lookup
+- Fix: Added second reverse pass to check single-word supporting characters against multi-word main cast first names via nickname lookup. Fixed scoping error by moving common_nicknames dict to top of function.
 - Expected impact: "Milt" (supporting_1) should now merge into "Milton Jennings" (main_cast_1) as alias
 
 ## Modification History
@@ -154,7 +156,8 @@ The single chapter summary is comprehensive and accurate:
 |---------|-------|----------------|--------|
 | 2 | CRITICAL #1: Milt/Milton split | src/agents/characters.py | No change — loop skips multi-word main cast names |
 | 2 | HIGH #3: Ambiguous surnames | src/pipeline/character_extraction_v2/main_cast.py | Fixed |
-| 3 | CRITICAL #1: Milt/Milton split (retry) | src/agents/characters.py | Added second reverse pass for nickname matching |
+| 3 | CRITICAL #1: Milt/Milton split (retry) | src/agents/characters.py | Pipeline error — variable scoping issue |
+| 3b | CRITICAL #1: Variable scoping fix | src/agents/characters.py | Fixed — moved common_nicknames to function scope |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, DO NOT CHANGE)
@@ -169,16 +172,18 @@ The single chapter summary is comprehensive and accurate:
 
 ## Pipeline Errors
 
-**Attempt 3 Analysis Failure:**
+**Attempt 3 Analysis Failure - FIXED:**
 - Error: `cannot access local variable 'common_nicknames' where it is not associated with a value`
 - Location: Character extraction (after summaries completed)
-- Cause: The fix applied for attempt 3 introduced a variable scoping error in `src/agents/characters.py`
-- The `common_nicknames` variable is referenced but not defined in the correct scope
-- Status: PIPELINE FAILURE - requires code fix before re-running analysis
+- Root cause: The `common_nicknames` dictionary was defined inside the first reverse pass loop scope (line 2227) but referenced in the second reverse pass loop (line 2337) which is a different scope
+- Fix: Moved `common_nicknames` dictionary to function scope at the top of `_merge_lastname_aliases()` so both reverse passes can access it
+- Smoke test: PASS - module imports successfully, all 298 tests pass
+- Modified: src/agents/characters.py (lines 1922-1957, 2253-2289)
 
 ## Output Files
-- HTML: (not generated due to pipeline failure)
-- JSON: (not generated due to pipeline failure)
+- HTML: (not generated due to pipeline failure - fixed, ready for re-analysis)
+- JSON: (not generated due to pipeline failure - fixed, ready for re-analysis)
 
 ## Next Action
-Fix the variable scoping error in `src/agents/characters.py` where `common_nicknames` is used without being defined in scope. The fix for the multi-word main cast nickname merge needs to be corrected.
+**Phase:** awaiting_analysis
+Re-run analysis to verify the nickname merge fix works correctly and "Milt" merges with "Milton Jennings"

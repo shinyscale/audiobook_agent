@@ -1924,6 +1924,40 @@ class CharacterAgent(Agent):
         if not supporting_cast:
             return main_cast, supporting_cast, set()
 
+        # Common nickname mapping (reference lexicon for recognition, not rejection)
+        # Used by both reverse passes to identify nickname relationships
+        # NOTE: This is a reference lexicon (allowed per CLAUDE.md) used for recognition, not rejection
+        common_nicknames = {
+            "jim": ["james"],
+            "jimmy": ["james"],
+            "bill": ["william"],
+            "billy": ["william"],
+            "bob": ["robert"],
+            "bobby": ["robert"],
+            "dick": ["richard"],
+            "rick": ["richard"],
+            "ed": ["edward", "edmund"],
+            "eddie": ["edward", "edmund"],
+            "ted": ["theodore", "edward"],
+            "teddy": ["theodore", "edward"],
+            "will": ["william"],
+            "tom": ["thomas"],
+            "tommy": ["thomas"],
+            "joe": ["joseph"],
+            "joey": ["joseph"],
+            "mike": ["michael"],
+            "pat": ["patrick", "patricia"],
+            "chris": ["christopher", "christine", "christina"],
+            "alex": ["alexander", "alexandra", "alexis"],
+            "sam": ["samuel", "samantha"],
+            "ben": ["benjamin"],
+            "matt": ["matthew"],
+            "dan": ["daniel"],
+            "dave": ["david"],
+            "steve": ["stephen", "steven"],
+            "milt": ["milton"],
+        }
+
         supporting_to_remove = set()
         chars_with_new_aliases = set()
 
@@ -2223,37 +2257,6 @@ class CharacterAgent(Agent):
                 # Check for common nickname relationships
                 # This is a WORKAROUND for cases where summaries use nicknames but source text has full names
                 # Ideally, summaries should mention both forms, but this prevents false splits
-                # NOTE: This is a reference lexicon (allowed per CLAUDE.md) used for recognition, not rejection
-                common_nicknames = {
-                    "jim": ["james"],
-                    "jimmy": ["james"],
-                    "bill": ["william"],
-                    "billy": ["william"],
-                    "bob": ["robert"],
-                    "bobby": ["robert"],
-                    "dick": ["richard"],
-                    "rick": ["richard"],
-                    "ed": ["edward", "edmund"],
-                    "eddie": ["edward", "edmund"],
-                    "ted": ["theodore", "edward"],
-                    "teddy": ["theodore", "edward"],
-                    "will": ["william"],
-                    "tom": ["thomas"],
-                    "tommy": ["thomas"],
-                    "joe": ["joseph"],
-                    "joey": ["joseph"],
-                    "mike": ["michael"],
-                    "pat": ["patrick", "patricia"],
-                    "chris": ["christopher", "christine", "christina"],
-                    "alex": ["alexander", "alexandra", "alexis"],
-                    "sam": ["samuel", "samantha"],
-                    "ben": ["benjamin"],
-                    "matt": ["matthew"],
-                    "dan": ["daniel"],
-                    "dave": ["david"],
-                    "steve": ["stephen", "steven"],
-                    "milt": ["milton"],
-                }
                 main_lower = main_name.lower()
                 supp_first_lower = supp_firstname.lower()
                 if main_lower in common_nicknames:
