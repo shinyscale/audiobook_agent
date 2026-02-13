@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes
+- Completed in 36m 47s
+- 4 characters extracted (all from supporting cast pipeline - main cast count needs verification)
+- 2 chapters detected
+- 24 pronunciation entries
+- Warnings: OCR repair fixed 1 broken ligature
+- Model returned error-like response for batch enrichment (json_mode compatibility issue)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
