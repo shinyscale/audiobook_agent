@@ -181,10 +181,6 @@ The single chapter summary is comprehensive and accurate:
 - Modified: src/agents/characters.py (lines 1922-1957, 2253-2289)
 
 ## Output Files
-- HTML: (not generated due to pipeline failure - fixed, ready for re-analysis)
-- JSON: (not generated due to pipeline failure - fixed, ready for re-analysis)
-
-## Output Files
 - HTML: ../output/a_camping_trip/report.html
 - JSON: ../output/a_camping_trip/analysis.json
 - Analysis completed: 2026-02-12 23:30
