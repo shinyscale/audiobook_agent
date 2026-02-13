@@ -2297,11 +2297,75 @@ class CharacterAgent(Agent):
                 # Mark for removal from supporting cast
                 reverse_supporting_to_remove.add(supp_idx)
 
-        # Remove reverse-merged characters
+        # SECOND REVERSE PASS: Check if any SINGLE-WORD supporting characters
+        # match MULTI-WORD main cast characters' first names via nickname matching
+        # (e.g., "Milt" supporting + "Milton Jennings" main)
+        # This handles cases where summaries use full names but source text uses nicknames
+        final_supporting_to_remove = set()
+
+        # Reuse the common_nicknames dict defined above
+        for main_idx, main_char in enumerate(main_cast):
+            main_name = main_char.canonical_name.strip()
+
+            # Only process MULTI-word main cast names (opposite of first reverse pass)
+            if not main_name or " " not in main_name:
+                continue
+
+            # Extract first name from main character
+            main_parts = main_name.split()
+            main_firstname = main_parts[0].strip(".,;:")
+
+            # Check if any single-word supporting character is a nickname of this first name
+            matches = []
+
+            for supp_idx, supp_char in enumerate(updated_supporting):
+                if supp_idx in reverse_supporting_to_remove or supp_idx in final_supporting_to_remove:
+                    continue
+
+                supp_name = supp_char.canonical_name.strip()
+
+                # Only match against single-word supporting names (nicknames)
+                if not supp_name or " " in supp_name:
+                    continue
+
+                # Check for nickname relationship
+                main_first_lower = main_firstname.lower()
+                supp_lower = supp_name.lower()
+
+                # Check both directions: supp is nickname of main_firstname, or vice versa
+                is_nickname_match = False
+                if supp_lower in common_nicknames:
+                    if main_first_lower in common_nicknames[supp_lower]:
+                        is_nickname_match = True
+                elif main_first_lower in common_nicknames:
+                    if supp_lower in common_nicknames[main_first_lower]:
+                        is_nickname_match = True
+
+                if is_nickname_match:
+                    matches.append((supp_idx, supp_name))
+
+            # Merge if exactly ONE match
+            if len(matches) == 1:
+                supp_idx, supp_name = matches[0]
+                supp_char = updated_supporting[supp_idx]
+
+                # Supporting nickname becomes alias of main cast full name
+                if supp_name not in main_char.aliases:
+                    logger.info(
+                        f"Merging nickname supporting char '{supp_name}' ({supp_char.mention_count} mentions) "
+                        f"→ '{main_char.canonical_name}' ({main_char.mention_count} mentions) as alias (nickname match)"
+                    )
+                    main_char.aliases.append(supp_name)
+                    chars_with_new_aliases.add(main_char.id)
+
+                # Mark for removal from supporting cast
+                final_supporting_to_remove.add(supp_idx)
+
+        # Remove reverse-merged characters from both passes
         final_supporting = [
             char
             for idx, char in enumerate(updated_supporting)
-            if idx not in reverse_supporting_to_remove
+            if idx not in reverse_supporting_to_remove and idx not in final_supporting_to_remove
         ]
 
         return main_cast, final_supporting, chars_with_new_aliases

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** a_camping_trip
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
@@ -140,12 +140,21 @@ The single chapter summary is comprehensive and accurate:
 - Modified: src/pipeline/character_extraction_v2/main_cast.py
 - Result: Fixed — bare "Jennings" and "Stewart" no longer appear as aliases
 
+### Attempt 2 → Attempt 3 Fixes
+**CRITICAL #1: Multi-word main cast to single-word supporting nickname merge**
+- Root cause: `src/agents/characters.py:_merge_lastname_aliases():2178-2183` — loop skips multi-word main cast names
+- Smoke test: PASS — logic verified, all tests pass (8 pre-existing semantic_conflicts failures unrelated)
+- Modified: src/agents/characters.py
+- Fix: Added second reverse pass to check single-word supporting characters against multi-word main cast first names via nickname lookup
+- Expected impact: "Milt" (supporting_1) should now merge into "Milton Jennings" (main_cast_1) as alias
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 2 | CRITICAL #1: Milt/Milton split | src/agents/characters.py | No change — loop skips multi-word main cast names |
 | 2 | HIGH #3: Ambiguous surnames | src/pipeline/character_extraction_v2/main_cast.py | Fixed |
+| 3 | CRITICAL #1: Milt/Milton split (retry) | src/agents/characters.py | Added second reverse pass for nickname matching |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, DO NOT CHANGE)
@@ -159,4 +168,4 @@ The single chapter summary is comprehensive and accurate:
 - JSON: ../output/a_camping_trip/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1: Fix `_merge_lastname_aliases()` to also check single-word supporting characters against multi-word main cast first names via nickname lookup. The dictionary entry is already correct — the loop logic just needs a second pass for the reverse direction.
+Re-run analysis to verify fix for CRITICAL #1: "Milt" should now merge into "Milton Jennings" via the new second reverse pass.
