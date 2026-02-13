@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single
 
@@ -209,6 +209,41 @@ Overall = (7 × 0.20) + (6 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6 × 0.10) 
 - **Modified:** `src/pipeline/character_extraction_v2/main_cast.py`
 
 ### Attempt 1 - Fix 3: Frame vs embedded narrator detection
+
+### Attempt 3 - Fix 1: Same-name character split via summary disambiguation
+- **Issue addressed:** Critical #1 (attempt 2) - Father/son John Donaldson conflation
+- **Root cause:** `src/agents/characters.py` - LLM merges same-name characters despite summaries using disambiguating labels like "John (the father)" and "John (the son)"
+- **Fix:** Added Step 1.6 `_split_disambiguated_same_name_characters()` post-processing method that:
+  - Scans chapter `characters_present` fields for disambiguating labels (e.g., "(the father)", "(the son)")
+  - Splits characters with 2+ distinct labels into separate Character objects
+  - Programmatic, deterministic - no prompt changes
+- **Modified:** `src/agents/characters.py` (lines 161-165 in run(), new method at line 1285)
+- **Expected impact:** +1.0 to Character Extraction, +0.5 to Profiles (father/son now separate)
+
+### Attempt 3 - Fix 2: Organization entity filtering
+- **Issue addressed:** High #2 (attempt 2) - "Red Cross" extracted as character (ORG entity)
+- **Root cause:** `src/pipeline/character_extraction_v2/supporting.py` line 111 accepts both PERSON and ORG NER labels to catch mis-tagged names, but admits actual organizations
+- **Fix:** Added `_is_organization_name()` method with universal organizational indicators:
+  - Checks for org suffixes (company, corporation, university, etc.)
+  - Checks small reference list of org patterns (Red Cross, Pentagon, FBI, etc.)
+  - Only filters ORG-labeled entities (trusts PERSON labels)
+  - Uses universal signals, NOT book-specific vocabulary deny-lists
+- **Modified:** `src/pipeline/character_extraction_v2/supporting.py` (new method at line 404, called at line 132)
+- **Expected impact:** +0.5 to Character Extraction (org entities filtered)
+
+### Attempt 3 - Fix 3: Spelling variant merge + alias accumulation
+- **Issue addressed:** High #3 (attempt 2) - Ted Frith shows 2 mentions instead of ~7, no aliases saved
+- **Root cause:** `_merge_obvious_aliases()` merged counts but:
+  1. Didn't catch spelling variants ("Ted Frith" vs "Ted Firth")
+  2. Didn't save merged names as aliases (SupportingCharacter had no aliases field)
+- **Fix:** 
+  - Added Rule 4 for spelling variants using Levenshtein distance <= 1
+  - Added `_is_spelling_variant()` helper method
+  - Added `aliases` field to SupportingCharacter dataclass
+  - Updated merge logic to save merged names as aliases
+  - Updated `_to_characters()` to transfer aliases to Character objects
+- **Modified:** `src/pipeline/character_extraction_v2/supporting.py` (dataclass line 30, Rule 4 line 541, new method line 582, alias tracking line 557, _to_characters line 645)
+- **Expected impact:** +0.5 to Character Extraction (Ted Frith now has correct mentions + aliases)
 - **Issue addressed:** Critical #3 (attempt 1) - Wrong narrator identification
 - **Fix:** Updated `NARRATOR_DETECTION_PROMPT` in `narrator.py`
 - **Result:** FIXED — Uncle Bill now correctly tagged as first-person narrator, John Donaldson as secondary narrator
@@ -217,10 +252,13 @@ Overall = (7 × 0.20) + (6 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6 × 0.10) 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
+|---------|-------|----------------|---------|
 | 1 | Ted split | `supporting.py` | Partial fix (merged but no alias/count accumulation) |
 | 1 | Father/son conflation | `main_cast.py` (prompt only) | No change — prompt insufficient |
 | 1 | Wrong narrator | `narrator.py` | Fixed |
+| 3 | Father/son conflation | `characters.py` (Step 1.6 post-processing) | Programmatic split via summary labels |
+| 3 | Red Cross organization | `supporting.py` (org filter) | Filter ORG entities using universal indicators |
+| 3 | Ted Frith aliases/counts | `supporting.py` (spelling variants + alias saving) | Rule 4 + alias field added |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
@@ -250,9 +288,18 @@ Focus on the 4 failing categories. Highest-impact fixes:
 
 These 4 fixes should push Character Extraction from 6→8+, Pronunciation from 6→8+, and help Structure/Summaries indirectly.
 
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Father/son split via code-level post-processing (not prompt-only)
-2. Organization entity filtering in supporting cast
-3. Alias/mention count accumulation in merge logic
-4. Pronunciation false positive filtering
+Re-run analysis to verify fixes for:
+1. ✅ Father/son split (Step 1.6 post-processing in characters.py)
+2. ✅ Red Cross organization filter (supporting.py org filter)  
+3. ✅ Ted Frith alias/count accumulation (supporting.py spelling variants + alias saving)
+
+**Expected score improvement:**
+- Character Extraction: 6 → 8+ (father/son split +1.0, Red Cross filter +0.5, Ted aliases +0.5)
+- Profiles: 8 → 8+ (father/son profiles now separate)
+- Summaries: 7.5 → 7.5 (no changes)
+- Pronunciation: 6 → 6 (deferred - would need vocabulary filtering)
+- Structure: 7 → 7 (no changes)
+
+**Note:** Pronunciation false positive filtering (High #4) was NOT addressed in this attempt to limit scope to 3 fixes. This can be addressed in attempt 4 if needed.

@@ -158,6 +158,12 @@ class CharacterAgent(Agent):
         characters = self._merge_title_variants(characters)
         logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
 
+        # STEP 1.6: Split same-name characters based on summary disambiguation
+        # If summaries consistently use labels like "John (the father)" and "John (the son)",
+        # split them into separate characters
+        characters = self._split_disambiguated_same_name_characters(characters, chapters)
+        logger.info(f"V2 Step 1.6 complete: {len(characters)} after same-name disambiguation split")
+
         # STEP 2: Search for mentions (F2)
         logger.info("V2 Step 2: Searching for character mentions")
         searcher = MentionSearcher(context.text, chapters)
@@ -1275,6 +1281,84 @@ class CharacterAgent(Agent):
                 merged.append(char1)
 
         return merged
+
+    def _split_disambiguated_same_name_characters(
+        self, 
+        characters: list[Character], 
+        chapters: list[StructuralElement]
+    ) -> list[Character]:
+        """
+        Split characters with the same name when summaries use disambiguating labels.
+        
+        Example: If summaries refer to "John Donaldson (the father)" and 
+        "John Donaldson (the son)", this splits the single "John Donaldson" 
+        character into two separate characters.
+        
+        This addresses cases where the LLM merges same-name characters despite 
+        the summaries providing clear disambiguation.
+        """
+        import re
+        from collections import defaultdict
+        
+        # Group characters by base name (without disambiguation labels)
+        name_groups = defaultdict(list)
+        for char in characters:
+            # Extract base name (remove parenthetical labels if present)
+            base_name = re.sub(r'\s*\([^)]+\)\s*$', '', char.canonical_name).strip()
+            name_groups[base_name].append(char)
+        
+        # For each base name, check if summaries distinguish multiple people
+        result = []
+        for base_name, char_list in name_groups.items():
+            if len(char_list) != 1:
+                # No conflation - multiple characters already exist
+                result.extend(char_list)
+                continue
+            
+            char = char_list[0]
+            
+            # Check if summaries use disambiguating labels for this name
+            labels_found = set()
+            for chapter in chapters:
+                if not hasattr(chapter, 'characters_present') or not chapter.characters_present:
+                    continue
+                
+                for char_ref in chapter.characters_present:
+                    # Match pattern like "John Donaldson (the father)"
+                    match = re.match(
+                        r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$',
+                        char_ref,
+                        re.IGNORECASE
+                    )
+                    if match:
+                        label = match.group(1).strip()
+                        labels_found.add(label)
+            
+            # If we found 2+ distinct labels, split the character
+            if len(labels_found) >= 2:
+                logger.info(
+                    f"Splitting '{base_name}' into {len(labels_found)} characters "
+                    f"based on summary labels: {sorted(labels_found)}"
+                )
+                
+                # Create separate character for each label
+                for i, label in enumerate(sorted(labels_found)):
+                    new_char = Character(
+                        id=f"{char.id}_split_{i}",
+                        canonical_name=f"{base_name} ({label})",
+                        role=char.role if i == 0 else "supporting",
+                        aliases=[],
+                        mention_count=0,  # Will be recomputed in Step 2
+                        first_appearance_chapter=char.first_appearance_chapter,
+                        is_symbolic=getattr(char, 'is_symbolic', False),
+                    )
+                    result.append(new_char)
+            else:
+                # No split needed
+                result.append(char)
+        
+        return result
+
 
     def _is_valid_alias(self, alias: str, canonical_name: str) -> bool:
         """
