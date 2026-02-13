@@ -3,97 +3,160 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 6.5/10 ✗ (FAILING)
-- Character Profiles: 7/10 ✗ (FAILING)
+- Character Extraction: 7/10 ✗ (FAILING)
+- Character Profiles: 8/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.08/10** (reference only)
+- **Overall: 8.48/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (1 category below threshold)
 
-## Fix History
+## Evaluation Details
 
-### Attempt 2 Fixes
-**CRITICAL #1: Fixed "Milt" / "Milton Jennings" split**
-- Root cause: src/agents/characters.py:_merge_lastname_aliases():line 2227-2256 - common_nicknames dictionary was missing "milt" → "milton" mapping
-- Fix: Added "milt": ["milton"] to the common_nicknames reference lexicon
-- Smoke test: PASS - verified mapping exists in source code, all character agent tests pass
-- Modified: src/agents/characters.py
-- Expected impact: Character Extraction 6.5/10 → ~9.0/10 (eliminates false split)
+### Structure Detection: 10/10 ✓
+"A Camping Trip" by Hamlin Garland is a single short story with no chapter divisions. The system correctly identified 1 chapter. No front/back matter issues. Perfect.
 
-**HIGH #3: Fixed ambiguous bare surname aliases**
-- Root cause: src/pipeline/character_extraction_v2/main_cast.py:verify_aliases() - no filtering for bare surnames shared by multiple characters
-- Fix: Added RULE 3 at end of verify_aliases() to detect when multiple characters share a surname (e.g., "Milton Jennings", "Mr. Jennings", "Mrs. Jennings" all have surname "Jennings") and remove the bare surname from individual character aliases
-- Smoke test: PASS - verified filtering logic exists in source code, all tests pass
-- Modified: src/pipeline/character_extraction_v2/main_cast.py
-- Expected impact: Character Extraction 6.5/10 → ~8.5/10 (eliminates ambiguous aliases)
+### Character Extraction: 7/10 ✗
+**Improvements from attempt 1:**
+- "Bert Jenks" now correctly captured with full name (was just "Bert" before)
+- Ambiguous bare surname aliases ("Jennings", "Stewart") correctly removed by RULE 3
+- "Milt" nickname mapping added to code
 
-**Combined Expected Impact:** Character Extraction 6.5/10 → ~9.0/10
+**Remaining issues:**
+- **CRITICAL: "Milt" (supporting_1) still listed as separate character from "Milton Jennings" (main_cast_1)** — The nickname mapping fix in `_merge_lastname_aliases()` didn't work because that function only processes single-word MAIN CAST names (line 2182: `if " " in main_name: continue`). "Milton Jennings" is multi-word so it's skipped. The function needs a second pass: iterate multi-word main cast names and check if single-word supporting characters are nicknames of the main cast first name.
+- **MINOR: "boat-keeper" (0f3d0f1d9c46, F6 reconciliation) extracted as character** — This is a single-mention anonymous role descriptor, not a named character. Only 1 mention. However, this is marginal and doesn't significantly impact narrator preparation.
+- **Mr. Jennings has no relationship to Milton Jennings** — They are clearly father and son (Milton's parents = Mr./Mrs. Jennings). The relationship is empty for Milton Jennings entirely.
+
+**What's correct:**
+- All 4 main boys identified: Lincoln Stewart, Milton Jennings, Rance, Bert Jenks
+- Mr. Jennings, Mrs. Jennings, Captain Knapp all correctly identified
+- Lincoln correctly identified as protagonist
+- No hallucinated characters
+- Alias handling for "Lincoln"/"Stewart", "Milton", "Bert", "Knapp" all correct
+
+### Character Profiles: 8/10 ✓
+**Improvements from attempt 1:**
+- Profiles now populated in HTML with appearance, personality, and voice guidance
+- Voice guidance sections include dialect notes and example quotes — very useful for narrators
+- Relationships mostly correct
+
+**Remaining issues:**
+- **Bert's "brown as a leather glove" description is misattributed** — The source text (line 12-13) says "the sun burning one's neck brown as a leather glove" which is a general observation about Lincoln's farm work, not Bert specifically. This appears as Bert's feature. Deducting 0.5 for this misattribution.
+- **Lincoln incorrectly tagged as "First-Person narrator"** — The story is third-person (Hamlin Garland narrates about "he"). Lincoln never says "I" outside of dialogue. The is_narrator=true flag is wrong, but the profiles themselves are otherwise good.
+- **Milton Jennings has empty profile** ("No physical description available", "Insufficient information for personality analysis") — Milton is the second most-mentioned character (23 mentions). Some personality info should be extractable (he's enthusiastic, initiates the trip, a "perfect horseman").
+
+**What's correct:**
+- Lincoln's profile is excellent (appearance, personality, voice, dialect, quotes)
+- Rance's profile is strong with good voice guidance and example quotes
+- Bert's profile is mostly good (personality, voice) despite the misattributed feature
+- Relationships between the four boys are captured
+
+### Chapter Summaries: 9/10 ✓
+The single chapter summary is comprehensive and accurate:
+- Correctly captures the key events: invitation, preparation, journey, camp setup, fishing, sailing storm, damage/recovery, return home
+- Character roles correctly noted (Lincoln as plowboy, Milton as trip organizer, Rance as sailor/ingenuity)
+- The bittersweet ending ("they never do" return) is captured
+- Good level of detail for narrator preparation
+- Minor: describes them as "fourteen-year-old" — the text only describes Lincoln as fourteen, not all boys. Negligible.
+
+### Pronunciation Guide: 8.5/10 ✓
+**Good entries:**
+- "D'ye" (/dʒi/) — dialect contraction, useful for narrator
+- "bowlders" (/ˈboʊldərz/) — archaic spelling of "boulders"
+- "gunwhale" (/ˈɡʌn.weɪl/) — nautical term, commonly mispronounced
+- "killdee" (/ˈkɪl.di/) — regional bird name
+- "bobolinks" (/ˈbɒb.ə.lɪŋks/) — bird name
+- Dialect forms: "gettin'", "sittin'", "tryin'", "see't", "more'n" — useful for narrator
+- Homographs: "bass", "wind", "read", "lead", "live", "close", "desert", "minute" — all relevant
+
+**Issues:**
+- "kitchen" is a false positive — common English word needing no pronunciation guidance
+- "merrymakers", "wildernesses", "changeful" are standard English words — borderline false positives
+- "bottlewasher" is a compound of two common words — borderline
+
+### HTML Presentation: 9/10 ✓
+- Clean, navigable interface with tabs for Structure, Characters, Chapters, Pronunciation
+- Character profiles well-organized with collapsible metadata
+- Relationship grid is clear and useful
+- Pronunciation guide has both by-type and by-chapter views with search functionality
+- Performance timing section included
+- Plot summary is well-written and comprehensive
 
 ## Current Issues (Priority Order)
 
+### CRITICAL
+1. **"Milt" still split from "Milton Jennings" — nickname merge logic bypasses multi-word main cast names**
+   - Problem: `_merge_lastname_aliases()` at line 2182 has `if " " in main_name: continue` — this skips "Milton Jennings" entirely, so it never checks if supporting character "Milt" is a nickname for "Milton"
+   - Evidence: "Milt" (supporting_1, 2 mentions) is clearly Milton Jennings' nickname. Text line 29: `"Hello, Milt," Lincoln returned` and line 54: `"if you don't mind, Milt"`
+   - Location: `src/agents/characters.py:_merge_lastname_aliases()` line 2178-2182
+   - Fix: Add a SECOND loop after the existing one that iterates multi-word main cast names and checks if any single-word supporting characters match the main cast first name via nickname lookup. Specifically:
+     ```
+     For each main_char with multi-word name:
+       main_firstname = main_name.split()[0]
+       For each single-word supporting char:
+         if supp_name matches main_firstname via common_nicknames:
+           merge supp → main as alias
+     ```
+   - This is the same code location as attempt 2's fix — the nickname dictionary entry is correct, but the loop structure prevents it from being reached
+
 ### HIGH
-2. **Bert's profile has misattributed physical description** (DEFERRED - awaiting Character Extraction fix verification)
-   - Problem: Bert's appearance says "brown as a leather glove" but this description is about Lincoln in the narration
-   - Location: `src/pipeline/character_profiling/` — passage gathering or evidence attribution
-   - Will address if Character Extraction still fails after current fixes
+2. **Lincoln incorrectly tagged as first-person narrator** (DEFERRED — doesn't block passing)
+   - Problem: `is_narrator=true` and HTML shows "First-Person narrator" but the story uses third-person narration throughout
+   - Evidence: Entire text refers to Lincoln as "he/his" — e.g., "Lincoln was tired. His neck ached" (line 17)
+   - Impact: Misleading for narrator preparation but doesn't affect other scores critically
 
 ### MEDIUM
-4. **Bert's full name "Bert Jenks" not captured** (DEFERRED - lower priority)
-   - Problem: The text says "Bert Jenks will lend us his boat" but canonical name is just "Bert"
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — full name resolution
+3. **Milton Jennings has empty profile despite 23 mentions**
+   - Problem: No appearance, personality, or voice guidance extracted for Milton
+   - Evidence: Milton has 23 mentions and dialogue in the text. He's described as a "perfect horseman and easy rider" (line 25)
+   - Location: `src/pipeline/character_profiling/` — may be failing to gather evidence for this character
+   - Impact: Slight drag on Profiles score
 
-5. **"kitchen" flagged as pronunciation entry — false positive** (DEFERRED - minor)
-   - Problem: Common English word flagged for pronunciation guidance
-   - Location: `src/pipeline/pronunciation/` — false positive filtering
+4. **Bert's "brown as a leather glove" misattributed**
+   - Problem: This description refers to Lincoln/farm labor in general (line 12-13), not Bert
+   - Location: `src/pipeline/character_profiling/` — passage attribution
+   - Impact: Minor inaccuracy in Bert's profile
 
-6. **All character profiles have null physical_description in JSON** (DEFERRED - not critical)
-   - Problem: JSON fields are null but HTML shows profile content (data model mismatch)
+5. **"kitchen" pronunciation false positive**
+   - Problem: Common English word flagged
+   - Location: `src/pipeline/pronunciation/`
 
-### LOW
-7. **Narrative style inconsistency** (DEFERRED - cosmetic)
-   - Problem: structure overview says "unknown" but plot summary says "first-person retrospective" (actually third-person)
+## Fix History
+
+### Attempt 1 → Attempt 2 Fixes
+**CRITICAL #1: Nickname mapping for "milt" → "milton"**
+- Modified: src/agents/characters.py
+- Result: No change — mapping was added but loop structure prevents it from being reached (multi-word main cast names skipped)
+
+**HIGH #3: Ambiguous bare surname filtering**
+- Modified: src/pipeline/character_extraction_v2/main_cast.py
+- Result: Fixed — bare "Jennings" and "Stewart" no longer appear as aliases
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | CRITICAL #1: Milt/Milton split | src/agents/characters.py | Added nickname mapping |
-| 2 | HIGH #3: Ambiguous surnames | src/pipeline/character_extraction_v2/main_cast.py | Added RULE 3 filtering |
+| 2 | CRITICAL #1: Milt/Milton split | src/agents/characters.py | No change — loop skips multi-word main cast names |
+| 2 | HIGH #3: Ambiguous surnames | src/pipeline/character_extraction_v2/main_cast.py | Fixed |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, DO NOT CHANGE)
 - No LLM retries or JSON parse failures in character extraction
 - 1 JSON parse failure in pronunciation enrichment (non-critical)
-- Profiling was the bottleneck (16m 24s, 43% of total time)
-- All confidence scores are high for characters — the pipeline is confident but had cross-pipeline split issue
+- Character Profiles was the bottleneck (16m 57s, 40.4% of total time)
+- All confidence scores high for main cast characters
 
 ## Output Files
 - HTML: ../output/a_camping_trip/report.html
 - JSON: ../output/a_camping_trip/analysis.json
 
-## Pipeline Notes (Attempt 2)
-- Duration: 41m 55s
-- Structure: 1 chapter detected (single-chapter short story)
-- Characters: 9 characters extracted
-- Character extraction used competitive consensus (single mode, 3 temperatures)
-- Defensive steps activated:
-  - BLOCKED titled people aliases (Lincoln's father, Milton's father/mother)
-  - REMOVED ambiguous bare surname aliases (Stewart, Jennings)
-  - LOW CONFIDENCE MERGE flagged: 'Stewart' → 'Lincoln Stewart' (score: 0.182)
-- Hallucination filters activated:
-  - F6: Rejected 'young man with oars' (0 text mentions)
-  - F19: Multiple characters flagged for ungrounded evidence quotes
-- Pronunciation enrichment: 1 JSON parse failure (non-critical)
-- Bottleneck: Character Profiles (40.4% of time, 16m 57s)
-
 ## Next Action
-Proceed to evaluation phase to score results
+Run PROMPT_fix.md to address CRITICAL #1: Fix `_merge_lastname_aliases()` to also check single-word supporting characters against multi-word main cast first names via nickname lookup. The dictionary entry is already correct — the loop logic just needs a second pass for the reverse direction.
