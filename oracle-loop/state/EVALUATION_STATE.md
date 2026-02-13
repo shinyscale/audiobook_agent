@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
@@ -76,5 +76,24 @@
 - Profiling was the bottleneck (16m 24s, 43% of total time)
 - All confidence scores are high for characters — the pipeline is confident but had cross-pipeline split issue
 
+## Output Files
+- HTML: ../output/a_camping_trip/report.html
+- JSON: ../output/a_camping_trip/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Duration: 41m 55s
+- Structure: 1 chapter detected (single-chapter short story)
+- Characters: 9 characters extracted
+- Character extraction used competitive consensus (single mode, 3 temperatures)
+- Defensive steps activated:
+  - BLOCKED titled people aliases (Lincoln's father, Milton's father/mother)
+  - REMOVED ambiguous bare surname aliases (Stewart, Jennings)
+  - LOW CONFIDENCE MERGE flagged: 'Stewart' → 'Lincoln Stewart' (score: 0.182)
+- Hallucination filters activated:
+  - F6: Rejected 'young man with oars' (0 text mentions)
+  - F19: Multiple characters flagged for ungrounded evidence quotes
+- Pronunciation enrichment: 1 JSON parse failure (non-critical)
+- Bottleneck: Character Profiles (40.4% of time, 16m 57s)
+
 ## Next Action
-Re-run analysis to verify fixes
+Proceed to evaluation phase to score results
