@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -375,9 +375,16 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 15 | 5.90 | -0.70 | **REGRESSION: Son absorbed as alias of father. Uncle Bill lost narrator and demoted. Father wrongly narrates.** |
 | 16 | 7.28 | +0.68 | **RECOVERY: LLM defenses worked!** Both chars exist, narrator correct. Son profile still contaminated. Approaching attempt 3 high (7.35). |
 
+## Fix History (continued)
+
+### Attempt 17 - Fix: Add split character labels as standalone aliases
+- **Issue addressed:** Son's profile contamination (CRITICAL #1)
+- **Root cause:** `src/agents/characters.py:1623-1630` - Split characters created with labels in canonical name (e.g., "John Donaldson (the father)") but labels NOT added as standalone aliases. The `_check_split_character_labels()` method in `name_disambiguator.py` looks for "the father"/"the son" in text but never finds them because they're not in the alias list.
+- **Fix:** Add label itself as alias during split character creation (line 1632-1634)
+  - Father aliases: `["John Donaldson", "John", "John Donaldson (the father)", "the father"]`
+  - Son aliases: `["John Donaldson", "John", "John Donaldson (the son)", "the son"]`
+- **Expected result:** `name_disambiguator._check_split_character_labels()` will now find label-specific aliases ("the father", "the son") in text passages and correctly route father-descriptive passages to father and son-descriptive passages to son.
+- **Modified:** `src/agents/characters.py` (lines 1632-1634)
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1:** Son's profile contamination — needs profiling-only fix to `name_disambiguator.py` (safe now that extraction is stabilized)
-2. **HIGH #2:** Spurious "John Donaldson's" possessive artifact in supporting cast
-3. **HIGH #3:** "Sister" → "cousin" factual error in Ch2 summary (16 consecutive attempts)
-4. **MEDIUM #5:** Pronunciation false positives
+Re-run analysis to verify fix
