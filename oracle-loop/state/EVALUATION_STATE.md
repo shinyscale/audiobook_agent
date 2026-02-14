@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,15 +11,15 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 7)
-- Analysis completed successfully in 37m 9s
-- 5 characters extracted: Margaret Donaldson (main_cast), John/Uncle Bill/Joe Barron/Ted Frith (supporting)
-- Summary disambiguation fix PARTIALLY WORKED: Ch2 `characters_present` now has "John Donaldson (the son)", "John Donaldson (the father)", "John Donaldson (the uncle)"
-- BUT "John Donaldson (the uncle)" is Uncle Bill misidentified as a third John — this confused Step 1.6
-- Step 1.6 still DID NOT produce a character split — single "John" entry with 30 mentions
-- Uncle Bill now sole narrator (fixed from attempt 6's dual-narrator issue)
-- Margaret Donaldson now present as main_cast_4 (fixed from attempt 6)
-- Canonical name regressed: "John" instead of "John Donaldson"
+## Pipeline Notes (Attempt 8)
+- Analysis completed successfully in 35m 33s (using competitive consensus on all stages)
+- 5 characters extracted: Margaret Donaldson, Uncle Bill, John, Joe Barron, Ted Frith
+- Competitive consensus enabled for all stages (characters, structure, summaries) - 2/3 supermajority for merge decisions
+- Uncle Bill correctly identified as first-person narrator
+- 2 chapters detected
+- 27 pronunciation flags
+- Profiling warnings: 8 ungrounded quotes for Uncle Bill, 5 for John, 4 for Ted Frith
+- Some LLM batch enrichment warnings in pronunciation guide (model compatibility issue)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
