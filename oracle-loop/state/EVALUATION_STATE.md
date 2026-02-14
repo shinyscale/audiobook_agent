@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,17 +11,22 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 13)
-- Analysis completed in 34m 56s
+## Pipeline Notes (Attempt 14)
+- Analysis completed in 38m 33s
 - Competitive consensus enabled (3 temperatures: 0.5, 0.7, 0.9) for characters, structure, summaries
-- **Characters found:** 4 (John Donaldson (the son), Uncle Bill, Joe Barron, Ted Frith)
-- **PERSISTING ISSUE:** Only `main_cast_1_split_1` (son) exists — `split_0` (father) is STILL MISSING
-- **PERSISTING ISSUE:** The son's aliases include "John Donaldson (the father)" — wrong character
-- **PERSISTING ISSUE:** Margaret Donaldson is completely MISSING (was present in attempt 11)
-- **NEW REGRESSION:** Uncle Bill `is_narrator: false` (was true in attempt 12) — narrator flag now on the SON
-- **NEW REGRESSION:** Uncle Bill role is "supporting" (was "protagonist" in attempt 12)
+- **BREAKTHROUGH:** Both father AND son characters now exist as separate entities!
+- **Characters found:** 7 total
+  - John Donaldson (the father) - 29 mentions
+  - John Donaldson (the son) - 28 mentions
+  - Uncle Bill - 18 mentions
+  - Margaret Donaldson - 2 mentions ✓ (RESTORED)
+  - Joe Barron - 3 mentions
+  - Ted Frith - (present)
+  - Plus 1 more
 - Structure: 2 chapters detected
-- Pronunciation: 24 entries flagged (19 with IPA)
+- Pronunciation: 27 entries flagged
+- Narrator: Detected as "Uncle Bill (first-person)" during character phase
+- Warnings: F6 rejected "John (the boy)" from summaries (0 text mentions), F19 ungrounded evidence quotes on all 4 main profiles
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
