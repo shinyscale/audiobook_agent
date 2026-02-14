@@ -380,6 +380,33 @@ class CharacterAgent(Agent):
                                 )
                                 break
 
+        # STEP 5.0.6: Promote first-person narrator from supporting to main cast
+        # This defends against LLM nondeterminism where the true narrator (who should always
+        # be prominent) gets missed by main cast extraction and falls to supporting.
+        # First-person narrators are central to the story and should ALWAYS be in main cast.
+        if narrator_info.pov == "first-person" and narrator_info.narrator_character_id:
+            # Check if narrator is in supporting cast
+            narrator_in_supporting = None
+            narrator_idx_in_supporting = None
+            for i, char in enumerate(supporting_cast):
+                if char.id == narrator_info.narrator_character_id:
+                    narrator_in_supporting = char
+                    narrator_idx_in_supporting = i
+                    break
+
+            if narrator_in_supporting:
+                # Promote to main cast
+                logger.warning(
+                    f"NARRATOR PROMOTION: Moving '{narrator_in_supporting.canonical_name}' "
+                    f"from supporting to main cast (first-person narrator should be prominent). "
+                    f"This protects against LLM nondeterminism in main cast extraction."
+                )
+                # Remove from supporting cast
+                supporting_cast.pop(narrator_idx_in_supporting)
+                # Add to main cast with protagonist role
+                narrator_in_supporting.role = "protagonist"
+                main_cast.append(narrator_in_supporting)
+
         # STEP 5.1: Filter narrator-related entries from supporting cast
         # Handles cases where NER picks up "narrator", "the narrator", etc.
         supporting_cast = self._filter_narrator_variants(
@@ -700,6 +727,33 @@ class CharacterAgent(Agent):
                         char.first_appearance_chapter = chapters_list[0]
             except Exception as e:
                 logger.warning(f"Split character mention search failed: {e}")
+
+        # STEP 5.10.8: Enforce narrator exclusivity
+        # Only the identified narrator should have is_narrator=True
+        # This prevents LLM nondeterminism from assigning the flag to wrong characters
+        if narrator_info.narrator_character_id:
+            logger.info(
+                f"V2 Step 5.10.8: Enforcing narrator exclusivity for '{narrator_info.narrator_name}' "
+                f"(ID: {narrator_info.narrator_character_id})"
+            )
+            # Clear is_narrator flag from all characters except the identified narrator
+            for char in main_cast + supporting_cast:
+                if char.id == narrator_info.narrator_character_id:
+                    # This is the true narrator - ensure flag is set
+                    if not char.is_narrator:
+                        logger.warning(
+                            f"NARRATOR EXCLUSIVITY: Setting is_narrator=True for '{char.canonical_name}' "
+                            f"(identified narrator but flag was false)"
+                        )
+                        char.is_narrator = True
+                else:
+                    # This is NOT the narrator - clear the flag if set
+                    if char.is_narrator:
+                        logger.warning(
+                            f"NARRATOR EXCLUSIVITY: Clearing is_narrator=True from '{char.canonical_name}' "
+                            f"(not the identified narrator '{narrator_info.narrator_name}')"
+                        )
+                        char.is_narrator = False
 
         # Build final CharacterMap
 
@@ -1596,6 +1650,39 @@ class CharacterAgent(Agent):
             else:
                 # No split needed
                 result.append(char)
+
+        # POST-SPLIT VALIDATION: Prevent split siblings from having each other's canonical names as aliases
+        # This defends against LLM nondeterminism where alias partitioning might incorrectly assign
+        # sibling canonical names (e.g., "John Donaldson (the son)" appearing as alias of father)
+        for char in result:
+            if "_split_" not in char.id:
+                continue  # Not a split character
+
+            # Extract base ID to find siblings (e.g., "main_cast_1_split_0" → "main_cast_1")
+            char_base = char.id.rsplit("_split_", 1)[0]
+
+            # Find all siblings from the same split operation
+            sibling_canonicals = set()
+            for other in result:
+                if "_split_" in other.id and other.id != char.id:
+                    other_base = other.id.rsplit("_split_", 1)[0]
+                    if other_base == char_base:
+                        sibling_canonicals.add(other.canonical_name.lower())
+
+            # Remove any sibling canonical names from this character's aliases
+            if sibling_canonicals:
+                original_count = len(char.aliases)
+                char.aliases = [
+                    alias for alias in char.aliases
+                    if alias.lower() not in sibling_canonicals
+                ]
+                removed_count = original_count - len(char.aliases)
+                if removed_count > 0:
+                    logger.warning(
+                        f"POST-SPLIT VALIDATION: Removed {removed_count} sibling canonical name(s) "
+                        f"from '{char.canonical_name}' aliases to prevent absorption. "
+                        f"Original alias count: {original_count}, final: {len(char.aliases)}"
+                    )
 
         return result
 
