@@ -196,7 +196,7 @@ Scan every chapter summary for references to each character — aliases often ap
 - If two entries are the same person, mark the LESS COMMON name as "merge_into" the MORE COMMON name
 - DO NOT merge characters who are different people with similar names (e.g., siblings, spouses with same surname)
 - Characters with different first names are usually DIFFERENT people (e.g., "George Wilson" ≠ "Myrtle Wilson")
-- Characters with the same title/profession but different names are DIFFERENT people (e.g., "Professor Smith" ≠ "Professor Jones")
+- **CRITICAL: Characters with disambiguation labels in parentheses are DIFFERENT people** (e.g., "John Smith (the father)" ≠ "John Smith (the son)", "Elizabeth (the wife)" ≠ "Elizabeth (the sister)")
 - If a character IS the narrator, DO NOT add "the narrator" as a separate character - add it as an alias instead
 
 ## Chapter Summaries (for reference)

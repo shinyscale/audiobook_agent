@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 19
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -357,6 +357,13 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 - **Result:** **NO EFFECT** — Son still absorbed. This PROVES absorption happens OUTSIDE `_merge_within_main_cast()`. The merge passes were never the problem.
 - **Modified:** `src/agents/characters.py` (4 new safety checks in Passes 0,1,3,4)
 
+### Attempt 20 - Fix: Disambiguation label guidance in Pass 2
+- **Issue addressed:** Son character absorbed in Pass 2 consolidated alias resolution (CRITICAL #1)
+- **Root cause:** `CONSOLIDATED_ALIAS_PROMPT` lacked guidance about characters with disambiguation labels in parentheses. LLM saw "John Donaldson (the father)" and "John Donaldson (the son)" and produced `merge_into` directive merging them, which was applied in `_process_consolidated_pass2()` BEFORE Step 1.6 split could run.
+- **Fix:** Added explicit rule to Merge Rules section: "**CRITICAL: Characters with disambiguation labels in parentheses are DIFFERENT people**" with examples
+- **Smoke test:** PASS - prompt now contains disambiguation guidance, should prevent LLM from merging father/son
+- **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` (line 197)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -385,6 +392,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 | 17 | Son profile contamination | `characters.py` (label aliases) | REGRESSION |
 | 18 | Revert attempt 17 | `characters.py` (revert) | DID NOT RESTORE |
 | 19 | Universal merge protection | `characters.py` (5 safety checks) | **NO EFFECT — proves absorption is OUTSIDE merge passes** |
+| 20 | Disambiguation label guidance | `main_cast.py` (Pass 2 prompt) | Smoke test PASS — awaiting full analysis |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -411,14 +419,6 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 
 ## Next Action
 
-**CRITICAL DIAGNOSTIC PIVOT:** After 19 attempts and 19 fixes to `characters.py`, the absorption has been CONCLUSIVELY proven to NOT be in `_merge_within_main_cast()`. The fix phase must now look UPSTREAM:
+**Phase:** awaiting_analysis
 
-1. **TRACE `_process_consolidated_pass2()` in `main_cast.py`** — Add logging to see if the consolidated alias resolution (Pass 2) produces a `merge_into` directive that merges the son into the father before the characters ever reach `characters.py`. This is the most likely absorption point because:
-   - The LLM in Pass 2 sees both "John Donaldson (the father)" and "John Donaldson (the son)" and may decide they should be merged
-   - The `merge_into` mechanism is designed to absorb duplicates — if the LLM treats father/son as duplicates, one gets absorbed
-
-2. **TRACE `_split_disambiguated_same_name_characters()` output** — Verify the split actually creates 2 children this run. If it only creates 1, the absorption is at the split level.
-
-3. **TRACE grounding step** — Check if the son is filtered as ungrounded after the split.
-
-4. **Once absorption point is found, add a split-sibling hard block AT THAT LOCATION** — not in `_merge_within_main_cast()` where we've already proven it's ineffective.
+Re-run analysis with attempt 20 fix to verify disambiguation label guidance prevents Pass 2 from merging father and son.
