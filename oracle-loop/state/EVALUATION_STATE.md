@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 9)
+- Analysis completed in 34m 8s
+- Competitive consensus enabled (3 LLM runs at different temperatures, 2/3 supermajority)
+- Bottleneck: Character Profiles (26.4% of time)
+- Found 4 characters (John still not split - need to check if fix worked)
+- Warnings: BLOCKED merge 'the narrator' → 'John Donaldson' (incompatible roles)
+- Warnings: F19 ungrounded evidence quotes for John (4), Uncle Bill (3), Ted Frith (2)
+- LLM validation warning for pronunciation guide batch enrichment (model may not support json_mode)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
