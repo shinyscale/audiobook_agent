@@ -2,14 +2,32 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 19
-- **Phase:** awaiting_analysis
+- **Attempt:** 20
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 20)
+- Analysis completed in 37m 44s
+- **BREAKTHROUGH: 7 characters extracted including BOTH father AND son!**
+- Father: John Donaldson (the father) - 28 mentions
+- Son: John Donaldson (the son) - 28 mentions
+- **Split siblings now BOTH PRESENT** - attempt 20 fix WORKED!
+- Uncle Bill: 18 mentions, correctly identified as first-person narrator ✓
+- Margaret Donaldson: 2 mentions ✓
+- Joe Barron: 3 mentions ✓
+- Ted Frith extracted (awaiting alias count verification)
+- 2 chapters detected (unchanged)
+- 27 pronunciation flags
+- Total LLM calls: 68
+- Total tokens: ~110K
+- Competitive consensus: ENABLED (all 3 stages)
+- F6 rejection: "John (the boy)" from summaries (0 text mentions - likely hallucination)
+- F19 warnings: Some potentially ungrounded evidence quotes in profiles (father: 2, son: 3, Uncle Bill: 2, Ted: 5)
 
 ## Pipeline Notes (Attempt 19)
 - Analysis completed in 33m 7s
