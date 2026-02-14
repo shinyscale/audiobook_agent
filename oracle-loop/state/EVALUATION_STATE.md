@@ -3,13 +3,25 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 17
-- **Phase:** running_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 17)
+- Analysis completed in 41m 40s
+- **CRITICAL REGRESSION:** Father character (`main_cast_0_split_0`) is MISSING from output
+- Only 5 characters extracted (down from 7 in attempt 16)
+- Son character has 57 mentions (appears to have absorbed father's mentions)
+- Warning: "F6: Rejecting 'John (the son)' - appears in summary but has 0 text mentions (likely hallucination)"
+- Warning: Multiple characters have ungrounded evidence quotes
+- The fix (adding split labels as standalone aliases) appears to have broken the split mechanism
+- Narrator detection: Uncle Bill correctly identified as first-person narrator
+- 2 chapters detected (unchanged)
+- 25 pronunciation flags
 
 ## Pipeline Notes (Attempt 16)
 - Analysis completed in 33m 39s
