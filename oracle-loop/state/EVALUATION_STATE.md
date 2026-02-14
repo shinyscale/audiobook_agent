@@ -441,6 +441,8 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 
 **Status:** Attempt 21 fix has been applied (external change detected). Must run ANALYZE phase to test the fix before applying any additional changes.
 
+**Confirmed by Fix Phase (2026-02-14):** External changes detected in commit 106b4b9. Phase correctly set to awaiting_analysis. No additional fixes will be applied until attempt 21 is tested.
+
 **Attempt 21 fix applied:** Split character passage pre-filtering using chapter `active_characters`. This should fix the profile contamination by ensuring the father only gets passages from chapters where "John Donaldson (the father)" appears in the summary, and similarly for the son.
 
 **Fix details:**
