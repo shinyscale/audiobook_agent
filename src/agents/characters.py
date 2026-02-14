@@ -15,6 +15,7 @@ Key improvements over v1:
 - Dramatically simpler code (<500 lines vs 2500+)
 """
 
+import copy
 import logging
 import time
 from typing import Optional
@@ -192,6 +193,9 @@ class CharacterAgent(Agent):
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
 
+        # SHADOW MODE: Snapshot main_cast before any merge passes
+        _graph_snapshot_main = copy.deepcopy(main_cast)
+
         # STEP 3.3.5: Compute co-occurrence matrix for merge validation
         # This provides a structural signal independent of LLM reasoning
         logger.info("V2 Step 3.3.5: Computing co-occurrence matrix for merge validation")
@@ -246,6 +250,9 @@ class CharacterAgent(Agent):
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
         logger.info(f"V2 Step 5 complete: {len(supporting_cast)} supporting characters")
+
+        # SHADOW MODE: Snapshot supporting_cast before any cross-cast merges
+        _graph_snapshot_supporting = copy.deepcopy(supporting_cast)
 
         # STEP 5.0.5: Re-run narrator detection with combined cast
         # This catches frame narrators (like Walton in Frankenstein) who appear infrequently by name
@@ -474,6 +481,78 @@ class CharacterAgent(Agent):
             f"V2 Step 5.6.6 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
             f"after surname-family merge"
         )
+
+
+        # STEP 5.6.7: Identity Graph Shadow Mode
+        # Run the graph-based identity resolution on pre-merge snapshots
+        # and compare results with sequential merge output for validation.
+        try:
+            from ..pipeline.character_extraction_v2.identity_graph import (
+                IdentityGraph,
+                resolve_identities,
+                execute_merges as graph_execute_merges,
+                compare_results as graph_compare_results,
+            )
+            from ..pipeline.character_extraction_v2.evidence_collectors import (
+                collect_all_evidence,
+            )
+
+            logger.info("V2 Step 5.6.7: Running identity graph shadow mode")
+
+            # Build graph from pre-merge snapshots
+            ig = IdentityGraph()
+            ig.add_characters(_graph_snapshot_main, _graph_snapshot_supporting)
+
+            # Collect all evidence
+            collect_all_evidence(
+                ig,
+                narrator_info=narrator_info,
+                cooccurrence=self._cooccurrence,
+            )
+
+            # Resolve identities
+            merge_groups = resolve_identities(ig)
+
+            # Execute merges on deep copies (don't affect sequential results)
+            graph_main = copy.deepcopy(_graph_snapshot_main)
+            graph_supporting = copy.deepcopy(_graph_snapshot_supporting)
+            graph_main, graph_supporting = graph_execute_merges(
+                merge_groups,
+                graph_main,
+                graph_supporting,
+                is_valid_alias_fn=self._is_valid_alias,
+            )
+
+            # Compare with sequential results
+            comparison = graph_compare_results(
+                graph_main, graph_supporting,
+                main_cast, supporting_cast,
+            )
+
+            # Log comparison for analysis
+            logger.info(
+                f"V2 Step 5.6.7 Shadow mode complete: "
+                f"{comparison['matches']} matches, "
+                f"{len(comparison['graph_only_characters'])} graph-only chars, "
+                f"{len(comparison['sequential_only_characters'])} sequential-only chars, "
+                f"{len(comparison['alias_differences'])} alias diffs"
+            )
+
+            # Store comparison in debug log if available
+            try:
+                from ..utils.debug_log import append_debug_event
+                append_debug_event({
+                    "event": "identity_graph_shadow",
+                    "graph_summary": ig.summary(),
+                    "merge_groups_total": len(merge_groups),
+                    "groups_with_merges": sum(1 for g in merge_groups if len(g.member_ids) > 1),
+                    "comparison": comparison,
+                })
+            except Exception:
+                pass  # Debug logging is optional
+
+        except Exception as e:
+            logger.warning(f"V2 Step 5.6.7 Shadow mode failed (non-fatal): {e}")
 
         # STEP 5.7: Final defensive narrator filter (after all merges)
         # This catches any narrator entries that might have been introduced during merging
