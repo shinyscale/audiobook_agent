@@ -346,8 +346,9 @@ Overall = (7 × 0.20) + (4.5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 10 | Father/son conflation | `characters.py:1421` (fix condition) | **SUCCESS** — split works, but 0 mentions/no profiles |
 | 11 | Split chars empty | `characters.py:1459-1470` (alias propagation) | **PARTIAL** — father profiled, but son merged as alias; narrator regression |
 | 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PARTIAL** — merge protection works, but `split_0` (father) now MISSING. Son has father's data. |
+| 13 | Father character missing | `characters.py:1450-1505` (alias partitioning in split logic) | **TESTING** — partitions aliases between split children to prevent mention absorption |
 
-**PATTERN DETECTED:** `characters.py` has been modified in 10 of 12 attempts for the father/son split issue. The split logic (`_split_disambiguated_same_name_characters`) is the core problem area. Each fix addresses one symptom but exposes another:
+**PATTERN DETECTED:** `characters.py` has been modified in 11 of 13 attempts for the father/son split issue. The split logic (`_split_disambiguated_same_name_characters`) is the core problem area. Each fix addresses one symptom but exposes another:
 - Attempt 10: Split works but chars are empty shells
 - Attempt 11: Aliases propagated but all go to one child → re-merge
 - Attempt 12: Merge protection works but alias distribution is wrong → one child has everything, other has nothing and gets filtered
@@ -370,15 +371,22 @@ Overall = (7 × 0.20) + (4.5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 11 | 6.85 | +0.25 | Father profiled (29 mentions). **REGRESSION: son merged as alias of father. Narrator on wrong character.** |
 | 12 | 6.10 | -0.50 | Merge protection works. **NEW REGRESSION: father (`split_0`) missing entirely. Son has father's data. Margaret missing.** |
 
+## Fix History (continued)
+
+### Attempt 13 - Fix 1: Partition aliases between split children
+- **Issue addressed:** Father character (`split_0`) missing from output (CRITICAL #1)
+- **Root cause:** `src/agents/characters.py:1463` - Split logic copied ALL aliases to EACH child, causing one child to absorb all mentions while the other had 0 mentions and got filtered
+- **Fix:** Modified `_split_disambiguated_same_name_characters()` (lines 1450-1505) to PARTITION aliases:
+  - Label-specific aliases (e.g., "the father", "John Donaldson (the father)") → assigned to that specific split child only
+  - Shared aliases (e.g., "John Donaldson", "John") → assigned to ALL split children
+  - Each child now gets only relevant aliases, preventing mention-absorption by one child
+- **Smoke test:** Verified alias partitioning logic with test case - father gets father-specific + shared, son gets son-specific + shared
+- **Modified:** `src/agents/characters.py` (lines 1450-1505)
+
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**CRITICAL: The split alias distribution must be fixed.** The core problem is that `_split_disambiguated_same_name_characters()` gives ALL original aliases to each split child instead of PARTITIONING them. This means one child absorbs all mentions during the mention search step, and the other has 0 mentions and gets dropped.
-
-**Required fix:**
-1. In `_split_disambiguated_same_name_characters()`, PARTITION aliases between split children:
-   - Father gets: "John Donaldson (the father)", "the father"
-   - Son gets: "John Donaldson (the son)", "the son"
-   - SHARED aliases ("John Donaldson", "John") go to BOTH children
-2. Verify that both `split_0` and `split_1` survive downstream processing with non-zero mentions
-3. Also investigate why Margaret Donaldson disappeared (may be LLM variance)
+Re-run analysis to verify:
+1. Both `split_0` (father) and `split_1` (son) survive with non-zero mentions
+2. Each character has correct profile data (father = middle-aged, son = young)
+3. Margaret Donaldson appears in output (monitor for LLM variance)

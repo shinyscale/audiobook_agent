@@ -1454,13 +1454,48 @@ class CharacterAgent(Agent):
                     f"based on summary labels: {sorted(labels_found)}"
                 )
 
+                # CRITICAL: Partition aliases between split children to prevent one child
+                # from absorbing all mentions while the other has 0 and gets filtered.
+                #
+                # Example: "John Donaldson" splits into father and son
+                # - Father gets: "the father", "John Donaldson (the father)"
+                # - Son gets: "the son", "John Donaldson (the son)"
+                # - SHARED: "John Donaldson", "John" go to BOTH (context disambiguates)
+                original_aliases = list(char.aliases) if hasattr(char, 'aliases') and char.aliases else []
+
+                # Build alias partition for each label
+                label_to_aliases = {}
+                shared_aliases = []
+
+                for alias in original_aliases:
+                    # Check if this alias belongs to a specific label
+                    assigned_to_label = None
+                    for label in labels_found:
+                        # Exact match with label in parentheses
+                        if f"({label})" in alias.lower():
+                            assigned_to_label = label
+                            break
+                        # Exact match with the label itself (e.g., "the father", "the son")
+                        if alias.lower() == label.lower():
+                            assigned_to_label = label
+                            break
+
+                    if assigned_to_label:
+                        # This alias belongs to a specific split child
+                        if assigned_to_label not in label_to_aliases:
+                            label_to_aliases[assigned_to_label] = []
+                        label_to_aliases[assigned_to_label].append(alias)
+                    else:
+                        # This is a shared alias (base name, nicknames, etc.)
+                        shared_aliases.append(alias)
+
                 # Create separate character for each label
                 for i, label in enumerate(sorted(labels_found)):
-                    # CRITICAL: Copy original aliases to split characters
-                    # Both father and son can be referred to as "John Donaldson", "Johnny", etc.
-                    # Context will disambiguate which one is meant in each passage
-                    # Without aliases, mention search finds nothing → 0 mentions → no profile
-                    split_aliases = list(char.aliases) if hasattr(char, 'aliases') and char.aliases else []
+                    # Build this child's alias list: label-specific + shared
+                    split_aliases = label_to_aliases.get(label, []) + shared_aliases
+
+                    # Also add the disambiguated canonical as an alias
+                    split_aliases.append(f"{effective_base_name} ({label})")
 
                     new_char = Character(
                         id=f"{char.id}_split_{i}",
