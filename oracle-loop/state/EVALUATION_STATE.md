@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 17
-- **Phase:** awaiting_fix
+- **Attempt:** 18
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -345,6 +345,14 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **Result:** **REGRESSION** — Father character (`split_0`) completely absorbed into son. Only 5 characters remain (down from 7). The standalone label aliases ("the father", "the son") created new absorption vectors that bypassed the post-split validation from attempt 16.
 - **Modified:** `src/agents/characters.py` (lines 1632-1634)
 
+### Attempt 18 - Fix: Revert attempt 17 changes
+- **Issue addressed:** Father character (`split_0`) absorbed into son (CRITICAL #1 from attempt 17)
+- **Root cause:** `src/agents/characters.py:1631-1634` - The attempt 17 addition of split labels ("the father", "the son") as standalone aliases created new absorption vectors
+- **Fix:** Removed lines 1631-1634 that added label as alias. This restores the attempt 16 stable extraction state.
+- **Smoke test:** PASSED - no import errors, method exists, syntax valid
+- **Expected result:** Both father and son characters should exist (like attempt 16). Son profile contamination will remain but is now recognized as a PROFILING issue, not an extraction issue.
+- **Modified:** `src/agents/characters.py` (removed lines 1631-1634)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -371,6 +379,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 15 | Son's profile contamination | `name_disambiguator.py` (split label detection) | **REGRESSION** — son absorbed as alias. LLM nondeterminism primary cause. |
 | 16 | LLM nondeterminism defenses | `characters.py` (3 defensive protections) | **SUCCESS** — extraction stable. Son profile contamination remains (profiling issue). |
 | 17 | Son profile contamination (via extraction aliases) | `characters.py:1632-1634` (label as alias) | **REGRESSION** — father absorbed into son. Standalone label aliases created new absorption vector. |
+| 18 | Father absorbed into son (CRITICAL #1 from attempt 17) | `characters.py` (revert lines 1631-1634) | **REVERT** — Restored attempt 16 state. Awaiting analysis to confirm both chars exist. |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -392,12 +401,13 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 15 | 5.90 | -0.70 | **REGRESSION: Son absorbed as alias of father. Uncle Bill lost narrator and demoted. Father wrongly narrates.** |
 | 16 | 7.28 | +0.68 | **RECOVERY: LLM defenses worked!** Both chars exist, narrator correct. Son profile still contaminated. Approaching attempt 3 high (7.35). |
 | 17 | 6.33 | -0.27 | **REGRESSION: Father absorbed into son.** Attempt 17 fix (label aliases) created new absorption vector. MUST REVERT. |
+| 18 | TBD | TBD | **REVERT FIX APPLIED** — Removed attempt 17 changes. Expecting return to ~7.28 score (attempt 16 level). |
 
 ## Next Action
 
-**IMMEDIATE: Revert attempt 17 changes** to `src/agents/characters.py:1632-1634`. This will restore the attempt 16 extraction state where both father and son exist.
+**Re-run analysis to verify the revert restored both father and son characters.**
 
-**THEN: Fix son profile contamination in the PROFILING pipeline** (`name_disambiguator.py`), NOT in the extraction pipeline. The key insight from attempts 15 and 17: modifying extraction aliases to help profiling causes extraction regressions. The profiling layer must solve its own disambiguation problem by:
+**FUTURE (if revert succeeds):** Address son profile contamination in the PROFILING pipeline (`name_disambiguator.py`), NOT in the extraction pipeline. The key insight from attempts 15 and 17: modifying extraction aliases to help profiling causes extraction regressions. The profiling layer must solve its own disambiguation problem by:
 1. Parsing the split label from the canonical name itself (e.g., "John Donaldson (the father)" → "the father")
 2. Using contextual signals in gathered passages (age references, generational markers, specific actions like embezzlement vs. soldiering)
 3. NOT relying on alias-level signals that could interfere with extraction

@@ -1628,11 +1628,6 @@ class CharacterAgent(Agent):
                     # Also add the disambiguated canonical as an alias
                     split_aliases.append(f"{effective_base_name} ({label})")
 
-                    # Add the label itself as an alias so name_disambiguator can find it
-                    # E.g., "the father", "the son" - critical for profile disambiguation
-                    if label not in split_aliases:
-                        split_aliases.append(label)
-
                     new_char = Character(
                         id=f"{char.id}_split_{i}",
                         canonical_name=f"{effective_base_name} ({label})",
