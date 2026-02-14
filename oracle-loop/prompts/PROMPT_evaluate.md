@@ -177,6 +177,8 @@ Using your knowledge of the book:
 - Is front/back matter handled appropriately?
 - Are any chapters merged or split incorrectly?
 
+**Short stories and continuous texts:** If the text has no chapter headings, section breaks, or structural markers, it is a continuous text. Correctly identifying it as a single section should score **9-10**. Artificially splitting a continuous text into multiple sections is a structural error (score 6-7). Do not penalize a single-section result for a text that genuinely has no divisions.
+
 **Score: __/10**
 
 **Issues found:**
@@ -184,12 +186,26 @@ Using your knowledge of the book:
 
 ### 2.2 Character Extraction (Weight: 25%)
 
+Evaluate three sub-dimensions independently, then provide an overall score.
+
+**Sub-Dimension A: Completeness**
 Using your knowledge of the book's characters:
-- Are all major characters present?
-- Are there false splits (same person listed twice)?
-- Are there false merges (different people combined)?
-- Are aliases correctly grouped?
+- Are all major characters (>10 mentions) present?
+- Are important minor characters included?
 - Are there hallucinated characters (entries completely invented, not in text)?
+- Are any real characters missing entirely?
+
+**Sub-Dimension B: Identity Resolution**
+- Are there false splits (same person listed as two entries)?
+- Are there false merges (two different people combined into one entry)?
+- Are same-name characters correctly disambiguated (e.g., father/son, Sr./Jr., generational names like multiple José Arcadio Buendías)?
+- This is the hardest sub-dimension — same-name disambiguation requires the pipeline to recognize contextual clues (age references, relationship markers, scene-level presence)
+
+**Sub-Dimension C: Alias Grouping**
+- Are aliases correctly grouped (full name = nickname = title+name)?
+- Are there self-aliases (canonical name appears in its own alias list)?
+- Are there invalid aliases (possessive forms, fragments, endearments that aren't names)?
+- Are titles handled correctly (Dr., Mr., Mrs., Sergeant-Major)?
 
 **IMPORTANT: Symbolic objects/forces ARE valid extractions:**
 If an object, symbol, or pervasive presence appears frequently and drives the plot, extracting it as a "character" is ACCEPTABLE for narrator preparation. Do NOT penalize extractions like:
@@ -225,10 +241,13 @@ These are narratively significant elements that narrators need to understand. On
 - Critical: All five Bennet sisters must be distinct
 - Critical: Elizabeth = Lizzy = Eliza
 
-**Score: __/10**
+**Completeness: __/10**
+**Identity Resolution: __/10**
+**Alias Grouping: __/10**
+**Overall Character Extraction Score: __/10**
 
 **Issues found:**
-- (List specific problems)
+- (List specific problems, noting which sub-dimension each issue affects)
 
 ### 2.3 Character Profiles (Weight: 15%)
 
@@ -389,6 +408,9 @@ Do NOT use alternative formats like "8 out of 10" or "8.0 / 10".
 ## Latest Scores
 - Structure Detection: {score}/10 {✓ if >= 8.0, ✗ otherwise}
 - Character Extraction: {score}/10 {✓ if >= 8.0, ✗ otherwise}
+  - Completeness: {score}/10
+  - Identity Resolution: {score}/10
+  - Alias Grouping: {score}/10
 - Character Profiles: {score}/10 {✓ if >= 8.0, ✗ otherwise}
 - Chapter Summaries: {score}/10 {✓ if >= 8.0, ✗ otherwise}
 - Pronunciation Guide: {score}/10 {✓ if >= 8.0, ✗ otherwise}
@@ -401,7 +423,7 @@ Do NOT use alternative formats like "8 out of 10" or "8.0 / 10".
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-{numbered list of critical issues with details}
+{numbered list of critical issues with details — note which sub-dimension each affects}
 
 ### HIGH
 {numbered list of high issues}
@@ -531,6 +553,9 @@ Here's what a good evaluation update to EVALUATION_STATE.md looks like:
 ## Latest Scores
 - Structure Detection: 10/10 ✓
 - Character Extraction: 6/10 ✗ (FAILING)
+  - Completeness: 8/10
+  - Identity Resolution: 4/10 ← false split is primary blocker
+  - Alias Grouping: 6/10
 - Character Profiles: 7/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
@@ -543,7 +568,7 @@ Here's what a good evaluation update to EVALUATION_STATE.md looks like:
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False character split: Gatsby**
+1. **False character split: Gatsby** [Identity Resolution]
    - Problem: "Jay Gatsby" (312 mentions) and "Gatsby" (287 mentions) listed separately
    - Evidence: These refer to the same person; the text uses both interchangeably
    - Location: Likely `src/agents/character_agent.py` in alias resolution

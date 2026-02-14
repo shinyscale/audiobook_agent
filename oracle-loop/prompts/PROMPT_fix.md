@@ -478,6 +478,15 @@ Review the issues in `state/EVALUATION_STATE.md`, prioritized by severity:
 
 Focus on **CRITICAL** issues first. You may address **one issue per scoring category** per iteration (see Guidelines for category definitions and coupling warnings).
 
+### 2.1 Use Character Extraction Sub-Scores
+
+If Character Extraction is failing, check the three sub-scores in EVALUATION_STATE.md:
+- **Completeness** — Are characters missing or hallucinated?
+- **Identity Resolution** — Are there false merges/splits or same-name confusion?
+- **Alias Grouping** — Are name variants incorrectly linked or unlinked?
+
+**Target the weakest sub-dimension.** If Identity Resolution is 5/10 but Completeness is 8/10, focus your fix on merge/split logic — do NOT modify code that affects which characters are found. A fix that improves one sub-dimension but damages another is a lateral move, not progress. Each issue in the issues list is tagged with the sub-dimension it affects (e.g., `[Identity Resolution]`) — use this to stay focused.
+
 ## 3. Investigate
 
 Before making changes, understand the current implementation:

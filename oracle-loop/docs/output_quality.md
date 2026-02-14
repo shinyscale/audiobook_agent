@@ -42,6 +42,12 @@ This rubric defines evaluation criteria for audiobook narrator preparation docum
 - [ ] Roman numerals handled correctly
 - [ ] "Chapter" vs "Book" vs "Part" hierarchy correct
 
+**Short Stories and Continuous Texts:** Some texts have no structural markers — no chapter headings, no section breaks, no parts. For these texts:
+- Correctly identifying the text as a **single continuous section** should score **9-10**
+- Artificially splitting a continuous text into multiple sections is a **structural error** (score 6-7)
+- The pipeline should recognize the absence of structure, not invent structure that doesn't exist
+- Do NOT penalize a single-section result for a text that genuinely has no divisions
+
 ---
 
 ### 2. Character Extraction (Weight: 25%)
@@ -57,15 +63,27 @@ This rubric defines evaluation criteria for audiobook narrator preparation docum
 | 1-3 | Poor: Major characters missing or incorrectly merged/split |
 | 0 | Failed: Character extraction completely wrong |
 
-**Checklist:**
-- [ ] All major characters (>10 mentions) identified
-- [ ] No false character splits (same person as two entries)
-- [ ] No false character merges (two people as one entry)
-- [ ] Aliases correctly grouped (full name = nickname = title+name)
-- [ ] Titles handled correctly (Dr., Mr., Mrs., etc.)
-- [ ] Nicknames linked to canonical names
-- [ ] No hallucinated characters (entries completely invented, not in text)
-- [ ] First appearance chapter is accurate
+#### Sub-Dimensions
+
+Character Extraction must be scored on three independent sub-dimensions. These sub-scores are **required** alongside the overall category score to enable targeted fixes and prevent regression spirals.
+
+| Sub-Dimension | What It Measures | Checklist |
+|--------------|-----------------|-----------|
+| **Completeness** | All significant characters found, none missing, none hallucinated | All major characters (>10 mentions) present? Important minor characters included? No hallucinated entries? |
+| **Identity Resolution** | Merges and splits are correct, same-name disambiguation works | No false merges (two people as one)? No false splits (one person as two)? Same-name characters (father/son, Sr./Jr., generational) correctly disambiguated? |
+| **Alias Grouping** | Name variants correctly linked under canonical names | Full name linked to nicknames? Titles (Dr., Mr.) linked? No self-aliases (canonical name in alias list)? No invalid aliases (possessives, fragments)? |
+
+**Scoring sub-dimensions:** Each sub-dimension uses the same 0-10 scale. The overall Character Extraction score is the evaluator's holistic judgment (not necessarily an average of sub-scores), but **all three sub-scores must be reported**.
+
+**Format:**
+```
+- Character Extraction: 7/10 ✗
+  - Completeness: 8/10
+  - Identity Resolution: 5/10
+  - Alias Grouping: 8/10
+```
+
+**Why this matters:** A fix that improves Identity Resolution from 5→7 but drops Completeness from 8→6 looks like lateral movement on the overall score (7→7). Sub-scores make the tradeoff visible, enabling the fix agent to preserve gains while targeting the weakest dimension.
 
 **Note on symbolic objects/forces:** If an object, symbol, or force appears frequently and drives the plot (e.g., "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"), extracting it as a "character" is ACCEPTABLE for narrator preparation. Narrators need to know about significant narrative elements regardless of sentience. Do NOT penalize these extractions.
 
@@ -74,6 +92,7 @@ This rubric defines evaluation criteria for audiobook narrator preparation docum
 - Full names and nicknames not linked
 - Titled references (Mr. X) not linked to full names
 - Minor characters filtered out too aggressively
+- Same-name characters (father/son, generational names) incorrectly merged into one entry
 
 ---
 
