@@ -610,6 +610,43 @@ class CharacterAgent(Agent):
             f"V2 Step 5.10.6 complete: {len(supporting_cast)} supporting after fragment filter"
         )
 
+        # STEP 5.10.7: Split same-name supporting characters when summaries disambiguate them
+        # This is the same logic as Step 1.6 but applied to supporting cast.
+        # Example: If main cast extraction missed "John Donaldson" and it fell through to
+        # supporting cast, summaries may have "John Donaldson (the father)" and "John Donaldson (the son)"
+        # which should trigger a split even though it's in supporting cast.
+        logger.info("V2 Step 5.10.7: Checking for same-name disambiguation in supporting cast")
+        before_split = len(supporting_cast)
+        supporting_cast = self._split_disambiguated_same_name_characters(
+            supporting_cast, chapter_summaries
+        )
+        after_split = len(supporting_cast)
+        logger.info(
+            f"V2 Step 5.10.7 complete: {len(supporting_cast)} supporting after same-name split"
+        )
+
+        # If split occurred, re-run mention search for the new split characters
+        if after_split > before_split:
+            logger.info(
+                f"V2 Step 5.10.7.1: Re-running mention search for {after_split - before_split} split characters"
+            )
+            try:
+                split_results = searcher.search_all(supporting_cast)
+                supporting_cast = searcher.update_characters_with_mentions(
+                    supporting_cast, split_results
+                )
+                # Update global mention_results
+                mention_results.update(split_results)
+
+                # Populate first appearance chapter for split characters
+                for char in supporting_cast:
+                    r = split_results.get(char.id)
+                    if r and r.chapter_distribution:
+                        chapters_list = sorted(r.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters_list[0]
+            except Exception as e:
+                logger.warning(f"Split character mention search failed: {e}")
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results

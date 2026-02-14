@@ -283,6 +283,24 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **Result:** PARTIALLY WORKED — Ch2 `characters_present` now has "John Donaldson (the son)", "John Donaldson (the father)", "John Donaldson (the uncle)". But "the uncle" is Uncle Bill misidentified as John Donaldson, and Step 1.6 still didn't produce a split.
 - **Modified:** `src/pipeline/chapter_summary/summarizer.py` (lines 115-129, 191-205)
 
+### Attempt 8 - Fix 1: Clarify summary disambiguation - don't relabel distinct characters
+- **Issue addressed:** Father/son John Donaldson conflation (CRITICAL #1) — TWO-PRONGED FIX
+- **Root cause (deeper analysis):**
+  1. Main cast extraction missed John Donaldson(s) entirely (only Margaret extracted as main_cast_4)
+  2. John fell through to supporting cast (supporting_0) which has no disambiguation logic
+  3. Summary prompt labeled Uncle Bill as "John Donaldson (the uncle)" - WRONG, he's a different person
+- **Fix 1:** Added CRITICAL clarification to summary disambiguation prompt:
+  - "Only disambiguate characters who ACTUALLY share the same base name"
+  - Example: "Uncle Bill" should NOT be relabeled as "John Donaldson (the uncle)"
+- **Fix 2:** Extended Step 1.6 logic to supporting cast:
+  - Added Step 5.10.7 which applies `_split_disambiguated_same_name_characters()` to supporting cast
+  - Includes mention re-search for split characters (Step 5.10.7.1)
+  - Universal fix: helps any book where same-name characters fall through to supporting cast
+- **Modified:**
+  - `src/pipeline/chapter_summary/summarizer.py` (lines 122-129, applied to both CONSOLIDATE_PROMPT and SINGLE_CHAPTER_PROMPT)
+  - `src/agents/characters.py` (lines 613-637, new Step 5.10.7 and 5.10.7.1)
+- **Smoke test:** All 298 tests passed
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -299,13 +317,14 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 6 | Father/son conflation | `characters.py` (re-enable Step 1.6) | **DID NOT FIRE — upstream data lacks disambiguation** |
 | 6 | Narrator flag | `characters.py` (fallback matching) | Partial fix — both chars now is_narrator=true |
 | 7 | Father/son conflation | `summarizer.py` (UPSTREAM FIX - prompt disambiguation) | **PARTIAL** — disambiguation appeared in characters_present but Uncle Bill misidentified as "John Donaldson (the uncle)"; Step 1.6 still no split |
+| 8 | Father/son conflation | `summarizer.py` (prompt clarification) + `characters.py` (Step 5.10.7) | **TWO-PRONGED FIX** — Fix 1 prevents Uncle Bill mislabeling; Fix 2 applies Step 1.6 to supporting cast (universal) |
 
-**⚠️ FATHER/SON JOHN DONALDSON — 7 ATTEMPTS, STILL UNRESOLVED:**
-- Attempts 1-6: Downstream fixes in characters.py and main_cast.py — all failed
-- Attempt 7: Upstream fix in summarizer.py — PARTIALLY WORKED (data now available but Step 1.6 didn't produce split)
-- **ROOT CAUSE NARROWED:** The upstream data is now partially correct. Two remaining issues:
-  1. Summary LLM incorrectly labeled Uncle Bill as "John Donaldson (the uncle)" — need to fix prompt to be clearer
-  2. Step 1.6 may need debugging to understand why it doesn't split even with 2 valid same-name variants
+**⚠️ FATHER/SON JOHN DONALDSON — 8 ATTEMPTS:**
+- Attempts 1-7: Various approaches, all failed or partially worked
+- Attempt 8: Two-pronged fix addressing BOTH root causes:
+  1. **Upstream (summaries):** Prevent LLM from relabeling distinct characters (Uncle Bill → "John Donaldson (the uncle)")
+  2. **Downstream (supporting cast):** Apply Step 1.6 disambiguation logic to supporting cast (not just main cast)
+- **Expected impact:** Should split father/son John Donaldson even when they fall through to supporting cast extraction
 
 **⚠️ PRONUNCIATION STUCK:** 7 attempts, false positives remain at ~12 of 27. The CMU filter only works for short names. Need stronger LLM prompt filtering AND expanded post-filtering.
 
@@ -340,8 +359,13 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 7 | 7.33 | +0.73 | Summary disambiguation PARTIAL — data now in characters_present but Step 1.6 still no split. Uncle Bill sole narrator ✓. Margaret Donaldson present ✓. |
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Debug Step 1.6 + refine summary prompt (both sub-fixes needed)
-2. HIGH #2: Pronunciation false positive reduction
+Re-run analysis to verify two-pronged fix for father/son conflation:
+1. Summary prompt clarification should prevent Uncle Bill from being mislabeled as "John Donaldson (the uncle)"
+2. Step 5.10.7 should split father/son John Donaldson even in supporting cast
+
+Expected improvements:
+- Character Extraction: +1.5 points (father/son split resolved, canonical name improved)
+- Character Profiles: +0.5 points (separate profiles for each John)
+- Overall: ~+0.6 points (from 7.33 to ~7.93)

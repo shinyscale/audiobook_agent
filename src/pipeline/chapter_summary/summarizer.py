@@ -125,6 +125,11 @@ or a Sr. and Jr.), disambiguate them in active_characters using brief parentheti
 - Examples: "John Smith (the father)", "John Smith (the son)", "James Wilson Sr.", "James Wilson Jr."
 - Use the clearest distinguisher from the text: generational (father/son), age (elder/younger), or title (Sr./Jr.)
 
+CRITICAL: Only disambiguate characters who ACTUALLY share the same base name.
+- CORRECT: "John Donaldson (the father)" and "John Donaldson (the son)" - both have base name "John Donaldson"
+- WRONG: Labeling "Uncle Bill" as "John Donaldson (the uncle)" - Uncle Bill is a DIFFERENT person with DIFFERENT name
+If a character already has a distinct name (e.g., "Uncle Bill", "Aunt Mary"), keep that name as-is in active_characters.
+
 DO NOT include in active_characters:
 - Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
 - Authors or famous persons cited as examples or allusions
@@ -206,6 +211,11 @@ If the chapter contains multiple distinct characters who share the same name (e.
 or a Sr. and Jr.), disambiguate them in active_characters using brief parenthetical qualifiers:
 - Examples: "John Smith (the father)", "John Smith (the son)", "James Wilson Sr.", "James Wilson Jr."
 - Use the clearest distinguisher from the text: generational (father/son), age (elder/younger), or title (Sr./Jr.)
+
+CRITICAL: Only disambiguate characters who ACTUALLY share the same base name.
+- CORRECT: "John Donaldson (the father)" and "John Donaldson (the son)" - both have base name "John Donaldson"
+- WRONG: Labeling "Uncle Bill" as "John Donaldson (the uncle)" - Uncle Bill is a DIFFERENT person with DIFFERENT name
+If a character already has a distinct name (e.g., "Uncle Bill", "Aunt Mary"), keep that name as-is in active_characters.
 
 DO NOT include in active_characters:
 - Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
