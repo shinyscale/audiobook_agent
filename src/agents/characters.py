@@ -1994,6 +1994,19 @@ class CharacterAgent(Agent):
                 if other_idx == idx or other_idx in chars_to_remove:
                     continue
 
+                # SAFETY CHECK: Don't merge characters from same split operation
+                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
+                # don't let middle initial matching re-merge them
+                if "_split_" in char.id and "_split_" in other_char.id:
+                    char_base = char.id.rsplit("_split_", 1)[0]
+                    other_base = other_char.id.rsplit("_split_", 1)[0]
+                    if char_base == other_base:
+                        logger.info(
+                            f"Skipping merge of split characters (Pass 0): '{char_name}' and '{other_char.canonical_name}' "
+                            f"(both from split operation {char_base})"
+                        )
+                        continue  # Skip - these are intentionally split characters
+
                 other_name = other_char.canonical_name.strip()
                 if other_name.lower() == name_without_middle.lower():
                     # Found a match! Merge the one with FEWER mentions into the one with MORE
@@ -2043,6 +2056,19 @@ class CharacterAgent(Agent):
             for other_idx, other_char in enumerate(main_cast):
                 if other_idx == idx or other_idx in chars_to_remove:
                     continue
+
+                # SAFETY CHECK: Don't merge characters from same split operation
+                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
+                # don't let last-name matching re-merge them
+                if "_split_" in char.id and "_split_" in other_char.id:
+                    char_base = char.id.rsplit("_split_", 1)[0]
+                    other_base = other_char.id.rsplit("_split_", 1)[0]
+                    if char_base == other_base:
+                        logger.info(
+                            f"Skipping merge of split characters (Pass 1): '{char_name}' and '{other_char.canonical_name}' "
+                            f"(both from split operation {char_base})"
+                        )
+                        continue  # Skip - these are intentionally split characters
 
                 other_name = other_char.canonical_name.strip()
                 if not other_name or " " not in other_name:
@@ -2188,6 +2214,19 @@ class CharacterAgent(Agent):
                 if other_idx == idx:
                     continue
 
+                # SAFETY CHECK: Don't merge characters from same split operation
+                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
+                # don't let last-name re-matching merge them
+                if "_split_" in char.id and "_split_" in other_char.id:
+                    char_base = char.id.rsplit("_split_", 1)[0]
+                    other_base = other_char.id.rsplit("_split_", 1)[0]
+                    if char_base == other_base:
+                        logger.info(
+                            f"Skipping merge of split characters (Pass 3): '{char_name}' and '{other_char.canonical_name}' "
+                            f"(both from split operation {char_base})"
+                        )
+                        continue  # Skip - these are intentionally split characters
+
                 other_name = other_char.canonical_name.strip()
                 if not other_name or " " not in other_name:
                     continue
@@ -2273,6 +2312,19 @@ class CharacterAgent(Agent):
                 for other_idx, other_char in enumerate(final_main_cast):
                     if other_idx <= idx or other_idx in chars_to_remove_pass4:
                         continue  # Only check each pair once
+
+                    # SAFETY CHECK: Don't merge characters from same split operation
+                    # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
+                    # don't let descriptive synonym matching merge them
+                    if "_split_" in char.id and "_split_" in other_char.id:
+                        char_base = char.id.rsplit("_split_", 1)[0]
+                        other_base = other_char.id.rsplit("_split_", 1)[0]
+                        if char_base == other_base:
+                            logger.info(
+                                f"Skipping merge of split characters (Pass 4): '{char.canonical_name}' and '{other_char.canonical_name}' "
+                                f"(both from split operation {char_base})"
+                            )
+                            continue  # Skip - these are intentionally split characters
 
                     other_name = other_char.canonical_name.lower().strip()
                     other_is_the_form, other_descriptor = _normalize_descriptor(

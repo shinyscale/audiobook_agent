@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Attempt:** 19
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -374,6 +374,19 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 - **Result:** **DID NOT RESTORE ATTEMPT 16 STATE** — Son character still absorbed into father. LLM nondeterminism produced different extraction results despite identical code. Only 4 characters in output (attempt 16 had 7).
 - **Modified:** `src/agents/characters.py` (removed lines 1631-1634)
 
+### Attempt 19 - Fix: Universal split sibling merge protection
+- **Issue addressed:** Son character (`split_1`) absorbed into father (`split_0`) despite attempt 12 SAFETY CHECK (CRITICAL #1)
+- **Root cause:** `src/agents/characters.py:1947-2360` - `_merge_within_main_cast()` has 4 merge passes (Pass 0-3), but SAFETY CHECK 2 only protected Pass 2 (spelling variants). Split siblings could be re-merged in Pass 0 (middle initial), Pass 1 (last-name-only), Pass 3 (re-run last-name), or Pass 4 (descriptive synonyms).
+- **Fix:** Added the same SAFETY CHECK to ALL 4 merge passes to create a universal hard block preventing split siblings from EVER being re-merged
+- **Modified locations:**
+  - Line ~1997: Pass 0 safety check (middle initial variants)
+  - Line ~2060: Pass 1 safety check (last-name-only)
+  - Line ~2145: Pass 2 safety check (already existed - spelling variants)
+  - Line ~2217: Pass 3 safety check (re-run last-name matching)
+  - Line ~2316: Pass 4 safety check (descriptive synonyms)
+- **Smoke test:** Code compiles successfully, all 5 safety checks verified
+- **Modified:** `src/agents/characters.py` (4 new safety checks added)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -401,6 +414,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 | 16 | LLM nondeterminism defenses | `characters.py` (3 defensive protections) | **SUCCESS** — extraction stable. Son profile contamination remains (profiling issue). |
 | 17 | Son profile contamination (via extraction aliases) | `characters.py:1632-1634` (label as alias) | **REGRESSION** — father absorbed into son. Standalone label aliases created new absorption vector. |
 | 18 | Father absorbed into son (revert attempt 17) | `characters.py` (revert lines 1631-1634) | **DID NOT RESTORE** — Son absorbed into father (different direction than attempt 17). LLM nondeterminism. |
+| 19 | Universal split sibling merge protection | `characters.py` (4 new safety checks in Passes 0,1,3,4) | **PENDING ANALYSIS** — Added hard block to prevent re-merge across ALL merge passes |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
