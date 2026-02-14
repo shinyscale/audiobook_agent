@@ -3,13 +3,24 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 11)
+- ✅ Analysis completed successfully in 36m 45s
+- ✅ Competitive consensus ENABLED for all 3 stages (characters, structure, summaries)
+- ✅ 5 characters detected
+- ✅ "John Donaldson (the father)" extracted as separate character with 29 mentions
+- ⚠️ "John (the boy)" rejected as hallucination (0 text mentions)
+- ⚠️ Some ungrounded evidence quotes: father (6), Uncle Bill (3), Ted Frith (3)
+- ⚠️ LLM validation error during pronunciation enrichment (model returned error-like response)
+- Total LLM calls: 70 | Total tokens: 105,417
+- Profiling bottleneck: Character Profiles (26.1% of time)
 
 ## Pipeline Notes (Attempt 10)
 - **MAJOR SUCCESS:** Father/son split WORKED! Output shows "John Donaldson (the father)" and "John Donaldson (the son)" as separate characters
