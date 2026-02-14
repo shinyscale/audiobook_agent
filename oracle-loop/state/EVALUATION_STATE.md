@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -304,6 +304,22 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **Root cause:** Condition should be `if len(labels_found) < 2` not `if not labels_found`
 - **Modified:** `src/agents/characters.py` (lines 1400-1467)
 
+### Attempt 10 - Fix 1: Correct alias fallback condition in _split_disambiguated_same_name_characters()
+- **Issue addressed:** Father/son John Donaldson conflation (CRITICAL #1) — final fix
+- **Root cause:** `src/agents/characters.py:1421` - condition `if not labels_found` is wrong
+  - Ch1 has "John (the son)" → canonical "John" matches → `labels_found = {'the son'}` (1 label)
+  - Set is truthy → alias fallback SKIPPED
+  - Only 1 label found → split doesn't trigger (need ≥ 2)
+- **Fix:** Changed line 1421 from `if not labels_found` to `if len(labels_found) < 2`
+  - Now: when canonical finds only 1 label, alias fallback runs
+  - Alias "John Donaldson" matches Ch2 refs → finds 2 labels ("the father", "the son")
+  - Split triggers correctly
+- **Smoke test:** PASS - Logic verified against actual data:
+  - Ch1: `"John (the son)"` matches canonical → 1 label found
+  - Ch2: `"John Donaldson (the father)"`, `"John Donaldson (the son)"` match alias → 2 labels found
+  - New condition triggers alias fallback → split should fire
+- **Modified:** `src/agents/characters.py` (line 1421)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -322,6 +338,7 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 7 | Father/son conflation | `summarizer.py` (UPSTREAM FIX - prompt disambiguation) | **PARTIAL** — disambiguation appeared but Uncle Bill mislabeled |
 | 8 | Father/son conflation | `summarizer.py` (prompt clarification) + `characters.py` (Step 5.10.7) | **PARTIAL** — Summary fix worked, but regex mismatch prevents split |
 | 9 | Father/son conflation | `characters.py` (alias fallback — wrong condition) | **DID NOT WORK** — `if not labels_found` should be `if len(labels_found) < 2` |
+| 10 | Father/son conflation | `characters.py:1421` (fix condition) | **APPLIED** — one-line fix: `if len(labels_found) < 2` |
 
 **⚠️ FATHER/SON JOHN DONALDSON — 9 ATTEMPTS:**
 - Upstream data is CORRECT (attempts 7-9): summaries properly disambiguate father/son
@@ -360,4 +377,11 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 9 | 7.08 | +0.48 | Alias fallback added but wrong condition (`not labels_found` vs `len < 2`). Margaret regression. |
 
 ## Next Action
-Run PROMPT_fix.md to fix alias fallback condition (one-line change) and pronunciation false positives.
+Run PROMPT_analyze.md to re-run analysis with corrected alias fallback condition.
+
+**Expected impact:**
+- Father/son John Donaldson should split into 2 characters ✓
+- Margaret Donaldson may reappear (LLM stochasticity)
+- Character Extraction: 6.5 → 8.0+ (father/son split + better canonical names)
+- Character Profiles: 7.0 → 8.0+ (no more conflation)
+- Overall: 7.08 → ~7.8+

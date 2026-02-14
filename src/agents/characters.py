@@ -1413,11 +1413,12 @@ class CharacterAgent(Agent):
                     label = match.group(1).strip()
                     labels_found.add(label)
 
-            # If no labels found with canonical name, try each alias
+            # If fewer than 2 labels found with canonical name, try each alias
             # Example: canonical="John", alias="John Donaldson"
             # Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
             # Pattern with canonical "John" won't match, but "John Donaldson" will
-            if not labels_found and hasattr(char, 'aliases') and char.aliases:
+            # Also handles case where canonical finds 1 label but alias finds both
+            if len(labels_found) < 2 and hasattr(char, 'aliases') and char.aliases:
                 for alias in char.aliases:
                     # Skip possessive forms and very short aliases
                     if alias.endswith("'s") or len(alias) <= 2:
