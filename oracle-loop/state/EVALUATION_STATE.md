@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,181 +12,179 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes (Attempt 12)
-- Analysis completed in 35m 3s
+- Analysis completed in 30m 47s
 - Competitive consensus enabled (3 temperatures: 0.5, 0.7, 0.9)
-- All stages using competitive voting (characters, structure, summaries)
-- **Characters found:** 4 (John Donaldson [the son], Uncle Bill, Joe Barron, Ted Frith)
-- **WARNING:** Summary shows "John Donaldson (the son) (aka John Donaldson, the father)" with 58 mentions - possible false merge
-- F6 warning: Rejected 'John (the son)' from summary (0 text mentions)
-- F19 warnings: Uncle Bill and Ted Frith profiles have potentially ungrounded quotes
+- **Characters found:** 4 (John Donaldson (the son), Uncle Bill, Joe Barron, Ted Frith)
+- **REGRESSION:** Only `main_cast_1_split_1` (son) exists — `split_0` (father) is MISSING
+- **REGRESSION:** The son's character has the FATHER's profile (appearance, personality, quotes)
+- **REGRESSION:** The son's aliases include "the father" and "John Donaldson (the father)"
+- **REGRESSION:** Margaret Donaldson is completely MISSING (was present in attempt 11)
+- **IMPROVEMENT:** Uncle Bill is now `is_narrator: true` and `role: "protagonist"` ✓
 - Structure: 2 chapters detected
-- Pronunciation: 24 entries flagged
+- Pronunciation: 24 entries flagged (all categories null)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 5.5/10 ✗ (REGRESSION from 7.5)
-- Character Profiles: 7.5/10 ✗ (IMPROVEMENT from 6.5)
+- Character Extraction: 4.5/10 ✗ (MAJOR REGRESSION from 5.5)
+- Character Profiles: 5/10 ✗ (REGRESSION from 7.5)
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 6.5/10 ✗
-- HTML Presentation: 8/10 ✓
-- **Overall: 6.90/10** (reference only)
+- HTML Presentation: 6.5/10 ✗ (REGRESSION from 8)
+- **Overall: 6.10/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (5 categories below threshold)
+**Status:** FAIL (6 categories below threshold)
 
 ## Detailed Evaluation
 
 ### 2.1 Structure Detection: 7/10 ✗
 
-Unchanged. "American, Sir" is a continuous short story with no explicit chapter markers. The tool produces 2 sections, both with null titles (displayed as "Chapter 1" and "Chapter 2"). This is workable but not ideal — 1 section would be more accurate for a text with no structural markers.
+Unchanged from prior attempts. "American, Sir" is a continuous short story with no explicit chapter markers. The tool produces 2 sections, both with null titles (displayed as "Chapter 1" and "Chapter 2"). This is workable but not ideal — 1 section would be more accurate.
 
 Score: 7/10
 
-### 2.2 Character Extraction: 5.5/10 ✗ (MAJOR REGRESSION from 7.5)
+### 2.2 Character Extraction: 4.5/10 ✗ (MAJOR REGRESSION from 5.5)
 
-**CRITICAL REGRESSION: John Donaldson (the son) is MISSING as a separate character.**
+The merge-protection fix in Step 3.5 worked (split characters are no longer re-merged), but a **new critical problem** emerged: only `split_1` (the son) exists. The father character (`split_0`) is completely missing from the output. Even worse, the son's character contains the father's data:
 
-Attempt 10 had 6 characters with father and son as separate entries. Attempt 11 has only 5 characters — the son has been absorbed as an ALIAS of the father:
-
-```
-"John Donaldson (the father)" aliases: ["John Donaldson", "the father", "John Donaldson (the son)", "John"]
-```
-
-Having "John Donaldson (the son)" as an alias of the father is a **false merge** — these are two different people (father and son, different ages, different roles in the story).
-
-Characters found (5 total — was 6):
-- `main_cast_1_split_0`: John Donaldson (the father) (mentions=29, role=protagonist, narrator=TRUE) ✗ WRONG
-- `main_cast_3`: Margaret Donaldson (mentions=2, role=supporting) ✓
-- `supporting_1`: Uncle Bill (mentions=18, role=minor, narrator=FALSE) ✗ WRONG — Uncle Bill IS the narrator
-- `supporting_2`: Joe Barron (mentions=3, role=minor) ✓
-- `supporting_3`: Ted Frith (mentions=5, aliases=["Ted"], role=minor) ✓
+**Current character list (4 total — was 5 in attempt 11):**
+- `main_cast_1_split_1`: "John Donaldson (the son)" — has FATHER's profile data
+  - Aliases: ["John Donaldson", "the father", "John", "John Donaldson (the father)"] ✗ WRONG — "the father" and "John Donaldson (the father)" should not be aliases of the son
+  - Appearance: "middle-aged man", "fifty-five or over", "olive skin" — this is the FATHER's appearance ✗
+  - Personality: "committed theft and abandonment" — this is the FATHER's personality ✗
+  - Voice: father's quotes ("American, sir", "Took money...") ✗
+  - Relationships: self-referential — "John Donaldson (the son): parent" ✗
+  - 58 mentions (combined father+son mentions)
+- `supporting_1`: Uncle Bill (18 mentions, `is_narrator: true`, `role: "protagonist"`) ✓ FIXED
+- `supporting_2`: Joe Barron (3 mentions) ✓
+- `supporting_3`: Ted Frith (5 mentions, alias "Ted") ✓
 
 **Issues:**
-1. **FALSE MERGE (son into father):** The son character ("John Donaldson (the son)") from attempt 10 has been absorbed as an alias of the father. This is a critical error — the entire story hinges on these being two separate people.
-2. **NARRATOR REGRESSION:** Uncle Bill is marked `is_narrator: false`, while the father is marked `is_narrator: true`. Uncle Bill is definitively the first-person narrator of this story. The father never narrates — he is narrated about.
-3. **ROLE INVERSION:** Uncle Bill is demoted to "minor" while the father is "protagonist". Uncle Bill should be the protagonist/narrator. The father is a major character but not the narrator.
-4. **Only one split child created:** The split produced `main_cast_1_split_0` (father) but no `split_1` (son). The split logic created only the father and merged the son into it as an alias.
+1. **FATHER CHARACTER MISSING**: `main_cast_1_split_0` doesn't exist in output. The split appears to have created both children, but only `split_1` survived. The father may have been filtered out or merged into the son in a downstream step.
+2. **SON HAS FATHER'S DATA**: All profile data on the son character actually describes the father. The son should be: young, 12 years old initially, later 18, ambulance driver, brave and dutiful. Instead he has: "middle-aged", "fifty-five or over", "committed theft".
+3. **WRONG ALIASES ON SON**: "the father" and "John Donaldson (the father)" are listed as aliases of the son — these should belong to a separate father character.
+4. **MARGARET DONALDSON MISSING**: Was `main_cast_3` in attempt 11 with 2 mentions. Now completely absent.
+5. **SELF-REFERENTIAL RELATIONSHIP**: The son's relationships include "John Donaldson (the son): parent" — a character lists itself as its own parent.
 
-Score: 5.5/10 — major regression from 7.5. The false merge of son into father, narrator misassignment, and role inversion are all critical errors.
+**What went right:**
+- Uncle Bill narrator assignment is FIXED ✓
+- Uncle Bill role is now "protagonist" ✓ (was "minor")
+- Joe Barron and Ted Frith correct ✓
 
-### 2.3 Character Profiles: 7.5/10 ✗ (IMPROVEMENT from 6.5)
+Score: 4.5/10 — the father character vanishing and the son inheriting the father's identity is worse than the previous false merge.
 
-**Major improvement:** The father now has a rich, detailed profile (appearance, personality, voice guidance) thanks to the alias propagation fix enabling mention search and profiling.
+### 2.3 Character Profiles: 5/10 ✗ (REGRESSION from 7.5)
 
-**John Donaldson (the father) profile:**
-- Appearance: "middle-aged man with a dark, olive complexion" — accurate ✓
-- Details: "big, athletic, grizzled" — matches text ✓
-- Personality: "morally ambiguous man who committed financial fraud" — accurate ✓
-- Voice guidance: "begins weary and rough... softens into quiet dignity" — excellent ✓
-- Speech patterns: "formal, uses restrained language" — accurate ✓
-- Quotes: All correctly attributed to the father ✓
-- Relationships: spouse=Margaret, parent=son, victimizer=Uncle Bill — "victimizer" is odd (Uncle Bill was not his victim; if anything the father victimized his family through embezzlement)
+The "son" character has an excellent profile — but it's the FATHER's profile attached to the wrong character:
+- Appearance describes the father (middle-aged, olive skin, fifty-five) — WRONG for the son
+- Personality describes the father (theft, abandonment, dishonor) — WRONG for the son
+- Voice guidance has the father's quotes — WRONG for the son
+- No actual son profile exists anywhere
 
-**Uncle Bill profile:**
-- Appearance: "elderly man with reserved presence" — reasonable ✓
-- Personality: "emotionally reserved but capable of deep loyalty" — accurate ✓
-- Voice guidance: "low, measured baritone with deliberate pauses" — excellent ✓
-- Quotes: "You know, Uncle Bill..." — this is actually someone ELSE addressing Uncle Bill, not Uncle Bill's speech. Misattribution ✗
-- Verbal tics: "I am not soft-hearted", "You know, Uncle Bill...", "Sincerely, Uncle Bill" — the first is good, second is how others address him, third is his sign-off ✓ mostly
-- Relationships: "victimizer" for father (wrong label — should be "cousin" or "guardian")
+Uncle Bill's profile is good and improved:
+- Appearance: "elderly man", "thin hair", "sits by fire with cigar" ✓
+- Personality: "crusty exterior conceals compassion" ✓
+- Voice guidance: "low, gravelly, measured tone" ✓
+- Verbal tics include "Uncle Bill" (how others address him, not his tic) — minor issue
+- Relationship "family" with "John Donaldson (the father)" — references a character that doesn't exist ✗
 
-**Ted Frith profile:**
-- Has appearance, personality, and voice guidance — good for a minor character ✓
-- "heroic protagonist" — not a protagonist, just a brave soldier. Overblown but not critically wrong.
+No father character means no father profile. No son profile exists (the son only has the father's profile).
 
-**Missing:** No profile for John Donaldson (the son) since he doesn't exist as a separate character. This is a direct consequence of the false merge in Character Extraction.
-
-Score: 7.5/10 — significant improvement from 6.5 because the father and Uncle Bill now have rich profiles. But the missing son profile and some relationship mislabeling hold it back.
+Score: 5/10 — Uncle Bill's profile is good, but the complete misattribution of the father's profile to the son character is a major error. No actual son profile or father profile exists correctly.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗
 
-**Section 1 summary:** Good quality. Captures the letter, Uncle Bill's reaction, memories of cousin John, Margaret's dignity. `characters_present: ["the narrator", "John (the boy)"]` — uses "the narrator" instead of "Uncle Bill" (minor inconsistency).
+**Chapter 1 summary:** Good quality. Captures the letter, Uncle Bill's reaction, memories of cousin John, Margaret's dignity. `characters_present: ["the narrator", "John (the son)"]` — uses "the narrator" instead of "Uncle Bill" (minor inconsistency).
 
-**Section 2 summary:** Comprehensive and well-written. **PERSISTENT factual error:** "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son. This has now persisted across ALL 11 attempts. The LLM consistently hallucinates "sister" from the uncle-nephew relationship. Everything else in Ch2 is accurate — war service, Caporetto, discovery of the father, reconciliation, death scene.
+**Chapter 2 summary:** Comprehensive. **PERSISTENT factual error:** "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son. This has persisted across ALL 12 attempts. The LLM consistently hallucinates "sister" from the uncle-nephew relationship. Everything else in Ch2 is accurate — war service, Caporetto, discovery of the father, reconciliation, death scene.
 
-**Ch2 characters_present:** `["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"]` — correctly disambiguated ✓ (even though the character extraction didn't preserve this split).
+**Ch2 characters_present:** `["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"]` — correctly disambiguated ✓
 
 Score: 7.5/10 — the "sister" hallucination is the primary issue.
 
 ### 2.5 Pronunciation Guide: 6.5/10 ✗
 
-25 entries, all categories null.
+24 entries, all categories null.
 
 **Genuinely useful entries (~9):** Caporetto, Piave, Solferino, Tagliamento, Bersagliari, Venetia, Guerre, Bordeaux, mayn't
 
 **Homographs (acceptable — 5):** live, minute, read, close, moderate
 
-**False positives (~11):** Donaldson, Barron, Frith, Margaret, whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, was
+**False positives (~10):** Donaldson, Barron, Frith, whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, was
 
 **IPA issues:**
-- "Barron" now `/ˈbærən/` — FIXED from previous wrong stress ✓
-- "orderlies" still `/ˈɔːr.dər.laɪz/` — wrong (should be `/ˈɔːr.dər.liz/`) ✗
+- "orderlies" still `/ˈɔːr.dər.laɪz/` — wrong (should be `/ˈɔːr.dər.liz/`)
 - "was" `/wɒz/` — common word, shouldn't be flagged at all
-- All categories null — no categorization (foreign, homograph, etc.)
+- All categories null — no categorization
 
-Score: 6.5/10 — good Italian/French geographic coverage but ~11 false positives and all categories null.
+Score: 6.5/10 — good Italian/French geographic coverage but ~10 false positives and all categories null.
 
-### 2.6 HTML Presentation: 8/10 ✓
+### 2.6 HTML Presentation: 6.5/10 ✗ (REGRESSION from 8)
 
-Well-organized report with functional navigation, tabs, character profiles with appearance/personality/voice sections. The father's profile is now rich and detailed.
+The HTML is well-organized with functional navigation and tabs. However the character data errors severely impact usability for a narrator:
 
-**Issues:**
-- Father's aliases show "John Donaldson (the son)" — confusing to a narrator reading the report, since the son is listed as the father's alias
-- Uncle Bill shown as "minor" role — misleading for the narrator/protagonist
-- Father shown as narrator — wrong
+- **"John Donaldson (the son)" shown as main character with father's profile** — deeply confusing. A narrator would read that the "son" is "middle-aged, fifty-five or over" and has "committed theft and abandonment"
+- **Aliases show "the father" under the son** — nonsensical to a narrator
+- **Self-referential relationship** — "John Donaldson (the son): parent" — the character is listed as its own parent
+- **References non-existent character** — Uncle Bill's relationships reference "John Donaldson (the father)" who doesn't exist in the character list
+- **No father character at all** — a narrator preparing this story would have no guidance for voicing the father
+- **Margaret Donaldson missing** — no entry for her at all
 
-Score: 8/10 — functional and well-organized, but the character data issues bleed through into misleading presentation.
+The structural and functional elements of the HTML are fine, but the data quality makes it misleading.
+
+Score: 6.5/10 — functional layout degraded by severely incorrect character data.
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10) + (8 × 0.10)
-        = 1.40 + 1.375 + 1.125 + 1.50 + 0.65 + 0.80
-        = 6.85
+Overall = (7 × 0.20) + (4.5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10) + (6.5 × 0.10)
+        = 1.40 + 1.125 + 0.75 + 1.50 + 0.65 + 0.65
+        = 6.075
 ```
 
-**Overall: 6.85/10**
+**Overall: 6.10/10** (rounded)
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - No LLM retries across any stage (good)
 - Temperature 0.7 across all agents
-- `main_cast_count: 2` (father and Margaret) — Margaret should not be main cast with only 2 mentions
+- `main_cast_count: 2` — but Margaret disappeared, so effectively main cast has only 1 (the merged son/father)
 - `supporting_count: 3` (Uncle Bill, Joe, Ted)
-- Only one split character created (`main_cast_1_split_0`) — split_1 missing
+- Only one split character survived (`main_cast_1_split_1`) — `split_0` missing
 - All pronunciation categories null
-- `physical_description` null for all 5 characters (rich data is in `appearance` field instead)
+- `physical_description` null for all characters (data is in `appearance` field)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **FALSE MERGE: Son absorbed as alias of father**
-   - Problem: "John Donaldson (the son)" appears as an ALIAS of "John Donaldson (the father)" instead of being a separate character. Only `main_cast_1_split_0` (father) was created; no `split_1` (son) exists.
-   - Evidence: `characters[0].aliases = ["John Donaldson", "the father", "John Donaldson (the son)", "John"]` — "the son" should never be an alias of the father
-   - Root cause: The split logic in `_split_disambiguated_same_name_characters()` likely created both split children, but then the alias propagation or downstream merge logic incorrectly combined them. OR the split only created one child and assigned the son's label as an alias.
-   - Location: `src/agents/characters.py` — `_split_disambiguated_same_name_characters()` method. Need to trace why only one split character was created and why the son's disambiguated label ended up as a father alias.
-   - Fix: Ensure the split creates TWO separate Character objects (one per disambiguated label found in `characters_present`). The son's label should become the son's canonical name, NOT an alias of the father. Check that downstream merge/dedup logic doesn't re-merge split characters.
-   - Impact: Would raise Character Extraction from 5.5 to ~7.5+
+1. **FATHER CHARACTER (`split_0`) MISSING FROM OUTPUT**
+   - Problem: The split in Step 1.6 should create both `main_cast_1_split_0` (father) and `main_cast_1_split_1` (son). In attempt 11, only `split_0` survived and absorbed the son. Now in attempt 12 (after the merge-protection fix), only `split_1` survives. The father character has vanished entirely.
+   - Evidence: `jq '.characters[] | .id' analysis.json` shows `main_cast_1_split_1` but no `split_0`. The son's aliases include "the father" and "John Donaldson (the father)" — the father's identity was absorbed into the son.
+   - Root cause: The Step 3.5 merge-protection fix prevented the re-merge in Pass 2, but there may be ANOTHER merge point that absorbs `split_0` into `split_1`, OR the split itself may be only creating one child. The split logic in `_split_disambiguated_same_name_characters()` needs investigation — it may be assigning ALL aliases (including the father's disambiguated label) to the son, then the father has no aliases/mentions and gets filtered out by a minimum-mention threshold.
+   - Location: `src/agents/characters.py` — `_split_disambiguated_same_name_characters()` (split creation logic) and any downstream filtering that removes characters with 0 mentions
+   - Fix:
+     1. Investigate what happens to `split_0` — does it get created? Does it get filtered?
+     2. Ensure each split child gets ONLY its own aliases (son gets "the son" variants, father gets "the father" variants, shared aliases like "John Donaldson" and "John" go to BOTH)
+     3. Ensure the split properly distributes mentions (not 58 to one, 0 to the other)
+   - Impact: Would raise Character Extraction from 4.5 to ~7+ and Profiles from 5 to ~7+
 
-2. **NARRATOR MISASSIGNMENT: Father is narrator, Uncle Bill is not**
-   - Problem: `is_narrator: true` on father, `is_narrator: false` on Uncle Bill. Uncle Bill is definitively the first-person narrator.
-   - Evidence: The story opens with Uncle Bill's internal monologue and all events are told from his perspective. The father is a character narrated about.
-   - Root cause: The alias propagation may have caused the narrator flag to transfer to the father (since "John" was originally tagged as narrator in some earlier pipeline step, and now the father inherits all of John's attributes including narrator status).
-   - Location: `src/agents/characters.py` — narrator assignment logic. Check if the split character inherits `is_narrator` from the pre-split character that may have been incorrectly tagged.
-   - Fix: After split, re-evaluate narrator assignment. The narrator flag should be on the character whose canonical name matches the narrator detection output (Uncle Bill), not on a split character.
-   - Impact: Would raise Character Extraction by ~0.5 points
+2. **SON CHARACTER HAS FATHER'S PROFILE AND ALIASES**
+   - Problem: The son's profile describes the father (middle-aged, olive skin, committed theft). The son's aliases include "the father". This is a direct consequence of Issue #1 — all data was assigned to the son instead of being split.
+   - Evidence: `characters[0].appearance.details.age = "fifty-five or over"` but this character is "John Donaldson (the son)" who is 12-18 years old
+   - This will be fixed by fixing Issue #1
 
 ### HIGH
 
-3. **Uncle Bill demoted to "minor" role**
-   - Problem: Uncle Bill has `role: "minor"` despite being the first-person narrator and protagonist with 18 mentions
-   - Evidence: He narrates the entire story, drives the plot, and is the emotional center
-   - Location: Role assignment in character pipeline — supporting cast defaults to "minor"
-   - Fix: Narrator should automatically get "protagonist" role, or at minimum "supporting"
+3. **Margaret Donaldson MISSING**
+   - Problem: Margaret was `main_cast_3` in attempt 11 (2 mentions). Now completely absent from output.
+   - Evidence: Margaret is the wife of the father/cousin John. She writes the letter informing Uncle Bill of John's death. She is a named, speaking character.
+   - Root cause: May be related to the split changes or a different main cast extraction result in this run.
+   - Location: Check if the main cast pipeline produced Margaret in this run or if she was lost.
+   - Fix: This may be an LLM variance issue (competitive consensus dropped her) rather than a code bug. Monitor.
 
-4. **Pronunciation false positives (~11 of 25)**
-   - Problem: Common English words flagged: was, whippersnapper, thriftless, thickset, manliness, orderlies, dum-dums. Common names: Donaldson, Barron, Frith, Margaret
+4. **Pronunciation false positives (~10 of 24)**
+   - Problem: Common English words flagged: was, whippersnapper, thriftless, thickset, manliness, orderlies, dum-dums. Common names: Donaldson, Barron, Frith
    - All pronunciation categories are null
    - "orderlies" IPA still wrong (`/laɪz/` instead of `/liz/`)
    - Location: `src/pipeline/pronunciation_guide/`
@@ -194,8 +192,8 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 
 5. **Chapter 2 summary factual error: "sister" instead of "cousin"**
    - Problem: "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son
-   - Persisted across ALL 11 attempts — LLM consistently hallucinates "sister" for Ch2
-   - Location: Summary generation — the "cousin" context from Ch1 may not be included in Ch2's overlap
+   - Persisted across ALL 12 attempts — LLM consistently hallucinates "sister" for Ch2
+   - Location: Summary generation — the "cousin" context from Ch1 may not be in Ch2's overlap
    - Fix: Increase summary chunk overlap to ensure the "cousin" relationship from Ch1 is visible in Ch2's context
 
 ### MEDIUM
@@ -203,22 +201,17 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 6. **Structure: 2 sections for a continuous short story**
    - 1 section would be more accurate for a text with no structural markers
 
-7. **Father-Uncle Bill relationship labeled "victimizer"**
-   - The father is labeled as Uncle Bill's "victimizer" — Uncle Bill was not victimized by the father. The father victimized his own family. "cousin" or "ward's father" would be more accurate.
-
-8. **Uncle Bill's verbal tics include others' speech**
-   - "You know, Uncle Bill..." is how the SON addresses Uncle Bill, not Uncle Bill's verbal tic
-
-9. **Ch1 characters_present says "the narrator" instead of "Uncle Bill"**
+7. **Ch1 characters_present says "the narrator" instead of "Uncle Bill"**
    - Minor inconsistency with Ch2 which correctly uses "Uncle Bill"
+
+8. **Self-referential relationship on son character**
+   - "John Donaldson (the son): parent" — the character references itself
+   - Will be fixed by fixing the split (Issue #1)
 
 ### LOW
 
-10. **Ted Frith still missing "Teddy" alias**
+9. **Ted Frith still missing "Teddy" alias**
     - Text uses "Teddy" 2x but not captured
-
-11. **Margaret in main_cast with only 2 mentions**
-    - Should be supporting cast, not main cast
 
 ## Fix History
 
@@ -325,15 +318,11 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 - **Result:** **PARTIAL SUCCESS / NEW REGRESSION** — Father now has 29 mentions and rich profile (alias propagation worked). BUT: only ONE split child created (father). The son was absorbed as an alias of the father instead of becoming a separate character. Narrator flag incorrectly transferred to father.
 - **Modified:** `src/agents/characters.py` (lines 1459-1470)
 
-### Attempt 12 - Fix 1: Prevent re-merge of split characters
+### Attempt 12 - Fix 1: Prevent re-merge of split characters in Step 3.5
 - **Issue addressed:** Son absorbed as alias of father (CRITICAL #1 regression from attempt 11)
-- **Root cause:** `src/agents/characters.py:1905-1945` - Step 3.5 `_merge_within_main_cast()` Pass 2 (spelling variants) uses fuzzy matching that re-merges split characters
-- **Data investigation:**
-  - Character IDs show only `main_cast_1_split_0` (father) exists, no `split_1` (son)
-  - Father's aliases include "John Donaldson (the son)" which should be a separate character
-  - Split created both father and son correctly in Step 1.6, but Step 3.5 fuzzy matching (~85% similarity) merged them back together
-- **Fix:** Add SAFETY CHECK 2 in Pass 2 to skip merge if both characters come from the same split operation (check if `_split_` in ID and same base ID before `_split_` suffix)
-- **Universality check:** YES - this prevents re-merging any same-name disambiguated characters (father/son, Sr./Jr., elder/younger, etc.)
+- **Root cause:** `src/agents/characters.py:1904-1923` - Step 3.5 `_merge_within_main_cast()` Pass 2 (spelling variants) uses fuzzy matching that re-merges split characters
+- **Fix:** Added SAFETY CHECK 2 in Pass 2 to skip merge if both characters come from the same split operation
+- **Result:** **PARTIAL SUCCESS / NEW PROBLEM** — Merge protection worked (split chars not re-merged), but NOW only `split_1` (son) survives while `split_0` (father) is MISSING. The son inherited all the father's data. The fix prevented one failure mode but exposed another: the split itself or alias distribution is assigning everything to one child.
 - **Modified:** `src/agents/characters.py` (lines 1904-1923)
 
 ## Modification History
@@ -356,7 +345,14 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 9 | Father/son conflation | `characters.py` (alias fallback — wrong condition) | **DID NOT WORK** — condition bug |
 | 10 | Father/son conflation | `characters.py:1421` (fix condition) | **SUCCESS** — split works, but 0 mentions/no profiles |
 | 11 | Split chars empty | `characters.py:1459-1470` (alias propagation) | **PARTIAL** — father profiled, but son merged as alias; narrator regression |
-| 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PENDING VERIFICATION** |
+| 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PARTIAL** — merge protection works, but `split_0` (father) now MISSING. Son has father's data. |
+
+**PATTERN DETECTED:** `characters.py` has been modified in 10 of 12 attempts for the father/son split issue. The split logic (`_split_disambiguated_same_name_characters`) is the core problem area. Each fix addresses one symptom but exposes another:
+- Attempt 10: Split works but chars are empty shells
+- Attempt 11: Aliases propagated but all go to one child → re-merge
+- Attempt 12: Merge protection works but alias distribution is wrong → one child has everything, other has nothing and gets filtered
+
+**ROOT CAUSE:** The alias distribution in `_split_disambiguated_same_name_characters()` gives ALL original aliases to EACH split child. The child whose disambiguated label comes first in the `characters_present` data absorbs all mentions, leaving the other child with 0 mentions and likely getting filtered. The fix must PARTITION aliases between split children, not copy all to both.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -372,10 +368,17 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 9 | 7.08 | +0.48 | Alias fallback added but wrong condition. Margaret regression. |
 | 10 | 7.25 | +0.65 | **Father/son split SUCCESS!** Margaret restored. But split chars have 0 mentions, no profiles. |
 | 11 | 6.85 | +0.25 | Father profiled (29 mentions). **REGRESSION: son merged as alias of father. Narrator on wrong character.** |
+| 12 | 6.10 | -0.50 | Merge protection works. **NEW REGRESSION: father (`split_0`) missing entirely. Son has father's data. Margaret missing.** |
 
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis to verify fix:
-- Split characters (father and son) should both exist as separate characters
-- Narrator assignment should be re-evaluated (may self-correct with proper split)
+**CRITICAL: The split alias distribution must be fixed.** The core problem is that `_split_disambiguated_same_name_characters()` gives ALL original aliases to each split child instead of PARTITIONING them. This means one child absorbs all mentions during the mention search step, and the other has 0 mentions and gets dropped.
+
+**Required fix:**
+1. In `_split_disambiguated_same_name_characters()`, PARTITION aliases between split children:
+   - Father gets: "John Donaldson (the father)", "the father"
+   - Son gets: "John Donaldson (the son)", "the son"
+   - SHARED aliases ("John Donaldson", "John") go to BOTH children
+2. Verify that both `split_0` and `split_1` survive downstream processing with non-zero mentions
+3. Also investigate why Margaret Donaldson disappeared (may be LLM variance)
