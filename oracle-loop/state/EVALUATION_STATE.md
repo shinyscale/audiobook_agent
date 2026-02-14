@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 10)
+- Analysis completed in 35m 30s
+- **MAJOR SUCCESS:** Father/son split WORKED! Output shows "John Donaldson (the father)" and "John Donaldson (the son)" as separate characters
+- Character count: 6 (up from 4 in attempt 9)
+- Margaret Donaldson appears (regression from attempt 9 is FIXED)
+- Some warnings about ungrounded evidence quotes for Uncle Bill (2) and Ted Frith (3)
+- One summary hallucination rejected: 'John (the boy)' with 0 text mentions
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
