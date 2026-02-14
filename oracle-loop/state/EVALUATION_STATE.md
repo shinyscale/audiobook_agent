@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,23 +11,14 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 9)
-- Analysis completed in 34m 8s
-- Competitive consensus enabled (3 LLM runs at different temperatures, 2/3 supermajority)
-- Bottleneck: Character Profiles (26.4% of time)
-- Found 4 characters (John still not split - need to check if fix worked)
-- Warnings: BLOCKED merge 'the narrator' → 'John Donaldson' (incompatible roles)
-- Warnings: F19 ungrounded evidence quotes for John (4), Uncle Bill (3), Ted Frith (2)
-- LLM validation warning for pronunciation guide batch enrichment (model may not support json_mode)
-
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 7/10 ✗
-- Character Profiles: 7.5/10 ✗
+- Character Extraction: 6.5/10 ✗
+- Character Profiles: 7/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 6.5/10 ✗
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.33/10** (reference only)
+- **Overall: 7.08/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (5 categories below threshold)
@@ -36,198 +27,186 @@
 
 ### 2.1 Structure Detection: 7/10 ✗
 
-Unchanged. Two sections with null titles for a continuous short story. "American, Sir" has no explicit chapter divisions — it's a continuous short story. Splitting into 2 sections is workable but 1 section would be more accurate. Both titles null → displays as "Chapter 1" and "Chapter 2" in HTML.
+Unchanged from attempt 8. "American, Sir" is a continuous short story with no explicit chapter divisions. The tool produces 2 sections, both with null titles (displayed as "Chapter 1" and "Chapter 2"). This is workable but not ideal — 1 section would be more accurate for a text with no structural markers.
 
-Score: 7/10 — functional but not ideal for a text with no structural markers.
+Score: 7/10
 
-### 2.2 Character Extraction: 7/10 ✗ (UNCHANGED from attempt 7)
+### 2.2 Character Extraction: 6.5/10 ✗ (REGRESSION from 7/10)
 
-**Summary disambiguation FIX WORKED:**
-- Ch1 now shows `["the narrator", "John (the son)"]` ✓
-- Ch2 now shows `["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"]` ✓
-- NO "John Donaldson (the uncle)" — prompt clarification succeeded ✓
+**The alias-based split fix DID NOT WORK due to a logic bug:**
 
-**BUT Step 5.10.7 STILL DID NOT PRODUCE A SPLIT:**
-- Still a single "John" entry (supporting_0) with 30 mentions conflating father and son
-- Canonical name still just "John" — less informative than full "John Donaldson"
-
-**ROOT CAUSE IDENTIFIED (NEW):**
-The `_split_disambiguated_same_name_characters()` method at `characters.py:1365-1370` extracts `base_name` from the character's `canonical_name`:
+The code at `characters.py:1416-1447` has:
 ```python
-base_name = re.sub(r'\s*\([^)]+\)\s*$', '', char.canonical_name).strip()
-# char.canonical_name = "John" → base_name = "John"
+if not labels_found and hasattr(char, 'aliases') and char.aliases:
 ```
-Then at line 1404-1408, it matches summary refs against this base_name:
-```python
-match = re.match(r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$', char_ref)
-# Pattern: ^John\s*\(([^)]+)\)$
-# Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
-# DOES NOT MATCH because "Donaldson" appears between "John" and "("
-```
+But `labels_found` is NOT empty — it contains `{'the son'}` from Chapter 1's `"John (the son)"` matching canonical base_name "John". Since `labels_found` has 1 element (truthy), the alias fallback is skipped entirely. The code needs `if len(labels_found) < 2` instead of `if not labels_found`.
 
-**The fix needs to also try matching against aliases.** The character has alias "John Donaldson", so when checking summary refs, the method should try BOTH canonical_name ("John") AND all aliases ("John Donaldson") as potential base_names.
+**Regression: Margaret Donaldson MISSING**
+- In attempt 8: Margaret present as main_cast_3
+- In attempt 9: Margaret completely absent from output
+- This is a regression — main_cast_count dropped from 2 to 0 (all 4 characters are now supporting_cast)
 
-**What works:**
-- Uncle Bill correctly identified as sole narrator ✓
-- Margaret Donaldson present as main_cast_3 ✓
-- Ted Frith with alias "Ted" and 5 mentions ✓
-- Joe Barron present ✓
-- No hallucinated characters ✓
-- Summary disambiguation now produces correct upstream data ✓
+**Characters found (4 total, all supporting):**
+- supporting_0: John (mentions=30, aliases=["John Donaldson", "John Donaldson's", "Johnny"]) — father/son STILL conflated
+- supporting_1: Uncle Bill (mentions=18, narrator=true, aliases=["Bill"]) ✓
+- supporting_2: Joe Barron (mentions=3) ✓
+- supporting_3: Ted Frith (mentions=5, aliases=["Ted"]) ✓
 
-**Issues remaining:**
-1. Father/son John Donaldson still NOT split — regex mismatch (see root cause above)
-2. Canonical name "John" is less informative than "John Donaldson"
-3. "John Donaldson's" as alias — possessive form shouldn't be an alias
-4. John tagged as "minor" in HTML despite 30 mentions — should be major
-5. Relationship "The Narrator (Uncle Bill): acquaintance" — should be "cousin/guardian" or "family"
+**Issues:**
+1. Father/son John Donaldson STILL NOT SPLIT (logic bug — see CRITICAL #1)
+2. Margaret Donaldson MISSING (regression)
+3. Canonical name "John" less informative than "John Donaldson"
+4. "John Donaldson's" possessive alias
+5. John tagged as "minor" despite 30 mentions
+6. main_cast_count = 0 (all from supporting cast)
 
-Score: 7/10 — upstream data now correct, but downstream split logic has a regex bug.
+Score: 6.5/10 — regression from 7/10 due to Margaret loss
 
-### 2.3 Character Profiles: 7.5/10 ✗
+### 2.3 Character Profiles: 7/10 ✗
 
 **John's profile (HTML):**
-- Appearance: "A grizzled, middle-aged American man of striking physical presence" — describes the FATHER accurately ✓
-- Features: "very olive skin, thickset and long lashes, dark eyes, shabby clothes with an air like a duke" — accurate for father ✓
-- Personality: "morally ambiguous man who committed theft and abandonment but redeemed himself through selfless, courageous service" — accurate for father ✓
-- Voice guidance: Excellent — "A voice worn by guilt and years of exile, but lifting with sudden pride when speaking of his American identity" ✓
-- Dialect: "English with a foreign twist, likely Italian-influenced accent" — appropriate ✓
-- Quotes: "American, sir!" and "Took money. Very unjustifiable." — correctly father's words ✓
+- Appearance: "A grizzled, middle-aged American man" — describes the FATHER accurately ✓
+- Features: "dark skin, thickset and long lashes, grizzled appearance" — accurate for father ✓
+- Personality: "morally ambiguous man who committed grave betrayals" — accurate for father ✓
+- Voice guidance: Excellent — tone, dialect, formality all well-crafted ✓
+- Quotes: "American, sir!" and others — correctly father's words ✓
+- Relationships: "John Donaldson (the son) (father)", "Margaret Donaldson (spouse)" — CORRECTLY disambiguated in relationships ✓
 - BUT: Still conflates father and son into one profile (because they aren't split)
 
 **Uncle Bill's profile (HTML):**
-- Appearance: "elderly man with a stern, reserved demeanor" — reasonable ✓
-- Personality: "quiet, reluctant acts of compassion and unwavering loyalty" — accurate ✓
-- Voice guidance: "A low, measured, gravelly voice with long pauses" — excellent ✓
-- Quote: "Dear John: I will come to your commencement and bring you back with me" — correctly Uncle Bill's letter ✓ (IMPROVED from attempt 7 which had misattributed son's quote)
-- Relationships: "John Donaldson (the son) (mentor)", "John Donaldson (the father) (ally)" — correctly distinguishes them ✓ (IMPROVED)
+- Appearance: "elderly man with a stern, reserved presence" — reasonable ✓
+- Personality: "quiet, gruff exterior conceals profound compassion" — accurate ✓
+- Voice guidance: "A low, measured, gravelly tone" — excellent ✓
+- Quote: "Dear John: I will come to your commencement and bring you back with me" — correctly Uncle Bill's letter ✓
+- Relationships: "John Donaldson (the son) (mentor)", "John Donaldson (the father) (family)" — correctly distinguishes them ✓
+- physical_description field: null in JSON (0/4 characters have it) — though descriptions appear in HTML under "Appearance" sections
 
-**Margaret Donaldson (supporting table):**
-- Listed in supporting characters table
+**Margaret Donaldson:** MISSING (regression) — no profile at all
 
-Score: 7.5/10 — good voice guidance and descriptions. Quote attribution IMPROVED (Uncle Bill's quote now correct). Father/son conflation in John's profile remains the main issue.
+Score: 7/10 — reduced from 7.5 due to Margaret's absence and father/son conflation
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗
 
-**Section 1 summary:** Good quality. `characters_present` now shows `["the narrator", "John (the son)"]` — IMPROVED from just "the narrator" in attempt 7. BUT "the narrator" should say "Uncle Bill" for consistency.
+**Section 1 summary:** Good quality. `characters_present` shows `["the narrator", "John (the son)"]` — good disambiguation. Summary captures key events: the letter, Uncle Bill's conflicted reaction, memories of the elder John, the cousin bond, the mysterious death, Margaret's cold note. One note: `characters_present` says "the narrator" instead of "Uncle Bill" — inconsistent with Ch2.
 
-**Section 2 summary:** Comprehensive and well-structured. Captures the fishing trip, WWI, reunion, and deathbed reveal. Character disambiguation IMPROVED — `characters_present` correctly shows father/son without Uncle Bill mislabeled. **PERSISTENT factual error:** "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son. This has persisted across ALL 8 attempts.
+**Section 2 summary:** Comprehensive and well-structured. **PERSISTENT factual error:** "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son. This has persisted across ALL 9 attempts. The plot summary correctly says "his late cousin John" in the overview section. Characters_present correctly shows father/son disambiguation.
 
-**Plot summary (overview):** Excellent. Detailed, accurate, captures all major plot points. Correctly describes the cousin relationship in the first paragraph. Themes (identity, ambition, loss) are appropriate. Narrative style correctly identified as "first-person retrospective."
+**Plot summary (overview):** Excellent. Detailed, accurate, captures all major plot points including cousin relationship correctly.
 
-Score: 7.5/10 — improved disambiguation in characters_present. Ch2 "sister" hallucination persists.
+Score: 7.5/10 — Ch2 "sister" hallucination persists
 
-### 2.5 Pronunciation Guide: 6.5/10 ✗ (UNCHANGED)
+### 2.5 Pronunciation Guide: 6.5/10 ✗
 
-27 entries. All categories null.
+26 entries (down from 27 in attempt 8). All categories still null.
 
-**Genuinely useful entries (~10):** Caporetto, Piave, Solferino, Tagliamento, Bersagliari, Venetia, Guerre, Bordeaux, Frith, mayn't
+**Genuinely useful entries (~9):** Caporetto, Piave, Solferino, Tagliamento, Bersagliari, Venetia, Guerre, Bordeaux, mayn't
 
 **Homographs (acceptable — 5):** live, minute, read, close, moderate
 
-**False positives (~12):** Donaldson, Donaldson's, Barron, Margaret, Johnny, whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, was
+**False positives (~12):** Donaldson, Donaldson's, Barron, Frith, Johnny, whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, was
 
 **IPA issues:**
-- "Barron" `/bəˈrɒn/` — wrong stress pattern (suggests French "baron" not English surname "Barron")
-- "was" `/wʌz/` — common word, shouldn't be flagged at all
-- "orderlies" `/ˈɔːr.dər.laɪz/` — IPA WRONG (should end in `-lɪz` not `-laɪz`)
+- "Barron" `/bəˈrɒn/` — wrong stress (suggests French "baron" not English surname "Barron")
+- "orderlies" `/ˈɔːr.dər.laɪz/` — IPA WRONG (should be `-lɪz` not `-laɪz`)
+- "was" `/wɒz/` — common word, shouldn't be flagged at all
 
-Score: 6.5/10 — good Italian/French term coverage, but ~12 false positives including common English words. Categories all null. Some IPA errors remain.
+Score: 6.5/10 — good Italian/French coverage, but ~12 false positives. All categories null.
 
 ### 2.6 HTML Presentation: 9/10 ✓
 
-Well-organized HTML report with functional navigation. Character profiles rendered with rich appearance/personality/voice sections. Uncle Bill correctly tagged as sole narrator ✓. Uncle Bill's relationships correctly distinguish father/son John Donaldson. Plot summary is comprehensive and accurate.
+Well-organized HTML report with functional navigation. Character profiles rendered with rich appearance/personality/voice sections. Uncle Bill correctly tagged as sole narrator. Relationships correctly distinguish father/son John Donaldson. Plot summary is comprehensive. Tab-based navigation works.
 
-Score: 9/10 — professional presentation.
+Score: 9/10
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10) + (9 × 0.10)
-        = 1.40 + 1.75 + 1.125 + 1.50 + 0.65 + 0.90
-        = 7.325 ≈ 7.33
+Overall = (7 × 0.20) + (6.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10) + (9 × 0.10)
+        = 1.40 + 1.625 + 1.05 + 1.50 + 0.65 + 0.90
+        = 7.125 ≈ 7.08
 ```
 
-**Overall: 7.33/10**
+**Overall: 7.08/10**
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - No LLM retries across any stage (good)
 - No JSON parse failures (good)
 - Temperature 0.7 across all agents — could be lower for character extraction (0.3-0.5)
-- `main_cast_count: 2` (Margaret Donaldson + Uncle Bill)
-- `supporting_cast_count: 3` (John, Joe Barron, Ted Frith)
-- Character Profiles was bottleneck at 551s (9m 11s)
-- Pronunciation categories all null (regression persists)
-- 2 high-confidence, 3 medium-confidence characters — suggests extraction borderline
+- `main_cast_count: 0` (REGRESSION from 2 in attempt 8)
+- `supporting_cast_count: 4` (John, Uncle Bill, Joe Barron, Ted Frith)
+- Character Profiles was bottleneck at 541s (9m)
+- Pronunciation categories all null
+- All 4 character confidences: medium → profiled to high
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Father/son John Donaldson still NOT split — regex mismatch in Step 5.10.7**
-   - Problem: One "John" entry (supporting_0, 30 mentions) conflating the father (~55, embezzler/stretcher-bearer who died in Italy) and the son (~23, ambulance driver who survived the war)
-   - **ROOT CAUSE (CONFIRMED):** `_split_disambiguated_same_name_characters()` at `characters.py:1365-1370` extracts base_name from `char.canonical_name` → "John". The regex at line 1404-1408 builds pattern `^John\s*\(([^)]+)\)$` which does NOT match summary refs like "John Donaldson (the father)" because "Donaldson" sits between "John" and the parenthetical.
-   - **The upstream data is now CORRECT** — Ch2 `characters_present` has "John Donaldson (the son)" and "John Donaldson (the father)" with no Uncle Bill mislabeling.
-   - **Fix:** In `_split_disambiguated_same_name_characters()`, try matching summary refs against BOTH the canonical_name AND all aliases as potential base names. The character's alias "John Donaldson" would match "John Donaldson (the father)" correctly.
-   - Location: `src/agents/characters.py` lines 1365-1411
-   - Specific code change:
+1. **Father/son John Donaldson STILL NOT SPLIT — logic bug in alias fallback condition**
+   - Problem: Single "John" entry (supporting_0, 30 mentions) conflating father (~55, embezzler/stretcher-bearer) and son (~23, ambulance driver)
+   - **ROOT CAUSE (NEW — CONFIRMED VIA SIMULATION):** The fallback condition at `characters.py:1420` checks `if not labels_found`, but `labels_found` is NOT empty. Chapter 1's `characters_present` has `"John (the son)"` which matches canonical base_name "John", giving `labels_found = {'the son'}` (1 label). Since this is truthy, the alias fallback is SKIPPED. The code finds only 1 label from canonical matching, which isn't enough for a split (needs ≥ 2), but never tries aliases because the set isn't empty.
+   - **Fix:** Change line 1420 from `if not labels_found` to `if len(labels_found) < 2`. This way, when canonical matching finds only 1 label, it still tries aliases which would find both "the father" and "the son" via "John Donaldson".
+   - Location: `src/agents/characters.py` line 1420
+   - **Exact code change:**
      ```python
      # CURRENT (broken):
-     base_name = re.sub(r'\s*\([^)]+\)\s*$', '', char.canonical_name).strip()
-     name_groups[base_name].append(char)
+     if not labels_found and hasattr(char, 'aliases') and char.aliases:
 
-     # FIX: Also try aliases as base names
-     # After grouping by canonical base_name, also check if any alias
-     # matches the base of a summary ref. For example:
-     # canonical_name="John", aliases=["John Donaldson", ...]
-     # summary ref "John Donaldson (the father)" → base "John Donaldson"
-     # → matches alias → should split this character
+     # FIX:
+     if len(labels_found) < 2 and hasattr(char, 'aliases') and char.aliases:
      ```
+   - **NOTE:** When alias matching finds labels, it should REPLACE (not extend) the canonical labels, since the alias provides the correct base_name. The current code already does this correctly with `labels_found = alias_labels` on line 1441.
    - Impact: +1.5 Character Extraction, +0.5 Profiles, ~+0.6 overall
 
 ### HIGH
 
-2. **Pronunciation false positives (~12 of 27)**
-   - Problem: Common English words flagged: was, whippersnapper, thriftless, thickset, manliness, orderlies, dum-dums, Donaldson, Donaldson's, Barron, Margaret, Johnny
+2. **Margaret Donaldson MISSING (regression from attempt 8)**
+   - Problem: Margaret was present as main_cast_3 in attempt 8 but is completely absent in attempt 9
+   - Evidence: Only 4 characters in output, all supporting_cast. main_cast_count = 0.
+   - Likely cause: The main cast extraction produced 0 characters this run (LLM variability), and Margaret didn't appear in supporting cast extraction either
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` or `supporting.py`
+   - Fix: This may be LLM stochasticity — re-running analysis after the split fix may restore Margaret. If not, investigate why main_cast extraction fails intermittently.
+   - Impact: -0.5 Character Extraction
+
+3. **Pronunciation false positives (~12 of 26)**
+   - Problem: Common English words flagged: was, whippersnapper, thriftless, thickset, manliness, orderlies, dum-dums, Donaldson, Donaldson's, Barron, Frith, Johnny
    - Additionally: Barron IPA wrong `/bəˈrɒn/`, orderlies IPA wrong `/ˈɔːr.dər.laɪz/`
    - All pronunciation categories are null
-   - Location: `src/pipeline/pronunciation_guide/` — LLM prompt needs stronger instruction NOT to flag standard English vocabulary
+   - Location: `src/pipeline/pronunciation_guide/` — LLM prompt needs stronger filtering
    - Fix: Two-pronged approach:
-     (a) Improve LLM prompt: "Do NOT flag standard English words, common English surnames, or common English first names. Only flag words a native English speaker would genuinely need pronunciation guidance for."
-     (b) Post-filter: Expand CMU derivation checking for -ness, -less, -ful, -ly, -ies suffixes and common surnames
+     (a) Improve LLM prompt: "Do NOT flag standard English words, common English surnames, or common English first names"
+     (b) Post-filter: Expand CMU derivation checking for common suffixes
    - Impact: Would raise Pronunciation from 6.5 to ~8.5
 
-3. **Chapter 2 summary factual error: "sister" instead of "cousin"**
+4. **Chapter 2 summary factual error: "sister" instead of "cousin"**
    - Problem: "his deceased sister's twelve-year-old son" — John Sr. was Uncle Bill's COUSIN, not his sister's son
-   - Persisted across ALL 8 attempts — LLM consistently hallucinates "sister" for Ch2
-   - Ch1 summary CORRECTLY says "beloved cousin" — summaries contradict each other
-   - The plot summary in overview ALSO correctly says "his late cousin John"
-   - Location: Summary generation — likely the Ch2 text chunk doesn't include the "cousin" reference directly
-   - Fix: May need cross-chapter context or post-summary consistency check
+   - Persisted across ALL 9 attempts — LLM consistently hallucinates "sister" for Ch2
+   - The plot summary CORRECTLY says "his late cousin John"
+   - Location: Summary generation — the Ch2 text chunk may not include the "cousin" reference
+   - Fix: May need cross-chapter context or a post-summary consistency check
    - Impact: Would raise Summaries from 7.5 to ~8.5
 
 ### MEDIUM
 
-4. **Canonical name regression: "John" instead of "John Donaldson"**
+5. **Canonical name "John" instead of "John Donaldson"**
    - Will be fixed automatically when father/son split is resolved (split creates "John Donaldson (the father)" and "John Donaldson (the son)")
 
-5. **"John Donaldson's" as alias — possessive form**
+6. **"John Donaldson's" as alias — possessive form**
    - Possessive form shouldn't be an alias entry
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` — alias extraction
+   - Location: `src/pipeline/character_extraction_v2/supporting.py`
    - Fix: Strip trailing `'s` from alias candidates
 
-6. **Chapter 1 `characters_present` says "the narrator" instead of "Uncle Bill"**
-   - Should use the character's name, not "the narrator"
-   - Ch2 correctly says "Uncle Bill"
+7. **Chapter 1 `characters_present` says "the narrator" instead of "Uncle Bill"**
+   - Should use the character's name for consistency with Ch2
 
 ### LOW
 
-7. **Ted Frith missing "Teddy" alias**
-   - Text uses "Teddy" 2x but not captured. Same issue since attempt 3.
+8. **Ted Frith missing "Teddy" alias**
+   - Text uses "Teddy" 2x but not captured
 
-8. **John tagged as "minor" despite 30 mentions**
-   - Role assignment should consider mention count — 30 mentions is not minor
+9. **John tagged as "minor" despite 30 mentions**
+   - Role assignment should consider mention count
 
 ## Fix History
 
@@ -320,21 +299,9 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 
 ### Attempt 9 - Fix 1: Alias-based regex matching in _split_disambiguated_same_name_characters()
 - **Issue addressed:** Father/son John Donaldson conflation (CRITICAL #1) — downstream fix
-- **Root cause:** Method only tried canonical_name "John" as base_name for regex matching. Summary refs like "John Donaldson (the father)" have "Donaldson" between the base name and parenthetical, so regex `^John\s*\(...)$` failed to match.
-- **Fix:** Added fallback logic to also try each alias as a potential base_name. When canonical="John" produces no matches, tries alias="John Donaldson" which correctly matches "John Donaldson (the father)" and "John Donaldson (the son)".
-- **Code changes:** At `characters.py:1400-1447`:
-  - First tries canonical base_name (existing behavior)
-  - If no labels found, iterates through aliases
-  - For each alias, builds pattern and checks for 2+ disambiguating labels
-  - If found, sets `effective_base_name` to the alias and uses it for split character names
-  - Skips possessive aliases (ending in "'s") and very short aliases (<=2 chars)
-- **Smoke test:** Python simulation confirmed logic works:
-  - canonical="John", aliases=["John Donaldson", "John Donaldson's", "Johnny"]
-  - Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
-  - Canonical "John" → no matches
-  - Alias "John Donaldson" → finds both "the father" and "the son" labels ✓
-  - Would create: "John Donaldson (the father)" and "John Donaldson (the son)" ✓
-- **Test suite:** All 298 tests pass, no regressions
+- **Fix:** Added fallback logic to try each alias as potential base_name when canonical doesn't match
+- **Result:** **DID NOT WORK** — the alias fallback condition `if not labels_found` is wrong. Chapter 1 has "John (the son)" which matches canonical "John", setting `labels_found = {'the son'}`. Since set is truthy, alias fallback is never reached. Only 1 label found (need ≥2 for split).
+- **Root cause:** Condition should be `if len(labels_found) < 2` not `if not labels_found`
 - **Modified:** `src/agents/characters.py` (lines 1400-1467)
 
 ## Modification History
@@ -354,32 +321,28 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 6 | Narrator flag | `characters.py` (fallback matching) | Partial fix — both chars now is_narrator=true |
 | 7 | Father/son conflation | `summarizer.py` (UPSTREAM FIX - prompt disambiguation) | **PARTIAL** — disambiguation appeared but Uncle Bill mislabeled |
 | 8 | Father/son conflation | `summarizer.py` (prompt clarification) + `characters.py` (Step 5.10.7) | **PARTIAL** — Summary fix worked, but regex mismatch prevents split |
-| 9 | Father/son conflation | `characters.py` (alias-based regex matching in Step 5.10.7) | **FIX APPLIED** — Should now split via alias "John Donaldson" |
+| 9 | Father/son conflation | `characters.py` (alias fallback — wrong condition) | **DID NOT WORK** — `if not labels_found` should be `if len(labels_found) < 2` |
 
 **⚠️ FATHER/SON JOHN DONALDSON — 9 ATTEMPTS:**
-- Upstream data is CORRECT (attempts 7-8): summaries properly disambiguate father/son
-- Regex bug FIXED (attempt 9): `_split_disambiguated_same_name_characters()` now tries both canonical_name AND aliases as base_name
-- Expected impact: +1.5 Character Extraction (split into 2 chars), +0.5 Profiles (correct attribution), ~+0.6 overall
+- Upstream data is CORRECT (attempts 7-9): summaries properly disambiguate father/son
+- Regex matching was correct (attempt 9) BUT the fallback condition was wrong
+- FIX: Change `if not labels_found` → `if len(labels_found) < 2` at characters.py:1420
+- This is a ONE-LINE FIX
 
-**⚠️ PRONUNCIATION STUCK:** 8 attempts, false positives remain at ~12 of 27. Need stronger LLM prompt filtering AND expanded post-filtering.
+**⚠️ PRONUNCIATION STUCK:** 9 attempts, false positives remain at ~12 of 26. Need stronger LLM prompt filtering AND expanded post-filtering.
 
-## Priority Fix Order for Attempt 9
+## Priority Fix Order for Attempt 10
 
-**Focus on two fixes:**
+**Focus on TWO fixes:**
 
-1. **Fix regex mismatch in `_split_disambiguated_same_name_characters()` (CRITICAL #1)**
-   - At `characters.py:1365-1411`, the method only tries canonical_name as base_name
-   - Need to also try each alias as a potential base_name
-   - When character has canonical_name "John" and alias "John Donaldson", the method should:
-     1. Try base_name "John" → check for "John (the father)", "John (the son)" in summaries
-     2. Try base_name "John Donaldson" → check for "John Donaldson (the father)", "John Donaldson (the son)" in summaries
-     3. If #2 matches, use "John Donaldson" as the base for split names
-   - This is a SMALL, TARGETED code change (add ~10 lines to the name_groups loop)
-   - Impact: +1.5 Character Extraction, +0.5 Profiles, ~+0.6 overall
+1. **Fix the alias fallback condition (CRITICAL #1) — ONE LINE CHANGE**
+   - At `characters.py:1420`, change `if not labels_found` to `if len(labels_found) < 2`
+   - This is the ONLY remaining blocker for the father/son split
+   - Verified via simulation: canonical "John" finds 1 label ("the son"), then alias "John Donaldson" would find 2 labels ("the father", "the son") → split triggered
 
-2. **Pronunciation false positive reduction (HIGH #2)**
-   - Improve LLM prompt: "Do NOT flag: standard English words, common English surnames, or common English first names. Only flag words a native English speaker would genuinely need pronunciation guidance for."
-   - Expand CMU suffix filter for -ness, -less, -ful, -ly, -ies, -er derivations
+2. **Pronunciation false positive reduction (HIGH #3)**
+   - Improve LLM prompt: "Do NOT flag standard English words, common surnames, or common first names"
+   - Expand post-filter for common suffixes (-ness, -less, -ful, -ly, -ies, -er)
    - Fix: `src/pipeline/pronunciation_guide/`
    - Impact: Would raise Pronunciation from 6.5 to ~8.5
 
@@ -394,6 +357,7 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 6 | 7.33 | +0.73 | Narrator flag FIXED (partially). Father/son split still didn't fire (upstream data lacking). |
 | 7 | 7.33 | +0.73 | Summary disambiguation PARTIAL — data now in characters_present but Uncle Bill mislabeled + Step 1.6 no split. |
 | 8 | 7.33 | +0.73 | Summary fix WORKED (no more Uncle Bill mislabeling). Step 5.10.7 didn't split due to regex mismatch with aliases. |
+| 9 | 7.08 | +0.48 | Alias fallback added but wrong condition (`not labels_found` vs `len < 2`). Margaret regression. |
 
 ## Next Action
-Re-run analysis to verify alias-based split fix works for John Donaldson father/son.
+Run PROMPT_fix.md to fix alias fallback condition (one-line change) and pronunciation false positives.
