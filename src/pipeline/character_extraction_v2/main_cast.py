@@ -742,7 +742,9 @@ class MainCastExtractor:
             if not isinstance(char_data, dict):
                 continue
 
-            canonical_name = self._clean_canonical_name(char_data.get("canonical_name", "").strip())
+            # DON'T clean canonical names in Pass 2 - we need exact matches to find characters
+            # from Pass 1, which may include intentional disambiguation labels like "(the father)"
+            canonical_name = char_data.get("canonical_name", "").strip()
             if not canonical_name:
                 continue
 
@@ -792,6 +794,29 @@ class MainCastExtractor:
 
             # SEMANTIC VALIDATION: Check if merge makes sense
             # Block merges that are semantically incompatible (e.g., "the Creature" → "the magistrate")
+
+            # Rule 0: DETERMINISTIC protection for disambiguation labels
+            # If both characters have parenthesized disambiguation labels (e.g., "(the father)", "(the son)")
+            # and share the same base name but have DIFFERENT labels, they are DIFFERENT people.
+            # This cannot be overridden by LLM nondeterminism.
+            import re
+            source_match = re.search(r'^(.+?)\s*\(([^)]+)\)\s*$', source.canonical_name)
+            target_match = re.search(r'^(.+?)\s*\(([^)]+)\)\s*$', target.canonical_name)
+
+            if source_match and target_match:
+                source_base = source_match.group(1).strip()
+                source_label = source_match.group(2).strip()
+                target_base = target_match.group(1).strip()
+                target_label = target_match.group(2).strip()
+
+                # If they share the same base name but have different disambiguation labels, they are different people
+                if source_base.lower() == target_base.lower() and source_label.lower() != target_label.lower():
+                    logger.warning(
+                        f"BLOCKED merge '{source.canonical_name}' → '{target.canonical_name}': "
+                        f"Same base name '{source_base}' but different disambiguation labels "
+                        f"('{source_label}' vs '{target_label}') - these are DIFFERENT people"
+                    )
+                    continue
 
             # Rule 1: Don't merge protagonist ↔ antagonist (opposite narrative functions)
             if source.role != target.role and source.role in ("protagonist", "antagonist") and target.role in ("protagonist", "antagonist"):

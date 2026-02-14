@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Attempt:** 22
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -204,6 +204,17 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7 × 0.15) + (8.5 × 0.20) + (6.5 × 0.
 
 ## Fix History
 
+### Attempt 22 - Fix 1: Deterministic disambiguation label protection in Pass 2
+- **Issue addressed:** Son character (John Donaldson (the son)) re-absorbed as alias of father (CRITICAL #1)
+- **Root cause:** `_process_consolidated_pass2()` in `src/pipeline/character_extraction_v2/main_cast.py` applied LLM merge directives without checking for conflicting disambiguation labels. The prompt-only rule (attempt 20, line 199) was nondeterministic and failed ~50% of the time.
+- **Fix:** Added deterministic code-level guard (Rule 0) before semantic validation that:
+  1. Checks if both source and target canonical names have parenthesized disambiguation labels
+  2. Extracts base name and label from each (e.g., "John Donaldson" + "the father")
+  3. If base names match but labels differ, BLOCKS the merge regardless of LLM output
+  4. Also removed `_clean_canonical_name()` call in Pass 2 processing - was stripping disambiguation labels and preventing character lookup
+- **Smoke test:** Created `smoke_test_disambiguation_guard.py` - PASSES
+- **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` (lines 780-820, 745)
+
 ### Attempt 1 - Fix 1: Supporting cast alias resolution
 - **Issue addressed:** False character split (Ted Frith / Ted / Johnny)
 - **Fix:** Added `_merge_obvious_aliases()` in `supporting.py`
@@ -370,6 +381,8 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7 × 0.15) + (8.5 × 0.20) + (6.5 × 0.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 22 | Son re-absorbed (CRITICAL) | `main_cast.py` (deterministic guard + no cleaning in Pass 2) | Smoke test PASSES - awaiting full analysis |
+|---------|-------|----------------|--------|
 | 1 | Ted split | `supporting.py` | Partial fix |
 | 1 | Father/son conflation | `main_cast.py` (prompt only) | No change |
 | 1 | Wrong narrator | `narrator.py` | Fixed |
@@ -424,7 +437,7 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7 × 0.15) + (8.5 × 0.20) + (6.5 × 0.
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
 **CRITICAL INSIGHT from 21 attempts:** The father/son split problem has been solved and regressed MULTIPLE times due to LLM nondeterminism. The prompt-only fix from attempt 20 works ~50% of the time. The code-level merge protections from attempts 12, 16, and 19 target `_merge_within_main_cast()` passes, but attempt 19 PROVED that absorption happens in `_process_consolidated_pass2()` (the Pass 2 consolidated alias resolution), NOT in the merge passes.
 
