@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -337,6 +337,19 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 - **Result:** **NO EFFECT** — Father still missing. Son still has father's alias "John Donaldson (the father)". The partitioning code either didn't execute, was overridden downstream, or the logic was incorrect.
 - **Modified:** `src/agents/characters.py` (lines 1450-1505)
 
+### Attempt 14 - Diagnostic Fix: Add comprehensive logging to trace split character flow
+- **Issue addressed:** Father character (`split_0`) missing from output (CRITICAL #1) — 13 consecutive failed attempts require diagnostic approach
+- **Root cause hypothesis:** Unknown - need to trace data flow to identify where `split_0` disappears
+- **Fix:** Added DEBUG logging at all critical pipeline stages:
+  - Split character creation (lines ~1509-1515) - logs each child with ID, canonical, aliases
+  - After mention search (Step 2) - logs mention counts for all split characters
+  - Before/after grounding gate (Step 3) - logs split characters and threshold, tracks removals
+  - Before/after Step 3.5 merge - logs split characters, tracks if merge removes them
+  - Before CharacterMap creation - logs split characters in main_cast and supporting_cast
+  - After conversion to pipeline characters - logs if split characters survived or were lost
+- **Result:** TBD - Must run analysis with logging enabled to diagnose the exact failure point
+- **Modified:** `src/agents/characters.py` (6 diagnostic logging blocks added throughout pipeline)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -359,11 +372,9 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 | 11 | Split chars empty | `characters.py:1459-1470` (alias propagation) | **PARTIAL** — father profiled, but son merged as alias; narrator regression |
 | 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PARTIAL** — merge protection works, but `split_0` (father) now MISSING. Son has father's data. |
 | 13 | Father character missing | `characters.py:1450-1505` (alias partitioning in split logic) | **NO EFFECT** — father still missing, son still has father's alias. Partitioning code didn't work. |
+| 14 | Diagnostic logging for split character flow | `characters.py` (6 diagnostic logging blocks) | **TBD** — awaiting analysis with diagnostic logs |
 
-**CRITICAL PATTERN:** `characters.py` has been modified in 12 of 13 attempts for the father/son split issue. Each fix addresses one symptom but exposes another. The incremental fix approach has failed — the problem requires diagnostic investigation, not another blind fix.
-
-**The fix phase for attempt 14 MUST:**
-1. Add DEBUG LOGGING to trace `split_0` through the entire pipeline
+**CRITICAL PATTERN:** `characters.py` has been modified in 12 of 13 attempts for the father/son split issue. Each fix addresses one symptom but exposes another. The incremental fix approach has failed — attempt 14 uses diagnostic logging to identify the exact failure point before applying a targeted fix.
 2. Run analysis with logging enabled
 3. Read the logs to determine WHERE `split_0` disappears
 4. Only THEN apply a targeted fix to the specific location
@@ -386,18 +397,17 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 | 13 | 5.93 | -0.67 | **Alias partitioning NO EFFECT.** Father still missing. Narrator regression (Uncle Bill lost narrator flag). |
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**MANDATORY for attempt 14:** The fix phase must take a DIAGNOSTIC APPROACH:
-1. **Add print/logging statements** to `_split_disambiguated_same_name_characters()` and all downstream steps in `characters.py` to trace:
-   - Is the split method being called?
-   - How many split children are created?
-   - What aliases does each child get?
-   - What are their mention counts after split?
-   - Are they passed to downstream steps?
-   - Where does `split_0` disappear?
-2. **Run the analysis** with logging enabled
-3. **Read the logs** to find the exact failure point
-4. **Apply a targeted fix** based on the diagnostic evidence
+**Diagnostic logging has been added.** The next analysis run will produce detailed logs showing:
+- Whether the split method executes and creates both `split_0` and `split_1`
+- What aliases each split child receives
+- Mention counts after mention search (Step 2)
+- Whether grounding gate (Step 3) filters out `split_0` due to low mention count
+- Whether Step 3.5 merge removes `split_0`
+- Whether `split_0` survives to final CharacterMap or gets lost during conversion
 
-Do NOT apply another blind fix to the split logic without first understanding where `split_0` goes.
+**After analysis completes:**
+1. Read the logs (check console output or log file)
+2. Identify the exact stage where `split_0` disappears
+3. Apply a targeted fix to THAT specific stage (not another blind fix to the split logic)

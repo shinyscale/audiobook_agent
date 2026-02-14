@@ -172,6 +172,15 @@ class CharacterAgent(Agent):
         mention_results = searcher.search_all(characters)
         characters = searcher.update_characters_with_mentions(characters, mention_results)
 
+        # DIAGNOSTIC: Log mention counts for split characters
+        for char in characters:
+            if "_split_" in char.id:
+                logger.info(
+                    f"SPLIT DIAGNOSTIC: After mention search: {char.id} | "
+                    f"canonical='{char.canonical_name}' | "
+                    f"mentions={char.mention_count}"
+                )
+
         # STEP 3: Apply grounding gate (F2b)
         word_count = len(context.text.split())
         effective_min_mentions = adaptive_min_mentions(
@@ -185,8 +194,31 @@ class CharacterAgent(Agent):
             min_mentions=effective_min_mentions,
             remove_ungrounded_aliases=True,
         )
+
+        # DIAGNOSTIC: Log split characters before grounding gate
+        split_chars_before = [c for c in characters if "_split_" in c.id]
+        if split_chars_before:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: Before grounding gate: "
+                f"{[c.id for c in split_chars_before]} "
+                f"(threshold={effective_min_mentions})"
+            )
+
         grounding_report = grounding_gate.apply(characters, mention_results)
         grounding_gate.log_report(grounding_report)
+
+        # DIAGNOSTIC: Log split characters after grounding gate
+        split_chars_after = [c for c in characters if "_split_" in c.id]
+        if len(split_chars_after) < len(split_chars_before):
+            removed = [c.id for c in split_chars_before if c.id not in [x.id for x in split_chars_after]]
+            logger.warning(
+                f"SPLIT DIAGNOSTIC: Grounding gate REMOVED split characters: {removed}"
+            )
+        if split_chars_after:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: After grounding gate: "
+                f"{[(c.id, c.mention_count) for c in split_chars_after]}"
+            )
 
         # Use grounded characters as main cast
         main_cast = grounding_report.grounded_characters
@@ -211,7 +243,29 @@ class CharacterAgent(Agent):
 
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
         logger.info("V2 Step 3.5: Merging within main cast")
+
+        # DIAGNOSTIC: Log split characters before merge
+        split_chars_before_merge = [c for c in main_cast if "_split_" in c.id]
+        if split_chars_before_merge:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: Before Step 3.5 merge: "
+                f"{[(c.id, c.canonical_name, c.mention_count) for c in split_chars_before_merge]}"
+            )
+
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
+
+        # DIAGNOSTIC: Log split characters after merge
+        split_chars_after_merge = [c for c in main_cast if "_split_" in c.id]
+        if len(split_chars_after_merge) < len(split_chars_before_merge):
+            removed = [c.id for c in split_chars_before_merge if c.id not in [x.id for x in split_chars_after_merge]]
+            logger.warning(
+                f"SPLIT DIAGNOSTIC: Step 3.5 merge REMOVED split characters: {removed}"
+            )
+        if split_chars_after_merge:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: After Step 3.5 merge: "
+                f"{[(c.id, c.canonical_name, c.mention_count) for c in split_chars_after_merge]}"
+            )
 
         # Re-search mentions for characters that gained new aliases
         if within_main_aliases_added:
@@ -648,9 +702,32 @@ class CharacterAgent(Agent):
                 logger.warning(f"Split character mention search failed: {e}")
 
         # Build final CharacterMap
+
+        # DIAGNOSTIC: Final check for split characters before CharacterMap creation
+        final_split_chars_main = [c for c in main_cast if "_split_" in c.id]
+        final_split_chars_supporting = [c for c in supporting_cast if "_split_" in c.id]
+        if final_split_chars_main or final_split_chars_supporting:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: Before CharacterMap creation: "
+                f"main_cast={[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_main]}, "
+                f"supporting_cast={[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_supporting]}"
+            )
+
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
         )
+
+        # DIAGNOSTIC: Check if split characters survived conversion
+        final_split_chars_output = [c for c in all_characters if "_split_" in c.id]
+        if final_split_chars_output:
+            logger.info(
+                f"SPLIT DIAGNOSTIC: After conversion to pipeline characters: "
+                f"{[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_output]}"
+            )
+        elif final_split_chars_main or final_split_chars_supporting:
+            logger.error(
+                f"SPLIT DIAGNOSTIC: CRITICAL - Split characters LOST during _convert_to_pipeline_characters()!"
+            )
 
         # Calculate confidence breakdown
         high = sum(1 for c in all_characters if c.confidence >= 0.7)
@@ -1507,6 +1584,15 @@ class CharacterAgent(Agent):
                         is_symbolic=getattr(char, 'is_symbolic', False),
                     )
                     result.append(new_char)
+
+                    # DIAGNOSTIC: Log each split character creation with details
+                    logger.info(
+                        f"SPLIT DIAGNOSTIC: Created {new_char.id} | "
+                        f"canonical='{new_char.canonical_name}' | "
+                        f"aliases={split_aliases[:3]}{'...' if len(split_aliases) > 3 else ''} "
+                        f"({len(split_aliases)} total) | "
+                        f"role={new_char.role}"
+                    )
             else:
                 # No split needed
                 result.append(char)
