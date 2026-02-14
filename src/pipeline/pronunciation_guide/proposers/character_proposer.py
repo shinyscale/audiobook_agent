@@ -141,13 +141,15 @@ class CharacterProposer(BasePronunciationProposer):
                 }:
                     continue
 
-                # Skip short common names with obvious pronunciation
-                # Universal heuristic: If name is <=4 chars AND in CMU dictionary,
-                # it's likely a common given name (Bill, Ted, Joe, Ann, Mary, etc.)
-                # that doesn't need pronunciation guidance for narrators
-                if len(word) <= 4 and self.cmu_words and word_lower in self.cmu_words:
+                # Skip names with obvious pronunciation (in CMU dictionary)
+                # Universal heuristic: If name is in CMU dictionary, it has a standard
+                # English pronunciation that narrators can look up or already know.
+                # This filters common given names (Bill, Margaret, Joe) and standard
+                # English surnames (Barron, Donaldson) while preserving foreign names
+                # (Caporetto, Piave) that narrators genuinely need help with.
+                if self.cmu_words and word_lower in self.cmu_words:
                     logger.debug(
-                        f"Skipping short common name '{word}' "
+                        f"Skipping standard English name '{word}' "
                         "(in CMU dictionary, pronunciation obvious)"
                     )
                     continue
