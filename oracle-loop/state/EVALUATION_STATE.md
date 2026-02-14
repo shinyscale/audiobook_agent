@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Attempt:** 17
+- **Phase:** running_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -385,6 +385,7 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
   - Son aliases: `["John Donaldson", "John", "John Donaldson (the son)", "the son"]`
 - **Expected result:** `name_disambiguator._check_split_character_labels()` will now find label-specific aliases ("the father", "the son") in text passages and correctly route father-descriptive passages to father and son-descriptive passages to son.
 - **Modified:** `src/agents/characters.py` (lines 1632-1634)
+- **Status:** RUNNING - Analysis started at $(date +%H:%M) on attempt 17
 
 ## Next Action
-Re-run analysis to verify fix
+Wait for analysis completion (estimated 30-40 minutes)
