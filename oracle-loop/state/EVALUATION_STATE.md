@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,17 +11,18 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 14)
-- Analysis completed in 38m 33s with diagnostic logging enabled
-- **BREAKTHROUGH:** Both father AND son characters now exist as separate entities!
-- **Characters found:** 7 total
-  - `main_cast_0_split_0`: John Donaldson (the father) - 29 mentions ✓ RESTORED
-  - `main_cast_0_split_1`: John Donaldson (the son) - 28 mentions ✓ EXISTS
-  - `main_cast_2`: Uncle Bill - 18 mentions, is_narrator=true ✓ RESTORED
-  - `main_cast_4`: Margaret Donaldson - 2 mentions ✓ RESTORED
-  - `supporting_1`: Joe Barron - 3 mentions ✓
-  - `supporting_2`: "John Donaldson's" - 4 mentions ✗ SPURIOUS (possessive form)
-  - `supporting_3`: Ted Frith - 5 mentions, alias "Ted" ✓
+## Pipeline Notes (Attempt 15)
+- Analysis completed in 36m 57s
+- **REGRESSION:** Son character missing from final output!
+- **Characters found:** 6 total (down from 7 in attempt 14)
+  - `John Donaldson (the father)`: 56 mentions (merged count from both father+son)
+  - `Margaret Donaldson`: 2 mentions
+  - `Uncle Bill`: 18 mentions
+  - `Joe Barron`: 3 mentions
+  - `John Donaldson's`: 4 mentions ✗ SPURIOUS (possessive form, still present)
+  - Ted Frith: (not listed in summary - need to verify in JSON)
+- **F6 Warning:** "John (the son)" rejected as hallucination (0 text mentions)
+- The split appears to have failed - father absorbed son's mentions (56 = 29+28 from attempt 14)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
