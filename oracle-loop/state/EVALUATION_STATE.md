@@ -2,14 +2,25 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Attempt:** 16
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 16)
+- Analysis completed in 37m 50s
+- **KEY RESULT:** Both father AND son characters now exist in output:
+  - John Donaldson (the father): 28 mentions
+  - John Donaldson (the son): 28 mentions
+- Uncle Bill correctly identified as narrator (18 mentions)
+- Narrator exclusivity defense activated: cleared is_narrator flag from son character
+- Total characters: 7 (expecting 6 after evaluation)
+- Some ungrounded evidence warnings (F19 flags) - needs evaluation
+- Character profiles generated for 4 eligible characters
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
