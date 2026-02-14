@@ -3,13 +3,27 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 18)
+- Analysis completed in 35m 37s
+- **CRITICAL ISSUE PERSISTS:** Father/son split STILL FAILING despite attempt 17 revert
+- Only 4 characters extracted (father, Uncle Bill, Joe Barron, Ted Frith)
+- "John Donaldson (the father)" has 57 mentions - this is father+son COMBINED (~28+28)
+- Son character "John Donaldson (the son)" is MISSING from output
+- The revert of attempt 17 changes did NOT restore the attempt 16 stable state
+- This suggests the issue is NOT in the reverted code (lines 1631-1634) but elsewhere in the pipeline
+- Narrator detection: Uncle Bill correctly identified as first-person narrator (based on console output)
+- 2 chapters detected (unchanged)
+- 24 pronunciation flags
+- Warnings: F6 rejected "John (the boy)" as hallucination, F19 ungrounded evidence on all 3 profiles
+- Some pronunciation LLM errors visible (model returned error-like response)
 
 ## Pipeline Notes (Attempt 17)
 - Analysis completed in 37m 18s
