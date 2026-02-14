@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 20
-- **Phase:** awaiting_analysis
+- **Attempt:** 21
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,17 +11,17 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Latest Scores
-- Structure Detection: 7/10 ✗
-- Character Extraction: 7.5/10 ✗
-- Character Profiles: 5.5/10 ✗ (FAILING)
-- Chapter Summaries: 7.5/10 ✗
-- Pronunciation Guide: 6.5/10 ✗
-- HTML Presentation: 7/10 ✗
-- **Overall: 6.93/10** (reference only)
+## Pipeline Notes (Attempt 21)
+- Analysis completed in 35m 33s
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)
+- Stages: characters, structure, summaries
+- Found 6 characters total (merged 1 based on identity statements)
+- Generated 3 character profiles
+- Warnings: 1 OCR repair (broken ligature), some ungrounded evidence quotes detected
+- 27 pronunciation flags
 
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (all 6 categories below threshold)
+## Latest Scores
+(Awaiting evaluation)
 
 ## Detailed Evaluation
 
