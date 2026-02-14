@@ -1398,9 +1398,12 @@ class CharacterAgent(Agent):
             char = char_list[0]
 
             # Check if summaries use disambiguating labels for this name
+            # Try BOTH the canonical base_name AND all aliases as potential base names
             labels_found = set()
+            effective_base_name = base_name  # Track which base name actually matched
+
+            # First try canonical base_name (e.g., "John")
             for char_ref in all_characters_in_summaries:
-                # Match pattern like "John Donaldson (the father)"
                 match = re.match(
                     r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$',
                     char_ref,
@@ -1410,10 +1413,43 @@ class CharacterAgent(Agent):
                     label = match.group(1).strip()
                     labels_found.add(label)
 
+            # If no labels found with canonical name, try each alias
+            # Example: canonical="John", alias="John Donaldson"
+            # Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
+            # Pattern with canonical "John" won't match, but "John Donaldson" will
+            if not labels_found and hasattr(char, 'aliases') and char.aliases:
+                for alias in char.aliases:
+                    # Skip possessive forms and very short aliases
+                    if alias.endswith("'s") or len(alias) <= 2:
+                        continue
+
+                    alias_base = re.sub(r'\s*\([^)]+\)\s*$', '', alias).strip()
+                    alias_labels = set()
+
+                    for char_ref in all_characters_in_summaries:
+                        match = re.match(
+                            r'^' + re.escape(alias_base) + r'\s*\(([^)]+)\)\s*$',
+                            char_ref,
+                            re.IGNORECASE
+                        )
+                        if match:
+                            label = match.group(1).strip()
+                            alias_labels.add(label)
+
+                    # If this alias matched 2+ labels, use it
+                    if len(alias_labels) >= 2:
+                        labels_found = alias_labels
+                        effective_base_name = alias_base
+                        logger.info(
+                            f"Found disambiguation via alias '{alias_base}' for character "
+                            f"with canonical name '{base_name}'"
+                        )
+                        break
+
             # If we found 2+ distinct labels, split the character
             if len(labels_found) >= 2:
                 logger.info(
-                    f"Splitting '{base_name}' into {len(labels_found)} characters "
+                    f"Splitting '{effective_base_name}' into {len(labels_found)} characters "
                     f"based on summary labels: {sorted(labels_found)}"
                 )
 
@@ -1421,7 +1457,7 @@ class CharacterAgent(Agent):
                 for i, label in enumerate(sorted(labels_found)):
                     new_char = Character(
                         id=f"{char.id}_split_{i}",
-                        canonical_name=f"{base_name} ({label})",
+                        canonical_name=f"{effective_base_name} ({label})",
                         role=char.role if i == 0 else "supporting",
                         aliases=[],
                         mention_count=0,  # Will be recomputed in Step 2

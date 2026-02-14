@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -309,6 +309,25 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
   - `src/pipeline/chapter_summary/summarizer.py` (prompt clarification)
   - `src/agents/characters.py` (Step 5.10.7)
 
+### Attempt 9 - Fix 1: Alias-based regex matching in _split_disambiguated_same_name_characters()
+- **Issue addressed:** Father/son John Donaldson conflation (CRITICAL #1) — downstream fix
+- **Root cause:** Method only tried canonical_name "John" as base_name for regex matching. Summary refs like "John Donaldson (the father)" have "Donaldson" between the base name and parenthetical, so regex `^John\s*\(...)$` failed to match.
+- **Fix:** Added fallback logic to also try each alias as a potential base_name. When canonical="John" produces no matches, tries alias="John Donaldson" which correctly matches "John Donaldson (the father)" and "John Donaldson (the son)".
+- **Code changes:** At `characters.py:1400-1447`:
+  - First tries canonical base_name (existing behavior)
+  - If no labels found, iterates through aliases
+  - For each alias, builds pattern and checks for 2+ disambiguating labels
+  - If found, sets `effective_base_name` to the alias and uses it for split character names
+  - Skips possessive aliases (ending in "'s") and very short aliases (<=2 chars)
+- **Smoke test:** Python simulation confirmed logic works:
+  - canonical="John", aliases=["John Donaldson", "John Donaldson's", "Johnny"]
+  - Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
+  - Canonical "John" → no matches
+  - Alias "John Donaldson" → finds both "the father" and "the son" labels ✓
+  - Would create: "John Donaldson (the father)" and "John Donaldson (the son)" ✓
+- **Test suite:** All 298 tests pass, no regressions
+- **Modified:** `src/agents/characters.py` (lines 1400-1467)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -326,11 +345,12 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 6 | Narrator flag | `characters.py` (fallback matching) | Partial fix — both chars now is_narrator=true |
 | 7 | Father/son conflation | `summarizer.py` (UPSTREAM FIX - prompt disambiguation) | **PARTIAL** — disambiguation appeared but Uncle Bill mislabeled |
 | 8 | Father/son conflation | `summarizer.py` (prompt clarification) + `characters.py` (Step 5.10.7) | **PARTIAL** — Summary fix worked, but regex mismatch prevents split |
+| 9 | Father/son conflation | `characters.py` (alias-based regex matching in Step 5.10.7) | **FIX APPLIED** — Should now split via alias "John Donaldson" |
 
-**⚠️ FATHER/SON JOHN DONALDSON — 8 ATTEMPTS:**
-- Upstream data is now CORRECT: summaries properly disambiguate father/son
-- The ONLY remaining issue is a regex bug in `_split_disambiguated_same_name_characters()` — it only tries the canonical_name as base_name, not aliases
-- Fix is surgical: add alias-based matching in the method
+**⚠️ FATHER/SON JOHN DONALDSON — 9 ATTEMPTS:**
+- Upstream data is CORRECT (attempts 7-8): summaries properly disambiguate father/son
+- Regex bug FIXED (attempt 9): `_split_disambiguated_same_name_characters()` now tries both canonical_name AND aliases as base_name
+- Expected impact: +1.5 Character Extraction (split into 2 chars), +0.5 Profiles (correct attribution), ~+0.6 overall
 
 **⚠️ PRONUNCIATION STUCK:** 8 attempts, false positives remain at ~12 of 27. Need stronger LLM prompt filtering AND expanded post-filtering.
 
@@ -367,4 +387,4 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 8 | 7.33 | +0.73 | Summary fix WORKED (no more Uncle Bill mislabeling). Step 5.10.7 didn't split due to regex mismatch with aliases. |
 
 ## Next Action
-Run PROMPT_fix.md to fix regex mismatch in `_split_disambiguated_same_name_characters()` (add alias-based matching) and reduce pronunciation false positives.
+Re-run analysis to verify alias-based split fix works for John Donaldson father/son.
