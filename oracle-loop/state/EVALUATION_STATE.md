@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -340,29 +340,18 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (6.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 8 | Father/son conflation | `summarizer.py` (prompt clarification) + `characters.py` (Step 5.10.7) | **PARTIAL** — Summary fix worked, but regex mismatch prevents split |
 | 9 | Father/son conflation | `characters.py` (alias fallback — wrong condition) | **DID NOT WORK** — condition bug |
 | 10 | Father/son conflation | `characters.py:1421` (fix condition) | **SUCCESS** — split works, but 0 mentions/no profiles |
+| 11 | Split characters 0 mentions/no profiles | `characters.py:1459-1470` (copy aliases to splits) | TBD — awaiting analysis |
 
-## Priority Fix Order for Attempt 11
-
-**Focus on THREE fixes (all in the same area):**
-
-1. **Propagate mentions/aliases to split characters (CRITICAL #1)**
-   - In `_split_disambiguated_same_name_characters()`, after creating split Character objects:
-     - Copy `original_char.aliases` to each split child
-     - Set `mention_count` to at least `original_char.mention_count // 2` per child
-     - Copy `original_char.role` or set to "supporting" (not "minor")
-   - Location: `src/agents/characters.py` — the split method
-
-2. **Propagate profiles to split characters (CRITICAL #2)**
-   - When creating split characters, copy the original character's profile fields to the appropriate split child
-   - The pre-split "John" profile described the FATHER (grizzled, embezzler, stretcher-bearer) — copy to father split
-   - For the son, at minimum set a basic description
-   - OR: re-trigger profiling for split characters
-   - Location: `src/agents/characters.py` — the split method
-
-3. **Pronunciation false positive reduction (HIGH #3)**
-   - Improve LLM prompt filtering for common English words and names
-   - Expand post-filter for common suffixes
-   - Location: `src/pipeline/pronunciation_guide/`
+### Attempt 11 - Fix 1: Propagate aliases to split characters
+- **Issue addressed:** Split characters have 0 mentions and no profiles (CRITICAL #1, #2)
+- **Root cause:** `src/agents/characters.py:1463` - Split characters created with `aliases=[]`
+- **Data flow:** Split (empty aliases) → Mention search (finds nothing) → 0 mentions → Profiling filtered out (< MIN_MENTIONS_FOR_PROFILE)
+- **Fix:** Copy original character's aliases to each split child (lines 1459-1463, 1469)
+  - Both father and son can be referred to as "John Donaldson", "Johnny", "John"
+  - Context disambiguates which one is meant in each passage
+  - With aliases, mention search can find references → mention_count > 0 → eligible for profiling
+- **Result:** TBD - awaiting analysis
+- **Modified:** `src/agents/characters.py` (lines 1459-1470)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -379,10 +368,12 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (6.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 10 | 7.25 | +0.65 | **Father/son split SUCCESS!** Margaret restored. But split chars have 0 mentions, no profiles. |
 
 ## Next Action
-Run PROMPT_fix.md to address split character data propagation (mentions, aliases, profiles) and pronunciation false positives.
+Set phase to `awaiting_analysis` for attempt 11.
 
-**Expected impact:**
-- Propagating mentions/aliases: Character Extraction 7.5 → 8.0+
-- Propagating profiles: Character Profiles 6.5 → 8.0+
-- Pronunciation filtering: Pronunciation 6.5 → 8.0+
-- Overall: 7.25 → ~8.0+
+**Expected impact from alias propagation fix:**
+- Split characters will now have aliases to search for → mention_count > 0
+- With sufficient mentions, split characters will pass profiling eligibility threshold
+- Profiling pipeline will generate appearance/personality/voice_guidance for both father and son
+- **Character Extraction:** 7.5 → 8.0+ (proper mention counts on split characters)
+- **Character Profiles:** 6.5 → 8.0+ (father and son get profiles)
+- **Overall:** 7.25 → 7.75+ (two CRITICAL issues resolved in one fix)

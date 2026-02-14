@@ -1456,12 +1456,18 @@ class CharacterAgent(Agent):
 
                 # Create separate character for each label
                 for i, label in enumerate(sorted(labels_found)):
+                    # CRITICAL: Copy original aliases to split characters
+                    # Both father and son can be referred to as "John Donaldson", "Johnny", etc.
+                    # Context will disambiguate which one is meant in each passage
+                    # Without aliases, mention search finds nothing → 0 mentions → no profile
+                    split_aliases = list(char.aliases) if hasattr(char, 'aliases') and char.aliases else []
+
                     new_char = Character(
                         id=f"{char.id}_split_{i}",
                         canonical_name=f"{effective_base_name} ({label})",
                         role=char.role if i == 0 else "supporting",
-                        aliases=[],
-                        mention_count=0,  # Will be recomputed in Step 2
+                        aliases=split_aliases,
+                        mention_count=0,  # Will be recomputed in Step 2 (now possible with aliases)
                         first_appearance_chapter=char.first_appearance_chapter,
                         is_symbolic=getattr(char, 'is_symbolic', False),
                     )
