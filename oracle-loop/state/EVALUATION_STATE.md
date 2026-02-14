@@ -3,13 +3,24 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 12)
+- Analysis completed in 35m 3s
+- Competitive consensus enabled (3 temperatures: 0.5, 0.7, 0.9)
+- All stages using competitive voting (characters, structure, summaries)
+- **Characters found:** 4 (John Donaldson [the son], Uncle Bill, Joe Barron, Ted Frith)
+- **WARNING:** Summary shows "John Donaldson (the son) (aka John Donaldson, the father)" with 58 mentions - possible false merge
+- F6 warning: Rejected 'John (the son)' from summary (0 text mentions)
+- F19 warnings: Uncle Bill and Ted Frith profiles have potentially ungrounded quotes
+- Structure: 2 chapters detected
+- Pronunciation: 24 entries flagged
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
