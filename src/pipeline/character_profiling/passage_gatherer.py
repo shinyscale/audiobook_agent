@@ -323,6 +323,27 @@ class CharacterPassageGatherer:
             # Determine chapter
             chapter_idx = self._find_chapter_for_position(position, chapter_map)
 
+            # EARLY FILTER: For split characters (e.g., "John Donaldson (the father)"),
+            # skip passages from chapters where this specific split character doesn't appear.
+            # This prevents profile contamination where father and son share the same aliases.
+            if character_canonical_name and self._chapter_summary_index:
+                # Check if this is a split character (has parenthetical label at end)
+                if '(' in character_canonical_name and character_canonical_name.endswith(')'):
+                    chapter_summary = self._chapter_summary_index.get(chapter_idx)
+                    if chapter_summary:
+                        # Check if the FULL canonical name (with label) is in active_characters
+                        # This ensures "John Donaldson (the father)" only gets passages from
+                        # chapters where the father specifically appears
+                        active_chars_lower = [c.lower() for c in chapter_summary.active_characters]
+                        if character_canonical_name.lower() not in active_chars_lower:
+                            # This chapter doesn't have this specific split character - skip passage
+                            self._disambiguation_stats["skipped_different_character"] += 1
+                            logger.debug(
+                                f"Split character filter: Skipping passage for '{character_canonical_name}' "
+                                f"in chapter {chapter_idx} (not in active_characters)"
+                            )
+                            continue
+
             # Determine context type
             context_type = self._classify_context(context, name)
 

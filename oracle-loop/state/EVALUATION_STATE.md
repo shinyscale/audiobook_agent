@@ -372,6 +372,14 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 - **Result:** **SUCCESS** — Both father AND son now exist as separate characters with 28 mentions each. NEW ISSUE: Son's profile is a copy of father's (profile contamination persists from attempt 14).
 - **Modified:** `src/pipeline/character_extraction_v2/main_cast.py` (line 197)
 
+### Attempt 21 - Fix: Pre-filter passages by chapter for split characters
+- **Issue addressed:** Son's profile contamination (CRITICAL #1)
+- **Root cause:** `src/pipeline/character_profiling/passage_gatherer.py` — both father and son share identical aliases `["John Donaldson", "John"]`, so when gathering passages for either character, the system finds passages for BOTH. The disambiguator cannot reliably distinguish them because the text doesn't use natural labels like "the father" or "the son".
+- **Fix:** Added early filter in `_find_passages_for_name()` (line 326) to check if character has split label (parentheses at end of canonical name). If yes, skip passages from chapters where the FULL canonical name is NOT in the chapter summary's `active_characters` list. This pre-partitions passages BEFORE disambiguation runs.
+- **Approach:** Uses universal invariant (chapter-level character presence from summaries) rather than book-specific logic. Works for ANY text with same-name characters (father/son, Sr/Jr, etc.).
+- **Result:** PENDING — awaiting analysis
+- **Modified:** `src/pipeline/character_profiling/passage_gatherer.py` (lines 326-347)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -401,6 +409,7 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 18 | Revert attempt 17 | `characters.py` (revert) | DID NOT RESTORE |
 | 19 | Universal merge protection | `characters.py` (5 safety checks) | **NO EFFECT — proves absorption is OUTSIDE merge passes** |
 | 20 | Disambiguation label guidance | `main_cast.py` (Pass 2 prompt) | **SUCCESS — both characters exist! Profile contamination persists.** |
+| 21 | Split character passage pre-filtering | `passage_gatherer.py` (early filter) | PENDING |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -428,8 +437,15 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**Priority focus for attempt 21:** Fix the son's profile contamination (CRITICAL #1). The passage gatherer/name disambiguator must correctly partition passages between father and son when both share the same name and aliases. The most promising approach is to use chapter-level `characters_present` data to pre-filter passages — the father only appears in Ch2 field hospital scenes, while the son appears across both chapters. Adding explicit split-label context to the profiling prompt for split characters would also help.
+**Attempt 21 fix applied:** Split character passage pre-filtering using chapter `active_characters`. This should fix the profile contamination by ensuring the father only gets passages from chapters where "John Donaldson (the father)" appears in the summary, and similarly for the son.
 
-**Secondary:** Fix "John Donaldson's" spurious character (HIGH #2) — strip possessive markers from character names during extraction.
+**Expected improvements in attempt 21:**
+- **Character Profiles:** Should jump from 5.5/10 to 8+/10 if the son gets his own profile instead of the father's
+- **HTML Presentation:** Should improve from 7/10 to 8+/10 with correct profiles
+- **Character Extraction:** May improve slightly if profiles feed back into any downstream logic
+
+**If this fix works:** Will address CRITICAL #1, likely pushing overall score above threshold.
+
+**If this fix doesn't work:** Will need to investigate why chapter summaries don't have the split labels in `active_characters`, or implement Approach 2 (use split label in profiling prompt).
