@@ -28,11 +28,6 @@ class SupportingCharacter:
     mention_count: int
     first_position: int
     role: str = "minor"
-    aliases: list[str] = None  # Populated during merge
-
-    def __post_init__(self):
-        if self.aliases is None:
-            self.aliases = []
     description: str = ""
 
 
@@ -134,10 +129,6 @@ class SupportingCastExtractor:
                 if self._is_likely_geographic(name):
                     continue
 
-                # Skip if it's an organization (tagged as ORG and matches org patterns)
-                if self._is_organization_name(name, ent.label_):
-                    continue
-
                 # Track counts and positions
                 name_counts[name] = name_counts.get(name, 0) + 1
                 if name not in name_positions:
@@ -157,9 +148,6 @@ class SupportingCastExtractor:
 
         # Sort by mention count (most mentioned first)
         supporting.sort(key=lambda x: -x.mention_count)
-
-        # Merge obvious aliases (e.g., "Ted Frith" and "Ted")
-        supporting = self._merge_obvious_aliases(supporting)
 
         # Convert to Character objects
         characters = self._to_characters(supporting)
@@ -411,226 +399,6 @@ class SupportingCastExtractor:
 
         return False
 
-    def _is_organization_name(self, name: str, entity_label: str) -> bool:
-        """
-        Check if a name is likely an organization/institution rather than a character.
-        
-        This method uses a small, universal reference list of organizational indicators
-        (allowed per CLAUDE.md), not a growing vocabulary deny-list.
-        
-        Args:
-            name: The entity text
-            entity_label: The NER label (PERSON, ORG, etc.)
-            
-        Returns:
-            True if the name should be filtered (is likely an organization)
-        """
-        name_lower = name.lower().strip()
-        
-        # If NER tagged as PERSON, trust it (don't filter)
-        if entity_label == "PERSON":
-            return False
-        
-        # Common organizational suffixes (universal indicators)
-        org_suffixes = (
-            "company",
-            "corporation",
-            "corp",
-            "inc",
-            "ltd",
-            "llc",
-            "association",
-            "society",
-            "foundation",
-            "institute",
-            "university",
-            "college",
-            "academy",
-            "department",
-            "ministry",
-            "bureau",
-            "agency",
-            "commission",
-        )
-        if any(name_lower.endswith(suffix) for suffix in org_suffixes):
-            logger.debug(f"Filtering '{name}' as organization (suffix match)")
-            return True
-        
-        # Common organizational name patterns (small universal list)
-        # These are organizational entity types, not book-specific vocabulary
-        org_patterns = {
-            "red cross",
-            "white house",
-            "pentagon",
-            "congress",
-            "parliament",
-            "senate",
-            "house of commons",
-            "house of lords",
-            "the army",
-            "the navy",
-            "the marines",
-            "air force",
-            "police",
-            "fbi",
-            "cia",
-            "mi6",
-            "un",
-            "nato",
-            "eu",
-        }
-        if name_lower in org_patterns:
-            logger.debug(f"Filtering '{name}' as organization (known entity)")
-            return True
-        
-        return False
-
-
-    def _merge_obvious_aliases(
-        self,
-        supporting: list[SupportingCharacter],
-    ) -> list[SupportingCharacter]:
-        """
-        Merge obvious aliases in supporting characters using deterministic rules.
-
-        Examples:
-        - "Ted Frith" and "Ted" → merge into "Ted Frith" with "Ted" as alias
-        - "Dr. Watson" and "Watson" → merge into "Dr. Watson"
-        - "Johnny" may be a nickname for "John" if both exist
-
-        Uses simple substring and common nickname patterns (no LLM calls).
-        """
-        if len(supporting) < 2:
-            return supporting
-
-        # Track which characters have been merged
-        merged_indices = set()
-        result = []
-
-        for i, char in enumerate(supporting):
-            if i in merged_indices:
-                continue
-
-            # Normalize for comparison
-            name_norm = self._normalize_name(char.name)
-            words_in_name = set(name_norm.split())
-
-            # Look for shorter names that might be aliases
-            for j in range(i + 1, len(supporting)):
-                if j in merged_indices:
-                    continue
-
-                other = supporting[j]
-                other_norm = self._normalize_name(other.name)
-                other_words = set(other_norm.split())
-
-                should_merge = False
-
-                # Rule 1: Substring match (shorter name is substring of longer)
-                # "Ted" is substring of "Ted Frith"
-                if other_norm in name_norm or name_norm in other_norm:
-                    should_merge = True
-                    logger.debug(f"Merging '{other.name}' into '{char.name}' (substring match)")
-
-                # Rule 2: Common word overlap (single-word vs multi-word)
-                # "Ted" and "Ted Frith" share "ted"
-                elif len(other_words) == 1 and other_words.issubset(words_in_name):
-                    should_merge = True
-                    logger.debug(f"Merging '{other.name}' into '{char.name}' (word overlap)")
-
-                # Rule 3: Common nickname patterns
-                # "Johnny" for "John", "Teddy" for "Ted", "Billy" for "Bill"
-                elif self._is_likely_nickname(other_norm, words_in_name):
-                    should_merge = True
-                    logger.debug(f"Merging '{other.name}' into '{char.name}' (nickname pattern)")
-
-                # Rule 4: Spelling variants (Levenshtein distance <= 1)
-                # "Ted Frith" and "Ted Firth" differ by 1 character
-                elif self._is_spelling_variant(name_norm, other_norm):
-                    should_merge = True
-                    logger.debug(f"Merging '{other.name}' into '{char.name}' (spelling variant)")
-
-                if should_merge:
-                    # Merge: add mention counts, track as merged
-                    char.mention_count += other.mention_count
-                    char.first_position = min(char.first_position, other.first_position)
-                    merged_indices.add(j)
-                    # Track the merged name as an alias
-                    if other.name not in char.aliases and other.name != char.name:
-                        char.aliases.append(other.name)
-
-            result.append(char)
-
-        logger.info(f"Merged {len(merged_indices)} alias candidates in supporting cast")
-        return result
-
-    def _is_likely_nickname(self, nickname: str, full_name_words: set[str]) -> bool:
-        """
-        Check if a single-word name is a likely nickname for a longer name.
-
-        Common patterns:
-        - "Johnny" for "John"
-        - "Teddy" for "Ted" or "Theodore"
-        - "Billy" for "Bill" or "William"
-        - "Tommy" for "Tom" or "Thomas"
-        """
-        # Common -y/-ie diminutive endings
-        if nickname.endswith('y') or nickname.endswith('ie'):
-            base = nickname[:-1] if nickname.endswith('y') else nickname[:-2]
-
-            # Check if base matches any word in the full name
-            for word in full_name_words:
-                if word.startswith(base):
-                    return True
-
-                # Special cases: "Johnny" for "John", "Billy" for "Bill"
-                if base.endswith('nn') and (base[:-2] + 'n' in word or base[:-1] in word):
-                    return True
-
-
-    def _is_spelling_variant(self, name1: str, name2: str) -> bool:
-        """
-        Check if two names are spelling variants (Levenshtein distance <= 1).
-        
-        Examples:
-        - "ted frith" and "ted firth" → True (1 character difference)
-        - "john" and "johnny" → False (3 character difference - handled by nickname rules)
-        
-        This catches minor spelling inconsistencies in the source text.
-        """
-        # Simple Levenshtein distance calculation for short strings
-        if abs(len(name1) - len(name2)) > 1:
-            # If lengths differ by more than 1, can't be 1-edit distance
-            return False
-        
-        # Count differences
-        differences = 0
-        i, j = 0, 0
-        
-        while i < len(name1) and j < len(name2):
-            if name1[i] != name2[j]:
-                differences += 1
-                if differences > 1:
-                    return False
-                # Try both deletion and substitution
-                if len(name1) > len(name2):
-                    i += 1  # Deletion from name1
-                elif len(name2) > len(name1):
-                    j += 1  # Deletion from name2
-                else:
-                    i += 1  # Substitution
-                    j += 1
-            else:
-                i += 1
-                j += 1
-        
-        # Account for trailing character difference
-        differences += (len(name1) - i) + (len(name2) - j)
-        
-        return differences <= 1
-
-        return False
-
     def _to_characters(
         self,
         supporting: list[SupportingCharacter],
@@ -642,7 +410,7 @@ class SupportingCastExtractor:
             char = Character(
                 id=f"supporting_{i}",
                 canonical_name=sc.name,
-                aliases=sc.aliases,
+                aliases=[],
                 role="minor",
                 mention_count=sc.mention_count,
                 confidence=ConfidenceLevel.LOW,  # NER extraction is lower confidence

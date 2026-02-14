@@ -38,13 +38,8 @@ NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of vi
 
 Based on the summaries below, determine:
 1. Is this told in first-person (narrator says "I") or third-person?
-2. If first-person, WHO is the PRIMARY/FRAME narrator? (must be a character from the main cast)
+2. If first-person, WHO is the narrator? (must be a character from the main cast)
 3. Is this a nested/frame narrative with multiple narrators?
-
-**CRITICAL: For nested narratives, identify the OUTERMOST/FRAME narrator as the primary narrator.**
-- Look for phrases like "the narrator—[Name]" or "[Name] narrates" in the summaries
-- The frame narrator is the one whose voice opens and closes the story
-- Characters who tell stories WITHIN the frame narrative are secondary/nested narrators
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -70,13 +65,9 @@ For nested narratives (like Frankenstein with Walton's letters framing Victor's 
   "narrator_name": "Robert Walton",
   "is_nested": true,
   "nested_narrators": ["Robert Walton", "Victor Frankenstein", "the creature"],
-  "reasoning": "Frame narrative: Walton's letters (frame) contain Victor's story (nested), which contains the creature's story (nested)"
+  "reasoning": "Frame narrative: Walton's letters contain Victor's story, which contains the creature's story"
 }}
 ```
-
-**Key distinction:**
-- narrator_name = The FRAME narrator (outermost narrative voice)
-- nested_narrators = ALL narrators including the frame narrator FIRST, then nested narrators in order
 
 Analyze the narrative structure now:"""
 

@@ -5,7 +5,7 @@ Flags character names from the character extraction pipeline for pronunciation a
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING, Optional
 
 from ..models import PronunciationFlag, PronunciationProposal
 from .base import BasePronunciationProposer
@@ -30,20 +30,6 @@ class CharacterProposer(BasePronunciationProposer):
         self.whitelist = COMMON_WORDS_WHITELIST.copy()
         if additional_whitelist:
             self.whitelist.update(additional_whitelist)
-
-        # Load CMU dictionary for common name detection
-        self.cmu_words = self._load_cmu_dict()
-
-    def _load_cmu_dict(self) -> Set[str]:
-        """Load words from CMU dictionary for common name detection."""
-        try:
-            import pronouncing
-            words = set(pronouncing.cmudict.dict().keys())
-            logger.debug(f"Loaded {len(words)} words from CMU dictionary for CharacterProposer")
-            return words
-        except ImportError:
-            logger.warning("pronouncing library not available, common name detection limited")
-            return set()
 
     def propose(
         self,
@@ -139,19 +125,6 @@ class CharacterProposer(BasePronunciationProposer):
                     "admiral",
                     "commander",
                 }:
-                    continue
-
-                # Skip names with obvious pronunciation (in CMU dictionary)
-                # Universal heuristic: If name is in CMU dictionary, it has a standard
-                # English pronunciation that narrators can look up or already know.
-                # This filters common given names (Bill, Margaret, Joe) and standard
-                # English surnames (Barron, Donaldson) while preserving foreign names
-                # (Caporetto, Piave) that narrators genuinely need help with.
-                if self.cmu_words and word_lower in self.cmu_words:
-                    logger.debug(
-                        f"Skipping standard English name '{word}' "
-                        "(in CMU dictionary, pronunciation obvious)"
-                    )
                     continue
 
                 seen_words.add(word_lower)

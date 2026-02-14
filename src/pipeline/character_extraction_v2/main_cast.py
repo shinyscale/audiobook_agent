@@ -92,11 +92,7 @@ IMPORTANT RULES:
 3. Use the most common name form in the summaries as canonical_name (or the FULL NAME form if multiple variants exist)
 4. Do NOT invent names not supported by the summaries
 5. **RELATIONSHIP-BASED REFERENCES**: If summaries frequently mention "his father", "her mother", "the narrator's X", look for the FULL NAME in other summaries and use that as canonical_name (e.g., "his father" + "letter from Alphonse" = "Alphonse Frankenstein"). Include family members who appear across multiple chapters.
-6. **CHARACTERS WITH IDENTICAL NAMES (CRITICAL)**: If summaries clearly describe TWO distinct people with the EXACT SAME name (e.g., a father and son both named "John Donaldson"), you MUST create TWO separate character entries with disambiguation in the canonical_name field:
-   - Example: "John Donaldson (the father)" and "John Donaldson (the son)"
-   - Example: "Robert Walton Sr." and "Robert Walton Jr."
-   - Look for biographical differences: different ages, different time periods, different relationships, one deceased while the other is alive
-   - If uncertain whether they are the same person or different people, create separate entries with disambiguation
+6. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
 7. Do NOT list aliases in this pass
 8. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows
@@ -196,7 +192,7 @@ Scan every chapter summary for references to each character — aliases often ap
 - If two entries are the same person, mark the LESS COMMON name as "merge_into" the MORE COMMON name
 - DO NOT merge characters who are different people with similar names (e.g., siblings, spouses with same surname)
 - Characters with different first names are usually DIFFERENT people (e.g., "George Wilson" ≠ "Myrtle Wilson")
-- **CRITICAL: Characters with disambiguation labels in parentheses are DIFFERENT people** (e.g., "John Smith (the father)" ≠ "John Smith (the son)", "Elizabeth (the wife)" ≠ "Elizabeth (the sister)")
+- Characters with the same title/profession but different names are DIFFERENT people (e.g., "Professor Smith" ≠ "Professor Jones")
 - If a character IS the narrator, DO NOT add "the narrator" as a separate character - add it as an alias instead
 
 ## Chapter Summaries (for reference)
@@ -742,9 +738,7 @@ class MainCastExtractor:
             if not isinstance(char_data, dict):
                 continue
 
-            # DON'T clean canonical names in Pass 2 - we need exact matches to find characters
-            # from Pass 1, which may include intentional disambiguation labels like "(the father)"
-            canonical_name = char_data.get("canonical_name", "").strip()
+            canonical_name = self._clean_canonical_name(char_data.get("canonical_name", "").strip())
             if not canonical_name:
                 continue
 
@@ -794,29 +788,6 @@ class MainCastExtractor:
 
             # SEMANTIC VALIDATION: Check if merge makes sense
             # Block merges that are semantically incompatible (e.g., "the Creature" → "the magistrate")
-
-            # Rule 0: DETERMINISTIC protection for disambiguation labels
-            # If both characters have parenthesized disambiguation labels (e.g., "(the father)", "(the son)")
-            # and share the same base name but have DIFFERENT labels, they are DIFFERENT people.
-            # This cannot be overridden by LLM nondeterminism.
-            import re
-            source_match = re.search(r'^(.+?)\s*\(([^)]+)\)\s*$', source.canonical_name)
-            target_match = re.search(r'^(.+?)\s*\(([^)]+)\)\s*$', target.canonical_name)
-
-            if source_match and target_match:
-                source_base = source_match.group(1).strip()
-                source_label = source_match.group(2).strip()
-                target_base = target_match.group(1).strip()
-                target_label = target_match.group(2).strip()
-
-                # If they share the same base name but have different disambiguation labels, they are different people
-                if source_base.lower() == target_base.lower() and source_label.lower() != target_label.lower():
-                    logger.warning(
-                        f"BLOCKED merge '{source.canonical_name}' → '{target.canonical_name}': "
-                        f"Same base name '{source_base}' but different disambiguation labels "
-                        f"('{source_label}' vs '{target_label}') - these are DIFFERENT people"
-                    )
-                    continue
 
             # Rule 1: Don't merge protagonist ↔ antagonist (opposite narrative functions)
             if source.role != target.role and source.role in ("protagonist", "antagonist") and target.role in ("protagonist", "antagonist"):

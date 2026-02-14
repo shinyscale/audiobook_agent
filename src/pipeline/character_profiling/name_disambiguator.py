@@ -93,42 +93,10 @@ class NameAmbiguityMap:
                 seen.add(name_lower)
                 unique_names.append(name)
 
-        # FIRST PASS: Check for exact duplicates (same name appearing for multiple characters)
-        # This handles split characters where "John Donaldson" is an alias for both father and son
-        name_to_canonical = {}  # name_lower -> list of canonical names
-        for char in characters:
-            if not hasattr(char, "canonical_name"):
-                continue
-
-            canonical = char.canonical_name
-            all_char_names = [canonical] + getattr(char, "aliases", [])
-
-            for alias in all_char_names:
-                alias_lower = alias.lower().strip()
-                if alias_lower not in name_to_canonical:
-                    name_to_canonical[alias_lower] = []
-                if canonical not in name_to_canonical[alias_lower]:
-                    name_to_canonical[alias_lower].append(canonical)
-
-        # Mark names that belong to multiple canonical characters as ambiguous
-        for name_lower, canonical_list in name_to_canonical.items():
-            if len(canonical_list) > 1:
-                self.ambiguous_names[name_lower] = AmbiguousName(
-                    short_name=name_lower,  # Will be normalized
-                    possible_characters=canonical_list,
-                )
-                logger.debug(
-                    f"Ambiguous name detected (exact match): '{name_lower}' -> {canonical_list}"
-                )
-
-        # SECOND PASS: Check for single-word names that appear as parts
+        # Find ambiguous names
         for name in unique_names:
             name_lower = name.lower().strip()
             name_parts = name_lower.split()
-
-            # Skip if already marked ambiguous in first pass
-            if name_lower in self.ambiguous_names:
-                continue
 
             # Single-word names
             if len(name_parts) == 1:
@@ -336,7 +304,6 @@ class ContextDisambiguator:
         # Statistics for logging
         self.stats = {
             "total_disambiguations": 0,
-            "by_split_label": 0,  # NEW: Split character label detection
             "by_relationship": 0,
             "by_name_shape": 0,
             "by_temporal": 0,
@@ -400,18 +367,6 @@ class ContextDisambiguator:
         # This helps with name-shape detection
         full_name_candidate = max(candidates, key=lambda c: len(c.split()))
         short_name_candidate = min(candidates, key=lambda c: len(c.split()))
-
-        # Signal 0: Split character label detection (confidence 0.99)
-        # For split characters like "John Donaldson (the father)" vs "John Donaldson (the son)",
-        # if the passage contains a label-specific alias (e.g., "the father"), strongly assign
-        # to that character. This prevents profile cross-contamination.
-        if target_character_names:
-            result = self._check_split_character_labels(
-                sentence, candidates, target_character_names
-            )
-            if result:
-                self.stats["by_split_label"] = self.stats.get("by_split_label", 0) + 1
-                return result
 
         # Signal 1: Relationship markers (confidence 0.95)
         combined_text = sentence
@@ -478,76 +433,6 @@ class ContextDisambiguator:
             method="default",
             reason=f"Could not disambiguate '{name}' - defaulting to matched form",
         )
-
-    def _check_split_character_labels(
-        self,
-        sentence: str,
-        candidates: list[str],
-        target_character_names: list[str],
-    ) -> Optional[DisambiguationResult]:
-        """
-        Check if passage contains a label-specific alias for split characters.
-
-        For split characters like "John Donaldson (the father)" and "John Donaldson (the son)",
-        if the passage contains "the father" (a label-specific alias), strongly assign to
-        the father character. This prevents profile cross-contamination where both split
-        children get the same passages.
-
-        Args:
-            sentence: The sentence containing the ambiguous name
-            candidates: All possible characters the name could refer to
-            target_character_names: All names/aliases of the target character we're profiling
-
-        Returns:
-            DisambiguationResult if a label-specific alias is found, else None
-        """
-        sentence_lower = sentence.lower()
-
-        # Extract parenthetical labels from candidate canonical names
-        # e.g., "John Donaldson (the father)" → "the father"
-        label_pattern = re.compile(r'\(([^)]+)\)$')
-        candidate_labels = {}  # canonical_name → label
-        for candidate in candidates:
-            match = label_pattern.search(candidate)
-            if match:
-                label = match.group(1).strip()
-                candidate_labels[candidate] = label
-
-        # If no candidates have labels, this isn't a split character scenario
-        if not candidate_labels:
-            return None
-
-        # Check if sentence contains any label that belongs to a SPECIFIC candidate
-        # and also check if that candidate is our target character
-        for candidate, label in candidate_labels.items():
-            label_lower = label.lower()
-
-            # Check if this label appears in the sentence (word boundary matching)
-            label_pattern_match = rf"\b{re.escape(label_lower)}\b"
-            if re.search(label_pattern_match, sentence_lower):
-                # Check if this candidate is our target character
-                # Target character names include canonical name + aliases
-                target_names_lower = [n.lower() for n in target_character_names]
-
-                if candidate.lower() in target_names_lower:
-                    # This passage contains a label-specific alias for our target character
-                    return DisambiguationResult(
-                        resolved_character=candidate,
-                        confidence=0.99,
-                        method="split_label",
-                        reason=f"Passage contains label-specific alias '{label}' for split character",
-                    )
-                else:
-                    # This passage contains a label for a DIFFERENT split character
-                    # Return low confidence to skip this passage for the target character
-                    return DisambiguationResult(
-                        resolved_character=candidate,
-                        confidence=0.1,
-                        method="split_label_mismatch",
-                        reason=f"Passage contains label '{label}' for different split character",
-                    )
-
-        return None
 
     def _check_relationship_markers(
         self,

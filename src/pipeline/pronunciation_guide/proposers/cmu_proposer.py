@@ -581,15 +581,7 @@ COMMON_WORDS_WHITELIST = {
     "aslant",
     # Additional common words flagged in monkeys_paw analysis (attempt 2)
     "sightless",
-    # Additional common words flagged in american_sir analysis (attempt 23)
-    "manliness",
-    "orderlies",
-    "thriftless",
-    "thickset",
-    "whippersnapper",
-    "mayn",  # Fragment from "mayn't"
 }
-
 
 # Contraction fragments that result from tokenization
 CONTRACTION_FRAGMENTS = {

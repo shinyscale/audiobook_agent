@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Optional
 
 from ..models import PronunciationFlag, PronunciationMention, PronunciationProposal
 from .base import BasePronunciationProposer
-from .cmu_proposer import COMMON_WORDS_WHITELIST
 
 if TYPE_CHECKING:
     from ..word_index import WordIndex
@@ -45,10 +44,17 @@ FOREIGN_PATTERNS = {
 }
 
 # Words that match patterns but are common English
-# Combine with COMMON_WORDS_WHITELIST to ensure common words are never flagged
-ENGLISH_EXCEPTIONS = COMMON_WORDS_WHITELIST | {
-    # Additional exceptions beyond the common words whitelist
-    # (the whitelist already includes articles, conjunctions, and common verbs)
+ENGLISH_EXCEPTIONS = {
+    # Common articles/conjunctions that might match patterns
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "for",
+    "to",
+    "of",
     # -ique words that are standard English
     "unique",
     "technique",

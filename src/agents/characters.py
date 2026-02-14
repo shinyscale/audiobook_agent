@@ -158,28 +158,11 @@ class CharacterAgent(Agent):
         characters = self._merge_title_variants(characters)
         logger.info(f"V2 Step 1.5 complete: {len(characters)} after title-variant merge")
 
-        # STEP 1.6: Split same-name characters when summaries disambiguate them
-        # Example: "John Donaldson (the father)" and "John Donaldson (the son)" in summaries
-        # should create two separate character entries, not one conflated entry
-        characters = self._split_disambiguated_same_name_characters(
-            characters, chapter_summaries
-        )
-        logger.info(f"V2 Step 1.6 complete: {len(characters)} after same-name disambiguation split")
-
         # STEP 2: Search for mentions (F2)
         logger.info("V2 Step 2: Searching for character mentions")
         searcher = MentionSearcher(context.text, chapters)
         mention_results = searcher.search_all(characters)
         characters = searcher.update_characters_with_mentions(characters, mention_results)
-
-        # DIAGNOSTIC: Log mention counts for split characters
-        for char in characters:
-            if "_split_" in char.id:
-                logger.info(
-                    f"SPLIT DIAGNOSTIC: After mention search: {char.id} | "
-                    f"canonical='{char.canonical_name}' | "
-                    f"mentions={char.mention_count}"
-                )
 
         # STEP 3: Apply grounding gate (F2b)
         word_count = len(context.text.split())
@@ -194,31 +177,8 @@ class CharacterAgent(Agent):
             min_mentions=effective_min_mentions,
             remove_ungrounded_aliases=True,
         )
-
-        # DIAGNOSTIC: Log split characters before grounding gate
-        split_chars_before = [c for c in characters if "_split_" in c.id]
-        if split_chars_before:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: Before grounding gate: "
-                f"{[c.id for c in split_chars_before]} "
-                f"(threshold={effective_min_mentions})"
-            )
-
         grounding_report = grounding_gate.apply(characters, mention_results)
         grounding_gate.log_report(grounding_report)
-
-        # DIAGNOSTIC: Log split characters after grounding gate
-        split_chars_after = [c for c in characters if "_split_" in c.id]
-        if len(split_chars_after) < len(split_chars_before):
-            removed = [c.id for c in split_chars_before if c.id not in [x.id for x in split_chars_after]]
-            logger.warning(
-                f"SPLIT DIAGNOSTIC: Grounding gate REMOVED split characters: {removed}"
-            )
-        if split_chars_after:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: After grounding gate: "
-                f"{[(c.id, c.mention_count) for c in split_chars_after]}"
-            )
 
         # Use grounded characters as main cast
         main_cast = grounding_report.grounded_characters
@@ -243,29 +203,7 @@ class CharacterAgent(Agent):
 
         # STEP 3.5: Merge within main cast (last-name-only, spelling variants, first-name-only)
         logger.info("V2 Step 3.5: Merging within main cast")
-
-        # DIAGNOSTIC: Log split characters before merge
-        split_chars_before_merge = [c for c in main_cast if "_split_" in c.id]
-        if split_chars_before_merge:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: Before Step 3.5 merge: "
-                f"{[(c.id, c.canonical_name, c.mention_count) for c in split_chars_before_merge]}"
-            )
-
         main_cast, within_main_aliases_added = self._merge_within_main_cast(main_cast)
-
-        # DIAGNOSTIC: Log split characters after merge
-        split_chars_after_merge = [c for c in main_cast if "_split_" in c.id]
-        if len(split_chars_after_merge) < len(split_chars_before_merge):
-            removed = [c.id for c in split_chars_before_merge if c.id not in [x.id for x in split_chars_after_merge]]
-            logger.warning(
-                f"SPLIT DIAGNOSTIC: Step 3.5 merge REMOVED split characters: {removed}"
-            )
-        if split_chars_after_merge:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: After Step 3.5 merge: "
-                f"{[(c.id, c.canonical_name, c.mention_count) for c in split_chars_after_merge]}"
-            )
 
         # Re-search mentions for characters that gained new aliases
         if within_main_aliases_added:
@@ -297,25 +235,6 @@ class CharacterAgent(Agent):
             f"V2 Step 4 complete: POV={narrator_info.pov}, "
             f"narrator={narrator_info.narrator_name}"
         )
-
-        # STEP 4.5: Fallback narrator matching if LLM detection didn't find character ID
-        # This handles cases where the narrator name is correct but matching failed
-        if narrator_info.narrator_name and not narrator_info.narrator_character_id:
-            logger.warning(
-                f"Narrator '{narrator_info.narrator_name}' identified but not matched to character. "
-                f"Attempting fallback matching..."
-            )
-            # Try fuzzy matching with current main_cast
-            from ..utils.similarity import names_similar
-            for char in main_cast:
-                if names_similar(char.canonical_name, narrator_info.narrator_name, threshold=0.7):
-                    logger.info(
-                        f"Fallback match: '{narrator_info.narrator_name}' → '{char.canonical_name}' (ID: {char.id})"
-                    )
-                    narrator_info.narrator_character_id = char.id
-                    char.is_narrator = True
-                    char.narrative_role = f"{narrator_info.pov.title()} narrator"
-                    break
 
         # STEP 5: Extract supporting cast (F3)
         logger.info("V2 Step 5: Extracting supporting cast via NER")
@@ -379,33 +298,6 @@ class CharacterAgent(Agent):
                                     f"Marked {char.canonical_name} as nested narrator in supporting cast"
                                 )
                                 break
-
-        # STEP 5.0.6: Promote first-person narrator from supporting to main cast
-        # This defends against LLM nondeterminism where the true narrator (who should always
-        # be prominent) gets missed by main cast extraction and falls to supporting.
-        # First-person narrators are central to the story and should ALWAYS be in main cast.
-        if narrator_info.pov == "first-person" and narrator_info.narrator_character_id:
-            # Check if narrator is in supporting cast
-            narrator_in_supporting = None
-            narrator_idx_in_supporting = None
-            for i, char in enumerate(supporting_cast):
-                if char.id == narrator_info.narrator_character_id:
-                    narrator_in_supporting = char
-                    narrator_idx_in_supporting = i
-                    break
-
-            if narrator_in_supporting:
-                # Promote to main cast
-                logger.warning(
-                    f"NARRATOR PROMOTION: Moving '{narrator_in_supporting.canonical_name}' "
-                    f"from supporting to main cast (first-person narrator should be prominent). "
-                    f"This protects against LLM nondeterminism in main cast extraction."
-                )
-                # Remove from supporting cast
-                supporting_cast.pop(narrator_idx_in_supporting)
-                # Add to main cast with protagonist role
-                narrator_in_supporting.role = "protagonist"
-                main_cast.append(narrator_in_supporting)
 
         # STEP 5.1: Filter narrator-related entries from supporting cast
         # Handles cases where NER picks up "narrator", "the narrator", etc.
@@ -691,97 +583,10 @@ class CharacterAgent(Agent):
             f"V2 Step 5.10.6 complete: {len(supporting_cast)} supporting after fragment filter"
         )
 
-        # STEP 5.10.7: Split same-name supporting characters when summaries disambiguate them
-        # This is the same logic as Step 1.6 but applied to supporting cast.
-        # Example: If main cast extraction missed "John Donaldson" and it fell through to
-        # supporting cast, summaries may have "John Donaldson (the father)" and "John Donaldson (the son)"
-        # which should trigger a split even though it's in supporting cast.
-        logger.info("V2 Step 5.10.7: Checking for same-name disambiguation in supporting cast")
-        before_split = len(supporting_cast)
-        supporting_cast = self._split_disambiguated_same_name_characters(
-            supporting_cast, chapter_summaries
-        )
-        after_split = len(supporting_cast)
-        logger.info(
-            f"V2 Step 5.10.7 complete: {len(supporting_cast)} supporting after same-name split"
-        )
-
-        # If split occurred, re-run mention search for the new split characters
-        if after_split > before_split:
-            logger.info(
-                f"V2 Step 5.10.7.1: Re-running mention search for {after_split - before_split} split characters"
-            )
-            try:
-                split_results = searcher.search_all(supporting_cast)
-                supporting_cast = searcher.update_characters_with_mentions(
-                    supporting_cast, split_results
-                )
-                # Update global mention_results
-                mention_results.update(split_results)
-
-                # Populate first appearance chapter for split characters
-                for char in supporting_cast:
-                    r = split_results.get(char.id)
-                    if r and r.chapter_distribution:
-                        chapters_list = sorted(r.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters_list[0]
-            except Exception as e:
-                logger.warning(f"Split character mention search failed: {e}")
-
-        # STEP 5.10.8: Enforce narrator exclusivity
-        # Only the identified narrator should have is_narrator=True
-        # This prevents LLM nondeterminism from assigning the flag to wrong characters
-        if narrator_info.narrator_character_id:
-            logger.info(
-                f"V2 Step 5.10.8: Enforcing narrator exclusivity for '{narrator_info.narrator_name}' "
-                f"(ID: {narrator_info.narrator_character_id})"
-            )
-            # Clear is_narrator flag from all characters except the identified narrator
-            for char in main_cast + supporting_cast:
-                if char.id == narrator_info.narrator_character_id:
-                    # This is the true narrator - ensure flag is set
-                    if not char.is_narrator:
-                        logger.warning(
-                            f"NARRATOR EXCLUSIVITY: Setting is_narrator=True for '{char.canonical_name}' "
-                            f"(identified narrator but flag was false)"
-                        )
-                        char.is_narrator = True
-                else:
-                    # This is NOT the narrator - clear the flag if set
-                    if char.is_narrator:
-                        logger.warning(
-                            f"NARRATOR EXCLUSIVITY: Clearing is_narrator=True from '{char.canonical_name}' "
-                            f"(not the identified narrator '{narrator_info.narrator_name}')"
-                        )
-                        char.is_narrator = False
-
         # Build final CharacterMap
-
-        # DIAGNOSTIC: Final check for split characters before CharacterMap creation
-        final_split_chars_main = [c for c in main_cast if "_split_" in c.id]
-        final_split_chars_supporting = [c for c in supporting_cast if "_split_" in c.id]
-        if final_split_chars_main or final_split_chars_supporting:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: Before CharacterMap creation: "
-                f"main_cast={[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_main]}, "
-                f"supporting_cast={[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_supporting]}"
-            )
-
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
         )
-
-        # DIAGNOSTIC: Check if split characters survived conversion
-        final_split_chars_output = [c for c in all_characters if "_split_" in c.id]
-        if final_split_chars_output:
-            logger.info(
-                f"SPLIT DIAGNOSTIC: After conversion to pipeline characters: "
-                f"{[(c.id, c.canonical_name, c.mention_count) for c in final_split_chars_output]}"
-            )
-        elif final_split_chars_main or final_split_chars_supporting:
-            logger.error(
-                f"SPLIT DIAGNOSTIC: CRITICAL - Split characters LOST during _convert_to_pipeline_characters()!"
-            )
 
         # Calculate confidence breakdown
         high = sum(1 for c in all_characters if c.confidence >= 0.7)
@@ -1471,222 +1276,6 @@ class CharacterAgent(Agent):
 
         return merged
 
-    def _split_disambiguated_same_name_characters(
-        self,
-        characters: list[Character],
-        chapter_summaries: list
-    ) -> list[Character]:
-        """
-        Split characters with the same name when summaries use disambiguating labels.
-
-        Example: If summaries refer to "John Donaldson (the father)" and
-        "John Donaldson (the son)", this splits the single "John Donaldson"
-        character into two separate characters.
-
-        This addresses cases where the LLM merges same-name characters despite
-        the summaries providing clear disambiguation.
-
-        Args:
-            characters: List of characters extracted from main cast
-            chapter_summaries: List of summary objects with characters_present/active_characters data
-        """
-        import re
-        from collections import defaultdict
-
-        # Group characters by base name (without disambiguation labels)
-        name_groups = defaultdict(list)
-        for char in characters:
-            # Extract base name (remove parenthetical labels if present)
-            base_name = re.sub(r'\s*\([^)]+\)\s*$', '', char.canonical_name).strip()
-            name_groups[base_name].append(char)
-
-        # Extract characters_present from summaries
-        # Summaries can be strings (formatted with characters) or objects with active_characters field
-        all_characters_in_summaries = []
-        for summary in chapter_summaries:
-            # Try to get characters_present from summary object
-            if hasattr(summary, 'characters_present'):
-                all_characters_in_summaries.extend(summary.characters_present)
-            elif hasattr(summary, 'active_characters'):
-                all_characters_in_summaries.extend(summary.active_characters)
-            elif isinstance(summary, str):
-                # Parse formatted summary string like "[Characters: A, B]\nSummary text..."
-                lines = summary.split('\n', 1)
-                if lines and lines[0].startswith('[Characters:'):
-                    # Extract character names from "[Characters: A, B, C]"
-                    char_text = lines[0][len('[Characters:'):-1].strip()  # Remove "[Characters:" and "]"
-                    chars = [c.strip() for c in char_text.split(',')]
-                    all_characters_in_summaries.extend(chars)
-
-        # For each base name, check if summaries distinguish multiple people
-        result = []
-        for base_name, char_list in name_groups.items():
-            if len(char_list) != 1:
-                # No conflation - multiple characters already exist
-                result.extend(char_list)
-                continue
-
-            char = char_list[0]
-
-            # Check if summaries use disambiguating labels for this name
-            # Try BOTH the canonical base_name AND all aliases as potential base names
-            labels_found = set()
-            effective_base_name = base_name  # Track which base name actually matched
-
-            # First try canonical base_name (e.g., "John")
-            for char_ref in all_characters_in_summaries:
-                match = re.match(
-                    r'^' + re.escape(base_name) + r'\s*\(([^)]+)\)\s*$',
-                    char_ref,
-                    re.IGNORECASE
-                )
-                if match:
-                    label = match.group(1).strip()
-                    labels_found.add(label)
-
-            # If fewer than 2 labels found with canonical name, try each alias
-            # Example: canonical="John", alias="John Donaldson"
-            # Summary refs: "John Donaldson (the father)", "John Donaldson (the son)"
-            # Pattern with canonical "John" won't match, but "John Donaldson" will
-            # Also handles case where canonical finds 1 label but alias finds both
-            if len(labels_found) < 2 and hasattr(char, 'aliases') and char.aliases:
-                for alias in char.aliases:
-                    # Skip possessive forms and very short aliases
-                    if alias.endswith("'s") or len(alias) <= 2:
-                        continue
-
-                    alias_base = re.sub(r'\s*\([^)]+\)\s*$', '', alias).strip()
-                    alias_labels = set()
-
-                    for char_ref in all_characters_in_summaries:
-                        match = re.match(
-                            r'^' + re.escape(alias_base) + r'\s*\(([^)]+)\)\s*$',
-                            char_ref,
-                            re.IGNORECASE
-                        )
-                        if match:
-                            label = match.group(1).strip()
-                            alias_labels.add(label)
-
-                    # If this alias matched 2+ labels, use it
-                    if len(alias_labels) >= 2:
-                        labels_found = alias_labels
-                        effective_base_name = alias_base
-                        logger.info(
-                            f"Found disambiguation via alias '{alias_base}' for character "
-                            f"with canonical name '{base_name}'"
-                        )
-                        break
-
-            # If we found 2+ distinct labels, split the character
-            if len(labels_found) >= 2:
-                logger.info(
-                    f"Splitting '{effective_base_name}' into {len(labels_found)} characters "
-                    f"based on summary labels: {sorted(labels_found)}"
-                )
-
-                # CRITICAL: Partition aliases between split children to prevent one child
-                # from absorbing all mentions while the other has 0 and gets filtered.
-                #
-                # Example: "John Donaldson" splits into father and son
-                # - Father gets: "the father", "John Donaldson (the father)"
-                # - Son gets: "the son", "John Donaldson (the son)"
-                # - SHARED: "John Donaldson", "John" go to BOTH (context disambiguates)
-                original_aliases = list(char.aliases) if hasattr(char, 'aliases') and char.aliases else []
-
-                # Build alias partition for each label
-                label_to_aliases = {}
-                shared_aliases = []
-
-                for alias in original_aliases:
-                    # Check if this alias belongs to a specific label
-                    assigned_to_label = None
-                    for label in labels_found:
-                        # Exact match with label in parentheses
-                        if f"({label})" in alias.lower():
-                            assigned_to_label = label
-                            break
-                        # Exact match with the label itself (e.g., "the father", "the son")
-                        if alias.lower() == label.lower():
-                            assigned_to_label = label
-                            break
-
-                    if assigned_to_label:
-                        # This alias belongs to a specific split child
-                        if assigned_to_label not in label_to_aliases:
-                            label_to_aliases[assigned_to_label] = []
-                        label_to_aliases[assigned_to_label].append(alias)
-                    else:
-                        # This is a shared alias (base name, nicknames, etc.)
-                        shared_aliases.append(alias)
-
-                # Create separate character for each label
-                for i, label in enumerate(sorted(labels_found)):
-                    # Build this child's alias list: label-specific + shared
-                    split_aliases = label_to_aliases.get(label, []) + shared_aliases
-
-                    # Also add the disambiguated canonical as an alias
-                    split_aliases.append(f"{effective_base_name} ({label})")
-
-                    new_char = Character(
-                        id=f"{char.id}_split_{i}",
-                        canonical_name=f"{effective_base_name} ({label})",
-                        role=char.role if i == 0 else "supporting",
-                        aliases=split_aliases,
-                        mention_count=0,  # Will be recomputed in Step 2 (now possible with aliases)
-                        first_appearance_chapter=char.first_appearance_chapter,
-                        is_symbolic=getattr(char, 'is_symbolic', False),
-                    )
-                    result.append(new_char)
-
-                    # DIAGNOSTIC: Log each split character creation with details
-                    logger.info(
-                        f"SPLIT DIAGNOSTIC: Created {new_char.id} | "
-                        f"canonical='{new_char.canonical_name}' | "
-                        f"aliases={split_aliases[:3]}{'...' if len(split_aliases) > 3 else ''} "
-                        f"({len(split_aliases)} total) | "
-                        f"role={new_char.role}"
-                    )
-            else:
-                # No split needed
-                result.append(char)
-
-        # POST-SPLIT VALIDATION: Prevent split siblings from having each other's canonical names as aliases
-        # This defends against LLM nondeterminism where alias partitioning might incorrectly assign
-        # sibling canonical names (e.g., "John Donaldson (the son)" appearing as alias of father)
-        for char in result:
-            if "_split_" not in char.id:
-                continue  # Not a split character
-
-            # Extract base ID to find siblings (e.g., "main_cast_1_split_0" → "main_cast_1")
-            char_base = char.id.rsplit("_split_", 1)[0]
-
-            # Find all siblings from the same split operation
-            sibling_canonicals = set()
-            for other in result:
-                if "_split_" in other.id and other.id != char.id:
-                    other_base = other.id.rsplit("_split_", 1)[0]
-                    if other_base == char_base:
-                        sibling_canonicals.add(other.canonical_name.lower())
-
-            # Remove any sibling canonical names from this character's aliases
-            if sibling_canonicals:
-                original_count = len(char.aliases)
-                char.aliases = [
-                    alias for alias in char.aliases
-                    if alias.lower() not in sibling_canonicals
-                ]
-                removed_count = original_count - len(char.aliases)
-                if removed_count > 0:
-                    logger.warning(
-                        f"POST-SPLIT VALIDATION: Removed {removed_count} sibling canonical name(s) "
-                        f"from '{char.canonical_name}' aliases to prevent absorption. "
-                        f"Original alias count: {original_count}, final: {len(char.aliases)}"
-                    )
-
-        return result
-
-
     def _is_valid_alias(self, alias: str, canonical_name: str) -> bool:
         """
         Check if an alias is valid for the given canonical name.
@@ -1994,19 +1583,6 @@ class CharacterAgent(Agent):
                 if other_idx == idx or other_idx in chars_to_remove:
                     continue
 
-                # SAFETY CHECK: Don't merge characters from same split operation
-                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
-                # don't let middle initial matching re-merge them
-                if "_split_" in char.id and "_split_" in other_char.id:
-                    char_base = char.id.rsplit("_split_", 1)[0]
-                    other_base = other_char.id.rsplit("_split_", 1)[0]
-                    if char_base == other_base:
-                        logger.info(
-                            f"Skipping merge of split characters (Pass 0): '{char_name}' and '{other_char.canonical_name}' "
-                            f"(both from split operation {char_base})"
-                        )
-                        continue  # Skip - these are intentionally split characters
-
                 other_name = other_char.canonical_name.strip()
                 if other_name.lower() == name_without_middle.lower():
                     # Found a match! Merge the one with FEWER mentions into the one with MORE
@@ -2056,19 +1632,6 @@ class CharacterAgent(Agent):
             for other_idx, other_char in enumerate(main_cast):
                 if other_idx == idx or other_idx in chars_to_remove:
                     continue
-
-                # SAFETY CHECK: Don't merge characters from same split operation
-                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
-                # don't let last-name matching re-merge them
-                if "_split_" in char.id and "_split_" in other_char.id:
-                    char_base = char.id.rsplit("_split_", 1)[0]
-                    other_base = other_char.id.rsplit("_split_", 1)[0]
-                    if char_base == other_base:
-                        logger.info(
-                            f"Skipping merge of split characters (Pass 1): '{char_name}' and '{other_char.canonical_name}' "
-                            f"(both from split operation {char_base})"
-                        )
-                        continue  # Skip - these are intentionally split characters
 
                 other_name = other_char.canonical_name.strip()
                 if not other_name or " " not in other_name:
@@ -2137,25 +1700,10 @@ class CharacterAgent(Agent):
 
                 # Check if names are very similar (spelling variants)
                 if names_similar(char_name, other_name):  # 85% similar
-                    # SAFETY CHECK 1: Don't merge if both have different title prefixes
+                    # SAFETY CHECK: Don't merge if both have different title prefixes
                     # (e.g., "Mr. White" vs "Mrs. White" are different people)
                     if self._are_different_titled_people(char_name, other_name):
                         continue  # Skip - they're different people
-
-                    # SAFETY CHECK 2: Don't merge characters from same split operation
-                    # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
-                    # don't let fuzzy matching re-merge them based on name similarity
-                    # Check if both IDs share the same split base (e.g., "main_cast_1_split_0" and "main_cast_1_split_1")
-                    if "_split_" in char.id and "_split_" in other_char.id:
-                        # Extract base ID before "_split_" suffix
-                        char_base = char.id.rsplit("_split_", 1)[0]
-                        other_base = other_char.id.rsplit("_split_", 1)[0]
-                        if char_base == other_base:
-                            logger.info(
-                                f"Skipping merge of split characters: '{char_name}' and '{other_name}' "
-                                f"(both from split operation {char_base})"
-                            )
-                            continue  # Skip - these are intentionally split characters
 
                     # Calculate similarity for logging
                     similarity = string_similarity(char_name, other_name)
@@ -2213,19 +1761,6 @@ class CharacterAgent(Agent):
             for other_idx, other_char in enumerate(updated_main_cast):
                 if other_idx == idx:
                     continue
-
-                # SAFETY CHECK: Don't merge characters from same split operation
-                # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
-                # don't let last-name re-matching merge them
-                if "_split_" in char.id and "_split_" in other_char.id:
-                    char_base = char.id.rsplit("_split_", 1)[0]
-                    other_base = other_char.id.rsplit("_split_", 1)[0]
-                    if char_base == other_base:
-                        logger.info(
-                            f"Skipping merge of split characters (Pass 3): '{char_name}' and '{other_char.canonical_name}' "
-                            f"(both from split operation {char_base})"
-                        )
-                        continue  # Skip - these are intentionally split characters
 
                 other_name = other_char.canonical_name.strip()
                 if not other_name or " " not in other_name:
@@ -2312,19 +1847,6 @@ class CharacterAgent(Agent):
                 for other_idx, other_char in enumerate(final_main_cast):
                     if other_idx <= idx or other_idx in chars_to_remove_pass4:
                         continue  # Only check each pair once
-
-                    # SAFETY CHECK: Don't merge characters from same split operation
-                    # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
-                    # don't let descriptive synonym matching merge them
-                    if "_split_" in char.id and "_split_" in other_char.id:
-                        char_base = char.id.rsplit("_split_", 1)[0]
-                        other_base = other_char.id.rsplit("_split_", 1)[0]
-                        if char_base == other_base:
-                            logger.info(
-                                f"Skipping merge of split characters (Pass 4): '{char.canonical_name}' and '{other_char.canonical_name}' "
-                                f"(both from split operation {char_base})"
-                            )
-                            continue  # Skip - these are intentionally split characters
 
                     other_name = other_char.canonical_name.lower().strip()
                     other_is_the_form, other_descriptor = _normalize_descriptor(
