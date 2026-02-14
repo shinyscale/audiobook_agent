@@ -1903,10 +1903,25 @@ class CharacterAgent(Agent):
 
                 # Check if names are very similar (spelling variants)
                 if names_similar(char_name, other_name):  # 85% similar
-                    # SAFETY CHECK: Don't merge if both have different title prefixes
+                    # SAFETY CHECK 1: Don't merge if both have different title prefixes
                     # (e.g., "Mr. White" vs "Mrs. White" are different people)
                     if self._are_different_titled_people(char_name, other_name):
                         continue  # Skip - they're different people
+
+                    # SAFETY CHECK 2: Don't merge characters from same split operation
+                    # If Step 1.6 split "John Donaldson" into "John (father)" and "John (son)",
+                    # don't let fuzzy matching re-merge them based on name similarity
+                    # Check if both IDs share the same split base (e.g., "main_cast_1_split_0" and "main_cast_1_split_1")
+                    if "_split_" in char.id and "_split_" in other_char.id:
+                        # Extract base ID before "_split_" suffix
+                        char_base = char.id.rsplit("_split_", 1)[0]
+                        other_base = other_char.id.rsplit("_split_", 1)[0]
+                        if char_base == other_base:
+                            logger.info(
+                                f"Skipping merge of split characters: '{char_name}' and '{other_name}' "
+                                f"(both from split operation {char_base})"
+                            )
+                            continue  # Skip - these are intentionally split characters
 
                     # Calculate similarity for logging
                     similarity = string_similarity(char_name, other_name)

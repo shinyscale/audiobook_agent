@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Attempt:** 12
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -314,6 +314,17 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 - **Result:** **PARTIAL SUCCESS / NEW REGRESSION** — Father now has 29 mentions and rich profile (alias propagation worked). BUT: only ONE split child created (father). The son was absorbed as an alias of the father instead of becoming a separate character. Narrator flag incorrectly transferred to father.
 - **Modified:** `src/agents/characters.py` (lines 1459-1470)
 
+### Attempt 12 - Fix 1: Prevent re-merge of split characters
+- **Issue addressed:** Son absorbed as alias of father (CRITICAL #1 regression from attempt 11)
+- **Root cause:** `src/agents/characters.py:1905-1945` - Step 3.5 `_merge_within_main_cast()` Pass 2 (spelling variants) uses fuzzy matching that re-merges split characters
+- **Data investigation:**
+  - Character IDs show only `main_cast_1_split_0` (father) exists, no `split_1` (son)
+  - Father's aliases include "John Donaldson (the son)" which should be a separate character
+  - Split created both father and son correctly in Step 1.6, but Step 3.5 fuzzy matching (~85% similarity) merged them back together
+- **Fix:** Add SAFETY CHECK 2 in Pass 2 to skip merge if both characters come from the same split operation (check if `_split_` in ID and same base ID before `_split_` suffix)
+- **Universality check:** YES - this prevents re-merging any same-name disambiguated characters (father/son, Sr./Jr., elder/younger, etc.)
+- **Modified:** `src/agents/characters.py` (lines 1904-1923)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -334,6 +345,7 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 9 | Father/son conflation | `characters.py` (alias fallback — wrong condition) | **DID NOT WORK** — condition bug |
 | 10 | Father/son conflation | `characters.py:1421` (fix condition) | **SUCCESS** — split works, but 0 mentions/no profiles |
 | 11 | Split chars empty | `characters.py:1459-1470` (alias propagation) | **PARTIAL** — father profiled, but son merged as alias; narrator regression |
+| 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PENDING VERIFICATION** |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -351,7 +363,8 @@ Overall = (7 × 0.20) + (5.5 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 | 11 | 6.85 | +0.25 | Father profiled (29 mentions). **REGRESSION: son merged as alias of father. Narrator on wrong character.** |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1:** Fix split logic to create TWO separate characters (father AND son), not one with son as alias
-2. **CRITICAL #2:** Fix narrator assignment — Uncle Bill must be narrator, not the father
-3. Focus on these two issues first — they are the highest-impact fixes needed
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify fix:
+- Split characters (father and son) should both exist as separate characters
+- Narrator assignment should be re-evaluated (may self-correct with proper split)
