@@ -520,10 +520,21 @@ def collect_cooccurrence_evidence(
     """
     Add co-occurrence based evidence to the graph.
 
-    High co-occurrence (>0.5) adds merge evidence.
+    IMPORTANT: Co-occurrence is only used as CORROBORATING evidence.
+    It only adds merge edges when there is already at least one other
+    merge edge between the pair. This prevents false transitive merges
+    in short stories where all characters naturally co-occur in the
+    same text chunks.
+
     Does not add negative evidence — co-occurrence absence is not proof of
     being different people (a character might use different names in different chapters).
     """
+    # First, build set of pairs that already have merge evidence
+    existing_merge_pairs: set[tuple[str, str]] = set()
+    for edge in graph.merge_edges:
+        pair = tuple(sorted([edge.source, edge.target]))
+        existing_merge_pairs.add(pair)
+
     seen_pairs: set[tuple[str, str]] = set()
 
     for (id_a, id_b), score in cooccurrence.items():
@@ -535,11 +546,15 @@ def collect_cooccurrence_evidence(
         if id_a not in graph.nodes or id_b not in graph.nodes:
             continue
 
+        # Only add co-occurrence evidence if there's already name-based evidence
+        if pair not in existing_merge_pairs:
+            continue
+
         if score >= positive_threshold:
             graph.add_merge_edge(
                 id_a, id_b,
                 EdgeType.COOCCURRENCE,
-                f"High co-occurrence: score={score:.2f}",
+                f"Co-occurrence corroboration: score={score:.2f}",
                 weight=min(score, 0.90),  # Cap at 0.90
             )
 
@@ -1146,31 +1161,31 @@ def collect_all_evidence(
     logger.info("  Collecting within-cast evidence...")
     collect_within_cast_evidence(graph)
 
-    # 4. Co-occurrence evidence
-    if cooccurrence:
-        logger.info("  Collecting co-occurrence evidence...")
-        collect_cooccurrence_evidence(graph, cooccurrence)
-
-    # 5. Cross-cast evidence
+    # 4. Cross-cast evidence
     logger.info("  Collecting cross-cast evidence...")
     collect_cross_cast_evidence(graph)
 
-    # 6. Synonym evidence
+    # 5. Synonym evidence
     logger.info("  Collecting synonym evidence...")
     collect_synonym_evidence(graph)
 
-    # 7. Narrator evidence
+    # 6. Narrator evidence
     if narrator_info:
         logger.info("  Collecting narrator evidence...")
         collect_narrator_evidence(graph, narrator_info)
 
-    # 8. LLM evidence
+    # 7. LLM evidence
     if llm_pass2_results:
         logger.info("  Collecting LLM evidence...")
         collect_llm_evidence(graph, llm_pass2_results)
 
-    # 9. Surname family evidence
+    # 8. Surname family evidence
     logger.info("  Collecting surname family evidence...")
     collect_surname_family_evidence(graph)
+
+    # 9. Co-occurrence evidence (LAST — corroborates existing name-based edges only)
+    if cooccurrence:
+        logger.info("  Collecting co-occurrence evidence...")
+        collect_cooccurrence_evidence(graph, cooccurrence)
 
     logger.info(f"Evidence collection complete: {graph.summary()}")

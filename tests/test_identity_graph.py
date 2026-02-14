@@ -456,21 +456,41 @@ class TestEvidenceCollectors:
         assert len(edges) >= 1
         assert any(e.edge_type == EdgeType.NARRATOR_PLACEHOLDER for e in edges)
 
-    def test_cooccurrence_evidence(self):
+    def test_cooccurrence_evidence_corroborates(self):
+        """Co-occurrence only adds evidence when there's already a name-based edge."""
         graph = IdentityGraph()
         graph.add_character(
-            MockCharacter(id="c1", canonical_name="A", mention_count=50),
+            MockCharacter(id="c1", canonical_name="Jay Gatsby", mention_count=200),
             is_main_cast=True,
         )
         graph.add_character(
-            MockCharacter(id="c2", canonical_name="B", mention_count=30),
+            MockCharacter(id="c2", canonical_name="Gatsby", mention_count=50),
             is_main_cast=True,
         )
+        # Add a name-based edge first
+        graph.add_merge_edge("c1", "c2", EdgeType.LASTNAME_MATCH, "lastname match")
+
         cooccurrence = {("c1", "c2"): 0.75, ("c2", "c1"): 0.75}
         collect_cooccurrence_evidence(graph, cooccurrence)
         edges = graph.get_merge_evidence_between("c1", "c2")
-        assert len(edges) >= 1
-        assert any(e.edge_type == EdgeType.COOCCURRENCE for e in edges)
+        cooccurrence_edges = [e for e in edges if e.edge_type == EdgeType.COOCCURRENCE]
+        assert len(cooccurrence_edges) >= 1, "Co-occurrence should corroborate existing evidence"
+
+    def test_cooccurrence_no_standalone_evidence(self):
+        """Co-occurrence should NOT add evidence when there's no prior name-based edge."""
+        graph = IdentityGraph()
+        graph.add_character(
+            MockCharacter(id="c1", canonical_name="Prince Prospero", mention_count=50),
+            is_main_cast=True,
+        )
+        graph.add_character(
+            MockCharacter(id="c2", canonical_name="the Red Death", mention_count=30),
+            is_main_cast=True,
+        )
+        cooccurrence = {("c1", "c2"): 0.80, ("c2", "c1"): 0.80}
+        collect_cooccurrence_evidence(graph, cooccurrence)
+        edges = graph.get_merge_evidence_between("c1", "c2")
+        assert len(edges) == 0, "Co-occurrence should NOT create standalone merge evidence"
 
     def test_nickname_detection(self):
         assert _is_nickname_match("Jim", "James") is True
