@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 22
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,13 +11,14 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 21)
-- Analysis completed in 35m 33s
-- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)
-- Found 6 characters total (merged 1 based on identity statements)
-- Generated 3 character profiles
-- 27 pronunciation flags
-- **CRITICAL REGRESSION: Son character absorbed as alias of father** — attempt 20 had both characters separate, attempt 21 merged them back
+## Pipeline Notes (Attempt 22)
+- Analysis completed in 36m 25s
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) on all stages (characters, structure, summaries)
+- Found 6 characters total
+- Generated 4 character profiles
+- 25 pronunciation flags
+- **CRITICAL:** Both father AND son now exist as SEPARATE characters (each with 28 mentions)
+- Warnings: F19 flags (ungrounded evidence quotes) and F6 rejection (John (the boy) hallucination)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
