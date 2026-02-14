@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -358,6 +358,16 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 - **NEW ISSUE:** Son's profile is entirely the father's profile (cross-contamination in profiling stage)
 - **Modified:** `src/agents/characters.py` (6 diagnostic logging blocks added throughout pipeline)
 
+### Attempt 15 - Fix: Split character label-based disambiguation
+- **Issue addressed:** Son's profile cross-contamination (CRITICAL #1)
+- **Root cause:** `name_disambiguator.py` line 355-364 — Disambiguator couldn't distinguish split characters with shared aliases ("John Donaldson", "John"). Both have same word count, so relationship markers couldn't use elder/younger heuristics. Label-specific aliases like "the father" weren't recognized as strong signals.
+- **Fix:** Added Signal 0 (confidence 0.99) for split character label detection:
+  1. Enhanced `NameAmbiguityMap._build_ambiguity_map()` to detect exact alias duplicates (lines 96-122)
+  2. Added `_check_split_character_labels()` method (lines 449-517)
+  3. Passages containing label-specific aliases now strongly assigned to that character
+- **Smoke test:** `test_split_label_fix.py` — 3/3 tests PASS (father passages assigned correctly, son passages rejected, neutral passages use other signals)
+- **Modified:** `src/pipeline/character_profiling/name_disambiguator.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -381,6 +391,7 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 12 | Son re-merged into father | `characters.py:1904-1923` (split character merge protection) | **PARTIAL** — merge protection works, but `split_0` (father) now MISSING |
 | 13 | Father character missing | `characters.py:1450-1505` (alias partitioning in split logic) | **NO EFFECT** — father still missing |
 | 14 | Diagnostic logging for split character flow | `characters.py` (6 diagnostic logging blocks) | **SUCCESS** — both split chars now exist! New issue: son profile contaminated with father's data |
+| 15 | Son's profile contamination | `name_disambiguator.py` (split label detection) | Split character label disambiguation to prevent cross-contamination |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -401,14 +412,17 @@ Overall = (7 × 0.20) + (6.5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (6.5 × 0.
 | 14 | 6.83 | +0.23 | **BREAKTHROUGH: Both father AND son exist!** Margaret restored. Uncle Bill narrator restored. NEW: Son has father's profile (cross-contamination). |
 
 ## Next Action
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**Priority for attempt 15:**
+**Fix Applied (Attempt 15):**
+- **Split character label-based disambiguation** — Added Signal 0 (confidence 0.99) to detect label-specific aliases in passages, preventing profile cross-contamination between split characters. Smoke test confirms correct behavior.
 
-1. **CRITICAL: Fix son's profile cross-contamination** — The profiling stage needs to differentiate between split characters. When profiling `main_cast_0_split_1` (the son), passages about "fifty-five or over", "embezzling", "faking death" should be filtered out. The passage gatherer should use disambiguating labels ("the father" vs "the son") or the split character's canonical name to select appropriate passages.
+**Expected Impact:**
+- Son's profile should now contain son-specific passages (brave, dutiful, ambulance driver) instead of father's passages (embezzlement, deathbed confession)
+- Profile contamination score impact: +1 to +2 points (currently 6/10, expect 7-8/10)
+- HTML presentation should improve as son's profile becomes accurate
 
-2. **HIGH: Remove spurious "John Donaldson's" character** — Strip trailing "'s" from extracted character names in supporting cast pipeline. Reassign "Johnny" alias to the son character.
-
-3. **HIGH: Fix "sister" → "cousin" in Ch2 summary** — This has persisted 14 attempts. The summary context for Ch2 needs to include the relationship information from Ch1 ("my cousin John").
-
-**Focus on Issue #1 first** — the profile cross-contamination is the highest-impact fix and will also partially resolve the HTML presentation issues.
+**Next Issues to Address (if score still below threshold):**
+1. **HIGH: Spurious "John Donaldson's" character** — possessive form extraction
+2. **HIGH: Ch2 summary "sister" → "cousin" hallucination** (14 consecutive attempts)
+3. **MEDIUM: Pronunciation false positives** (~9 of 27 entries)
