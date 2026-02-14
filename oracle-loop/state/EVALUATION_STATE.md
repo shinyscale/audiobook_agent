@@ -439,13 +439,25 @@ Overall = (7 × 0.20) + (7.5 × 0.25) + (5.5 × 0.15) + (7.5 × 0.20) + (6.5 × 
 
 **Phase:** awaiting_analysis
 
+**Status:** Attempt 21 fix has been applied (external change detected). Must run ANALYZE phase to test the fix before applying any additional changes.
+
 **Attempt 21 fix applied:** Split character passage pre-filtering using chapter `active_characters`. This should fix the profile contamination by ensuring the father only gets passages from chapters where "John Donaldson (the father)" appears in the summary, and similarly for the son.
+
+**Fix details:**
+- **Modified file:** `src/pipeline/character_profiling/passage_gatherer.py` (lines 326-347)
+- **Approach:** Pre-filter passages by checking if the full canonical name (with disambiguation label) appears in the chapter summary's `active_characters` list before gathering passages
+- **Universality:** Works for ANY text with same-name characters using chapter-level character presence signals
 
 **Expected improvements in attempt 21:**
 - **Character Profiles:** Should jump from 5.5/10 to 8+/10 if the son gets his own profile instead of the father's
 - **HTML Presentation:** Should improve from 7/10 to 8+/10 with correct profiles
 - **Character Extraction:** May improve slightly if profiles feed back into any downstream logic
 
-**If this fix works:** Will address CRITICAL #1, likely pushing overall score above threshold.
+**If this fix works:** Will address CRITICAL #1 (profile contamination), likely pushing Character Profiles and HTML Presentation above the 8.0 threshold.
 
-**If this fix doesn't work:** Will need to investigate why chapter summaries don't have the split labels in `active_characters`, or implement Approach 2 (use split label in profiling prompt).
+**If this fix doesn't work:** Will need to investigate:
+1. Whether chapter summaries have the split labels in `active_characters`
+2. Implement Approach 2 (use split label directly in profiling prompt)
+3. Add diagnostic logging to trace passage filtering decisions
+
+**CRITICAL:** External change detected by oracle loop. DO NOT apply additional fixes until attempt 21 is tested via ANALYZE phase.
