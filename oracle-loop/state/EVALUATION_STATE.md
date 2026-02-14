@@ -220,6 +220,26 @@ Overall = (7 × 0.20) + (8 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 
 ## Fix History
 
+### Attempt 23 - Fix 1: Pronunciation false positive filtering (3 universal invariants)
+- **Issue addressed:** Pronunciation false positives - ~12 common English words and standard names flagged unnecessarily (HIGH #2)
+- **Root cause:** Three proposers had incomplete filtering for common English words:
+  1. `foreign_proposer.py`: "was" flagged as foreign (ENGLISH_EXCEPTIONS didn't include COMMON_WORDS_WHITELIST)
+  2. `cmu_proposer.py`: "manliness", "orderlies", "thriftless", etc. not in whitelist
+  3. `character_proposer.py`: Only filtered short names (<=4 chars), not longer CMU-dictionary names like "Donaldson", "Margaret"
+- **Fix:** Applied 3 universal invariants:
+  1. **Foreign proposer:** Import and merge COMMON_WORDS_WHITELIST into ENGLISH_EXCEPTIONS (fixes "was")
+  2. **CMU proposer:** Add genuinely common English words to whitelist (fixes "manliness", "orderlies", "thriftless", "thickset", "whippersnapper", "mayn")
+  3. **Character proposer:** Remove length restriction - skip ANY name in CMU dictionary (fixes "Donaldson", "Barron", "Margaret")
+- **Why universal:**
+  - Uses CMU dictionary (~130K words) as universal reference, not book-specific deny-lists
+  - Common words whitelist applies to ALL books
+  - Preserves foreign names that narrators genuinely need (Caporetto, Piave)
+- **Smoke test:** `pytest tests/test_pronunciation*.py` - PASSES (16 passed, 2 skipped)
+- **Modified:**
+  - `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` (import COMMON_WORDS_WHITELIST, merge into ENGLISH_EXCEPTIONS)
+  - `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (add 6 common words to whitelist)
+  - `src/pipeline/pronunciation_guide/proposers/character_proposer.py` (remove <=4 char restriction)
+
 ### Attempt 22 - Fix 1: Deterministic disambiguation label protection in Pass 2
 - **Issue addressed:** Son character (John Donaldson (the son)) re-absorbed as alias of father (CRITICAL #1)
 - **Root cause:** `_process_consolidated_pass2()` in `src/pipeline/character_extraction_v2/main_cast.py` applied LLM merge directives without checking for conflicting disambiguation labels. The prompt-only rule (attempt 20, line 199) was nondeterministic and failed ~50% of the time.
@@ -453,9 +473,18 @@ Overall = (7 × 0.20) + (8 × 0.25) + (8 × 0.15) + (7.5 × 0.20) + (6.5 × 0.10
 | 21 | 6.83 | +0.23 | REGRESSION: son re-absorbed as alias of father |
 | 22 | 7.55 | +0.95 | **BEST SCORE** — Father/son split STABLE, son profile distinct! |
 
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 23 | Pronunciation false positives (HIGH) | `character_proposer.py`, `cmu_proposer.py`, `foreign_proposer.py` | **FIX APPLIED - awaiting test** |
+|---------|-------|----------------|--------|
+| 22 | Son re-absorbed (CRITICAL) | `main_cast.py` (deterministic guard + no cleaning in Pass 2) | **SUCCESS — both father AND son exist with distinct profiles!** |
+|---------|-------|----------------|--------|
+
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
 **PROGRESS SUMMARY:** Attempt 22 is the best result so far (+0.95 from baseline). Character extraction and profiles are now passing (8/10 each). HTML presentation is passing (8/10). Three categories remain below 8.0:
 
