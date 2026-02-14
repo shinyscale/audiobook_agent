@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 19
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,23 +11,20 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 18)
-- Analysis completed in 35m 37s
-- **CRITICAL ISSUE PERSISTS:** The revert of attempt 17 did NOT restore the attempt 16 state
-- Only 4 characters extracted (was 7 in attempt 16): father, Uncle Bill, Joe Barron, Ted Frith
-- "John Donaldson (the son)" is MISSING — absorbed as alias of father
-- Margaret Donaldson is MISSING (was present in attempt 16 with 2 mentions)
-- Father (`main_cast_1_split_0`) has 57 mentions — combined father+son (~28+28)
-- Father's aliases include "John Donaldson (the son)" — clearly absorbed from the son character
-- Only `main_cast_1_split_0` exists; no `main_cast_1_split_1` (son) in output
-- Narrator detection: Uncle Bill correctly identified as first-person narrator ✓
+## Pipeline Notes (Attempt 19)
+- Analysis completed in 37m 14s
+- 5 characters extracted: father, Margaret Donaldson, Uncle Bill, Joe Barron, Ted Frith
+- **WARNING:** "John Donaldson (the son)" appears in F6 rejection message as "appears in summary but has 0 text mentions (likely hallucination)"
+- Father (`John Donaldson (the father)`) has 56 mentions
+- Margaret Donaldson: 2 mentions (RESTORED from attempt 18)
+- Uncle Bill: 17 mentions (correctly identified as first-person narrator ✓)
+- F19 warnings: All 3 character profiles have potentially ungrounded evidence quotes
 - 2 chapters detected (unchanged)
-- 24 pronunciation flags, 19 with IPA
-- Profile quality: Father and Uncle Bill both have rich profiles in `appearance`, `personality`, and `voice_guidance` fields (stored in new nested format, not flat `physical_description`/`personality_summary` fields)
-- Father's profile is CORRECT for the father (embezzlement, "American, sir", redemption through sacrifice)
-- Uncle Bill's profile is CORRECT (reluctantly compassionate, morally principled narrator)
-- Father's relationships: parent to son ✓, "enemy" to Uncle Bill ✗ (should be "ally" or "cousin"), spouse to Margaret ✓
-- Uncle Bill's relationship to father: "ally" ✓ (but text says "cousin" — "ally" is acceptable)
+- 25 pronunciation flags
+- Competitive consensus: ENABLED across all stages (structure, characters, summaries) with 2/3 supermajority
+- LLM batch enrichment failed for pronunciation guide (model returned error-like response)
+- Total LLM calls: 81 (includes multi-model consensus voting)
+- Total tokens: 113,880
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
