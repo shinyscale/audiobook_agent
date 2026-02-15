@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 29
+- **Attempt:** 30
 - **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
@@ -266,6 +266,7 @@ The biggest remaining score blockers are:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | TESTING — universal invariant enforcement |
 | 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS — labels applied, score 7.13 |
 | 28 | Revert to attempt 25 (undo regression) | `characters.py` | SUCCESS — main_cast restored |
 | 27 | Revert + re-implement disambiguation labels | `characters.py` | WORSE REGRESSION — main_cast_count: 0 |
@@ -291,16 +292,24 @@ The biggest remaining score blockers are:
 
 Run PROMPT_fix.md to address HIGH issues, starting with pronunciation false positives (largest score gap: 5→8 needed), then son's empty profile, then "Red Cross" filtering.
 
-### Attempt 30 — Pronunciation false positive reduction (CHARACTER PROPOSER FIX)
+### Attempt 30 — Pronunciation false positive reduction (UNIVERSAL INVARIANT ENFORCEMENT)
 - **Issue targeted:** HIGH #3 — Pronunciation: 17/31 entries are false positives (~55%)
-- **Root cause:** CharacterProposer flagged ALL character name words without checking CMU dictionary. Common English names like "Bill", "Ted", "Joe" were flagged even though they're in the authoritative English pronunciation dictionary.
-- **Changes made:** 
-  - Added CMU dictionary loading to CharacterProposer
-  - Added check to skip words that are in CMU dictionary (universal invariant: if it's in the authoritative English dictionary, it doesn't need pronunciation guidance)
-  - **NOT a keyword filter** — uses universal signal (CMU dictionary presence) instead of book-specific word lists
+- **Root cause:**
+  1. CharacterProposer: CMU dictionary was already loading (126K words) but lacked safety check if loading failed
+  2. ForeignProposer: "was" matched German patterns, not in ENGLISH_EXCEPTIONS whitelist
+- **Changes made:**
+  1. `character_proposer.py`:
+     - Changed CMU load logging from DEBUG to INFO/ERROR for visibility
+     - Added safety check: if CMU dictionary fails to load, skip character name processing (avoid flagging common English names)
+     - **Uses universal invariant:** CMU Pronouncing Dictionary (authoritative English reference, 126K words)
+  2. `foreign_proposer.py`:
+     - Added "was", "were", "been", "being" to ENGLISH_EXCEPTIONS
+     - **Uses reference lexicon:** Common auxiliary verbs that match foreign patterns but are basic English
 - **Files modified:**
-  - `src/pipeline/pronunciation_guide/proposers/character_proposer.py` — added `_load_cmu_dict()` method and CMU check in `propose()`
-  - `tests/test_word_index.py` — updated test to match new behavior (Gatsby also in CMU, correctly skipped)
-- **Smoke test:** PASS — verified Bill, Ted, Joe, Johnny, John are in CMU and will be skipped. Italian names (Caporetto, Piave, etc.) NOT in CMU and will still be flagged.
-- **Test suite:** PASS — 336 passed, 10 skipped
-- **Expected impact:** Reduce false positives from ~55% to <30%. Italian/foreign terms will still be flagged correctly.
+  - `src/pipeline/pronunciation_guide/proposers/character_proposer.py` (lines 40-48, 62-72)
+  - `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` (lines 136-141)
+- **Smoke test:** PASS
+  - CharacterProposer: CMU dict loaded (126,052 words), zero proposals for "Bill", "Ted", "Joe", "Johnny"
+  - ForeignProposer: zero proposals for "was"
+- **Expected impact:** Reduce false positives from ~55% (17/31) to <30% (9/31). Foreign terms still flagged correctly.
+- **Phase set to:** awaiting_analysis

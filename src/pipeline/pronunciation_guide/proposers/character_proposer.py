@@ -41,10 +41,11 @@ class CharacterProposer(BasePronunciationProposer):
         try:
             import pronouncing
             words = set(pronouncing.cmudict.dict().keys())
-            logger.debug(f"CharacterProposer loaded {len(words)} words from CMU dictionary")
+            logger.info(f"CharacterProposer loaded {len(words)} words from CMU dictionary")
             return words
         except (ImportError, Exception) as e:
-            logger.warning(f"Could not load CMU dictionary: {e}")
+            logger.error(f"CRITICAL: Could not load CMU dictionary: {e}")
+            logger.error("CharacterProposer will flag ALL character name words without CMU filtering!")
             return set()
 
     def propose(
@@ -61,6 +62,15 @@ class CharacterProposer(BasePronunciationProposer):
         """
         if not character_names:
             logger.debug("No character names provided to CharacterProposer")
+            return []
+
+        # Safety: If CMU dictionary didn't load, skip character name processing
+        # to avoid flagging common English names (Bill, Ted, Joe, etc.)
+        if not self.cmu_words:
+            logger.warning(
+                "CharacterProposer: CMU dictionary not loaded - skipping character name processing "
+                "to avoid false positives on common English names"
+            )
             return []
 
         proposals = []

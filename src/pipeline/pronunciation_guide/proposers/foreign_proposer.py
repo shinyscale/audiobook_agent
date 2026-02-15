@@ -133,6 +133,12 @@ ENGLISH_EXCEPTIONS = {
     "a",  # English articles that match German "ein/eine"
     # Common standalone words that appear in foreign phrases but are English words
     "grave",  # Common English word ("serious" or "tomb"), even in wine names like "De Grave"
+    # Common auxiliary verbs that match patterns but are basic English
+    # (These are ALSO in COMMON_WORDS_WHITELIST in cmu_proposer.py but foreign patterns can still match them)
+    "was",  # Matches German "das/ein was..." patterns but is basic English auxiliary verb
+    "were",
+    "been",
+    "being",
 }
 
 
