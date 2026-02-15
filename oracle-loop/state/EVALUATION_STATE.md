@@ -254,6 +254,21 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Fix History
 
+### Attempt 24 — Summary-based disambiguation constraint
+- **Issue fixed:** CRITICAL #1 — Father/son John Donaldson conflation
+- **Root cause:** Phase 2 identity graph lacked constraint edges for same-name disambiguation
+- **Data flow:** Chapter summaries correctly distinguish "John Donaldson (the son)" vs "John Donaldson (the father)" in `characters_present`, but this signal wasn't being used to block merges
+- **Fix location:** `src/pipeline/character_extraction_v2/evidence_collectors.py`
+- **Changes:**
+  1. Added `collect_summary_disambiguation_evidence()` — new constraint collector that:
+     - Parses disambiguation labels from `characters_present` (e.g., "(the son)", "(the father)")
+     - When two graph nodes have same base name but different labels, adds ROLE_CONFLICT constraint edge (strength=1.0)
+  2. Updated `collect_all_evidence()` to accept and use `chapter_summaries` parameter
+  3. Updated `src/agents/characters.py` to pass chapter StructuralElements to evidence collectors
+- **Smoke test:** PASS — Correctly added constraint edge between two "John Donaldson" nodes when summaries have different labels
+- **Full test suite:** PASS — 336 passed, 10 skipped
+- **Expected impact:** +1.5 on Characters (resolves false merge), +0.5 on Profiles (uncontaminates father's profile), +0.5 on HTML (shows both characters correctly)
+
 ### Attempt 23 — CLEAN BASELINE (all prior fixes reverted)
 - Commit `f2a6ee5`: "Revert src/ to clean baseline (87d268d) - remove 23 attempts of american_sir fixes"
 - Commit `48be828`: "Phase 2: Replace 7 sequential merge passes with graph-based identity resolution"
@@ -272,6 +287,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 24 | Father/son disambiguation | `evidence_collectors.py`, `characters.py` | Awaiting analysis — added constraint edge for summary-disambiguated same-name characters |
 | 23 (baseline) | Clean baseline + Phase 2 pipeline | N/A (all reverted) | Score: 6.30 — father/son merged, Red Cross back, pronunciation FPs back |
 
 ## Score History
@@ -283,7 +299,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
 **PRIORITY FIX ORDER:**
 

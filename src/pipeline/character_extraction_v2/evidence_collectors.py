@@ -1127,6 +1127,80 @@ def collect_surname_family_evidence(graph: IdentityGraph) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Collector 10: Summary disambiguation evidence
+# Uses characters_present disambiguation labels from chapter summaries
+# ---------------------------------------------------------------------------
+
+def collect_summary_disambiguation_evidence(
+    graph: IdentityGraph,
+    chapter_summaries: list,
+) -> None:
+    """
+    Add constraint edges for same-name characters disambiguated in summaries.
+
+    When chapter summaries identify characters like "John Donaldson (the son)" and
+    "John Donaldson (the father)", this prevents them from merging.
+
+    Args:
+        graph: IdentityGraph with character nodes
+        chapter_summaries: List of summary objects with characters_present field
+    """
+    # Extract all disambiguation labels from summaries
+    # Format: base_name -> set of disambiguation labels
+    disambiguations: dict[str, set[tuple[str, str]]] = {}  # base_name -> {(label, full_name), ...}
+
+    for summary in chapter_summaries:
+        if not hasattr(summary, 'characters_present'):
+            continue
+
+        for char_name in summary.characters_present:
+            # Check if name has disambiguation label: "Name (label)"
+            match = re.match(r'^(.+?)\s*\(([^)]+)\)\s*$', char_name)
+            if match:
+                base_name = match.group(1).strip()
+                label = match.group(2).strip()
+
+                if base_name not in disambiguations:
+                    disambiguations[base_name] = set()
+                disambiguations[base_name].add((label, char_name))
+
+    if not disambiguations:
+        return
+
+    logger.info(f"Found {len(disambiguations)} disambiguated name(s) in summaries")
+
+    # For each base name with multiple disambiguation labels, find matching nodes
+    for base_name, labels in disambiguations.items():
+        if len(labels) < 2:
+            continue  # Need at least 2 different labels to constrain
+
+        logger.info(f"  '{base_name}' has {len(labels)} labels: {[l for l, _ in labels]}")
+
+        # Find all graph nodes matching this base name
+        matching_nodes = []
+        for node_id, node in graph.nodes.items():
+            canonical = node.canonical_name.strip()
+            # Match if canonical name equals base name (ignoring case)
+            if canonical.lower() == base_name.lower():
+                matching_nodes.append(node_id)
+
+        if len(matching_nodes) < 2:
+            continue  # Need at least 2 nodes to constrain
+
+        # Add constraint edges between all pairs
+        # These represent DIFFERENT PEOPLE who share a name
+        for i, id_a in enumerate(matching_nodes):
+            for id_b in matching_nodes[i + 1:]:
+                graph.add_constraint_edge(
+                    id_a, id_b,
+                    ConstraintType.ROLE_CONFLICT,
+                    f"Summary disambiguates '{base_name}': {len(labels)} distinct people with labels {[l for l, _ in labels]}",
+                    strength=1.0,  # Hard block - summaries explicitly distinguish them
+                )
+                logger.info(f"    Added constraint: {id_a} ↔ {id_b} (different '{base_name}')")
+
+
+# ---------------------------------------------------------------------------
 # Master collector: runs all collectors
 # ---------------------------------------------------------------------------
 
@@ -1135,6 +1209,7 @@ def collect_all_evidence(
     narrator_info=None,
     cooccurrence: Optional[dict] = None,
     llm_pass2_results: Optional[dict] = None,
+    chapter_summaries: Optional[list] = None,
 ) -> None:
     """
     Run all evidence collectors on the graph.
@@ -1146,12 +1221,18 @@ def collect_all_evidence(
         narrator_info: NarratorInfo from narrator detection
         cooccurrence: Pre-computed co-occurrence dict
         llm_pass2_results: Optional LLM alias consolidation results
+        chapter_summaries: Optional list of summary objects with characters_present
     """
     logger.info("Collecting all identity evidence...")
 
     # 1. Constraint evidence (should run first to establish constraints)
     logger.info("  Collecting constraint evidence...")
     collect_constraint_evidence(graph)
+
+    # 1b. Summary disambiguation evidence (high-priority constraints)
+    if chapter_summaries:
+        logger.info("  Collecting summary disambiguation evidence...")
+        collect_summary_disambiguation_evidence(graph, chapter_summaries)
 
     # 2. Title variant evidence
     logger.info("  Collecting title variant evidence...")

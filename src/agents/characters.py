@@ -328,11 +328,13 @@ class CharacterAgent(Agent):
         ig.add_characters(main_cast, supporting_cast)
 
         # Collect all evidence (title variants, within-cast, cross-cast,
-        # synonyms, narrator, surname families, co-occurrence corroboration)
+        # synonyms, narrator, surname families, co-occurrence corroboration,
+        # and summary-based disambiguation)
         collect_all_evidence(
             ig,
             narrator_info=narrator_info,
             cooccurrence=self._cooccurrence,
+            chapter_summaries=chapters,  # Pass StructuralElements with characters_present
         )
 
         # Resolve identities and execute merges atomically
