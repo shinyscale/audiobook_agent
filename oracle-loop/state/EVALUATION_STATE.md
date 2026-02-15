@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 23
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,8 +11,15 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 22)
-- Analysis completed in 31m 56s
+## Pipeline Notes (Attempt 23)
+- Analysis completed in 41m 2s
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) on all stages (characters, structure, summaries)
+- Found 7 characters total
+- Generated 3 character profiles
+- 31 pronunciation flags
+- **NOTE:** "Red Cross" appeared in character list (organization should be filtered)
+- **WARNING:** LLM batch enrichment failed with JSON format error (model returned object instead of array)
+- **WARNING:** 3 profiles have potentially ungrounded evidence quotes (John Donaldson, Uncle Bill, Ted Frith)
 - Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) on all stages (characters, structure, summaries)
 - Found 6 characters total (3 main cast, 3 supporting)
 - Generated 4 character profiles (father, son, Uncle Bill, Ted Frith)
