@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 24
-- **Phase:** awaiting_fix
+- **Attempt:** 25
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -241,6 +241,17 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Fix History
 
+### Attempt 25 — Populate characters_present from summaries in _get_chapters() (DATA FLOW FIX)
+- **Issue targeted:** CRITICAL #1 — Father/son John Donaldson conflation
+- **Root cause:** `_get_chapters()` in `src/agents/characters.py:707-726` created StructuralElements from chapter_map without copying `characters_present` from summary data. The disambiguation code added in attempt 24 was correct but received empty input.
+- **Changes made:** Modified `_get_chapters()` to:
+  1. Fetch summary results from context via `context.get_result("summaries")`
+  2. Build index mapping chapter index → summary object
+  3. Copy `characters_present` (or `active_characters`) from each summary onto the corresponding StructuralElement
+- **Smoke test:** Code compiles, all 336 tests pass
+- **Expected impact:** The existing `collect_summary_disambiguation_evidence()` function should now receive populated `characters_present` lists and successfully add ROLE_CONFLICT constraint edges to prevent father/son merge
+- **File modified:** `src/agents/characters.py` (lines 707-756, expanded from 707-726)
+
 ### Attempt 24 — Summary-based disambiguation constraint (NO EFFECT)
 - **Issue targeted:** CRITICAL #1 — Father/son John Donaldson conflation
 - **Changes made:** Added `collect_summary_disambiguation_evidence()` to `evidence_collectors.py`; updated `collect_all_evidence()` to accept `chapter_summaries`; updated `characters.py` to pass chapters
@@ -264,6 +275,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 25 | Father/son disambiguation (data flow fix) | `characters.py` | PENDING — populated characters_present from summaries in _get_chapters() |
 | 24 | Father/son disambiguation | `evidence_collectors.py`, `characters.py` | NO EFFECT — StructuralElements had empty characters_present (data flow bug) |
 | 23 (baseline) | Clean baseline + Phase 2 pipeline | N/A (all reverted) | Score: 6.30 |
 
@@ -277,21 +289,19 @@ Overall = (7 × 0.20) + (5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**PRIORITY FIX ORDER:**
+**FIX APPLIED:** Attempt 25 fix has been implemented and tested:
+- Modified `_get_chapters()` to populate `characters_present` from summary data
+- All 336 tests pass
+- Ready for re-analysis to verify the fix resolves the father/son conflation
 
-1. **Fix the data flow bug in `_get_chapters()`** (CRITICAL #1) — This is a SURGICAL fix:
-   - In `_get_chapters()` (characters.py:707-726), also fetch summary data from context
-   - Match summaries to chapters by index
-   - Copy `characters_present` / `active_characters` from each summary onto the corresponding StructuralElement
-   - The existing `collect_summary_disambiguation_evidence()` function will then work as designed
-   - **Expected impact:** +1.5 on Characters (resolves false merge), +0.5 on Profiles, +0.5 on HTML
+**Expected outcomes:**
+1. Identity graph should contain ROLE_CONFLICT constraint edges for "John Donaldson (the son)" and "John Donaldson (the father)"
+2. Father and son should appear as separate characters
+3. "Johnny" may auto-merge with the son once he exists as a separate entity
+4. Profiles and relationships should improve as a result of correct character separation
 
-2. **Pronunciation false positive filtering** (HIGH #4) — Re-apply proven invariants. Expected: +2.0 on Pronunciation.
+**If attempt 25 passes:** Consider applying HIGH-priority fixes (#2, #4) in subsequent attempts.
 
-3. **Organization filtering** (HIGH #2) — Re-apply `_is_organization_name()`. Expected: +0.5 on Characters.
-
-4. **Zero physical descriptions** (MEDIUM #6) — Investigate why all `physical_description` fields are null. This is a NEW regression not seen in attempt 23.
-
-**Target:** Fix #1 alone should split the father/son, which cascades to improved profiles and presentation. Combined with #2 and #4, we should see significant movement toward passing scores.
+**If attempt 25 fails:** Investigate why `characters_present` data is still not reaching `collect_summary_disambiguation_evidence()`.

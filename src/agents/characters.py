@@ -705,21 +705,51 @@ class CharacterAgent(Agent):
         return summary_text
 
     def _get_chapters(self, context: AgentContext) -> list[StructuralElement]:
-        """Get chapter structural elements from context."""
+        """Get chapter structural elements from context, with characters_present from summaries."""
         if context.chapter_map:
             chapters = getattr(context.chapter_map, "chapters", [])
+
+            # Get summary data to populate characters_present
+            summaries_by_index = {}
+            summaries_result = context.get_result("summaries")
+            if summaries_result:
+                if hasattr(summaries_result, "summaries"):
+                    for s in summaries_result.summaries:
+                        summaries_by_index[s.chapter_index] = s
+                elif isinstance(summaries_result, list):
+                    for idx, s in enumerate(summaries_result):
+                        summaries_by_index[idx] = s
+
             # Convert to StructuralElement if needed
             result = []
             for ch in chapters:
                 if isinstance(ch, StructuralElement):
+                    # Populate characters_present if missing
+                    if not ch.characters_present and ch.index in summaries_by_index:
+                        summary_obj = summaries_by_index[ch.index]
+                        if hasattr(summary_obj, "characters_present"):
+                            ch.characters_present = summary_obj.characters_present
+                        elif hasattr(summary_obj, "active_characters"):
+                            ch.characters_present = summary_obj.active_characters
                     result.append(ch)
                 elif hasattr(ch, "start_position"):
+                    # Get characters_present from summary
+                    characters_present = []
+                    ch_index = getattr(ch, "index", len(result))
+                    if ch_index in summaries_by_index:
+                        summary_obj = summaries_by_index[ch_index]
+                        if hasattr(summary_obj, "characters_present"):
+                            characters_present = summary_obj.characters_present
+                        elif hasattr(summary_obj, "active_characters"):
+                            characters_present = summary_obj.active_characters
+
                     # Create StructuralElement from chapter data
                     elem = StructuralElement(
                         type=StructureType.CHAPTER,
-                        index=getattr(ch, "index", 0),
+                        index=ch_index,
                         start_position=ch.start_position,
                         end_position=getattr(ch, "end_position", ch.start_position + 1000),
+                        characters_present=characters_present,
                     )
                     result.append(elem)
             return result
