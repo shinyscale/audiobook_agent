@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 26
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -291,17 +291,19 @@ Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 | 24 | 6.15 | -0.45 | Fix had no effect; profiles worse |
 | 25 | 6.50 | -0.10 | Father/son split working but needs disambiguation labels |
 
-## Next Action
+## Pipeline Notes (Attempt 26)
 
-**Phase:** awaiting_analysis
+Analysis completed at 2026-02-15 12:21:33.
 
-Re-run analysis on "american_sir" to verify the disambiguation label fix.
+**Warnings observed:**
+- "LLM validation failed (got dict), keeping batch candidates" - pronunciation guide stage
+- "Model returned error-like response instead of expected data: {'error': 'The requested output must be a JSON array...'}. This model may not support json_mode or structured output properly."
+- "LLM batch enrichment failed: failed to parse JSON" - pronunciation guide fallback
+- Several "potentially ungrounded evidence quotes" warnings for character profiles (John Donaldson: 6, Uncle Bill: 4, Ted Frith: 1)
 
-**Expected improvements:**
-1. Two John Donaldson entries should have distinct canonical names with labels (e.g., "John Donaldson (the father)" and "John Donaldson (the son)")
-2. Profiling pipeline should generate distinct profiles for each (father: elderly, grizzled; son: young, idealistic)
-3. May cascade fix for narrator assignment, roles, and Johnny alias
+Despite warnings, both output files were successfully created:
+- analysis.json: 72KB
+- report.html: 119KB
+- identity_graph.json: 8.6KB
 
-**If successful:** Character Extraction score should improve from 6/10 to 8+/10, Character Profiles from 6/10 to 8+/10.
-
-**If unsuccessful:** Re-examine the constraint edge parsing logic or the label application order.
+The warnings appear to be related to pronunciation guide enrichment fallback, which failed but did not block the overall analysis.
