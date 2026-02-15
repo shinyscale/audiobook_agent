@@ -503,6 +503,16 @@ def run_analyze(args):
             output_path = file_path.with_suffix(".analysis.json")
         analyzer.save_to_json(result, output_path)
 
+        # Write identity_graph.json alongside the output file
+        ig_data = getattr(result, "pipeline_metadata", None) or {}
+        if isinstance(ig_data, dict):
+            ig_data = ig_data.get("identity_graph")
+        if ig_data:
+            import json as _json
+            ig_path = output_path.parent / "identity_graph.json"
+            with open(ig_path, "w", encoding="utf-8") as _f:
+                _json.dump(ig_data, _f, indent=2, ensure_ascii=False)
+
         # Export HTML if requested
         if args.html:
             try:
