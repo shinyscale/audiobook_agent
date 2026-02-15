@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 29
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -290,3 +290,17 @@ The biggest remaining score blockers are:
 ## Next Action
 
 Run PROMPT_fix.md to address HIGH issues, starting with pronunciation false positives (largest score gap: 5→8 needed), then son's empty profile, then "Red Cross" filtering.
+
+### Attempt 30 — Pronunciation false positive reduction (CHARACTER PROPOSER FIX)
+- **Issue targeted:** HIGH #3 — Pronunciation: 17/31 entries are false positives (~55%)
+- **Root cause:** CharacterProposer flagged ALL character name words without checking CMU dictionary. Common English names like "Bill", "Ted", "Joe" were flagged even though they're in the authoritative English pronunciation dictionary.
+- **Changes made:** 
+  - Added CMU dictionary loading to CharacterProposer
+  - Added check to skip words that are in CMU dictionary (universal invariant: if it's in the authoritative English dictionary, it doesn't need pronunciation guidance)
+  - **NOT a keyword filter** — uses universal signal (CMU dictionary presence) instead of book-specific word lists
+- **Files modified:**
+  - `src/pipeline/pronunciation_guide/proposers/character_proposer.py` — added `_load_cmu_dict()` method and CMU check in `propose()`
+  - `tests/test_word_index.py` — updated test to match new behavior (Gatsby also in CMU, correctly skipped)
+- **Smoke test:** PASS — verified Bill, Ted, Joe, Johnny, John are in CMU and will be skipped. Italian names (Caporetto, Piave, etc.) NOT in CMU and will still be flagged.
+- **Test suite:** PASS — 336 passed, 10 skipped
+- **Expected impact:** Reduce false positives from ~55% to <30%. Italian/foreign terms will still be flagged correctly.

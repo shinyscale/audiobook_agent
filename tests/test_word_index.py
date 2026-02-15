@@ -298,8 +298,9 @@ class TestProposersWithWordIndex:
         words_with = {p.word for p in proposals_with_index}
         words_without = {p.word for p in proposals_without_index}
         assert words_with == words_without
-        # "Gatsby" is flagged; "Nick" and "Daisy" are in COMMON_WORDS_WHITELIST
-        assert "Gatsby" in words_with
+        # "Gatsby", "Nick", and "Daisy" are all in CMU dictionary (known English words)
+        # CharacterProposer now skips words in CMU to reduce false positives
+        assert "Gatsby" not in words_with
         assert "Nick" not in words_with  # Common word, whitelisted
         assert "Daisy" not in words_with  # Common word, whitelisted
 
