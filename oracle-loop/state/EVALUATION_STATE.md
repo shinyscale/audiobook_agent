@@ -3,13 +3,19 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 29
-- **Phase:** awaiting_analysis
+- **Phase:** analysis_in_progress
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes
+- Analysis started with disambiguation labels post-processing fix (attempt 29)
+- Competitive consensus enabled for all stages (characters, structure, summaries)
+- Model: qwen3-next:80b-a3b-instruct-q8_0
+- Background task ID: b5fe76f
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
