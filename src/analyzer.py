@@ -2227,6 +2227,14 @@ class AudiobookAnalyzer:
             # Store run_dir for save_to_json to use
             self._last_run_dir = run_dir
 
+            # Write identity_graph.json if graph data is available
+            identity_graph_data = char_pipeline_metadata.get("identity_graph")
+            if identity_graph_data:
+                graph_path = run_dir / "identity_graph.json"
+                with open(graph_path, "w", encoding="utf-8") as f:
+                    json.dump(identity_graph_data, f, indent=2, ensure_ascii=False)
+                print(f"🔗 Identity graph: {graph_path}")
+
             print(f"\n📊 Quality report: {quality_path}")
             print(f"📁 Output directory: {run_dir}")
 

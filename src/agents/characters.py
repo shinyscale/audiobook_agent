@@ -310,6 +310,7 @@ class CharacterAgent(Agent):
             IdentityGraph,
             resolve_identities,
             execute_merges as graph_execute_merges,
+            merge_groups_to_dict,
         )
         from ..pipeline.character_extraction_v2.evidence_collectors import (
             collect_all_evidence,
@@ -396,6 +397,18 @@ class CharacterAgent(Agent):
             f"{len(supporting_cast)} supporting after graph resolution "
             f"({groups_with_merges} merge groups applied)"
         )
+
+        # Serialize identity graph for visualization/debugging
+        identity_graph_data = {
+            "graph": ig.to_dict(),
+            "merge_groups": merge_groups_to_dict(merge_groups),
+            "stats": {
+                "nodes": len(ig.nodes),
+                "merge_edges": len(ig.merge_edges),
+                "constraint_edges": len(ig.constraint_edges),
+                "groups_with_merges": groups_with_merges,
+            },
+        }
 
         # STEP 5.7: Final defensive narrator filter (after all merges)
         # This catches any narrator entries that might have been introduced during merging
@@ -539,6 +552,7 @@ class CharacterAgent(Agent):
                 "narrator_name": narrator_info.narrator_name,
                 "merge_decisions": merge_summary,
                 "pending_reviews": [d.model_dump() for d in pending_reviews],
+                "identity_graph": identity_graph_data,
             },
         )
 

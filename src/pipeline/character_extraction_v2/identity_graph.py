@@ -280,6 +280,42 @@ class IdentityGraph:
             f"{len(self.constraint_edges)} constraint edges"
         )
 
+    def to_dict(self) -> dict:
+        """Serialize graph for visualization/debugging."""
+        return {
+            "nodes": [
+                {
+                    "id": n.char_id,
+                    "name": n.canonical_name,
+                    "aliases": list(n.aliases),
+                    "mentions": n.mention_count,
+                    "is_main_cast": n.is_main_cast,
+                    "is_narrator": n.is_narrator,
+                }
+                for n in self.nodes.values()
+            ],
+            "merge_edges": [
+                {
+                    "source": e.source,
+                    "target": e.target,
+                    "type": e.edge_type.value,
+                    "weight": e.weight,
+                    "reason": e.reason,
+                }
+                for e in self.merge_edges
+            ],
+            "constraint_edges": [
+                {
+                    "source": e.source,
+                    "target": e.target,
+                    "type": e.constraint_type.value,
+                    "strength": e.strength,
+                    "reason": e.reason,
+                }
+                for e in self.constraint_edges
+            ],
+        }
+
 
 # ---------------------------------------------------------------------------
 # Resolution algorithm
@@ -809,3 +845,22 @@ def compare_results(
             )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Serialization
+# ---------------------------------------------------------------------------
+
+def merge_groups_to_dict(groups: list[MergeGroup]) -> list[dict]:
+    """Serialize merge groups for visualization/debugging."""
+    return [
+        {
+            "canonical_id": g.canonical_node_id,
+            "canonical_name": g.canonical_name,
+            "members": g.member_ids,
+            "aliases": g.aliases,
+            "evidence_count": len(g.evidence),
+            "constraints_overridden": len(g.constraints_overridden),
+        }
+        for g in groups
+    ]

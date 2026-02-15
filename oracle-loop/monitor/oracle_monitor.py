@@ -156,6 +156,9 @@ class OracleState:
     # Experiment results summary
     experiment_results: dict = field(default_factory=dict)  # {book: {status, overall, ...}}
 
+    # Identity graph data (from identity_graph.json)
+    identity_graph: Optional[dict] = None
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -1066,6 +1069,21 @@ class StateParser:
             state.ollama_last_request_age = ollama_logs.get('ollama_last_request_age')
             state.ollama_last_request_duration = ollama_logs.get('ollama_last_request_duration')
 
+
+        # Load identity graph data if available
+        if state.text_name:
+            graph_paths = [
+                self.base_dir / "output" / state.text_name / "identity_graph.json",
+                Path.home() / "Tools" / "audiobook_agent" / "oracle-loop" / "output" / state.text_name / "identity_graph.json",
+            ]
+            for gp in graph_paths:
+                if gp.exists():
+                    try:
+                        with open(gp) as f:
+                            state.identity_graph = json.load(f)
+                    except (json.JSONDecodeError, IOError):
+                        pass
+                    break
         state.last_updated = datetime.now()
 
         return state
@@ -2127,6 +2145,101 @@ class ClaudeThinkingPanel(Static):
         self.refresh()
 
 
+
+class IdentityGraphPanel(Static):
+    """Panel showing identity graph resolution summary."""
+
+    def __init__(self, state: OracleState, expanded: bool = False):
+        super().__init__()
+        self.state = state
+        self.expanded = expanded
+
+    def render(self) -> Text:
+        text = Text()
+        data = self.state.identity_graph
+
+        if not data:
+            text.append("IDENTITY GRAPH ", style="bold white")
+            text.append("[no data]", style="dim")
+            return text
+
+        stats = data.get("stats", {})
+        groups = data.get("merge_groups", [])
+        graph = data.get("graph", {})
+
+        # Header
+        if self.expanded:
+            text.append("IDENTITY GRAPH [EXPANDED - Press 'g' to collapse]\n", style="bold white")
+        else:
+            text.append("IDENTITY GRAPH [Press 'g' to expand]\n", style="bold white")
+
+        # Stats line
+        text.append(f"  Nodes: ", style="dim")
+        text.append(f"{stats.get('nodes', 0)}", style="bold cyan")
+        text.append(f"  Merge edges: ", style="dim")
+        text.append(f"{stats.get('merge_edges', 0)}", style="bold green")
+        text.append(f"  Constraints: ", style="dim")
+        text.append(f"{stats.get('constraint_edges', 0)}", style="bold red")
+        text.append("\n")
+
+        # Merge groups with actual merges
+        active_groups = [g for g in groups if len(g.get("members", [])) > 1]
+        if active_groups:
+            text.append(f"\n  Merge Groups ({len(active_groups)} active):\n", style="bold white")
+            max_groups = len(active_groups) if self.expanded else 8
+            for g in active_groups[:max_groups]:
+                canonical = g.get("canonical_name", "?")
+                aliases = g.get("aliases", [])
+                ev_count = g.get("evidence_count", 0)
+                overrides = g.get("constraints_overridden", 0)
+
+                text.append("    ✓ ", style="green")
+                text.append(canonical, style="bold white")
+                if aliases:
+                    alias_str = ", ".join(aliases[:5])
+                    if len(aliases) > 5:
+                        alias_str += f" (+{len(aliases)-5})"
+                    text.append(f" ← [{alias_str}]", style="dim cyan")
+                text.append(f" ({ev_count} ev", style="dim")
+                if overrides > 0:
+                    text.append(f", {overrides} ov", style="dim yellow")
+                text.append(")\n", style="dim")
+
+            if len(active_groups) > max_groups:
+                text.append(f"    ... {len(active_groups) - max_groups} more\n", style="dim")
+        else:
+            text.append("\n  No merge groups (all characters distinct)\n", style="dim")
+
+        # Constraint edges
+        constraint_edges = graph.get("constraint_edges", [])
+        if constraint_edges and (self.expanded or len(constraint_edges) <= 5):
+            text.append(f"\n  Key Constraints:\n", style="bold white")
+            max_constraints = len(constraint_edges) if self.expanded else 5
+            # Build node name lookup
+            node_names = {n["id"]: n["name"] for n in graph.get("nodes", [])}
+            for c in constraint_edges[:max_constraints]:
+                src = node_names.get(c["source"], c["source"])
+                tgt = node_names.get(c["target"], c["target"])
+                ctype = c.get("type", "?")
+                text.append("    ✗ ", style="red")
+                text.append(f"{src}", style="white")
+                text.append(" ≠ ", style="red")
+                text.append(f"{tgt}", style="white")
+                text.append(f" ({ctype})\n", style="dim")
+            if len(constraint_edges) > max_constraints:
+                text.append(f"    ... {len(constraint_edges) - max_constraints} more\n", style="dim")
+        elif constraint_edges:
+            text.append(f"\n  Constraints: {len(constraint_edges)} ", style="dim")
+            text.append("[press 'g' to show]\n", style="dim cyan")
+
+        return text
+
+    def update_state(self, state: OracleState, expanded: bool = None):
+        self.state = state
+        if expanded is not None:
+            self.expanded = expanded
+        self.refresh()
+
 class FooterInfo(Static):
     """Footer showing last updated time and polling interval."""
 
@@ -2254,6 +2367,18 @@ class OracleMonitorApp(App):
         max-height: 40;
     }
 
+    IdentityGraphPanel {
+        height: auto;
+        max-height: 15;
+        border: solid $success;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    IdentityGraphPanel.expanded {
+        max-height: 40;
+    }
+
     FooterInfo {
         height: 1;
         padding: 0 1;
@@ -2278,12 +2403,14 @@ class OracleMonitorApp(App):
         Binding("v", "toggle_votes", "Votes", show=True),
         Binding("e", "toggle_experiment", "Experiment", show=True),
         Binding("x", "export_thinking", "Export", show=True),
+        Binding("g", "toggle_graph", "Graph", show=True),
     ]
 
     paused = reactive(False)
     thinking_expanded = reactive(False)
     votes_expanded = reactive(False)
     experiment_expanded = reactive(False)
+    graph_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
         super().__init__()
@@ -2301,6 +2428,7 @@ class OracleMonitorApp(App):
             yield StatusBar(self.state)
             yield ExperimentStatusPanel(self.state, expanded=self.experiment_expanded)
             yield ScorePanel(self.state)
+            yield IdentityGraphPanel(self.state, expanded=self.graph_expanded)
             yield OverallProgress(self.state)
             yield CompetitiveConsensusPanel(self.state, expanded=self.votes_expanded)
             yield OllamaActivityPanel(self.state)
@@ -2356,6 +2484,7 @@ class OracleMonitorApp(App):
             self.query_one(StatusBar).update_state(self.state)
             self.query_one(ExperimentStatusPanel).update_state(self.state, expanded=self.experiment_expanded)
             self.query_one(ScorePanel).update_state(self.state)
+            self.query_one(IdentityGraphPanel).update_state(self.state, expanded=self.graph_expanded)
             self.query_one(OverallProgress).update_state(self.state)
             self.query_one(CompetitiveConsensusPanel).update_state(self.state, expanded=self.votes_expanded)
             self.query_one(OllamaActivityPanel).update_state(self.state)
@@ -2448,6 +2577,21 @@ class OracleMonitorApp(App):
         except Exception:
             pass
 
+
+    def action_toggle_graph(self):
+        """Toggle identity graph panel expanded/collapsed."""
+        self.graph_expanded = not self.graph_expanded
+        try:
+            graph_panel = self.query_one(IdentityGraphPanel)
+            if self.graph_expanded:
+                graph_panel.add_class("expanded")
+                self.notify("Graph panel expanded", title="View Mode")
+            else:
+                graph_panel.remove_class("expanded")
+                self.notify("Graph panel collapsed", title="View Mode")
+            graph_panel.update_state(self.state, expanded=self.graph_expanded)
+        except Exception:
+            pass
     def action_export_thinking(self):
         """Export full thinking text to file."""
         if not self.state.thinking_text:
