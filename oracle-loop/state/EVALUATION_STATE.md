@@ -20,16 +20,6 @@
 - **NOTE:** "Red Cross" appeared in character list (organization should be filtered)
 - **WARNING:** LLM batch enrichment failed with JSON format error (model returned object instead of array)
 - **WARNING:** 3 profiles have potentially ungrounded evidence quotes (John Donaldson, Uncle Bill, Ted Frith)
-- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority) on all stages (characters, structure, summaries)
-- Found 6 characters total (3 main cast, 3 supporting)
-- Generated 4 character profiles (father, son, Uncle Bill, Ted Frith)
-- 25 pronunciation flags (20 with IPA)
-- **CRITICAL SUCCESS:** Both father AND son now exist as SEPARATE characters (28 mentions each)
-- **CRITICAL SUCCESS:** Son has DISTINCT profile (not contaminated by father's)
-- **REGRESSION:** Ch2 summary reverted to "sister" instead of "cousin"
-- Spurious "John Donaldson's" possessive character is GONE
-- Father labeled "supporting" instead of "antagonist" (improvement)
-- 0 LLM retries, 0 JSON parse failures in character extraction
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
