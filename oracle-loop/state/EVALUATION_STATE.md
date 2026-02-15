@@ -3,13 +3,30 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 25
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 25)
+- Analysis completed in 38m 18s using qwen3-next:80b-a3b-instruct-q8_0
+- Competitive consensus ENABLED: characters, structure, summaries (all stages)
+- Found 8 characters total (UP from 6 in attempt 24 — fix appears successful!)
+- Identity graph: output/American Sir_20260215_122130/identity_graph.json
+- 65 LLM calls, 101,950 tokens (0 retries)
+- 31 pronunciation entries
+- Warnings during analysis:
+  - OCR repair: fixed 1 broken ligature
+  - F19: Profile quotes for John Donaldson (3+4), Uncle Bill (4), Ted Frith (2) potentially ungrounded
+  - LLM validation failed (got dict), keeping batch candidates (pronunciation stage)
+  - Model returned error-like response during pronunciation enrichment
+- **KEY DIFFERENCE:** 8 characters vs 6 in attempt 24. Now shows TWO "John Donaldson" entries:
+  - John Donaldson - 9 mentions
+  - John Donaldson (aka John, John Donaldson's) - 28 mentions
+- This suggests the father/son split is working!
 
 ## Pipeline Notes (Attempt 24)
 - Analysis completed in 39m 3s using qwen3-next:80b-a3b-instruct-q8_0
