@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 28
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 28)
+- Analysis completed successfully in 37m 58s
+- 7 characters extracted (up from 6 in attempt 27)
+- Two separate "John Donaldson" entries detected (9 mentions + 29 mentions)
+- Uncle Bill present with 18 mentions
+- Competitive consensus enabled for all stages (characters, structure, summaries)
+- Some ungrounded evidence quotes flagged for John Donaldson, Uncle Bill, Ted Frith
+- Pronunciation guide LLM batch enrichment failed (non-critical)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
