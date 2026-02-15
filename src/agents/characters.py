@@ -525,6 +525,14 @@ class CharacterAgent(Agent):
             main_cast, supporting_cast, mention_results
         )
 
+        # STEP 5.11: Apply disambiguation labels from identity graph constraint edges
+        # For same-name characters separated by role_conflict constraints (e.g., father/son),
+        # apply disambiguation labels to make them distinguishable in the final output
+        logger.info("V2 Step 5.11: Applying disambiguation labels from constraint edges")
+        all_characters = self._apply_disambiguation_labels_from_constraints(
+            all_characters, identity_graph_data
+        )
+
         # Calculate confidence breakdown
         high = sum(1 for c in all_characters if c.confidence >= 0.7)
         medium = sum(1 for c in all_characters if 0.4 <= c.confidence < 0.7)
@@ -1134,3 +1142,164 @@ class CharacterAgent(Agent):
         if char.descriptions:
             return char.descriptions[0].text
         return ""
+
+    def _apply_disambiguation_labels_from_constraints(
+        self,
+        characters: list[PipelineCharacter],
+        identity_graph_data: dict,
+    ) -> list[PipelineCharacter]:
+        """
+        Apply disambiguation labels to same-name characters separated by constraint edges.
+
+        This is a POST-PROCESSING step that runs after all character extraction, merging,
+        and graph resolution is complete. It only modifies the canonical_name field of
+        final Character objects to add labels like " (the father)" or " (the son)".
+
+        The labels are extracted from role_conflict constraint edges in the identity graph,
+        which already contain the needed information in their 'reason' fields.
+
+        Args:
+            characters: Final list of characters after all pipeline steps
+            identity_graph_data: Serialized identity graph with nodes and edges
+
+        Returns:
+            Updated character list with disambiguation labels applied where needed
+        """
+        import re
+
+        # Extract constraint edges from identity graph
+        graph_data = identity_graph_data.get("graph", {})
+        constraint_edges = graph_data.get("constraint_edges", [])
+
+        # Find role_conflict edges (these indicate same-name characters that should be distinguished)
+        role_conflicts = [
+            edge for edge in constraint_edges if edge.get("type") == "role_conflict"
+        ]
+
+        if not role_conflicts:
+            logger.debug("No role_conflict constraints found - no disambiguation needed")
+            return characters
+
+        # Build character lookup by ID
+        char_by_id = {c.id: c for c in characters}
+
+        # Process each role_conflict edge
+        for edge in role_conflicts:
+            source_id = edge.get("source")
+            target_id = edge.get("target")
+            reason = edge.get("reason", "")
+
+            # Check if both characters still exist in final output
+            if source_id not in char_by_id or target_id not in char_by_id:
+                continue
+
+            source_char = char_by_id[source_id]
+            target_char = char_by_id[target_id]
+
+            # Only apply labels if characters have the same name
+            if source_char.canonical_name != target_char.canonical_name:
+                continue
+
+            # Parse disambiguation labels from the reason field
+            # Example reason formats:
+            # 1. "Generational conflict: 'John' (the son...) vs 'John' (the father...)"
+            # 2. "Summary disambiguates 'John': 2 distinct people with labels ['the father', 'the son']"
+            labels = self._extract_labels_from_reason(reason)
+
+            if len(labels) >= 2:
+                # Apply labels to both characters
+                # The reason field doesn't specify which label goes with which ID,
+                # so we need to make an educated guess based on the character data
+
+                # Heuristic: If one character is narrator and the other is not,
+                # assign labels based on narrative role
+                if source_char.is_narrator and not target_char.is_narrator:
+                    # Source is likely "the son" (narrator), target is "the father"
+                    source_label = self._select_label_for_narrator(labels)
+                    target_label = self._select_label_for_non_narrator(labels, source_label)
+                elif target_char.is_narrator and not source_char.is_narrator:
+                    # Target is likely "the son" (narrator), source is "the father"
+                    target_label = self._select_label_for_narrator(labels)
+                    source_label = self._select_label_for_non_narrator(labels, target_label)
+                else:
+                    # No clear heuristic - use mention count as tie-breaker
+                    # Higher mention count is likely the more central character
+                    if source_char.mention_count > target_char.mention_count:
+                        source_label = labels[0]
+                        target_label = labels[1]
+                    else:
+                        source_label = labels[1]
+                        target_label = labels[0]
+
+                # Apply labels if not already present
+                base_name = source_char.canonical_name
+                if not source_char.canonical_name.endswith(")"):
+                    source_char.canonical_name = f"{base_name} ({source_label})"
+                    logger.info(
+                        f"Applied disambiguation label to {source_id}: "
+                        f"'{base_name}' → '{source_char.canonical_name}'"
+                    )
+
+                if not target_char.canonical_name.endswith(")"):
+                    target_char.canonical_name = f"{base_name} ({target_label})"
+                    logger.info(
+                        f"Applied disambiguation label to {target_id}: "
+                        f"'{base_name}' → '{target_char.canonical_name}'"
+                    )
+
+        return characters
+
+    def _extract_labels_from_reason(self, reason: str) -> list[str]:
+        """
+        Extract disambiguation labels from a constraint edge reason field.
+
+        Examples:
+            "...with labels ['the father', 'the son']" → ["the father", "the son"]
+            "...(the son...) vs ... (the father...)" → ["the son", "the father"]
+        """
+        import re
+
+        # Pattern 1: labels array in reason
+        # "Summary disambiguates 'X': 2 distinct people with labels ['the father', 'the son']"
+        array_match = re.search(r"labels\s*\[([^\]]+)\]", reason)
+        if array_match:
+            labels_str = array_match.group(1)
+            # Extract quoted strings
+            labels = re.findall(r"['\"]([^'\"]+)['\"]", labels_str)
+            return labels
+
+        # Pattern 2: parenthetical descriptions
+        # "Generational conflict: 'John' (the son of...) vs 'John' (the father of...)"
+        paren_matches = re.findall(r"\(([^)]+?(?:father|son|mother|daughter|senior|junior|sr|jr)[^)]*?)\)", reason, re.IGNORECASE)
+        if paren_matches:
+            # Extract the key relationship word
+            labels = []
+            for match in paren_matches:
+                # Find the relationship indicator
+                for keyword in ["the son", "the father", "the mother", "the daughter", "senior", "junior", "sr", "jr"]:
+                    if keyword in match.lower():
+                        labels.append(keyword)
+                        break
+            return labels
+
+        return []
+
+    def _select_label_for_narrator(self, labels: list[str]) -> str:
+        """
+        Select which label is more likely for a narrator character.
+
+        Typically the narrator in a generational conflict is "the son" (younger generation).
+        """
+        for label in labels:
+            if any(word in label.lower() for word in ["son", "daughter", "junior", "jr"]):
+                return label
+        # Default to first label if no clear match
+        return labels[0]
+
+    def _select_label_for_non_narrator(self, labels: list[str], exclude: str) -> str:
+        """Select the label that isn't already used."""
+        for label in labels:
+            if label != exclude:
+                return label
+        # Fallback
+        return labels[-1]

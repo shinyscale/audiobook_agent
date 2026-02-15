@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 28
-- **Phase:** awaiting_fix
+- **Attempt:** 29
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -248,6 +248,27 @@ Unchanged from previous attempts. 30 entries, 25 with IPA.
 
 ## Fix History
 
+### Attempt 29 — Add disambiguation labels via post-processing (TARGETING CRITICAL #1)
+- **Issue targeted:** CRITICAL #1 — Both John Donaldson entries have identical names with no disambiguation labels
+- **Root cause:** `src/agents/characters.py:524-526` — `all_characters` is built without reading constraint edges for disambiguation labels. The identity graph Phase 2 creates `role_conflict` constraint edges with labels in the `reason` field ("the father", "the son"), but these were never applied to `canonical_name`.
+- **Changes made:**
+  - Added Step 5.11 in `run()` method (line 529): `_apply_disambiguation_labels_from_constraints()`
+  - Implemented helper method `_apply_disambiguation_labels_from_constraints()` (line 1147)
+  - Reads `role_conflict` constraint edges from identity_graph_data
+  - Extracts labels from `reason` field (e.g., "labels ['the father', 'the son']")
+  - Applies labels to `canonical_name` field (e.g., "John Donaldson" → "John Donaldson (the son)")
+  - Uses heuristics: narrator gets "son" label, higher mentions get first label
+- **Smoke test:** PASS — Created test_disambiguation_fix.py, verified:
+  - Label extraction works for both array format and parenthetical format
+  - Labels applied correctly: char1 (narrator) → "John Donaldson (the son)", char2 → "John Donaldson (the father)"
+  - No duplicate labeling (guards against re-applying labels)
+- **Why this succeeds where attempts 26-27 failed:**
+  - POST-PROCESSING ONLY: Runs after Step 5.10.6, after ALL character extraction/merging/graph resolution is complete
+  - Does NOT modify pipeline state or intermediate data structures
+  - Only touches the final `all_characters` list, modifying `canonical_name` field
+  - Previous attempts ran during or before graph resolution, corrupting pipeline state
+- **File modified:** `src/agents/characters.py`
+
 ### Attempt 28 — Revert to attempt 25 state (REVERT SUCCESSFUL)
 - **Issue targeted:** CRITICAL #1 from attempt 27 — main_cast pipeline produced ZERO characters
 - **Changes made:** Reverted `src/agents/characters.py` to attempt 25 state
@@ -282,6 +303,7 @@ Unchanged from previous attempts. 30 entries, 25 with IPA.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 29 | Disambiguation labels post-processing | `characters.py` | SMOKE TEST PASS — labels extracted and applied correctly |
 | 28 | Revert to attempt 25 (undo regression) | `characters.py` | SUCCESS — main_cast restored, 3 main_cast chars, constraint edges back |
 | 27 | Revert + re-implement disambiguation labels | `characters.py` | WORSE REGRESSION — main_cast_count: 0 |
 | 26 | Disambiguation labels for same-name characters | `characters.py` | REGRESSION — main_cast_2 dropped |
@@ -303,11 +325,4 @@ Unchanged from previous attempts. 30 entries, 25 with IPA.
 
 ## Next Action
 
-**Run PROMPT_fix.md** to address CRITICAL #1: Add disambiguation labels to same-name characters.
-
-**KEY GUIDANCE FOR FIX PHASE:** Attempts 26 and 27 BOTH failed trying this. The fix MUST be:
-1. **POST-PROCESSING ONLY** — run AFTER all character extraction, merging, and identity resolution is complete
-2. **Read constraint edges** to determine disambiguation labels (the `role_conflict` reason already contains "the son" and "the father")
-3. **Only modify `canonical_name`** on the final Character objects — do NOT modify any upstream data or intermediate pipeline state
-4. **Do NOT add a new method that gets called during the pipeline** — append the logic at the very end of the character extraction flow
-5. If unsure where to add it, the safest place is in `src/agents/characters.py` in the `run()` method, AFTER the line that returns the final character list, but BEFORE the AgentResult is constructed
+**Run PROMPT_analyze.md** to re-analyze american_sir with the disambiguation label fix applied.
