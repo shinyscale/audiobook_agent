@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 28
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,26 +11,17 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 28)
-- Analysis completed successfully in 37m 58s
-- 7 characters extracted (up from 6 in attempt 27)
-- Two separate "John Donaldson" entries detected (9 mentions + 29 mentions)
-- Uncle Bill present with 18 mentions
-- Competitive consensus enabled for all stages (characters, structure, summaries)
-- Some ungrounded evidence quotes flagged for John Donaldson, Uncle Bill, Ted Frith
-- Pronunciation guide LLM batch enrichment failed (non-critical)
-
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 4/10 ✗
-  - Completeness: 5/10
-  - Identity Resolution: 3/10
-  - Alias Grouping: 5/10
-- Character Profiles: 5/10 ✗
+- Character Extraction: 6/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 5/10
+  - Alias Grouping: 6/10
+- Character Profiles: 7/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 5/10 ✗
-- HTML Presentation: 6/10 ✗
-- **Overall: 5.65/10** (reference only)
+- HTML Presentation: 7/10 ✗
+- **Overall: 6.60/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (6 categories below threshold)
@@ -38,257 +29,263 @@
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) + (6 × 0.10)
-        = 1.40 + 1.00 + 0.75 + 1.50 + 0.50 + 0.60
-        = 5.75
+Overall = (7 × 0.20) + (6 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (5 × 0.10) + (7 × 0.10)
+        = 1.40 + 1.50 + 1.05 + 1.50 + 0.50 + 0.70
+        = 6.65
 ```
 
-**Overall: 5.75/10**
+**Overall: 6.65/10**
 
 ## Detailed Evaluation
 
 ### 2.1 Structure Detection: 7/10 ✗
 
-**Unchanged from previous attempts.** "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles and null start/end lines. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable despite the artificial split.
+Unchanged from previous attempts. "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles and null start/end lines. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable despite the artificial split.
 
-### 2.2 Character Extraction: 4/10 ✗ (DOWN from 5 in attempt 26)
+### 2.2 Character Extraction: 6/10 ✗ (UP from 4 in attempt 27)
 
-**CRITICAL REGRESSION:** The main cast pipeline produced ZERO characters (`main_cast_count: 0` in `pipeline_metadata`). ALL 6 characters come from the supporting cast pipeline only (all have `supporting_*` IDs). In attempt 25/26, characters had `main_cast_*` IDs and the father/son split was working via `role_conflict` constraint edges. The identity graph's `constraint_edges` is now `null`.
+**REVERT SUCCESSFUL:** Main cast pipeline restored. 3 main_cast characters + 4 supporting = 7 total.
+- `main_cast_1`: John Donaldson — 9 mentions, `is_narrator: true`, role: `protagonist` — THIS IS THE FATHER's entry but labeled as narrator ✗
+- `main_cast_2`: John Donaldson — 29 mentions, aliases: ["the father", "John", "John Donaldson's"], role: `supporting` — THE FATHER with correct aliases but wrong role ✗
+- `main_cast_3`: Uncle Bill — 18 mentions, `is_narrator: true`, role: `protagonist` — CORRECT ✓
+- `supporting_2`: Joe Barron — 3 mentions — CORRECT ✓
+- `supporting_3`: Red Cross — 4 mentions — WRONG (organization, not character) ✗
+- `supporting_5`: Ted Frith — 5 mentions, alias: "Ted" — CORRECT ✓
+- `supporting_7`: Johnny — 2 mentions — FRAGMENTED (should be alias of the son) ✗
 
-**Characters present (6 total, DOWN from 7 in attempt 26):**
-- `supporting_1`: Uncle Bill — 18 mentions, `is_narrator: true`, role: `protagonist` — CORRECT ✓
-- `supporting_2`: John Donaldson — 28 mentions, `is_narrator: false`, role: `minor` — CONFLATED (father+son merged) ✗
-- `supporting_4`: Joe Barron — 3 mentions — CORRECT ✓
-- `supporting_5`: Red Cross — 4 mentions — WRONG (organization, not character) ✗
-- `supporting_7`: Ted Frith — 5 mentions, alias: "Ted" — CORRECT ✓
-- `supporting_9`: Johnny — 2 mentions — FRAGMENTED (should be alias of the son) ✗
+**Identity graph constraint edges are BACK:**
+- `role_conflict` edge between `main_cast_1` and `main_cast_2` (strength 0.9 and 1.0) — correctly blocks merge ✓
+- `ambiguous_surname` edges for "John" to both main_cast entries — correct ✓
 
-**Missing characters:**
-- Margaret Donaldson — was `main_cast_3` in attempt 26 with 2 mentions, now completely gone
-- Second John Donaldson (the son) — the father/son split from attempt 25 is gone
+**CRITICAL PROBLEM: Both entries have identical names ("John Donaldson") and nearly identical profiles.** The father/son split EXISTS structurally but is invisible to a narrator. Both entries have the FATHER's appearance/personality/voice data. The son has NO distinct representation.
 
-**Sub-Dimension A: Completeness: 5/10** (DOWN from 7)
-- Margaret Donaldson is completely absent (was present in attempt 26)
-- The son has no distinct representation at all
-- "Red Cross" is an organization, not a character
-- Only 4 of the ~7 real characters are properly represented
+Looking at the data:
+- `main_cast_1` (9 mentions): Labeled as `protagonist` with `is_narrator: true`, `narrative_role: "Secondary narrator (nested narrative)"` — this appears to be the SON (the nested narrator who tells the wartime story), but its profile describes the FATHER ("aging man with shabby clothing", "committing financial crime")
+- `main_cast_2` (29 mentions): Labeled as `supporting` with `is_narrator: false`, aliases include "the father" — this IS the father, with correct profile
 
-**Sub-Dimension B: Identity Resolution: 3/10** (unchanged)
-- Father/son John Donaldson still conflated into a single entry
-- The identity graph has NO constraint edges — the `role_conflict` mechanism from attempt 25 is completely absent
-- No main_cast characters means the disambiguation labels code had nothing to operate on
-- "Johnny" still separate instead of being an alias of the son
+So there IS a structural split, but:
+1. Both entries share the same name "John Donaldson" with no disambiguation labels
+2. `main_cast_1` (the son) has the FATHER's profile — wrong character profiling ✗
+3. `main_cast_1` has 0 aliases; "Johnny" (supporting_7) should be its alias ✗
 
-**Sub-Dimension C: Alias Grouping: 5/10** (DOWN from 6)
-- "John Donaldson's" (possessive) still appears as an alias ✗
-- "Johnny" should be alias of the son character ✗
-- "John" is an alias of the single John Donaldson — ambiguous ✗
-- Ted → Ted Frith: correct ✓
-- Bill → Uncle Bill: correct ✓
+**Sub-Dimension A: Completeness: 7/10** (UP from 5)
+- Margaret Donaldson is absent as a character entry (appears in Uncle Bill's relationships only) — she's a very minor character (wife who writes one letter), so not penalizing heavily
+- "Red Cross" is an organization, not a character ✗
+- 5 of ~6 real characters are represented (Uncle Bill, father, son, Joe Barron, Ted Frith)
+- "Johnny" should merge into son, not be separate ✗
 
-### 2.3 Character Profiles: 5/10 ✗ (DOWN from 7)
+**Sub-Dimension B: Identity Resolution: 5/10** (UP from 3)
+- Father/son STRUCTURAL split exists ✓ (major improvement from attempt 27)
+- BUT both entries have identical names — no disambiguation labels ✗
+- The son's profile is a copy of the father's — no distinct characterization ✗
+- "Johnny" remains separate instead of alias of the son ✗
+- The split is technically correct but practically useless: a narrator seeing two identical "John Donaldson" entries with the same profile cannot distinguish them
 
-**REGRESSION: All `physical_description` fields are null (0/6).** In attempt 26, Uncle Bill had an excellent profile with physical description. Now ALL physical descriptions are missing.
+**Sub-Dimension C: Alias Grouping: 6/10** (restored from 5)
+- "John Donaldson's" (possessive) appears as alias of main_cast_2 ✗
+- "Johnny" should be alias of main_cast_1 (the son) ✗
+- "the father" correctly assigned to main_cast_2 ✓
+- "John" assigned to main_cast_2 — ambiguous (could refer to either) ✗
+- "Ted" → Ted Frith: correct ✓
+- "Bill" → Uncle Bill: correct (merged during identity resolution) ✓
 
-**Uncle Bill profile:**
-- personality summary is good — accurately describes his character ✓
-- Relationships: `"John Donaldson (the son)": "mentor"` and `"John Donaldson (the father)": "family"` — the relationships reference disambiguated names but no such character entries exist ✗
-- Evidence quotes are accurate ✓
-- No physical description ✗
+### 2.3 Character Profiles: 7/10 ✗ (UP from 5)
 
-**John Donaldson profile:**
-- personality accurately describes the FATHER — moral ambiguity, embezzlement, redemption ✓
-- Evidence quotes are excellent and accurate ✓
-- Relationships: references "John Donaldson (son)" — doesn't match any character entry ✗
-- "Red Cross / American military" listed as relationship — Red Cross is an organization ✗
-- No physical description ✗
-- No representation of the son's character at all ✗
+**MAJOR IMPROVEMENT:** The new-format profile fields (`appearance`, `personality`, `voice_guidance`) are richly populated for main cast characters. The legacy top-level fields (`physical_description`, `personality_summary`, `speech_patterns`) are all null, but the HTML correctly renders the new-format data.
 
-**Ted Frith profile:**
-- personality is overly heroic for a minor character
-- Evidence quote "'I'm American to-day, sir!'" is MISATTRIBUTED — this is the father's quote, NOT Ted Frith's ✗
-- This is a significant factual error
+**main_cast_1 (John Donaldson / the son):**
+- Appearance: "An aging man with shabby clothing but an air of nobility" — THIS IS THE FATHER'S APPEARANCE, NOT THE SON'S ✗
+- Personality: "committing financial crime and abandoning his family, redeems himself through selfless service" — THIS IS THE FATHER'S PERSONALITY ✗
+- Voice guidance: "exhausted but radiant in his final moments" — THE FATHER'S voice ✗
+- Evidence quotes are all the FATHER's quotes ("American, sir--I heard the call") ✗
+- The son should be ~18-year-old ambulance driver, not a 55-year-old shabby man
+- **Both main_cast_1 and main_cast_2 have IDENTICAL profiles** — the profiling system couldn't distinguish them because they share the same name
 
-**Why 5/10:** Zero physical descriptions (major regression), misattributed evidence for Ted Frith, relationship names reference non-existent disambiguated character entries, son has no profile at all.
+**main_cast_2 (John Donaldson / the father):**
+- Appearance: Accurate — "big, athletic, grizzled chap, maybe fifty-five or over, shabby as to clothes" ✓
+- Personality: Accurate — describes embezzlement, redemption, deathbed confession ✓
+- Voice guidance: Excellent — "calm, weathered, deeply sincere", dialect notes about foreign inflection ✓
+- Evidence quotes are correct and powerful ✓
+- Relationships: "John Donaldson (son): parent" — correct label but references non-existent disambiguated entry ✗
+- Relationship to Uncle Bill says "acquaintance" — should be "cousin" or "family" ✗
+
+**Uncle Bill:**
+- Appearance: "An elderly, grizzled, small man with a grim and unexhilarating demeanor" — accurate ✓
+- Personality: "deeply principled and quietly heroic man" with "crabbed exterior" — excellent ✓
+- Voice guidance: "quiet, measured voice with deep emotional undercurrents" — good ✓
+- Relationships: "John Donaldson (cousin): ally", "John Donaldson Jr. (nephew): mentor", "Margaret Donaldson: acquaintance" — relationship types could be better (cousin should be "family", nephew should be "guardian/family") but the labels are correct ✓
+
+**Ted Frith:**
+- Appearance: "looks natural, particularly in his eyes, wears American uniform with tin derby" — plausible ✓
+- Personality: Overly heroic for a minor character but not factually wrong
+- Voice guidance: Present, reasonable for the character
+
+**Why 7/10:** Main cast profiles are now richly populated (major improvement from attempt 27's all-null profiles). Uncle Bill and the father's profiles are accurate and useful for narrators. The critical issue is that the son's profile is a copy of the father's — a narrator would be confused by two identical character profiles. Relationship labels reference disambiguated names that don't match actual character entries.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗
 
-**Chapter 1 (section 1):** EXCELLENT. Correctly describes the letter, Uncle Bill's memories, the cousin relationship, the scandal, Margaret Donaldson. Uses "cousin" correctly. `characters_present: ["the narrator"]` — acceptable but "Uncle Bill" would be better.
+**Chapter 1 (section 1):** EXCELLENT. Correctly describes the letter, Uncle Bill's memories, the cousin relationship, the scandal, the widow Margaret Donaldson. Uses "cousin" correctly. `characters_present: ["Narrator"]` — acceptable but "Uncle Bill" would be better.
 
 **Chapter 2 (section 2):** Good quality but contains the recurring "sister" hallucination:
-- "his deceased sister's twelve-year-old son" — WRONG. Uncle Bill is the father's COUSIN, not his brother/sister. Ch1 correctly says "cousin." The plot_summary also correctly says "cousin."
+- "his deceased sister's son" — WRONG. Uncle Bill is the father's COUSIN, not brother/sister. The Ch1 summary correctly says "cousin." The plot_summary section of the Ch1 summary also correctly says "cousin."
 - Otherwise excellent: covers Yale, fishing trip, WWI, Caporetto, reunion, deathbed revelation.
 - `characters_present`: ["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"] — EXCELLENT, correctly disambiguates both John Donaldsons ✓
 
-**Plot summary (nested in structure):** EXCELLENT — accurate full narrative arc across 3 well-structured paragraphs. Uses "cousin" correctly throughout. Captures the emotional arc of the story beautifully.
+**Plot summary (in Ch1 summary):** EXCELLENT — accurate full narrative arc, uses "cousin" correctly throughout, captures emotional arc beautifully.
 
 **Why 7.5/10:** One factual error ("sister" instead of "cousin" in Ch2) in otherwise excellent summaries. The plot summary is outstanding.
 
 ### 2.5 Pronunciation Guide: 5/10 ✗
 
-**Unchanged from previous attempts.** 30 entries, 25 with IPA.
+Unchanged from previous attempts. 30 entries, 25 with IPA.
 
 **Genuinely useful (8):** Caporetto, Piave, Solferino, Tagliamento, Bersagliari, Venetia, Guerre, Bordeaux — Italian/French geographic/military terms ✓
 
-**Acceptable homographs (4):** live, minute, read, close — context-dependent pronunciation ✓ (moderate is also acceptable)
+**Acceptable homographs (5):** live, minute, read, close, moderate — context-dependent pronunciation ✓
 
-**False positives (18):**
-- Standard names: Bill, Donaldson, Cross, Ted, Donaldson's, Joe, Barron, Frith, Johnny, Margaret ✗
+**False positives (17):**
+- Standard names: Bill, Donaldson, Cross, Ted, Donaldson's, Joe, Barron, Frith, Johnny ✗
 - Common English words: whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't, was ✗
 - "was" is particularly egregious ✗
 
-**Why 5/10:** 18/30 entries (60%) are false positives.
+**Why 5/10:** 17/30 entries (~57%) are false positives. The useful entries (Italian/French terms) are genuinely valuable for a narrator, but they're buried in noise.
 
-### 2.6 HTML Presentation: 6/10 ✗ (DOWN from 7)
+### 2.6 HTML Presentation: 7/10 ✗ (UP from 6)
 
-**Issues:**
-1. No main cast section — all characters in supporting cast table only ✗
-2. Only ONE "John Donaldson" entry — no distinction between father and son ✗
+**Improvements:**
+1. Main Characters section NOW EXISTS with 3 entries ✓ (was missing in attempt 27)
+2. Rich profile data displayed: appearance, personality, voice guidance all rendered ✓
+3. Voice guidance section with tone, dialect, verbal tics, example quotes — very useful for narrators ✓
+4. Relationship grid section functional ✓
+
+**Remaining Issues:**
+1. Two "John Donaldson" entries in Main Characters with no visual distinction ✗ — a narrator cannot tell them apart
+2. Both John Donaldson entries show identical profile content ✗
 3. "Red Cross" listed as supporting character ✗
 4. "Johnny" listed as separate supporting character ✗
 5. "John Donaldson's" (possessive) shown as alias ✗
-6. Relationships reference names ("John Donaldson Jr.", "John Donaldson (son)", "John Donaldson (the father)") that don't match any character entry ✗
-7. Zero physical descriptions displayed ✗
-8. Ch1 `characters_present` shows only "the narrator" instead of "Uncle Bill" ✗
-9. No book overview at top level (plot_summary is null at root, only nested) ✗
-10. Ted Frith has misattributed evidence quote ✗
+6. Relationships reference names ("John Donaldson (son)", "John Donaldson (cousin)", "John Donaldson Jr. (nephew)") that don't match actual character entry names ✗
+7. Ch1 `characters_present` shows only "Narrator" instead of "Uncle Bill" ✗
+8. `plot_summary` is null at root level ✗
+9. Dialect notes rendered as raw Python list: `['American English with a faint foreign inflection...']` instead of formatted text ✗
 
-**Why 6/10:** The regression from zero main_cast characters and zero physical descriptions significantly degrades the presentation. A narrator can't distinguish characters or prepare voices without physical descriptions or character separation.
+**Why 7/10:** The HTML is now much more useful than attempt 27. Rich profile data, voice guidance, and example quotes are excellent for narrators. But the two identical "John Donaldson" entries without labels are confusing. Presentation is blocked primarily by upstream data issues (disambiguation labels, duplicate profiles).
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - Pipeline: V2 with Phase 2 graph-based identity resolution
-- Identity graph: 6 groups, NO constraint edges (regression from attempt 25/26)
-- main_cast_count: 0 (CRITICAL — was 4+ in attempt 25/26)
-- supporting_cast_count: 6
+- Identity graph: constraint edges RESTORED (role_conflict between main_cast_1 and main_cast_2) ✓
+- main_cast_count: 3 (RESTORED from 0 in attempt 27) ✓
+- supporting_cast_count: 4
 - 0 LLM retries — good
-- Character Extraction only 4 LLM calls (suggests main_cast extraction was skipped or failed silently)
-- No config changes recommended — the issue is code, not config
+- 73 total LLM calls across 5 stages — healthy
+- No config changes recommended
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **REGRESSION: Main cast pipeline produced ZERO characters** [Completeness, Identity Resolution]
-   - Problem: `pipeline_metadata.main_cast_count: 0`. ALL characters have `supporting_*` IDs. In attempt 25/26, characters had `main_cast_*` IDs and the identity graph had `role_conflict` constraint edges enabling father/son separation.
-   - Evidence: `jq '.pipeline_metadata.main_cast_count' analysis.json` → 0. `jq '.pipeline_metadata.identity_graph.graph.constraints' analysis.json` → null. Character Extraction used only 4 LLM calls (attempt 26 used more for main_cast extraction).
-   - Root cause: The attempt 27 changes to `src/agents/characters.py` likely broke the main cast pipeline. The revert + re-implementation of disambiguation labels may have inadvertently damaged the code path that runs main_cast extraction, or the inline disambiguation code is running before main_cast extraction and interfering with it.
-   - Fix approach: **Check the diff between attempt 25 and attempt 27 in `src/agents/characters.py`** to find what broke main_cast extraction. The attempt 25 code produced main_cast characters correctly. The fix should restore that behavior. The disambiguation labels can be re-attempted AFTER confirming main_cast extraction works again.
-   - Files: `src/agents/characters.py`
+1. **Both John Donaldson entries have identical names — no disambiguation labels** [Identity Resolution]
+   - Problem: `main_cast_1` and `main_cast_2` are both named "John Donaldson" with no "(the son)" / "(the father)" labels. A narrator looking at the HTML sees two identical entries.
+   - Evidence: `jq '.characters[] | select(.id | startswith("main_cast")) | {id, name: .canonical_name}' analysis.json` → both show "John Donaldson"
+   - Root cause: Attempts 26 and 27 tried to add disambiguation labels and both caused regressions. Attempt 28 reverted to attempt 25 state which has the split but no labels.
+   - Fix approach: **THIS IS THE CORE REMAINING CHALLENGE.** The disambiguation labels feature needs to be re-implemented carefully. The constraint edges already contain the needed information — the `role_conflict` reason says "the son" vs "the father". A SAFE approach: add a post-processing step that reads constraint edges and applies labels, running AFTER all merges/splits are finalized (not during). This avoids the regression risk of attempts 26-27 which ran disambiguation during the pipeline.
+   - **CRITICAL WARNING:** Attempts 26 and 27 both failed trying to add disambiguation labels. Attempt 26 caused `main_cast_2` to be dropped. Attempt 27 broke the entire main_cast pipeline (0 characters). ANY fix must be POST-PROCESSING ONLY — do not modify any code that runs before or during character extraction/merging.
+   - Files: `src/agents/characters.py` (add post-processing step after ALL character extraction is complete)
 
-2. **Father/son John Donaldson conflation persists** [Identity Resolution]
-   - Problem: Only one "John Donaldson" entry exists. The `role_conflict` constraint edge from attempt 25 is completely absent (identity graph has no constraint edges at all).
-   - Evidence: Identity graph shows 6 groups, all from supporting cast. No constraint edges.
-   - Dependency: Blocked by CRITICAL #1 — main_cast pipeline must work first to generate `main_cast_1` and `main_cast_2` entries that the role_conflict mechanism can separate.
-   - Files: `src/agents/characters.py`
+2. **Son's profile is a copy of father's profile** [Identity Resolution, Profiles]
+   - Problem: `main_cast_1` (the son) has the father's appearance ("aging man with shabby clothing"), personality ("committing financial crime"), and voice guidance ("exhausted but radiant in his final moments"). The son should be ~18-year-old ambulance driver.
+   - Evidence: Both `main_cast_1.appearance.summary` and `main_cast_2.appearance.summary` are identical strings.
+   - Root cause: The profiling pipeline cannot distinguish the two because they share the same name. When gathering passages for "John Donaldson", ALL passages (father and son) get merged, and the father's more dramatic descriptions dominate.
+   - Dependency: Will partially resolve when CRITICAL #1 adds disambiguation labels — the profiler can then search for "John Donaldson (the son)" vs "John Donaldson (the father)" separately.
+   - Files: `src/pipeline/character_profiling/` — but fix CRITICAL #1 first
 
 ### HIGH
 
-3. **Margaret Donaldson missing** [Completeness]
-   - Problem: Was `main_cast_3` in attempt 26 with 2 mentions. Now absent entirely.
-   - Dependency: Blocked by CRITICAL #1 — likely returns when main_cast pipeline is restored.
-
-4. **Zero physical descriptions for all characters** [Profiles]
-   - Problem: `physical_description` is null for all 6 characters. In attempt 26, Uncle Bill had "elderly, grizzled, small man."
-   - Evidence: `jq '[.characters[] | select(.physical_description != null)] | length' analysis.json` → 0
-   - Location: `src/pipeline/character_profiling/` — may be related to all characters being supporting cast (profiling may skip or reduce detail for supporting cast)
-   - Dependency: May resolve when main_cast pipeline is restored (main_cast characters likely get fuller profiling).
-
-5. **Ted Frith evidence quote misattribution** [Profiles]
-   - Problem: "'I'm American to-day, sir!'" is attributed to Ted Frith. This is the FATHER's (John Donaldson's) quote — the central line of the story.
-   - Evidence: The father says "American, sir" / "I heard the call—the one clear call. American." Ted Frith is a different character.
-   - Location: `src/pipeline/character_profiling/passage_gatherer.py` or evidence collection
-   - This is a factual error that a narrator would notice immediately.
-
-6. **"Red Cross" extracted as character** [Completeness]
-   - Problem: Organization, not character (`supporting_5`, 4 mentions). Same as all prior attempts.
+3. **"Red Cross" extracted as character** [Completeness]
+   - Problem: Organization, not a character (`supporting_3`, 4 mentions). Same as all prior attempts.
    - Location: `src/pipeline/character_extraction_v2/supporting.py`
 
-7. **"Johnny" separate instead of alias of the son** [Alias Grouping]
-   - Problem: "Johnny" (`supporting_9`, 2 mentions) should be a diminutive alias of John/the son.
-   - Dependency: Once father/son split is restored, "Johnny" should merge into the son's entry.
+4. **"Johnny" separate instead of alias of the son** [Alias Grouping]
+   - Problem: "Johnny" (`supporting_7`, 2 mentions) should be an alias of the son's entry (`main_cast_1`).
+   - The identity graph has an `ambiguous_surname` constraint between "John" and both main_cast entries but no merge edge for "Johnny" → main_cast_1.
+   - Dependency: May resolve if CRITICAL #1 gives the son a distinct name like "John Donaldson (the son)" — the merge logic could then associate "Johnny" with the younger character.
 
-8. **Pronunciation: 18/30 entries are false positives (60%)** [Pronunciation]
-   - Same as all prior attempts. Common names and words flagged unnecessarily.
+5. **Pronunciation: 17/30 entries are false positives (~57%)** [Pronunciation]
+   - Same as all prior attempts. Common names (Bill, Ted, Joe, Johnny) and words (was, whippersnapper, thickset) flagged unnecessarily.
    - Location: `src/pipeline/pronunciation_guide/proposers/`
 
-9. **Chapter 2 "sister" hallucination** [Summaries]
-   - Problem: Ch2 says "his deceased sister's twelve-year-old son" — Uncle Bill is the father's COUSIN, not brother/sister.
-   - Location: `src/pipeline/chapter_summary/summarizer.py`
+6. **Chapter 2 "sister" hallucination** [Summaries]
+   - Problem: Ch2 says "his deceased sister's son" — Uncle Bill is the father's COUSIN, not brother/sister.
+   - This is the LLM hallucinating. Ch1 summary correctly says "cousin."
+   - Location: `src/pipeline/chapter_summary/summarizer.py` — may need cross-chapter consistency check or explicit instruction about family relationships
+
+7. **Uncle Bill → John Donaldson relationship says "acquaintance"** [Profiles]
+   - Problem: Should be "family" or "cousin" — they are cousins who grew up together.
+   - The main_cast_2 (father) also says Uncle Bill is "acquaintance" — wrong.
+   - Uncle Bill's own relationship data says "John Donaldson (cousin): ally" — closer but "ally" should be "family".
 
 ### MEDIUM
 
-10. **"John Donaldson's" (possessive) is an invalid alias** [Alias Grouping]
-    - Same as prior attempts.
+8. **"John Donaldson's" (possessive) is an invalid alias** [Alias Grouping]
+   - Same as all prior attempts. Possessive forms should be stripped.
 
-11. **Relationships reference non-existent character names** [Profiles]
-    - Problem: Relationships mention "John Donaldson (the son)", "John Donaldson (the father)", "John Donaldson (son)" — none match actual character entries.
-    - Dependency: Will partially resolve when father/son split is properly restored with labeled names.
+9. **Relationships reference non-existent disambiguated names** [Profiles]
+   - Uncle Bill's relationships say "John Donaldson (cousin)" and "John Donaldson Jr. (nephew)" — but no character entries have these disambiguated names.
+   - Dependency: Will resolve when CRITICAL #1 adds disambiguation labels to character names.
 
-12. **Uncle Bill → John Donaldson relationship says "acquaintance"** [Profiles]
-    - Problem: Uncle Bill's relationship to John Donaldson is merely "acquaintance" — should be "family" or "cousin"
+10. **main_cast_1 labeled as `is_narrator: true` but it's the son, not a narrator** [Identity Resolution]
+    - The son tells his wartime story (as reported speech through Uncle Bill), which the LLM interpreted as "secondary narrator (nested narrative)". Uncle Bill is the primary narrator. The son arguably IS a nested narrator, so this is borderline — but `main_cast_1` having `is_narrator: true` with 9 mentions while `main_cast_2` has 29 mentions suggests confusion about which entry is which.
 
-13. **Structure: 2 sections for continuous short story** [Structure]
+11. **Structure: 2 sections for continuous short story** [Structure]
     - Same as all prior attempts. Not worth a targeted fix for this text alone.
 
 ### LOW
 
-14. **Ch1 `characters_present` uses "the narrator" instead of "Uncle Bill"**
-15. **plot_summary is null at root level** — only exists nested in structure
-16. **Ted Frith personality is overly heroic for a minor character with 5 mentions**
+12. **Ch1 `characters_present` uses "Narrator" instead of "Uncle Bill"**
+13. **`plot_summary` is null at root level** — only exists nested in structure summaries
+14. **Dialect notes rendered as raw Python list in HTML** — `['American English with...']` instead of formatted text
 
 ## Fix History
 
-### Attempt 28 — Revert to attempt 25 (UNDOING REGRESSION)
+### Attempt 28 — Revert to attempt 25 state (REVERT SUCCESSFUL)
 - **Issue targeted:** CRITICAL #1 from attempt 27 — main_cast pipeline produced ZERO characters
-- **Root cause analysis:** The attempt 27 inline disambiguation code (lines 349-452) somehow prevented main_cast extraction from running or returning results. The grounding_report shows 0 grounded AND 0 ungrounded characters, meaning no profiles were extracted at all in Step 1. Character Extraction used only 4 LLM calls (far too few). The exact cause is unclear, but the fix broke the pipeline.
-- **Changes made:** Reverted `src/agents/characters.py` to attempt 25 state (removed 106 lines of disambiguation code added in attempt 27)
-- **Rationale:** Attempt 25 had main_cast working correctly with father/son split via role_conflict edges. The disambiguation labels feature is LOWER PRIORITY than having the main_cast pipeline functional. Restore working state first.
-- **Expected result:** main_cast extraction should work again, 4+ main_cast characters should be extracted, father/son split should work (two "John Donaldson" entries with same names). Score should return to ~6.50 range.
-- **File modified:** `src/agents/characters.py` (reverted to commit f3fb56a)
+- **Changes made:** Reverted `src/agents/characters.py` to attempt 25 state
+- **Result:** SUCCESS — main_cast pipeline restored. 3 main_cast characters extracted. Constraint edges back with role_conflict. Father/son split exists but both have identical names and profiles.
+- **Score:** 6.65 (UP from 5.75 in attempt 27)
+- **File modified:** `src/agents/characters.py`
 
 ### Attempt 27 — Revert + re-implement disambiguation labels (MAJOR REGRESSION)
 - **Issue targeted:** CRITICAL #1 from attempt 26 — `main_cast_2` disappeared after `_apply_disambiguation_labels()`
-- **Changes made:**
-  1. Reverted `src/agents/characters.py` to attempt 25 state
-  2. Re-implemented disambiguation labels with inline code
-- **Result:** WORSE REGRESSION — main_cast pipeline now produces ZERO characters (was 4+ in attempt 25/26). All characters come from supporting cast only. Identity graph has no constraint edges. Father/son split completely lost. Margaret Donaldson missing. All physical descriptions gone.
-- **Score:** 5.75 (DOWN from 6.40 in attempt 26)
+- **Changes made:** Reverted + re-implemented disambiguation labels with inline code
+- **Result:** WORSE REGRESSION — main_cast_count: 0, all characters from supporting only
+- **Score:** 5.75 (DOWN from 6.40)
 - **File modified:** `src/agents/characters.py`
 
 ### Attempt 26 — Apply disambiguation labels to same-name characters (REGRESSION)
-- **Issue targeted:** CRITICAL #1 from attempt 25 — Two identical "John Donaldson" entries with no disambiguation labels
-- **Changes made:** Added `_apply_disambiguation_labels()` method to `CharacterAgent` (src/agents/characters.py, lines 887-1012)
-- **Result:** REGRESSION — The method caused `main_cast_2` to be dropped from the final output. Score dropped from 6.50 to 6.40.
-- **Files modified:** `src/agents/characters.py` (lines 348-351, 887-1012)
+- **Issue targeted:** CRITICAL #1 from attempt 25 — Two identical "John Donaldson" entries
+- **Changes made:** Added `_apply_disambiguation_labels()` method
+- **Result:** REGRESSION — main_cast_2 dropped from output
+- **Score:** 6.40 (DOWN from 6.50)
+- **File modified:** `src/agents/characters.py`
 
 ### Attempt 25 — Populate characters_present from summaries in _get_chapters() (DATA FLOW FIX)
-- **Issue targeted:** CRITICAL #1 from attempt 24 — Father/son John Donaldson conflation
-- **Changes made:** Modified `_get_chapters()` to fetch summary results and populate `characters_present` on StructuralElements
-- **Result:** SUCCESS — `role_conflict` constraint edge now blocks the merge. 8 characters extracted (up from 6). Two separate "John Donaldson" entries exist. main_cast_count: 4+.
-- **New issues:** Both entries have identical names and profiles. Need disambiguation labels.
-- **File modified:** `src/agents/characters.py` (lines 707-756)
-
-### Attempt 24 — Summary-based disambiguation constraint (NO EFFECT)
 - **Issue targeted:** Father/son conflation
-- **Changes made:** Added `collect_summary_disambiguation_evidence()` to `evidence_collectors.py`
-- **Result:** NO CHANGE — empty `characters_present` lists
-- **Files modified:** `evidence_collectors.py`, `characters.py`
+- **Changes made:** Modified `_get_chapters()` to fetch summary results and populate `characters_present`
+- **Result:** SUCCESS — role_conflict constraint edge blocks merge. Two "John Donaldson" entries.
+- **Score:** 6.50
+- **File modified:** `src/agents/characters.py`
 
-### Attempt 23 — CLEAN BASELINE (all prior fixes reverted)
-- Score: 6.30
-
-### Previous attempts (1-22) — ALL REVERTED
-- Key learnings: Attempt 22 best score (7.55). Organization filtering (attempt 3) and pronunciation invariants worked.
+### Previous attempts — see earlier evaluation states
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 28 | Revert to attempt 25 (undo regression) | `characters.py` | (awaiting analysis) |
-| 27 | Revert + re-implement disambiguation labels | `characters.py` | WORSE REGRESSION — main_cast_count: 0, all characters from supporting only |
-| 26 | Disambiguation labels for same-name characters | `characters.py` | REGRESSION — main_cast_2 dropped from output |
-| 25 | Father/son disambiguation (data flow fix) | `characters.py` | PARTIAL SUCCESS — split works but entries have identical names/profiles |
+| 28 | Revert to attempt 25 (undo regression) | `characters.py` | SUCCESS — main_cast restored, 3 main_cast chars, constraint edges back |
+| 27 | Revert + re-implement disambiguation labels | `characters.py` | WORSE REGRESSION — main_cast_count: 0 |
+| 26 | Disambiguation labels for same-name characters | `characters.py` | REGRESSION — main_cast_2 dropped |
+| 25 | Father/son disambiguation (data flow fix) | `characters.py` | SUCCESS — split works but identical names |
 | 24 | Father/son disambiguation | `evidence_collectors.py`, `characters.py` | NO EFFECT |
 | 23 (baseline) | Clean baseline + Phase 2 pipeline | N/A | Score: 6.30 |
 
@@ -300,12 +297,17 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 | 23 | 6.30 | -0.30 | Clean baseline + Phase 2 pipeline |
 | 24 | 6.15 | -0.45 | Fix had no effect; profiles worse |
 | 25 | 6.50 | -0.10 | Father/son split working but needs disambiguation labels |
-| 26 | 6.40 | -0.20 | REGRESSION — disambiguation labels fix dropped main_cast_2 |
-| 27 | 5.75 | -0.85 | WORSE REGRESSION — main_cast pipeline broken, 0 main_cast chars |
-| 28 | (pending) | | Revert to attempt 25 state |
+| 26 | 6.40 | -0.20 | REGRESSION — disambiguation labels dropped main_cast_2 |
+| 27 | 5.75 | -0.85 | WORSE REGRESSION — main_cast pipeline broken |
+| 28 | 6.65 | +0.05 | Revert successful — main_cast restored, profiles improved |
 
 ## Next Action
 
-**Attempt 28 changes applied:** Reverted to attempt 25 state to restore main_cast pipeline functionality.
+**Run PROMPT_fix.md** to address CRITICAL #1: Add disambiguation labels to same-name characters.
 
-Re-run analysis to verify the revert restores main_cast extraction and father/son split.
+**KEY GUIDANCE FOR FIX PHASE:** Attempts 26 and 27 BOTH failed trying this. The fix MUST be:
+1. **POST-PROCESSING ONLY** — run AFTER all character extraction, merging, and identity resolution is complete
+2. **Read constraint edges** to determine disambiguation labels (the `role_conflict` reason already contains "the son" and "the father")
+3. **Only modify `canonical_name`** on the final Character objects — do NOT modify any upstream data or intermediate pipeline state
+4. **Do NOT add a new method that gets called during the pipeline** — append the logic at the very end of the character extraction flow
+5. If unsure where to add it, the safest place is in `src/agents/characters.py` in the `run()` method, AFTER the line that returns the final character list, but BEFORE the AgentResult is constructed
