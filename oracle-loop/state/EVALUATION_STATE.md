@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 27
-- **Phase:** awaiting_fix
+- **Attempt:** 28
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -230,6 +230,14 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Fix History
 
+### Attempt 28 — Revert to attempt 25 (UNDOING REGRESSION)
+- **Issue targeted:** CRITICAL #1 from attempt 27 — main_cast pipeline produced ZERO characters
+- **Root cause analysis:** The attempt 27 inline disambiguation code (lines 349-452) somehow prevented main_cast extraction from running or returning results. The grounding_report shows 0 grounded AND 0 ungrounded characters, meaning no profiles were extracted at all in Step 1. Character Extraction used only 4 LLM calls (far too few). The exact cause is unclear, but the fix broke the pipeline.
+- **Changes made:** Reverted `src/agents/characters.py` to attempt 25 state (removed 106 lines of disambiguation code added in attempt 27)
+- **Rationale:** Attempt 25 had main_cast working correctly with father/son split via role_conflict edges. The disambiguation labels feature is LOWER PRIORITY than having the main_cast pipeline functional. Restore working state first.
+- **Expected result:** main_cast extraction should work again, 4+ main_cast characters should be extracted, father/son split should work (two "John Donaldson" entries with same names). Score should return to ~6.50 range.
+- **File modified:** `src/agents/characters.py` (reverted to commit f3fb56a)
+
 ### Attempt 27 — Revert + re-implement disambiguation labels (MAJOR REGRESSION)
 - **Issue targeted:** CRITICAL #1 from attempt 26 — `main_cast_2` disappeared after `_apply_disambiguation_labels()`
 - **Changes made:**
@@ -268,6 +276,7 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 28 | Revert to attempt 25 (undo regression) | `characters.py` | (awaiting analysis) |
 | 27 | Revert + re-implement disambiguation labels | `characters.py` | WORSE REGRESSION — main_cast_count: 0, all characters from supporting only |
 | 26 | Disambiguation labels for same-name characters | `characters.py` | REGRESSION — main_cast_2 dropped from output |
 | 25 | Father/son disambiguation (data flow fix) | `characters.py` | PARTIAL SUCCESS — split works but entries have identical names/profiles |
@@ -284,14 +293,10 @@ Overall = (7 × 0.20) + (4 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 | 25 | 6.50 | -0.10 | Father/son split working but needs disambiguation labels |
 | 26 | 6.40 | -0.20 | REGRESSION — disambiguation labels fix dropped main_cast_2 |
 | 27 | 5.75 | -0.85 | WORSE REGRESSION — main_cast pipeline broken, 0 main_cast chars |
+| 28 | (pending) | | Revert to attempt 25 state |
 
 ## Next Action
 
-**CRITICAL: The attempt 27 fix BROKE the main cast pipeline entirely.** Score dropped to 5.75 (well below baseline 6.60). The auto-revert threshold of baseline - 0.3 = 6.30 will be triggered.
+**Attempt 28 changes applied:** Reverted to attempt 25 state to restore main_cast pipeline functionality.
 
-**Recommended approach for attempt 28:**
-1. **REVERT attempt 27 changes** — restore `characters.py` to the state from attempt 25 (which had main_cast working with father/son split)
-2. **Do NOT re-attempt disambiguation labels yet** — the father/son split works in attempt 25 even without labels. Focus on getting the score above 8.0 on OTHER dimensions first.
-3. **The disambiguation labels problem (two identical "John Donaldson" entries) is lower priority than having the main_cast pipeline working at all.**
-
-The fix phase should use `git diff` to compare attempt 25 and attempt 27 states of `characters.py` to understand exactly what broke.
+Re-run analysis to verify the revert restores main_cast extraction and father/son split.
