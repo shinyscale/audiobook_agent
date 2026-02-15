@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 24
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,17 +11,21 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 23)
-- **CRITICAL CONTEXT:** All prior src/ fixes (attempts 1-22) were REVERTED via `f2a6ee5` ("Revert src/ to clean baseline"). This is a CLEAN BASELINE run with the new Phase 2 graph-based identity resolution pipeline.
-- Analysis completed in 36m 40s using qwen3-next:80b-a3b-instruct-q8_0
-- Found 7 characters total (3 main_cast, 4 supporting)
-- Identity graph: 11 nodes, 9 merge edges, 2 constraint edges → 7 groups
-- No merge decisions recorded (0 total merges)
-- 31 pronunciation entries, 26 with IPA
-- "Red Cross" extracted as character (organization, should be filtered)
-- "Johnny" extracted as separate supporting character (should be alias of John Donaldson the son)
-- "John Donaldson's" appears in aliases (possessive form, invalid alias)
-- Father/son split is ABSENT — only one "John Donaldson" exists (the father)
+## Pipeline Notes (Attempt 24)
+- Analysis completed in 39m 3s using qwen3-next:80b-a3b-instruct-q8_0
+- Competitive consensus ENABLED: characters, structure, summaries (all stages)
+- Found 6 characters total
+- Identity graph: output/American Sir_20260215_113215/identity_graph.json
+- 81 LLM calls, 112,858 tokens (0 retries)
+- 30 pronunciation entries
+- Warnings during analysis:
+  - OCR repair: fixed 1 broken ligature
+  - F19: Profile quotes for John Donaldson (2), Uncle Bill (4), Ted Frith (3) potentially ungrounded
+  - LLM validation failed (got dict), keeping batch candidates (pronunciation stage)
+  - Model returned error-like response during pronunciation enrichment
+- Summary shows: "Red Cross" still present (4 mentions)
+- "Johnny" NOT shown in summary (may have been filtered or merged)
+- Narrator detected: Uncle Bill (first-person)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
