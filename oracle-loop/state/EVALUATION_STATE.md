@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 26
-- **Phase:** awaiting_fix
+- **Attempt:** 27
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -220,6 +220,20 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Fix History
 
+### Attempt 27 — Re-implement disambiguation labels (REGRESSION FIX)
+- **Issue targeted:** CRITICAL #1 from attempt 26 — `main_cast_2` disappeared after `_apply_disambiguation_labels()`
+- **Root cause:** The attempt 26 implementation of `_apply_disambiguation_labels()` had a bug that caused `main_cast_2` to be removed from the character list
+- **Changes made:**
+  1. Reverted `src/agents/characters.py` to attempt 25 state (removed lines 887-1012 and call at line 348-351)
+  2. Re-implemented disambiguation labels with simpler, more robust logic (inserted after line 348):
+     - Inline code (not a separate method) to avoid parameter passing issues
+     - Explicit character count verification before/after processing
+     - Detailed logging at each step to trace any issues
+     - Same core logic: find same-name characters, check for role_conflict edges, parse and apply labels
+  3. Key difference: works directly on `main_cast` and `supporting_cast` lists in place, no complex lookups
+- **Expected result:** Restore the two separate John Donaldson entries from attempt 25, but now with distinct names: "John Donaldson (the son)" and "John Donaldson (the father)"
+- **File modified:** `src/agents/characters.py` (reverted to 1136 lines, then added 104 lines of inline code at line 349)
+
 ### Attempt 26 — Apply disambiguation labels to same-name characters (REGRESSION)
 - **Issue targeted:** CRITICAL #1 from attempt 25 — Two identical "John Donaldson" entries with no disambiguation labels
 - **Changes made:** Added `_apply_disambiguation_labels()` method to `CharacterAgent` (src/agents/characters.py, lines 887-1012)
@@ -249,6 +263,7 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 27 | Disambiguation labels regression fix | `characters.py` | FIX PENDING - reverted + reimplemented |
 | 26 | Disambiguation labels for same-name characters | `characters.py` | REGRESSION — main_cast_2 dropped from output |
 | 25 | Father/son disambiguation (data flow fix) | `characters.py` | PARTIAL SUCCESS — split works but entries have identical names/profiles |
 | 24 | Father/son disambiguation | `evidence_collectors.py`, `characters.py` | NO EFFECT |
@@ -266,10 +281,9 @@ Overall = (7 × 0.20) + (5 × 0.25) + (7 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Next Action
 
-**The attempt 26 fix caused a regression.** The `_apply_disambiguation_labels()` method dropped `main_cast_2` from the output. The fix phase should:
+**Attempt 27 fix applied.** Reverted the buggy `_apply_disambiguation_labels()` method from attempt 26 and re-implemented with simpler, more robust logic. The new implementation:
+- Works inline (not a separate method) to avoid parameter issues
+- Verifies character count before/after to catch any removals
+- Includes detailed logging to trace the disambiguation process
 
-1. **Debug `_apply_disambiguation_labels()`** to find where `main_cast_2` is being dropped. The method should only RENAME entries, not remove them.
-2. If the bug is not quickly fixable, **revert the attempt 26 changes** to restore the attempt 25 state (two entries with identical names), then re-implement more carefully.
-3. The correct approach: after all merges are finalized and the character list is built, scan for duplicate canonical names that are kept separate by constraint edges, and append the labels from the constraint edge reason to each name.
-
-Run PROMPT_fix.md to debug/fix the disambiguation labels regression.
+Run PROMPT_analyze.md to verify the fix restores the father/son split with distinct names.
