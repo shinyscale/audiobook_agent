@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 25
-- **Phase:** awaiting_fix
+- **Attempt:** 26
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -237,6 +237,23 @@ Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Fix History
 
+### Attempt 26 — Apply disambiguation labels to same-name characters (IDENTITY RESOLUTION FIX)
+- **Issue targeted:** CRITICAL #1 from attempt 25 — Two identical "John Donaldson" entries with no disambiguation labels
+- **Root cause:**
+  - Location: `src/agents/characters.py` - Character object finalization after identity graph resolution
+  - Problem: The identity graph correctly kept father/son separate via `role_conflict` constraint edges, but the constraint edge contains disambiguation labels (`['the son', 'the father']`) that weren't being applied to the canonical names
+  - Data flow trace: `collect_summary_disambiguation_evidence()` → constraint edge created → `resolve_identities()` → `execute_merges()` → **MISSING: apply labels to canonical_name**
+- **Changes made:**
+  - Added `_apply_disambiguation_labels()` method to `CharacterAgent` (src/agents/characters.py, lines 887-1012)
+  - Called after `execute_merges()` to detect same-name characters and apply labels from constraint edge reasons
+  - Logic: Groups characters by canonical_name → finds role_conflict constraints between them → parses labels from constraint reason → appends labels in parentheses (e.g., "John Donaldson (the father)")
+- **Expected result:**
+  - Characters with identical names separated by constraints get distinct labels
+  - Profiling pipeline can now distinguish them → distinct profiles for father vs son
+  - HTML report shows clear distinction
+  - May cascade fix for issues #2 (profiles), #3 (narrator), #5 (Johnny alias), #9 (roles)
+- **Files modified:** `src/agents/characters.py` (lines 348-351, 887-1012)
+
 ### Attempt 25 — Populate characters_present from summaries in _get_chapters() (DATA FLOW FIX)
 - **Issue targeted:** CRITICAL #1 from attempt 24 — Father/son John Donaldson conflation
 - **Changes made:** Modified `_get_chapters()` to fetch summary results and populate `characters_present` on StructuralElements
@@ -260,6 +277,7 @@ Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 26 | Same-name character disambiguation labels | `characters.py` | TBD — awaiting analysis |
 | 25 | Father/son disambiguation (data flow fix) | `characters.py` | PARTIAL SUCCESS — split works but entries have identical names/profiles |
 | 24 | Father/son disambiguation | `evidence_collectors.py`, `characters.py` | NO EFFECT |
 | 23 (baseline) | Clean baseline + Phase 2 pipeline | N/A | Score: 6.30 |
@@ -275,23 +293,15 @@ Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (5 × 0.10) 
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-**Priority fix for attempt 26:** CRITICAL #1 — Apply disambiguation labels to same-name characters.
+Re-run analysis on "american_sir" to verify the disambiguation label fix.
 
-When two characters share the exact same `canonical_name` and were kept separate by a `role_conflict` constraint edge, the pipeline should append the disambiguation labels from the summary data to their canonical names. The labels are already available in the constraint edge reason: `"labels ['the son', 'the father']"`.
+**Expected improvements:**
+1. Two John Donaldson entries should have distinct canonical names with labels (e.g., "John Donaldson (the father)" and "John Donaldson (the son)")
+2. Profiling pipeline should generate distinct profiles for each (father: elderly, grizzled; son: young, idealistic)
+3. May cascade fix for narrator assignment, roles, and Johnny alias
 
-**Recommended approach:**
-1. In `src/agents/characters.py`, after merge groups are finalized and before character objects are built:
-   - Scan for groups with identical `canonical_name`
-   - If they were separated by a `role_conflict` constraint edge, extract the disambiguation labels
-   - Append labels to canonical names: "John Donaldson (the father)", "John Donaldson (the son)"
-2. This should cascade: distinct names → distinct profiles → distinct relationships
-3. "Johnny" may then naturally merge into "John Donaldson (the son)" if diminutive detection is added
+**If successful:** Character Extraction score should improve from 6/10 to 8+/10, Character Profiles from 6/10 to 8+/10.
 
-**Secondary fixes (if time permits):**
-- #4: Organization filtering for Red Cross
-- #6: Pronunciation false positive filtering
-- #8: Possessive stripping from aliases
-
-**If attempt 26 succeeds on #1:** The profile duplication (#2), narrator assignment (#3), and role issues (#9) may self-resolve once the profiling pipeline can distinguish the two characters.
+**If unsuccessful:** Re-examine the constraint edge parsing logic or the label application order.

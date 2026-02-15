@@ -346,6 +346,12 @@ class CharacterAgent(Agent):
             is_valid_alias_fn=self._is_valid_alias,
         )
 
+        # Apply disambiguation labels to same-name characters kept separate by constraints
+        logger.info("V2 Step 5.6: Applying disambiguation labels to same-name characters")
+        main_cast, supporting_cast = self._apply_disambiguation_labels(
+            main_cast, supporting_cast, merge_groups, ig
+        )
+
         # Post-merge: update narrator_info if narrator placeholder was merged
         if narrator_info.narrator_character_id:
             # Check if the narrator's character was absorbed into another
@@ -877,6 +883,129 @@ class CharacterAgent(Agent):
             logger.info(f"Removed {removed_count} narrator variant(s) from supporting cast")
 
         return filtered
+
+    def _apply_disambiguation_labels(
+        self,
+        main_cast: list,
+        supporting_cast: list,
+        merge_groups: list,
+        identity_graph,
+    ) -> tuple[list, list]:
+        """
+        Apply disambiguation labels to characters with identical canonical names
+        that were kept separate by role_conflict constraint edges.
+
+        When two characters share the same canonical name (e.g., "John Donaldson" for
+        both father and son), but were kept separate by a constraint edge, this extracts
+        the disambiguation labels from the constraint edge reason and appends them to
+        the canonical names.
+
+        Args:
+            main_cast: List of main cast characters
+            supporting_cast: List of supporting cast characters
+            merge_groups: Merge groups from identity resolution
+            identity_graph: The identity graph with constraint edges
+
+        Returns:
+            Tuple of (updated_main_cast, updated_supporting_cast)
+        """
+        import re
+
+        all_chars = main_cast + supporting_cast
+
+        # Group characters by canonical_name (case-insensitive)
+        name_groups = {}
+        for char in all_chars:
+            name_lower = char.canonical_name.lower()
+            if name_lower not in name_groups:
+                name_groups[name_lower] = []
+            name_groups[name_lower].append(char)
+
+        # Find groups with duplicates (same canonical name, multiple characters)
+        for name_lower, chars in name_groups.items():
+            if len(chars) < 2:
+                continue  # No duplicates
+
+            logger.info(
+                f"Found {len(chars)} characters with name '{chars[0].canonical_name}': "
+                f"{[c.id for c in chars]}"
+            )
+
+            # Find the merge groups for these characters
+            char_ids = {c.id for c in chars}
+            relevant_groups = [g for g in merge_groups if g.canonical_node_id in char_ids]
+
+            if len(relevant_groups) < 2:
+                logger.warning(
+                    f"Expected {len(chars)} merge groups for '{chars[0].canonical_name}', "
+                    f"found {len(relevant_groups)}"
+                )
+                continue
+
+            # Find constraint edges between these groups
+            # Look for role_conflict edges between any pair of these character IDs
+            constraint_edges = []
+            for i, char_a in enumerate(chars):
+                for char_b in chars[i + 1:]:
+                    edges = [
+                        e for e in identity_graph.constraint_edges
+                        if ((e.source == char_a.id and e.target == char_b.id) or
+                            (e.source == char_b.id and e.target == char_a.id))
+                        and e.constraint_type.value == "role_conflict"
+                    ]
+                    constraint_edges.extend(edges)
+
+            if not constraint_edges:
+                logger.warning(
+                    f"No role_conflict constraint edges found between characters "
+                    f"named '{chars[0].canonical_name}'"
+                )
+                continue
+
+            # Extract labels from the first constraint edge
+            # Format: "Summary disambiguates 'Name': N distinct people with labels ['label1', 'label2']"
+            edge = constraint_edges[0]
+            logger.info(f"Constraint edge reason: {edge.reason}")
+
+            # Parse labels from the reason string
+            match = re.search(r"labels \[(.*?)\]", edge.reason)
+            if not match:
+                logger.warning(f"Could not parse labels from constraint reason: {edge.reason}")
+                continue
+
+            # Extract individual labels
+            labels_str = match.group(1)
+            labels = [
+                label.strip().strip("'\"")
+                for label in labels_str.split(",")
+            ]
+
+            logger.info(f"Extracted {len(labels)} disambiguation labels: {labels}")
+
+            if len(labels) != len(chars):
+                logger.warning(
+                    f"Label count mismatch: {len(labels)} labels for {len(chars)} characters"
+                )
+                # Use what we have
+                labels = labels[:len(chars)]
+                while len(labels) < len(chars):
+                    labels.append(f"variant {len(labels) + 1}")
+
+            # Sort characters by mention count (descending) to assign labels consistently
+            # The character with more mentions gets the first label
+            chars_sorted = sorted(chars, key=lambda c: c.mention_count, reverse=True)
+
+            # Apply labels to canonical names
+            for char, label in zip(chars_sorted, labels):
+                old_name = char.canonical_name
+                # Append label in parentheses
+                char.canonical_name = f"{old_name} ({label})"
+                logger.info(
+                    f"Applied disambiguation label: '{old_name}' → '{char.canonical_name}' "
+                    f"({char.mention_count} mentions)"
+                )
+
+        return main_cast, supporting_cast
 
     def _is_valid_alias(self, alias: str, canonical_name: str) -> bool:
         """
