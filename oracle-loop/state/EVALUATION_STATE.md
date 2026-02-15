@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 27
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 27)
+- Analysis completed in 33m 47s with competitive consensus enabled
+- Structure Detection: 12 LLM calls (2/3 supermajority voting)
+- Character Extraction: 6 characters found
+- Warnings observed:
+  - "Narrator 'Uncle Bill' identified but NOT found in main_cast. Available characters: ['the narrator']"
+  - F19 ungrounded evidence quotes for Uncle Bill (4), John Donaldson (2), Ted Frith (2)
+  - Pronunciation LLM batch enrichment failed (model returned error response)
+- Identity graph written: output/American Sir_20260215_135318/identity_graph.json
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
