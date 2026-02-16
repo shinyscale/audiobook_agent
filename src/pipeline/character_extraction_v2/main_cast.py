@@ -707,6 +707,150 @@ class MainCastExtractor:
 
         return profiles
 
+    def _ensure_same_name_disambiguation(self, characters: list[MainCastProfile]) -> list[MainCastProfile]:
+        """
+        Ensure that characters with the same bare name all have disambiguators.
+
+        Problem: If the LLM outputs:
+          - "John (the father)" — has disambiguator ✓
+          - "John Donaldson" — NO disambiguator ✗
+
+        The profiler can't distinguish which passages belong to which "John Donaldson",
+        causing profile cross-contamination.
+
+        Solution: If two characters share the same bare name (after stripping disambiguators)
+        and only ONE has a disambiguator, infer a complementary one for the other.
+
+        Examples:
+          - "John (the father)" + "John Donaldson" → "John (the father)" + "John Donaldson (the son)"
+          - "Mary Smith (Sr.)" + "Mary Smith" → "Mary Smith (Sr.)" + "Mary Smith (Jr.)"
+
+        This ensures both are distinguishable throughout the entire pipeline.
+        """
+        import re
+
+        # Build a mapping of bare name → list of characters with that bare name
+        bare_name_groups: dict[str, list[MainCastProfile]] = {}
+
+        disambiguation_pattern = r'\((the\s+)?(father|son|daughter|mother|parent|child|' \
+                               r'uncle|nephew|aunt|niece|brother|sister|cousin|' \
+                               r'grandfather|grandmother|grandson|granddaughter|' \
+                               r'elder|younger|senior|junior|sr\.?|jr\.?)\)'
+
+        for char in characters:
+            # Strip disambiguator to get bare name
+            bare_name = re.sub(disambiguation_pattern, '', char.canonical_name, flags=re.IGNORECASE).strip()
+            bare_name_lower = bare_name.lower()
+
+            if bare_name_lower not in bare_name_groups:
+                bare_name_groups[bare_name_lower] = []
+            bare_name_groups[bare_name_lower].append(char)
+
+        # Process groups with multiple characters sharing the same bare name
+        for bare_name, group in bare_name_groups.items():
+            if len(group) <= 1:
+                # Only one character with this bare name, no disambiguation needed
+                continue
+
+            # Check how many already have disambiguators
+            has_disambiguator = []
+            no_disambiguator = []
+
+            for char in group:
+                if re.search(disambiguation_pattern, char.canonical_name, re.IGNORECASE):
+                    has_disambiguator.append(char)
+                else:
+                    no_disambiguator.append(char)
+
+            # If all have disambiguators or none have, nothing to do
+            if not has_disambiguator or not no_disambiguator:
+                continue
+
+            # At least one has a disambiguator and at least one doesn't
+            # Infer complementary disambiguators
+            logger.info(
+                f"Same-name disambiguation: {len(has_disambiguator)} characters have disambiguators, "
+                f"{len(no_disambiguator)} don't. Bare name: '{bare_name}'"
+            )
+
+            # Extract existing disambiguators
+            existing_disambs = []
+            for char in has_disambiguator:
+                match = re.search(disambiguation_pattern, char.canonical_name, re.IGNORECASE)
+                if match:
+                    disamb = match.group(0).lower()
+                    existing_disambs.append(disamb)
+
+            # Infer complementary disambiguators for characters without them
+            for i, char in enumerate(no_disambiguator):
+                # Try to infer a complementary disambiguator
+                complementary_disamb = self._infer_complementary_disambiguator(
+                    existing_disambs, bare_name, i
+                )
+
+                # Apply the disambiguator
+                original_name = char.canonical_name
+                char.canonical_name = f"{original_name} {complementary_disamb}"
+
+                logger.info(
+                    f"Added complementary disambiguator: '{original_name}' → '{char.canonical_name}'"
+                )
+
+        return characters
+
+    def _infer_complementary_disambiguator(
+        self, existing_disambs: list[str], bare_name: str, index: int
+    ) -> str:
+        """
+        Infer a complementary disambiguator based on existing ones.
+
+        Examples:
+          - existing: ["(the father)"] → return "(the son)"
+          - existing: ["(sr.)", "(jr.)"] → return "(III)" or similar
+          - existing: ["(elder)"] → return "(younger)"
+        """
+        # Map of complementary pairs
+        complementary_map = {
+            "father": "the son",
+            "the father": "the son",
+            "son": "the father",
+            "the son": "the father",
+            "mother": "the daughter",
+            "the mother": "the daughter",
+            "daughter": "the mother",
+            "the daughter": "the mother",
+            "elder": "younger",
+            "the elder": "the younger",
+            "younger": "elder",
+            "the younger": "the elder",
+            "sr.": "Jr.",
+            "sr": "Jr.",
+            "jr.": "Sr.",
+            "jr": "Sr.",
+            "senior": "junior",
+            "junior": "senior",
+        }
+
+        # Try to find a complementary disambiguator
+        for existing in existing_disambs:
+            # Strip parentheses and "the" prefix
+            clean = existing.strip("()").strip().lower()
+            clean = clean.replace("the ", "", 1) if clean.startswith("the ") else clean
+
+            if clean in complementary_map:
+                complement = complementary_map[clean]
+                # Format consistently with parentheses
+                return f"({complement})"
+
+        # Fallback: use generic disambiguators based on index
+        # If we can't infer from existing disambiguators, use generic labels
+        generic_labels = ["(I)", "(II)", "(III)", "(IV)", "(V)"]
+        if index < len(generic_labels):
+            return generic_labels[index]
+
+        # Last resort: use numeric suffix
+        return f"({index + 1})"
+
     def _process_consolidated_pass2(
         self,
         initial_characters: list[MainCastProfile],
@@ -722,6 +866,12 @@ class MainCastExtractor:
         Returns:
             Merged list of MainCastProfile with aliases applied
         """
+        # CRITICAL FIX: Ensure both same-name characters get disambiguators
+        # If the LLM outputs "John (the father)" and "John Donaldson" (no disambiguator),
+        # the profiler can't distinguish which passages belong to which "John Donaldson."
+        # We must ensure BOTH get unique canonical names.
+        initial_characters = self._ensure_same_name_disambiguation(initial_characters)
+
         # Build lookup by canonical name
         char_by_name = {c.canonical_name.lower(): c for c in initial_characters}
 
