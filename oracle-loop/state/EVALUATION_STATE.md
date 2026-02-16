@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 45
-- **Phase:** awaiting_fix
+- **Attempt:** 46
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -220,6 +220,20 @@ This was partially addressed in attempt 36 for "Sr./Jr." suffixes but needs to b
 - Profile contamination for same-name characters remains the long-term blocker but is lower priority than having the son present at all
 
 ## Fix History
+
+### Attempt 46 — Extend grounding gate to strip parenthetical disambiguators — FIX APPLIED
+- **Issue targeted:** CRITICAL #1 from attempt 45 — John Donaldson (the son) completely MISSING from output
+- **Root cause:** `mention_search.py:_extract_base_name()` only stripped Sr./Jr. suffixes, not parenthetical disambiguators like "(the son)", "(the father)". F6 grounding searched for "John Donaldson (the son)" literally, found 0 mentions, and rejected the character.
+- **Changes made:** Extended `_extract_base_name()` to strip parenthetical disambiguators (e.g., "(the son)", "(the father)", "(narrator)") before searching text for mentions. These parentheticals are metadata for identity resolution, not literal text strings.
+- **Smoke test:** PASS - Tested with 7 cases including "John Donaldson (the son)" → "John Donaldson", "Victor Frankenstein (narrator)" → "Victor Frankenstein". All base name extractions work correctly.
+- **Expected impact:** Restoring the son character should improve:
+  - Completeness: 6 → 7-8 (son now present)
+  - Identity Resolution: 5 → 7-8 (no false merge of supporting_0 into father)
+  - Overall Character Extraction: 6 → 7-8
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/mention_search.py` (+5 lines: regex to strip parenthetical suffixes)
+  - `tests/test_character_extraction_v2.py` (+28 lines: 2 new tests for parenthetical and Sr./Jr. handling)
+- **Test results:** 44/44 tests pass (added 2 new regression tests)
 
 ### Attempt 45 — REVERT attempt 44's alias filter — PARTIAL RECOVERY
 - **Issue targeted:** CRITICAL #1 from attempt 44 — Father character completely DROPPED from output

@@ -77,20 +77,27 @@ class MentionSearcher:
 
     def _extract_base_name(self, canonical_name: str) -> str:
         """
-        Extract base name without generational suffixes.
+        Extract base name without generational suffixes or parenthetical disambiguators.
 
         Handles patterns like:
         - "John Donaldson Sr." → "John Donaldson"
         - "John Jr." → "John"
         - "Elizabeth Lavenza III" → "Elizabeth Lavenza"
+        - "John Donaldson (the son)" → "John Donaldson"
+        - "John Donaldson (the father)" → "John Donaldson"
+        - "Victor Frankenstein (narrator)" → "Victor Frankenstein"
 
         Args:
-            canonical_name: Full canonical name possibly with suffixes
+            canonical_name: Full canonical name possibly with suffixes or disambiguators
 
         Returns:
-            Base name without Sr/Jr/roman numeral suffixes
+            Base name without Sr/Jr/roman numeral suffixes or parenthetical disambiguators
         """
         name = canonical_name.strip()
+
+        # Remove parenthetical disambiguators first (e.g., "(the son)", "(the father)", "(narrator)")
+        # These are metadata added by the LLM for identity resolution, not literal text strings
+        name = re.sub(r'\s*\([^)]+\)\s*$', '', name).strip()
 
         # Remove Sr./Jr./III/etc. suffixes
         # Pattern: optional comma + whitespace + Sr/Jr/roman numerals at end

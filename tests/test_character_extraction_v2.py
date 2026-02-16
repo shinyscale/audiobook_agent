@@ -392,6 +392,43 @@ class TestMentionSearcher:
         if result.total_mentions > 0:
             assert 2 in result.chapter_distribution
 
+    def test_search_strips_parenthetical_disambiguators(self):
+        """Test that parenthetical disambiguators like '(the son)' are stripped for search."""
+        text = "John Donaldson went to war. John served bravely. John returned home."
+        searcher = MentionSearcher(text, [])
+
+        # Character with parenthetical disambiguator added by LLM for identity resolution
+        char = Character(
+            id="test",
+            canonical_name="John Donaldson (the son)",
+            aliases=["John"],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+
+        # Should find "John Donaldson" and "John" even though canonical name has "(the son)"
+        assert result.total_mentions >= 3, "Should find mentions when searching base name without parenthetical"
+        assert result.is_grounded
+
+    def test_search_strips_sr_jr_suffixes(self):
+        """Test that Sr./Jr. suffixes are stripped for search."""
+        text = "John Donaldson Sr. visited. John attended the meeting."
+        searcher = MentionSearcher(text, [])
+
+        char = Character(
+            id="test",
+            canonical_name="John Donaldson Sr.",
+            aliases=["John"],
+            confidence=ConfidenceLevel.MEDIUM,
+        )
+
+        result = searcher.search_character(char)
+
+        # Should find both mentions
+        assert result.total_mentions >= 2
+        assert result.is_grounded
+
 
 class TestGroundingGate:
     """Tests for F2b: Grounding Gate."""
