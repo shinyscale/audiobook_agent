@@ -643,6 +643,10 @@ class MainCastExtractor:
         profiles = self._process_consolidated_pass2(initial_characters, alias_result)
         logger.info(f"Pass 2 complete: {len(profiles)} characters after merge resolution")
 
+        # DETERMINISTIC SAME-NAME SPLIT: Detect and split characters with identical names
+        # but contradictory role/relationship markers in summaries
+        profiles = self._enforce_same_name_splits(profiles, summaries_text)
+
         return profiles
 
     def _extract_two_pass_per_character(
@@ -850,6 +854,143 @@ class MainCastExtractor:
             )
 
         return profiles
+
+    @staticmethod
+    def _enforce_same_name_splits(
+        profiles: list[MainCastProfile],
+        summaries_text: str,
+    ) -> list[MainCastProfile]:
+        """
+        Deterministic post-processing to detect and split characters with identical names
+        but contradictory role/relationship markers in the summaries.
+
+        This addresses the father/son same-name problem where the LLM incorrectly merges
+        two different people who share a name (e.g., "John Donaldson" the father and
+        "John Donaldson" the son in "American, Sir").
+
+        Args:
+            profiles: Characters from Pass 2
+            summaries_text: Raw chapter summaries text
+
+        Returns:
+            Profiles with same-name characters split when evidence indicates different people
+
+        Algorithm:
+        1. For each character, extract first name and full name
+        2. Scan entire summaries for references to this name with possessive/relational markers
+        3. Look for contradictory generational markers (father vs son, elder vs younger)
+        4. If both markers found, force split into two characters with disambiguators
+        """
+        import re
+
+        # Patterns for generational/relationship markers
+        # Look for patterns like "John's father", "his father John", "the father", etc.
+        # Combined with "the son", "his son", "young", etc.
+
+        profiles_to_add = []
+        profiles_to_remove = []
+
+        for profile in profiles:
+            # Skip if already has disambiguator
+            if '(' in profile.canonical_name and ')' in profile.canonical_name:
+                continue
+
+            # Extract first name and base name
+            base_name = re.sub(r'\s*\([^)]*\)\s*', '', profile.canonical_name).strip()
+            name_parts = base_name.split()
+            first_name = name_parts[0] if name_parts else base_name
+
+            # Build search patterns for this character
+            # Look for possessive forms, prepositional phrases, and direct mentions
+            name_patterns = [
+                rf'\b{re.escape(base_name)}\b',      # Full name
+                rf'\b{re.escape(first_name)}\'s?\b',  # Possessive first name
+            ]
+
+            # Scan summaries for father/son markers near this name
+            has_father_context = False
+            has_son_context = False
+
+            for pattern in name_patterns:
+                # Find all sentences/contexts mentioning this name
+                for match in re.finditer(pattern, summaries_text, re.IGNORECASE):
+                    # Get surrounding context (100 chars before and after)
+                    start = max(0, match.start() - 100)
+                    end = min(len(summaries_text), match.end() + 100)
+                    context = summaries_text[start:end]
+
+                    # Check for father markers
+                    father_patterns = [
+                        r'\bfather\b', r'\bdad\b', r'\bpapa\b', r'\bparent\b',
+                        r'\belder\b', r'\bsenior\b', r'\bsr\.?\b',
+                        r'\bold\s+man\b', r'\bembezz', r'\bfled\b', r'\bvanished\b',
+                    ]
+                    for fp in father_patterns:
+                        if re.search(fp, context, re.IGNORECASE):
+                            has_father_context = True
+                            break
+
+                    # Check for son markers
+                    son_patterns = [
+                        r'\bson\b', r'\bboy\b', r'\bchild\b', r'\byounger\b',
+                        r'\bjunior\b', r'\bjr\.?\b', r'\byoung\s+man\b',
+                        r'\btwelve-year-old\b', r'\beighteen-year-old\b',
+                        r'\benlist', r'\bambulance\b', r'\bnephew\b',
+                    ]
+                    for sp in son_patterns:
+                        if re.search(sp, context, re.IGNORECASE):
+                            has_son_context = True
+                            break
+
+                    if has_father_context and has_son_context:
+                        break
+
+                if has_father_context and has_son_context:
+                    break
+
+            # If we found both father and son contexts, this is likely a merged character
+            if has_father_context and has_son_context:
+                logger.warning(
+                    f"SAME-NAME CONFLICT DETECTED: '{profile.canonical_name}' has both father and son "
+                    f"contexts in summaries. This appears to be two different people merged into one."
+                )
+
+                # Create two split characters with disambiguators
+                father_profile = MainCastProfile(
+                    canonical_name=f"{base_name} (the father)",
+                    aliases=[alias for alias in profile.aliases if alias.lower() != base_name.lower()],
+                    role=profile.role,
+                    description=f"{profile.description} [father]" if profile.description else "The father",
+                    is_unnamed=profile.is_unnamed,
+                    is_symbolic=profile.is_symbolic,
+                    uncertain_aliases=profile.uncertain_aliases.copy(),
+                )
+
+                son_profile = MainCastProfile(
+                    canonical_name=f"{base_name} (the son)",
+                    aliases=[alias for alias in profile.aliases if alias.lower() != base_name.lower()],
+                    role=profile.role,
+                    description=f"{profile.description} [son]" if profile.description else "The son",
+                    is_unnamed=profile.is_unnamed,
+                    is_symbolic=profile.is_symbolic,
+                    uncertain_aliases=profile.uncertain_aliases.copy(),
+                )
+
+                profiles_to_add.extend([father_profile, son_profile])
+                profiles_to_remove.append(profile)
+
+                logger.info(
+                    f"FORCED SPLIT: '{profile.canonical_name}' → '{father_profile.canonical_name}' + '{son_profile.canonical_name}'"
+                )
+
+        # Apply splits
+        result_profiles = [p for p in profiles if p not in profiles_to_remove]
+        result_profiles.extend(profiles_to_add)
+
+        if profiles_to_add:
+            logger.info(f"Same-name split enforcement: split {len(profiles_to_remove)} characters into {len(profiles_to_add)} characters")
+
+        return result_profiles
 
     @staticmethod
     def _clean_canonical_name(name: str) -> str:

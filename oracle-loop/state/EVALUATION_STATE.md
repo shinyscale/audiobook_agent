@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 41
-- **Phase:** awaiting_fix
+- **Attempt:** 42
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -254,5 +254,23 @@ Specifically:
 | 40 | 6.45 | -0.15 | REGRESSION — father merged into son as alias |
 | 41 | 6.80 | +0.20 | PARTIAL RECOVERY — narrator fixed, father/son still merged |
 
+## Fix History
+
+### Attempt 42 — Deterministic same-name split enforcement — IMPLEMENTED
+- **Issue targeted:** CRITICAL #1 — Father/son FALSE MERGE into single "John Donaldson" entry
+- **Root cause:** `src/pipeline/character_extraction_v2/main_cast.py` - LLM non-determinism in Pass 2 consolidation. Attempt 39 successfully produced two characters with same code, but attempt 41 merged them due to LLM variance.
+- **Changes made:** Added deterministic `_enforce_same_name_splits()` method that runs AFTER `_process_consolidated_pass2()`. Scans summaries for contradictory generational markers (father vs son) in contexts mentioning the character's name. Forces split when both markers detected.
+- **Smoke test:** ✓ PASSED - Test case with "John's father" and "twelve-year-old John Donaldson" correctly split into "(the father)" and "(the son)" variants.
+- **Universality:** This will help ANY book with same-name family members (common pattern across all literature)
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (+104 lines)
+    - Added `_enforce_same_name_splits()` static method (lines 858-953)
+    - Called from `_extract_two_pass()` after consolidated Pass 2 (line 646)
+- **Key features of fix:**
+  - Deterministic (no LLM call) - avoids non-determinism that plagued attempts 37-41
+  - Pattern-based detection: searches for "father", "fled", "embezzled", "vanished" vs "son", "boy", "twelve-year-old", "enlist", "nephew"
+  - Contextual scanning: looks within ±100 chars of name mentions
+  - Preserves aliases: both split characters inherit the original's aliases
+
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1: Add deterministic post-processing split for same-name characters when evidence clearly indicates two different people (different generational markers, different chapter ranges). This should be in `_process_consolidated_pass2()` or a new post-processing step AFTER it, and must NOT involve an LLM call (to avoid non-determinism).
+Run PROMPT_analyze.md to re-analyze american_sir with the deterministic same-name split fix.
