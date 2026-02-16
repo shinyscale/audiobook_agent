@@ -291,9 +291,9 @@ The core problem is that two characters share the EXACT SAME canonical name "Joh
 - **Files modified:**
   - `src/pipeline/character_extraction_v2/main_cast.py` (lines 855-895, modified `_clean_canonical_name()` method)
 
-## Pipeline Status
+## Pipeline Completion
 
-Analysis started at 2026-02-16 00:18 (task b704bca, PID 3669176).
+Analysis completed successfully in 37m 25s.
 
 **Command executed:**
 ```bash
@@ -309,8 +309,17 @@ audiobook-prep analyze ../Test_Texts/American Sir.txt \
   --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
 ```
 
-Process running. Analysis will take 10-60 minutes depending on text length.
+**Pipeline Summary:**
+- Structure: 2 chapters detected
+- Characters: 7 found (including "John Donaldson (the father)" with disambiguator preserved!)
+- Summaries: 2 generated
+- Profiles: 3 generated
+- Pronunciation: 20 words flagged
+- Total LLM calls: 71
+- Total tokens: 108,444
 
-## Next Action
+**Warnings:**
+- F19: Some profiles have potentially ungrounded evidence quotes
+- Pronunciation agent had JSON parsing issue (fallback to batch candidates worked)
 
-Wait for analysis completion. Once finished, run PROMPT_evaluate.md to score the output.
+**Phase:** awaiting_evaluation
