@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 44
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,6 +11,15 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 - Identity Graph: ../output/american_sir/identity_graph.json
+
+## Pipeline Notes (Attempt 44)
+- Analysis completed successfully in 36m 4s
+- Competitive consensus enabled for all stages (characters, structure, summaries)
+- Found 6 characters, 2 chapters, 20 pronunciation flags
+- **Notable warnings:**
+  - F6: "John Donaldson (the father)" rejected - 0 text mentions (likely hallucination)
+  - F19: Multiple profiles have ungrounded evidence quotes (son: 6, Uncle Bill: 2, Ted Frith: 3)
+  - SAME-NAME CONFLICT: Narrator has both father and son contexts in summaries
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
