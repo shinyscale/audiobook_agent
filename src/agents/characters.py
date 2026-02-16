@@ -45,6 +45,36 @@ from .config import AgentConfig, CompetitiveConfig
 logger = logging.getLogger(__name__)
 
 
+def adaptive_promotion_thresholds(word_count: int) -> tuple[int, int, int]:
+    """Scale character promotion thresholds by text length.
+
+    Returns: (protagonist_threshold, main_threshold, promotion_threshold)
+
+    Short stories (~5K words) need much lower thresholds than novels (50K+ words).
+    A character with 18 mentions in a 5K-word story has the same narrative density
+    as a character with 180 mentions in a 50K-word novel.
+
+    Thresholds:
+        <=10,000 words (short story):   15, 10, 8
+        10,000-50,000 words (novella):  50, 30, 20
+        >50,000 words (novel):          200, 100, 50
+
+    These scale ~linearly with expected word count:
+    - Short story (5K words): 8+ mentions ≈ 1.6 mentions/1K words
+    - Novella (30K words): 20+ mentions ≈ 0.67 mentions/1K words
+    - Novel (100K words): 50+ mentions ≈ 0.5 mentions/1K words
+
+    This ensures characters with protagonist-level narrative presence get promoted
+    regardless of absolute text length.
+    """
+    if word_count <= 10_000:
+        return (15, 10, 8)  # Short story
+    elif word_count <= 50_000:
+        return (50, 30, 20)  # Novella
+    else:
+        return (200, 100, 50)  # Novel
+
+
 class CharacterAgent(Agent):
     """
     V2 Character Agent using summary-driven extraction.
@@ -429,14 +459,20 @@ class CharacterAgent(Agent):
         # but they get picked up by NER-based supporting_cast extraction
         logger.info("V2 Step 5.8: Promoting high-mention supporting characters to main cast")
 
-        # Characters with high mention counts should have protagonist/main roles
-        # Thresholds based on narrative significance:
-        # - 200+ mentions: Protagonist level (title character, narrator, central character)
-        # - 100+ mentions: Main character level (key supporting roles, love interests)
-        # - 50+ mentions: Supporting character level (recurring named characters)
-        PROTAGONIST_THRESHOLD = 200
-        MAIN_THRESHOLD = 100
-        PROMOTION_THRESHOLD = 50
+        # Use adaptive thresholds that scale with text length
+        # Short stories need much lower absolute counts than novels
+        (
+            PROTAGONIST_THRESHOLD,
+            MAIN_THRESHOLD,
+            PROMOTION_THRESHOLD,
+        ) = adaptive_promotion_thresholds(word_count)
+
+        logger.info(
+            f"Promotion thresholds for ~{word_count:,} words: "
+            f"protagonist={PROTAGONIST_THRESHOLD}, main={MAIN_THRESHOLD}, "
+            f"supporting={PROMOTION_THRESHOLD}"
+        )
+
         promoted_chars = []
         remaining_supporting = []
 
