@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 47
-- **Phase:** awaiting_fix
+- **Attempt:** 48
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -164,13 +164,23 @@ Navigation works, but the content it presents is now deeply confusing:
 
 ## Fix History
 
-### Attempt 47 — Add deduplication for identical canonical names — **REGRESSION (MUST REVERT)**
+### Attempt 48 — REVERT attempt 47 deduplication — **REGRESSION RECOVERY**
+- **Issue:** Attempt 47's deduplication caused catastrophic regression (7.08→5.95, -1.13 points)
+- **Action:** Manually reverted commit b13fd2f changes to `main_cast.py`
+  - Removed `_deduplicate_identical_names()` function call (line 648)
+  - Removed `_deduplicate_identical_names()` function definition (lines 859-937)
+- **Expected:** Restore to attempt 46 baseline (7.08/10)
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (-78 lines)
+- **Next:** Re-run analysis to verify regression is fixed
+
+### Attempt 47 — Add deduplication for identical canonical names — **REGRESSION (REVERTED)**
 - **Issue targeted:** CRITICAL #1 from attempt 46 — Duplicate father character
 - **Fix:** Added `_deduplicate_identical_names()` in `main_cast.py`
 - **Result:** CATASTROPHIC REGRESSION — Father merged into son as alias, Uncle Bill falsely split into father/son pair, wrong narrator. Score: 7.08→5.95 (-1.13)
 - **Files modified:**
   - `src/pipeline/character_extraction_v2/main_cast.py` (+75 lines)
-- **Action:** REVERT commit b13fd2f
+- **Status:** REVERTED in attempt 48
 
 ### Attempt 46 — Extend grounding gate for parenthetical disambiguators — SUCCESS
 - **Result:** Son restored ✓, duplicate father ✗, son no profile ✗. Score: 6.88→7.08
@@ -221,7 +231,8 @@ Navigation works, but the content it presents is now deeply confusing:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 47 | Deduplicate identical canonical names after Pass 2 | `main_cast.py` (+75 lines) | **REGRESSION** — Father merged into son, Uncle Bill falsely split. Score: 7.08→5.95 |
+| 48 | REVERT attempt 47's deduplication | `main_cast.py` (-78 lines) | **REVERT** — Awaiting re-analysis to verify baseline recovery |
+| 47 | Deduplicate identical canonical names after Pass 2 | `main_cast.py` (+75 lines) | **REGRESSION (REVERTED)** — Father merged into son, Uncle Bill falsely split. Score: 7.08→5.95 |
 | 46 | Extend grounding gate for parenthetical disambiguators | `mention_search.py` (+5 lines), `test_character_extraction_v2.py` (+28 lines) | **PARTIAL SUCCESS** — Son restored ✓, duplicate father ✗. Score: 6.88→7.08 |
 | 45 | REVERT attempt 44's alias filter | `main_cast.py` (-16 lines), `test_character_extraction_v2.py` | **PARTIAL RECOVERY**. Score: 6.45→6.88 |
 | 44 | Filter shared base name from aliases after Pass 2 | `main_cast.py` (+19 lines), `test_character_extraction_v2.py` | **REGRESSION (REVERTED)**. Score: 6.98→6.45 |
@@ -268,4 +279,4 @@ Navigation works, but the content it presents is now deeply confusing:
 | 47 | 5.95 | -0.65 | **MAJOR REGRESSION** — dedup caused false merges |
 
 ## Next Action
-**REVERT commit b13fd2f** (attempt 47's dedup fix) to restore attempt 46's score of 7.08. Then focus on son's missing profile via passage_gatherer.py parenthetical stripping — a deterministic fix unlikely to cause regressions.
+**RE-RUN ANALYSIS** to verify attempt 47 revert restored the 7.08 baseline. Expected: father/son distinct, duplicate father issue may return (or may be LLM non-determinism that self-corrects). After confirming baseline recovery, consider deterministic fix for son's missing profile (passage_gatherer.py parenthetical stripping).
