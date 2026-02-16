@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 52
-- **Phase:** awaiting_fix
+- **Attempt:** 53
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -283,3 +283,18 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 
 ## Next Action
 Run PROMPT_fix.md to address narrator misidentification (CRITICAL #1). The dedup fix worked — father is now correctly a single entity. The narrator regression is likely LLM non-determinism (no narrator code was changed). A deterministic narrator validation step would prevent this from oscillating between attempts.
+
+### Attempt 53 — Fix narrator detection signal priority — **TARGETING CRITICAL #1**
+- **Issue targeted:** Narrator misidentified (John tagged instead of Uncle Bill)
+- **Root cause:** `narrator.py:_identify_narrator_by_prominence()` used protagonist role as Signal #1, but in first-person narratives the story can be ABOUT the protagonist but narrated BY someone else. Uncle Bill (narrator) talks about John (protagonist) but isn't the protagonist himself.
+- **Fix:** Reordered detection signals to prioritize summary name appearances BEFORE protagonist role:
+  1. **NEW Signal 1:** Count canonical name appearances in summary text (active agent signal)
+  2. **Signal 2:** Protagonist role (demoted - can be misleading)
+  3. Signal 3: Chapter presence
+  4. Signal 4: Mention count (increased threshold to 1.5x - weak signal)
+  5. Signal 5: Alias count (tiebreaker)
+- **Rationale:** In "American, Sir", Uncle Bill appears 3x in summaries as active subject ("Uncle Bill travels...", "Uncle Bill agrees...") while John appears 0x (only as object of actions). This is a UNIVERSAL signal that works across all first-person narratives.
+- **Smoke test:** ✓ PASSED - Test case with John (28 mentions, protagonist) vs Uncle Bill (18 mentions, supporting) now correctly selects Uncle Bill based on 3 vs 0 summary appearances.
+- **Files modified:** `src/pipeline/character_extraction_v2/narrator.py`
+- **Universality:** Yes - counting which character is the most frequent active agent in summaries works for ANY first-person narrative
+- **Tests:** All 9 narrator tests pass
