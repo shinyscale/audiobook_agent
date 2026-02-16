@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 40
-- **Phase:** awaiting_fix
+- **Attempt:** 41
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -217,6 +217,17 @@ After reverting, the ORIGINAL problem remains: only one character has a disambig
 
 ## Fix History
 
+### Attempt 41 — REVERT attempt 40 changes — RESTORATION
+- **Issue targeted:** CRITICAL #1 — Father/son FALSE MERGE caused by attempt 40 regression
+- **Changes made:** Reverted `_ensure_same_name_disambiguation()` and `_infer_complementary_disambiguator()` methods added in attempt 40
+- **Rationale:** Attempt 40 caused a REGRESSION (score 7.10→6.45). Instead of ensuring both characters got disambiguators, it caused the father to merge INTO the son as an alias. This revert restores the attempt 39 state where two separate characters existed.
+- **Expected result:** Score should return to ~7.10 (attempt 39 level) with two separate John Donaldson characters
+- **Remaining issue:** Profile cross-contamination will likely persist (only father has disambiguator), but having two separate characters is better than having them merged
+- **Smoke test:** PASS - All 42 tests in test_character_extraction_v2.py pass
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (-150 lines)
+  - `tests/test_character_extraction_v2.py` (-2 lines, reverted line count limit)
+
 ### Attempt 40 — Ensure both same-name characters get disambiguators — REGRESSION
 - **Issue targeted:** CRITICAL #1 — Profile cross-contamination (son has father's profile content)
 - **Changes made:** Added `_ensure_same_name_disambiguation()` and `_infer_complementary_disambiguator()` methods
@@ -265,6 +276,7 @@ After reverting, the ORIGINAL problem remains: only one character has a disambig
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 41 | REVERT attempt 40 changes | `main_cast.py`, `test_character_extraction_v2.py` | RESTORATION — expect score return to ~7.10 |
 | 40 | Ensure both same-name characters get disambiguators | `main_cast.py`, `test_character_extraction_v2.py` | REGRESSION — father merged into son. Characters 7→5.5. Score: 7.10→6.45 |
 | 39 | Preserve disambiguators in canonical names | `main_cast.py` | PARTIAL SUCCESS — two characters ✓, profile contamination ✗. Characters 6→7. Score: 6.80→7.10 |
 | 38 | REVERT target preference signal | `name_disambiguator.py` | REGRESSION — son false-merged. Score: 6.90→6.80 |
@@ -296,4 +308,4 @@ After reverting, the ORIGINAL problem remains: only one character has a disambig
 | 40 | 6.45 | -0.15 | REGRESSION — father merged into son as alias |
 
 ## Next Action
-Run PROMPT_fix.md to REVERT attempt 40 changes and restore attempt 39's state (score 7.10). Then consider an alternative approach to the profile cross-contamination problem.
+Run PROMPT_analyze.md to re-run analysis with reverted code. Expected outcome: score returns to ~7.10 with two separate John Donaldson characters (father and son), though profile cross-contamination may persist.
