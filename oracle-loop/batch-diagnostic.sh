@@ -578,7 +578,6 @@ for name in "${TEXTS[@]}"; do
         # Check if output already exists (skip if recent, within 24h)
         local_analysis="$OUTPUT_DIR/$name/analysis.json"
         if [ -f "$local_analysis" ]; then
-            local age
             age=$(( $(date +%s) - $(stat -c %Y "$local_analysis" 2>/dev/null || echo 0) ))
             if [ "$age" -lt 86400 ]; then
                 log "  Skipping analysis (output < 24h old). Use --all to force."
