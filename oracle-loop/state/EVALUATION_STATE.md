@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 51
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 51)
+- Analysis completed in 40m 53s
+- 9 characters extracted
+- Narrator detected: Uncle Bill (first-person)
+- Warnings:
+  - SAME-NAME CONFLICT DETECTED for 'John Donaldson' - may have father/son merge issue
+  - Multiple F19 warnings (ungrounded evidence quotes)
+  - 1 OCR ligature fix
+  - 1 JSON parse failure in pronunciation guide
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
