@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 40
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 40)
+- Analysis completed in 35m 27s
+- Competitive consensus enabled for all three stages (characters, structure, summaries)
+- 7 characters extracted (includes separate entries for father and son)
+- F19 warnings: Ungrounded evidence quotes for Uncle Bill (4), John Donaldson (the son) (5), Ted Frith (5)
+- LLM validation error at end (likely pronunciation stage): "model returned error-like response instead of expected data"
+- 61 total LLM calls, 98,059 tokens processed
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
