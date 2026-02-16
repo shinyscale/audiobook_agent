@@ -9,6 +9,8 @@ set -euo pipefail
 #   ./oracle-loop.sh evaluate           # Force evaluate phase
 #   ./oracle-loop.sh fix                # Force fix phase
 #   ./oracle-loop.sh full 50            # Run full cycle, max 50 iterations total
+#   ./oracle-loop.sh --diagnostic       # Cross-book diagnostic mode (all texts)
+#   ./oracle-loop.sh --diagnostic --all # Include passing texts in diagnostic
 
 PHASE="${1:-auto}"
 MAX_ITERATIONS="${2:-100}"
@@ -19,6 +21,20 @@ MAX_NO_PROGRESS=10
 # Directory paths (relative to oracle-loop/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+
+
+# === DIAGNOSTIC MODE ===
+# Cross-book diagnostic mode: run all texts and produce failure matrix
+# instead of perfecting one text at a time.
+# Usage: ./oracle-loop.sh --diagnostic [--all] [--texts dracula,frankenstein] [--score-only]
+if [ "$PHASE" = "--diagnostic" ]; then
+    echo ""
+    echo "========================================"
+    echo "  Entering Cross-Book Diagnostic Mode"
+    echo "========================================"
+    echo ""
+    exec "$SCRIPT_DIR/batch-diagnostic.sh" "${@:2}"
+fi
 
 STATE_DIR="state"
 PROMPTS_DIR="prompts"
