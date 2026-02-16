@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 52
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,12 +11,14 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 51)
-- Analysis completed in 40m 53s
-- 9 characters extracted
-- Narrator detected: Uncle Bill (first-person) ✓ (FIXED from attempt 50)
-- Uncle Bill is now a SINGLE entity ✓ (FIXED from attempt 50)
-- NEW ISSUE: Father fragmented into 3 entries (main_cast_2, main_cast_3, main_cast_4)
+## Pipeline Notes (Attempt 52)
+- Analysis completed in 37m 46s
+- 7 characters extracted (down from 9 in attempt 51)
+- Narrator detected: Uncle Bill (first-person) ✓
+- Uncle Bill remains a SINGLE entity ✓
+- Father appears as single entry: "John Donaldson (the father)" with 10 mentions ✓
+- Son is separate: "John Donaldson (the son)" with 28 mentions ✓
+- F19 warnings: 4 characters have potentially ungrounded evidence quotes
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
