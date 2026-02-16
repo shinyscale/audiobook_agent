@@ -853,14 +853,38 @@ class MainCastExtractor:
 
     @staticmethod
     def _clean_canonical_name(name: str) -> str:
-        """Strip parenthetical qualifiers from canonical names.
+        """Strip verbose parenthetical qualifiers from canonical names, but PRESERVE disambiguators.
 
-        LLMs sometimes produce verbose canonical names like:
-          "the Red Death (as a spectral figure)"
-          "Herbert (the son)"
-        Strip the parenthetical to get a clean canonical name.
+        PRESERVES relationship/role parentheticals that distinguish same-name characters:
+          "John Donaldson (the son)" → "John Donaldson (the son)" ✓ KEPT
+          "John Donaldson (father)" → "John Donaldson (father)" ✓ KEPT
+          "Colonel Smith (elder)" → "Colonel Smith (elder)" ✓ KEPT
+          "Mary (Sr.)" → "Mary (Sr.)" ✓ KEPT
+
+        STRIPS verbose descriptive parentheticals:
+          "the Red Death (as a spectral figure)" → "the Red Death" ✓ STRIPPED
+          "the creature (eight feet tall)" → "the creature" ✓ STRIPPED
+
+        Why: The summarizer explicitly adds disambiguators like "(the son)" and "(the father)"
+        to distinguish same-name family members. Stripping these causes characters to collide
+        in the char_by_name dict (line 726) where the last one overwrites the first.
         """
         import re
+
+        # Pattern for disambiguation parentheticals (relationships/roles) - PRESERVE these
+        # This includes: father, son, daughter, mother, uncle, nephew, etc.
+        # Also generational suffixes: Sr., Jr., elder, younger
+        disambiguation_pattern = r'\((the\s+)?(father|son|daughter|mother|parent|child|' \
+                               r'uncle|nephew|aunt|niece|brother|sister|cousin|' \
+                               r'grandfather|grandmother|grandson|granddaughter|' \
+                               r'elder|younger|senior|junior|sr\.?|jr\.?)\)'
+
+        # Check if name has disambiguation parenthetical
+        if re.search(disambiguation_pattern, name, re.IGNORECASE):
+            # Has relationship/role disambiguator - KEEP IT
+            return name.strip()
+
+        # Otherwise strip verbose parentheticals like descriptions
         cleaned = re.sub(r"\s*\(.*?\)\s*", " ", name).strip()
         return cleaned if cleaned else name
 

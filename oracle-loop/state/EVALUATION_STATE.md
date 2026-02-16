@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 38
-- **Phase:** awaiting_fix
+- **Attempt:** 39
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -268,6 +268,29 @@ The core problem is that two characters share the EXACT SAME canonical name "Joh
 | 37 | 6.90 | +0.30 | REGRESSION — identical duplicate profiles |
 | 38 | 6.80 | +0.20 | REGRESSION — son false-merged into father |
 
+## Fix History
+
+### Attempt 39 — Preserve disambiguators in canonical names — APPLIED
+- **Issue targeted:** CRITICAL #1 — Father/son FALSE MERGE (son completely missing)
+- **Root cause identified:**
+  1. Summaries correctly distinguish: Section 2 has `characters_present: ["John Donaldson (the son)", "John Donaldson (the father)"]` ✓
+  2. Main cast extraction (presumably) extracted both with disambiguators ✓
+  3. **BUG:** `_clean_canonical_name()` (line 855) stripped ALL parentheticals, including disambiguators → both became "John Donaldson" ✗
+  4. In `_process_consolidated_pass2()` (line 726), `char_by_name` dict keyed by canonical name → second "John Donaldson" overwrites first ✗
+  5. Result: Only ONE John Donaldson survives to final output, or both lost entirely
+- **Changes made:**
+  - Modified `_clean_canonical_name()` to PRESERVE relationship/role disambiguators like "(the son)", "(father)", "(elder)", "(Sr.)"
+  - STRIPS verbose descriptive parentheticals like "(as a spectral figure)", "(eight feet tall)"
+  - Added comprehensive pattern matching for family relationships and generational suffixes
+- **Why this is different from previous attempts:**
+  - Previous attempts modified downstream stages (profiling, identity graph, disambiguator)
+  - This fix targets the ROOT CAUSE at the extraction source where names are first parsed
+  - Preserves disambiguators that the summarizer EXPLICITLY added to distinguish same-name characters
+  - Makes characters distinguishable by NAME throughout the entire pipeline (no downstream collision possible)
+- **Smoke test:** All 42 tests in `test_character_extraction_v2.py` pass ✓
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (lines 855-895, modified `_clean_canonical_name()` method)
+
 ## Next Action
 
-Run PROMPT_fix.md to address CRITICAL #1 (father/son false merge). The fix phase MUST take a different approach — see recommended strategy in CRITICAL #1. Incremental fixes to the same files have been tried for 10+ attempts and are stuck in an oscillation pattern.
+Run PROMPT_analyze.md to re-analyze american_sir with the fix applied.
