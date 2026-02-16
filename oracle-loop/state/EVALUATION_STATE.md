@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 33
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,11 +12,12 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Analysis completed in 36m 6s
-- 62 LLM calls, 97,754 tokens
+- Analysis completed in 38m 7s
+- 68 LLM calls, 108,910 tokens
 - Found 8 characters, 2 chapters, 20 pronunciation flags
-- 0 LLM retries, 1 JSON parse failure (Pronunciation Guide)
-- Profiling shows Character Profiles as bottleneck (550s / 25% of total time)
+- 1 JSON parse failure (Pronunciation Guide batch enrichment)
+- Profiling shows Character Profiles as bottleneck (10m54s / 28.6% of total time)
+- F19 warnings: 4 profiles with potentially ungrounded evidence quotes (son, father, Bill, Ted Frith)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
