@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 41
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,14 +11,13 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 40)
-- Analysis completed in 35m 27s
-- 7 characters extracted (3 main_cast + 4 supporting)
-- Uncle Bill now correctly `main_cast_1` with `is_narrator: true` ✓ (NEW improvement)
-- But `main_cast_3` "John Donaldson (the son)" has FALSE MERGED the father into the son via aliases
-- F19 warnings: Ungrounded evidence quotes for Uncle Bill (4), John Donaldson (the son) (5), Ted Frith (5)
-- LLM validation error at end (likely pronunciation stage)
-- 61 total LLM calls, 98,059 tokens processed
+## Pipeline Notes (Attempt 41)
+- Analysis completed in 34m 58s
+- 6 characters extracted (fewer than attempt 40's 7)
+- Competitive consensus enabled for all 3 stages (characters, structure, summaries)
+- F19 warnings: Ungrounded evidence quotes for Uncle Bill (4), John Donaldson (5), Ted Frith (2)
+- LLM validation error at end (pronunciation stage)
+- 53 total LLM calls, 90,630 tokens processed
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
