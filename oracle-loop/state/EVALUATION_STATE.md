@@ -3,24 +3,27 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 36
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+- Identity Graph: output/American Sir_20260215_223630/identity_graph.json
 
 ## Pipeline Notes
-- Analysis completed in 38m 36s
-- 55 LLM calls, 93,344 tokens
-- Found 5 characters, 2 chapters, 20 pronunciation flags
-- F6 filter rejected "John Donaldson Sr. (the father)" as having 0 text mentions
-- Warnings: 3 characters have potentially ungrounded evidence quotes (John Donaldson: 2, Uncle Bill: 3, Ted Frith: 2)
-- 1 JSON parse failure (Pronunciation Guide batch enrichment)
+- Analysis completed in 36m 33s
+- 59 LLM calls, 101,631 tokens
+- Found **8 characters** (up from 5!), 2 chapters, 20 pronunciation flags
+- **SUCCESS: John Donaldson Sr. now appears in character list with 10 mentions!**
+- Father (John Donaldson Sr.) aliases: "the father", "John Donaldson"
+- Son (John Donaldson) aliases: "John"
+- Grounding gate fix is working: Father now grounded via base name "John Donaldson"
+- Warnings: 4 characters have potentially ungrounded evidence quotes (Uncle Bill: 5, John Donaldson: 2, John Donaldson Sr.: 2, Ted Frith: 3)
+- 1 JSON parse failure (Pronunciation Guide batch enrichment) - same as previous attempts
 - Uncle Bill correctly identified as protagonist with is_narrator: true
-- "John Donaldson" is now ONLY the son (aliases: John, the boy, Johnny)
-- Father is MISSING entirely from character list (filtered by F6 as hallucination)
+- Alias blocking message: "his father" and "John Donaldson Sr." blocked from merging (never co-occur in same chapter)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
