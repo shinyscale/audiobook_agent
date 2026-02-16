@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 49
-- **Phase:** awaiting_fix
+- **Attempt:** 50
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -286,10 +286,18 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 49 | 6.15 | -0.45 | **REGRESSION** — LLM non-determinism, Uncle Bill split, son merged |
 
 ## Next Action
-Run PROMPT_fix.md. **Recommended fix approach:**
+Phase set to `awaiting_analysis`. Re-run to test if LLM non-determinism resolves itself (no code changes).
 
-1. **KEEP the passage_gatherer.py fix** — it's correct and profiles improved
-2. **Re-run analysis** without code changes to test if LLM produces better character extraction
-3. If Uncle Bill split persists, add a deterministic constraint: narrator characters should NEVER be split by SAME-NAME CONFLICT logic (narrators inherently span all time periods and contexts)
-
-The regression is NOT caused by the passage_gatherer.py change (which only affects profiling, not extraction). It's LLM non-determinism in character extraction. A re-run may restore the correct character roster from attempt 48.
+### Attempt 50 — No code changes, re-run to test LLM non-determinism — **KEEPING PASSAGE_GATHERER FIX**
+- **Decision:** Keep the passage_gatherer.py fix from attempt 49 (it's correct and profiles improved)
+- **Rationale:**
+  - The passage_gatherer.py fix successfully improved profile quality - "Uncle Bill (the son)" got the son's actual characterization
+  - The character extraction regression (Uncle Bill split, son merged into father) is LLM non-determinism, NOT caused by passage_gatherer.py
+  - passage_gatherer.py only affects profiling, not character extraction
+  - The same code produced correct character extraction in attempt 48
+  - Modification history shows main_cast.py has been modified 8 times with 50% regression rate - avoid further changes
+- **Root Cause Analysis:**
+  - Uncle Bill false split: Summaries' `characters_present` lists may have included "Uncle Bill (the father)" and "Uncle Bill (the son)" due to summarizer LLM non-determinism, which the character extraction LLM then treated as distinct per prompt instructions
+  - John Donaldson son merged into father: LLM Pass 1 or Pass 2 incorrectly merged them, despite correct separation in attempt 48
+- **Action:** Re-run analysis without code changes to test if LLM produces better character extraction
+- **If issue persists:** Consider adding deterministic constraint in `_enforce_same_name_splits` to prevent splitting characters identified as narrators (narrators inherently span all time periods)
