@@ -3,13 +3,19 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 48
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 38m 6s
+- Detected 8 characters (father and son separate, Uncle Bill as single entity)
+- Some warnings about ungrounded evidence quotes in profiles
+- LLM batch enrichment failed for pronunciation (model compatibility issue)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
