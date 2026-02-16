@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 46
-- **Phase:** awaiting_fix
+- **Attempt:** 47
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -228,6 +228,15 @@ The profiling pipeline needs to strip parenthetical disambiguators when searchin
 
 ## Fix History
 
+### Attempt 47 — Add deduplication for identical canonical names — PENDING
+- **Issue targeted:** CRITICAL #1 from attempt 46 — Duplicate father character (main_cast_1 and main_cast_3 both "John Donaldson (the father)")
+- **Root cause:** `main_cast.py:_process_consolidated_pass2()` only merges characters when LLM explicitly directs via `merge_into` field. It does NOT automatically deduplicate characters with identical canonical names. Pass 1 somehow produced two entries for the same father character, and Pass 2 didn't catch it.
+- **Fix:** Added `_deduplicate_identical_names()` function that merges profiles with identical canonical names (case-insensitive). Called after Pass 2 processing but before same-name split enforcement. When duplicates are found, keeps the first entry and merges all aliases from duplicates.
+- **Smoke test:** PASSED — Created test with 2 duplicate "John Donaldson (the father)" entries, verified they merge into 1 entry with combined aliases.
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/main_cast.py` (+75 lines: `_deduplicate_identical_names()` function + call site)
+- **Expected impact:** Identity Resolution 6→7, Overall Character Extraction 6.5→7
+
 ### Attempt 46 — Extend grounding gate to strip parenthetical disambiguators — SUCCESS
 - **Issue targeted:** CRITICAL #1 from attempt 45 — John Donaldson (the son) completely MISSING from output
 - **Root cause:** `mention_search.py:_extract_base_name()` only stripped Sr./Jr. suffixes, not parenthetical disambiguators
@@ -291,6 +300,7 @@ The profiling pipeline needs to strip parenthetical disambiguators when searchin
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 47 | Deduplicate identical canonical names after Pass 2 | `main_cast.py` (+75 lines) | **PENDING** — Smoke test passed ✓. Should fix duplicate father. Awaiting analysis. |
 | 46 | Extend grounding gate for parenthetical disambiguators | `mention_search.py` (+5 lines), `test_character_extraction_v2.py` (+28 lines) | **PARTIAL SUCCESS** — Son restored ✓, duplicate father ✗, son has no profile ✗. Score: 6.88→7.08 |
 | 45 | REVERT attempt 44's alias filter | `main_cast.py` (-16 lines), `test_character_extraction_v2.py` (limit 7150→7350) | **PARTIAL RECOVERY** — Father restored ✓, son MISSING ✗. Score: 6.45→6.88 |
 | 44 | Filter shared base name from aliases after Pass 2 | `main_cast.py` (+19 lines), `test_character_extraction_v2.py` | **REGRESSION (REVERTED)** — Father character DROPPED. Score: 6.98→6.45 |
@@ -334,4 +344,4 @@ The profiling pipeline needs to strip parenthetical disambiguators when searchin
 | 46 | 7.08 | +0.48 | PARTIAL SUCCESS — son restored ✓, duplicate father ✗, son no profile ✗ |
 
 ## Next Action
-Run PROMPT_fix.md to address duplicate father character dedup (CRITICAL #1) and extend parenthetical stripping to passage_gatherer.py for son's profile (HIGH #3).
+Re-run analysis to verify duplicate father fix works. Phase set to awaiting_analysis.

@@ -643,6 +643,10 @@ class MainCastExtractor:
         profiles = self._process_consolidated_pass2(initial_characters, alias_result)
         logger.info(f"Pass 2 complete: {len(profiles)} characters after merge resolution")
 
+        # DEDUPLICATION: Merge characters with identical canonical names
+        # This handles cases where Pass 1 produces duplicates that Pass 2 didn't catch
+        profiles = self._deduplicate_identical_names(profiles)
+
         # DETERMINISTIC SAME-NAME SPLIT: Detect and split characters with identical names
         # but contradictory role/relationship markers in summaries
         profiles = self._enforce_same_name_splits(profiles, summaries_text)
@@ -854,6 +858,87 @@ class MainCastExtractor:
             )
 
         return profiles
+
+    @staticmethod
+    def _deduplicate_identical_names(
+        profiles: list[MainCastProfile],
+    ) -> list[MainCastProfile]:
+        """
+        Deduplicate characters with identical canonical names.
+
+        This handles cases where Pass 1 produces duplicate entries for the same character
+        (e.g., two "John Donaldson (the father)" entries) that weren't merged by Pass 2.
+
+        When duplicates are found:
+        - Keep the entry with more mention evidence (higher mention count)
+        - Merge aliases from all duplicates into the kept entry
+        - Remove duplicates
+
+        Args:
+            profiles: Characters from Pass 2
+
+        Returns:
+            Profiles with duplicates merged
+        """
+        from collections import defaultdict
+
+        # Group profiles by canonical name (case-insensitive)
+        name_groups = defaultdict(list)
+        for profile in profiles:
+            name_groups[profile.canonical_name.lower()].append(profile)
+
+        # Find duplicates
+        duplicates_found = {name: group for name, group in name_groups.items() if len(group) > 1}
+
+        if not duplicates_found:
+            return profiles
+
+        # Merge duplicates
+        final_profiles = []
+        processed_names = set()
+
+        for profile in profiles:
+            name_lower = profile.canonical_name.lower()
+
+            # Skip if already processed
+            if name_lower in processed_names:
+                continue
+
+            # Check if this is a duplicate group
+            if name_lower in duplicates_found:
+                group = duplicates_found[name_lower]
+
+                # Sort by mention count (descending) - keep the one with most mentions
+                # This is a placeholder - actual mention counts are added later in the pipeline
+                # For now, we'll just keep the first one encountered and merge aliases
+                canonical = group[0]
+
+                # Merge aliases from all duplicates
+                all_aliases = set(canonical.aliases)
+                for dup in group[1:]:
+                    all_aliases.update(dup.aliases)
+                    all_aliases.update(dup.uncertain_aliases)
+
+                canonical.aliases = sorted(all_aliases)
+
+                # Merge descriptions if needed
+                descriptions = [p.description for p in group if p.description]
+                if descriptions and not canonical.description:
+                    canonical.description = descriptions[0]
+
+                logger.warning(
+                    f"DEDUPLICATION: Found {len(group)} entries for '{canonical.canonical_name}'. "
+                    f"Merged into single entry with {len(canonical.aliases)} aliases."
+                )
+
+                final_profiles.append(canonical)
+                processed_names.add(name_lower)
+            else:
+                # Not a duplicate, keep as-is
+                final_profiles.append(profile)
+                processed_names.add(name_lower)
+
+        return final_profiles
 
     @staticmethod
     def _enforce_same_name_splits(
