@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 34
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,11 +12,12 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Analysis completed in 38m 7s
-- 68 LLM calls, 108,910 tokens
-- Found 8 characters, 2 chapters, 20 pronunciation flags
+- Analysis completed in 34m 49s
+- 53 LLM calls, 79,464 tokens
+- Found 6 characters, 2 chapters, 20 pronunciation flags
+- Warnings: "Profile generation failed for Uncle Bill: None"
+- Warnings: 2 characters have potentially ungrounded evidence quotes (John Donaldson: 3, Ted Frith: 2)
 - 1 JSON parse failure (Pronunciation Guide batch enrichment)
-- ALL character profiles are now empty (null personality, null traits, null evidence_quotes) — MASSIVE REGRESSION from attempt 32
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
