@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 35
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -25,24 +25,24 @@
 ## Latest Scores
 - Structure Detection: 7/10 ✗
 - Character Extraction: 6/10 ✗
-  - Completeness: 7/10
-  - Identity Resolution: 4/10
-  - Alias Grouping: 7/10
-- Character Profiles: 6/10 ✗
+  - Completeness: 6/10
+  - Identity Resolution: 7/10
+  - Alias Grouping: 8/10
+- Character Profiles: 7.5/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 7/10 ✗
 - HTML Presentation: 8/10 ✓
-- **Overall: 6.60/10** (reference only)
+- **Overall: 7.05/10** (reference only)
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
-        = 1.40 + 1.50 + 0.90 + 1.50 + 0.70 + 0.80
-        = 6.80
+Overall = (7 × 0.20) + (6 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
+        = 1.40 + 1.50 + 1.125 + 1.50 + 0.70 + 0.80
+        = 7.025
 ```
 
-**Overall: 6.80/10** (UP from 6.65 in attempt 33 — modest improvement)
+**Overall: 7.05/10** (UP from 6.80 in attempt 34)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (5 categories below threshold)
@@ -51,72 +51,62 @@ Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (7 × 0.10) 
 
 ### 2.1 Structure Detection: 7/10 ✗
 
-Unchanged from previous attempts. "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles and null start/end lines. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable despite the artificial split.
+Unchanged from previous attempts. "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable despite the artificial split.
 
-### 2.2 Character Extraction: 6/10 ✗ (stable from attempt 33 despite significant shifts)
+### 2.2 Character Extraction: 6/10 ✗
 
-**The adaptive promotion thresholds WORKED — Uncle Bill is back as main_cast_1!**
-- `main_cast_1`: **Uncle Bill** — 18 mentions, `is_narrator: true`, `role: protagonist` ✓✓✓
-- This was the primary goal of attempt 34 and it succeeded.
-- `supporting_0: "Bill"` correctly merged into Uncle Bill with alias "Bill" ✓
+**The HARD constraint WORKED — no false merge this time!** The father and son were kept separate by the identity graph. However, the father was then rejected by the grounding gate (F6/F2b) because it searched for "John Donaldson Sr." in the text and found 0 exact matches. The text never literally uses "Sr." — it refers to the father as "John Donaldson", "his father", "the father", etc.
 
-**However, father/son FALSELY MERGED — critical regression:**
-The identity graph had 3 main_cast nodes: Uncle Bill, John Donaldson (son), and John Donaldson Sr. (father). The merge_groups show `main_cast_2` and `main_cast_3` were merged into a single "John Donaldson" with aliases including "John Donaldson Sr.", "his father", "the father". This is a FALSE MERGE — the father and son are DIFFERENT PEOPLE. The son is the boy who goes to war; the father is the embezzler who faked his death 20 years earlier.
-
-**Character list (6 total, 2 main_cast + 4 supporting):**
-- `main_cast_1`: **Uncle Bill** — 18 mentions, `is_narrator: true`, role: `protagonist` ✓✓✓
+**Character list (5 total, 1 main_cast + 4 supporting):**
+- `main_cast_1`: **John Donaldson** — 44 mentions, role: `supporting` — this is the SON only
+  - Aliases: ["John", "the boy", "Johnny"] ✓✓ (Johnny now correctly an alias, not separate)
+  - Relationships: Uncle Bill (mentor), John Donaldson Sr. (parent), American Red Cross (ally) ✓
+- `supporting_0`: **Uncle Bill** — 18 mentions, role: `protagonist`, `is_narrator: true` ✓✓✓
   - Aliases: ["Bill"] ✓
-- `main_cast_2`: **John Donaldson** — 32 mentions, role: `supporting` ✗✗
-  - This is father+son merged into one entity — FALSE MERGE
-  - Aliases: ["John", "John Donaldson Sr.", "his father", "the father"] — these mix son's and father's references
-  - The son should be a separate character from the father
-- `supporting_1`: **Joe Barron** — 3 mentions ✓
-- `supporting_2`: **Red Cross** — 4 mentions — organization, not character ✗
-- `supporting_3`: **Ted Frith** — 5 mentions, alias: "Ted" ✓
-- `supporting_5`: **Johnny** — 2 mentions — should be alias of the son ✗
+  - Note: ID is `supporting_0` but role is protagonist — likely a pipeline inconsistency
+- `supporting_2`: **Joe Barron** — 3 mentions ✓
+- `supporting_3`: **Red Cross** — 4 mentions — organization, not character ✗
+- `supporting_4`: **Ted Frith** — 5 mentions, alias: "Ted" ✓
 
-**Sub-Dimension A: Completeness: 7/10** (stable)
+**Sub-Dimension A: Completeness: 6/10** (DOWN from 7)
 - Uncle Bill present and correctly identified as protagonist ✓✓
-- Father present but merged with son — effectively one character is "missing" ✗
+- Son (John Donaldson) correctly identified with proper aliases ✓
+- Father (John Donaldson Sr.) MISSING entirely from final output ✗✗ — critical missing character
 - "Red Cross" is an organization, not a character ✗
-- "Johnny" should be alias, not separate entry ✗
-- Margaret Donaldson MISSING from final output — was in identity graph as `main_cast_3` in attempt 33 but now the father took that slot ✗
+- Margaret Donaldson still missing (minor — only ~2 mentions)
+- Johnny correctly folded into John Donaldson as alias ✓ (improvement)
 
-**Sub-Dimension B: Identity Resolution: 4/10** (DOWN from 5)
-- Father/son FALSE MERGE is back — the deterministic same-name constraint from attempt 31 may not be firing, or the identity graph is overriding it ✗✗✗
-- Uncle Bill correctly resolved: `main_cast_1` with `supporting_0: "Bill"` merged in ✓
-- "Johnny" remains separate instead of being alias of the son ✗
-- This is the SAME regression we saw in attempt 30 — the identity graph merges same-name characters despite constraints
+**Sub-Dimension B: Identity Resolution: 7/10** (UP from 4!)
+- Father/son NO LONGER falsely merged! ✓✓✓ The HARD constraint worked.
+- BUT the father was then filtered out by grounding gate — effectively a "false deletion" ✗
+- Uncle Bill correctly resolved ✓
+- Johnny correctly an alias, not separate ✓ (improvement)
+- The identity resolution itself is correct — the problem is downstream filtering
 
-**Sub-Dimension C: Alias Grouping: 7/10** (UP from 6)
-- Uncle Bill has alias "Bill" ✓ (was ZERO in attempt 33)
-- Father's aliases include "John Donaldson Sr.", "his father", "the father" — these are rich and useful ✓
-- "John" correctly listed as alias ✓
-- BUT these aliases belong to the merged father+son entity, so they're misleading ✗
-- "Johnny" still separate instead of alias ✗
+**Sub-Dimension C: Alias Grouping: 8/10** (UP from 7) ✓
+- Uncle Bill has alias "Bill" ✓
+- John Donaldson has aliases "John", "the boy", "Johnny" ✓✓ — all correct for the son
+- Ted Frith has alias "Ted" ✓
+- No self-aliases, no possessive forms ✓
 
-### 2.3 Character Profiles: 6/10 ✗ (UP from 5)
+### 2.3 Character Profiles: 7.5/10 ✗ (UP from 6)
 
-**Mixed results — some profiles excellent, some empty:**
+**Major improvement: Uncle Bill now has a full profile!**
 
-- **Uncle Bill**: Profile completely empty — personality summary: "Insufficient information for personality analysis.", no traits, no evidence, no voice guidance. This is the protagonist and narrator; there should be abundant material. The pipeline note says "Profile generation failed for Uncle Bill: None" — this is a pipeline failure, not lack of material.
-- **John Donaldson (merged father+son)**: Excellent profile — personality summary captures moral ambiguity and redemption arc, traits are insightful ("cowardly in the face of accountability", "deeply remorseful"), evidence quotes are accurate and well-chosen. Voice guidance is outstanding with "American, sir" verbal tic, dialect notes, emotional range. BUT this profile is entirely about the FATHER, ignoring the son entirely — which makes sense since they're falsely merged.
-- **Ted Frith**: Has a profile with personality and voice guidance. However:
-  - Evidence quote `"'This is my good day. I'm American to-day, sir!'"` is the FATHER's line, not Ted's ✗
-  - Other evidence looks plausible: `"That you, Johnny?' he shouted"` could be Ted's
-  - Personality description is somewhat generic ("heroic", "selfless") but not inaccurate
-- **Joe Barron, Red Cross, Johnny**: All null profiles — expected for minor/invalid characters
+- **Uncle Bill**: Excellent profile — personality captures "reluctantly compassionate", "emotionally restrained but deeply loyal". Evidence quotes are accurate and well-chosen. Voice guidance with "calm, weathered, low-volume voice" is useful. "Selfless in sacrifice" trait is appropriate. ✓✓
+- **John Donaldson (son only)**: Good profile — describes heroism and self-sacrifice. Evidence includes father's iconic "American, sir" line which is WRONG (that's the father's line, not the son's). The rest of the profile is about the son's wartime service which is accurate. Relationships correctly identify Uncle Bill as mentor and John Donaldson Sr. as parent. ✗ for contamination
+- **Ted Frith**: Has profile with personality and voice guidance. Evidence STILL contaminated: "'But if I'm helping, it's the game to keep whole. You see, sir, this is my good day. I'm American to-day, sir!'" — this is the FATHER's line, not Ted's. The "'Ah, but you are--my superior officer'" quote also belongs to the father. Both quotes attributed to Ted are actually the father speaking. ✗✗
+- **Joe Barron, Red Cross**: Null profiles — expected for minor/invalid entries
 
-**Why 6/10:** The father's profile is excellent (would score 9/10 alone), but Uncle Bill's complete profile failure drags this down significantly. The protagonist/narrator having "Insufficient information" is a major gap. Ted's contaminated quote is a recurring issue. UP from 5 because the father's profile data is present (attempt 33 falsely reported all profiles empty — it was a field path mismatch).
+**Why 7.5/10:** Uncle Bill's profile going from empty to excellent is a major improvement (+1.5). John Donaldson's profile is mostly good but has the "American, sir" contamination. Ted Frith's profile is entirely built from the father's quotes — without the father as a separate character, his dialogue gets misattributed.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗ (stable)
 
-**Section 1:** EXCELLENT. Correctly describes the cousin relationship, the narrator's background, Margaret Donaldson, the scandal and death. `characters_present`: not checked but section 1 quality is strong.
+**Section 1:** Excellent. Correctly describes the cousin relationship, the narrator's background, Margaret Donaldson, the scandal and faked death. Comprehensive and well-written.
 
 **Section 2:** Good quality but the recurring hallucination persists:
 - "his deceased sister's son" — WRONG. Uncle Bill is the father's COUSIN, not sibling. Section 1 correctly says "cousin."
 - Otherwise excellent: covers Yale, fishing trip, WWI, Caporetto, reunion, deathbed revelation.
-- Excellent detail on the wartime narrative and the father's identity revelation.
 
 **Why 7.5/10:** The "sister" factual error in section 2 prevents a higher score. Otherwise both summaries are comprehensive, well-written, and useful for narrators.
 
@@ -137,93 +127,86 @@ The identity graph had 3 main_cast nodes: Uncle Bill, John Donaldson (son), and 
 
 ### 2.6 HTML Presentation: 8/10 ✓
 
-Navigation works, character profiles render well. Uncle Bill correctly displayed as protagonist and narrator. Voice guidance sections display for characters that have them. Minor: "Red Cross" and "Johnny" in Supporting Characters. Father/son merged into one entry — this reflects the upstream character extraction issue.
+Navigation works, character profiles render well. Uncle Bill correctly displayed as protagonist and narrator with full profile and voice guidance. Minor: "Red Cross" in Supporting Characters. Father's absence from the character list reflects the upstream extraction issue.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - Pipeline: V2 with Phase 2 graph-based identity resolution
 - 0 LLM retries — good
-- 1 JSON parse failure (Pronunciation Guide and Character Profiles stages)
-- Character Profiles: 8 LLM calls, 28396 tokens, 549s — but Uncle Bill profile failed
-- Identity graph has 2 constraint edges but father/son still merged — constraint not strong enough
+- 1 JSON parse failure (Pronunciation Guide batch enrichment)
+- Character Profiles: 8 LLM calls, 39,732 tokens, 762s — Uncle Bill profile now working ✓
+- Identity graph HARD constraint prevented father/son merge ✓
+- But grounding gate then rejected the father for 0 text mentions of "John Donaldson Sr." ✗
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Father/son FALSE MERGE — "John Donaldson" and "John Donaldson Sr." merged** [Identity Resolution]
-   - Problem: The identity graph had `main_cast_2` (son, 28 mentions) and `main_cast_3` (father/Sr., 13 mentions) as separate nodes. The merge_groups show they were MERGED into a single "John Donaldson" entity. The father and son are completely different people — the son is the boy who grows up, goes to Yale, serves in WWI; the father is the embezzler who faked his death 20 years earlier and dies in Italy.
-   - Evidence: `merge_groups[1]` shows `members: ["main_cast_2", "main_cast_3"]` with canonical name "John Donaldson". The identity graph stats show 2 constraint edges but they didn't prevent this merge.
-   - Location: `src/pipeline/character_extraction_v2/evidence_collectors.py` — the deterministic same-name constraint added in attempt 31 may not be firing in Phase 2. Also check `src/pipeline/character_extraction_v2/identity_graph.py` (or wherever merge decisions are made).
-   - Fix approach: The constraint from attempt 31 was in `evidence_collectors.py`. Verify it's still active. The identity graph has 2 constraint edges — check if they're blocking the right merge. The merge happened despite constraints, suggesting the merge evidence (3 pieces) outweighed the constraint. Need to make the same-name constraint HARD (absolute block) rather than weighted.
-   - **IMPORTANT:** This same issue was fixed in attempt 31 and regressed in attempt 30. The fix was a deterministic check in `evidence_collectors.py`. It may have broken when the identity graph was introduced.
-
-2. **Uncle Bill profile generation failed** [Profiles]
-   - Problem: Uncle Bill's personality is "Insufficient information for personality analysis" with no traits, evidence, or voice guidance. He's the first-person narrator — there should be plenty of material.
-   - Evidence: Pipeline warning: "Profile generation failed for Uncle Bill: None". The profiling stage ran (8 LLM calls) but failed for Uncle Bill specifically.
-   - Location: `src/pipeline/character_profiling/` — likely the passage gatherer or profile generator fails for first-person narrators because the narrator refers to themselves as "I" rather than by name.
-   - Fix approach: For first-person narrators, the profile pipeline needs to use first-person passages ("I felt...", "I drove...") rather than searching for the character name. Check if `is_narrator: true` is being used to adjust passage gathering.
+1. **Father (John Donaldson Sr.) rejected by grounding gate — 0 text mentions** [Completeness]
+   - Problem: The identity graph correctly kept father and son separate (HARD constraint working!), but the grounding gate then searched for "John Donaldson Sr." in the text and found 0 exact matches. The text never literally says "John Donaldson Sr." — it refers to the father as "John Donaldson", "his father", "the father", etc. The grounding gate treated this as a hallucination and filtered the character out.
+   - Evidence: Pipeline note: "F6 filter rejected 'John Donaldson Sr. (the father)' as having 0 text mentions". The character was in the identity graph as a separate node but eliminated downstream.
+   - Root cause: The grounding gate does exact-match search for the canonical name. When the canonical name includes disambiguation labels like "Sr." that don't appear literally in the text, the search fails. The grounding gate needs to also search for the character's aliases (e.g., "his father", "the father") or the base name without the label.
+   - Location: `src/pipeline/character_extraction_v2/grounding.py` — `GroundingGate.apply()` — likely searches only for `canonical_name`, not aliases.
+   - Fix approach: When computing mention counts for the grounding gate, search for ALL of a character's names — canonical name, base name (without Sr./Jr./labels), and aliases. If ANY name variant has mentions above the threshold, the character should be grounded. The father should match on "John Donaldson" (his base name) and/or "his father"/"the father" aliases.
+   - **IMPORTANT:** This is the inverse of the previous problem. Before, father and son were falsely merged (Identity Resolution issue). Now they're correctly separated but the father gets filtered out (Completeness issue). The fix must be in the grounding gate, NOT in the identity graph.
 
 ### HIGH
 
-3. **Ted Frith profile contaminated with father's quotes** [Profiles]
-   - Problem: Ted's evidence includes `"'This is my good day. I'm American to-day, sir!'"` — this is John Donaldson (the father)'s iconic line, not Ted's.
-   - Evidence: The "American, sir" verbal tic belongs exclusively to the father throughout the story.
-   - Location: `src/pipeline/character_profiling/` — passage gathering or evidence extraction assigns nearby dialogue to wrong character.
-   - Fix approach: Name disambiguation in the profiling pipeline needs to recognize that when "American, sir" is spoken, the speaker is always the father (John Donaldson), not whoever is nearby.
+2. **Ted Frith profile entirely contaminated with father's dialogue** [Profiles]
+   - Problem: Both evidence quotes for Ted are actually the father's lines: "'Ah, but you are--my superior officer'" and "'This is my good day. I'm American to-day, sir!'" Both are spoken by John Donaldson (the father), not Ted Frith.
+   - Evidence: The "American, sir" verbal tic and the "superior officer" exchange belong exclusively to the father in the text.
+   - Location: `src/pipeline/character_profiling/` — passage gathering assigns nearby dialogue to wrong character
+   - Impact: With the father missing from the character list, his dialogue gets attributed to nearby characters. Fixing CRITICAL #1 (restoring the father) should largely fix this — the profiler would have the correct speaker available.
+
+3. **John Donaldson (son) profile contaminated with father's quote** [Profiles]
+   - Problem: "'American, sir,' he said proudly. ... 'This is my good day. I'm American to-day, sir!'" appears in the son's evidence, but this is spoken by the father on his deathbed.
+   - Root cause: Same as #2 — with only one "John Donaldson" in the character list, both father and son's dialogue gets attributed to the same entity.
+   - Impact: Will likely resolve when father is restored as separate character.
 
 4. **Summary "sister" hallucination persists** [Summaries]
-   - Problem: Section 2 says "his deceased sister's son" — Uncle Bill is the father's COUSIN, not sibling. Section 1 correctly says "cousin."
-   - Evidence: LLM is hallucinating the family relationship despite the text clearly stating "cousin."
-   - Location: LLM generation in summary pipeline. Non-deterministic — the model sometimes gets this wrong.
+   - Problem: Section 2 says "his deceased sister's son" — Uncle Bill is the father's COUSIN, not sibling.
+   - Evidence: Section 1 correctly says "cousin" but Section 2 hallucinates "sister."
+   - Location: LLM generation in summary pipeline. Non-deterministic.
 
 ### MEDIUM
 
-5. **"Johnny" still a separate character instead of alias of the son** [Alias Grouping]
-   - Problem: Johnny (supporting_5, 2 mentions) should be an alias of John Donaldson (the son), not a separate character.
-   - Location: Identity graph merge logic — nickname matching not connecting "Johnny" to "John Donaldson".
-
-6. **Pronunciation: 7/20 false positives (35%)** [Pronunciation]
+5. **Pronunciation: 7/20 false positives (35%)** [Pronunciation]
    - Remaining false positives: whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't.
 
-7. **Structure: 2 sections for continuous short story** [Structure]
+6. **Structure: 2 sections for continuous short story** [Structure]
    - Same as all prior attempts. Not worth a targeted fix for this text alone.
 
-8. **"Red Cross" extracted as character** [Completeness]
-   - Organization, not a character (supporting_2, 4 mentions).
-
-9. **Margaret Donaldson missing from final character list** [Completeness]
-   - Was in the identity graph but may have been dropped during reconciliation. Only has 2 mentions so may be below threshold.
+7. **"Red Cross" extracted as character** [Completeness]
+   - Organization, not a character (supporting_3, 4 mentions).
 
 ### LOW
 
-10. **Section 1 `characters_present` only shows "Narrator"** — should list named characters
+8. **Uncle Bill ID is `supporting_0` despite role=protagonist** — cosmetic inconsistency in ID naming
 
 ## Fix Priority
 
-**Attempt 34 was a PARTIAL SUCCESS.** The adaptive promotion thresholds worked perfectly — Uncle Bill is back as protagonist and narrator. But the father/son merge regressed, which is the same issue that was fixed in attempt 31.
+**Attempt 35 was a PARTIAL SUCCESS.** The HARD constraint worked perfectly — father and son are no longer falsely merged (Identity Resolution 4→7!). Uncle Bill profile is now populated (Profiles 6→7.5!). Johnny is now correctly an alias (Alias Grouping 7→8!). But the father character was filtered out by the grounding gate because it searched for "John Donaldson Sr." literally and found 0 matches.
 
-**Root cause analysis:** The identity graph is merging `main_cast_2` (John Donaldson / son) and `main_cast_3` (John Donaldson Sr. / father) despite there being 2 constraint edges. The merge evidence (3 pieces) is outweighing the constraints. The deterministic same-name check from attempt 31 in `evidence_collectors.py` needs to produce a HARD constraint that cannot be overridden.
+**This is a classic "fix one thing, expose another" pattern.** The identity graph correctly separates father/son, but then gives the father a canonical name with "Sr." that doesn't appear in the text, causing the grounding gate to reject him.
 
-**Recommended fix order:**
-1. **CRITICAL #1: Father/son false merge** — Make the same-name constraint HARD/absolute in the identity graph. Characters with the same base name but different generational markers (Sr./Jr., "the father"/"the son") MUST NOT be merged. This was working in attempts 31-32 but regressed.
-2. **CRITICAL #2: Uncle Bill profile** — Investigate why profile generation fails for first-person narrators. The passage gatherer may need special handling for `is_narrator: true` characters.
-3. HIGH #3 (Ted Frith contamination) and HIGH #4 (sister hallucination) are secondary.
+**Recommended fix for attempt 36:**
+1. **CRITICAL #1: Grounding gate alias search** — When the grounding gate checks whether a character is grounded in the text, it should search for ALL name variants (canonical name, base name without labels, aliases), not just the canonical name. If any variant has mentions >= threshold, the character is grounded. This would find "John Donaldson" (base name) or "the father" (alias) in the text and keep the father character.
+
+**Do NOT touch the identity graph or constraint logic — it's working correctly now.**
 
 ## Fix History
 
-### Attempt 35 — Make ROLE_CONFLICT constraint HARD (strength 1.0)
+### Attempt 35 — Make ROLE_CONFLICT constraint HARD (strength 1.0) — PARTIAL SUCCESS
 - **Issue targeted:** CRITICAL #1 — Father/son false merge (regression from attempt 31)
 - **Root cause:** `ROLE_CONFLICT` constraint strength was 0.9, allowing merge evidence weight > 0.9 to override it
 - **Changes made:**
   1. Changed `ROLE_CONFLICT` constraint strength from 0.9 to 1.0 in `identity_graph.py` line 83
   2. This makes it a HARD constraint that cannot be overridden by merge evidence
   3. The deterministic same-name check in `evidence_collectors.py` (lines 1033-1040) already creates this constraint
-- **Result:** TBD - awaiting analysis
+- **Result:** PARTIAL SUCCESS — Father/son no longer merged ✓. BUT father filtered out by grounding gate ✗. Uncle Bill profile now working ✓. Johnny now alias ✓. Identity Resolution 4→7, Alias Grouping 7→8, Profiles 6→7.5.
 - **Files modified:**
   - `src/pipeline/character_extraction_v2/identity_graph.py` (line 83)
-- **Test results:** All 38 identity graph unit tests pass, including `test_father_son_same_name_not_merged`
-
+- **Test results:** All 38 identity graph unit tests pass
 
 ### Attempt 34 — Adaptive promotion thresholds (length-scaled) — PARTIAL SUCCESS
 - **Issues targeted:**
@@ -238,34 +221,13 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
   - `src/agents/characters.py` (lines 47-75, 457-479)
 
 ### Attempt 33 — Possessive stripping in supporting cast + deterministic narrator detection
-- **Issues targeted:**
-  1. HIGH #1 — Uncle Bill narrator/protagonist regression
-  2. HIGH #2 — Alias fix from attempt 32 didn't work (possessive + Johnny)
-- **Changes made:**
-  1. Added `_strip_possessive()` method to `supporting.py` (same logic as main_cast.py)
-  2. Applied possessive stripping to NER entity names at extraction time
-  3. Added deterministic fallback in `narrator.py`
-- **Result:** MIXED — Possessive stripping worked (John Donaldson's gone), BUT Uncle Bill demoted from main_cast to supporting. ALL profiles now empty. Score: 7.28 → 6.65 (-0.63). **Net negative.**
-- **Files modified:**
-  - `src/pipeline/character_extraction_v2/supporting.py`
-  - `src/pipeline/character_extraction_v2/narrator.py`
+- **Result:** MIXED — Score: 6.65 (-0.63)
 
-### Attempt 32 — Alias cleanup (possessive stripping + nickname matching) — DID NOT WORK
-- **Issue targeted:** HIGH #1 from attempt 31 — Alias grouping below threshold (6.5/10)
-- **Changes made:**
-  1. Added `COMMON_NICKNAMES` entries in `evidence_collectors.py`
-  2. Added `_strip_possessive()` helper function to `main_cast.py`
-  3. Applied `_strip_possessive()` to all alias assignment locations in `main_cast.py`
-- **Result:** NO EFFECT — possessive still present, Johnny still separate character
-- **Additional regression:** Uncle Bill lost `is_narrator: true` and `role: protagonist`
+### Attempt 32 — Alias cleanup (possessive + nicknames) — DID NOT WORK
 - **Score impact:** 7.33 → 7.28 (-0.05)
 
 ### Attempt 31 — Deterministic same-name constraint (SUCCESS!)
-- **Issue targeted:** CRITICAL #1 — Father/son merged (regression from attempt 29)
-- **Changes made:** Added deterministic check in `evidence_collectors.py`
-- **Result:** SUCCESS — Father/son split restored, Uncle Bill promoted to protagonist
 - **Score impact:** 6.78 → 7.33 (+0.55)
-- **File modified:** `src/pipeline/character_extraction_v2/evidence_collectors.py`
 
 ### Attempt 30 — Pronunciation false positive reduction (PARTIAL SUCCESS + REGRESSION)
 - Score: 6.78
@@ -279,7 +241,7 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | TBD — awaiting analysis |
+| 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | PARTIAL SUCCESS — no false merge ✓, father filtered by grounding ✗. IR 4→7, AG 7→8, Profiles 6→7.5. Score: 6.80→7.05 |
 | 34 | Adaptive promotion thresholds | `characters.py` | PARTIAL SUCCESS — Uncle Bill restored to main_cast, but father/son merged. Score: 6.65→6.80 |
 | 33 | Possessive stripping + narrator detection | `supporting.py`, `narrator.py` | MIXED — possessive fixed, Uncle Bill demoted to supporting, profiles empty. Score: 6.65 (-0.63) |
 | 32 | Alias cleanup (possessive + nicknames) | `evidence_collectors.py`, `main_cast.py` | NO EFFECT — aliases unchanged, narrator regression |
@@ -310,17 +272,15 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
 | 32 | 7.28 | +0.68 | Alias fix NO EFFECT, Uncle Bill narrator regression, profiles improved |
 | 33 | 6.65 | +0.05 | Possessive fix worked, BUT Uncle Bill demoted, profiles empty |
 | 34 | 6.80 | +0.20 | Uncle Bill restored ✓, father/son merged ✗, profile still empty |
+| 35 | 7.05 | +0.45 | HARD constraint works ✓, father filtered by grounding ✗, profiles improved ✓ |
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis to verify that father and son are now correctly split into separate characters.
+Run PROMPT_fix.md to fix CRITICAL #1: Grounding gate needs to search for ALL name variants (canonical name, base name without labels, aliases) when determining if a character is grounded in the text. Currently it only searches for the exact canonical name "John Donaldson Sr." which never appears literally in the text.
 
-**Expected outcome:**
-- `main_cast_2`: John Donaldson (son) — should have aliases like "John", "Johnny" but NOT "John Donaldson Sr.", "the father"
-- `main_cast_3`: John Donaldson Sr. (father) — should have aliases like "his father", "the father", "John Donaldson Sr."
-- The ROLE_CONFLICT constraint (now strength 1.0) should prevent these from merging
-
-**Secondary issue (CRITICAL #2):** Uncle Bill profile still empty. If father/son fix works, this becomes the next priority.
-
+**Expected outcome after fix:**
+- Father should be grounded via "John Donaldson" (base name without "Sr.") or aliases like "his father", "the father"
+- Father should appear in final character list as a separate character from the son
+- Ted Frith and John Donaldson (son) profile contamination should decrease once father is a separate character with his own dialogue attributed correctly
