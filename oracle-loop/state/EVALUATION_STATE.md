@@ -3,14 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 46
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Identity Graph: output/American Sir_20260216_060847/identity_graph.json
+- Identity Graph: output/American Sir_20260216_065447/identity_graph.json
+
+## Pipeline Notes (Attempt 46)
+- Analysis completed successfully in 35m 12s
+- 9 characters extracted (up from 6 in attempt 45)
+- Both father and son "John Donaldson" characters now present in output ✓
+- Competitive consensus used for characters, structure, and summaries
+- Some warnings: F19 ungrounded evidence quotes, missing passages for disambiguated Johns
+- 62 LLM calls total, 96,088 tokens processed
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
