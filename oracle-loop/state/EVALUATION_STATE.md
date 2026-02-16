@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 37
-- **Phase:** awaiting_fix
+- **Attempt:** 38
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -202,6 +202,21 @@ Navigation works. Character profiles render well with appearance, personality, v
 
 ## Fix History
 
+### Attempt 38 — REVERT target character preference signal — PENDING ANALYSIS
+- **Issue targeted:** CRITICAL #1 — Son and father have IDENTICAL profiles (word-for-word duplication)
+- **Root cause:** Signal 0 (target preference at confidence 0.98) in `name_disambiguator.py` overrides all contextual signals. When gathering passages for son, it prefers son for ALL "John Donaldson" mentions. When gathering for father, it prefers father for the SAME mentions. Result: both characters claim all passages → identical profiles.
+- **Changes made:**
+  1. REVERTED Signal 0 (target character preference) from `ContextDisambiguator.disambiguate()` (lines 367-386)
+  2. Removed `by_target_preference` from stats initialization (line 307)
+  3. Updated docstring to reflect actual signal priority without Signal 0
+- **Rationale:** The existing signals (relationship markers 0.95, name-shape 0.90, temporal markers 0.80, chapter-range 0.85) should disambiguate correctly without a bypass signal. Signal 0 was preventing these context-aware signals from running.
+- **Expected outcome:** Profiles differentiate because:
+  - Father's passages will have relationship markers ("the father", temporal markers about "years ago")
+  - Son's passages will have younger markers ("the boy", "my nephew", Yale references)
+  - The disambiguator will now use these signals instead of blindly preferring target
+- **Files modified:**
+  - `src/pipeline/character_profiling/name_disambiguator.py` (removed 25 lines)
+
 ### Attempt 37 — Target character preference in passage disambiguation — REGRESSION
 - **Issue targeted:** CRITICAL #1+#2 — Son's profile contaminated with father's story due to shared name
 - **Changes made:**
@@ -228,6 +243,7 @@ Navigation works. Character profiles render well with appearance, personality, v
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 38 | REVERT target preference signal | `name_disambiguator.py` | PENDING — reverted Signal 0 to let existing contextual signals work |
 | 37 | Profile passage disambiguation (target preference) | `name_disambiguator.py` | REGRESSION — identical profiles for son/father. Profiles 6.5→5. Score 7.15→6.90 |
 | 36 | Grounding gate Sr./Jr. suffix | `mention_search.py`, `test_character_extraction_v2.py` | PARTIAL SUCCESS — father grounded ✓, profiles contaminated ✗. Score: 7.05→7.15 |
 | 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | PARTIAL SUCCESS — no false merge ✓, father filtered ✗. Score: 6.80→7.05 |
@@ -238,7 +254,7 @@ Navigation works. Character profiles render well with appearance, personality, v
 | 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved, character regression |
 | 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS — labels applied. Score: 7.13 |
 
-**STUCK PATTERN ALERT:** `name_disambiguator.py` has now been modified in attempt 37 with NO improvement. The profiling pipeline's passage gathering remains the core blocker. The disambiguator has been modified 1 time. If the next attempt also modifies only `name_disambiguator.py` without success, escalate to passage_gatherer.py or consider changing the character canonical names upstream.
+**STUCK PATTERN ALERT:** `name_disambiguator.py` has now been modified in attempts 37-38. Attempt 37 was a REGRESSION (target preference signal). Attempt 38 REVERTS that regression. If profiles still duplicate after this revert, the issue is deeper — may need to escalate to passage_gatherer.py or examine why existing disambiguation signals (relationship/temporal markers) aren't firing.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -254,7 +270,4 @@ Navigation works. Character profiles render well with appearance, personality, v
 
 ## Next Action
 
-Run PROMPT_fix.md to:
-1. REVERT the target preference signal (Signal 0) from `name_disambiguator.py`
-2. Investigate and fix why existing disambiguation signals (relationship markers, temporal markers) aren't correctly separating father vs son passages
-3. The fix should make contextual signals STRONGER, not add a bypass signal
+Set phase to `awaiting_analysis` and re-run analysis to verify the revert fixes profile duplication.
