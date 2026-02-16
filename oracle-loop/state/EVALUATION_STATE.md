@@ -3,13 +3,15 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 50
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+- Identity Graph: ../output/American Sir_20260216_101924/identity_graph.json
+- Quality Report: ../output/American Sir_20260216_101924/quality.md
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
@@ -285,19 +287,28 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 48 | 6.88 | +0.28 | BASELINE RECOVERY — revert confirmed |
 | 49 | 6.15 | -0.45 | **REGRESSION** — LLM non-determinism, Uncle Bill split, son merged |
 
-## Next Action
-Phase set to `awaiting_analysis`. Re-run to test if LLM non-determinism resolves itself (no code changes).
+## Pipeline Notes (Attempt 50)
 
-### Attempt 50 — No code changes, re-run to test LLM non-determinism — **KEEPING PASSAGE_GATHERER FIX**
-- **Decision:** Keep the passage_gatherer.py fix from attempt 49 (it's correct and profiles improved)
-- **Rationale:**
-  - The passage_gatherer.py fix successfully improved profile quality - "Uncle Bill (the son)" got the son's actual characterization
-  - The character extraction regression (Uncle Bill split, son merged into father) is LLM non-determinism, NOT caused by passage_gatherer.py
-  - passage_gatherer.py only affects profiling, not character extraction
-  - The same code produced correct character extraction in attempt 48
-  - Modification history shows main_cast.py has been modified 8 times with 50% regression rate - avoid further changes
-- **Root Cause Analysis:**
-  - Uncle Bill false split: Summaries' `characters_present` lists may have included "Uncle Bill (the father)" and "Uncle Bill (the son)" due to summarizer LLM non-determinism, which the character extraction LLM then treated as distinct per prompt instructions
-  - John Donaldson son merged into father: LLM Pass 1 or Pass 2 incorrectly merged them, despite correct separation in attempt 48
-- **Action:** Re-run analysis without code changes to test if LLM produces better character extraction
-- **If issue persists:** Consider adding deterministic constraint in `_enforce_same_name_splits` to prevent splitting characters identified as narrators (narrators inherently span all time periods)
+- **Total time:** 41m 28s
+- **Total tokens:** 138,294
+- **Character extraction:** 9 characters found
+- **Competitive consensus:** Enabled for all stages (characters, structure, summaries)
+
+**SAME-NAME CONFLICT warnings in logs:**
+- "Uncle Bill has both father and son contexts in summaries"
+- "Narrator has both father and son contexts in summaries"
+
+**F19 Grounding warnings:**
+- All 5 character profiles have potentially ungrounded evidence quotes
+
+**Character list from summary:**
+- John Donaldson (the father) - 29 mentions
+- John Donaldson (the son) - 28 mentions ✓ (correctly separated from attempt 49!)
+- Uncle Bill (the father) - 19 mentions
+- Uncle Bill (the son) - 19 mentions ✗ (still erroneously split)
+- Margaret Donaldson - 2 mentions
+- 4 more supporting characters
+
+**PROGRESS:** John Donaldson father/son are now correctly separated (was merged in attempt 49). The re-run partially resolved the LLM non-determinism issue!
+
+**REMAINING ISSUE:** Uncle Bill still falsely split into two characters. This appears to be a consistent pattern across multiple runs, suggesting a code-level fix may be needed.
