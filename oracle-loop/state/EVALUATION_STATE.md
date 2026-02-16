@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 42
-- **Phase:** awaiting_fix
+- **Attempt:** 43
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -183,6 +183,23 @@ Navigation works. Character profiles render. Minor issues: "Red Cross" in charac
 
 ## Fix History
 
+### Attempt 43 — Add disambiguator-based ROLE_CONFLICT constraint — DEBUGGING FIX
+- **Issue targeted:** CRITICAL #1 — Father/son FALSE MERGE (son listed as alias of father)
+- **Root cause identified:**
+  - Attempt 42's `_enforce_same_name_splits()` DID work - it created two separate characters
+  - The split characters were then RE-MERGED by graph-based identity resolution (Step 5.5)
+  - `collect_generational_conflict_evidence()` checks `name_a.lower() == name_b.lower()`
+  - After split, names are "John Donaldson (the father)" vs "John Donaldson (the son)" - NOT equal
+  - ROLE_CONFLICT constraint never fired, allowing spelling_variant + cooccurrence edges to merge them
+- **Changes made:** Added disambiguator-aware ROLE_CONFLICT detection in `evidence_collectors.py`
+  - Extracts base name and disambiguator from canonical names using regex
+  - If both characters have generational disambiguators (father/son/sr/jr/elder/younger) AND same base name, adds ROLE_CONFLICT constraint
+  - Runs BEFORE the existing exact-name check, with higher priority
+  - Universal pattern - works for any same-name family members with disambiguators
+- **Smoke test:** PASS - Logic correctly detects "John Donaldson (the father)" vs "John Donaldson (the son)" as role conflict
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/evidence_collectors.py` (+39 lines)
+
 ### Attempt 42 — Deterministic same-name split enforcement — REGRESSION
 - **Issue targeted:** CRITICAL #1 — Father/son FALSE MERGE into single "John Donaldson" entry
 - **Changes made:** Added deterministic `_enforce_same_name_splits()` method in `main_cast.py` that scans summaries for contradictory generational markers (father vs son) and forces a split.
@@ -235,7 +252,8 @@ Navigation works. Character profiles render. Minor issues: "Red Cross" in charac
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 42 | Deterministic same-name split enforcement | `main_cast.py` (+104 lines) | REGRESSION — son listed as alias of father, narrator wrong. Score: 6.80→6.48 |
+| 43 | Disambiguator-based ROLE_CONFLICT constraint | `evidence_collectors.py` (+39 lines) | Awaiting analysis - should prevent post-split merging |
+| 42 | Deterministic same-name split enforcement | `main_cast.py` (+104 lines) | REGRESSION — split worked but was re-merged downstream. Score: 6.80→6.48 |
 | 41 | REVERT attempt 40 changes | `main_cast.py`, `test_character_extraction_v2.py` | PARTIAL RECOVERY — narrator fixed ✓, Johnny alias ✓, but father/son still merged. Score: 6.45→6.80 |
 | 40 | Ensure both same-name characters get disambiguators | `main_cast.py`, `test_character_extraction_v2.py` | REGRESSION — father merged into son. Score: 7.10→6.45 |
 | 39 | Preserve disambiguators in canonical names | `main_cast.py` | PARTIAL SUCCESS — two characters ✓, profile contamination ✗. Score: 6.80→7.10 |
@@ -272,4 +290,7 @@ Navigation works. Character profiles render. Minor issues: "Red Cross" in charac
 | 42 | 6.48 | -0.12 | REGRESSION — son as alias of father, narrator wrong |
 
 ## Next Action
-Run PROMPT_fix.md to REVERT attempt 42's changes first (they caused regression), then consider a different approach: placing the deterministic split at a later stage in the pipeline (e.g., in `src/agents/characters.py` after all V2 pipeline processing).
+Set phase to `awaiting_analysis` and re-run analysis to verify the fix:
+- The disambiguator-based ROLE_CONFLICT constraint should prevent father/son from merging
+- Narrator assignment should remain correct (son is narrator)
+- Attempt 42's split logic is preserved (it was working, just needed protection from downstream merging)

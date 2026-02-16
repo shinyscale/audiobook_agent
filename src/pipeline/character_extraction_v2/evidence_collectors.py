@@ -1027,7 +1027,42 @@ def collect_constraint_evidence(graph: IdentityGraph) -> None:
                     )
 
             # --- Role conflict detection ---
-            # DETERMINISTIC CHECK: Identical names in main cast = different people
+            # DETERMINISTIC CHECK 1: Disambiguator parentheticals indicate different people
+            # If both characters have disambiguators like "(the father)" vs "(the son)",
+            # they must be kept separate even if they share the same base name.
+            # This prevents merge regressions after _enforce_same_name_splits() has run.
+            import re
+            def extract_base_name_and_disambiguator(name: str) -> tuple[str, str | None]:
+                """Extract base name and disambiguator from 'John Donaldson (the father)'."""
+                match = re.match(r'^(.+?)\s*\(([^)]+)\)\s*$', name)
+                if match:
+                    return match.group(1).strip(), match.group(2).strip()
+                return name, None
+
+            base_a, disambig_a = extract_base_name_and_disambiguator(name_a)
+            base_b, disambig_b = extract_base_name_and_disambiguator(name_b)
+
+            # Generational disambiguators that indicate role conflict
+            generational_markers = {
+                "the father", "father", "the mother", "mother", "the parent", "parent",
+                "the son", "son", "the daughter", "daughter", "the child", "child",
+                "sr", "sr.", "senior", "the elder", "elder",
+                "jr", "jr.", "junior", "the younger", "younger",
+            }
+
+            if (node_a.is_main_cast and node_b.is_main_cast
+                    and disambig_a and disambig_b
+                    and base_a.lower() == base_b.lower()
+                    and (disambig_a.lower() in generational_markers
+                         or disambig_b.lower() in generational_markers)):
+                graph.add_constraint_edge(
+                    id_a, id_b,
+                    ConstraintType.ROLE_CONFLICT,
+                    f"Same base name with generational disambiguators: '{name_a}' vs '{name_b}'",
+                )
+                continue  # Skip other checks if disambiguator rule triggered
+
+            # DETERMINISTIC CHECK 2: Identical names in main cast = different people
             # (father/son, Sr/Jr, generational names sharing exact same name)
             # This prevents LLM non-determinism from causing merge regressions
             if (node_a.is_main_cast and node_b.is_main_cast
