@@ -402,7 +402,7 @@ print()
 # === Failure Matrix ===
 print("## Failure Matrix")
 print()
-header = f"{'Text':<35} " + " ".join(f"{'Str':>5} {'Chr':>5} {'Pro':>5} {'Sum':>5} {'Prn':>5} {'Prs':>5}  {'Avg':>5} {'Status':>6}")
+header = f"{'Text':<35}  {'Str':>5} {'Chr':>5} {'Pro':>5} {'Sum':>5} {'Prn':>5} {'Prs':>5}  {'Avg':>5} {'':>6}"
 print(header)
 print("-" * len(header))
 
@@ -413,7 +413,7 @@ for name in sorted(texts.keys()):
     for cat in categories:
         s = scores.get(cat, 0)
         if s == 0:
-            row += f"{'?':>5} "
+            row += f" {'?':>4} "
         elif s < 8.0:
             row += f"{s:5.1f}*"  # asterisk marks failing
         else:
