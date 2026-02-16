@@ -291,6 +291,26 @@ The core problem is that two characters share the EXACT SAME canonical name "Joh
 - **Files modified:**
   - `src/pipeline/character_extraction_v2/main_cast.py` (lines 855-895, modified `_clean_canonical_name()` method)
 
+## Pipeline Status
+
+Analysis started at 2026-02-16 00:18 (task b704bca, PID 3669176).
+
+**Command executed:**
+```bash
+audiobook-prep analyze ../Test_Texts/American Sir.txt \
+  --html ../output/american_sir/report.html \
+  --output ../output/american_sir/analysis.json \
+  --competitive-consensus \
+  --competitive-structure \
+  --competitive-summaries \
+  --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+  --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0"
+```
+
+Process running. Analysis will take 10-60 minutes depending on text length.
+
 ## Next Action
 
-Run PROMPT_analyze.md to re-analyze american_sir with the fix applied.
+Wait for analysis completion. Once finished, run PROMPT_evaluate.md to score the output.
