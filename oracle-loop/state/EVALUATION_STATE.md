@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 32
-- **Phase:** awaiting_fix
+- **Attempt:** 33
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -230,6 +230,29 @@ The closest categories to threshold:
 
 ## Fix History
 
+### Attempt 33 — Possessive stripping in supporting cast + deterministic narrator detection
+- **Issues targeted:**
+  1. HIGH #1 — Uncle Bill narrator/protagonist regression
+  2. HIGH #2 — Alias fix from attempt 32 didn't work (possessive + Johnny)
+- **Root cause analysis:**
+  1. **Possessive:** NER extracts "John Donaldson's" → supporting_3 → gets merged into father's group → canonical name becomes alias. The `_strip_possessive()` in main_cast.py works but doesn't touch supporting cast names.
+  2. **Narrator:** Detection is LLM-based. Summaries use "Narrator" (generic) instead of "Uncle Bill", causing non-deterministic matching failures.
+- **Changes made:**
+  1. Added `_strip_possessive()` method to `supporting.py` (same logic as main_cast.py)
+  2. Applied possessive stripping to NER entity names at extraction time (line 117: `name = self._strip_possessive(ent.text.strip())`)
+  3. Added deterministic fallback in `narrator.py`: when LLM returns generic "Narrator", `_identify_narrator_by_prominence()` selects based on:
+     - Protagonist role (if present)
+     - Chapter presence (narrator appears in most/all chapters)
+     - Mention count (as tiebreaker)
+     - Alias count (final tiebreaker)
+- **Expected impact:**
+  - Possessive "John Donaldson's" should be stripped before entering identity graph → won't become an alias
+  - Uncle Bill should be identified as narrator consistently (appears in both sections, father only in section 2)
+  - Johnny still separate (requires identity graph merge logic changes - deferred to future attempt)
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/supporting.py` — added `_strip_possessive()` method and applied to NER entity text
+  - `src/pipeline/character_extraction_v2/narrator.py` — added `_identify_narrator_by_prominence()` deterministic fallback
+
 ### Attempt 32 — Alias cleanup (possessive stripping + nickname matching) — DID NOT WORK
 - **Issue targeted:** HIGH #1 from attempt 31 — Alias grouping below threshold (6.5/10)
 - **Changes made:**
@@ -291,9 +314,9 @@ The closest categories to threshold:
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Run PROMPT_fix.md to address:
-1. **Uncle Bill narrator/protagonist regression** — must be deterministic (not LLM-dependent)
-2. **Debug alias fix** — trace code path to understand why possessive stripping and Johnny merge didn't activate
-3. If time permits, address profile issues (son empty, Ted contaminated)
+Re-run analysis with fixes from attempt 33:
+1. Possessive stripping in supporting cast should eliminate "John Donaldson's" as a separate alias
+2. Deterministic narrator detection should consistently identify Uncle Bill as narrator
+3. Johnny will remain a separate character (identity graph merge logic not modified in this attempt)

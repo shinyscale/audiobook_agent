@@ -111,7 +111,7 @@ class SupportingCastExtractor:
                 if ent.label_ not in ("PERSON", "ORG"):
                     continue
 
-                name = ent.text.strip()
+                name = self._strip_possessive(ent.text.strip())
 
                 # Skip if it's a main cast name
                 if self._normalize_name(name) in main_cast_normalized:
@@ -164,6 +164,31 @@ class SupportingCastExtractor:
             if name.startswith(title + " "):
                 name = name[len(title) + 1 :]
         return re.sub(r"\s+", " ", name)
+
+    def _strip_possessive(self, name: str) -> str:
+        """
+        Strip possessive markers from names extracted by NER.
+
+        Removes trailing "'s" or "'" from names to avoid creating
+        duplicate characters like "John Donaldson's" vs "John Donaldson".
+
+        Examples:
+          "John Donaldson's" → "John Donaldson"
+          "the creature's" → "the creature"
+          "Jesus'" → "Jesus"
+
+        Args:
+            name: Name potentially ending with possessive marker
+
+        Returns:
+            Name with possessive marker removed
+        """
+        name = name.strip()
+        if name.endswith("'s"):
+            return name[:-2].strip()
+        if name.endswith("'"):
+            return name[:-1].strip()
+        return name
 
     def _is_valid_name(self, name: str) -> bool:
         """Check if a name looks like a valid character name."""

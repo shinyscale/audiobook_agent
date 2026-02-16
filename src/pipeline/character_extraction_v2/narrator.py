@@ -181,6 +181,20 @@ class NarratorDetector:
                     f"Available characters: {[c.canonical_name for c in main_cast]}"
                 )
 
+                # DETERMINISTIC FIX: If LLM returned generic "Narrator" and POV is first-person,
+                # identify the actual narrator by mention count and role.
+                # The narrator is typically the most-mentioned protagonist in first-person narratives.
+                if narrator_name.lower() in ("narrator", "the narrator") and pov == "first-person":
+                    narrator_id = self._identify_narrator_by_prominence(main_cast)
+                    if narrator_id:
+                        matched_char = next((c for c in main_cast if c.id == narrator_id), None)
+                        if matched_char:
+                            narrator_name = matched_char.canonical_name
+                            logger.info(
+                                f"Deterministic narrator identification: '{narrator_name}' "
+                                f"selected as primary narrator based on prominence"
+                            )
+
         # Match nested narrators to characters
         nested_ids = []
         for name in nested_narrators:
@@ -224,6 +238,110 @@ class NarratorDetector:
                 return char.id
 
         return None
+
+    def _identify_narrator_by_prominence(
+        self,
+        main_cast: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
+    ) -> Optional[str]:
+        """
+        Identify the narrator from main cast using deterministic signals.
+
+        For first-person narratives where LLM returns generic "Narrator":
+        1. Prefer characters explicitly marked as protagonist
+        2. Prefer characters appearing in more chapters/sections (narrator has broadest presence)
+        3. If tied, select the most-mentioned character
+        4. If still tied, prefer characters with more aliases (more detail = more likely POV)
+
+        This provides a deterministic fallback when summaries use "the narrator"
+        instead of the character's name.
+
+        Args:
+            main_cast: List of main cast characters
+
+        Returns:
+            Character ID of the most likely narrator, or None if unclear
+        """
+        if not main_cast:
+            return None
+
+        # Signal 1: Explicit protagonist role
+        protagonists = [c for c in main_cast if getattr(c, 'role', '') == 'protagonist']
+        if len(protagonists) == 1:
+            logger.info(
+                f"Narrator identified by protagonist role: {protagonists[0].canonical_name}"
+            )
+            return protagonists[0].id
+
+        # Use all main_cast if no protagonist, or filter to protagonists if multiple
+        candidates = protagonists if len(protagonists) > 1 else main_cast
+
+        # Signal 2: Chapter presence (narrator typically appears in most/all chapters)
+        # Sort by chapters_present count if available
+        candidates_with_chapters = [
+            c for c in candidates
+            if hasattr(c, 'chapters_present') and c.chapters_present
+        ]
+
+        if candidates_with_chapters:
+            sorted_by_chapters = sorted(
+                candidates_with_chapters,
+                key=lambda c: len(c.chapters_present),
+                reverse=True,
+            )
+            top_char = sorted_by_chapters[0]
+            top_chapter_count = len(top_char.chapters_present)
+
+            # If one character appears in significantly more chapters, they're likely the narrator
+            if (
+                len(sorted_by_chapters) == 1
+                or top_chapter_count > len(sorted_by_chapters[1].chapters_present) * 1.2
+            ):
+                logger.info(
+                    f"Narrator identified by chapter presence: {top_char.canonical_name} "
+                    f"(appears in {top_chapter_count} chapters)"
+                )
+                return top_char.id
+
+            # Filter to characters with similar chapter presence for next signal
+            candidates = [
+                c for c in sorted_by_chapters
+                if len(c.chapters_present) >= top_chapter_count * 0.9
+            ]
+
+        # Signal 3: Highest mention count (narrator is typically well-mentioned)
+        sorted_by_mentions = sorted(
+            candidates,
+            key=lambda c: getattr(c, 'mention_count', 0),
+            reverse=True,
+        )
+
+        if not sorted_by_mentions:
+            return None
+
+        top_char = sorted_by_mentions[0]
+        top_mentions = getattr(top_char, 'mention_count', 0)
+
+        # If there's a clear leader in mentions, that's likely the narrator
+        if len(sorted_by_mentions) == 1 or (
+            len(sorted_by_mentions) > 1
+            and top_mentions > getattr(sorted_by_mentions[1], 'mention_count', 0) * 1.2
+        ):
+            logger.info(
+                f"Narrator identified by mention count: {top_char.canonical_name} "
+                f"({top_mentions} mentions)"
+            )
+            return top_char.id
+
+        # Signal 4: Tiebreaker - prefer character with more aliases (more detail)
+        tied = [c for c in sorted_by_mentions if getattr(c, 'mention_count', 0) >= top_mentions * 0.9]
+        if len(tied) > 1:
+            tied_sorted = sorted(tied, key=lambda c: len(c.aliases), reverse=True)
+            logger.info(
+                f"Narrator identified by alias count (tiebreaker): {tied_sorted[0].canonical_name}"
+            )
+            return tied_sorted[0].id
+
+        return top_char.id
 
     def _fallback_detection(self, summaries: list[str]) -> NarratorInfo:
         """Simple fallback using keyword detection."""
