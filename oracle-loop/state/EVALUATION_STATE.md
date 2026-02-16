@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 43
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -11,6 +11,19 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 - Identity Graph: ../output/american_sir/identity_graph.json
+
+## Pipeline Notes (Attempt 43)
+- **Analysis completed:** 2026-02-16 04:36
+- **Duration:** 39m 29s
+- **LLM calls:** 78 total (0 JSON parse failures)
+- **Competitive consensus:** ENABLED (3 models @ temps 0.5, 0.7, 0.9 - all stages)
+- **KEY SUCCESS:** Father and son are NOW SEPARATE CHARACTERS ✓
+  - "John Donaldson (the son)" - 28 mentions
+  - "John Donaldson (the father)" - 23 mentions
+  - This is a major improvement over attempt 42's regression
+- **Warning:** Pipeline detected "SAME-NAME CONFLICT" for Narrator and Uncle Bill (may be false positive)
+- **Warning:** Profile ungrounded quotes detected (F19 warnings) - expected behavior
+- **Pronunciation:** LLM batch enrichment failed for one batch (non-critical)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
