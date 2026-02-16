@@ -27,8 +27,8 @@ cd "$SCRIPT_DIR"
 STATE_DIR="state"
 PROMPTS_DIR="prompts"
 LOGS_DIR="logs"
-OUTPUT_DIR="output"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+OUTPUT_DIR="$PROJECT_ROOT/output"  # output/ lives at project root, not oracle-loop/
 
 # Parse arguments
 RUN_ALL=false
@@ -175,8 +175,8 @@ run_analysis() {
     cd "$PROJECT_ROOT"
 
     local cmd="python -m src.cli analyze \"$file\" \
-        --html \"oracle-loop/$output_dir/report.html\" \
-        --output \"oracle-loop/$output_dir/analysis.json\" \
+        --html \"$output_dir/report.html\" \
+        --output \"$output_dir/analysis.json\" \
         $comp_flags \
         $model_flags"
 
@@ -212,8 +212,8 @@ You are scoring the output of an audiobook analysis pipeline for the text "$name
 Examine the analysis output and HTML report, then score each category on a 1-10 scale.
 
 ## Files to Read
-1. oracle-loop/output/$name/analysis.json — the pipeline output
-2. oracle-loop/output/$name/report.html — the HTML report
+1. ../output/$name/analysis.json — the pipeline output (relative to oracle-loop/)
+2. ../output/$name/report.html — the HTML report
 
 ## Scoring Rubric
 Score each category 1-10 based on these criteria:
@@ -253,40 +253,54 @@ SCOREEOF
     cd "$SCRIPT_DIR"
 
     # Use Claude for scoring
-    echo "$prompt" | claude -p \
+    # Find claude binary - may not be in PATH when run via SSH
+    local claude_bin
+    claude_bin=$(which claude 2>/dev/null || echo "$HOME/.local/bin/claude")
+
+    echo "$prompt" | "$claude_bin" -p \
         --model opus \
         --dangerously-skip-permissions \
-        --output-format=stream-json \
         2>&1 | tee "$score_log"
 
-    # Extract the JSON scores from Claude's output
-    # Look for the JSON block in the log
+    # Extract the JSON scores from Claude's plain text output
     local json_block
-    json_block=$(grep -Pzo '```json\s*\n\{[^`]*\}' "$score_log" 2>/dev/null | tr '\0' '\n' | sed '1d' || true)
+    json_block=$(python3 - "$score_log" << 'EXTRACTEOF'
+import re, json, sys
 
-    if [ -z "$json_block" ]; then
-        # Try extracting from stream-json format
-        json_block=$(grep '"type":"text"' "$score_log" 2>/dev/null | \
-            python3 -c "
-import sys, json, re
-text = ''
-for line in sys.stdin:
-    try:
-        obj = json.loads(line)
-        if obj.get('type') == 'text':
-            text += obj.get('text', '')
-    except: pass
-# Find JSON block
-m = re.search(r'\`\`\`json\s*\n(\{.*?\})\s*\`\`\`', text, re.DOTALL)
+with open(sys.argv[1]) as f:
+    text = f.read()
+
+# Try fenced JSON block first
+m = re.search(r'```json\s*\n(.*?)```', text, re.DOTALL)
 if m:
-    print(m.group(1))
-else:
-    # Try bare JSON
-    m = re.search(r'(\{[^{}]*\"scores\"[^{}]*\{[^{}]*\}[^{}]*\})', text, re.DOTALL)
-    if m:
-        print(m.group(1))
-" 2>/dev/null || true)
-    fi
+    try:
+        parsed = json.loads(m.group(1).strip())
+        print(json.dumps(parsed))
+        sys.exit(0)
+    except json.JSONDecodeError:
+        pass
+
+# Try to find a JSON object with 'scores' key by matching braces
+for m in re.finditer(r'\{', text):
+    start = m.start()
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = text[start:i+1]
+                try:
+                    parsed = json.loads(candidate)
+                    if 'scores' in parsed:
+                        print(json.dumps(parsed))
+                        sys.exit(0)
+                except json.JSONDecodeError:
+                    pass
+                break
+EXTRACTEOF
+)
 
     if [ -n "$json_block" ]; then
         echo "$json_block" > "$scores_file"
