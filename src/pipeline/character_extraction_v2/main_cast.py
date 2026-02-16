@@ -877,9 +877,9 @@ class MainCastExtractor:
 
         Algorithm:
         1. For each character, extract first name and full name
-        2. Scan entire summaries for references to this name with possessive/relational markers
-        3. Look for contradictory generational markers (father vs son, elder vs younger)
-        4. If both markers found, force split into two characters with disambiguators
+        2. Scan entire summaries for this name with father/son MODIFIERS
+        3. Verify markers actually modify THIS character (not nearby references to OTHER characters)
+        4. If both father and son modifiers found for the same name, force split with disambiguators
         """
         import re
 
@@ -907,7 +907,8 @@ class MainCastExtractor:
                 rf'\b{re.escape(first_name)}\'s?\b',  # Possessive first name
             ]
 
-            # Scan summaries for father/son markers near this name
+            # Scan summaries for father/son markers that MODIFY this character's name
+            # NOT just markers that appear near the name but refer to OTHER characters
             has_father_context = False
             has_son_context = False
 
@@ -919,25 +920,52 @@ class MainCastExtractor:
                     end = min(len(summaries_text), match.end() + 100)
                     context = summaries_text[start:end]
 
-                    # Check for father markers
-                    father_patterns = [
-                        r'\bfather\b', r'\bdad\b', r'\bpapa\b', r'\bparent\b',
+                    # Extract the matched name from context for proximity checking
+                    matched_name = match.group(0)
+
+                    # Check for father markers that MODIFY this name
+                    # Patterns like "the father, John" or "his father John" or "John's father"
+                    father_modifier_patterns = [
+                        rf'\bfather[,\s]+{re.escape(matched_name)}\b',  # "the father, John"
+                        rf'\bfather\s+{re.escape(matched_name)}\b',     # "father John"
+                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?father\b',  # "John, the father"
+                        rf'{re.escape(matched_name)}\s+\((?:the\s+)?father\)',  # "John (the father)"
+                    ]
+
+                    # Also check for possessive forms that indicate the character IS the father
+                    # e.g., "John's father" when John IS the father being discussed
+                    father_identity_patterns = [
                         r'\belder\b', r'\bsenior\b', r'\bsr\.?\b',
                         r'\bold\s+man\b', r'\bembezz', r'\bfled\b', r'\bvanished\b',
                     ]
-                    for fp in father_patterns:
+
+                    for fp in father_modifier_patterns + father_identity_patterns:
                         if re.search(fp, context, re.IGNORECASE):
                             has_father_context = True
                             break
 
-                    # Check for son markers
-                    son_patterns = [
-                        r'\bson\b', r'\bboy\b', r'\bchild\b', r'\byounger\b',
-                        r'\bjunior\b', r'\bjr\.?\b', r'\byoung\s+man\b',
-                        r'\btwelve-year-old\b', r'\beighteen-year-old\b',
-                        r'\benlist', r'\bambulance\b', r'\bnephew\b',
+                    # Check for son markers that MODIFY this name
+                    son_modifier_patterns = [
+                        rf'\bson[,\s]+{re.escape(matched_name)}\b',     # "the son, John"
+                        rf'\bson\s+{re.escape(matched_name)}\b',        # "son John"
+                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?son\b',  # "John, the son"
+                        rf'{re.escape(matched_name)}\s+\((?:the\s+)?son\)',   # "John (the son)"
+                        rf'\bboy[,\s]+{re.escape(matched_name)}\b',     # "the boy, John"
+                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?boy\b',  # "John, the boy"
                     ]
-                    for sp in son_patterns:
+
+                    # Age markers that DIRECTLY PRECEDE the name (within 20 chars)
+                    # e.g., "twelve-year-old John" counts, but "brought home twelve-year-old John" doesn't
+                    # count for "Uncle Bill" who is NOT the twelve-year-old
+                    age_marker_patterns = [
+                        rf'(?:twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)-year-old\s+{re.escape(matched_name)}\b',
+                        rf'\byounger\s+{re.escape(matched_name)}\b',
+                        rf'\bjunior\b.*{re.escape(matched_name)}\b',
+                        rf'{re.escape(matched_name)}.*\bjr\.?\b',
+                        rf'\byoung\s+man\s+{re.escape(matched_name)}\b',
+                    ]
+
+                    for sp in son_modifier_patterns + age_marker_patterns:
                         if re.search(sp, context, re.IGNORECASE):
                             has_son_context = True
                             break

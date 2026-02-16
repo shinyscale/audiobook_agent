@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 50
-- **Phase:** awaiting_fix
+- **Attempt:** 51
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -215,6 +215,20 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 
 ## Fix History
 
+### Attempt 51 — Fix same-name split false positive for cross-generational characters — **TARGETED FIX**
+- **Issue targeted:** CRITICAL #1 — Uncle Bill falsely split into two characters (main_cast_5 and main_cast_6)
+- **Root cause:** `_enforce_same_name_splits()` detected father/son markers near "Uncle Bill" in summaries, but the markers referred to OTHER characters (John Donaldson father/son), not to Uncle Bill himself
+- **Fix:** Modified pattern matching to verify that father/son markers actually MODIFY the character's name, not just appear in nearby context
+  - Father patterns now check for "the father, John" or "John (the father)" or identity markers like "elder/senior"
+  - Son patterns now check for "the son, John" or age markers that directly precede the name like "twelve-year-old John"
+  - Prevents false positives where markers refer to different characters mentioned in the same sentence
+- **Smoke test:** Traced through logic manually:
+  - "Uncle Bill ... twelve-year-old John" → "twelve-year-old" modifies "John", not "Bill" → NO son context for Bill
+  - "John Donaldson (the father)" → father modifier found for John Donaldson → Correct split maintained
+- **Universal benefit:** Helps any book with cross-generational characters (uncles, guardians, family friends who knew both parent and child)
+- **Files modified:** `src/pipeline/character_extraction_v2/main_cast.py` (lines 910-972, improved context matching)
+- **Tests:** All 44 V2 character extraction tests pass
+
 ### Attempt 50 — Re-run to test LLM non-determinism — **PARTIAL RECOVERY**
 - **Issue targeted:** LLM non-determinism from attempt 49 (Uncle Bill split + son merged into father)
 - **Fix:** No code changes — re-ran analysis to see if LLM produces different results
@@ -244,6 +258,7 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 51 | Fix same-name split false positives for cross-generational characters | `main_cast.py` (+62 lines improved pattern matching) | **AWAITING ANALYSIS** — Should fix Uncle Bill false split |
 | 50 | Re-run to test LLM non-determinism | None (re-run only) | **PARTIAL** — Father/son fixed, Uncle Bill still split. Score: ~6.08 |
 | 49 | Strip parenthetical disambiguators in passage gatherer | `passage_gatherer.py` (+5 lines) | **MIXED** — Profiles improved but upstream character extraction regressed. Score: 6.15 |
 | 48 | REVERT attempt 47's deduplication + re-analyze | `main_cast.py` (-78 lines) | **BASELINE RECOVERY** — Score: 5.95→6.88 |
@@ -295,4 +310,8 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 50 | 6.08 | -0.52 | Father/son fixed, Uncle Bill still split, wrong narrator |
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1 — Uncle Bill false split. The fix should target the ROLE_CONFLICT/SAME_NAME_CONFLICT logic in `src/pipeline/character_extraction_v2/` to suppress splits for narrator characters. This is now CONFIRMED as a code-level issue, not LLM non-determinism.
+Re-run analysis to verify that the same-name split fix prevents Uncle Bill from being falsely split. Expected improvements:
+- Uncle Bill: 2 entries → 1 entry
+- Narrator: correctly identified as Uncle Bill (not the son)
+- Character Extraction: 5/10 → ~6.5-7/10
+- Character Profiles: 4.5/10 → ~6-7/10 (no more confused self-referential relationships)
