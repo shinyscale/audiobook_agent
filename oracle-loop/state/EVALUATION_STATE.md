@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 34
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -209,6 +209,19 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
 
 ## Fix History
 
+### Attempt 35 — Make ROLE_CONFLICT constraint HARD (strength 1.0)
+- **Issue targeted:** CRITICAL #1 — Father/son false merge (regression from attempt 31)
+- **Root cause:** `ROLE_CONFLICT` constraint strength was 0.9, allowing merge evidence weight > 0.9 to override it
+- **Changes made:**
+  1. Changed `ROLE_CONFLICT` constraint strength from 0.9 to 1.0 in `identity_graph.py` line 83
+  2. This makes it a HARD constraint that cannot be overridden by merge evidence
+  3. The deterministic same-name check in `evidence_collectors.py` (lines 1033-1040) already creates this constraint
+- **Result:** TBD - awaiting analysis
+- **Files modified:**
+  - `src/pipeline/character_extraction_v2/identity_graph.py` (line 83)
+- **Test results:** All 38 identity graph unit tests pass, including `test_father_son_same_name_not_merged`
+
+
 ### Attempt 34 — Adaptive promotion thresholds (length-scaled) — PARTIAL SUCCESS
 - **Issues targeted:**
   1. CRITICAL #1 — Uncle Bill demoted from main_cast to supporting
@@ -263,6 +276,7 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | TBD — awaiting analysis |
 | 34 | Adaptive promotion thresholds | `characters.py` | PARTIAL SUCCESS — Uncle Bill restored to main_cast, but father/son merged. Score: 6.65→6.80 |
 | 33 | Possessive stripping + narrator detection | `supporting.py`, `narrator.py` | MIXED — possessive fixed, Uncle Bill demoted to supporting, profiles empty. Score: 6.65 (-0.63) |
 | 32 | Alias cleanup (possessive + nicknames) | `evidence_collectors.py`, `main_cast.py` | NO EFFECT — aliases unchanged, narrator regression |
@@ -296,8 +310,14 @@ Navigation works, character profiles render well. Uncle Bill correctly displayed
 
 ## Next Action
 
-**Phase:** awaiting_fix
+**Phase:** awaiting_analysis
 
-Focus on CRITICAL #1: Father/son false merge. The identity graph merged `main_cast_2` (son) and `main_cast_3` (father) despite 2 constraint edges. The same-name deterministic constraint from attempt 31 needs to be verified — it may need to produce an ABSOLUTE/HARD constraint that the identity graph cannot override, regardless of merge evidence weight. This issue has now regressed twice (attempts 30 and 34), suggesting the constraint is fragile.
+Re-run analysis to verify that father and son are now correctly split into separate characters.
 
-Secondary: CRITICAL #2 (Uncle Bill profile empty) is a separate pipeline issue — first-person narrator profile extraction.
+**Expected outcome:**
+- `main_cast_2`: John Donaldson (son) — should have aliases like "John", "Johnny" but NOT "John Donaldson Sr.", "the father"
+- `main_cast_3`: John Donaldson Sr. (father) — should have aliases like "his father", "the father", "John Donaldson Sr."
+- The ROLE_CONFLICT constraint (now strength 1.0) should prevent these from merging
+
+**Secondary issue (CRITICAL #2):** Uncle Bill profile still empty. If father/son fix works, this becomes the next priority.
+

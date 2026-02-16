@@ -80,7 +80,7 @@ DEFAULT_WEIGHTS: dict[EdgeType, float] = {
 DEFAULT_STRENGTHS: dict[ConstraintType, float] = {
     ConstraintType.DIFFERENT_TITLES: 1.0,       # hard block
     ConstraintType.DIFFERENT_FIRST_NAMES: 0.9,
-    ConstraintType.ROLE_CONFLICT: 0.9,
+    ConstraintType.ROLE_CONFLICT: 1.0,  # hard block - father/son, Sr/Jr must never merge
     ConstraintType.SAME_SCENE_DISTINCT: 0.8,
     ConstraintType.AMBIGUOUS_SURNAME: 0.7,
 }
