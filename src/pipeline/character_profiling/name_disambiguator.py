@@ -304,6 +304,7 @@ class ContextDisambiguator:
         # Statistics for logging
         self.stats = {
             "total_disambiguations": 0,
+            "by_target_preference": 0,
             "by_relationship": 0,
             "by_name_shape": 0,
             "by_temporal": 0,
@@ -362,6 +363,27 @@ class ContextDisambiguator:
                 method="not_ambiguous",
                 reason="Name is not ambiguous",
             )
+
+        # Signal 0: Target character preference (confidence 0.98)
+        # When gathering passages for a specific character, if one of the candidates
+        # exactly matches the target character's canonical name, strongly prefer it.
+        # This prevents profile contamination in same-name scenarios (e.g., father/son).
+        if target_character_names:
+            target_canonical = target_character_names[0] if target_character_names else None
+            if target_canonical:
+                # Check for exact match (case-insensitive)
+                target_lower = target_canonical.lower().strip()
+                for candidate in candidates:
+                    candidate_lower = candidate.lower().strip()
+                    if candidate_lower == target_lower:
+                        # This candidate is the character we're gathering for - prefer it
+                        self.stats["by_target_preference"] = self.stats.get("by_target_preference", 0) + 1
+                        return DisambiguationResult(
+                            resolved_character=candidate,
+                            confidence=0.98,
+                            method="target_preference",
+                            reason=f"Exact match with target character '{target_canonical}'",
+                        )
 
         # Identify which candidate is the "fuller" name (more parts)
         # This helps with name-shape detection

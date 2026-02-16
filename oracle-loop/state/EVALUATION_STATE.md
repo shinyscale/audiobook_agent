@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 36
-- **Phase:** awaiting_fix
+- **Attempt:** 37
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -210,6 +210,7 @@ Navigation works. Character profiles render well. Uncle Bill displayed as protag
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 37 | Profile passage disambiguation | `name_disambiguator.py` | PENDING ANALYSIS — Added target character preference signal |
 | 36 | Grounding gate Sr./Jr. suffix | `mention_search.py`, `test_character_extraction_v2.py` | PARTIAL SUCCESS — father grounded ✓, son's profile contaminated ✗, Johnny false split ✗. Completeness 6→8, IR 7→6, Profiles 7.5→6.5. Score: 7.05→7.15 |
 | 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | PARTIAL SUCCESS — no false merge ✓, father filtered by grounding ✗. IR 4→7, AG 7→8, Profiles 6→7.5. Score: 6.80→7.05 |
 | 34 | Adaptive promotion thresholds | `characters.py` | PARTIAL SUCCESS — Uncle Bill restored, father/son merged. Score: 6.65→6.80 |
@@ -230,10 +231,33 @@ Navigation works. Character profiles render well. Uncle Bill displayed as protag
 | 35 | 7.05 | +0.45 | HARD constraint works, father filtered |
 | 36 | 7.15 | +0.55 | Father grounded ✓, profiles contaminated ✗ |
 
+## Fix History
+
+### Attempt 37 — Target character preference in passage disambiguation — IN PROGRESS
+- **Issue targeted:** CRITICAL #1+#2 — Son's profile contaminated with father's story due to shared name
+- **Root cause:** When gathering passages for the son ("John Donaldson"), the disambiguator sees two candidates:
+  - Son's canonical name: "John Donaldson"
+  - Father's alias: "John Donaldson"
+  The disambiguator had NO "prefer the target character" signal, so it couldn't reliably distinguish them.
+- **Changes made:**
+  1. Added Signal 0 (target character preference, confidence 0.98) to `ContextDisambiguator.disambiguate()`
+  2. When a candidate exactly matches `target_character_names[0]` (the canonical name we're gathering for), prefer it strongly
+  3. Added `by_target_preference` stat tracking
+- **Fix classification:**
+  - Fix type: algorithmic (add missing universal invariant)
+  - Universality check: YES - helps ANY book with same-name characters (father/son, generational names, etc.)
+  - Not a keyword filter - uses exact canonical name matching
+- **Files modified:**
+  - `src/pipeline/character_profiling/name_disambiguator.py` (added 25 lines)
+- **Expected result:** Son's profile should now get passages about the son, not the father. Father's profile should remain correct.
+
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. CRITICAL #1+#2: Profile passage disambiguation for same-name characters (son gets father's story)
-2. HIGH #3: Johnny false split regression (was alias in attempt 35, now separate character)
+**Phase:** awaiting_analysis
 
-**Target files:** `src/pipeline/character_profiling/passage_gatherer.py`, `src/pipeline/character_profiling/name_disambiguator.py`. Do NOT modify identity graph, grounding gate, or constraint logic.
+Re-run analysis on american_sir (attempt 37) to verify:
+1. Son's profile now describes the SON (Yale student, WWI ambulance driver, found dying father)
+2. Father's profile remains correct (fraud, faked death, redemption)
+3. No regression on character extraction or other categories
+
+Note: Did NOT address HIGH #3 (Johnny false split) in this attempt - focusing on CRITICAL issues first.
