@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 37
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 37)
+- Analysis completed in 38m 29s
+- Competitive consensus ENABLED for all 3 stages (characters, structure, summaries)
+- 8 characters found (same as attempt 36)
+- Character list shows father and son properly separated:
+  - "John Donaldson" (9 mentions) - appears to be the son
+  - "John Donaldson" (29 mentions, aliases: "John, the father") - the father
+- Some F19 warnings about potentially ungrounded evidence quotes
+- 1 JSON parse failure in Pronunciation Guide batch enrichment (recurring issue)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
