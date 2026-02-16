@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 33
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -16,33 +16,32 @@
 - 68 LLM calls, 108,910 tokens
 - Found 8 characters, 2 chapters, 20 pronunciation flags
 - 1 JSON parse failure (Pronunciation Guide batch enrichment)
-- Profiling shows Character Profiles as bottleneck (10m54s / 28.6% of total time)
-- F19 warnings: 4 profiles with potentially ungrounded evidence quotes (son, father, Bill, Ted Frith)
+- ALL character profiles are now empty (null personality, null traits, null evidence_quotes) — MASSIVE REGRESSION from attempt 32
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 7/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 7/10
+- Character Extraction: 6/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 5/10
   - Alias Grouping: 6/10
-- Character Profiles: 7.5/10 ✗
+- Character Profiles: 5/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 7/10 ✗
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.23/10** (reference only)
-
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (5 categories below threshold)
+- **Overall: 6.55/10** (reference only)
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
-        = 1.40 + 1.75 + 1.125 + 1.50 + 0.70 + 0.80
-        = 7.275
+Overall = (7 × 0.20) + (6 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
+        = 1.40 + 1.50 + 0.75 + 1.50 + 0.70 + 0.80
+        = 6.65
 ```
 
-**Overall: 7.28/10** (DOWN from 7.33 in attempt 31 — minor regression)
+**Overall: 6.65/10** (DOWN from 7.28 in attempt 32 — significant regression)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (5 categories below threshold)
 
 ## Detailed Evaluation
 
@@ -50,75 +49,65 @@ Overall = (7 × 0.20) + (7 × 0.25) + (7.5 × 0.15) + (7.5 × 0.20) + (7 × 0.10
 
 Unchanged from previous attempts. "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles and null start/end lines. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable despite the artificial split.
 
-### 2.2 Character Extraction: 7/10 ✗ (DOWN from 7.5 — regression)
+### 2.2 Character Extraction: 6/10 ✗ (DOWN from 7 — regression)
 
-**The alias cleanup fix DID NOT WORK.** "Johnny" is still a separate supporting character (supporting_6), and "John Donaldson's" (possessive) is still an alias of the father.
+**Uncle Bill has been DEMOTED from main_cast to supporting_cast.** He was `main_cast_3` ("Uncle Bill") in attempt 32. Now he's `supporting_1` ("Bill") with `role: minor`. This is a catastrophic regression — the protagonist and narrator of the story is classified as a minor supporting character.
 
-**Additionally, Uncle Bill LOST `is_narrator: true` and `role: protagonist`** — both were correct in attempt 31 and have regressed. Uncle Bill is unambiguously the narrator (the story is told from his first-person perspective throughout) and the protagonist.
-
-**Character list (8 total, 4 main_cast + 4 supporting):**
-- `main_cast_1`: **John Donaldson (the son)** — 9 mentions, `is_narrator: true`, role: `supporting`
-  - `is_narrator: true` is correct (he narrates the wartime section) ✓
-  - Aliases: NONE — should have "Johnny", "John" ✗
-- `main_cast_2`: **John Donaldson (the father)** — 32 mentions, role: `supporting`
-  - Aliases: ["the father", "the man", "John", "John Donaldson's"] — possessive still present ✗
-- `main_cast_3`: **Uncle Bill** — 19 mentions, `is_narrator: false`, role: `supporting`
-  - Should be `is_narrator: true` and `role: protagonist` ✗✗ (REGRESSION from attempt 31)
-  - Aliases: ["Bill", "Uncle"] ✓
-- `main_cast_4`: **Margaret Donaldson** — 2 mentions ✓
-- `supporting_1`: **Joe Barron** — 3 mentions ✓
-- `supporting_2`: **Red Cross** — 4 mentions — organization, not character ✗
+**Character list (8 total, 3 main_cast + 5 supporting):**
+- `main_cast_1`: **John Donaldson (the son)** — 28 mentions, `is_narrator: true`, role: `supporting`
+  - `is_narrator: true` is correct for nested narration ✓
+  - Aliases: ["John"] — improved from NONE in attempt 32 ✓, but still missing "Johnny" ✗
+- `main_cast_2`: **John Donaldson (the father)** — 23 mentions, role: `supporting`
+  - Aliases: ["father"] — possessive "John Donaldson's" is GONE ✓ (fix worked!)
+  - But alias list is now too sparse — lost "the father", "the man", "John" from attempt 32 ✗
+- `main_cast_3`: **Margaret Donaldson** — 2 mentions ✓
+- `supporting_1`: **Bill** — 18 mentions, `is_narrator: false`, role: `minor` ✗✗✗
+  - Should be "Uncle Bill", `is_narrator: true`, `role: protagonist`
+  - Lost canonical name "Uncle Bill" → now just "Bill"
+  - Lost ALL aliases (had ["Bill", "Uncle"] when he was main_cast_3)
+  - Demoted from main_cast to supporting — WRONG
+- `supporting_2`: **Joe Barron** — 3 mentions ✓
+- `supporting_3`: **Red Cross** — 4 mentions — organization, not character ✗
 - `supporting_4`: **Ted Frith** — 5 mentions, alias: "Ted" ✓
 - `supporting_6`: **Johnny** — 2 mentions — should be alias of the son ✗
 
-**Sub-Dimension A: Completeness: 8/10** (stable)
-- All expected characters present ✓
-- "Red Cross" is an organization, not a character ✗ (minor)
+**Sub-Dimension A: Completeness: 7/10** (DOWN from 8)
+- Uncle Bill is present but misnamed and demoted — effectively the protagonist is mischaracterized ✗
+- "Red Cross" is an organization, not a character ✗
 - "Johnny" should be alias, not separate entry ✗
 
-**Sub-Dimension B: Identity Resolution: 7/10** (DOWN from 8)
+**Sub-Dimension B: Identity Resolution: 5/10** (DOWN from 7)
+- Uncle Bill completely misidentified: wrong name ("Bill" not "Uncle Bill"), wrong role ("minor" not "protagonist"), not narrator ✗✗✗
 - Father/son correctly split with disambiguation labels ✓
-- Uncle Bill lost narrator status — he IS the primary narrator ✗ (REGRESSION)
-- Uncle Bill lost protagonist role ✗ (REGRESSION)
 - "Johnny" remains separate instead of being alias of the son ✗
+- Bill's relationships include "John Donaldson: father" — WRONG. Bill is not John Donaldson's father; he's the son's guardian/cousin ✗
 
-**Sub-Dimension C: Alias Grouping: 6/10** (DOWN from 6.5)
-- "John Donaldson's" (possessive) still an alias of the father ✗ — fix didn't work
-- "Johnny" separate instead of alias of the son ✗ — fix didn't work
-- The son has ZERO aliases — should have "Johnny", "John" ✗
-- "the man" as alias of the father — unusual but not wrong
-- "Ted" → Ted Frith: correct ✓
-- "Bill", "Uncle" → Uncle Bill: correct ✓
+**Sub-Dimension C: Alias Grouping: 6/10** (stable)
+- Possessive "John Donaldson's" is gone — fix worked ✓
+- Father's aliases reduced from ["the father", "the man", "John", "John Donaldson's"] to just ["father"] — over-stripped ✗
+- Son now has ["John"] — improved from zero ✓, but missing "Johnny" ✗
+- "Johnny" separate instead of alias of the son ✗
+- Bill has zero aliases — lost "Uncle" ✗
 
-### 2.3 Character Profiles: 7.5/10 ✗ (UP from 7 — improvement)
+### 2.3 Character Profiles: 5/10 ✗ (DOWN from 7.5 — MASSIVE regression)
 
-**Major improvement:** Uncle Bill and the father now have rich personality summaries, traits, and evidence quotes. This was all null in attempt 31.
+**ALL character profiles are now completely empty.** Every character has:
+- `personality_summary: null`
+- `personality_traits: null`
+- `evidence_quotes: null` (or empty)
+- `physical_description: null`
 
-**Uncle Bill:** GOOD profile
-- Personality summary: "morally ambiguous: initially cold and self-centered, he undergoes quiet transformation" ✓
-- Traits: ["Self-centered", "Reluctantly compassionate", "Emotionally repressed", "Capable of profound moral reflection", "Prideful yet redeemable"] ✓✓
-- Evidence quotes: 4 excellent, accurate quotes from text ✓✓
-- Relationships: {"John Donaldson": "mentor", "John Donaldson (father)": "ally"} — imprecise (should be guardian/cousin) ✗
-- Physical: null ✗
-- Voice guidance: EXCELLENT ✓
+In attempt 32, Uncle Bill and the father had excellent personality summaries, traits, and evidence quotes. All of that is gone.
 
-**John Donaldson (the father):** EXCELLENT profile
-- Personality: "morally ambiguous man who committed grave betrayals... yet redeemed himself" ✓✓
-- Traits and evidence quotes accurate ✓✓
-- Relationships: {"John Donaldson (the son)": "parent", "Uncle Bill": "acquaintance"} — "parent" is correct, "acquaintance" should be "cousin" ✗
-- Voice guidance with "American, sir" verbal tic ✓✓
+**What remains functional:**
+- Relationships: 4/8 characters have some relationships (but several are wrong — Bill's says "John Donaldson: father" which is incorrect)
+- Voice guidance: 4 characters have voice guidance sections, and quality is mixed:
+  - **Father's voice guidance:** Excellent — includes "American, sir" verbal tic, accurate example quotes ✓✓
+  - **Son's voice guidance:** Good — includes his letter and emotional quotes ✓
+  - **Bill's voice guidance:** CONTAMINATED — example quotes include "'American, sir,' he said proudly" and "'Took money,' he said. 'Very unjustifiable.'" — these are the FATHER's lines, not Uncle Bill's ✗✗
+  - **Ted Frith's voice guidance:** CONTAMINATED — "'This is my good day. I'm American to-day, sir!'" is the FATHER's iconic line, not Ted's ✗
 
-**John Donaldson (the son):** EMPTY — NO profile data at all ✗
-- Personality: "Insufficient information" — but there IS information in the text about him
-- Relationships: empty ✗ — should at minimum have Uncle Bill and his father
-- Voice guidance: generic placeholder ✗
-
-**Ted Frith:** CONTAMINATED profile ✗
-- Evidence quotes attributed to Ted are actually the FATHER's quotes: "'this is my good day. I'm American to-day, sir!'" is John Donaldson (the father), not Ted Frith
-- This is a cross-contamination error in the profiling pipeline
-- Relationships list "Uncle Bill (narrator)" — but Uncle Bill isn't marked as narrator in this attempt
-
-**Why 7.5/10:** The personality and voice guidance improvements for Uncle Bill and the father are genuinely excellent and useful for narrators. But the son has NO profile data, Ted Frith's profile is contaminated with the father's quotes, and physical descriptions remain null for all characters.
+**Why 5/10:** Having voice guidance saves this from being lower, but the complete loss of personality data, evidence quotes, and contaminated voice guidance for two characters is a severe regression.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗ (stable)
 
@@ -144,90 +133,98 @@ Unchanged from previous attempts. "American, Sir" is a continuous short story wi
 - Military/medical terms: dum-dums, orderlies — standard pronunciation ✗
 - Archaic contraction: mayn't — borderline ✗
 
-**"was" no longer present** — that false positive was removed ✓
-
 **Why 7/10:** 7/20 entries (35%) are false positives. The core foreign terms and homographs are excellent, but the false positives drag the score down.
 
 ### 2.6 HTML Presentation: 8/10 ✓
 
-Navigation works, character profiles render well, voice guidance sections are properly formatted. Disambiguation labels display correctly. Minor issues: possessive alias displayed, "Red Cross" and "Johnny" in Supporting Characters.
+Navigation works, character profiles render well (even if data is empty), voice guidance sections display. Disambiguation labels for the Donaldsons display correctly. Minor: "Red Cross" and "Johnny" in Supporting Characters, Bill misnamed.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - Pipeline: V2 with Phase 2 graph-based identity resolution
 - 0 LLM retries — good
 - 1 JSON parse failure in Pronunciation Guide stage
-- Character Profiles bottleneck (550s) — not actionable
+- Character Profiles bottleneck (654s / largest stage) — not actionable
+- All profiles null despite successful LLM calls (11 calls, 45427 tokens) — suggests profiling data isn't being saved to output
 - No config changes recommended
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-(None)
+
+1. **Uncle Bill demoted from main_cast to supporting, misnamed as "Bill"** [Identity Resolution]
+   - Problem: Uncle Bill was `main_cast_3` ("Uncle Bill") in attempt 32, now `supporting_1` ("Bill") with `role: minor` and `is_narrator: false`. He's the story's protagonist and primary narrator.
+   - Evidence: The story is told entirely from Uncle Bill's first-person perspective. He narrates both sections. He appears in all sections.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — main cast extraction is NOT identifying Uncle Bill as main cast. The supporting cast pipeline picks him up as just "Bill" instead.
+   - Fix approach: The main cast extraction must be identifying Uncle Bill. The issue may be that "Uncle Bill" appears less frequently than "John Donaldson" variants, pushing him below the main cast threshold. The deterministic narrator detection from attempt 33 in `narrator.py` can't work if Uncle Bill isn't even in the main cast. Need to investigate why main_cast extraction dropped him — this is a regression from attempt 32.
+
+2. **ALL character profiles empty — massive regression** [Profiles]
+   - Problem: Every character has null personality_summary, null personality_traits, null evidence_quotes, null physical_description. In attempt 32, Uncle Bill and the father had excellent profiles.
+   - Evidence: `jq '[.characters[] | select(.personality_summary != null)] | length'` returns 0. But profiling stage ran (11 LLM calls, 45427 tokens, 654 seconds).
+   - Location: `src/pipeline/character_profiling/` or `src/agents/characters.py` (wherever profiling results are merged into the final character objects)
+   - Fix approach: The profiling pipeline ran and consumed significant tokens, so it's generating data. The data is not making it into the final output. Check if the profiles are being matched to characters by name — since "Bill" ≠ "Uncle Bill", the profile for "Uncle Bill" may not match `supporting_1: "Bill"`. This may be a downstream effect of CRITICAL #1.
 
 ### HIGH
 
-1. **Uncle Bill lost narrator status and protagonist role — REGRESSION** [Identity Resolution]
-   - Problem: In attempt 31, Uncle Bill was `is_narrator: true` and `role: protagonist`. Now he's `is_narrator: false` and `role: supporting`. This is incorrect — Uncle Bill narrates the entire story in first person.
-   - Evidence: The story opens with "I had not even seen him" and is entirely from Uncle Bill's perspective. He is unambiguously the narrator and protagonist.
-   - Location: LLM non-determinism in `src/pipeline/character_extraction_v2/main_cast.py` — the main cast extraction sometimes assigns narrator/protagonist correctly and sometimes doesn't. This needs a deterministic fix.
-   - Fix approach: The narrator detection should be strengthened. Since the son ALSO has `is_narrator: true` (correct for nested narration), the pipeline may be only assigning narrator to one character. Uncle Bill should always be detected as narrator given first-person POV.
+3. **Bill's voice guidance contaminated with father's quotes** [Profiles]
+   - Problem: Bill's example_quotes include "'American, sir,' he said proudly" and "'Took money,' he said. 'Very unjustifiable.'" — these are the FATHER's iconic lines, not Uncle Bill's.
+   - Evidence: Throughout the story, "American, sir" and "Took money" are spoken by John Donaldson (the father), not by Uncle Bill.
+   - Location: `src/pipeline/character_profiling/` — passage gathering or evidence extraction is assigning the father's dialogue to Bill because they appear in the same scenes.
+   - Fix approach: Same root cause as Ted Frith contamination from attempt 32 — the profiling pipeline has a name disambiguation problem where quotes from the father are attributed to nearby characters.
 
-2. **Alias fix did not take effect** [Alias Grouping]
-   - Problem: "John Donaldson's" (possessive) is still an alias of the father. "Johnny" is still a separate supporting character (supporting_6) not merged with the son. The possessive stripping and nickname matching fixes from attempt 32 did not work.
-   - Evidence: Father's aliases: ["the father", "the man", "John", "John Donaldson's"]. Johnny: separate character with 0 aliases.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` (possessive stripping), `src/pipeline/character_extraction_v2/evidence_collectors.py` (nickname matching)
-   - Fix approach: Debug why the fixes didn't take effect. The possessive stripping function was added but may not be called in the right code path. The nickname matching may need to happen at a different stage (post-extraction merge rather than during extraction).
+4. **Ted Frith's voice guidance still contaminated with father's quotes** [Profiles]
+   - Problem: Ted's example_quotes include "'This is my good day. I'm American to-day, sir!'" — this is the FATHER's line.
+   - Evidence: Same as attempt 32 — the "American, sir" lines belong to John Donaldson (the father).
+   - Location: Same root cause as HIGH #3.
 
-3. **Ted Frith profile contaminated with father's quotes** [Profiles]
-   - Problem: Ted Frith's evidence quotes include "'this is my good day. I'm American to-day, sir!'" — this is the FATHER's iconic line, not Ted's. Ted Frith is a minor character mentioned in the wartime section.
-   - Evidence: The "American, sir" and "American to-day" lines are consistently attributed to John Donaldson (the father) throughout the text. Ted's actual role is more limited.
-   - Location: `src/pipeline/character_profiling/` — passage gathering or evidence extraction is assigning passages from the father's scenes to Ted Frith, likely because they appear in the same scenes.
-   - Fix approach: The name disambiguator or passage filter needs to correctly attribute these quotes to the father, not Ted.
+5. **Father's alias list over-stripped** [Alias Grouping]
+   - Problem: Father's aliases went from ["the father", "the man", "John", "John Donaldson's"] to just ["father"]. While removing the possessive was correct, losing "the father", "the man", and "John" was not.
+   - Evidence: "the father" and "the man" are valid aliases used in the text. "John" is shared with the son but contextually valid.
+   - Location: The possessive stripping fix in `src/pipeline/character_extraction_v2/supporting.py` may have been too aggressive, or NER is extracting fewer aliases this run.
+   - Fix approach: This is likely LLM non-determinism rather than a code bug. The possessive stripping only removes "'s" forms — it shouldn't affect "the father" or "the man".
 
-4. **Summary "sister" hallucination persists** [Summaries]
+6. **Summary "sister" hallucination persists** [Summaries]
    - Problem: Section 2 says "his deceased sister's son" — Uncle Bill is the father's COUSIN, not sibling.
-   - Evidence: Section 1 correctly says "cousin"
-   - Location: LLM generation non-determinism in summary pipeline
+   - Evidence: Section 1 correctly says "cousin."
+   - Location: LLM generation non-determinism in summary pipeline.
 
 ### MEDIUM
 
-5. **Son has NO profile data** [Profiles]
-   - Problem: John Donaldson (the son) has "Insufficient information for personality analysis", empty relationships, and generic voice guidance. But the text describes him — he enlists in WWI, drives ambulances, earns a Croix de Guerre, and has a pivotal reunion with his father.
-   - Location: `src/pipeline/character_profiling/` — likely passage gathering fails for disambiguated names with "(the son)" suffix
-   - Evidence: The EVALUATION_STATE.md from attempt 31 noted "No passages found for 'John Donaldson (the son)'" — the passage gatherer can't find text matching this disambiguated name format.
+7. **"Johnny" still a separate character** [Alias Grouping]
+   - Problem: Johnny (supporting_6, 2 mentions) should be an alias of John Donaldson (the son), not a separate character.
+   - Location: Identity graph merge logic in `src/pipeline/character_extraction_v2/` — nickname matching not connecting "Johnny" to "John Donaldson (the son)".
 
-6. **Pronunciation: 7/20 false positives (35%)** [Pronunciation]
-   - Remaining false positives: whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't
-   - These are uncommon-but-real English words, harder to filter generically
+8. **Pronunciation: 7/20 false positives (35%)** [Pronunciation]
+   - Remaining false positives: whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't.
 
-7. **Structure: 2 sections for continuous short story** [Structure]
+9. **Structure: 2 sections for continuous short story** [Structure]
    - Same as all prior attempts. Not worth a targeted fix for this text alone.
 
-8. **"Red Cross" extracted as character** [Completeness]
-   - Organization, not a character (supporting_2, 4 mentions). Same as all prior attempts.
+10. **"Red Cross" extracted as character** [Completeness]
+    - Organization, not a character (supporting_3, 4 mentions).
+
+11. **Bill's relationship "John Donaldson: father" is wrong** [Profiles]
+    - Bill is the son's guardian/cousin, not his father. This relationship label is incorrect.
 
 ### LOW
 
-9. **Section 1 `characters_present` only shows "Narrator"** — should list named characters
-10. **Relationship labels imprecise** — Uncle Bill↔father should be "cousin" not "acquaintance"/"mentor"/"ally"
-11. **All characters have null physical_description** — text contains some physical descriptions (father described with "physical beauty and charm")
+12. **Section 1 `characters_present` only shows "Narrator"** — should list named characters
+13. **Son still missing "Johnny" alias**
 
 ## Fix Priority
 
-**Focus on crossing 8.0 in the most categories:**
+**This attempt regressed significantly.** The overall score dropped from 7.28 to 6.65 (-0.63), which is BELOW the baseline of 6.60. The auto-revert threshold is baseline - 0.3 = 6.30, so it doesn't trigger, but this is close.
 
-The closest categories to threshold:
-- **Character Extraction: 7** — needs narrator regression fixed AND alias issues resolved
-- **Character Profiles: 7.5** — needs son profile populated, Ted contamination fixed
-- **Chapter Summaries: 7.5** — needs "sister" hallucination fixed (LLM-dependent)
-- **Pronunciation: 7** — needs false positive reduction
-- **Structure: 7** — continuous text detection (persistent, hard to fix generically)
+**Root cause analysis:** The main regression is Uncle Bill being demoted from main_cast to supporting. This likely cascaded into:
+1. Profile matching failure (profiles generated for "Uncle Bill" can't match to "Bill")
+2. Narrator detection failure (deterministic fallback in narrator.py looks at main_cast characters, Bill is in supporting)
+
+**The possessive stripping fix DID work** — "John Donaldson's" is gone from the father's aliases. But the main_cast extraction became unstable, dropping Uncle Bill entirely.
 
 **Recommended fix order:**
-1. **Fix Uncle Bill narrator/protagonist regression** (HIGH #1) — this is the most impactful single fix. Must be deterministic, not LLM-dependent.
-2. **Debug alias fix** (HIGH #2) — the possessive stripping and Johnny merge were coded but didn't take effect. Need to trace why.
-3. **Profile contamination** (HIGH #3) and **son profile** (MEDIUM #5) — may be related to the same passage gathering issue with disambiguated names.
+1. **CRITICAL #1: Stabilize Uncle Bill in main_cast** — This is the root cause of most regressions. Need to investigate why main_cast extraction dropped him and ensure he's reliably identified.
+2. **CRITICAL #2: Profile data loss** — Likely resolves automatically if Uncle Bill returns to main_cast with correct name. But verify that profiles are actually being written to output.
+3. HIGH #3-4 (voice contamination) — May require profile pipeline changes but lower priority than getting the basics right.
 
 ## Fix History
 
@@ -235,34 +232,24 @@ The closest categories to threshold:
 - **Issues targeted:**
   1. HIGH #1 — Uncle Bill narrator/protagonist regression
   2. HIGH #2 — Alias fix from attempt 32 didn't work (possessive + Johnny)
-- **Root cause analysis:**
-  1. **Possessive:** NER extracts "John Donaldson's" → supporting_3 → gets merged into father's group → canonical name becomes alias. The `_strip_possessive()` in main_cast.py works but doesn't touch supporting cast names.
-  2. **Narrator:** Detection is LLM-based. Summaries use "Narrator" (generic) instead of "Uncle Bill", causing non-deterministic matching failures.
 - **Changes made:**
   1. Added `_strip_possessive()` method to `supporting.py` (same logic as main_cast.py)
-  2. Applied possessive stripping to NER entity names at extraction time (line 117: `name = self._strip_possessive(ent.text.strip())`)
-  3. Added deterministic fallback in `narrator.py`: when LLM returns generic "Narrator", `_identify_narrator_by_prominence()` selects based on:
-     - Protagonist role (if present)
-     - Chapter presence (narrator appears in most/all chapters)
-     - Mention count (as tiebreaker)
-     - Alias count (final tiebreaker)
-- **Expected impact:**
-  - Possessive "John Donaldson's" should be stripped before entering identity graph → won't become an alias
-  - Uncle Bill should be identified as narrator consistently (appears in both sections, father only in section 2)
-  - Johnny still separate (requires identity graph merge logic changes - deferred to future attempt)
+  2. Applied possessive stripping to NER entity names at extraction time
+  3. Added deterministic fallback in `narrator.py`
+- **Result:** MIXED — Possessive stripping worked (John Donaldson's gone), BUT Uncle Bill demoted from main_cast to supporting. ALL profiles now empty. Score: 7.28 → 6.65 (-0.63). **Net negative.**
 - **Files modified:**
-  - `src/pipeline/character_extraction_v2/supporting.py` — added `_strip_possessive()` method and applied to NER entity text
-  - `src/pipeline/character_extraction_v2/narrator.py` — added `_identify_narrator_by_prominence()` deterministic fallback
+  - `src/pipeline/character_extraction_v2/supporting.py`
+  - `src/pipeline/character_extraction_v2/narrator.py`
 
 ### Attempt 32 — Alias cleanup (possessive stripping + nickname matching) — DID NOT WORK
 - **Issue targeted:** HIGH #1 from attempt 31 — Alias grouping below threshold (6.5/10)
 - **Changes made:**
-  1. Added `COMMON_NICKNAMES` entries: `"john": ["jonathan"]`, `"johnny": ["john", "jonathan"]` in `evidence_collectors.py`
+  1. Added `COMMON_NICKNAMES` entries in `evidence_collectors.py`
   2. Added `_strip_possessive()` helper function to `main_cast.py`
   3. Applied `_strip_possessive()` to all alias assignment locations in `main_cast.py`
 - **Result:** NO EFFECT — possessive still present, Johnny still separate character
 - **Additional regression:** Uncle Bill lost `is_narrator: true` and `role: protagonist`
-- **Score impact:** 7.33 → 7.28 (-0.05) — minor regression overall
+- **Score impact:** 7.33 → 7.28 (-0.05)
 
 ### Attempt 31 — Deterministic same-name constraint (SUCCESS!)
 - **Issue targeted:** CRITICAL #1 — Father/son merged (regression from attempt 29)
@@ -277,15 +264,13 @@ The closest categories to threshold:
 ### Attempt 29 — Disambiguation labels via post-processing (SUCCESS!)
 - Score: 7.13
 
-### Attempt 28 — Revert to attempt 25 state
-- Score: 6.65
-
 ### Previous attempts — see earlier evaluation states
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 33 | Possessive stripping + narrator detection | `supporting.py`, `narrator.py` | MIXED — possessive fixed, Uncle Bill demoted to supporting, profiles empty. Score: 6.65 (-0.63) |
 | 32 | Alias cleanup (possessive + nicknames) | `evidence_collectors.py`, `main_cast.py` | NO EFFECT — aliases unchanged, narrator regression |
 | 31 | Deterministic same-name constraint | `evidence_collectors.py` | SUCCESS — father/son split restored, score 6.78→7.33 |
 | 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved (5→7), BUT character regression |
@@ -312,12 +297,14 @@ The closest categories to threshold:
 | 30 | 6.78 | +0.18 | Pronunciation improved but father/son merge regression |
 | 31 | 7.33 | +0.73 | Deterministic same-name fix SUCCESS — highest since attempt 22 |
 | 32 | 7.28 | +0.68 | Alias fix NO EFFECT, Uncle Bill narrator regression, profiles improved |
+| 33 | 6.65 | +0.05 | Possessive fix worked, BUT Uncle Bill demoted, profiles empty |
 
 ## Next Action
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_fix
 
-Re-run analysis with fixes from attempt 33:
-1. Possessive stripping in supporting cast should eliminate "John Donaldson's" as a separate alias
-2. Deterministic narrator detection should consistently identify Uncle Bill as narrator
-3. Johnny will remain a separate character (identity graph merge logic not modified in this attempt)
+The attempt 33 fixes caused a net regression. The fix phase should:
+1. Investigate why Uncle Bill dropped from main_cast to supporting — this is the root cause of most issues
+2. The possessive stripping fix in `supporting.py` worked but the main_cast extraction became unstable
+3. Consider reverting the `supporting.py` changes if they interfered with main_cast extraction, while keeping the `narrator.py` deterministic fallback
+4. Ensure profiles are being matched and written correctly — profile loss is likely a downstream effect of the name change
