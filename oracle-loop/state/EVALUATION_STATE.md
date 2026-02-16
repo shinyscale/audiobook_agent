@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 31
-- **Phase:** awaiting_fix
+- **Attempt:** 32
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -241,6 +241,23 @@ The closest categories to threshold are:
 
 ## Fix History
 
+### Attempt 32 — Alias cleanup (possessive stripping + nickname matching)
+- **Issue targeted:** HIGH #1 — Alias grouping below threshold (6.5/10)
+- **Root causes:**
+  1. Possessive forms ("John Donaldson's") included as aliases without stripping
+  2. "Johnny" (supporting cast) not merged with "John Donaldson (the son)" (main cast) - missing nickname mapping
+- **Changes made:**
+  1. Added `COMMON_NICKNAMES` entries: `"john": ["jonathan"]`, `"johnny": ["john", "jonathan"]` in `evidence_collectors.py`
+  2. Added `_strip_possessive()` helper function to `main_cast.py` - removes trailing "'s" and "'" from aliases
+  3. Applied `_strip_possessive()` to all alias assignment locations in `main_cast.py` (lines 690, 695, 757, 764, 953, 955)
+- **Universality:** YES
+  - "Johnny" → "John" is universal diminutive (like "Tommy" → "Tom" already in list)
+  - Possessive stripping is universal English grammar pattern
+- **Smoke test:** Unit tests verify possessive stripping and nickname matching logic
+- **Test suite:** 336 passed, 8 failed (pre-existing test_semantic_conflicts failures), 10 skipped
+- **Files modified:** `src/pipeline/character_extraction_v2/evidence_collectors.py`, `src/pipeline/character_extraction_v2/main_cast.py`
+- **Expected impact:** Character Extraction: Alias Grouping 6.5→8+ (eliminates possessive aliases, merges Johnny→son)
+
 ### Attempt 31 — Deterministic same-name constraint (SUCCESS!)
 - **Issue targeted:** CRITICAL #1 — Father/son merged (regression from attempt 29)
 - **Changes made:** Added deterministic check in `evidence_collectors.py:collect_constraint_evidence()` — if two main_cast characters have identical `canonical_name`, automatically add `role_conflict` constraint edge
@@ -272,6 +289,7 @@ The closest categories to threshold are:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 32 | Alias cleanup (possessive + nicknames) | `evidence_collectors.py`, `main_cast.py` | PENDING — awaiting analysis |
 | 31 | Deterministic same-name constraint | `evidence_collectors.py` | SUCCESS — father/son split restored, score 6.78→7.33 |
 | 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved (5→7), BUT character regression |
 | 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS — labels applied, score 7.13 |
@@ -299,7 +317,13 @@ The closest categories to threshold are:
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. **Alias cleanup** (strip possessives, merge "Johnny" → son) — to push Character Extraction 7.5→8+
-2. **Profile population** (personality/physical fields) — to push Profiles 7→8+
-3. Remaining issues are lower priority and may be addressed in subsequent attempts
+**Phase:** awaiting_analysis
+
+Re-run analysis to verify:
+1. "John Donaldson's" possessive removed from aliases
+2. "Johnny" merged with "John Donaldson (the son)" via nickname matching
+3. Character Extraction: Alias Grouping score improves from 6.5→8+
+
+If successful, subsequent fixes may address:
+- **Profile population** (personality/physical fields) — to push Profiles 7→8+
+- **Summary hallucination** or **pronunciation** improvements

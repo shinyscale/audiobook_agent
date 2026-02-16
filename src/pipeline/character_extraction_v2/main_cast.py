@@ -687,13 +687,13 @@ class MainCastExtractor:
             if alias_response.success and alias_result:
                 # Merge aliases into the character profile
                 aliases = alias_result.get("aliases", [])
-                char.aliases = [a.strip() for a in aliases if a.strip()]
+                char.aliases = [self._strip_possessive(a.strip()) for a in aliases if a.strip()]
 
                 # Optional: keep uncertain aliases separate for later validation
                 uncertain = alias_result.get("uncertain_aliases", []) or []
                 if isinstance(uncertain, list):
                     char.uncertain_aliases = [
-                        a.strip() for a in uncertain if isinstance(a, str) and a.strip()
+                        self._strip_possessive(a.strip()) for a in uncertain if isinstance(a, str) and a.strip()
                     ]
 
                 # Remove canonical name from aliases
@@ -754,7 +754,7 @@ class MainCastExtractor:
             # Apply aliases
             aliases = char_data.get("aliases", [])
             if isinstance(aliases, list):
-                char.aliases = [a.strip() for a in aliases if isinstance(a, str) and a.strip()]
+                char.aliases = [self._strip_possessive(a.strip()) for a in aliases if isinstance(a, str) and a.strip()]
                 # Remove canonical name from aliases
                 char.aliases = [a for a in char.aliases if a.lower() != canonical_lower]
 
@@ -762,7 +762,7 @@ class MainCastExtractor:
             uncertain = char_data.get("uncertain_aliases", []) or []
             if isinstance(uncertain, list):
                 char.uncertain_aliases = [
-                    a.strip() for a in uncertain if isinstance(a, str) and a.strip()
+                    self._strip_possessive(a.strip()) for a in uncertain if isinstance(a, str) and a.strip()
                 ]
 
             # Track merge directive
@@ -864,6 +864,23 @@ class MainCastExtractor:
         cleaned = re.sub(r"\s*\(.*?\)\s*", " ", name).strip()
         return cleaned if cleaned else name
 
+    @staticmethod
+    def _strip_possessive(alias: str) -> str:
+        """Strip possessive markers from aliases.
+
+        Removes trailing "'s" or "'" from names.
+        Examples:
+          "John Donaldson's" → "John Donaldson"
+          "the creature's" → "the creature"
+          "Jesus'" → "Jesus"
+        """
+        alias = alias.strip()
+        if alias.endswith("'s"):
+            return alias[:-2].strip()
+        if alias.endswith("'"):
+            return alias[:-1].strip()
+        return alias
+
     def _parse_pass1_results(self, result: list | dict) -> list[MainCastProfile]:
         """Parse Pass 1 character identification results."""
         profiles = []
@@ -933,9 +950,9 @@ class MainCastExtractor:
 
             profile = MainCastProfile(
                 canonical_name=canonical,
-                aliases=[a.strip() for a in item.get("aliases", []) if a.strip()],
+                aliases=[self._strip_possessive(a.strip()) for a in item.get("aliases", []) if a.strip()],
                 uncertain_aliases=[
-                    a.strip()
+                    self._strip_possessive(a.strip())
                     for a in (item.get("uncertain_aliases", []) or [])
                     if isinstance(a, str) and a.strip()
                 ],

@@ -68,6 +68,8 @@ COMMON_NICKNAMES = {
     "tommy": ["thomas"],
     "joe": ["joseph"],
     "joey": ["joseph"],
+    "john": ["jonathan"],
+    "johnny": ["john", "jonathan"],
     "mike": ["michael"],
     "pat": ["patrick", "patricia"],
     "chris": ["christopher", "christine", "christina"],
