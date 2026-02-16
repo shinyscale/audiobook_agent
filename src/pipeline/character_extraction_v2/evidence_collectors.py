@@ -1024,7 +1024,21 @@ def collect_constraint_evidence(graph: IdentityGraph) -> None:
                         f"Same surname, different first names: '{name_a}' vs '{name_b}'",
                     )
 
-            # --- Role conflict detection (from descriptions) ---
+            # --- Role conflict detection ---
+            # DETERMINISTIC CHECK: Identical names in main cast = different people
+            # (father/son, Sr/Jr, generational names sharing exact same name)
+            # This prevents LLM non-determinism from causing merge regressions
+            if (node_a.is_main_cast and node_b.is_main_cast
+                    and name_a.lower() == name_b.lower()):
+                graph.add_constraint_edge(
+                    id_a, id_b,
+                    ConstraintType.ROLE_CONFLICT,
+                    f"Same name in main cast (likely father/son or Sr/Jr): '{name_a}' vs '{name_b}'",
+                )
+                continue  # Skip description-based check if deterministic rule triggered
+
+            # FALLBACK: Description-based generational conflict detection
+            # (for cases where names differ slightly but descriptions indicate conflict)
             desc_a = " ".join(node_a.descriptions).lower()
             desc_b = " ".join(node_b.descriptions).lower()
 
