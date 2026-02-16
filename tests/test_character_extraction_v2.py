@@ -1173,8 +1173,9 @@ class TestV2Integration:
         # co-occurrence validation, consolidated Pass 2 alias resolution, and defensive protections
         # against LLM nondeterminism (split validation, narrator promotion, narrator exclusivity),
         # identity graph module (graph-based identity resolution, Phase 2), and generational suffix
-        # handling for Sr./Jr. names, plus disambiguator-based ROLE_CONFLICT constraint
-        assert total_lines < 7350, f"V2 code is {total_lines} lines (should be <7350)"
+        # handling for Sr./Jr. names, plus disambiguator-based ROLE_CONFLICT constraint,
+        # and exact canonical name deduplication (84 lines)
+        assert total_lines < 7450, f"V2 code is {total_lines} lines (should be <7450)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""

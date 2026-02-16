@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 51
-- **Phase:** awaiting_fix
+- **Attempt:** 52
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -232,6 +232,22 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 
 ## Fix History
 
+### Attempt 52 — Deduplicate exact canonical name matches — **TARGETED FIX**
+- **Issue targeted:** CRITICAL #1 — Father character tripled into 3 entries (main_cast_2, main_cast_3, main_cast_4)
+- **Root cause:** Pass 2 LLM creates "John Donaldson (the father)" AND `_enforce_same_name_splits()` creates ANOTHER "John Donaldson (the father)" from a variant. No dedup step exists to merge exact matches.
+- **Fix:** Added `_deduplicate_exact_canonical_names()` method that merges characters with IDENTICAL canonical names (exact string `==` match)
+  - Runs after `_enforce_same_name_splits()` in the extraction pipeline
+  - Merges aliases from all duplicate entries
+  - Uses EXACT match only (NOT fuzzy matching like attempt 47 regression)
+- **Safety:** This cannot cause false merges because it only merges when canonical names are IDENTICAL strings
+- **Smoke test:** PASS - 3 entries (John (the cousin), John Donaldson (the father) x2) → 2 entries (John (the cousin), John Donaldson (the father) with merged aliases)
+- **Expected improvement:**
+  - Character Extraction: 4.5/10 → ~5.5-6/10 (fewer duplicate entries)
+  - Character Profiles: 4/10 → ~5-6/10 (fewer confused relationships)
+- **Note:** "John (the cousin)" will still be a separate entry from "John Donaldson (the father)". These are NOT exact matches, so merging them would require fuzzy logic (risky). If this is insufficient, a follow-up fix can address recognizing descriptors like "(the cousin)" as aliases.
+- **Files modified:** `src/pipeline/character_extraction_v2/main_cast.py` (+87 lines - dedup method + call site), `tests/test_character_extraction_v2.py` (+1 line)
+- **Tests:** All 44 V2 character extraction tests pass
+
 ### Attempt 51 — Fix same-name split false positives — **PARTIAL SUCCESS**
 - **Issue targeted:** CRITICAL #1 from attempt 50 — Uncle Bill falsely split
 - **Fix:** Modified `_enforce_same_name_splits()` pattern matching to verify father/son markers modify the character's name directly
@@ -256,6 +272,7 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 52 | Deduplicate exact canonical name matches | `main_cast.py` (+87 lines), `test_character_extraction_v2.py` (+1 line) | **AWAITING ANALYSIS** — Should merge father duplicates |
 | 51 | Fix same-name split false positives | `main_cast.py` (lines 910-972) | **PARTIAL** — Uncle Bill fixed ✓, Father tripled ✗. Score: ~5.93 |
 | 50 | Re-run for LLM non-determinism | None | **PARTIAL** — Father/son fixed, Uncle Bill still split. Score: 6.08 |
 | 49 | Strip parenthetical disambiguators | `passage_gatherer.py` | **MIXED** — Score: 6.15 |
@@ -297,4 +314,9 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 51 | 5.93 | -0.67 | Uncle Bill fixed ✓, Father TRIPLED ✗ |
 
 ## Next Action
-Run PROMPT_fix.md to address father character triplication (CRITICAL #1). The fix must be NARROW: exact canonical name dedup only, plus recognition that "John (the cousin)" = "John Donaldson (the father)".
+Re-run analysis to verify that exact canonical name deduplication merges the two "John Donaldson (the father)" entries. Expected improvements:
+- Father entries: 3 → 2 (main_cast_3 and main_cast_4 merged)
+- Character Extraction: 4.5/10 → ~5.5-6/10
+- Character Profiles: 4/10 → ~5-6/10 (fewer confused relationships)
+
+Note: "John (the cousin)" will still be separate from "John Donaldson (the father)" because they are NOT exact matches. If score remains below threshold, a follow-up fix can address merging descriptors.

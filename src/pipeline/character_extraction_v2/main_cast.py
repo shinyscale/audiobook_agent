@@ -647,6 +647,12 @@ class MainCastExtractor:
         # but contradictory role/relationship markers in summaries
         profiles = self._enforce_same_name_splits(profiles, summaries_text)
 
+        # DEDUPLICATION: Merge characters with IDENTICAL canonical names
+        # This can happen when Pass 2 LLM creates a disambiguated name like "John Donaldson (the father)"
+        # AND _enforce_same_name_splits also creates "John Donaldson (the father)" from a different variant.
+        # Two entries with identical canonical names are definitionally the same character.
+        profiles = self._deduplicate_exact_canonical_names(profiles)
+
         return profiles
 
     def _extract_two_pass_per_character(
@@ -1019,6 +1025,90 @@ class MainCastExtractor:
             logger.info(f"Same-name split enforcement: split {len(profiles_to_remove)} characters into {len(profiles_to_add)} characters")
 
         return result_profiles
+
+    @staticmethod
+    def _deduplicate_exact_canonical_names(profiles: list[MainCastProfile]) -> list[MainCastProfile]:
+        """
+        Merge characters with IDENTICAL canonical names (exact string match).
+
+        This handles cases where multiple pipeline stages create entries with the exact same
+        canonical name. For example:
+        - Pass 2 LLM creates "John Donaldson (the father)" from summary mention
+        - _enforce_same_name_splits creates another "John Donaldson (the father)" from a variant
+
+        Two characters with identical canonical names are definitionally the same character.
+
+        SAFETY: This uses EXACT string match (==), NOT fuzzy matching. It cannot cause
+        false merges like the attempt 47 regression which used similarity-based merging.
+
+        Args:
+            profiles: List of character profiles
+
+        Returns:
+            Deduplicated list with exact canonical name matches merged
+        """
+        from collections import defaultdict
+
+        # Group by exact canonical name
+        grouped = defaultdict(list)
+        for profile in profiles:
+            grouped[profile.canonical_name].append(profile)
+
+        # Merge duplicates
+        deduplicated = []
+        merge_count = 0
+
+        for canonical_name, group in grouped.items():
+            if len(group) == 1:
+                # No duplicates - keep as-is
+                deduplicated.append(group[0])
+            else:
+                # Duplicates found - merge them
+                logger.warning(
+                    f"EXACT CANONICAL NAME DUPLICATE: '{canonical_name}' appears {len(group)} times. "
+                    f"Merging into single character."
+                )
+
+                # Merge aliases from all duplicates
+                merged_aliases = []
+                for profile in group:
+                    merged_aliases.extend(profile.aliases)
+
+                # Deduplicate aliases (preserve order)
+                seen = set()
+                unique_aliases = []
+                for alias in merged_aliases:
+                    if alias.lower() not in seen:
+                        seen.add(alias.lower())
+                        unique_aliases.append(alias)
+
+                # Use the first profile as the canonical one
+                merged_profile = group[0]
+                merged_profile.aliases = unique_aliases
+
+                # Merge uncertain_aliases
+                uncertain = []
+                for profile in group:
+                    uncertain.extend(profile.uncertain_aliases)
+                merged_profile.uncertain_aliases = list(dict.fromkeys(uncertain))
+
+                # Take the longest description if multiple
+                descriptions = [p.description for p in group if p.description]
+                if descriptions:
+                    merged_profile.description = max(descriptions, key=len)
+
+                deduplicated.append(merged_profile)
+                merge_count += 1
+
+                logger.info(
+                    f"MERGED {len(group)} identical entries for '{canonical_name}' → "
+                    f"{len(unique_aliases)} total aliases"
+                )
+
+        if merge_count > 0:
+            logger.info(f"Exact canonical name deduplication: merged {merge_count} duplicate entries")
+
+        return deduplicated
 
     @staticmethod
     def _clean_canonical_name(name: str) -> str:
