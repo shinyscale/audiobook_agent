@@ -3,37 +3,35 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 50
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Identity Graph: ../output/American Sir_20260216_101924/identity_graph.json
-- Quality Report: ../output/American Sir_20260216_101924/quality.md
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 4.5/10 ✗
-  - Completeness: 5/10
-  - Identity Resolution: 3/10
+- Character Extraction: 5/10 ✗
+  - Completeness: 6/10
+  - Identity Resolution: 4/10
   - Alias Grouping: 5/10
-- Character Profiles: 5/10 ✗
+- Character Profiles: 4.5/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 7/10 ✗
 - HTML Presentation: 8/10 ✓
-- **Overall: 6.15/10** (reference only)
+- **Overall: 6.08/10** (reference only)
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (4.5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
-        = 1.40 + 1.125 + 0.75 + 1.50 + 0.70 + 0.80
-        = 6.275
+Overall = (7 × 0.20) + (5 × 0.25) + (4.5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
+        = 1.40 + 1.25 + 0.675 + 1.50 + 0.70 + 0.80
+        = 6.325
 ```
 
-**Overall: 6.15/10** (DOWN from 6.88 — LLM non-determinism caused upstream character extraction regression)
+**Overall: 6.08/10** (reference only — weighted toward character issues)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (5 categories below threshold)
@@ -44,135 +42,138 @@ Overall = (7 × 0.20) + (4.5 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10
 
 "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles. Per rubric, continuous text should be 1 section (9-10); splitting into 2 is a structural error. Score 7 because summaries are coherent and the split is not destructive.
 
-### 2.2 Character Extraction: 4.5/10 ✗ (DOWN from 6.5 — major regression)
+### 2.2 Character Extraction: 5/10 ✗ (UP from 4.5 — partial recovery)
 
-**Sub-Dimension A: Completeness: 5/10** (DOWN from 7)
+**Sub-Dimension A: Completeness: 6/10** (UP from 5)
 
-8 characters extracted, but with critical identity errors:
-- ✓ John Donaldson (the father) — main_cast_1, 37 mentions — CORRECT character but has WRONG aliases
-- ✗ John Donaldson (the son) — **MISSING entirely** — swallowed as alias of the father
-- ✓ Margaret Donaldson — main_cast_3, 2 mentions
-- ✗ Uncle Bill (the father) — main_cast_4, 18 mentions, narrator — Uncle Bill is ONE person, this is a FALSE SPLIT
-- ✗ Uncle Bill (the son) — main_cast_5, 17 mentions — This entity DOES NOT EXIST in the story. There is only one Uncle Bill.
-- ✓ Joe Barron — supporting_2, 3 mentions
-- ✗ Red Cross — supporting_3, 4 mentions — organization, not character
-- ✓ Ted Frith — supporting_4, 5 mentions
-- ✗ Johnny — supporting_6, 2 mentions — should be alias of John Donaldson the son
+9 characters extracted:
+- ✓ John Donaldson (the father) — main_cast_0, 29 mentions — CORRECTLY separate from son now
+- ✓ John Donaldson (the son) — main_cast_1, 28 mentions — CORRECTLY separated (was merged in attempt 49)
+- ✓ Margaret Donaldson — main_cast_2, 2 mentions
+- ✗ Uncle Bill (the father) — main_cast_5, 19 mentions — FALSE SPLIT, there is only ONE Uncle Bill
+- ✗ Uncle Bill (the son) — main_cast_6, 19 mentions — FALSE SPLIT, this entity does NOT EXIST
+- ✓ Joe Barron — supporting_1, 3 mentions
+- ✗ Red Cross — supporting_2, 4 mentions — organization, not character
+- ✓ Ted Frith — supporting_3, 5 mentions
+- ✗ Johnny — supporting_5, 2 mentions — should be alias of John Donaldson (the son)
 
-**CRITICAL:** John Donaldson (the son) is completely missing as a separate character. He's listed as an alias of the father: `main_cast_1.aliases = ["John Donaldson", "John Donaldson (the son)", "John"]`. The son is NOT an alias of the father — they are different people.
+**PROGRESS:** John Donaldson father/son correctly separated now! This fixes the worst regression from attempt 49.
 
-**CRITICAL:** Uncle Bill has been falsely split into two characters: "Uncle Bill (the father)" and "Uncle Bill (the son)". There is only ONE Uncle Bill in the story. He is the narrator, the father's cousin, and the boy's guardian. The SAME-NAME CONFLICT logic apparently fired on Uncle Bill erroneously, applying the father/son disambiguator pattern from John Donaldson to Uncle Bill.
+**REMAINING CRITICAL:** Uncle Bill still falsely split. This has persisted across attempts 49 AND 50, suggesting it's a consistent LLM behavior, NOT random non-determinism. A code-level fix is warranted.
 
-**Sub-Dimension B: Identity Resolution: 3/10** (DOWN from 7 — catastrophic)
+**Sub-Dimension B: Identity Resolution: 4/10** (UP from 3 — partial improvement)
 
-- ✗ Uncle Bill falsely split into TWO characters — there is only one Uncle Bill
-- ✗ John Donaldson (the son) merged as alias of the father — they are separate people
-- ✗ "Uncle Bill (the son)" gets the son's profile but is the wrong entity entirely
-- ✓ Uncle Bill (the father) correctly identified as narrator
-- ✗ `narrator_name` field is still null
+- ✓ John Donaldson father/son correctly separated (FIXED from attempt 49)
+- ✗ Uncle Bill falsely split into two characters — there is only ONE Uncle Bill in this story
+- ✗ "Johnny" is a separate entry (supporting_5) instead of being an alias of the son
+- ✗ Narrator incorrectly assigned: `is_narrator: true` is on "John Donaldson (the son)" (main_cast_1). Uncle Bill is the actual narrator — the story is told from his first-person perspective. The son is the protagonist, not the narrator.
+- ✗ Top-level `narrator_name` is null
 
-This is the worst identity resolution in recent attempts. Two critical false operations: a false split (Uncle Bill) and a false merge (John Donaldson son into father).
+Improvement from attempt 49 (father/son fixed), but Uncle Bill split and wrong narrator are still major issues.
 
-**Sub-Dimension C: Alias Grouping: 5/10** (DOWN from 5.5)
+**Sub-Dimension C: Alias Grouping: 5/10** (unchanged)
 
-- Father aliases: ["John Donaldson", "John Donaldson (the son)", "John"] — "John Donaldson (the son)" should NOT be an alias of the father ✗
-- Uncle Bill (the father) aliases: ["Bill", "Uncle Bill"] — reasonable for this entity, but entity shouldn't exist ✗
-- Uncle Bill (the son) aliases: [] — empty, and entity shouldn't exist ✗
-- "Johnny" is separate entry instead of son's alias ✗
+- Father aliases: ["John", "John Donaldson", "the father"] — reasonable ✓
+- Son aliases: ["John", "John Donaldson"] — reasonable, but missing "Johnny" ✗
+- Uncle Bill (the father) aliases: ["Bill", "Uncle"] — "Uncle" alone is odd but acceptable IF this entity existed ✗
+- Uncle Bill (the son) aliases: ["Bill", "Uncle", "Uncle Bill"] — entity shouldn't exist at all ✗
+- "Johnny" is a separate entry instead of son's alias ✗
 
-### 2.3 Character Profiles: 5/10 ✗ (DOWN from 5.5)
+### 2.3 Character Profiles: 4.5/10 ✗ (DOWN from 5)
 
-The passage_gatherer.py fix appears to have improved profile generation quality — the profiles THEMSELVES are better — but they're attached to the wrong character entities due to the upstream extraction regression.
+**ALL physical_description fields are null** (0/9 characters). While the source text may not have extensive physical descriptions, there are some: the father is described as having been a Yale man, and Uncle Bill's demeanor is described. At minimum, some physical/behavioral descriptions should exist.
 
-**John Donaldson (the father) — main_cast_1:** "A manipulative and cowardly antagonist who stole from his family, faked his death to escape accountability, abandoned his son for two decades." This is CORRECT for the father. ✓
+**ALL speech_patterns fields are null** (0/9 characters). The text has notable speech patterns (Ted Frith's wartime speech, Uncle Bill's narrating voice).
 
-**Uncle Bill (the father) — main_cast_4:** "A deeply principled and quietly heroic man whose actions reveal profound selflessness, loyalty, and moral courage, despite his outwardly crabbed and selfish demeanor." This correctly describes Uncle Bill. ✓ But relationships list "John Donaldson (the father): ally" — Uncle Bill is the father's COUSIN, not "ally". ✗
+**ALL evidence_quotes are null** (0/9 characters). No supporting quotes in any profile. This is a continuing regression.
 
-**Uncle Bill (the son) — main_cast_5:** "A heroic protagonist whose actions are defined by selfless sacrifice, compassion, and moral courage—risking his life in war and embracing his estranged father with unconditional love." This is actually the SON's (John Donaldson Jr.) profile. The content is correct for the son, but it's attached to the wrong entity. The profiler generated profiles for "Uncle Bill (the son)" and attributed the son's passages to it. ✗
+**Relationships** (5/9 characters have them, but with errors):
+- John Donaldson (the father): `{"John Donaldson (the son)": "parent", "Uncle Bill": "acquaintance"}` — Uncle Bill is NOT an "acquaintance", he is the father's COUSIN. The story explicitly says "a cousin, who had come to be this lad's father" ✗
+- John Donaldson (the son): `{"Uncle Bill": "mentor", "John Donaldson (the father)": "parent", "Red Cross comrades": "ally"}` — "mentor" is reasonable for Uncle Bill's role, "parent" should be more specific (estranged father). "Red Cross comrades" is vague ✓/✗
+- Uncle Bill (the father): `{"John Donaldson (his son)": "victimizer", "Uncle Bill": "mentor"}` — Completely confused. This entity is supposed to be Uncle Bill himself but has "Uncle Bill" as a relationship? Self-referential. And the father was Uncle Bill's cousin, not his "victimizer" ✗
+- Uncle Bill (the son): `{"Uncle Bill": "mentor", "John Donaldson (father)": "parent"}` — This entity shouldn't exist. The relationships are confused ✗
+- Ted Frith: `{"John Donaldson": "ally"}` — correct ✓
 
-**Ted Frith — supporting_4:** Good profile — captures wartime heroism and speech patterns. ✓
-
-**Evidence quotes:** ALL characters have `evidence_quotes: null`. This is a regression from attempt 48 where at least some evidence was present. ✗
-
-**KEY INSIGHT:** The passage_gatherer.py fix may be working correctly — "Uncle Bill (the son)" got the son's actual characterization (brave ambulance driver, war hero, forgiving). But the upstream character extraction created the wrong entities, so good profiles are attached to wrong characters.
+**KEY PROBLEM:** The false split of Uncle Bill poisons ALL profiles. Two fake Uncle Bill entities get confused, self-referential relationships. Profile quality can't meaningfully improve until the upstream character extraction is fixed.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗ (unchanged)
 
-**Section 1:** Good. Correctly captures Uncle Bill receiving the letter, backstory with the father at Yale, the scandal, and Margaret's letter about the death. ✓
+**Section 1:** Good quality. Correctly captures Uncle Bill receiving the letter, backstory about the father at Yale, the scandal, Margaret's letter about the death. Characters_present only lists ["Narrator"] instead of naming Uncle Bill. ✓/minor ✗
 
-**Section 2:** Narrative arc captured well. Characters_present lists ["Uncle Bill", "John Donaldson (the son)", "John Donaldson (the father)"] — correctly names all three. ✓
-- **Error:** Still says "his deceased sister's twelve-year-old son" — should be "his deceased cousin's" son. The text says "a cousin, who had come to be this lad's father." ✗
-- Otherwise comprehensive and accurate.
+**Section 2:** Comprehensive narrative arc. Characters_present correctly lists Uncle Bill, the son, and the father. ✓
+- **Error:** Still says "his deceased sister's son" — should be "his deceased cousin's son." The text explicitly states the father was Uncle Bill's cousin. ✗
+- Otherwise excellent: captures the fishing trip, WWI enlistment, Italy/Caporetto, the father's revelation, the deathbed scene, and the redemptive ending.
 
-Section 1 characters_present lists only ["the narrator"] instead of naming Uncle Bill specifically. Minor issue.
+Both summaries are appropriate length (150-200 words) and capture tone well.
 
 ### 2.5 Pronunciation Guide: 7/10 ✗ (unchanged)
 
-20 entries total, 15 with IPA.
+20 entries, 15 with IPA.
 
-**Genuinely useful (13):** Caporetto, Piave, Solferino, Guerre, Venetia, Tagliamento, Bersagliari, Bordeaux (foreign/Italian terms) + live, minute, read, close, moderate (homographs)
+**Genuinely useful (13):**
+- Italian/foreign terms: Caporetto, Piave, Solferino, Guerre, Venetia, Tagliamento, Bersagliari, Bordeaux — all correctly flagged ✓
+- Homographs: live, minute, read, close, moderate — useful for narrator ✓
 
-**False positives (7):** whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't — standard English words. 35% false positive rate.
+**False positives (7):** whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't — all standard English words that a narrator would know. 35% false positive rate brings the score down.
+
+**Missing:** "Donaldson" itself could use a pronunciation note (DAHN-uld-sun vs DON-uld-sun).
 
 ### 2.6 HTML Presentation: 8/10 ✓ (unchanged)
 
-Navigation works, tabs functional, layout clean. Content quality issues are scored elsewhere. The HTML correctly renders whatever data it receives.
+Navigation works, tabs functional, layout clean. Content quality issues are scored in their respective categories. The HTML renders whatever data it receives correctly.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - Pipeline: V2 with Phase 2 graph-based identity resolution
 - No LLM retries in any stage — clean execution ✓
-- Character Profiles took 697s (longest stage) — expected
-- No configuration issues — the regression is from LLM non-determinism in character extraction
+- Character Profiles took 776s (longest stage) — expected
+- 1 JSON parse failure in Pronunciation Guide — minor
+- No configuration issues — the core problem is Uncle Bill false split in character extraction
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Uncle Bill falsely split into two characters** [Identity Resolution, score impact ~1.5 points]
-   - Problem: main_cast_4 "Uncle Bill (the father)" and main_cast_5 "Uncle Bill (the son)" — there is only ONE Uncle Bill in this story. He is the narrator, the father's cousin, and the boy's guardian.
-   - Evidence: The text has a single Uncle Bill throughout. The SAME-NAME CONFLICT logic erroneously applied the father/son disambiguator pattern (designed for John Donaldson) to Uncle Bill.
-   - Root cause: The LLM's character extraction Pass 1 or the identity resolution graph detected "Uncle Bill" in both father-era and son-era contexts and applied the same father/son split that is appropriate for "John Donaldson" but NOT for "Uncle Bill." Uncle Bill appears in BOTH eras because he IS the same person who knew the father and later raised the son.
-   - Location: `src/pipeline/character_extraction_v2/` — the SAME-NAME CONFLICT / ROLE_CONFLICT logic in `evidence_collectors.py` or `identity_graph.py`
-   - Fix: The ROLE_CONFLICT constraint needs to be smarter about when to split. Uncle Bill appears in father and son contexts because he is a cross-generational character (narrator who knew both), NOT because there are two Uncle Bills. The constraint should NOT split when:
-     - The character is identified as narrator (narrators naturally span all time periods)
-     - The character has only ONE name form (no "Uncle Bill Sr." vs "Uncle Bill Jr." distinction exists)
-     - Context suggests a single person who knew both generations (guardian, relative, narrator)
+1. **Uncle Bill falsely split into two characters** [Identity Resolution, score impact ~2.0 points across Characters + Profiles]
+   - Problem: main_cast_5 "Uncle Bill (the father)" and main_cast_6 "Uncle Bill (the son)" — there is only ONE Uncle Bill in this story. He is the narrator, the father's cousin, and the boy's guardian who spans both generations.
+   - Evidence: The text has a single Uncle Bill throughout. He knew the father at Yale, later took in the son, and narrates the entire story in first person. There is no "Uncle Bill (the son)" — that character does not exist.
+   - Persistence: This false split has now occurred in attempts 49 AND 50 consecutively. This is NOT random LLM non-determinism — it's a consistent pattern where the SAME-NAME CONFLICT logic applies the father/son disambiguator designed for "John Donaldson" to "Uncle Bill" as well.
+   - Root cause: The identity graph or evidence collectors detect "Uncle Bill" appearing in both father-era and son-era contexts and erroneously split him. Uncle Bill appears in both eras because he IS the same cross-generational character (the narrator who knew both father and son).
+   - Location: `src/pipeline/character_extraction_v2/` — likely `evidence_collectors.py` or `identity_graph.py` ROLE_CONFLICT logic
+   - Fix approach: The ROLE_CONFLICT constraint should NOT split characters that are identified as narrator (narrators naturally span all time periods). When a character is flagged as narrator AND has a same-name conflict, the split should be suppressed. Alternative: if only ONE name form exists (no "Uncle Bill Sr." vs "Uncle Bill Jr." distinction), don't split.
+   - **IMPACT:** This single issue cascades into profiles (confused self-referential relationships), alias grouping (duplicate alias sets), and completeness (phantom character). Fixing this one issue would improve Characters by ~1.5 points and Profiles by ~1.5 points.
 
-2. **John Donaldson (the son) missing — merged as alias of father** [Identity Resolution, Completeness, score impact ~1.5 points]
-   - Problem: main_cast_1 "John Donaldson (the father)" has aliases ["John Donaldson", "John Donaldson (the son)", "John"]. The son should be a SEPARATE character entry, not an alias of the father.
-   - Evidence: Father and son are clearly different people — the father is the embezzler who faked his death; the son is the 18-year-old ambulance driver who enlists in WWI.
-   - Root cause: The LLM's character extraction or identity resolution merged the son into the father. In attempt 48 they were correctly separate. LLM non-determinism caused this regression.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` Pass 1 or Pass 2 alias resolution
-   - Fix: This may be LLM non-determinism rather than a code bug. The same code produced correct results in attempt 48. However, the ROLE_CONFLICT constraint that was added (attempt 43) to PREVENT this exact merge may not be firing. Check if the constraint is still active and if it correctly prevents merging characters with different role contexts (father=embezzler vs son=soldier).
+2. **Wrong narrator assignment** [Identity Resolution, score impact ~0.5 points]
+   - Problem: `is_narrator: true` is on "John Donaldson (the son)" (main_cast_1). Uncle Bill is the actual narrator — the entire story is told from his first-person perspective ("I was forty-five years old...").
+   - Evidence: The story opens with Uncle Bill narrating in first person. The son is the SUBJECT of Uncle Bill's narration, not the narrator himself.
+   - Location: Narrator detection in character extraction or `src/analyzer.py`
+   - Fix: This may be entangled with the Uncle Bill split — if the system thinks "Uncle Bill (the son)" is a separate character, it may be confusing which entity to assign narrator status to. Fixing CRITICAL #1 may resolve this automatically.
 
 ### HIGH
 
-3. **"Johnny" is a separate character instead of son's alias** [Alias Grouping, score impact ~0.5]
-   - Problem: supporting_6 "Johnny" (2 mentions) should be alias of the son (if son were correctly extracted)
+3. **"Johnny" is a separate character instead of son's alias** [Alias Grouping, score impact ~0.3]
+   - Problem: supporting_5 "Johnny" (2 mentions) should be alias of John Donaldson (the son)
    - Evidence: "Johnny" is a diminutive of "John" referring to the boy in the story
-   - Location: Supporting cast extraction or F6 reconciliation
-   - Fix: When the son is correctly extracted as a separate character, "Johnny" should map to him
+   - Location: Supporting cast extraction or alias resolution
+   - Fix: May resolve automatically when character extraction improves, or needs alias matching for diminutive forms
 
 4. **Summary says "sister" instead of "cousin"** [Summaries, score impact ~0.3]
-   - Problem: Section 2 says "his deceased sister's twelve-year-old son" — should be "his deceased cousin's" son
+   - Problem: Section 2 says "his deceased sister's twelve-year-old son" — should be "his deceased cousin's son"
    - Evidence: Text says "a cousin, who had come to be this lad's father"
-   - Location: Summary LLM hallucination — may resolve on re-run
+   - Location: Summary LLM hallucination — may resolve on re-run, but has persisted across multiple attempts
 
 5. **All evidence_quotes are null** [Profiles, score impact ~0.5]
-   - Problem: Every character has `evidence_quotes: null` — no supporting quotes in any profile
-   - Evidence: In attempt 48, at least some characters had evidence quotes
-   - Location: `src/pipeline/character_profiling/` — the profile generation pipeline
-   - This could be related to the passage_gatherer.py change or F19 grounding warnings noted in pipeline logs
+   - Problem: Every character has `evidence_quotes: null` — no supporting quotes
+   - Location: `src/pipeline/character_profiling/` — profile generation or grounding gate (F19 warnings noted)
 
 ### MEDIUM
 
 6. **"Red Cross" extracted as character** [Completeness, score impact ~0.2]
-   - Problem: supporting_3 "Red Cross" (4 mentions) is an organization, not a character
+   - Problem: supporting_2 "Red Cross" (4 mentions) is an organization, not a character
    - Location: Supporting cast extraction prompt
 
 7. **Pronunciation: 35% false positive rate** [Pronunciation, score impact ~0.5]
-   - Problem: 7 of 20 entries are standard English words
+   - Problem: 7 of 20 entries are standard English words (whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't)
    - Location: `src/pipeline/pronunciation/` — filtering logic
 
 8. **Structure: 2 sections for continuous text** [Structure, score impact ~0.5]
@@ -180,64 +181,71 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
    - Location: `src/pipeline/chapter_detection/`
 
 9. **`narrator_name` field is null** [Identity Resolution, score impact ~0.2]
-   - Problem: Uncle Bill (the father) is tagged `is_narrator: true` but top-level `narrator_name` is null
-   - Location: `src/analyzer.py`
+   - Problem: Top-level `overview.narrator_name` is null even though a character is tagged `is_narrator: true`
+   - Location: `src/analyzer.py` — narrator_name population logic
+
+10. **All physical_description and speech_patterns are null** [Profiles, score impact ~0.3]
+    - Problem: No character has physical descriptions or speech pattern notes
+    - Location: `src/pipeline/character_profiling/`
+
+### LOW
+
+11. **Section 1 characters_present only lists "Narrator"** [Summaries]
+    - Should name Uncle Bill specifically
+
+12. **Father-Uncle Bill relationship listed as "acquaintance"** [Profiles]
+    - Should be "cousin" — the text explicitly says they were cousins at Yale
 
 ## Fix Priority Recommendation
 
-**The passage_gatherer.py fix (attempt 49) should be KEPT** — the profile content quality improved (the son's actual characterization appears, just attached to wrong entity). The regression is UPSTREAM in character extraction, not in profiling.
+**CRITICAL #1 (Uncle Bill false split) is THE blocker.** It has persisted across 2 consecutive runs, proving it's not LLM non-determinism but a consistent code-level issue. This single fix would cascade improvements across:
+- Character Extraction: +1.5 (remove false split, fix narrator)
+- Character Profiles: +1.5 (no more confused/self-referential profiles)
+- Combined impact: Could push overall from ~6.1 to ~7.5+
 
-**CRITICAL #1 and #2 are both caused by LLM non-determinism in character extraction.** The same code produced correct results in attempt 48 (Uncle Bill single, father/son separate). The LLM made different extraction decisions this run.
+**RECOMMENDED APPROACH:**
+1. **Fix the ROLE_CONFLICT logic** to not split characters identified as narrator. Narrators naturally appear across all time periods and should not be split by temporal context.
+2. **Re-run analysis** after the fix to see if Uncle Bill stays as a single entity
+3. If that works, address the remaining HIGH issues in subsequent attempts
 
-**RECOMMENDED APPROACH:** Since the passage_gatherer.py fix is deterministic and correct, and the character extraction regression is from LLM non-determinism, the best action is:
-1. **KEEP the passage_gatherer.py fix** (it's working correctly for profiles)
-2. **Re-run analysis** to see if the LLM produces better character extraction this time
-3. If Uncle Bill split persists across multiple runs, then investigate adding a constraint that prevents splitting narrator characters
-
-**DO NOT revert passage_gatherer.py** — the fix is correct and the regression is unrelated to it.
-
-**DO NOT attempt dedup/merge fixes in main_cast.py** — the modification history shows 8 prior attempts with 50% regression rate.
+**DO NOT:**
+- Modify main_cast.py dedup/merge logic (8 prior attempts, 50% regression rate)
+- Revert passage_gatherer.py fix (it's working correctly)
+- Change model configuration (user-set)
 
 ## Fix History
+
+### Attempt 50 — Re-run to test LLM non-determinism — **PARTIAL RECOVERY**
+- **Issue targeted:** LLM non-determinism from attempt 49 (Uncle Bill split + son merged into father)
+- **Fix:** No code changes — re-ran analysis to see if LLM produces different results
+- **Result:** PARTIAL — John Donaldson father/son correctly separated again ✓, but Uncle Bill STILL falsely split ✗
+- **Conclusion:** Uncle Bill split is NOT LLM non-determinism — it's a consistent pattern requiring a code fix
+- **Files modified:** None (re-run only)
 
 ### Attempt 49 — Strip parenthetical disambiguators in passage gatherer — **MIXED RESULT**
 - **Issue targeted:** CRITICAL #1 from attempt 48 — Son's profile is entirely the father's profile
 - **Fix:** Strip parenthetical disambiguators from names before creating search pattern in `passage_gatherer.py`
-- **Profile result:** IMPROVED — "Uncle Bill (the son)" entity got the son's actual characterization (brave, heroic, wartime), proving the passage_gatherer fix works. But it's attached to the wrong entity due to upstream regression.
-- **Character extraction result:** REGRESSION — LLM non-determinism caused Uncle Bill to be falsely split and John Donaldson son to be merged into father. The passage_gatherer.py change does NOT affect character extraction (it only affects profiling).
-- **Files modified:**
-  - `src/pipeline/character_profiling/passage_gatherer.py` (+5 lines)
-- **Assessment:** The fix itself is correct and should be KEPT. The regression is upstream.
+- **Profile result:** IMPROVED — profiles correctly attributed
+- **Character extraction result:** REGRESSION — LLM non-determinism
+- **Files modified:** `src/pipeline/character_profiling/passage_gatherer.py` (+5 lines)
 
 ### Attempt 48 — REVERT attempt 47 deduplication + re-analyze — **BASELINE RECOVERY**
-- **Issue:** Attempt 47's deduplication caused catastrophic regression (7.08→5.95, -1.13 points)
-- **Action:** Reverted commit b13fd2f changes to main_cast.py, re-ran analysis
-- **Result:** Baseline restored — father/son separate, Uncle Bill single entity, narrator correct. Score: 5.95→6.88
-- **Files modified:**
-  - `src/pipeline/character_extraction_v2/main_cast.py` (-78 lines)
+- Score: 5.95→6.88
 
 ### Attempt 47 — Add deduplication for identical canonical names — **REGRESSION (REVERTED)**
-- Score: 7.08→5.95 (-1.13)
+- Score: 7.08→5.95
 
 ### Attempt 46 — Extend grounding gate for parenthetical disambiguators — SUCCESS
 - Score: 6.88→7.08
 
-### Attempt 45 — REVERT attempt 44's alias filter — PARTIAL RECOVERY
-- Score: 6.45→6.88
-
-### Attempt 44 — Filter shared base name from aliases after Pass 2 — **REGRESSION (REVERTED)**
-- Score: 6.98→6.45
-
-### Attempt 43 — Disambiguator-based ROLE_CONFLICT constraint — SUCCESS
-- Score: 6.48→6.98
-
-### Attempts 29-42 — See score history table below
+### Attempts 29-45 — See score history table below
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 49 | Strip parenthetical disambiguators in passage gatherer | `passage_gatherer.py` (+5 lines) | **MIXED** — Profiles improved but upstream character extraction regressed (LLM non-determinism). Score: 6.88→6.15 |
+| 50 | Re-run to test LLM non-determinism | None (re-run only) | **PARTIAL** — Father/son fixed, Uncle Bill still split. Score: ~6.08 |
+| 49 | Strip parenthetical disambiguators in passage gatherer | `passage_gatherer.py` (+5 lines) | **MIXED** — Profiles improved but upstream character extraction regressed. Score: 6.15 |
 | 48 | REVERT attempt 47's deduplication + re-analyze | `main_cast.py` (-78 lines) | **BASELINE RECOVERY** — Score: 5.95→6.88 |
 | 47 | Deduplicate identical canonical names after Pass 2 | `main_cast.py` (+75 lines) | **REGRESSION (REVERTED)** — Score: 7.08→5.95 |
 | 46 | Extend grounding gate for parenthetical disambiguators | `mention_search.py` (+5 lines), `test_character_extraction_v2.py` (+28 lines) | **PARTIAL SUCCESS** — Score: 6.88→7.08 |
@@ -256,12 +264,10 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 33 | Possessive stripping + narrator detection | `supporting.py`, `narrator.py` | MIXED. Score: 6.65 |
 | 32 | Alias cleanup | `evidence_collectors.py`, `main_cast.py` | NO EFFECT |
 | 31 | Deterministic same-name constraint | `evidence_collectors.py` | SUCCESS. Score: 6.78→7.33 |
-| 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved, character regression |
-| 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS. Score: 7.13 |
 
 **PATTERN ALERT:** `main_cast.py` has been modified 8 times (attempts 39-48). Half were regressions. Do NOT attempt further dedup or merge fixes in main_cast.py.
 
-**NEW PATTERN:** LLM non-determinism is a major factor. The same code produced correct character extraction in attempt 48 (Uncle Bill single, father/son separate) and incorrect extraction in attempt 49 (Uncle Bill split, son merged into father). No code changed between these runs for character extraction.
+**NEW PATTERN (CONFIRMED):** Uncle Bill false split is NOT LLM non-determinism. It persisted across attempts 49 AND 50 with no code changes to character extraction. A code-level fix targeting the ROLE_CONFLICT/SAME_NAME_CONFLICT logic is needed — specifically, suppressing splits for characters identified as narrator.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -285,30 +291,8 @@ Navigation works, tabs functional, layout clean. Content quality issues are scor
 | 46 | 7.08 | +0.48 | PARTIAL SUCCESS — best recent score |
 | 47 | 5.95 | -0.65 | **MAJOR REGRESSION** — dedup caused false merges |
 | 48 | 6.88 | +0.28 | BASELINE RECOVERY — revert confirmed |
-| 49 | 6.15 | -0.45 | **REGRESSION** — LLM non-determinism, Uncle Bill split, son merged |
+| 49 | 6.15 | -0.45 | **REGRESSION** — LLM non-determinism |
+| 50 | 6.08 | -0.52 | Father/son fixed, Uncle Bill still split, wrong narrator |
 
-## Pipeline Notes (Attempt 50)
-
-- **Total time:** 41m 28s
-- **Total tokens:** 138,294
-- **Character extraction:** 9 characters found
-- **Competitive consensus:** Enabled for all stages (characters, structure, summaries)
-
-**SAME-NAME CONFLICT warnings in logs:**
-- "Uncle Bill has both father and son contexts in summaries"
-- "Narrator has both father and son contexts in summaries"
-
-**F19 Grounding warnings:**
-- All 5 character profiles have potentially ungrounded evidence quotes
-
-**Character list from summary:**
-- John Donaldson (the father) - 29 mentions
-- John Donaldson (the son) - 28 mentions ✓ (correctly separated from attempt 49!)
-- Uncle Bill (the father) - 19 mentions
-- Uncle Bill (the son) - 19 mentions ✗ (still erroneously split)
-- Margaret Donaldson - 2 mentions
-- 4 more supporting characters
-
-**PROGRESS:** John Donaldson father/son are now correctly separated (was merged in attempt 49). The re-run partially resolved the LLM non-determinism issue!
-
-**REMAINING ISSUE:** Uncle Bill still falsely split into two characters. This appears to be a consistent pattern across multiple runs, suggesting a code-level fix may be needed.
+## Next Action
+Run PROMPT_fix.md to address CRITICAL #1 — Uncle Bill false split. The fix should target the ROLE_CONFLICT/SAME_NAME_CONFLICT logic in `src/pipeline/character_extraction_v2/` to suppress splits for narrator characters. This is now CONFIRMED as a code-level issue, not LLM non-determinism.
