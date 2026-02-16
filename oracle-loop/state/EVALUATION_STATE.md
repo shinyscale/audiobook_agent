@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 32
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,12 +12,13 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Analysis completed in 98m 35s (completed at 18:29)
+- Analysis completed in 36m 6s
 - Competitive consensus ENABLED for characters, structure, summaries stages
-- 60 LLM calls, 95,986 tokens
-- Found 8 characters (4 main_cast + 4 supporting), 2 chapters, 21 pronunciation flags
-- 0 LLM retries, 1 JSON parse failure (Pronunciation Guide)
-- **Deterministic same-name constraint fix VERIFIED WORKING**
+- 62 LLM calls, 97,754 tokens
+- Found 8 characters, 2 chapters, 20 pronunciation flags
+- 0 LLM retries, 1 JSON parse failure (Pronunciation Guide - error response from model)
+- Notable: "Johnny" character seen in output summary (checking if merge fix worked)
+- Warnings: No passages found for "John Donaldson (the son)", ungrounded evidence quotes for several profiles
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
