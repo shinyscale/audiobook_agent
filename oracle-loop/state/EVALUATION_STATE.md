@@ -3,13 +3,24 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 47
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes
+Analysis completed successfully in 39m 52s:
+- 8 characters extracted (down from 9 - deduplication working)
+- Warnings observed:
+  - SAME-NAME CONFLICT detected for 'Narrator' and 'Uncle Bill'
+  - F19: Multiple profiles with ungrounded evidence quotes
+  - LLM batch enrichment failed (pronunciation guide - non-critical)
+- Competitive consensus: ENABLED for all stages (characters, structure, summaries)
+- 90 LLM calls, 135,876 tokens
+- Bottleneck: Character Profiles (25.9% of time)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
