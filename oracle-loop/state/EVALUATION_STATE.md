@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 30
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 87m 41s
+- Narrator detection failed (Ollama timeout during initial model load, recovered)
+- LLM batch enrichment failed in pronunciation stage (model returned error response)
+- 49 LLM calls, 85,066 tokens
+- Found 7 characters, 2 chapters, 20 pronunciation flags
+- Warnings: 1 OCR repair (broken ligatures)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
