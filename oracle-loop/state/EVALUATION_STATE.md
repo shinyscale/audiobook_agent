@@ -2,21 +2,23 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 30
-- **Phase:** awaiting_fix
+- **Attempt:** 31
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+- Timestamped: ../output/American Sir_20260215_182917/
 
 ## Pipeline Notes
-- Analysis completed in 87m 41s
-- Narrator detection: "Narrator (Uncle Bill)" — correct ✓
-- 49 LLM calls, 85,066 tokens, 0 retries, 0 JSON parse failures (except 1 in pronunciation)
-- Found 7 characters (2 main_cast + 5 supporting), 2 chapters, 20 pronunciation flags
-- **REGRESSION: Father/son split LOST** — only 1 John Donaldson in output vs 2 in attempt 29
+- Analysis completed in 98m 35s (completed at 18:29)
+- Competitive consensus ENABLED for characters, structure, summaries stages
+- 60 LLM calls, 95,986 tokens
+- Found 8 characters (4 main_cast + 4 supporting), 2 chapters, 21 pronunciation flags
+- Profiling: Chapter Detection (23.5% of time, bottleneck)
+- Narrator detection: Uncle Bill (first-person)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
@@ -237,6 +239,16 @@ Unchanged from previous attempts. "American, Sir" is a continuous short story wi
 
 ## Fix History
 
+### Attempt 31 — Deterministic same-name constraint (FIX FOR REGRESSION)
+- **Issue targeted:** CRITICAL #1 — Father/son merged (regression from attempt 29)
+- **Root cause:** `collect_constraint_evidence()` relied on LLM-populated `descriptions` field to detect role conflicts. When descriptions are empty (LLM non-determinism), no `role_conflict` edge is created, allowing high co-occurrence to merge same-name characters.
+- **Changes made:** Added deterministic check in `evidence_collectors.py:collect_constraint_evidence()` (lines 1027-1036)
+  - If two main_cast characters have **identical canonical_name** → automatically add `role_conflict` constraint edge
+  - This makes same-name detection **universal and deterministic** (no dependency on LLM output)
+  - Preserves existing description-based detection as fallback
+- **Expected result:** Father/son split restored with disambiguation labels from attempt 29's post-processing
+- **File modified:** `src/pipeline/character_extraction_v2/evidence_collectors.py`
+
 ### Attempt 30 — Pronunciation false positive reduction (PARTIAL SUCCESS + REGRESSION)
 - **Issue targeted:** HIGH #3 — Pronunciation: 17/31 entries are false positives (~55%)
 - **Changes made:**
@@ -280,6 +292,7 @@ Unchanged from previous attempts. "American, Sir" is a continuous short story wi
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 31 | Father/son merge regression (deterministic fix) | `evidence_collectors.py` | Awaiting analysis |
 | 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved (5→7), BUT character regression (father/son merged) |
 | 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS — labels applied, score 7.13 |
 | 28 | Revert to attempt 25 (undo regression) | `characters.py` | SUCCESS — main_cast restored |
@@ -305,6 +318,8 @@ Unchanged from previous attempts. "American, Sir" is a continuous short story wi
 
 ## Next Action
 
-Run PROMPT_fix.md to address CRITICAL #1: Make same-name character detection DETERMINISTIC. When two main_cast entries share identical canonical names, automatically create a `role_conflict` constraint edge regardless of LLM output. This ensures the `_apply_disambiguation_labels_from_constraints()` post-processing always works, eliminating the LLM non-determinism that caused this regression.
-
-**DO NOT** revert the pronunciation fix — it's working correctly (5→7). The regression is in character extraction due to LLM non-determinism, not caused by the pronunciation changes.
+Re-run analysis to verify the deterministic same-name constraint fix. Expected outcomes:
+1. Identity graph should contain `role_conflict` edge between main_cast_1 and main_cast_2
+2. Father/son should remain as 2 separate characters (not merged)
+3. Disambiguation labels should be applied: "John Donaldson (the son)" and "John Donaldson (the father)"
+4. Pronunciation improvements from attempt 30 should remain (7/10)
