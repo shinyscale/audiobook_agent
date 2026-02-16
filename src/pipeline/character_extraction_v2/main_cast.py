@@ -12,7 +12,6 @@ Key principles:
 """
 
 import logging
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -762,21 +761,6 @@ class MainCastExtractor:
                 char.aliases = [self._strip_possessive(a.strip()) for a in aliases if isinstance(a, str) and a.strip()]
                 # Remove canonical name from aliases
                 char.aliases = [a for a in char.aliases if a.lower() != canonical_lower]
-
-                # For characters with disambiguators (e.g., "John Donaldson (the son)"),
-                # also filter out the shared base name to prevent profiling contamination.
-                # Without this, both "John Donaldson (the son)" and "John Donaldson (the father)"
-                # would have "John Donaldson" in their aliases, causing passage gathering to
-                # collect passages for BOTH characters when profiling either one.
-                disambiguator_match = re.search(r'^(.+?)\s+\((the )?(father|son|elder|younger|senior|junior)\)$', canonical_name, re.IGNORECASE)
-                if disambiguator_match:
-                    base_name = disambiguator_match.group(1).strip()
-                    base_name_lower = base_name.lower()
-                    char.aliases = [a for a in char.aliases if a.lower() != base_name_lower]
-                    logger.debug(
-                        f"Filtered shared base name '{base_name}' from aliases for '{canonical_name}' "
-                        f"(remaining: {char.aliases})"
-                    )
 
             # Apply uncertain aliases
             uncertain = char_data.get("uncertain_aliases", []) or []
