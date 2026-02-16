@@ -3,13 +3,32 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 42
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+- Identity Graph: ../output/american_sir/identity_graph.json
+
+## Pipeline Notes (Attempt 42)
+- Analysis completed in 37m 40s
+- Total LLM calls: 73
+- Total tokens: 111,347
+- Competitive consensus enabled (all stages)
+- SAME-NAME CONFLICT DETECTED: The deterministic split enforcement triggered for:
+  - 'Narrator' (detected both father and son contexts)
+  - 'Uncle Bill' (detected both father and son contexts)
+- Character extraction found 7 characters:
+  - **"John Donaldson (the father)"** - 29 mentions (with disambiguator!)
+  - Uncle Bill - 18 mentions
+  - Margaret Donaldson - 2 mentions
+  - Joe Barron - 3 mentions
+  - Red Cross - 4 mentions
+  - Plus 2 more
+- F19 warnings: Some potentially ungrounded quotes in profiles
+- One pronunciation LLM error (batch enrichment failed) but continued successfully
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
