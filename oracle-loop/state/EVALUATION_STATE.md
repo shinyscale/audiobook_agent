@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 38
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -13,25 +13,25 @@
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
-- Character Extraction: 7/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 6/10
+- Character Extraction: 6/10 ✗
+  - Completeness: 6/10
+  - Identity Resolution: 5/10
   - Alias Grouping: 7/10
-- Character Profiles: 5/10 ✗
+- Character Profiles: 6/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 7/10 ✗
 - HTML Presentation: 8/10 ✓
-- **Overall: 6.83/10** (reference only)
+- **Overall: 6.80/10** (reference only)
 
 ## Overall Score Calculation
 
 ```
-Overall = (7 × 0.20) + (7 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
-        = 1.40 + 1.75 + 0.75 + 1.50 + 0.70 + 0.80
-        = 6.90
+Overall = (7 × 0.20) + (6 × 0.25) + (6 × 0.15) + (7.5 × 0.20) + (7 × 0.10) + (8 × 0.10)
+        = 1.40 + 1.50 + 0.90 + 1.50 + 0.70 + 0.80
+        = 6.80
 ```
 
-**Overall: 6.90/10** (DOWN from 7.15 in attempt 36)
+**Overall: 6.80/10** (DOWN from 6.90 in attempt 37)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (5 categories below threshold)
@@ -42,73 +42,76 @@ Overall = (7 × 0.20) + (7 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) 
 
 "American, Sir" is a continuous short story with no chapter markers. The tool produces 2 sections, both with null titles. Per the rubric, a continuous text should be identified as a single section (9-10); splitting into 2 sections is a structural error (6-7). Score 7 because the summaries for each section are coherent and usable.
 
-### 2.2 Character Extraction: 7/10 ✗ (unchanged)
+### 2.2 Character Extraction: 6/10 ✗ (DOWN from 7 — REGRESSION)
 
-**Character list (8 total, 4 main_cast + 4 supporting):**
-- `main_cast_1`: **Uncle Bill** — 18 mentions, role: protagonist, is_narrator: true ✓✓
+**CRITICAL REGRESSION: The son is MISSING as a separate character.** In attempt 37, both father (`main_cast_3`, 29 mentions) and son (`main_cast_2`, 9 mentions) were present as separate entries. Now only ONE "John Donaldson" exists (`supporting_1`, 28 mentions) — this is the FATHER based on his profile content. The pipeline has FALSE-MERGED father and son into a single entity.
+
+**Character list (7 total, 2 main_cast + 5 supporting):**
+- `main_cast_0`: **Uncle Bill** — 18 mentions, role: protagonist, is_narrator: true ✓✓
   - Aliases: ["Bill"] ✓
-- `main_cast_2`: **John Donaldson** — 9 mentions, role: supporting, is_narrator: true — this is the SON
-  - Aliases: [] ✗ MISSING "Johnny" and "John"
-  - is_narrator: true is WRONG — son narrates nested wartime story, but Uncle Bill is the first-person narrator
-- `main_cast_3`: **John Donaldson** — 29 mentions, role: antagonist, is_narrator: false — this is the FATHER ✓
-  - Aliases: ["John", "the father"] ✓
-- `main_cast_4`: **Margaret Donaldson** — 2 mentions, role: supporting ✓
-- `supporting_1`: **Joe Barron** — 3 mentions ✓
-- `supporting_2`: **Red Cross** — 4 mentions — organization, not character ✗
-- `supporting_3`: **Ted Frith** — 5 mentions, alias: "Ted" ✓
-- `supporting_5`: **Johnny** — 2 mentions — FALSE SPLIT, should be alias of John Donaldson (son) ✗
+- `main_cast_1`: **Margaret Donaldson** — 2 mentions, role: supporting ✓
+- `supporting_1`: **John Donaldson** — 28 mentions, role: protagonist — THIS IS THE FATHER (profile confirms: "American, sir", "pauses before admitting guilt", relationship: "parent" to son)
+  - Aliases: ["John"] ✓
+  - **The SON is entirely missing as a separate character** ✗✗✗
+- `supporting_3`: **Joe Barron** — 3 mentions ✓
+- `supporting_4`: **Red Cross** — 4 mentions — organization, not character ✗
+- `supporting_5`: **Ted Frith** — 5 mentions, alias: "Ted" ✓
+- `supporting_7`: **Johnny** — 2 mentions — FALSE SPLIT, should be alias of son ✗
 
-**Sub-Dimension A: Completeness: 8/10** (stable)
-- All significant characters present ✓
+**Sub-Dimension A: Completeness: 6/10** (DOWN from 8)
+- The son (John Donaldson Jr.) is a MAJOR character — the young ambulance driver, Yale student, narrator of the war story, who finds his dying father at Caporetto — and he is COMPLETELY MISSING as a distinct entity.
 - "Red Cross" is an organization, not a character ✗ (minor)
+- All other significant characters present ✓
 
-**Sub-Dimension B: Identity Resolution: 6/10** (stable)
-- Father/son correctly kept separate ✓✓
-- "Johnny" is a FALSE SPLIT — should be alias of the son ✗✗
-- Son incorrectly marked is_narrator: true ✗
+**Sub-Dimension B: Identity Resolution: 5/10** (DOWN from 6)
+- Father/son FALSE MERGE ✗✗✗ — In attempt 37, father and son were correctly kept as separate entries. The revert of Signal 0 (or the non-deterministic pipeline behavior) caused them to merge into a single "John Donaldson" with 28 mentions. This is the single biggest regression.
+- "Johnny" remains a false split ✗
+- Uncle Bill correctly separate ✓
 
 **Sub-Dimension C: Alias Grouping: 7/10** (stable)
 - Uncle Bill has alias "Bill" ✓
-- Son has NO aliases ✗ (regression — had "John" in attempt 36, should also have "Johnny")
-- Father has aliases "John", "the father" ✓
+- John Donaldson has alias "John" ✓
 - Ted Frith has alias "Ted" ✓
 - "Johnny" as separate character rather than alias of son ✗
 
-### 2.3 Character Profiles: 5/10 ✗ (DOWN from 6.5 — MAJOR REGRESSION)
+### 2.3 Character Profiles: 6/10 ✗ (UP from 5)
 
-**The target character preference fix MADE THINGS WORSE.** Son and father now have IDENTICAL profiles — every field (appearance, personality, voice_guidance, relationships, evidence) is duplicated word-for-word between the two characters.
+The profile DUPLICATION from attempt 37 is resolved (since there's now only one John Donaldson). However, the son's profile doesn't exist at all.
 
-- **Uncle Bill**: Good profile ✓
-  - Appearance: "elderly, small, grizzled" ✓
-  - Personality: "self-sacrificing, loyal, reluctantly compassionate" ✓
-  - Voice guidance: "low, restrained, gravelly baritone" ✓
-  - Evidence quotes accurate ✓
-  - Relationships: "John (father): family", "John Donaldson (son): family", "John Donaldson (father): mentor" — the last one is odd (Uncle Bill as mentor to the FATHER?). Should be mentor to the SON. ✗
+- **Uncle Bill**: Good voice guidance ✓
+  - Tone: "quiet, restrained voice with underlying warmth" ✓
+  - Relationships: Confused — "John (father): ally", "John Donaldson (son): mentor", "John Donaldson (father, wartime): family" — first and third are redundant/confusing references to the same person ✗
+  - Voice guidance quotes include "'No--no. It's covered over...'" — this is actually the SON's dialogue ✗
+  - physical_description: null, personality_traits: null ✗
+  - Score: 6.5/10
 
-- **John Donaldson (son, `main_cast_2`)**: COMPLETELY WRONG — has father's profile ✗✗✗
-  - Appearance describes "middle-aged, physically imposing man" — this is the FATHER. The son is a young man (12 when adopted, 18 when enlisted, early 20s during the story).
-  - Personality describes "committed serious crimes but redeemed himself through selfless service" — this is the FATHER's arc entirely.
-  - Evidence quotes: "'American, sir,' he said proudly" — the FATHER's iconic line.
-  - Relationships: "John Donaldson (son): parent" and "Uncle Bill: acquaintance" — these are the FATHER's relationships copied verbatim.
+- **John Donaldson** (`supporting_1`, the father): Profile is CORRECT for the father ✓
+  - Tone: "calm but heavy with suppressed emotion" ✓
+  - Dialect: "American English with faint foreign inflection from years in Italy" ✓
+  - Quotes: "'American, sir,' he said proudly", "'Took money... I couldn't face--discovery'" ✓
+  - Relationships: parent to son ✓, acquaintance to Uncle Bill ✓ (though "ally" or "family" would be more accurate), spouse to Margaret ✓
+  - physical_description: null, personality_traits: null ✗
+  - Score: 7/10
 
-- **John Donaldson (father, `main_cast_3`)**: Has the correct profile content BUT it's identical to the son's ✗
-  - The father's profile IS correct for the father — it describes his redemption arc accurately.
-  - But the son having an identical copy means the disambiguator failed: it gave both characters the same passages, producing identical LLM-generated profiles.
+- **Ted Frith**: Good voice guidance ✓
+  - Tone: "Warm, steady, and quietly resolute" ✓
+  - Quotes: "'Ah, but you are--my superior officer'" ✓, "'I'm American to-day, sir!'" ✓
+  - Relationships: John Donaldson → ally ✓, Uncle Bill → acquaintance ✓
+  - Score: 8/10
 
-- **Ted Frith**: IMPROVED from attempt 36 ✓
-  - Appearance mentions natural eyes, American uniform ✓
-  - Personality: "heroic, courageous, selfless" ✓ (appropriate for Ted's battlefield role)
-  - Evidence quotes mostly correct — though "'I'm American to-day, sir!'" is Ted quoting the father, it's borderline acceptable in context since Ted is the one speaking.
-  - Score: 7/10 for this individual profile
+- **Margaret Donaldson**: No profile data at all (null voice_guidance, empty relationships) ✗
+  - She's a very minor character (2 mentions), so this is understandable.
 
-**Why 5/10:** The critical regression is that son and father have IDENTICAL profiles (word-for-word duplication). In attempt 36, the son had the wrong profile but the father had a unique correct one. Now both have the same content, meaning the disambiguator fix actually removed all differentiation. The father's profile is correct in isolation, but duplicating it to the son is worse than having a contaminated-but-different profile. Uncle Bill's profile remains good. Ted improved slightly.
+- **ALL characters have null physical_description and null personality_traits** — these structured fields are not populated. Voice guidance partially compensates but these are separate fields in the schema.
+
+**Why 6/10:** The profile duplication is gone (improvement from 5), but the son's profile is entirely missing because the son was merged away. Uncle Bill and father have reasonable voice guidance. Ted Frith's profile is good. But missing son + all null physical_description/personality_traits fields holds this back.
 
 ### 2.4 Chapter Summaries: 7.5/10 ✗ (stable)
 
 **Section 1:** Excellent. Correctly describes the cousin relationship, Margaret Donaldson, the scandal and faked death. Mentions Yale, the financial split of inheritance. ✓
 
 **Section 2:** Good quality but the "sister" hallucination persists:
-- "his deceased sister's son" — WRONG. Uncle Bill is the father's COUSIN, not sibling. Section 1 correctly says "cousin." ✗
+- "his deceased sister's twelve-year-old son" — WRONG. Uncle Bill is the father's COUSIN, not sibling. Section 1 correctly says "cousin." ✗
 - Otherwise covers Yale enrollment, fishing trip to Canada, WWI enlistment, Red Cross ambulance work, Caporetto disaster, deathbed reunion and revelation. ✓
 
 ### 2.5 Pronunciation Guide: 7/10 ✗ (stable)
@@ -123,56 +126,55 @@ Overall = (7 × 0.20) + (7 × 0.25) + (5 × 0.15) + (7.5 × 0.20) + (7 × 0.10) 
 
 ### 2.6 HTML Presentation: 8/10 ✓ (stable)
 
-Navigation works. Character profiles render well with appearance, personality, voice guidance sections. Uncle Bill displayed as protagonist/narrator. Both John Donaldsons visible with different roles (supporting vs antagonist). Minor issues: "Red Cross" in Supporting Characters, "Johnny" as separate character.
+Navigation works. Character profiles render well. Uncle Bill displayed as protagonist/narrator. Minor issues: "Red Cross" in characters, "Johnny" as separate character.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (user-configured, appropriate)
 - Pipeline: V2 with Phase 2 graph-based identity resolution
 - 0 LLM retries — good
-- 1 JSON parse failure (Pronunciation Guide batch enrichment) — recurring
-- Character Profiles: 11 LLM calls, 678s — stage RAN successfully but produced duplicate content
-- Grounding gate working — father grounded ✓
-- Target preference fix: DID NOT WORK — profiles are now duplicated instead of disambiguated
+- Character Profiles: 8 LLM calls, 598s — stage ran but only profiled existing characters (son missing)
+- Character Extraction: 13 LLM calls, 122s — father/son merged at extraction level
+- No JSON parse failures this run ✓
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Son and father have IDENTICAL profiles (word-for-word duplication)** [Profiles]
-   - Problem: `main_cast_2` (son) and `main_cast_3` (father) have exactly the same appearance, personality, voice_guidance, relationships, and evidence quotes. Both describe the father's character arc ("committed serious crimes", "American, sir", "middle-aged, physically imposing"). The son's profile should describe: a young man (early 20s), attended Yale, taken fishing by Uncle Bill, enlisted as WWI ambulance driver, found dying father at Caporetto.
-   - Evidence: `jq` shows identical JSON for both characters' appearance, personality, voice_guidance, and relationships fields.
-   - Root cause analysis: The attempt 37 fix added a "target character preference" signal (confidence 0.98) to the disambiguator. This signal is TOO STRONG — when gathering passages for the son, it prefers the son (target) for ambiguous mentions. But when gathering for the father, it prefers the father (target) for the same mentions. The result: BOTH characters claim ALL "John Donaldson" passages, producing identical profiles. The signal doesn't disambiguate — it just makes each character's profiling run grab everything.
-   - The real problem is deeper: The passage gatherer finds the same passages for both characters because both match "John Donaldson". The disambiguator then assigns them to whichever is the "target" at that moment, so both end up with the same set. The LLM then generates the same profile from the same passages.
-   - Location: `src/pipeline/character_profiling/name_disambiguator.py` — Signal 0 (target preference)
-   - Fix approach: The target preference signal should be REMOVED or made much weaker. Instead, the fix needs to use CONTEXT-BASED signals that actually distinguish passages about the father vs the son:
-     - Passages with "the father", "twenty years ago", "took money", "faked his death" → father
-     - Passages with "Yale", "ambulance driver", "enlisted", "the boy", "twelve years old" → son
-     - The disambiguator already HAS these context signals (relationship markers, temporal markers, chapter range). The target preference signal at 0.98 confidence is OVERRIDING them all.
-   - **Recommended fix:** Remove Signal 0 entirely. The disambiguator's existing signals (relationship markers at 0.95, name-shape at 0.90, temporal markers at 0.80) should be sufficient IF they're actually running before a target preference short-circuits the decision.
+1. **Father/son FALSE MERGE — son is completely missing** [Identity Resolution / Completeness]
+   - Problem: Only ONE "John Donaldson" (`supporting_1`, 28 mentions) exists. This is the father (confirmed by profile: "American, sir", "pauses before admitting guilt", relationships: "parent" to son). The son — a MAJOR character (Yale student, WWI ambulance driver, narrator of war story, finds dying father at Caporetto) — has no separate entry.
+   - Evidence: In attempt 37, father was `main_cast_3` (29 mentions) and son was `main_cast_2` (9 mentions), both present. Now only `supporting_1` (28 mentions) — the 28 is close to the father's previous 29, suggesting the son's mentions were absorbed or dropped.
+   - Root cause: The revert of Signal 0 from the disambiguator (attempt 38's fix) was intended to fix profile duplication. But the father/son split was maintained by the identity graph's ROLE_CONFLICT hard constraint (attempt 35). The merge is happening UPSTREAM of profiling — in character extraction itself, not in the disambiguator. The same-name characters are being merged at the identity graph or main_cast extraction level.
+   - **This is the #1 blocker.** Without two distinct characters, profiles can't be separate, and the downstream cascade fails.
+   - Location: Character extraction pipeline — could be `identity_graph.py` (ROLE_CONFLICT constraint not firing), `main_cast.py` (two-pass extraction merging them), or `characters.py` (promotion/grounding stage). The revert of `name_disambiguator.py` SHOULD NOT have affected character extraction — it only affects profiling. This suggests the merge is non-deterministic (LLM-driven) and the previous separation was lucky.
+   - **STUCK PATTERN:** This is the CORE issue that has oscillated for 10+ attempts. The pipeline can't reliably keep same-name father/son as separate characters. Fixes to the identity graph (attempt 35), grounding gate (attempt 36), and disambiguator (attempts 37-38) have all been partial or regressive.
+   - **Recommended approach — DIFFERENT STRATEGY NEEDED:** After 38 attempts, the incremental fix approach on the identity graph / disambiguator is clearly stuck. The fix phase should consider:
+     1. **Disambiguation labels at extraction time** — If the LLM identifies two "John Donaldson" characters, immediately assign disambiguation labels (e.g., "John Donaldson (father)" and "John Donaldson (son)") as canonical names during pass 1 or pass 2, so downstream stages can distinguish them by name.
+     2. **Investigate why the ROLE_CONFLICT hard constraint from attempt 35 didn't prevent this merge** — it was specifically designed to keep father/son separate. Is it still active in the code? Did the revert accidentally remove it?
+     3. **Check if the LLM is even identifying two separate characters in pass 1** — the merge may be happening at the LLM level (LLM sees "John Donaldson" and outputs only one character), not at the graph/constraint level.
 
 ### HIGH
 
-2. **"Johnny" false split — should be alias of John Donaldson (son)** [Identity Resolution / Alias Grouping]
-   - Problem: `supporting_5` "Johnny" with 2 mentions exists as a separate character. "Johnny" is a childhood nickname for the son.
-   - Same as attempt 36. Not addressed in attempt 37.
-   - Location: Identity graph / alias resolution — may be blocked by HARD constraint when two "John Donaldson" candidates exist.
+2. **"Johnny" false split — should be alias of son (if son is restored)** [Identity Resolution / Alias Grouping]
+   - Problem: `supporting_7` "Johnny" with 2 mentions exists as a separate character. "Johnny" is a childhood nickname for the son.
+   - Dependent on CRITICAL #1 — needs son to be restored first, then "Johnny" merged as alias.
 
-3. **Son has no aliases** [Alias Grouping]
-   - Problem: `main_cast_2` (son) has an empty alias list. Should have at least "John" and "Johnny".
-   - In attempt 36 the son had alias "John". Now the son has NO aliases, while the father has "John". This suggests the alias "John" moved from son to father between attempts.
-
-4. **Summary "sister" hallucination** [Summaries]
-   - Problem: Section 2 says "his deceased sister's son" — Uncle Bill is the father's COUSIN, not sibling.
+3. **Summary "sister" hallucination** [Summaries]
+   - Problem: Section 2 says "his deceased sister's twelve-year-old son" — Uncle Bill is the father's COUSIN, not sibling.
    - Evidence: Section 1 correctly says "cousin."
-   - Non-deterministic LLM issue.
+   - Non-deterministic LLM issue — same hallucination persists across attempts.
 
-5. **Son incorrectly marked as narrator** [Identity Resolution]
-   - Problem: `main_cast_2` (son) has `is_narrator: true`. The son narrates his wartime experience within the story (nested narration to Uncle Bill), but Uncle Bill is the actual first-person narrator of the short story. Only Uncle Bill should be `is_narrator: true`.
+4. **All characters have null physical_description and null personality_traits** [Profiles]
+   - Problem: Every character has `physical_description: null` and `personality_traits: null`. Only `voice_guidance` is populated.
+   - These are separate fields in the character schema and should be populated for major characters.
+   - Location: Character profiling pipeline — may need to check if these fields are being extracted from the LLM output.
 
 ### MEDIUM
 
-6. **Uncle Bill's relationship "John Donaldson (father): mentor" is inverted** [Profiles]
-   - Problem: Uncle Bill is listed as MENTOR to the father. Uncle Bill is mentor/guardian to the SON, not the father. Uncle Bill and the father were cousins/contemporaries.
+5. **Uncle Bill's relationships are confused** [Profiles]
+   - Problem: "John (father): ally", "John Donaldson (son): mentor", "John Donaldson (father, wartime): family" — the first and third are redundant/confusing references to the same person. Uncle Bill is mentor to the SON, not the father.
+
+6. **Uncle Bill's evidence quotes include son's dialogue** [Profiles]
+   - Problem: "'No--no. It's covered over--wiped out--with service and honor. You're dying for the flag, father--father!'" — this is the SON speaking to the dying father, not Uncle Bill.
 
 7. **Pronunciation: 7/20 false positives (35%)** [Pronunciation]
    - Remaining false positives: whippersnapper, thriftless, thickset, manliness, dum-dums, orderlies, mayn't.
@@ -181,51 +183,48 @@ Navigation works. Character profiles render well with appearance, personality, v
    - Same as all prior attempts.
 
 9. **"Red Cross" extracted as character** [Completeness]
-   - Organization, not a character (`supporting_2`, 4 mentions).
+   - Organization, not a character (`supporting_4`, 4 mentions).
 
 ### LOW
 
-10. **Father's alias "John Donaldson" overlaps with son's canonical name** — technically correct but creates confusion in display and profiling.
+10. **Father listed as "protagonist" role** — Should be "antagonist" or "supporting". The father is the subject of the central mystery but isn't the protagonist.
 
 ## Fix Priority
 
-**Attempt 37 REGRESSED on profiles.** The target character preference signal at confidence 0.98 is too strong and overrides all contextual disambiguation signals. Both characters now get identical profiles because the signal always picks the "target" regardless of textual context.
+**CRITICAL REGRESSION: Father/son merged into single character.** The revert of Signal 0 in `name_disambiguator.py` was supposed to fix profile duplication. The duplication IS fixed (only one John Donaldson now), but the root cause is that the two characters were merged at the CHARACTER EXTRACTION level, not just at the profiling level.
 
-**The fix made the disambiguator WORSE, not better.** Before the fix, the disambiguator at least occasionally assigned some passages correctly. Now it assigns ALL passages to both targets equally.
+**THE INCREMENTAL FIX APPROACH IS STUCK.** After 38 attempts targeting the same set of files (`identity_graph.py`, `name_disambiguator.py`, `characters.py`, `mention_search.py`), the pipeline oscillates between:
+- Father/son merged (bad for completeness/identity resolution)
+- Father/son split but profiles duplicated/contaminated (bad for profiles)
 
-**Recommended fix for attempt 38:**
-1. **CRITICAL #1: REVERT the target preference signal (Signal 0) from `name_disambiguator.py`** — This is the direct cause of the regression. Remove the 25 lines added in attempt 37. The existing signals (relationship markers, name-shape, temporal markers, chapter range) need to work without being overridden.
-2. **Then investigate why the existing signals aren't disambiguating correctly.** The disambiguator has signals for relationship markers ("the father", "the boy"), temporal markers ("twenty years ago"), and chapter range. If these aren't working, the fix should improve THOSE signals rather than adding a new one that bypasses them.
-3. **Do NOT add another new high-confidence signal.** The problem is that the existing disambiguation signals aren't firing, not that a new signal is needed.
+**Recommended fix for attempt 39 — NEW STRATEGY:**
 
-**Alternative approach if revert+signal-fix doesn't work:** Instead of fixing the disambiguator, give the two characters distinguishable canonical names. If the son were "John Donaldson Jr." or "Young John Donaldson" and the father were "John Donaldson Sr.", the passage gatherer could match on distinct names. BUT this changes the identity graph output and may have side effects.
+The core problem is that two characters share the EXACT SAME canonical name "John Donaldson". Every downstream stage (profiling, passage gathering, disambiguation) struggles because the names are identical. Instead of fixing each downstream stage, **disambiguate at the SOURCE**:
+
+1. **Add disambiguation labels to canonical names during character extraction** — When the main_cast or supporting cast pipeline detects two characters with the same name (different roles: parent vs child), it should output them with disambiguated canonical names like "John Donaldson (father)" and "John Donaldson (son)". This makes them distinguishable by NAME throughout the entire pipeline.
+
+2. **Check this FIRST: Is the identity graph even producing two separate characters?** — Run the extraction with debug logging to see if the LLM in pass 1 identifies two "John Donaldson" characters, or if it only identifies one. If only one, the fix needs to be in the extraction prompt to guide the LLM to distinguish them.
+
+3. **The ROLE_CONFLICT hard constraint (attempt 35) should still prevent merging.** Verify it's still in the code and active. If it is, the issue may be that the LLM never produces two candidates to begin with.
 
 ## Fix History
 
-### Attempt 38 — REVERT target character preference signal — PENDING ANALYSIS
-- **Issue targeted:** CRITICAL #1 — Son and father have IDENTICAL profiles (word-for-word duplication)
-- **Root cause:** Signal 0 (target preference at confidence 0.98) in `name_disambiguator.py` overrides all contextual signals. When gathering passages for son, it prefers son for ALL "John Donaldson" mentions. When gathering for father, it prefers father for the SAME mentions. Result: both characters claim all passages → identical profiles.
+### Attempt 38 — REVERT target character preference signal — REGRESSION
+- **Issue targeted:** CRITICAL #1 from attempt 37 — Son and father have IDENTICAL profiles (word-for-word duplication)
 - **Changes made:**
   1. REVERTED Signal 0 (target character preference) from `ContextDisambiguator.disambiguate()` (lines 367-386)
   2. Removed `by_target_preference` from stats initialization (line 307)
   3. Updated docstring to reflect actual signal priority without Signal 0
-- **Rationale:** The existing signals (relationship markers 0.95, name-shape 0.90, temporal markers 0.80, chapter-range 0.85) should disambiguate correctly without a bypass signal. Signal 0 was preventing these context-aware signals from running.
-- **Expected outcome:** Profiles differentiate because:
-  - Father's passages will have relationship markers ("the father", temporal markers about "years ago")
-  - Son's passages will have younger markers ("the boy", "my nephew", Yale references)
-  - The disambiguator will now use these signals instead of blindly preferring target
+- **Result:** Profile duplication is FIXED (only one profile exists), but the fix is vacuous — the son was FALSE-MERGED into the father at the character extraction level. Only one "John Donaldson" exists (the father, `supporting_1`, 28 mentions). The son is completely missing. Character Extraction 7→6, Completeness 8→6, Identity Resolution 6→5. Score: 6.90→6.80.
+- **Root cause:** The revert didn't cause the merge — the merge happens at the extraction/identity-graph level and is non-deterministic (LLM-driven). The ROLE_CONFLICT constraint from attempt 35 should prevent this but apparently isn't firing.
 - **Files modified:**
   - `src/pipeline/character_profiling/name_disambiguator.py` (removed 25 lines)
 
 ### Attempt 37 — Target character preference in passage disambiguation — REGRESSION
 - **Issue targeted:** CRITICAL #1+#2 — Son's profile contaminated with father's story due to shared name
-- **Changes made:**
-  1. Added Signal 0 (target character preference, confidence 0.98) to `ContextDisambiguator.disambiguate()`
-  2. When a candidate exactly matches `target_character_names[0]`, prefer it strongly
-  3. Added `by_target_preference` stat tracking
-- **Result:** REGRESSION — Both son and father now have IDENTICAL profiles (word-for-word duplication of the father's profile). The target preference signal overrides all contextual signals, so both characters get all passages. Profiles 6.5→5. Score: 7.15→6.90.
-- **Files modified:**
-  - `src/pipeline/character_profiling/name_disambiguator.py` (added 25 lines)
+- **Changes made:** Added Signal 0 (target character preference, confidence 0.98)
+- **Result:** REGRESSION — Both son and father now have IDENTICAL profiles (word-for-word duplication). Profiles 6.5→5. Score: 7.15→6.90.
+- **Files modified:** `name_disambiguator.py`
 
 ### Attempt 36 — Generational suffix handling in mention search — PARTIAL SUCCESS
 - Father now in character list with 10 mentions ✓. Son's profile contaminated ✗. Johnny false split ✗.
@@ -243,7 +242,7 @@ Navigation works. Character profiles render well with appearance, personality, v
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 38 | REVERT target preference signal | `name_disambiguator.py` | PENDING — reverted Signal 0 to let existing contextual signals work |
+| 38 | REVERT target preference signal | `name_disambiguator.py` | REGRESSION — son false-merged into father. Characters 7→6. Score: 6.90→6.80 |
 | 37 | Profile passage disambiguation (target preference) | `name_disambiguator.py` | REGRESSION — identical profiles for son/father. Profiles 6.5→5. Score 7.15→6.90 |
 | 36 | Grounding gate Sr./Jr. suffix | `mention_search.py`, `test_character_extraction_v2.py` | PARTIAL SUCCESS — father grounded ✓, profiles contaminated ✗. Score: 7.05→7.15 |
 | 35 | ROLE_CONFLICT hard constraint | `identity_graph.py` | PARTIAL SUCCESS — no false merge ✓, father filtered ✗. Score: 6.80→7.05 |
@@ -254,7 +253,7 @@ Navigation works. Character profiles render well with appearance, personality, v
 | 30 | Pronunciation false positives | `character_proposer.py`, `foreign_proposer.py` | Pronunciation improved, character regression |
 | 29 | Disambiguation labels post-processing | `characters.py` | SUCCESS — labels applied. Score: 7.13 |
 
-**STUCK PATTERN ALERT:** `name_disambiguator.py` has now been modified in attempts 37-38. Attempt 37 was a REGRESSION (target preference signal). Attempt 38 REVERTS that regression. If profiles still duplicate after this revert, the issue is deeper — may need to escalate to passage_gatherer.py or examine why existing disambiguation signals (relationship/temporal markers) aren't firing.
+**STUCK PATTERN ALERT:** `name_disambiguator.py` modified in attempts 37-38, both regressions. The father/son same-name problem has been targeted in attempts 29, 31, 34, 35, 36, 37, 38 across multiple files. The pipeline oscillates between merged (bad) and split-but-contaminated (less bad). A fundamentally different approach is needed — see CRITICAL #1.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -267,7 +266,8 @@ Navigation works. Character profiles render well with appearance, personality, v
 | 35 | 7.05 | +0.45 | HARD constraint works, father filtered |
 | 36 | 7.15 | +0.55 | Father grounded ✓, profiles contaminated ✗ |
 | 37 | 6.90 | +0.30 | REGRESSION — identical duplicate profiles |
+| 38 | 6.80 | +0.20 | REGRESSION — son false-merged into father |
 
 ## Next Action
 
-Set phase to `awaiting_analysis` and re-run analysis to verify the revert fixes profile duplication.
+Run PROMPT_fix.md to address CRITICAL #1 (father/son false merge). The fix phase MUST take a different approach — see recommended strategy in CRITICAL #1. Incremental fixes to the same files have been tried for 10+ attempts and are stuck in an oscillation pattern.
