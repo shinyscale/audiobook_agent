@@ -3,14 +3,24 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 45
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Identity Graph: ../output/american_sir/identity_graph.json
+- Identity Graph: output/American Sir_20260216_060847/identity_graph.json
+
+## Pipeline Notes from Attempt 45
+- Analysis completed successfully in 37m 0s
+- Same-name conflict detection triggered for: Narrator, John Donaldson, Uncle Bill
+- F6 rejected "John Donaldson (the son)" with 0 text mentions
+- Character "John Donaldson Sr." extracted with 31 mentions (the father character)
+- Uncle Bill correctly detected as narrator (first-person)
+- 6 total characters extracted
+- F19 warnings: Some profiles have ungrounded evidence quotes (John Donaldson Sr.: 4, Uncle Bill: 5, Ted Frith: 2)
+- Pronunciation guide generated with 20 entries
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
