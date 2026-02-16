@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 34
-- **Phase:** awaiting_analysis
+- **Attempt:** 35
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,12 +12,15 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Analysis completed in 34m 49s
-- 53 LLM calls, 79,464 tokens
-- Found 6 characters, 2 chapters, 20 pronunciation flags
-- Warnings: "Profile generation failed for Uncle Bill: None"
-- Warnings: 2 characters have potentially ungrounded evidence quotes (John Donaldson: 3, Ted Frith: 2)
+- Analysis completed in 38m 36s
+- 55 LLM calls, 93,344 tokens
+- Found 5 characters, 2 chapters, 20 pronunciation flags
+- F6 filter rejected "John Donaldson Sr. (the father)" as having 0 text mentions
+- Warnings: 3 characters have potentially ungrounded evidence quotes (John Donaldson: 2, Uncle Bill: 3, Ted Frith: 2)
 - 1 JSON parse failure (Pronunciation Guide batch enrichment)
+- Uncle Bill correctly identified as protagonist with is_narrator: true
+- "John Donaldson" is now ONLY the son (aliases: John, the boy, Johnny)
+- Father is MISSING entirely from character list (filtered by F6 as hallucination)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
