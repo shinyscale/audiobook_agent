@@ -75,6 +75,29 @@ class MentionSearcher:
                 return idx
         return None
 
+    def _extract_base_name(self, canonical_name: str) -> str:
+        """
+        Extract base name without generational suffixes.
+
+        Handles patterns like:
+        - "John Donaldson Sr." → "John Donaldson"
+        - "John Jr." → "John"
+        - "Elizabeth Lavenza III" → "Elizabeth Lavenza"
+
+        Args:
+            canonical_name: Full canonical name possibly with suffixes
+
+        Returns:
+            Base name without Sr/Jr/roman numeral suffixes
+        """
+        name = canonical_name.strip()
+
+        # Remove Sr./Jr./III/etc. suffixes
+        # Pattern: optional comma + whitespace + Sr/Jr/roman numerals at end
+        name = re.sub(r',?\s+(Sr\.?|Jr\.?|[IVX]+)$', '', name, flags=re.IGNORECASE).strip()
+
+        return name
+
     def build_search_pattern(self, name: str) -> re.Pattern:
         """
         Build a regex pattern for finding a name with robust boundaries.
@@ -153,6 +176,18 @@ class MentionSearcher:
 
         # Build list of all name variants to search for
         all_names = [character.canonical_name] + character.aliases
+
+        # If canonical name has generational suffixes (Sr./Jr.) that may not appear in text,
+        # also search for the base name without the suffix. This handles cases where:
+        # - The LLM extracted "John Donaldson Sr." to disambiguate from "John Donaldson Jr."
+        # - But the text never literally uses "Sr." (it says "his father", "the father", etc.)
+        canonical_base = self._extract_base_name(character.canonical_name)
+        if canonical_base != character.canonical_name:
+            all_names.append(canonical_base)
+            logger.debug(
+                f"Also searching for base name '{canonical_base}' "
+                f"(canonical: '{character.canonical_name}')"
+            )
 
         # Remove duplicates while preserving order
         seen = set()
