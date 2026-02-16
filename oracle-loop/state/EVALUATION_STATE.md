@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 49
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -12,11 +12,13 @@
 - JSON: ../output/american_sir/analysis.json
 
 ## Pipeline Notes
-- Analysis completed in 38m 6s
-- Revert of attempt 47's deduplication confirmed successful
-- Father/son are separate entries again (main_cast_0, main_cast_1)
-- Uncle Bill is single entity, correctly tagged as narrator
-- This matches attempt 46 baseline
+- Analysis completed in 36m 51s
+- **NEW REGRESSION:** Uncle Bill was split into TWO characters: "Uncle Bill (the father)" and "Uncle Bill (the son)"
+- Father's aliases include son's name: "aka John Donaldson, John Donaldson (the son)"
+- SAME-NAME CONFLICT warning logged for Uncle Bill having both father/son contexts
+- F19 grounding warnings for 4 character profiles (1-4 ungrounded quotes each)
+- Pronunciation agent had JSON format error but continued with fallback
+- 8 characters total (1 merged via F1 summary-driven merge)
 
 ## Latest Scores
 - Structure Detection: 7/10 ✗
