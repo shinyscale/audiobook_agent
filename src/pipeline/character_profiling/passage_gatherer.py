@@ -282,14 +282,8 @@ class CharacterPassageGatherer:
         """
         passages = []
 
-        # Strip parenthetical disambiguators for text search
-        # "John Donaldson (the son)" → "John Donaldson"
-        # This allows matching against actual text while preserving
-        # the disambiguator for the ContextDisambiguator to use
-        base_name = re.sub(r'\s*\([^)]+\)\s*$', '', name).strip()
-
         # Escape regex special characters but allow word boundaries
-        escaped_name = re.escape(base_name)
+        escaped_name = re.escape(name)
         # Match the name as a word (with optional punctuation after)
         pattern = rf"\b{escaped_name}\b"
 

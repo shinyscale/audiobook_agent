@@ -98,26 +98,6 @@ ENGLISH_EXCEPTIONS = {
     "precious",
     "conscious",
     "delicious",
-    # Common English adverbs/direction words (fix for false foreign detection)
-    # NOTE: This deny-list approach is temporary - should be replaced with frequency-based
-    # filtering (e.g., wordfreq library) to avoid endless list expansion.
-    "away",
-    "dauntless",
-    "magnificence",
-    "giddiest",
-    "moveable",
-    "convulsed",
-    "unutterable",
-    "decorum",
-    # Additional common words flagged in berenice analysis (attempt 1)
-    "sentiments",
-    "refracted",
-    "sentient",
-    "conformation",
-    "tarried",
-    "emaciation",
-    "multiform",
-    "aslant",
     "mysterious",
     "suspicious",
     "ambitious",
@@ -131,14 +111,6 @@ ENGLISH_EXCEPTIONS = {
     "an",
     "one",
     "a",  # English articles that match German "ein/eine"
-    # Common standalone words that appear in foreign phrases but are English words
-    "grave",  # Common English word ("serious" or "tomb"), even in wine names like "De Grave"
-    # Common auxiliary verbs that match patterns but are basic English
-    # (These are ALSO in COMMON_WORDS_WHITELIST in cmu_proposer.py but foreign patterns can still match them)
-    "was",  # Matches German "das/ein was..." patterns but is basic English auxiliary verb
-    "were",
-    "been",
-    "being",
 }
 
 

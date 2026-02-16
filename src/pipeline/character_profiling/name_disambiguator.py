@@ -240,12 +240,12 @@ class ContextDisambiguator:
     Disambiguates character references using contextual signals.
 
     Signal priority (highest to lowest):
-    1. Relationship markers (0.95) - "his father John", "Sr./Jr."
-    2. Name-shape markers (0.90) - sentence includes surname → full-name wins
-    3. Temporal markers (0.80) - past context likely refers to older generation
-    4. Chapter-range prior (0.85) - use chapters_present to prefer candidates in/near current chapter
-    5. Chapter presence (0.70) - if only one candidate active in summary, prefer them
-    6. LLM fallback (0.70) - gated, only when heuristics fail
+    1. Relationship markers - "his father John", "Sr./Jr."
+    2. Name-shape markers - sentence includes surname → full-name wins
+    3. Temporal markers - past context likely refers to older generation
+    4. Chapter-range prior - use chapters_present to prefer candidates in/near current chapter
+    5. Chapter presence - if only one candidate active in summary, prefer them
+    6. LLM fallback - gated, only when heuristics fail
     """
 
     def __init__(

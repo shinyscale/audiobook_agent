@@ -46,7 +46,7 @@ class MainCastProfile:
 
 MAIN_CAST_PROMPT = """You are extracting the MAIN CAST from chapter summaries.
 
-Return JSON ONLY. Do not include any explanatory text.
+Return JSON ONLY.
 
 Task:
 - Identify 10–15 plot-central entities (people/creatures AND allowed symbolic objects/forces).
@@ -54,18 +54,14 @@ Task:
 - Do not invent names not supported by the summaries.
 - Provide canonical_name and aliases/variants used in summaries.
 
-Output format - return a JSON object with a "characters" array:
+Output JSON array, each item:
 {
-  "characters": [
-    {
-      "canonical_name": "Name",
-      "aliases": ["Alias1", "Alias2"],
-      "role": "protagonist",
-      "description": "Brief description",
-      "is_unnamed": false,
-      "is_symbolic": false
-    }
-  ]
+  "canonical_name": string,
+  "aliases": [string],
+  "role": "protagonist"|"antagonist"|"supporting"|"minor",
+  "description": string,
+  "is_unnamed": boolean,
+  "is_symbolic": boolean
 }
 
 CHAPTER SUMMARIES:
@@ -78,24 +74,19 @@ CHAPTER SUMMARIES:
 # Pass 1: Character Identification Prompt
 CHARACTER_IDENTIFICATION_PROMPT = """You are a literary analyst identifying the MAIN CAST of characters from a novel.
 
-TASK: Identify the main characters based on the chapter summaries below. Typically 10-15 characters, but extract ALL significant characters regardless of count (could be fewer for short stories, more for epics).
+TASK: Identify the 10-15 most important characters based on the chapter summaries below.
 
-NOTE: Chapter summaries include a [Characters: ...] list showing who appears in each chapter. Extract ALL characters who appear multiple times across chapters. Treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both appear in the lists).
+NOTE: When chapter summaries include a `characters_present` list, treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both are in the list).
 
 IMPORTANT RULES:
 1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
-2. **NARRATOR DETECTION (CRITICAL)**: Always include the narrator as a main character. Look for these signals:
-   - Phrases like "letter written by X", "X writes to Y", "X expresses/describes/recounts"
-   - Repeated third-person references to a character across many summaries (e.g., "Victor Frankenstein receiving...", "Victor consumed by...", "Victor's obsessive pursuit...")
-   - If a character's perspective dominates the summaries, they are likely the narrator
-   - **EPISTOLARY NARRATIVES**: If early summaries describe letters signed with initials or varying forms (e.g., "R. Walton", "Robert Walton", "R.W.", "Captain Walton"), these refer to ONE narrator - use the FULL NAME form as canonical
-3. Use the most common name form in the summaries as canonical_name (or the FULL NAME form if multiple variants exist)
+2. Always include the narrator (if a character) and the title character/entity if applicable
+3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
 4. Do NOT invent names not supported by the summaries
-5. **RELATIONSHIP-BASED REFERENCES**: If summaries frequently mention "his father", "her mother", "the narrator's X", look for the FULL NAME in other summaries and use that as canonical_name (e.g., "his father" + "letter from Alphonse" = "Alphonse Frankenstein"). Include family members who appear across multiple chapters.
-6. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
-7. Do NOT list aliases in this pass
-8. **ROLE ASSIGNMENT**:
-   - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows
+5. **FAMILY MEMBERS WITH SHARED NAMES**: If summaries mention family relationships (father/son, uncle/nephew) with shared first names, they are DIFFERENT people. Check for phrases like "X's father Y" or "receives letter from father, Y" - these indicate TWO characters even if names overlap.
+6. Do NOT list aliases in this pass
+7. **ROLE ASSIGNMENT**:
+   - **protagonist**: Main character(s), narrators, characters the story follows
    - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
    - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
    - **minor**: Characters with limited appearances
@@ -105,23 +96,19 @@ CHAPTER SUMMARIES:
 
 {plot_summary_section}
 
-OUTPUT FORMAT:
-You MUST return ONLY valid JSON (not an object with an "error" or "message" field).
-Return a JSON object with a "characters" array:
-
-{{
-  "characters": [
-    {{
-      "canonical_name": "Full Name or Descriptive Handle",
-      "role": "protagonist|antagonist|supporting|minor",
-      "description": "Brief description of character's role",
-      "is_unnamed": false,
-      "is_symbolic": false
-    }}
-  ]
-}}
-
-Do not include explanations or reasoning. Return ONLY the JSON object above.
+OUTPUT FORMAT (JSON):
+Return a JSON array of character objects with ONLY canonical names:
+```json
+[
+  {{
+    "canonical_name": "Full Name or Descriptive Handle",
+    "role": "protagonist|antagonist|supporting|minor",
+    "description": "Brief description of character's role",
+    "is_unnamed": false,
+    "is_symbolic": false
+  }}
+]
+```
 
 Extract the main characters now:"""
 
@@ -133,8 +120,6 @@ CHARACTER: {character_name}
 Role: {role}
 Description: {description}
 
-{other_characters_context}
-
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
@@ -143,7 +128,6 @@ IMPORTANT RULES:
 3. For unnamed characters or symbolic entities, include all descriptive handles that refer to the same thing
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 5. Do NOT include names of other characters/entities
-6. CRITICAL: Characters with the same title/profession but different names are DIFFERENT PEOPLE (e.g., "Professor Smith" ≠ "Professor Jones", "Dr. Brown" ≠ "Dr. Green"). Only group names if they clearly refer to the same individual.
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -162,68 +146,6 @@ Return a JSON object with all aliases found:
 Find all aliases for {character_name} now:"""
 
 
-# Consolidated Pass 2: All characters together for alias resolution + duplicate detection
-CONSOLIDATED_ALIAS_PROMPT = """You are analyzing characters extracted from chapter summaries of a novel.
-
-## Characters Found in Pass 1
-{character_list}
-
-## Your Task
-
-For EACH character above:
-1. List ALL aliases (every other name, title, or description referring to this person)
-2. Identify if any characters in this list are actually THE SAME PERSON (duplicates)
-
-## Alias Rules — Be Thorough
-
-Include EVERY variant used in the summaries. Common alias types to look for:
-
-- **Shortened names**: first-name-only or last-name-only forms (e.g., "Herbert White" → "Herbert", "Prince Prospero" → "Prospero")
-- **Title variations**: with or without title/rank (e.g., "Sergeant-Major Morris" → "Morris", "the sergeant-major")
-- **Family/role terms**: if summaries refer to a character as "father", "mother", "the old man", "the old woman", etc., include these as aliases for the named character they describe
-- **Descriptive handles**: phrases like "the stranger", "the creature", "the old man" that refer to a named character
-- **Narrator references**: if a character IS the first-person narrator, include "the narrator" as their alias
-- **Formal/informal forms**: married names, maiden names, full name vs. nickname
-
-Scan every chapter summary for references to each character — aliases often appear in chapters where the proper name is not used.
-
-## Merge Rules
-
-- If two entries are the same person, mark the LESS COMMON name as "merge_into" the MORE COMMON name
-- DO NOT merge characters who are different people with similar names (e.g., siblings, spouses with same surname)
-- Characters with different first names are usually DIFFERENT people (e.g., "George Wilson" ≠ "Myrtle Wilson")
-- Characters with the same title/profession but different names are DIFFERENT people (e.g., "Professor Smith" ≠ "Professor Jones")
-- If a character IS the narrator, DO NOT add "the narrator" as a separate character - add it as an alias instead
-
-## Chapter Summaries (for reference)
-{summaries}
-
-## Output Format
-Return a JSON object with a "characters" array:
-```json
-{{
-  "characters": [
-    {{
-      "canonical_name": "Victor Frankenstein",
-      "aliases": ["Victor", "Frankenstein", "the narrator"],
-      "uncertain_aliases": [],
-      "merge_into": null
-    }},
-    {{
-      "canonical_name": "the narrator",
-      "aliases": [],
-      "uncertain_aliases": [],
-      "merge_into": "Victor Frankenstein"
-    }}
-  ]
-}}
-```
-
-Note: "merge_into" should be null for characters that are unique, or the canonical_name of the character this entry should merge into.
-
-Analyze all characters now:"""
-
-
 class MainCastExtractor:
     """
     Extracts main cast profiles from chapter summaries.
@@ -237,12 +159,9 @@ class MainCastExtractor:
         self,
         llm_client: LLMClient,
         competitive_config: Optional["CompetitiveConfig"] = None,
-        json_llm: Optional[LLMClient] = None,
     ):
         self.llm = llm_client
         self.competitive_config = competitive_config
-        # JSON-capable LLM client for fallback when primary model fails JSON parsing
-        self.json_llm = json_llm
         self._competitor_clients: list[tuple[LLMClient, str]] = []
 
         # Collect vote records for consensus logging
@@ -420,12 +339,6 @@ class MainCastExtractor:
             profiles = self._extract_single_pass(summaries_text, plot_section, pattern_hints)
 
         if not profiles:
-            logger.error(
-                f"Main cast extraction returned 0 profiles! This means ALL characters will be extracted via "
-                f"NER as supporting cast, leading to fragmentation. Check logs above for LLM failure details. "
-                f"Number of summaries provided: {len(chapter_summaries)}, First summary length: "
-                f"{len(chapter_summaries[0]) if chapter_summaries else 0} chars"
-            )
             return []
 
         # region agent log
@@ -510,14 +423,6 @@ class MainCastExtractor:
         # Query LLM
         result, response = self.llm.query_json(prompt)
 
-        # Check if primary model failed JSON and we have a fallback
-        if (not response.success or result is None) and self.json_llm is not None:
-            logger.warning(
-                f"Primary model '{self.llm.config.model}' failed JSON extraction, "
-                f"retrying with JSON-capable model '{self.json_llm.config.model}'"
-            )
-            result, response = self.json_llm.query_json(prompt)
-
         if not response.success:
             logger.error(f"LLM query failed: {response.error}")
             return []
@@ -550,45 +455,7 @@ class MainCastExtractor:
         if pattern_section:
             pass1_prompt = pass1_prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
-        # Use strict system prompt to enforce JSON format
-        system_prompt = (
-            "You are a JSON-only assistant. "
-            "You MUST respond with ONLY valid JSON. "
-            "Do NOT wrap your response in any explanatory text, markdown code blocks, or additional commentary. "
-            "Do NOT use fields like 'error' or 'message' - return the requested data structure directly."
-        )
-
-        result, response = self.llm.query_json(pass1_prompt, system=system_prompt)
-
-        # DIAGNOSTIC: Log raw response if extraction fails
-        if not response.success or result is None:
-            logger.error(
-                f"Pass 1 LLM extraction failed. Model: {self.llm.config.model}, "
-                f"Success: {response.success}, Result type: {type(result)}, "
-                f"Raw response content (first 500 chars): {response.content[:500] if hasattr(response, 'content') else 'N/A'}"
-            )
-
-        # Check if primary model failed JSON and we have a fallback
-        primary_failed = (
-            not response.success
-            or result is None
-            or (isinstance(result, dict) and ("error" in result or "message" in result))
-        )
-
-        if primary_failed and self.json_llm is not None:
-            logger.warning(
-                f"Primary model '{self.llm.config.model}' failed JSON extraction, "
-                f"retrying with JSON-capable model '{self.json_llm.config.model}'"
-            )
-            result, response = self.json_llm.query_json(pass1_prompt, system=system_prompt)
-
-            # DIAGNOSTIC: Log fallback result
-            if not response.success or result is None:
-                logger.error(
-                    f"Pass 1 JSON fallback also failed. Model: {self.json_llm.config.model}, "
-                    f"Success: {response.success}, Result type: {type(result)}, "
-                    f"Raw response content (first 500 chars): {response.content[:500] if hasattr(response, 'content') else 'N/A'}"
-                )
+        result, response = self.llm.query_json(pass1_prompt)
 
         if not response.success:
             logger.error(f"Pass 1 LLM query failed: {response.error}")
@@ -600,110 +467,32 @@ class MainCastExtractor:
 
         # Parse Pass 1 results
         initial_characters = self._parse_pass1_results(result)
-
-        # If model returned error/message instead of character array, log clearly and fail
-        # This indicates the model doesn't support structured JSON output properly
-        if not initial_characters and isinstance(result, dict) and ("error" in result or "message" in result):
-            logger.error(
-                f"Model '{self.llm.config.model}' returned error instead of character array: {result}. "
-                f"This model may not support json_mode properly. Consider using --json-model "
-                f"to specify a JSON-capable fallback model (e.g., qwen2.5:32b, llama3.2)."
-            )
-            return []
-
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
-        # Pass 2: Consolidated alias resolution with full context
-        # This gives the LLM visibility into ALL characters to prevent conflicts
-        logger.info("Pass 2: Consolidated alias resolution for all characters")
-
-        # Build character list for the prompt
-        character_list = "\n".join(
-            f"- {c.canonical_name} (role: {c.role}, description: {c.description})"
-            for c in initial_characters
-        )
-
-        pass2_prompt = CONSOLIDATED_ALIAS_PROMPT.format(
-            character_list=character_list,
-            summaries=summaries_text,
-        )
-
-        alias_result, alias_response = self.llm.query_json(pass2_prompt, system=system_prompt)
-
-        # Retry with JSON-capable model if primary failed
-        if (not alias_response.success or alias_result is None) and self.json_llm is not None:
-            logger.debug("Pass 2 retry with JSON-capable model")
-            alias_result, alias_response = self.json_llm.query_json(pass2_prompt, system=system_prompt)
-
-        if not alias_response.success or alias_result is None:
-            logger.warning("Consolidated Pass 2 failed, falling back to per-character resolution")
-            return self._extract_two_pass_per_character(initial_characters, summaries_text)
-
-        # Process consolidated results
-        profiles = self._process_consolidated_pass2(initial_characters, alias_result)
-        logger.info(f"Pass 2 complete: {len(profiles)} characters after merge resolution")
-
-        # DETERMINISTIC SAME-NAME SPLIT: Detect and split characters with identical names
-        # but contradictory role/relationship markers in summaries
-        profiles = self._enforce_same_name_splits(profiles, summaries_text)
-
-        # DEDUPLICATION: Merge characters with IDENTICAL canonical names
-        # This can happen when Pass 2 LLM creates a disambiguated name like "John Donaldson (the father)"
-        # AND _enforce_same_name_splits also creates "John Donaldson (the father)" from a different variant.
-        # Two entries with identical canonical names are definitionally the same character.
-        profiles = self._deduplicate_exact_canonical_names(profiles)
-
-        return profiles
-
-    def _extract_two_pass_per_character(
-        self,
-        initial_characters: list[MainCastProfile],
-        summaries_text: str,
-    ) -> list[MainCastProfile]:
-        """
-        Fallback per-character alias resolution (original Pass 2 approach).
-
-        Used when consolidated Pass 2 fails.
-        """
+        # Pass 2: Alias Resolution for each character
         profiles = []
         for char in initial_characters:
-            logger.info(f"Pass 2 (fallback): Resolving aliases for {char.canonical_name}")
-
-            # Build context about other characters to prevent false grouping
-            other_chars = [c.canonical_name for c in initial_characters if c.canonical_name != char.canonical_name]
-            if other_chars:
-                other_chars_text = "OTHER CHARACTERS IN THIS NOVEL:\n" + "\n".join(f"- {name}" for name in other_chars)
-                other_chars_text += "\n\nDo NOT include any of these other characters as aliases unless they are clearly the same person."
-            else:
-                other_chars_text = ""
+            logger.info(f"Pass 2: Resolving aliases for {char.canonical_name}")
 
             pass2_prompt = ALIAS_RESOLUTION_PROMPT.format(
                 character_name=char.canonical_name,
                 role=char.role,
                 description=char.description,
-                other_characters_context=other_chars_text,
                 summaries=summaries_text,
             )
 
             alias_result, alias_response = self.llm.query_json(pass2_prompt)
 
-            # Retry with JSON-capable model if primary failed
-            if (not alias_response.success or alias_result is None) and self.json_llm is not None:
-                logger.debug(
-                    f"Pass 2 retry with JSON-capable model for {char.canonical_name}"
-                )
-                alias_result, alias_response = self.json_llm.query_json(pass2_prompt)
-
             if alias_response.success and alias_result:
                 # Merge aliases into the character profile
                 aliases = alias_result.get("aliases", [])
-                char.aliases = [self._strip_possessive(a.strip()) for a in aliases if a.strip()]
+                char.aliases = [a.strip() for a in aliases if a.strip()]
 
                 # Optional: keep uncertain aliases separate for later validation
                 uncertain = alias_result.get("uncertain_aliases", []) or []
                 if isinstance(uncertain, list):
                     char.uncertain_aliases = [
-                        self._strip_possessive(a.strip()) for a in uncertain if isinstance(a, str) and a.strip()
+                        a.strip() for a in uncertain if isinstance(a, str) and a.strip()
                     ]
 
                 # Remove canonical name from aliases
@@ -717,473 +506,12 @@ class MainCastExtractor:
 
         return profiles
 
-    def _process_consolidated_pass2(
-        self,
-        initial_characters: list[MainCastProfile],
-        alias_result: dict,
-    ) -> list[MainCastProfile]:
-        """
-        Process consolidated Pass 2 results, applying aliases and merges.
-
-        Args:
-            initial_characters: Characters from Pass 1
-            alias_result: LLM response with aliases and merge_into directives
-
-        Returns:
-            Merged list of MainCastProfile with aliases applied
-        """
-        # Build lookup by canonical name
-        char_by_name = {c.canonical_name.lower(): c for c in initial_characters}
-
-        # Track merge relationships
-        merge_map: dict[str, str] = {}  # source_name -> target_name
-
-        # Process LLM response
-        characters_data = alias_result.get("characters", [])
-        if not isinstance(characters_data, list):
-            logger.warning("Consolidated Pass 2 returned invalid format, skipping")
-            return initial_characters
-
-        for char_data in characters_data:
-            if not isinstance(char_data, dict):
-                continue
-
-            canonical_name = self._clean_canonical_name(char_data.get("canonical_name", "").strip())
-            if not canonical_name:
-                continue
-
-            canonical_lower = canonical_name.lower()
-
-            # Find the matching character from Pass 1
-            char = char_by_name.get(canonical_lower)
-            if not char:
-                # This might be a character the LLM added that wasn't in Pass 1
-                logger.debug(f"Character '{canonical_name}' not found in Pass 1 results, skipping")
-                continue
-
-            # Apply aliases
-            aliases = char_data.get("aliases", [])
-            if isinstance(aliases, list):
-                char.aliases = [self._strip_possessive(a.strip()) for a in aliases if isinstance(a, str) and a.strip()]
-                # Remove canonical name from aliases
-                char.aliases = [a for a in char.aliases if a.lower() != canonical_lower]
-
-            # Apply uncertain aliases
-            uncertain = char_data.get("uncertain_aliases", []) or []
-            if isinstance(uncertain, list):
-                char.uncertain_aliases = [
-                    self._strip_possessive(a.strip()) for a in uncertain if isinstance(a, str) and a.strip()
-                ]
-
-            # Track merge directive
-            merge_into = char_data.get("merge_into")
-            if merge_into and isinstance(merge_into, str) and merge_into.strip():
-                merge_map[canonical_lower] = merge_into.strip().lower()
-                logger.info(
-                    f"Consolidated Pass 2: '{canonical_name}' should merge into '{merge_into}'"
-                )
-
-        # Apply merges with semantic validation
-        chars_to_remove = set()
-        for source_name, target_name in merge_map.items():
-            source = char_by_name.get(source_name)
-            target = char_by_name.get(target_name)
-
-            if not source or not target:
-                logger.warning(
-                    f"Cannot apply merge: '{source_name}' -> '{target_name}' "
-                    f"(source found: {source is not None}, target found: {target is not None})"
-                )
-                continue
-
-            # SEMANTIC VALIDATION: Check if merge makes sense
-            # Block merges that are semantically incompatible (e.g., "the Creature" → "the magistrate")
-
-            # Rule 1: Don't merge protagonist ↔ antagonist (opposite narrative functions)
-            if source.role != target.role and source.role in ("protagonist", "antagonist") and target.role in ("protagonist", "antagonist"):
-                logger.warning(
-                    f"BLOCKED merge '{source.canonical_name}' ({source.role}) → '{target.canonical_name}' ({target.role}): "
-                    f"Incompatible roles (protagonist/antagonist cannot merge)"
-                )
-                continue
-
-            # Rule 2: Check for semantic incompatibility in descriptions
-            # BUT: Allow merges if roles are the same (e.g., "the narrator" → "Victor" both protagonist)
-            if source.description and target.description and source.role != target.role:
-                # Only apply description check if roles differ (stricter validation for cross-role merges)
-                source_words = set(source.description.lower().split())
-                target_words = set(target.description.lower().split())
-                overlap = len(source_words & target_words)
-                total_unique = len(source_words | target_words)
-
-                # Descriptive handles (e.g., "the old man") are valid merge sources
-                # even with different roles and low description overlap
-                source_is_descriptive = self._is_descriptive_handle(source.canonical_name)
-
-                if total_unique > 5 and overlap / total_unique < 0.15 and not source_is_descriptive:
-                    # Less than 15% word overlap in descriptions AND different roles - likely different people
-                    logger.warning(
-                        f"BLOCKED merge '{source.canonical_name}' ({source.role}) → '{target.canonical_name}' ({target.role}): "
-                        f"Different roles with no semantic overlap ({overlap}/{total_unique} words)"
-                    )
-                    continue
-
-            # Add source's canonical name as alias of target
-            if source.canonical_name not in target.aliases:
-                target.aliases.append(source.canonical_name)
-                logger.info(
-                    f"Merged '{source.canonical_name}' into '{target.canonical_name}' as alias"
-                )
-
-            # Merge source's aliases into target
-            for alias in source.aliases:
-                if alias not in target.aliases and alias.lower() != target.canonical_name.lower():
-                    target.aliases.append(alias)
-
-            # Transfer description if target doesn't have one
-            if not target.description and source.description:
-                target.description = source.description
-
-            # Mark source for removal
-            chars_to_remove.add(source_name)
-
-        # Build final list excluding merged characters
-        profiles = [
-            c for c in initial_characters
-            if c.canonical_name.lower() not in chars_to_remove
-        ]
-
-        if chars_to_remove:
-            logger.info(
-                f"Consolidated Pass 2 merged {len(chars_to_remove)} duplicate entries: "
-                f"{list(chars_to_remove)}"
-            )
-
-        return profiles
-
-    @staticmethod
-    def _enforce_same_name_splits(
-        profiles: list[MainCastProfile],
-        summaries_text: str,
-    ) -> list[MainCastProfile]:
-        """
-        Deterministic post-processing to detect and split characters with identical names
-        but contradictory role/relationship markers in the summaries.
-
-        This addresses the father/son same-name problem where the LLM incorrectly merges
-        two different people who share a name (e.g., "John Donaldson" the father and
-        "John Donaldson" the son in "American, Sir").
-
-        Args:
-            profiles: Characters from Pass 2
-            summaries_text: Raw chapter summaries text
-
-        Returns:
-            Profiles with same-name characters split when evidence indicates different people
-
-        Algorithm:
-        1. For each character, extract first name and full name
-        2. Scan entire summaries for this name with father/son MODIFIERS
-        3. Verify markers actually modify THIS character (not nearby references to OTHER characters)
-        4. If both father and son modifiers found for the same name, force split with disambiguators
-        """
-        import re
-
-        # Patterns for generational/relationship markers
-        # Look for patterns like "John's father", "his father John", "the father", etc.
-        # Combined with "the son", "his son", "young", etc.
-
-        profiles_to_add = []
-        profiles_to_remove = []
-
-        for profile in profiles:
-            # Skip if already has disambiguator
-            if '(' in profile.canonical_name and ')' in profile.canonical_name:
-                continue
-
-            # Extract first name and base name
-            base_name = re.sub(r'\s*\([^)]*\)\s*', '', profile.canonical_name).strip()
-            name_parts = base_name.split()
-            first_name = name_parts[0] if name_parts else base_name
-
-            # Build search patterns for this character
-            # Look for possessive forms, prepositional phrases, and direct mentions
-            name_patterns = [
-                rf'\b{re.escape(base_name)}\b',      # Full name
-                rf'\b{re.escape(first_name)}\'s?\b',  # Possessive first name
-            ]
-
-            # Scan summaries for father/son markers that MODIFY this character's name
-            # NOT just markers that appear near the name but refer to OTHER characters
-            has_father_context = False
-            has_son_context = False
-
-            for pattern in name_patterns:
-                # Find all sentences/contexts mentioning this name
-                for match in re.finditer(pattern, summaries_text, re.IGNORECASE):
-                    # Get surrounding context (100 chars before and after)
-                    start = max(0, match.start() - 100)
-                    end = min(len(summaries_text), match.end() + 100)
-                    context = summaries_text[start:end]
-
-                    # Extract the matched name from context for proximity checking
-                    matched_name = match.group(0)
-
-                    # Check for father markers that MODIFY this name
-                    # Patterns like "the father, John" or "his father John" or "John's father"
-                    father_modifier_patterns = [
-                        rf'\bfather[,\s]+{re.escape(matched_name)}\b',  # "the father, John"
-                        rf'\bfather\s+{re.escape(matched_name)}\b',     # "father John"
-                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?father\b',  # "John, the father"
-                        rf'{re.escape(matched_name)}\s+\((?:the\s+)?father\)',  # "John (the father)"
-                    ]
-
-                    # Also check for possessive forms that indicate the character IS the father
-                    # e.g., "John's father" when John IS the father being discussed
-                    father_identity_patterns = [
-                        r'\belder\b', r'\bsenior\b', r'\bsr\.?\b',
-                        r'\bold\s+man\b', r'\bembezz', r'\bfled\b', r'\bvanished\b',
-                    ]
-
-                    for fp in father_modifier_patterns + father_identity_patterns:
-                        if re.search(fp, context, re.IGNORECASE):
-                            has_father_context = True
-                            break
-
-                    # Check for son markers that MODIFY this name
-                    son_modifier_patterns = [
-                        rf'\bson[,\s]+{re.escape(matched_name)}\b',     # "the son, John"
-                        rf'\bson\s+{re.escape(matched_name)}\b',        # "son John"
-                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?son\b',  # "John, the son"
-                        rf'{re.escape(matched_name)}\s+\((?:the\s+)?son\)',   # "John (the son)"
-                        rf'\bboy[,\s]+{re.escape(matched_name)}\b',     # "the boy, John"
-                        rf'{re.escape(matched_name)}[,\s]+(?:the\s+)?boy\b',  # "John, the boy"
-                    ]
-
-                    # Age markers that DIRECTLY PRECEDE the name (within 20 chars)
-                    # e.g., "twelve-year-old John" counts, but "brought home twelve-year-old John" doesn't
-                    # count for "Uncle Bill" who is NOT the twelve-year-old
-                    age_marker_patterns = [
-                        rf'(?:twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)-year-old\s+{re.escape(matched_name)}\b',
-                        rf'\byounger\s+{re.escape(matched_name)}\b',
-                        rf'\bjunior\b.*{re.escape(matched_name)}\b',
-                        rf'{re.escape(matched_name)}.*\bjr\.?\b',
-                        rf'\byoung\s+man\s+{re.escape(matched_name)}\b',
-                    ]
-
-                    for sp in son_modifier_patterns + age_marker_patterns:
-                        if re.search(sp, context, re.IGNORECASE):
-                            has_son_context = True
-                            break
-
-                    if has_father_context and has_son_context:
-                        break
-
-                if has_father_context and has_son_context:
-                    break
-
-            # If we found both father and son contexts, this is likely a merged character
-            if has_father_context and has_son_context:
-                logger.warning(
-                    f"SAME-NAME CONFLICT DETECTED: '{profile.canonical_name}' has both father and son "
-                    f"contexts in summaries. This appears to be two different people merged into one."
-                )
-
-                # Create two split characters with disambiguators
-                father_profile = MainCastProfile(
-                    canonical_name=f"{base_name} (the father)",
-                    aliases=[alias for alias in profile.aliases if alias.lower() != base_name.lower()],
-                    role=profile.role,
-                    description=f"{profile.description} [father]" if profile.description else "The father",
-                    is_unnamed=profile.is_unnamed,
-                    is_symbolic=profile.is_symbolic,
-                    uncertain_aliases=profile.uncertain_aliases.copy(),
-                )
-
-                son_profile = MainCastProfile(
-                    canonical_name=f"{base_name} (the son)",
-                    aliases=[alias for alias in profile.aliases if alias.lower() != base_name.lower()],
-                    role=profile.role,
-                    description=f"{profile.description} [son]" if profile.description else "The son",
-                    is_unnamed=profile.is_unnamed,
-                    is_symbolic=profile.is_symbolic,
-                    uncertain_aliases=profile.uncertain_aliases.copy(),
-                )
-
-                profiles_to_add.extend([father_profile, son_profile])
-                profiles_to_remove.append(profile)
-
-                logger.info(
-                    f"FORCED SPLIT: '{profile.canonical_name}' → '{father_profile.canonical_name}' + '{son_profile.canonical_name}'"
-                )
-
-        # Apply splits
-        result_profiles = [p for p in profiles if p not in profiles_to_remove]
-        result_profiles.extend(profiles_to_add)
-
-        if profiles_to_add:
-            logger.info(f"Same-name split enforcement: split {len(profiles_to_remove)} characters into {len(profiles_to_add)} characters")
-
-        return result_profiles
-
-    @staticmethod
-    def _deduplicate_exact_canonical_names(profiles: list[MainCastProfile]) -> list[MainCastProfile]:
-        """
-        Merge characters with IDENTICAL canonical names (exact string match).
-
-        This handles cases where multiple pipeline stages create entries with the exact same
-        canonical name. For example:
-        - Pass 2 LLM creates "John Donaldson (the father)" from summary mention
-        - _enforce_same_name_splits creates another "John Donaldson (the father)" from a variant
-
-        Two characters with identical canonical names are definitionally the same character.
-
-        SAFETY: This uses EXACT string match (==), NOT fuzzy matching. It cannot cause
-        false merges like the attempt 47 regression which used similarity-based merging.
-
-        Args:
-            profiles: List of character profiles
-
-        Returns:
-            Deduplicated list with exact canonical name matches merged
-        """
-        from collections import defaultdict
-
-        # Group by exact canonical name
-        grouped = defaultdict(list)
-        for profile in profiles:
-            grouped[profile.canonical_name].append(profile)
-
-        # Merge duplicates
-        deduplicated = []
-        merge_count = 0
-
-        for canonical_name, group in grouped.items():
-            if len(group) == 1:
-                # No duplicates - keep as-is
-                deduplicated.append(group[0])
-            else:
-                # Duplicates found - merge them
-                logger.warning(
-                    f"EXACT CANONICAL NAME DUPLICATE: '{canonical_name}' appears {len(group)} times. "
-                    f"Merging into single character."
-                )
-
-                # Merge aliases from all duplicates
-                merged_aliases = []
-                for profile in group:
-                    merged_aliases.extend(profile.aliases)
-
-                # Deduplicate aliases (preserve order)
-                seen = set()
-                unique_aliases = []
-                for alias in merged_aliases:
-                    if alias.lower() not in seen:
-                        seen.add(alias.lower())
-                        unique_aliases.append(alias)
-
-                # Use the first profile as the canonical one
-                merged_profile = group[0]
-                merged_profile.aliases = unique_aliases
-
-                # Merge uncertain_aliases
-                uncertain = []
-                for profile in group:
-                    uncertain.extend(profile.uncertain_aliases)
-                merged_profile.uncertain_aliases = list(dict.fromkeys(uncertain))
-
-                # Take the longest description if multiple
-                descriptions = [p.description for p in group if p.description]
-                if descriptions:
-                    merged_profile.description = max(descriptions, key=len)
-
-                deduplicated.append(merged_profile)
-                merge_count += 1
-
-                logger.info(
-                    f"MERGED {len(group)} identical entries for '{canonical_name}' → "
-                    f"{len(unique_aliases)} total aliases"
-                )
-
-        if merge_count > 0:
-            logger.info(f"Exact canonical name deduplication: merged {merge_count} duplicate entries")
-
-        return deduplicated
-
-    @staticmethod
-    def _clean_canonical_name(name: str) -> str:
-        """Strip verbose parenthetical qualifiers from canonical names, but PRESERVE disambiguators.
-
-        PRESERVES relationship/role parentheticals that distinguish same-name characters:
-          "John Donaldson (the son)" → "John Donaldson (the son)" ✓ KEPT
-          "John Donaldson (father)" → "John Donaldson (father)" ✓ KEPT
-          "Colonel Smith (elder)" → "Colonel Smith (elder)" ✓ KEPT
-          "Mary (Sr.)" → "Mary (Sr.)" ✓ KEPT
-
-        STRIPS verbose descriptive parentheticals:
-          "the Red Death (as a spectral figure)" → "the Red Death" ✓ STRIPPED
-          "the creature (eight feet tall)" → "the creature" ✓ STRIPPED
-
-        Why: The summarizer explicitly adds disambiguators like "(the son)" and "(the father)"
-        to distinguish same-name family members. Stripping these causes characters to collide
-        in the char_by_name dict (line 726) where the last one overwrites the first.
-        """
-        import re
-
-        # Pattern for disambiguation parentheticals (relationships/roles) - PRESERVE these
-        # This includes: father, son, daughter, mother, uncle, nephew, etc.
-        # Also generational suffixes: Sr., Jr., elder, younger
-        disambiguation_pattern = r'\((the\s+)?(father|son|daughter|mother|parent|child|' \
-                               r'uncle|nephew|aunt|niece|brother|sister|cousin|' \
-                               r'grandfather|grandmother|grandson|granddaughter|' \
-                               r'elder|younger|senior|junior|sr\.?|jr\.?)\)'
-
-        # Check if name has disambiguation parenthetical
-        if re.search(disambiguation_pattern, name, re.IGNORECASE):
-            # Has relationship/role disambiguator - KEEP IT
-            return name.strip()
-
-        # Otherwise strip verbose parentheticals like descriptions
-        cleaned = re.sub(r"\s*\(.*?\)\s*", " ", name).strip()
-        return cleaned if cleaned else name
-
-    @staticmethod
-    def _strip_possessive(alias: str) -> str:
-        """Strip possessive markers from aliases.
-
-        Removes trailing "'s" or "'" from names.
-        Examples:
-          "John Donaldson's" → "John Donaldson"
-          "the creature's" → "the creature"
-          "Jesus'" → "Jesus"
-        """
-        alias = alias.strip()
-        if alias.endswith("'s"):
-            return alias[:-2].strip()
-        if alias.endswith("'"):
-            return alias[:-1].strip()
-        return alias
-
     def _parse_pass1_results(self, result: list | dict) -> list[MainCastProfile]:
         """Parse Pass 1 character identification results."""
         profiles = []
 
         # Handle both list and dict formats
         if isinstance(result, dict):
-            # Some models return reasoning in "error"/"message" field instead of array
-            if "error" in result or "message" in result:
-                reasoning = result.get("error") or result.get("message", "")
-                logger.error(
-                    f"Pass 1 LLM returned reasoning in 'error'/'message' field instead of array. "
-                    f"This model may not be compatible with structured JSON output. "
-                    f"Reasoning: {reasoning[:200]}..."
-                )
-                logger.error(
-                    f"RECOMMENDATION: Try a different model for character extraction. "
-                    f"Known compatible models: llama3.2, qwen2.5:72b, gpt-4o-mini"
-                )
-                return []
-
             result = result.get("characters", result.get("main_cast", []))
 
         if not isinstance(result, list):
@@ -1194,7 +522,7 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = self._clean_canonical_name(item.get("canonical_name", "").strip())
+            canonical = item.get("canonical_name", "").strip()
             if not canonical:
                 continue
 
@@ -1227,15 +555,15 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = self._clean_canonical_name(item.get("canonical_name", "").strip())
+            canonical = item.get("canonical_name", "").strip()
             if not canonical:
                 continue
 
             profile = MainCastProfile(
                 canonical_name=canonical,
-                aliases=[self._strip_possessive(a.strip()) for a in item.get("aliases", []) if a.strip()],
+                aliases=[a.strip() for a in item.get("aliases", []) if a.strip()],
                 uncertain_aliases=[
-                    self._strip_possessive(a.strip())
+                    a.strip()
                     for a in (item.get("uncertain_aliases", []) or [])
                     if isinstance(a, str) and a.strip()
                 ],
@@ -1383,19 +711,11 @@ class MainCastExtractor:
                 # "reader" / "audience" are similar meta-references
                 meta_references = {"narrator", "the narrator", "reader", "the reader", "audience", "the audience"}
                 if alias_lower in meta_references:
-                    # Exception: "the narrator" / "narrator" is valid for protagonists
-                    # in first-person narratives (e.g., Montresor, Egaeus, Ted)
-                    if alias_lower in ("narrator", "the narrator") and profile.role == "protagonist":
-                        logger.info(
-                            f"ALLOWED alias: '{alias}' for protagonist '{profile.canonical_name}' "
-                            f"(narrator is a valid alias for first-person protagonist)"
-                        )
-                    else:
-                        logger.warning(
-                            f"BLOCKED alias: '{alias}' is a meta-reference (storytelling device), "
-                            f"not a valid character alias for '{profile.canonical_name}'"
-                        )
-                        continue
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is a meta-reference (storytelling device), "
+                        f"not a valid character alias for '{profile.canonical_name}'"
+                    )
+                    continue
 
                 # NOTE: Object keyword blocking for aliases (clock, door, etc.) is handled by
                 # CharacterAgent._is_valid_alias() which runs during merge operations.
@@ -1576,21 +896,16 @@ class MainCastExtractor:
                                         has_similar_part = True
                                         break
 
-                        # Descriptive handles (e.g., "the old man", "father") are valid
-                        # aliases even without co-occurrence or name overlap
-                        is_descriptive = self._is_descriptive_handle(alias)
-
-                        if not shared_parts and not has_similar_part and not is_descriptive:
+                        if not shared_parts and not has_similar_part:
                             logger.warning(
                                 f"BLOCKED alias: '{alias}' and '{profile.canonical_name}' appear in summaries "
                                 f"but NEVER co-occur in the same chapter and have no name overlap"
                             )
                             continue
                         else:
-                            reason = "descriptive handle" if is_descriptive else "share name parts or have similar surname"
                             logger.info(
                                 f"ALLOWED alias despite no co-occurrence: '{alias}' → '{profile.canonical_name}' "
-                                f"({reason})"
+                                f"(share name parts or have similar surname, likely birth name/former identity)"
                             )
 
                 # Passed verification
@@ -1607,46 +922,6 @@ class MainCastExtractor:
 
             profile.aliases = verified_aliases
             verified_profiles.append(profile)
-
-        # RULE 3: Remove ambiguous bare surnames when multiple characters share the surname
-        # If "Jennings" is an alias for "Milton Jennings" but "Mr. Jennings" also exists,
-        # remove "Jennings" as it's ambiguous (prevents cross-talk during narration)
-        logger.info("Checking for ambiguous bare surname aliases...")
-
-        # Build a set of all surnames present in character canonical names
-        surname_to_characters = {}
-        for profile in verified_profiles:
-            # Extract last word from multi-word names as potential surname
-            name_parts = profile.canonical_name.split()
-            if len(name_parts) >= 2:
-                # Last part is likely surname (handles "Milton Jennings", "Mr. Jennings", etc.)
-                surname = name_parts[-1].strip(".,;:")
-                if surname:
-                    surname_lower = surname.lower()
-                    if surname_lower not in surname_to_characters:
-                        surname_to_characters[surname_lower] = []
-                    surname_to_characters[surname_lower].append(profile.canonical_name)
-
-        # Filter out ambiguous bare surnames from aliases
-        for profile in verified_profiles:
-            filtered_aliases = []
-            for alias in profile.aliases:
-                alias_lower = alias.lower()
-                # Check if this alias is a bare surname shared by multiple characters
-                if alias_lower in surname_to_characters and len(surname_to_characters[alias_lower]) > 1:
-                    logger.warning(
-                        f"REMOVED ambiguous bare surname alias: '{alias}' for '{profile.canonical_name}' "
-                        f"(shared by: {surname_to_characters[alias_lower]})"
-                    )
-                    continue
-                filtered_aliases.append(alias)
-            
-            if len(filtered_aliases) < len(profile.aliases):
-                logger.info(
-                    f"Filtered ambiguous surnames for '{profile.canonical_name}': "
-                    f"{len(profile.aliases)} -> {len(filtered_aliases)} aliases"
-                )
-            profile.aliases = filtered_aliases
 
         return verified_profiles
 
@@ -2089,46 +1364,6 @@ class MainCastExtractor:
             profile.aliases = verified_aliases
             verified_profiles.append(profile)
 
-        # RULE 3: Remove ambiguous bare surnames when multiple characters share the surname
-        # If "Jennings" is an alias for "Milton Jennings" but "Mr. Jennings" also exists,
-        # remove "Jennings" as it's ambiguous (prevents cross-talk during narration)
-        logger.info("Checking for ambiguous bare surname aliases...")
-
-        # Build a set of all surnames present in character canonical names
-        surname_to_characters = {}
-        for profile in verified_profiles:
-            # Extract last word from multi-word names as potential surname
-            name_parts = profile.canonical_name.split()
-            if len(name_parts) >= 2:
-                # Last part is likely surname (handles "Milton Jennings", "Mr. Jennings", etc.)
-                surname = name_parts[-1].strip(".,;:")
-                if surname:
-                    surname_lower = surname.lower()
-                    if surname_lower not in surname_to_characters:
-                        surname_to_characters[surname_lower] = []
-                    surname_to_characters[surname_lower].append(profile.canonical_name)
-
-        # Filter out ambiguous bare surnames from aliases
-        for profile in verified_profiles:
-            filtered_aliases = []
-            for alias in profile.aliases:
-                alias_lower = alias.lower()
-                # Check if this alias is a bare surname shared by multiple characters
-                if alias_lower in surname_to_characters and len(surname_to_characters[alias_lower]) > 1:
-                    logger.warning(
-                        f"REMOVED ambiguous bare surname alias: '{alias}' for '{profile.canonical_name}' "
-                        f"(shared by: {surname_to_characters[alias_lower]})"
-                    )
-                    continue
-                filtered_aliases.append(alias)
-            
-            if len(filtered_aliases) < len(profile.aliases):
-                logger.info(
-                    f"Filtered ambiguous surnames for '{profile.canonical_name}': "
-                    f"{len(profile.aliases)} -> {len(filtered_aliases)} aliases"
-                )
-            profile.aliases = filtered_aliases
-
         return verified_profiles
 
     def _competitive_alias_vote(
@@ -2202,52 +1437,6 @@ Return JSON:
 
         return votes
 
-    def _is_descriptive_handle(self, name: str) -> bool:
-        """Check if a name is a generic descriptive handle (not a proper name).
-
-        Descriptive handles like "the old man", "father", "the stranger" are
-        valid aliases for characters even when they don't co-occur or share
-        name parts with the canonical name.
-        """
-        name_lower = name.lower().strip()
-
-        descriptive_handles = {
-            # Family relationships
-            "father", "mother", "son", "daughter", "brother", "sister",
-            "uncle", "aunt", "grandfather", "grandmother", "grandchild",
-            "husband", "wife", "spouse", "parent", "child",
-            # Age/gender descriptors
-            "the old man", "the old woman", "the old one",
-            "the young man", "the young woman",
-            "the elder", "the younger",
-            # Generic role descriptors
-            "the visitor", "the guest", "the stranger",
-            "the traveler", "the merchant", "the soldier",
-            "the sergeant-major",
-            # Narrative role descriptors
-            "the narrator", "narrator",
-            # Title/rank used as standalone reference
-            "the professor", "the doctor", "the captain",
-            "the lord", "the count", "the baron", "the colonel",
-            "the reverend", "the sergeant", "the inspector",
-        }
-
-        if name_lower in descriptive_handles:
-            return True
-
-        # Match patterns like "the <words>" with 2-4 total words
-        # Covers descriptive handles even when capitalized (e.g., "the Count",
-        # "the Arabian", "the Creature") — these are character descriptions,
-        # not proper multi-word names like "the Great Gatsby"
-        if name_lower.startswith("the ") and len(name_lower.split()) <= 4:
-            words_after_the = name_lower.split()[1:]
-            # Allow if none of the words look like a multi-part proper name
-            # (single descriptive words are fine even if capitalized in original)
-            if len(words_after_the) <= 2:
-                return True
-
-        return False
-
     def _are_different_titled_people(self, name1: str, name2: str) -> bool:
         """
         Check if two names represent different people based on different title prefixes.
@@ -2286,8 +1475,7 @@ Return JSON:
         name1_lower = name1.lower().strip()
         name2_lower = name2.lower().strip()
 
-        if (name1_lower in generic_descriptors or name2_lower in generic_descriptors
-                or self._is_descriptive_handle(name1) or self._is_descriptive_handle(name2)):
+        if name1_lower in generic_descriptors or name2_lower in generic_descriptors:
             # Generic descriptors are valid aliases for anyone
             logger.debug(
                 f"_are_different_titled_people: '{name1}' + '{name2}' -> False "
@@ -2297,7 +1485,7 @@ Return JSON:
 
         # Extract titles and surnames
         # M. = Monsieur (French equivalent of Mr.)
-        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.|Professor|Prof\.|Lord|Lady|Sir|Dame|Count|Countess|Baron|Baroness|Captain|Capt\.|Colonel|Col\.|Sergeant|Sgt\.|Reverend|Rev\.|Father|Brother|Sister|Madame|Mme\.|Monsieur)\s+(.+)$"
+        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+(.+)$"
 
         match1 = re.match(title_pattern, name1, flags=re.IGNORECASE)
         match2 = re.match(title_pattern, name2, flags=re.IGNORECASE)
@@ -2337,26 +1525,15 @@ Return JSON:
         # If the titled surname doesn't match the untitled name at all, different people
         # "Catherine" (single name) + "Mrs. McKee" → different people
         # "Gatsby" + "Mr. Gatsby" → same person
-        #
-        # Honorific titles that strongly indicate identity (Mr./Mrs./Miss/Ms./Dr./M.)
-        # are more reliable for blocking than rank/nobility titles (Lord, Count,
-        # Professor, Captain, etc.) which characters may acquire or be known by
-        # separately from their given name.
         elif match1 and not match2:
             # name1 has title, name2 doesn't
-            title1 = match1.group(1).lower().rstrip(".")
             surname1 = match1.group(2).strip().lower()
             name2_lower = name2.lower()
 
             # If the untitled name is NOT contained in the surname, different people
             # Exception: substring relationships are OK ("Gatsby" in "Mr. Gatsby")
-            # Only block for identity titles (Mr./Mrs./Miss/Ms./Dr./M.) — rank
-            # titles (Lord, Count, Professor, etc.) may represent the same person
-            # under a different name (e.g., "Lord Godalming" = "Arthur Holmwood")
-            identity_titles = {"mr.", "mrs.", "miss", "ms.", "dr.", "m."}
             if name2_lower not in surname1 and surname1 not in name2_lower:
-                if match1.group(1).lower() in identity_titles:
-                    return True
+                return True
 
         elif match2 and not match1:
             # name2 has title, name1 doesn't
@@ -2364,10 +1541,8 @@ Return JSON:
             name1_lower = name1.lower()
 
             # If the untitled name is NOT contained in the surname, different people
-            identity_titles = {"mr.", "mrs.", "miss", "ms.", "dr.", "m."}
             if name1_lower not in surname2 and surname2 not in name1_lower:
-                if match2.group(1).lower() in identity_titles:
-                    return True
+                return True
 
         # Otherwise, no conflict
         return False

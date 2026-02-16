@@ -267,7 +267,6 @@ COMMON_WORDS_WHITELIST = {
     "love",
     "hope",
     "faith",
-    "belief",
     "truth",
     "justice",
     "house",
@@ -280,8 +279,6 @@ COMMON_WORDS_WHITELIST = {
     "table",
     "chair",
     "bed",
-    "sideboard",
-    "mantelpiece",
     "garden",
     "street",
     "road",
@@ -487,15 +484,6 @@ COMMON_WORDS_WHITELIST = {
     "ours",
     "your",
     "yours",
-    # Reflexive pronouns (for OCR artifact detection)
-    "myself",
-    "yourself",
-    "himself",
-    "herself",
-    "itself",
-    "ourselves",
-    "yourselves",
-    "themselves",
     # Common body parts and descriptive terms
     "eyes",
     "eye",
@@ -559,28 +547,6 @@ COMMON_WORDS_WHITELIST = {
     "strangers",
     "gentlemen",
     "ladies",
-    # Common English words that may not be in CMU (fix for false positive flagging)
-    # NOTE: This deny-list approach is temporary - should be replaced with frequency-based
-    # filtering (e.g., wordfreq library) to avoid endless list expansion.
-    "away",
-    "dauntless",
-    "magnificence",
-    "giddiest",
-    "moveable",
-    "convulsed",
-    "unutterable",
-    "decorum",
-    # Additional common words flagged in berenice analysis (attempt 1)
-    "sentiments",
-    "refracted",
-    "sentient",
-    "conformation",
-    "tarried",
-    "emaciation",
-    "multiform",
-    "aslant",
-    # Additional common words flagged in monkeys_paw analysis (attempt 2)
-    "sightless",
 }
 
 # Contraction fragments that result from tokenization
@@ -653,44 +619,50 @@ class CMUProposer(BasePronunciationProposer):
         """
         Detect OCR artifacts (missing spaces between words).
 
-        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the), "himselffelt" (himself felt),
-                  "himselfin" (himself in), "beliefin" (belief in)
+        Examples: "wehad" (we had), "ithad" (it had), "tothe" (to the)
 
-        Strategy: Check if the word looks like a concatenation of known English words.
-        Key constraint: At least one part must be a COMMON word (in whitelist) to avoid
-        false positives like "flambeaux" = "flam" + "beaux" (both obscure but in CMU).
+        Strategy: Check if the word looks like a concatenation of common English words.
+        Common patterns:
+        - Starts with common short word (we, it, to, no, us, as, be, is, or, of, at, in, on, for)
+        - Followed by another lowercase word
         """
         word_lower = word.lower()
 
-        # Strategy: Try splitting at different positions
-        # For "himselffelt" (11 chars), try splits at positions 3-8
-        min_part_length = 2  # Reduced from 3 to catch "in" (2 chars)
-        max_split_pos = len(word_lower) - min_part_length
+        # Common starting words that appear in OCR artifacts
+        common_prefixes = [
+            "we",
+            "it",
+            "to",
+            "no",
+            "us",
+            "as",
+            "be",
+            "is",
+            "or",
+            "of",
+            "at",
+            "in",
+            "on",
+            "for",
+            "the",
+            "and",
+            "but",
+            "not",
+            "all",
+        ]
 
-        for split_pos in range(min_part_length, max_split_pos + 1):
-            prefix = word_lower[:split_pos]
-            remainder = word_lower[split_pos:]
-
-            # Check if parts are known
-            prefix_common = prefix in COMMON_WORDS_WHITELIST
-            remainder_common = remainder in COMMON_WORDS_WHITELIST
-            prefix_known = prefix in self.known_words
-            remainder_known = remainder in self.known_words
-
-            # A word is a valid known word if it's either:
-            # - In the CMU dictionary, OR
-            # - In the common words whitelist (which includes stopwords not in CMU)
-            prefix_valid = prefix_known or prefix_common
-            remainder_valid = remainder_known or remainder_common
-
-            # OCR artifacts typically involve at least one COMMON word
-            # AND both parts must be valid English words (in CMU or whitelist)
-            # This prevents false positives like "flambeaux" = "flam" + "beaux"
-            if (prefix_common or remainder_common) and (prefix_valid and remainder_valid):
-                logger.debug(
-                    f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
-                )
-                return True
+        # Check if word starts with a common prefix and has lowercase continuation
+        for prefix in common_prefixes:
+            if len(word_lower) > len(prefix) and word_lower.startswith(prefix):
+                remainder = word_lower[len(prefix) :]
+                # Check if remainder starts with lowercase (indicates missing space)
+                if remainder and remainder[0].islower() and len(remainder) >= 2:
+                    # Extra check: remainder should also be in known words or common
+                    if remainder in self.known_words or remainder in COMMON_WORDS_WHITELIST:
+                        logger.debug(
+                            f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
+                        )
+                        return True
 
         return False
 
@@ -771,138 +743,6 @@ class CMUProposer(BasePronunciationProposer):
 
         return False
 
-    def _is_obvious_compound(self, word: str) -> bool:
-        """
-        Check if word is an obvious compound/derivation with clear pronunciation.
-
-        Universal patterns (not word-specific):
-        - Hyphenated compounds where both parts are known (e.g., "web-work", "tight-fitting")
-        - Archaic hyphenated spellings (e.g., "to-day" = "today")
-        - Standard prefix + known root (e.g., "re-echoed", "unsheathing")
-        - Common non-hyphenated compounds (e.g., "inmost" = "in" + "most")
-
-        Returns True if pronunciation is obvious and doesn't need guidance.
-        """
-        word_lower = word.lower()
-
-        # Pattern 1: Hyphenated compounds (e.g., "web-work", "tight-fitting", "to-day")
-        if '-' in word_lower:
-            parts = word_lower.split('-')
-            # If all parts are in CMU dictionary, pronunciation is obvious
-            if all(part in self.known_words or part in COMMON_WORDS_WHITELIST for part in parts):
-                return True
-
-        # Pattern 2: Standard prefixes + known root
-        # re-/un-/pre-/mis-/dis-/over-/under- are transparent prefixes
-        transparent_prefixes = ['re', 'un', 'pre', 'mis', 'dis', 'over', 'under', 'non']
-        for prefix in transparent_prefixes:
-            if word_lower.startswith(prefix) and len(word_lower) > len(prefix):
-                root = word_lower[len(prefix):]
-                # If root is known, the prefixed form is obvious
-                if root in self.known_words:
-                    return True
-
-        # Pattern 3: Common non-hyphenated compounds (e.g., "inmost", "outermost", "innermost")
-        # These are formed from common preposition/adverb + common word
-        common_compound_patterns = [
-            ('in', 'most'),      # inmost
-            ('out', 'most'),     # outmost
-            ('outer', 'most'),   # outermost
-            ('inner', 'most'),   # innermost
-            ('up', 'most'),      # upmost
-            ('fore', 'most'),    # foremost
-            ('after', 'most'),   # aftermost
-        ]
-        for prefix, suffix in common_compound_patterns:
-            if word_lower == prefix + suffix:
-                return True
-
-        return False
-
-    def _is_possessive_of_known_word(self, word: str) -> bool:
-        """
-        Check if word is a possessive form of a word in the CMU dictionary.
-
-        Examples: "cough's" → "cough" is in CMU, so filter this out
-
-        Returns True if this is a possessive of a known word.
-        """
-        word_lower = word.lower()
-
-        # Check for possessive marker
-        if word_lower.endswith("'s"):
-            base = word_lower[:-2]
-            if base in self.known_words or base in COMMON_WORDS_WHITELIST:
-                return True
-
-        return False
-
-    def _is_common_monosyllabic_word(self, word: str) -> bool:
-        """
-        Check if word is a common monosyllabic word that's obviously known.
-
-        Even if not in CMU, words like "leer" are standard English and don't need
-        pronunciation guidance.
-
-        Heuristic: Short words (3-4 chars) with common English phonetic patterns.
-        """
-        word_lower = word.lower()
-
-        # Only apply to short words (3-4 characters)
-        if len(word_lower) < 3 or len(word_lower) > 4:
-            return False
-
-        # Common monosyllabic words not in CMU but obviously known
-        common_short_words = {
-            'leer',   # to look with an unpleasant expression
-            'veer',   # to change direction
-            'seer',   # one who sees/predicts
-            'ague',   # fever/chill
-            'woe',    # sorrow
-        }
-
-        return word_lower in common_short_words
-
-    def _filter_redundant_variants(self, proposals: list[PronunciationProposal]) -> list[PronunciationProposal]:
-        """
-        Remove redundant plurals and possessives of already-flagged words.
-
-        Example: If "Montresor" is flagged, remove "Montresors" (plural).
-
-        Returns filtered list of proposals.
-        """
-        # Build set of base words (lowercased)
-        base_words = {p.word.lower() for p in proposals}
-
-        filtered = []
-        for proposal in proposals:
-            word_lower = proposal.word.lower()
-
-            # Check if this is a redundant variant
-            is_redundant = False
-
-            # Check for plural (ending in 's')
-            if word_lower.endswith('s') and len(word_lower) > 1:
-                base = word_lower[:-1]
-                if base in base_words:
-                    logger.debug(f"Filtering redundant plural: '{proposal.word}' (base: '{base}')")
-                    is_redundant = True
-
-            # Check for possessive (ending in 's or ')
-            if word_lower.endswith("'s"):
-                base = word_lower[:-2]
-                if base in base_words:
-                    logger.debug(f"Filtering redundant possessive: '{proposal.word}' (base: '{base}')")
-                    is_redundant = True
-
-            if not is_redundant:
-                filtered.append(proposal)
-
-        if len(filtered) < len(proposals):
-            logger.info(f"Filtered {len(proposals) - len(filtered)} redundant variants")
-
-        return filtered
-
     def propose(
         self,
         full_text: str,
@@ -955,18 +795,6 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_ocr_artifact(word):
                 continue
 
-            # Skip obvious compounds (hyphenated, prefixed forms with known roots)
-            if self._is_obvious_compound(word):
-                continue
-
-            # Skip possessives of known words (e.g., "cough's" when "cough" is in CMU)
-            if self._is_possessive_of_known_word(word):
-                continue
-
-            # Skip common monosyllabic words obviously known (e.g., "leer")
-            if self._is_common_monosyllabic_word(word):
-                continue
-
             word_data[word_lower].append((match.start(), word))
 
         # Filter by occurrence count and build proposals
@@ -1004,9 +832,6 @@ class CMUProposer(BasePronunciationProposer):
                 )
             )
 
-        # Post-processing: Remove redundant plurals/possessives of already-flagged words
-        proposals = self._filter_redundant_variants(proposals)
-
         logger.info(f"CMU proposer found {len(proposals)} unknown words")
         return proposals
 
@@ -1031,12 +856,6 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_common_derivation(word):
                 return False
             if self._is_ocr_artifact(word):
-                return False
-            if self._is_obvious_compound(word):
-                return False
-            if self._is_possessive_of_known_word(word):
-                return False
-            if self._is_common_monosyllabic_word(word):
                 return False
             return True
 
@@ -1075,9 +894,6 @@ class CMUProposer(BasePronunciationProposer):
                     reasoning="Not found in CMU pronunciation dictionary",
                 )
             )
-
-        # Post-processing: Remove redundant plurals/possessives of already-flagged words
-        proposals = self._filter_redundant_variants(proposals)
 
         logger.info(f"CMU proposer found {len(proposals)} unknown words (via WordIndex)")
         return proposals

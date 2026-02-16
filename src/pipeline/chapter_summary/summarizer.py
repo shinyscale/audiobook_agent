@@ -113,16 +113,10 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
-  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
-  or symbolic objects that drive the plot. Include the narrator if they participate.
-- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
-
-DO NOT include in active_characters:
-- Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
-- Authors or famous persons cited as examples or allusions
-- Names appearing only in metaphors, similes, or literary references
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -141,7 +135,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -149,8 +143,6 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
-
-Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -189,16 +181,10 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
-  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
-  or symbolic objects that drive the plot. Include the narrator if they participate.
-- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
-
-DO NOT include in active_characters:
-- Historical/literary figures mentioned only in comparisons or quotations (e.g., "like Napoleon", "as Shakespeare wrote")
-- Authors or famous persons cited as examples or allusions
-- Names appearing only in metaphors, similes, or literary references
+- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
+  interact with others, or participate in events. Include the narrator if they participate.
+- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -217,7 +203,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
+  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -225,8 +211,6 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
-
-Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -253,7 +237,6 @@ class ChapterSummarizer:
         known_characters: Optional[list[str]] = None,
         summary_length: str = "standard",
         competitive_config: Optional["CompetitiveConfig"] = None,
-        json_llm: Optional[LLMClient] = None,
     ):
         """
         Args:
@@ -263,7 +246,6 @@ class ChapterSummarizer:
             known_characters: List of known character names for reference
             summary_length: Length preference - "brief" (2-3 sentences), "standard" (4-6 sentences), "detailed" (6-8 sentences)
             competitive_config: Optional config for multi-model consensus
-            json_llm: Optional JSON-capable LLM client for fallback when primary fails JSON parsing
         """
         self.llm = llm_client
         self.chunk_size = chunk_size
@@ -271,8 +253,6 @@ class ChapterSummarizer:
         self.known_characters = known_characters or []
         self.summary_length = summary_length
         self.competitive_config = competitive_config
-        # JSON-capable LLM client for fallback when primary model fails JSON parsing
-        self.json_llm = json_llm
 
         # Collect vote records for consensus logging
         self.vote_records: list[dict] = []
@@ -516,7 +496,7 @@ class ChapterSummarizer:
         # Merge key_events with voting
         event_counts: Counter = Counter()
         for result in results:
-            events = result.get("key_events") or []
+            events = result.get("key_events", [])
             for event in events:
                 # Normalize event for comparison (lowercase, strip)
                 normalized = event.lower().strip()
@@ -525,7 +505,7 @@ class ChapterSummarizer:
         # Keep events with enough votes, preserve original casing from first occurrence
         event_originals: dict[str, str] = {}
         for result in results:
-            for event in result.get("key_events") or []:
+            for event in result.get("key_events", []):
                 normalized = event.lower().strip()
                 if normalized not in event_originals:
                     event_originals[normalized] = event
@@ -540,9 +520,9 @@ class ChapterSummarizer:
         active_char_counts: Counter = Counter()
         mentioned_char_counts: Counter = Counter()
         for result in results:
-            for char in result.get("active_characters") or []:
+            for char in result.get("active_characters", []):
                 active_char_counts[char.strip()] += 1
-            for char in result.get("mentioned_characters") or []:
+            for char in result.get("mentioned_characters", []):
                 mentioned_char_counts[char.strip()] += 1
 
         consensus_active = [char for char, count in active_char_counts.items() if count >= min_votes]
@@ -553,7 +533,7 @@ class ChapterSummarizer:
         best_score = -1
         for result in results:
             summary = result.get("summary", "")
-            events = result.get("key_events") or []
+            events = result.get("key_events", [])
             # Score = number of events that made it to consensus
             score = sum(
                 1 for e in events
@@ -574,7 +554,7 @@ class ChapterSummarizer:
         # Secondary tones - any tone mentioned by 2+ models
         secondary_tone_counts: Counter = Counter()
         for result in results:
-            for tone in result.get("secondary_tones") or []:
+            for tone in result.get("secondary_tones", []):
                 if tone in self._valid_tones():
                     secondary_tone_counts[tone] += 1
         secondary_tones = [
@@ -647,14 +627,6 @@ class ChapterSummarizer:
         )
 
         result, _ = self.llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
-
-        # Retry with JSON-capable model if primary failed
-        if result is None and self.json_llm is not None:
-            logger.warning(
-                f"Primary model failed JSON for chapter {chapter_index}, "
-                f"retrying with JSON-capable model '{self.json_llm.config.model}'"
-            )
-            result, _ = self.json_llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
 
         if result is None:
             logger.warning(f"LLM summarization failed for chapter {chapter_index}")
@@ -782,11 +754,6 @@ class ChapterSummarizer:
 
         result, _ = self.llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
 
-        # Retry with JSON-capable model if primary failed
-        if result is None and self.json_llm is not None:
-            logger.debug(f"Chunk {chunk_index} retry with JSON-capable model")
-            result, _ = self.json_llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
-
         word_count = len(text.split())
 
         if result is None:
@@ -807,8 +774,8 @@ class ChapterSummarizer:
         return ChunkSummary(
             chunk_index=chunk_index,
             summary=result.get("summary", ""),
-            key_events=result.get("key_events") or [],
-            characters_mentioned=result.get("characters_mentioned") or [],
+            key_events=result.get("key_events", []),
+            characters_mentioned=result.get("characters_mentioned", []),
             tone=tone,
             word_count=word_count,
         )
@@ -840,14 +807,6 @@ class ChapterSummarizer:
         )
 
         result, response = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
-
-        # Check if primary model failed and we have a JSON-capable fallback
-        primary_failed = not response.success or result is None or not isinstance(result, dict)
-        if primary_failed and self.json_llm is not None:
-            logger.warning(
-                f"Consolidation retry with JSON-capable model for chapter {chapter_index}"
-            )
-            result, response = self.json_llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
 
         if not response.success:
             # HTTP error or connection failure
@@ -922,7 +881,7 @@ class ChapterSummarizer:
             primary_tone = "reflective"
 
         secondary_tones = []
-        for t in result.get("secondary_tones") or []:
+        for t in result.get("secondary_tones", []):
             if t in self._valid_tones() and t != primary_tone:
                 secondary_tones.append(t)
 
@@ -932,18 +891,18 @@ class ChapterSummarizer:
 
         # Handle new active/mentioned character format with backward compatibility
         if "active_characters" in result:
-            active_characters = result.get("active_characters") or []
-            mentioned_characters = result.get("mentioned_characters") or []
+            active_characters = result.get("active_characters", [])
+            mentioned_characters = result.get("mentioned_characters", [])
         else:
             # Old format: all characters_present treated as active
-            active_characters = result.get("characters_present") or []
+            active_characters = result.get("characters_present", [])
             mentioned_characters = []
 
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
             summary=result.get("summary", ""),
-            key_events=result.get("key_events") or [],
+            key_events=result.get("key_events", []),
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,

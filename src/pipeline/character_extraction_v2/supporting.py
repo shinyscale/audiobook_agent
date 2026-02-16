@@ -111,7 +111,7 @@ class SupportingCastExtractor:
                 if ent.label_ not in ("PERSON", "ORG"):
                     continue
 
-                name = self._strip_possessive(ent.text.strip())
+                name = ent.text.strip()
 
                 # Skip if it's a main cast name
                 if self._normalize_name(name) in main_cast_normalized:
@@ -165,31 +165,6 @@ class SupportingCastExtractor:
                 name = name[len(title) + 1 :]
         return re.sub(r"\s+", " ", name)
 
-    def _strip_possessive(self, name: str) -> str:
-        """
-        Strip possessive markers from names extracted by NER.
-
-        Removes trailing "'s" or "'" from names to avoid creating
-        duplicate characters like "John Donaldson's" vs "John Donaldson".
-
-        Examples:
-          "John Donaldson's" → "John Donaldson"
-          "the creature's" → "the creature"
-          "Jesus'" → "Jesus"
-
-        Args:
-            name: Name potentially ending with possessive marker
-
-        Returns:
-            Name with possessive marker removed
-        """
-        name = name.strip()
-        if name.endswith("'s"):
-            return name[:-2].strip()
-        if name.endswith("'"):
-            return name[:-1].strip()
-        return name
-
     def _is_valid_name(self, name: str) -> bool:
         """Check if a name looks like a valid character name."""
         # Must have at least one letter
@@ -200,17 +175,11 @@ class SupportingCastExtractor:
         if len(name) < 2:
             return False
 
-        # Skip multi-word phrases with Latin/Greek grammatical patterns
-        # This catches epigraph fragments like "amicae visitarem" without vocabulary lists
-        if self._is_likely_foreign_phrase(name):
-            return False
-
         # Skip common false positives (religious terms, titles, etc.)
         skip_terms = {
             "god",
             "lord",
             "christ",
-            "jesus",  # Religious exclamation, not character
             "heaven",
             "hell",
             "sir",
@@ -253,57 +222,6 @@ class SupportingCastExtractor:
             return False
 
         return True
-
-    def _is_likely_foreign_phrase(self, name: str) -> bool:
-        """
-        Detect if a multi-word phrase is likely a foreign language quote/epigraph.
-
-        Uses universal grammatical patterns (Latin/Greek/French verb endings),
-        not vocabulary lists. This prevents extracting Latin epigraphs like
-        "amicae visitarem" or French quotes as characters.
-
-        Returns True if the phrase should be filtered out.
-        """
-        # Only check multi-word phrases (2+ words)
-        words = name.strip().split()
-        if len(words) < 2:
-            return False
-
-        # Check for Latin verb conjugation endings (very common in epigraphs)
-        # These are grammatical patterns, not vocabulary
-        latin_verb_endings = (
-            # Present/imperfect subjunctive
-            "arem", "erem", "irem",  # 1st person (visitarem = "I should visit")
-            "ares", "eres", "ires",  # 2nd person
-            "aret", "eret", "iret",  # 3rd person
-            # Perfect/pluperfect
-            "avi", "ivi", "atum", "itum",
-            # Gerunds/gerundives
-            "andi", "endi", "undi",
-        )
-
-        # Check for Greek grammatical endings
-        greek_endings = (
-            "ος", "ον", "ων", "ας",  # Nominative/genitive markers
-        )
-
-        # If any word has these endings, likely foreign
-        for word in words:
-            word_lower = word.lower().strip(".,;:!?\"'")
-            for ending in latin_verb_endings:
-                if word_lower.endswith(ending):
-                    logger.debug(
-                        f"Filtering '{name}' as likely Latin phrase (word '{word}' has Latin ending '{ending}')"
-                    )
-                    return True
-            for ending in greek_endings:
-                if word.endswith(ending):
-                    logger.debug(
-                        f"Filtering '{name}' as likely Greek phrase (word '{word}' has Greek ending '{ending}')"
-                    )
-                    return True
-
-        return False
 
     def _is_descriptive_synonym(self, name: str, main_cast_names: set[str]) -> bool:
         """

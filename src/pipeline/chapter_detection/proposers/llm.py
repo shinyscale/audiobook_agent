@@ -17,21 +17,7 @@ from .base import BaseProposer
 logger = logging.getLogger(__name__)
 
 
-MARKER_SYSTEM_PROMPT = """You are a JSON-only document structure analyst.
-
-MANDATORY JSON FORMAT - You MUST use this EXACT structure:
-{"markers": [...]}
-
-FORBIDDEN RESPONSES - These will cause system failure:
-- {"error": "..."} - NEVER use an error field
-- {"message": "..."} - NEVER use a message field
-- Plain text or explanations outside JSON
-- Any JSON structure other than {"markers": [...]}
-
-If you find ZERO markers, respond with: {"markers": []}
-This is still valid and expected. An empty array is correct when no markers exist.
-
-Your job is to find EXPLICIT chapter or section markers in text.
+MARKER_SYSTEM_PROMPT = """You are a document structure analyst. Your job is to find EXPLICIT chapter or section markers in text.
 
 CRITICAL: Base your analysis ONLY on the text provided below.
 Do NOT use any prior knowledge about this book, author, or its structure.
@@ -60,14 +46,11 @@ IMPORTANT - Do NOT mark these as chapter markers:
 - Bibliography citations or index references
 - Back matter that references chapters (appendix, notes, etc.)
 - Text that MENTIONS a chapter number but isn't a STRUCTURAL HEADING
-- Sub-section headers that recur throughout the text (e.g., diary entry headers like "Dr. Smith's Diary", letter headers like "Letter from John", journal dates). These divide content WITHIN chapters, not between them.
-- Character names or speaker attributions appearing as headers within a chapter
 
 CRITICAL DISTINCTIONS:
 - STRUCTURAL MARKER: "Chapter 5" appearing as a HEADING that divides the book into sections
 - NOT A MARKER: "...as explained in Chapter 5, the character..." (just a textual reference)
 - SCENE BREAK: "--------" or "***" marking a transition WITHIN a chapter (NOT a chapter boundary)
-- NOT A MARKER: A recurring header like a character's diary or journal entry (e.g., "Jonathan's Journal", "Dr. Smith's Diary") that appears many times throughout the text. These are sub-sections within chapters, not chapter boundaries themselves. Look for the higher-level structure (e.g., "Chapter I", "Chapter II") that contains these entries.
 
 CRITICAL: You must return the EXACT TEXT as it appears. We will search for your text - if you paraphrase, the search will fail."""
 
@@ -76,35 +59,26 @@ MARKER_PROMPT_TEMPLATE = """Find all EXPLICIT chapter/section markers in the fol
 TEXT:
 {text}
 
-For each marker include:
-- "marker_text": The EXACT text as it appears (copy character-for-character)
+Return a JSON array of chapter markers found. For each marker:
+- "marker_text": The EXACT text of the marker as it appears (copy character-for-character)
 - "title": The chapter title/number (e.g., "Chapter 1", "Part Two", "Prologue")
-- "confidence": Your confidence (0.0-1.0)
+- "confidence": Your confidence this is a real chapter marker (0.0-1.0)
 - "reasoning": Brief explanation
 
-FORMAT: {{"markers": [...]}}
+Example response:
+```json
+[
+  {{"marker_text": "CHAPTER I", "title": "Chapter 1", "confidence": 0.95, "reasoning": "Explicit chapter marker"}},
+  {{"marker_text": "II", "title": "Chapter 2", "confidence": 0.85, "reasoning": "Roman numeral following chapter 1 pattern"}}
+]
+```
 
-Example:
-{{"markers": [
-  {{"marker_text": "CHAPTER I", "title": "Chapter 1", "confidence": 0.95, "reasoning": "Explicit chapter marker"}}
-]}}
+If no chapter markers are found, return an empty array: []
 
-If no markers: {{"markers": []}}"""
+Respond with ONLY the JSON array, no other text."""
 
 
-NARRATIVE_SYSTEM_PROMPT = """You are a JSON-only literary analyst identifying major structural breaks in narratives.
-
-MANDATORY JSON FORMAT - You MUST use this EXACT structure:
-{"breaks": [...]}
-
-FORBIDDEN RESPONSES - These will cause system failure:
-- {"error": "..."} - NEVER use an error field
-- {"message": "..."} - NEVER use a message field
-- Plain text or explanations outside JSON
-- Any JSON structure other than {"breaks": [...]}
-
-If you find ZERO breaks, respond with: {"breaks": []}
-This is still valid and expected. An empty array is correct when no breaks exist.
+NARRATIVE_SYSTEM_PROMPT = """You are a literary analyst identifying major structural breaks in narratives.
 
 CRITICAL: Base your analysis ONLY on the text provided below.
 Do NOT use any prior knowledge about this book, author, or its structure.
@@ -130,20 +104,26 @@ NARRATIVE_PROMPT_TEMPLATE = """Analyze this text for MAJOR narrative breaks that
 TEXT:
 {text}
 
-For each break include:
-- "break_text": The exact sentence where the break occurs (verbatim)
-- "transition_type": time_jump|pov_change|setting_change|plot_division
-- "confidence": 0.0-1.0
-- "reasoning": Why this is a major break
+For each potential chapter break:
+1. Copy the EXACT sentence or phrase where the break occurs
+2. Explain why this is a major structural break
+3. Rate your confidence (0.0-1.0)
 
-FORMAT: {{"breaks": [...]}}
+Return a JSON array:
+```json
+[
+  {{
+    "break_text": "The exact sentence where the break occurs (copy verbatim)",
+    "transition_type": "time_jump|pov_change|setting_change|plot_division",
+    "confidence": 0.7,
+    "reasoning": "Why this is a major break"
+  }}
+]
+```
 
-Example:
-{{"breaks": [
-  {{"break_text": "Three months later...", "transition_type": "time_jump", "confidence": 0.8, "reasoning": "Significant time skip"}}
-]}}
+If no major breaks are found, return: []
 
-If no breaks: {{"breaks": []}}"""
+Respond with ONLY the JSON array."""
 
 
 class LLMMarkerProposer(BaseProposer):
@@ -237,27 +217,12 @@ class LLMMarkerProposer(BaseProposer):
             )
             return []
 
-        # Handle wrapped format: {"markers": [...]}
-        if isinstance(result, dict):
-            if "error" in result or "message" in result:
-                logger.warning(
-                    f"LLM marker proposer returned error response: {result}. "
-                    "Model may not support structured output properly."
-                )
-                return []
-            markers = result.get("markers", [])
-            if not isinstance(markers, list):
-                logger.warning(f"LLM marker proposer 'markers' field is not a list: {type(markers)}")
-                return []
-        elif isinstance(result, list):
-            # Backward compatibility: accept raw arrays
-            markers = result
-        else:
-            logger.warning(f"LLM marker proposer returned unexpected type: {type(result)}")
+        if not isinstance(result, list):
+            logger.warning(f"LLM marker proposer returned non-list: {type(result)}")
             return []
 
         proposals = []
-        for item in markers:
+        for item in result:
             if not isinstance(item, dict):
                 continue
 
@@ -476,27 +441,11 @@ class LLMNarrativeProposer(BaseProposer):
             )
             return []
 
-        # Handle wrapped format: {"breaks": [...]}
-        if isinstance(result, dict):
-            if "error" in result or "message" in result:
-                logger.warning(
-                    f"LLM narrative proposer returned error response: {result}. "
-                    "Model may not support structured output properly."
-                )
-                return []
-            breaks = result.get("breaks", [])
-            if not isinstance(breaks, list):
-                logger.warning(f"LLM narrative proposer 'breaks' field is not a list: {type(breaks)}")
-                return []
-        elif isinstance(result, list):
-            # Backward compatibility: accept raw arrays
-            breaks = result
-        else:
-            logger.warning(f"LLM narrative proposer returned unexpected type: {type(result)}")
+        if not isinstance(result, list):
             return []
 
         proposals = []
-        for item in breaks:
+        for item in result:
             if not isinstance(item, dict):
                 continue
 

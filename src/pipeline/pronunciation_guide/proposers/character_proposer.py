@@ -5,7 +5,7 @@ Flags character names from the character extraction pipeline for pronunciation a
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING, Optional
 
 from ..models import PronunciationFlag, PronunciationProposal
 from .base import BasePronunciationProposer
@@ -30,23 +30,6 @@ class CharacterProposer(BasePronunciationProposer):
         self.whitelist = COMMON_WORDS_WHITELIST.copy()
         if additional_whitelist:
             self.whitelist.update(additional_whitelist)
-        
-        # Load CMU dictionary to skip known English words
-        # (Universal invariant: if it's in the authoritative English pronunciation
-        # dictionary, it doesn't need pronunciation guidance)
-        self.cmu_words = self._load_cmu_dict()
-    
-    def _load_cmu_dict(self) -> Set[str]:
-        """Load words from CMU dictionary via pronouncing library."""
-        try:
-            import pronouncing
-            words = set(pronouncing.cmudict.dict().keys())
-            logger.info(f"CharacterProposer loaded {len(words)} words from CMU dictionary")
-            return words
-        except (ImportError, Exception) as e:
-            logger.error(f"CRITICAL: Could not load CMU dictionary: {e}")
-            logger.error("CharacterProposer will flag ALL character name words without CMU filtering!")
-            return set()
 
     def propose(
         self,
@@ -62,15 +45,6 @@ class CharacterProposer(BasePronunciationProposer):
         """
         if not character_names:
             logger.debug("No character names provided to CharacterProposer")
-            return []
-
-        # Safety: If CMU dictionary didn't load, skip character name processing
-        # to avoid flagging common English names (Bill, Ted, Joe, etc.)
-        if not self.cmu_words:
-            logger.warning(
-                "CharacterProposer: CMU dictionary not loaded - skipping character name processing "
-                "to avoid false positives on common English names"
-            )
             return []
 
         proposals = []
@@ -123,20 +97,12 @@ class CharacterProposer(BasePronunciationProposer):
                 if word_lower in self.whitelist:
                     continue
 
-                # Skip if in CMU dictionary (known English word)
-                # Universal invariant: authoritative English dictionary = doesn't need pronunciation guidance
-                if word_lower in self.cmu_words:
-                    logger.debug(f"Skipping '{word}' - found in CMU dictionary (known English word)")
-                    continue
-
                 # Skip very short words
                 if len(word) < 2:
                     continue
 
-                # Skip common titles and military ranks
-                # (universal reference lexicon - helps normalize names, not book-specific filtering)
+                # Skip common titles
                 if word_lower.rstrip(".") in {
-                    # Civilian titles
                     "mr",
                     "mrs",
                     "ms",
@@ -145,17 +111,6 @@ class CharacterProposer(BasePronunciationProposer):
                     "sir",
                     "lady",
                     "lord",
-                    # Military ranks (common across many books)
-                    "sergeant",
-                    "corporal",
-                    "captain",
-                    "lieutenant",
-                    "colonel",
-                    "major",
-                    "general",
-                    "private",
-                    "admiral",
-                    "commander",
                 }:
                     continue
 

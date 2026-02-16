@@ -53,7 +53,6 @@ class ChapterSummaryPipeline:
         summarizer_chunk_size_words: int = 2500,
         summarizer_chunk_overlap_words: int = 200,
         competitive_config: Optional["CompetitiveConfig"] = None,
-        json_llm: Optional[LLMClient] = None,
     ):
         """
         Args:
@@ -64,7 +63,6 @@ class ChapterSummaryPipeline:
             max_workers: Max threads for parallel summarization
             llm_client_factory: Factory function to create new LLM clients for parallel execution
             competitive_config: Optional config for multi-model consensus
-            json_llm: Optional JSON-capable LLM client for fallback when primary fails JSON parsing
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
@@ -76,7 +74,6 @@ class ChapterSummaryPipeline:
         self.summarizer_chunk_size_words = summarizer_chunk_size_words
         self.summarizer_chunk_overlap_words = summarizer_chunk_overlap_words
         self.competitive_config = competitive_config
-        self.json_llm = json_llm
 
     def run(
         self,
@@ -114,7 +111,6 @@ class ChapterSummaryPipeline:
             chunk_size=self.summarizer_chunk_size_words,
             chunk_overlap=self.summarizer_chunk_overlap_words,
             competitive_config=self.competitive_config,
-            json_llm=self.json_llm,
         )
 
         # Initialize or validate checkpoint
@@ -260,7 +256,6 @@ class ChapterSummaryPipeline:
                         chunk_size=self.summarizer_chunk_size_words,
                         chunk_overlap=self.summarizer_chunk_overlap_words,
                         competitive_config=self.competitive_config,
-                        json_llm=self.json_llm,  # Shared JSON fallback client
                     )
                 else:
                     thread_summarizer = summarizer

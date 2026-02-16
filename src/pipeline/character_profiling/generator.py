@@ -98,26 +98,6 @@ PHASE 3: SURFACE DETAILS (Lowest Priority)
 Only after analyzing actions, note physical appearance and other surface details.
 These should NEVER override the action-based assessment.
 
-=== RELATIONSHIP GUIDANCE ===
-
-When determining relationship types, consider POWER DYNAMICS and AWARENESS:
-
-ASYMMETRIC POWER (one character has power over the other):
-- "victim" - This character is harmed/targeted BY the other (victim is unaware or powerless)
-- "victimizer" or "enemy" - This character harms/targets the other (active aggressor)
-- "master"/"servant" - Clear hierarchical relationship
-
-COMPETITIVE BUT EQUAL:
-- "professional_competitor" - Competing in skill/status (wine expertise, business, etc.)
-- "rival" - Personal competition with mutual awareness and animosity
-
-FRIENDLY/NEUTRAL:
-- "friend" - Mutual positive regard, social equals
-- "acquaintance" - Know each other but not close
-- "ally" - Working together toward common goal
-
-DECEPTION: If one character PRETENDS friendship to harm the other, they are "victimizer" not "friend"
-
 === OUTPUT FORMAT ===
 
 Return JSON in this exact format:
@@ -161,8 +141,8 @@ Return JSON in this exact format:
   "relationships": [
     {{
       "character": "Other Character Name",
-      "type": "Choose the most specific type: family (spouse/parent/sibling/child), friend, acquaintance, ally, professional_competitor, rival, enemy, victim (this char harms them), victimizer (they harm this char), mentor, student, servant, master, lover",
-      "description": "Brief description focusing on power dynamics and emotional connection"
+      "type": "spouse/friend/rival/lover/etc",
+      "description": "Brief description of the relationship"
     }}
   ],
   "confidence": 0.8
@@ -339,9 +319,6 @@ class CharacterProfileGenerator:
             )
             return profile
 
-        # Unwrap if model returned a JSON array instead of object
-        if isinstance(result, list) and len(result) > 0:
-            result = result[0]
         # Parse and populate profile
         profile = self._parse_profile_response(profile, result, passages, character.canonical_name)
 

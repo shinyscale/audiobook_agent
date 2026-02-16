@@ -237,24 +237,6 @@ class ConsensusLog(BaseModel):
     rejected_count: int = 0
 
 
-class MergeDecision(BaseModel):
-    """Record of a character merge decision for human review.
-
-    Used to track merge operations with co-occurrence scores so narrators
-    can validate uncertain merges in the TUI.
-    """
-
-    source_id: str  # Character being merged (absorbed)
-    target_id: str  # Character receiving the merge
-    source_name: str  # Canonical name of source
-    target_name: str  # Canonical name of target
-    reason: str  # Why merge was proposed: "same_firstname", "alias_conflict", etc.
-    cooccurrence_score: float  # Jaccard similarity of chunk presence (0.0-1.0)
-    confidence: str  # "high" (>0.5), "medium" (0.2-0.5), "low" (<0.2)
-    needs_review: bool  # True if confidence is low and human should verify
-    step: str = ""  # Which step triggered this: "3.4", "3.5", etc.
-
-
 class AnalysisResult(BaseModel):
     """Complete analysis result for a book."""
 
@@ -276,12 +258,6 @@ class AnalysisResult(BaseModel):
     # Analysis notes and warnings
     warnings: list[str] = Field(default_factory=list)
     low_confidence_items: list[str] = Field(default_factory=list)
-
-    # Pending merge decisions for human review (co-occurrence validation)
-    pending_reviews: list[MergeDecision] = Field(default_factory=list)
-
-    # Pipeline metadata (defensive step counts, merge decisions, etc.)
-    pipeline_metadata: Optional[dict] = None
 
     def get_chapter_summary(self) -> list[dict]:
         """Generate a chapter-by-chapter summary."""

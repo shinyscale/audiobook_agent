@@ -15,7 +15,6 @@ from ..pipeline.chapter_summary import (
     ChapterSummary,
     ChapterSummaryMap,
     ChapterSummaryPipeline,
-    SummaryVerificationGate,
 )
 from ..pipeline.llm import LLMClient
 from .base import (
@@ -90,7 +89,6 @@ class SummaryAgent(Agent):
         config: Optional[AgentConfig] = None,
         tuning: Optional[PipelineTuningConfig] = None,
         competitive_config: Optional[CompetitiveConfig] = None,
-        json_llm_client: Optional[LLMClient] = None,
     ):
         """
         Initialize the SummaryAgent.
@@ -99,13 +97,11 @@ class SummaryAgent(Agent):
             llm_client: LLM client for summarization and verification
             config: Agent configuration (model, thresholds, etc.)
             competitive_config: Optional config for multi-model consensus
-            json_llm_client: Optional JSON-capable LLM for fallback when primary fails JSON parsing
         """
         self._llm_client = llm_client
         self._config = config or AgentConfig()
         self._tuning = tuning
         self._competitive_config = competitive_config
-        self._json_llm_client = json_llm_client
         self._pipeline: Optional[ChapterSummaryPipeline] = None
 
     @property
@@ -264,7 +260,6 @@ class SummaryAgent(Agent):
                 summarizer_chunk_size_words=t.summary_chunk_words,
                 summarizer_chunk_overlap_words=t.summary_chunk_overlap_words,
                 competitive_config=self._competitive_config,
-                json_llm=self._json_llm_client,
             )
         return self._pipeline
 
@@ -399,24 +394,6 @@ class SummaryAgent(Agent):
             for summary in low_conf_summaries[:3]:  # Verify up to 3
                 llm_issues = self._llm_verify_summary(summary)
                 issues.extend(llm_issues)
-
-        # Check 6: Summary Verification Gate (character hallucination detection)
-        svg = SummaryVerificationGate()
-        svg_result = svg.verify(summary_map.summaries)
-        if svg_result.has_flags:
-            for flag in svg_result.flagged_characters:
-                severity = "warning" if flag.source == "regex" else "info"
-                issues.append(
-                    VerificationIssue(
-                        description=f"SVG: {flag.name} — {flag.reason}",
-                        severity=severity,
-                    )
-                )
-            if svg_result.llm_prompt:
-                suggestions.append(
-                    f"SVG flagged {len(svg_result.flagged_characters)} suspicious characters. "
-                    f"Run LLM verification prompt for deeper analysis."
-                )
 
         # Determine if passed
         error_count = sum(1 for i in issues if i.severity == "error")
@@ -615,7 +592,6 @@ def create_summary_agent(
     llm_client: Optional[LLMClient] = None,
     config: Optional[AgentConfig] = None,
     competitive_config: Optional[CompetitiveConfig] = None,
-    json_llm_client: Optional[LLMClient] = None,
 ) -> SummaryAgent:
     """
     Factory function to create a SummaryAgent.
@@ -624,7 +600,6 @@ def create_summary_agent(
         llm_client: LLM client for summarization and verification
         config: Agent configuration
         competitive_config: Optional config for multi-model consensus
-        json_llm_client: Optional JSON-capable LLM for fallback
 
     Returns:
         Configured SummaryAgent
@@ -633,5 +608,4 @@ def create_summary_agent(
         llm_client=llm_client,
         config=config,
         competitive_config=competitive_config,
-        json_llm_client=json_llm_client,
     )

@@ -28,26 +28,22 @@ class LLMConfig:
     base_url: Optional[str] = None  # For Ollama/LM Studio
     api_key: Optional[str] = None
     temperature: float = 0.7  # Model-recommended default for local LLMs
-    max_tokens: int = 8192
-    context_length: int = 65536  # Context window size (num_ctx for Ollama)
+    max_tokens: int = 4096
+    context_length: int = 32768  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = (
         None  # Reasoning control: False, True, "low", "medium", "high"
     )
     # Additional sampling parameters
     # Qwen3 auto-applies: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
-    # gpt-oss auto-applies: max_tokens=16384, context_length=131072, presence_penalty=0.5
     top_p: Optional[float] = None  # Nucleus sampling threshold
     top_k: Optional[int] = None  # Top-k sampling limit
     presence_penalty: Optional[float] = None  # 0-2, reduces repetition
 
     @classmethod
     def ollama(
-        cls,
-        model: str = "llama3.2",
-        base_url: str = "http://localhost:11434",
-        think: Optional[Union[bool, str]] = None,
+        cls, model: str = "llama3.2", base_url: str = "http://localhost:11434"
     ) -> "LLMConfig":
-        return cls(provider="ollama", model=model, base_url=base_url, think=think)
+        return cls(provider="ollama", model=model, base_url=base_url)
 
     @classmethod
     def openai(cls, model: str = "gpt-4o-mini", api_key: Optional[str] = None) -> "LLMConfig":
@@ -106,16 +102,7 @@ class LLMClient:
         if self.config.provider == "ollama":
             import httpx
 
-            # Use separate timeouts for better control with large models
-            # Connect timeout: 60s (model loading can take time)
-            # Read/Write timeout: 1200s (20 min for large model inference)
-            timeout = httpx.Timeout(
-                connect=60.0,  # Connection establishment
-                read=1200.0,   # Reading response (inference time)
-                write=60.0,    # Writing request
-                pool=60.0,     # Waiting for connection from pool
-            )
-            self._client = httpx.Client(base_url=self.config.base_url, timeout=timeout)
+            self._client = httpx.Client(base_url=self.config.base_url, timeout=1200.0)
             self._httpx = httpx  # Store for error handling
 
         elif self.config.provider == "openai":
@@ -264,20 +251,12 @@ class LLMClient:
                 self.config.top_p = 0.8
             if self.config.top_k is None:
                 self.config.top_k = 20
-            # Increase max_tokens if at default (8192) - Qwen3 recommends 16384
-            if self.config.max_tokens <= 8192:
+            # Increase max_tokens if at default (4096) - Qwen3 recommends 16384
+            if self.config.max_tokens <= 4096:
                 self.config.max_tokens = 16384
             # Moderate presence_penalty reduces repetition (0-2 range, 1.0 is balanced)
             if self.config.presence_penalty is None:
                 self.config.presence_penalty = 1.0
-        elif "gpt-oss" in model_lower:
-            # gpt-oss:120b supports 128K context natively
-            if self.config.max_tokens <= 8192:
-                self.config.max_tokens = 16384
-            if self.config.context_length <= 65536:
-                self.config.context_length = 131072
-            if self.config.presence_penalty is None:
-                self.config.presence_penalty = 0.5
 
         # Use provided overrides or fall back to config
         effective_temp = temperature if temperature is not None else self.config.temperature
@@ -578,7 +557,6 @@ class LLMClient:
         """Extract JSON from LLM response, handling common formats.
 
         Returns either a dict or list, depending on what the LLM returned.
-        Returns None if the model returns an error-like response.
         """
         # Remove thinking tags (various reasoning models)
         text = self._clean_thinking_tags(text)
@@ -592,16 +570,6 @@ class LLMClient:
         text = text.strip()
         try:
             parsed = json.loads(text)
-            # Check for model error responses - some models return {"error": ...} or {"message": ...}
-            # when they can't fulfill the request. Treat these as failures.
-            if isinstance(parsed, dict):
-                error_keys = {"error", "message", "error_message", "failure"}
-                if error_keys & set(parsed.keys()) and len(parsed) <= 3:
-                    logger.warning(
-                        f"Model returned error-like response instead of expected data: {parsed}. "
-                        f"This model may not support json_mode or structured output properly."
-                    )
-                    return None
             # Accept both dict and list
             if isinstance(parsed, (dict, list)):
                 return parsed

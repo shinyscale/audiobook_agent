@@ -106,8 +106,7 @@ class ChapterDetectionPipeline:
         **kwargs,
     ) -> "ChapterDetectionPipeline":
         """Create pipeline with Ollama LLM."""
-        # Disable thinking mode to prevent <think> tags in JSON output
-        client = create_client("ollama", model=model, base_url=base_url, think=False)
+        client = create_client("ollama", model=model, base_url=base_url)
         return cls(llm_client=client, **kwargs)
 
     @classmethod

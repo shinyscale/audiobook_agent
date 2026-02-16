@@ -91,13 +91,6 @@ Examples:
         "--pronunciation-model", type=str, default=None, help="Model for pronunciation guide agent"
     )
     analyze_parser.add_argument(
-        "--json-model",
-        type=str,
-        default=None,
-        help="JSON-capable fallback model for tasks requiring structured output. "
-        "Used when primary model fails JSON parsing (e.g., qwen2.5:32b, llama3.2).",
-    )
-    analyze_parser.add_argument(
         "--html",
         type=str,
         nargs="?",
@@ -331,21 +324,6 @@ def run_analyze(args):
     if orchestrator_config:
         orchestrator_config.context_length = args.context_length
 
-    # Apply json_model if specified
-    json_model = getattr(args, "json_model", None)
-    if json_model:
-        from .agents.config import OrchestratorConfig
-
-        # Create orchestrator_config if not already created
-        if orchestrator_config is None:
-            orchestrator_config = OrchestratorConfig(
-                default_model=args.llm_model or "qwen2.5:32b",
-                default_provider="ollama",
-                context_length=args.context_length,
-            )
-        orchestrator_config.json_model = json_model
-        print(f"   JSON fallback model: {json_model}")
-
     # Handle competitive consensus flags
     competitive_models_specified = getattr(args, "competitive_model", None)
     competitive_all = getattr(args, "competitive_all", False)
@@ -502,16 +480,6 @@ def run_analyze(args):
             # Fallback to default behavior
             output_path = file_path.with_suffix(".analysis.json")
         analyzer.save_to_json(result, output_path)
-
-        # Write identity_graph.json alongside the output file
-        ig_data = getattr(result, "pipeline_metadata", None) or {}
-        if isinstance(ig_data, dict):
-            ig_data = ig_data.get("identity_graph")
-        if ig_data:
-            import json as _json
-            ig_path = output_path.parent / "identity_graph.json"
-            with open(ig_path, "w", encoding="utf-8") as _f:
-                _json.dump(ig_data, _f, indent=2, ensure_ascii=False)
 
         # Export HTML if requested
         if args.html:

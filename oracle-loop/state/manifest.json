@@ -41,7 +41,7 @@
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
       "complete": true,
       "attempts": 2,
-      "final_score": 9.00
+      "final_score": 9.0
     },
     {
       "name": "a_camping_trip",
@@ -54,7 +54,7 @@
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
       "complete": false,
-      "attempts": 52
+      "attempts": 0
     },
     {
       "name": "john_g",

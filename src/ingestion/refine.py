@@ -11,7 +11,6 @@ from dataclasses import replace
 
 from .base import ExtractedDocument
 from .glossary import extract_glossary
-from .ocr_repair import repair_ocr_errors
 from .pdf_spacing import correct_pdf_spacing
 from .regions import detect_document_regions
 
@@ -94,19 +93,6 @@ def refine_extracted_document(doc: ExtractedDocument) -> ExtractedDocument:
             warnings.append(
                 f"PDF spacing correction: added {spacing_metadata['spaces_added']} word spaces"
             )
-
-    # === OCR error repair (applies to all formats) ===
-    # This handles errors in text pulled from internet sources as well as PDFs
-    text, ocr_metadata = repair_ocr_errors(text)
-    if ocr_metadata["total_repairs"] > 0:
-        repair_details = []
-        if ocr_metadata["roman_numeral_repairs"]:
-            repair_details.append(f"{ocr_metadata['roman_numeral_repairs']} Roman numerals")
-        if ocr_metadata["substitution_repairs"]:
-            repair_details.append(f"{ocr_metadata['substitution_repairs']} character substitutions")
-        if ocr_metadata["ligature_repairs"]:
-            repair_details.append(f"{ocr_metadata['ligature_repairs']} broken ligatures")
-        warnings.append(f"OCR repair: fixed {', '.join(repair_details)}")
 
     # === Quality metrics ===
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
@@ -280,8 +266,8 @@ def _should_merge(word_start: str, word_end: str) -> bool:
             return True
 
         # Case 2: First fragment is a valid standalone word - don't merge
-        # Include 2-letter words like "to", "no", "us", "on", "in", etc.
-        if word_start.lower() in _spell and len(word_start) >= 2:
+        # But only if it's substantial enough (more than 2 chars)
+        if word_start.lower() in _spell and len(word_start) > 2:
             return False
 
         # Case 3: Neither fragment is valid alone, combined not recognized

@@ -67,8 +67,17 @@ from .pipeline.character_extraction.models import (
 
 # Character profiling pipeline components (F1-F5)
 from .pipeline.character_profiling import (
+    MORAL_VALENCE_CONSTRAINTS,
+    CharacterSummaryEvidence,
+    # F3: Moral valence classification
+    MoralValenceClassifier,
+    MoralValenceResult,
+    # F2: Summary evidence extraction
+    SummaryEvidenceExtractor,
+    # F1: Summary-driven character merge detection
     SummaryMerger,
     SummaryMergeResult,
+    # F5: Tag identity propagation
     TagIdentityExtractor,
     apply_summary_merges,
 )
@@ -93,6 +102,22 @@ except ImportError:
     PromptConfig = None  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+# Character profile system prompt for evidence-based generation
+CHARACTER_PROFILE_SYSTEM = """You are a literary analyst creating evidence-based character profiles for audiobook narration.
+
+CRITICAL: Base your analysis ONLY on the text provided below.
+Do NOT use any prior knowledge about this book, author, or characters.
+If you recognize this as a famous work, IGNORE what you know about it.
+Analyze only what is explicitly written in the provided text.
+
+Your profiles help narrators understand:
+- Character traits supported by textual evidence
+- Relationships between characters
+- What we confidently know vs. what is uncertain
+
+Always respond with valid JSON. No other text."""
 
 
 class AudiobookAnalyzer:
@@ -370,55 +395,6 @@ class AudiobookAnalyzer:
             logger.warning(f"Failed to create LLM client for {agent_name}: {e}")
             return None
 
-    def _get_json_llm_client(self) -> Optional[LLMClient]:
-        """
-        Get LLM client configured for JSON tasks.
-
-        Returns None if no json_model configured in orchestrator_config.
-        Returns a client configured with the json_model for use as fallback
-        when the primary model fails JSON parsing.
-
-        This is useful when the primary model (e.g., qwen3-next) doesn't
-        support json_mode properly but a secondary model (e.g., qwen2.5) does.
-        """
-        if not self.orchestrator_config or not self.orchestrator_config.json_model:
-            return None
-
-        if not hasattr(self, "_json_llm_client") or self._json_llm_client is None:
-            try:
-                provider = self.orchestrator_config.default_provider or self.llm_provider
-                base_url = self.orchestrator_config.default_base_url or self.llm_base_url
-
-                if provider == "ollama":
-                    config = LLMConfig.ollama(
-                        model=self.orchestrator_config.json_model,
-                        base_url=base_url,
-                    )
-                elif provider == "openai":
-                    config = LLMConfig.openai(
-                        model=self.orchestrator_config.json_model,
-                        api_key=self.llm_api_key,
-                    )
-                else:
-                    config = LLMConfig.ollama(
-                        model=self.orchestrator_config.json_model,
-                        base_url=base_url,
-                    )
-
-                config.temperature = 0.7
-                config.max_tokens = 32768
-                config.context_length = self.orchestrator_config.context_length
-
-                self._json_llm_client = LLMClient(config, metrics=self._metrics)
-                logger.info(
-                    f"Created JSON-capable LLM client with model: {self.orchestrator_config.json_model}"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to create JSON LLM client: {e}")
-                self._json_llm_client = None
-
-        return self._json_llm_client
-
     def _are_quality_gates_enabled(self) -> bool:
         """Check if quality gates are enabled in orchestrator config."""
         return (
@@ -583,19 +559,6 @@ class AudiobookAnalyzer:
         # Convert glossary if present
         glossary_map = self._convert_glossary(doc)
 
-        # Extract pipeline metadata from character map if available
-        char_pipeline_metadata = None
-        pending_reviews = []
-        if character_map:
-            char_pipeline_metadata = getattr(character_map, 'pipeline_metadata', None) or {}
-            pending_reviews_data = char_pipeline_metadata.get('pending_reviews', [])
-            from .models import MergeDecision
-            for pr in pending_reviews_data:
-                if isinstance(pr, dict):
-                    pending_reviews.append(MergeDecision(**pr))
-                elif isinstance(pr, MergeDecision):
-                    pending_reviews.append(pr)
-
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -606,8 +569,6 @@ class AudiobookAnalyzer:
             raw_text=doc.text,
             warnings=warnings,
             low_confidence_items=low_confidence,
-            pending_reviews=pending_reviews,
-            pipeline_metadata=char_pipeline_metadata,
         )
 
         # Track analysis duration
@@ -660,13 +621,10 @@ class AudiobookAnalyzer:
                     competitive_config = (
                         self.orchestrator_config.competitive if self.orchestrator_config else None
                     )
-                    # Get JSON-capable fallback client if configured
-                    json_llm = self._get_json_llm_client()
                     character_agent = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
                         competitive_config=competitive_config,
-                        json_llm_client=json_llm,
                     )
                     char_agent_context = AgentContext(
                         text=doc.text,
@@ -1062,8 +1020,6 @@ class AudiobookAnalyzer:
                 def summary_llm_factory():
                     return self._create_llm_client_for_agent("summaries")
 
-                # Get JSON-capable fallback client if configured
-                json_llm_for_summaries = self._get_json_llm_client()
                 summary_pipeline = ChapterSummaryPipeline(
                     llm_client=summary_llm,
                     progress_callback=self._wrap_progress("Chapter Summaries"),
@@ -1085,7 +1041,6 @@ class AudiobookAnalyzer:
                         if self.orchestrator_config and self.orchestrator_config.competitive
                         else None
                     ),
-                    json_llm=json_llm_for_summaries,
                 )
                 summary_map, _ = summary_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
@@ -1128,13 +1083,10 @@ class AudiobookAnalyzer:
                     competitive_config = (
                         self.orchestrator_config.competitive if self.orchestrator_config else None
                     )
-                    # Get JSON-capable fallback client if configured
-                    json_llm = self._get_json_llm_client()
                     character_agent_v2 = CharacterAgent(
                         llm_client=char_llm,
                         config=char_config,
                         competitive_config=competitive_config,
-                        json_llm_client=json_llm,
                     )
 
                     # Build context with summaries
@@ -1642,45 +1594,9 @@ class AudiobookAnalyzer:
                         f"F6: Found {len(missing_names)} character(s) in summaries but not in character list: {missing_names}"
                     )
 
-                    # DEFENSIVE: Verify each name has grounding in the raw text before creating
-                    # This prevents hallucinated characters from summary LLM errors (e.g., literary references)
-                    from .pipeline.character_extraction_v2.mention_search import MentionSearcher
-                    searcher = MentionSearcher(full_text=doc.text, chapters=doc.chapters)
-
-                    verified_names = []
-                    for name in missing_names:
-                        # Create a temporary Character to search for mentions
-                        temp_char = Character(
-                            id="temp",
-                            canonical_name=name,
-                            aliases=[],
-                            mentions=[],
-                            first_appearance_chapter=0,
-                            mention_count=0,
-                            chapters_present=[],
-                            confidence=0.0,
-                            supporting_strategies=[],  # Temporary character, no strategies yet
-                        )
-
-                        # Search for mentions in raw text
-                        mention_result = searcher.search_character(temp_char)
-
-                        if mention_result.total_mentions >= 1:
-                            verified_names.append(name)
-                            logger.debug(f"F6: '{name}' verified with {mention_result.total_mentions} text mentions")
-                        else:
-                            logger.warning(
-                                f"F6: Rejecting '{name}' - appears in summary but has 0 text mentions (likely hallucination)"
-                            )
-
-                    if not verified_names:
-                        logger.info("F6: All candidate names rejected (no text grounding)")
-                    else:
-                        logger.info(f"F6: {len(verified_names)}/{len(missing_names)} names verified with text grounding")
-
-                    # Create minimal character entries for verified names only
+                    # Create minimal character entries for missing names
                     # We'll give them medium confidence since they come from LLM summaries
-                    for name in verified_names:
+                    for name in missing_names:
                         # Find which chapters this character appears in (from summaries)
                         chapters_present = []
                         for summary in summary_map.summaries:
@@ -1716,8 +1632,8 @@ class AudiobookAnalyzer:
 
                         pipeline_char_map.characters.append(new_character)
 
-                    print(f"   Added {len(verified_names)} character(s) from chapter summaries (verified with text grounding)")
-                    logger.info(f"F6: Added characters: {', '.join(verified_names)}")
+                    print(f"   Added {len(missing_names)} character(s) from chapter summaries")
+                    logger.info(f"F6: Added characters: {', '.join(missing_names)}")
                 else:
                     logger.info("F6: All characters from summaries already in character list")
             except Exception as e:
@@ -1766,69 +1682,6 @@ class AudiobookAnalyzer:
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"
                     )
-
-                    # FALLBACK: If narrator is detected but NOT in character list, add them
-                    # This is a safety net in case F6 reconciliation failed or narrator was filtered out
-                    narrator_in_chars = any(
-                        narrator_info.narrator_name.lower() in c.canonical_name.lower()
-                        or any(narrator_info.narrator_name.lower() in alias.lower() for alias in c.aliases)
-                        for c in pipeline_char_map.characters
-                    )
-
-                    if not narrator_in_chars:
-                        logger.warning(
-                            f"Narrator '{narrator_info.narrator_name}' identified but NOT found in character list. "
-                            f"Adding as character (safety fallback). "
-                            f"Available characters: {[c.canonical_name for c in pipeline_char_map.characters]}"
-                        )
-
-                        # Create a Character entry for the narrator with proper mention data
-                        import hashlib
-                        narrator_id = hashlib.md5(narrator_info.narrator_name.encode()).hexdigest()[:12]
-
-                        # Search for actual mentions in the text
-                        from .pipeline.character_extraction_v2.mention_search import MentionSearcher
-                        searcher = MentionSearcher(full_text=doc.text, chapters=doc.chapters)
-
-                        # Create temporary character to search for mentions
-                        temp_narrator = Character(
-                            id="temp",
-                            canonical_name=narrator_info.narrator_name,
-                            aliases=[],
-                            mentions=[],
-                            first_appearance_chapter=0,
-                            mention_count=0,
-                            chapters_present=[],
-                            confidence=0.0,
-                            supporting_strategies=[],  # Temporary character, no strategies yet
-                        )
-
-                        mention_result = searcher.search_character(temp_narrator)
-
-                        # Determine chapters_present from mention positions
-                        chapters_present = sorted(set(m.chapter_index for m in mention_result.mentions if m.chapter_index is not None))
-                        first_chapter = chapters_present[0] if chapters_present else 0
-
-                        narrator_character = Character(
-                            id=narrator_id,
-                            canonical_name=narrator_info.narrator_name,
-                            aliases=[],
-                            mentions=mention_result.mentions,
-                            first_appearance_chapter=first_chapter,
-                            mention_count=mention_result.total_mentions,
-                            chapters_present=chapters_present,
-                            confidence=narrator_info.confidence,
-                            supporting_strategies=["narrator_detection_fallback"],
-                            description="",  # Will be filled by profile generation
-                            character_type=CharacterType.STORY,
-                        )
-
-                        # Mark as narrator
-                        narrator_character.is_narrator = True
-
-                        pipeline_char_map.characters.append(narrator_character)
-                        print(f"   Added narrator '{narrator_info.narrator_name}' to character list (fallback) with {mention_result.total_count} mentions")
-                        logger.info(f"Narrator fallback: Added '{narrator_info.narrator_name}' with {mention_result.total_count} mentions, confidence {narrator_info.confidence:.2f}")
                 else:
                     print("   No definitive narrator identified yet")
                     logger.info("Early narrator detection: No narrator identified")
@@ -1836,123 +1689,184 @@ class AudiobookAnalyzer:
                 logger.warning(f"Early narrator detection failed: {e}")
                 print(f"   Narrator detection skipped (error: {e})")
 
-        # Step 4.6: Generate Character Profiles using profiling pipeline (F2, F3)
+        # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length
+        # For short texts (< 5000 words), use a lower threshold
+        # For normal texts (5000-50000 words), use standard threshold
+        # For long texts (> 50000 words), maintain standard threshold
         word_count = len(doc.text.split())
         if word_count < 5000:
+            # Short story: profile characters with 2+ mentions
             MIN_MENTIONS_FOR_PROFILE = 2
             logger.info(
                 f"Short text detected ({word_count} words) - using MIN_MENTIONS_FOR_PROFILE = 2"
             )
         else:
+            # Standard threshold for longer texts
             MIN_MENTIONS_FOR_PROFILE = 5
 
+        # Use characters-specific LLM client for profiles (same model as character extraction)
         profile_llm = self._get_agent_llm_client("characters") or llm
-        if profile_llm and pipeline_char_map.characters:
+        if profile_llm:
             print("📋 Generating character profiles...")
             self._write_progress(
                 "Character Profiles",
                 profile_llm.config.model if profile_llm and profile_llm.config else None,
             )
             with self._metrics.stage("Character Profiles") as ctx:
+                # Set model info from LLM client config (before running)
                 if profile_llm and profile_llm.config:
                     ctx.set_model(profile_llm.config.model, profile_llm.config.provider)
 
-                from .pipeline.character_profiling.pipeline import (
-                    CharacterProfilingPipeline,
-                    character_to_identified,
-                )
+                # F3: Initialize moral valence classifier
+                moral_valence_classifier = MoralValenceClassifier(profile_llm)
+                logger.info("F3: Moral valence classification enabled")
 
-                # Helper to identify F6-reconciled characters (they have 12-char hex IDs)
-                def is_f6_reconciled(char_id: str) -> bool:
-                    return len(char_id) == 12 and all(c in '0123456789abcdef' for c in char_id)
-
-                # Filter to eligible characters
+                # Generate profiles for all characters with sufficient mentions
+                # SPECIAL CASE: Include narrators even if they have few explicit mentions
+                # (first-person narrators may use "I" throughout without saying their name)
                 eligible_chars = [
                     c
                     for c in pipeline_char_map.characters
                     if c.mention_count >= MIN_MENTIONS_FOR_PROFILE
                     or getattr(c, "is_narrator", False)
-                    or is_f6_reconciled(c.id)
                 ]
                 logger.info(
-                    f"Generating profiles for {len(eligible_chars)} eligible characters "
-                    f"({MIN_MENTIONS_FOR_PROFILE}+ mentions, narrator, or F6-reconciled)"
+                    f"Generating profiles for {len(eligible_chars)} eligible characters ({MIN_MENTIONS_FOR_PROFILE}+ mentions or narrator)"
                 )
-
-                # Convert pipeline Characters to IdentifiedCharacters for profiling pipeline
-                identified = [character_to_identified(c) for c in eligible_chars]
-
-                # Run the profiling pipeline (skips identification, only profiles)
-                profiling = CharacterProfilingPipeline(
-                    llm_client=profile_llm,
-                    generate_rich_profiles=True,
-                    progress_callback=self._wrap_progress("Character Profiles"),
-                )
-                # Detect narrative style from text itself, not narrator detection confidence
-                # This ensures first-person perspective filtering works even if narrator
-                # name detection had low confidence
-                from .pipeline.character_profiling.perspective_filter import is_first_person_text
-                narrative_style = "first-person" if is_first_person_text(doc.text) else "third-person"
-                profile_map = profiling.profile_existing_characters(
-                    characters=identified,
-                    full_text=doc.text,
-                    chapter_map=chapter_map,
-                    summary_map=summary_map,
-                    narrator_name=narrator_detected,
-                    narrative_style=narrative_style,
-                    source_file=str(file_path),
-                )
-
-                # Map profiles back to pipeline Characters
                 profile_count = 0
                 high_conf_count = 0
                 medium_conf_count = 0
                 low_conf_count = 0
 
-                for char in eligible_chars:
-                    profile = profile_map.get_profile(char.canonical_name)
-                    if not profile:
-                        low_conf_count += 1
-                        continue
+                # Build character name list for collision detection and relationship extraction
+                # This helps avoid assigning evidence to the wrong character when names overlap
+                # (e.g., "John" vs "John Donaldson", "Mary" vs "Mary Smith")
+                all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
 
-                    # Store structured profile fields
-                    char.appearance = profile.appearance.to_dict()
-                    char.personality = profile.personality.to_dict()
-                    char.voice_guidance = profile.voice_guidance.to_dict()
-                    char.description = profile.personality.summary
-                    char.profile_confidence = profile.confidence
+                # F2: Initialize summary evidence extractor with character names for collision detection
+                summary_evidence_extractor = None
+                if summary_map:
+                    summary_evidence_extractor = SummaryEvidenceExtractor(
+                        profile_llm,
+                        all_character_names  # Required for detecting name substring collisions
+                    )
+                    logger.info("F2: Summary evidence extraction enabled with collision detection")
 
-                    # Convert relationships from list[CharacterRelationship] to dict
-                    if profile.relationships:
-                        char.relationships = {
-                            r.character: r.relationship_type
-                            for r in profile.relationships
-                        }
-                        logger.info(
-                            f"Assigned relationships for {char.canonical_name}: "
-                            f"{char.relationships}"
+                for i, char in enumerate(eligible_chars):
+                    logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
+
+                    # F2: Extract summary evidence for this character
+                    summary_evidence = None
+                    if summary_evidence_extractor and summary_map:
+                        try:
+                            # Check if this character is the narrator
+                            is_char_narrator = (
+                                narrator_detected and char.canonical_name == narrator_detected
+                            )
+                            narrative_style = "first-person" if narrator_detected else "unknown"
+
+                            summary_evidence = summary_evidence_extractor.extract_evidence(
+                                char.canonical_name,
+                                char.aliases,
+                                summary_map,
+                                is_narrator=is_char_narrator,
+                                narrative_style=narrative_style,
+                            )
+                            if summary_evidence.evidence:
+                                logger.debug(
+                                    f"F2: Found {len(summary_evidence.evidence)} summary evidence items "
+                                    f"for {char.canonical_name}"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"F2: Summary evidence extraction failed for {char.canonical_name}: {e}"
+                            )
+
+                    # F3: Classify moral valence to constrain profile generation
+                    moral_valence = None
+                    try:
+                        # Get character role from extraction (if available)
+                        role = "supporting"  # Default
+                        # Gather some context passages for valence classification
+                        char_contexts = []
+                        for mention in char.mentions[:10]:  # Sample up to 10 mentions
+                            start = max(0, mention.position - 200)
+                            end = min(len(doc.text), mention.position + 200)
+                            char_contexts.append(doc.text[start:end])
+
+                        moral_valence = moral_valence_classifier.classify_character(
+                            char.canonical_name,
+                            role,
+                            char_contexts,
+                        )
+                        if moral_valence:
+                            logger.debug(
+                                f"F3: Moral valence for {char.canonical_name}: "
+                                f"{moral_valence.valence.value} (confidence={moral_valence.confidence:.2f})"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"F3: Moral valence classification failed for {char.canonical_name}: {e}"
                         )
 
-                    # Store evidence
-                    if profile.evidence:
-                        char.profile_evidence = [
-                            {
-                                "statement": e.statement,
-                                "quote": e.quote,
-                                "chapter": e.chapter,
-                            }
-                            for e in profile.evidence
-                        ]
+                    # Generate profile with enhanced context
+                    profile, evidence, confidence, appearance, personality, voice_guidance, relationships = (
+                        self._generate_character_profile(
+                            profile_llm,
+                            char,
+                            doc.text,
+                            chapter_map=chapter_map,
+                            summary_evidence=summary_evidence,
+                            moral_valence=moral_valence,
+                            all_character_names=all_character_names,
+                        )
+                    )
 
-                    profile_count += 1
-                    if profile.confidence >= 0.7:
-                        high_conf_count += 1
-                    elif profile.confidence >= 0.4:
-                        medium_conf_count += 1
+                    # Store structured profile fields FIRST (F8: Simplified Character Output)
+                    # These should be saved even if the profile description is empty,
+                    # since the LLM may have extracted relationships/appearance/etc.
+                    # but failed to generate the prose description.
+                    char.appearance = appearance
+                    char.personality = personality
+                    char.voice_guidance = voice_guidance
+                    # Always assign relationships, even if None (will use model default {})
+                    # This ensures we don't silently skip assignment when LLM provides data
+                    if relationships is not None:
+                        char.relationships = relationships
+                        logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
+
+                    if profile:
+                        char.description = profile
+                        profile_count += 1
+
+                        # Store evidence in character
+                        char.profile_evidence = evidence
+                        char.profile_confidence = confidence
+
+                        # Track confidence distribution
+                        if confidence >= 0.7:
+                            high_conf_count += 1
+                        elif confidence >= 0.4:
+                            medium_conf_count += 1
+                        else:
+                            low_conf_count += 1
+                            logger.warning(
+                                f"Low confidence profile for {char.canonical_name}: {confidence:.2f}"
+                            )
                     else:
+                        char.profile_confidence = None
                         low_conf_count += 1
 
+                    # Update real-time progress
+                    self._metrics.update_stage_progress(
+                        items_processed=i + 1,
+                        high=high_conf_count,
+                        medium=medium_conf_count,
+                        low=low_conf_count,
+                    )
+
+                # Record metrics with confidence breakdown
                 ctx.record_items(
                     total=len(eligible_chars),
                     high_confidence=high_conf_count,
@@ -2139,19 +2053,6 @@ class AudiobookAnalyzer:
         consensus_log_data = consensus_collector.build_log()
         consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
 
-        # Extract pipeline metadata from character map (defensive steps, merge decisions, etc.)
-        char_pipeline_metadata = getattr(pipeline_char_map, 'pipeline_metadata', None) or {}
-        pending_reviews_data = char_pipeline_metadata.get('pending_reviews', [])
-
-        # Convert pending_reviews dicts to MergeDecision objects if needed
-        from .models import MergeDecision
-        pending_reviews = []
-        for pr in pending_reviews_data:
-            if isinstance(pr, dict):
-                pending_reviews.append(MergeDecision(**pr))
-            elif isinstance(pr, MergeDecision):
-                pending_reviews.append(pr)
-
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -2163,8 +2064,6 @@ class AudiobookAnalyzer:
             consensus_log=consensus_log,
             warnings=warnings,
             low_confidence_items=low_confidence,
-            pending_reviews=pending_reviews,
-            pipeline_metadata=char_pipeline_metadata,
         )
 
         # Track analysis duration
@@ -2226,14 +2125,6 @@ class AudiobookAnalyzer:
 
             # Store run_dir for save_to_json to use
             self._last_run_dir = run_dir
-
-            # Write identity_graph.json if graph data is available
-            identity_graph_data = char_pipeline_metadata.get("identity_graph")
-            if identity_graph_data:
-                graph_path = run_dir / "identity_graph.json"
-                with open(graph_path, "w", encoding="utf-8") as f:
-                    json.dump(identity_graph_data, f, indent=2, ensure_ascii=False)
-                print(f"🔗 Identity graph: {graph_path}")
 
             print(f"\n📊 Quality report: {quality_path}")
             print(f"📁 Output directory: {run_dir}")
@@ -2327,6 +2218,878 @@ class AudiobookAnalyzer:
                 self.progress_callback(f"{stage}:{substage}", current, total)
 
         return wrapped
+
+    def _extract_text_from_malformed_json(self, s: str) -> str:
+        """Extract readable text from a malformed JSON string.
+
+        When LLM returns nested JSON or broken formatting, try to salvage
+        the actual profile text by stripping JSON artifacts.
+
+        Args:
+            s: Raw string that may contain embedded JSON structure
+
+        Returns:
+            Cleaned text string, or empty string if unsalvageable
+        """
+        import re
+
+        # Remove leading JSON structure: {"profile": " or similar
+        s = re.sub(r'^\s*\{?\s*"profile"\s*:\s*"?', "", s)
+
+        # Remove trailing JSON: ", "evidence": [...] etc
+        s = re.sub(r'"?\s*,?\s*"(evidence|confidence|limitations)"\s*:.*$', "", s, flags=re.DOTALL)
+
+        # Unescape JSON string escapes
+        s = s.replace('\\"', '"').replace("\\n", "\n").replace("\\t", " ")
+
+        # Remove remaining JSON structural characters
+        s = re.sub(r"[{}\[\]]", "", s)
+
+        # Clean up whitespace
+        s = " ".join(s.split())
+
+        # Only return if we have substantial text
+        return s.strip() if len(s.strip()) > 30 else ""
+
+    def _generate_character_profile(
+        self,
+        llm: "LLMClient",
+        character,
+        full_text: str,
+        chapter_map: Optional["ChapterMap"] = None,
+        summary_evidence: Optional["CharacterSummaryEvidence"] = None,
+        moral_valence: Optional["MoralValenceResult"] = None,
+        all_character_names: Optional[list[str]] = None,
+    ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
+        """Generate prose profile for a character using LLM with evidence grounding.
+
+        Args:
+            llm: LLM client for generation
+            character: Character to profile
+            full_text: Full document text
+            chapter_map: Chapter boundaries (optional)
+            summary_evidence: F2 - Evidence extracted from chapter summaries (optional)
+            moral_valence: F3 - Moral valence classification result (optional)
+            all_character_names: List of all character names in the story (for relationship extraction)
+
+        Returns:
+            tuple: (profile_text, evidence_list, confidence_score, appearance, personality, voice_guidance, relationships)
+                evidence_list: List of dicts with 'statement', 'quote', 'position'
+                confidence_score: 0.0-1.0 based on evidence quality
+                appearance: Dict with appearance data or None
+                personality: Dict with personality data or None
+                voice_guidance: Dict with voice guidance data or None
+                relationships: Dict with character relationships or None
+        """
+        import json
+        import re
+
+        from .pipeline.character_extraction.models import CharacterMention
+
+        # Sample mentions from throughout the book (early, middle, late)
+        # to ensure character proof reflects the entire narrative
+        all_mentions = getattr(character, "mentions", []) or []
+        total_mentions = len(all_mentions)
+
+        # Fallback: if mention objects are unexpectedly missing (but the character exists),
+        # rebuild a small set of mention positions via regex so we can still generate a profile.
+        #
+        # This prevents "No detailed profile available" for major characters when upstream
+        # mention tracking is incomplete.
+        if total_mentions == 0 and getattr(character, "canonical_name", ""):
+            names = [getattr(character, "canonical_name", "")]
+            names.extend(getattr(character, "aliases", []) or [])
+            names = [n for n in names if isinstance(n, str) and n.strip()]
+
+            # Build set of ALL character names to filter substring matches
+            # This prevents "John" from matching "John Donaldson"
+            all_names_set = set()
+            if all_character_names:
+                for n in all_character_names:
+                    if isinstance(n, str) and n.strip():
+                        all_names_set.add(n.lower().strip())
+
+            positions: set[int] = set()
+            for name in names:
+                # Allow flexible whitespace for multi-word names (e.g., "De Lacey")
+                escaped = re.escape(name).replace(r"\ ", r"\s+")
+                pattern = rf"\b{escaped}\b"
+                for m in re.finditer(pattern, full_text, flags=re.IGNORECASE):
+                    pos = m.start()
+
+                    # Filter out matches that are part of a longer character name OR
+                    # that refer to a different character with a similar name
+                    # Extract surrounding context to check if this is a substring match
+                    if all_names_set:
+                        # Get broader context for disambiguation
+                        context_start = max(0, pos - 200)
+                        context_end = min(len(full_text), pos + len(name) + 200)
+                        context = full_text[context_start:context_end]
+
+                        # Check if this match is part of a longer name in our character list
+                        is_substring_match = False
+                        refers_to_other_character = False
+
+                        for other_name in all_names_set:
+                            if other_name != name.lower().strip():
+                                # Check if the matched text is followed by more name parts
+                                # that would make it match a longer character name
+                                if other_name.startswith(name.lower().strip() + " "):
+                                    # This is a potential substring (e.g., "John" in "John Donaldson")
+                                    # Check if the text after the match contains the rest of the longer name
+                                    remaining = other_name[len(name):].strip()
+                                    text_after_match = full_text[pos + len(name):pos + len(name) + len(remaining) + 5]
+                                    # Use flexible whitespace matching
+                                    remaining_pattern = r"\s+" + re.escape(remaining)
+                                    if re.match(remaining_pattern, text_after_match, re.IGNORECASE):
+                                        is_substring_match = True
+                                        break
+
+                                # UNIVERSAL DISAMBIGUATION: Check if this match refers to the OTHER character
+                                # This handles cases like father/son sharing a name
+                                # If we're searching for "John" and "John Donaldson" also exists:
+                                # - Check if context contains parts of the longer name (e.g., "Donaldson")
+                                # - Check for relationship markers (e.g., "father", "his father", "the elder")
+                                if other_name.startswith(name.lower().strip() + " "):
+                                    # Extract the distinguishing part (e.g., "Donaldson" from "John Donaldson")
+                                    distinguishing_parts = other_name[len(name):].strip().split()
+
+                                    # Check if any distinguishing part appears in the context
+                                    for part in distinguishing_parts:
+                                        if len(part) >= 3:  # Avoid single-char matches
+                                            # Check if the distinguishing part appears in the context
+                                            # Use word boundaries to avoid false positives
+                                            part_pattern = r"\b" + re.escape(part) + r"\b"
+                                            if re.search(part_pattern, context, re.IGNORECASE):
+                                                refers_to_other_character = True
+                                                break
+
+                                    # Check for family relationship markers that suggest this refers to the longer name
+                                    # Universal markers: "father", "his father", "the elder", "senior", "Sr."
+                                    family_markers = [
+                                        r"\b(his|her|their)\s+(father|mother|parent)",
+                                        r"\bfather\b",
+                                        r"\bmother\b",
+                                        r"\b(the\s+)?(elder|older)\b",
+                                        r"\b(Sr\.|Senior)\b"
+                                    ]
+                                    for marker_pattern in family_markers:
+                                        if re.search(marker_pattern, context, re.IGNORECASE):
+                                            # If we find a family marker near a simple name match,
+                                            # and a fuller name exists, this likely refers to the fuller name
+                                            refers_to_other_character = True
+                                            break
+
+                        if not is_substring_match and not refers_to_other_character:
+                            positions.add(pos)
+                    else:
+                        # No filtering data available, include all matches
+                        positions.add(pos)
+
+            pos_list = sorted(positions)
+
+            # Sample up to 10 positions spread across the text
+            if len(pos_list) > 10:
+                idxs = [int(i * (len(pos_list) - 1) / 9) for i in range(10)]
+                pos_list = [pos_list[i] for i in idxs]
+
+            def _chapter_for_pos(pos: int) -> int:
+                if chapter_map is None:
+                    return 0
+                for ch in chapter_map.chapters:
+                    if ch.start_position <= pos < ch.end_position:
+                        return ch.index
+                return 0
+
+            all_mentions = [
+                CharacterMention(
+                    text=getattr(character, "canonical_name", "") or "",
+                    position=pos,
+                    chapter_index=_chapter_for_pos(pos),
+                    context="",
+                    in_dialogue=False,
+                )
+                for pos in pos_list
+            ]
+            total_mentions = len(all_mentions)
+
+        # Special case: First-person narrators often have few name mentions but "speak" throughout
+        # If this is a narrator with very few mentions, sample broadly across the text
+        is_narrator = getattr(character, "is_narrator", False)
+        if is_narrator and total_mentions < 3:
+            logger.info(
+                f"Narrator {character.canonical_name} has only {total_mentions} name mentions - sampling broadly across text"
+            )
+            # Sample 10 passages evenly distributed through the text
+            text_len = len(full_text)
+            num_samples = 10
+            step = text_len // (num_samples + 1)
+
+            def _chapter_for_pos(pos: int) -> int:
+                if chapter_map is None:
+                    return 0
+                for ch in chapter_map.chapters:
+                    if ch.start_position <= pos < ch.end_position:
+                        return ch.index
+                return 0
+
+            all_mentions = [
+                CharacterMention(
+                    text=getattr(character, "canonical_name", "") or "",
+                    position=step * (i + 1),
+                    chapter_index=_chapter_for_pos(step * (i + 1)),
+                    context="",
+                    in_dialogue=False,
+                )
+                for i in range(num_samples)
+            ]
+            total_mentions = len(all_mentions)
+            logger.info(f"Generated {total_mentions} synthetic mentions for narrator profile")
+
+        # Sample up to 10 mentions, distributed across the narrative
+        if total_mentions <= 10:
+            sampled_mentions = all_mentions
+        else:
+            # ALWAYS include the first mention (where physical descriptions typically appear)
+            first_mention = all_mentions[0]
+
+            # Divide remaining mentions into thirds (early, middle, late) and sample from each
+            remaining_mentions = all_mentions[1:]  # Exclude first mention
+            third = len(remaining_mentions) // 3
+            early = remaining_mentions[:third]
+            middle = remaining_mentions[third : 2 * third]
+            late = remaining_mentions[2 * third :]
+
+            # Sample 3 from each third (9 total + 1 first mention = 10 total)
+            import random
+
+            sampled_mentions = [first_mention]  # Start with first mention
+            sampled_mentions.extend(random.sample(early, min(3, len(early))))
+            sampled_mentions.extend(random.sample(middle, min(3, len(middle))))
+            sampled_mentions.extend(random.sample(late, min(3, len(late))))
+
+            # Sort by position to maintain chronological order in context
+            sampled_mentions.sort(key=lambda m: m.position)
+            logger.info(
+                f"Profile sampling for {character.canonical_name}: "
+                f"Included first mention at position {first_mention.position}, "
+                f"plus {len(sampled_mentions)-1} sampled mentions"
+            )
+
+        # Gather context snippets from sampled mentions
+        contexts = []
+        mention_positions = []
+        for mention in sampled_mentions:
+            start = max(0, mention.position - 200)  # Increased context window
+            end = min(len(full_text), mention.position + 200)
+            snippet = full_text[start:end].strip()
+            # Clean up partial words at boundaries
+            if start > 0:
+                snippet = "..." + snippet.split(" ", 1)[-1] if " " in snippet else snippet
+            if end < len(full_text):
+                snippet = snippet.rsplit(" ", 1)[0] + "..." if " " in snippet else snippet
+            contexts.append(
+                {"text": snippet, "position": mention.position, "chapter": mention.chapter_index}
+            )
+            mention_positions.append(mention.position)
+
+        if not contexts:
+            logger.warning(f"No context available for {character.canonical_name}")
+            return "", [], 0.0, None, None, None
+
+        context_text = "\n\n".join(
+            [
+                f"[Context {i+1}, Chapter {c['chapter']}, Position {c['position']}]:\n{c['text']}"
+                for i, c in enumerate(contexts)
+            ]
+        )
+
+        # Check if this character is the narrator
+        narrator_note = ""
+        if hasattr(character, "is_narrator") and character.is_narrator:
+            narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
+
+        # Build character disambiguation context for same-name characters
+        # This helps when multiple characters share name components (e.g., "John" and "John Donaldson")
+        disambiguation_note = ""
+        char_canonical = getattr(character, "canonical_name", "")
+        if char_canonical and all_character_names:
+            # Check if there's another character whose name contains or is contained in this character's name
+            related_names = []
+            for other_name in all_character_names:
+                if other_name != char_canonical:
+                    # Check for name overlap (one is substring of the other)
+                    if (char_canonical.lower() in other_name.lower() or
+                        other_name.lower() in char_canonical.lower()):
+                        related_names.append(other_name)
+
+            if related_names:
+                # Extract distinguishing information from the character's description field
+                char_description = ""
+                descriptions = getattr(character, "descriptions", []) or []
+                if descriptions and len(descriptions) > 0:
+                    desc_text = descriptions[0].get("text", "") if isinstance(descriptions[0], dict) else ""
+                    if desc_text:
+                        char_description = f"\n{desc_text}"
+
+                related_list = ", ".join(f'"{name}"' for name in related_names)
+                disambiguation_note = f"""
+
+CHARACTER DISAMBIGUATION (CRITICAL):
+This story has multiple characters with similar names: "{char_canonical}" and {related_list}.
+You are analyzing "{char_canonical}" specifically - NOT the other character(s).
+
+When attributing traits, events, or quotes to this character:
+1. Pay attention to which name form appears in each passage
+2. Passages that mention the FULL name of another character (e.g., both first AND last name) likely refer to that other character, NOT this one
+3. If a passage is ambiguous about which character is being discussed, mark the evidence as lower confidence{char_description}
+
+IMPORTANT: Carefully distinguish passages about "{char_canonical}" from passages about other characters with similar names."""
+
+        # Build character names list for relationship extraction
+        character_names_text = ""
+        if all_character_names:
+            names_list = ", ".join(f'"{name}"' for name in all_character_names if name != character.canonical_name)
+            if names_list:
+                character_names_text = f"""
+
+CHARACTERS IN THIS STORY:
+The following characters appear in this story: {names_list}
+When extracting relationships, you MUST use these exact character names as keys in the relationships dict.
+If the text or summary evidence mentions a relationship with any of these characters, include it in your response."""
+
+        # F2: Build summary evidence section if available
+        summary_evidence_text = ""
+        if summary_evidence and summary_evidence.evidence:
+            evidence_lines = []
+            for ev in summary_evidence.evidence[:5]:  # Limit to top 5 items
+                evidence_lines.append(f'- Chapter {ev.chapter_index}: "{ev.statement}"')
+            if evidence_lines:
+                summary_evidence_text = f"""
+
+ADDITIONAL CONTEXT FROM CHAPTER SUMMARIES (Feature F2):
+The following information about this character was extracted from chapter summaries:
+{chr(10).join(evidence_lines)}
+
+Use this summary evidence to enrich your profile, but prioritize direct text quotes as primary evidence.
+IMPORTANT: Pay special attention to relationships mentioned in the summary evidence - these often describe family, romantic, or social connections that may not appear in the short text snippets."""
+
+        # F3: Build moral valence constraint if available
+        moral_valence_constraint = ""
+        if moral_valence and moral_valence.valence:
+            constraint = MORAL_VALENCE_CONSTRAINTS.get(moral_valence.valence, "")
+            if constraint:
+                moral_valence_constraint = f"""
+
+MORAL VALENCE CONSTRAINT (Feature F3):
+This character has been classified as {moral_valence.valence.value} (confidence: {moral_valence.confidence:.0%}).
+{constraint}
+
+This is a HARD CONSTRAINT - your profile MUST respect this classification."""
+
+        prompt = f"""Analyze the character "{character.canonical_name}" using ONLY the provided text evidence.
+
+The evidence below is sampled from throughout the entire narrative (early, middle, and late chapters).
+Your analysis should reflect the character's full arc, not just their initial appearance.{narrator_note}{disambiguation_note}{character_names_text}{summary_evidence_text}{moral_valence_constraint}
+
+Text Evidence:
+{context_text}
+
+CRITICAL REQUIREMENTS:
+1. Make ONLY claims that are directly supported by the provided text
+2. For each claim, provide the exact quote that supports it
+3. Consider how the character develops or changes throughout the narrative (if evident from the samples)
+4. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
+5. Distinguish between what the text explicitly states vs. what might be inferred
+
+Return a JSON response matching this example format exactly:
+
+```json
+{{
+  "profile": "A brief 2-3 sentence overview based on provided evidence.",
+  "appearance": {{
+    "summary": "Brief physical description if available from text",
+    "age_indication": "young/middle-aged/elderly/unknown",
+    "distinguishing_features": ["feature1", "feature2"]
+  }},
+  "personality": {{
+    "summary": "Brief personality summary",
+    "traits": ["trait1", "trait2"],
+    "temperament": "calm/volatile/melancholic/cheerful/etc or unknown",
+    "emotional_range": "Brief note on emotional expression"
+  }},
+  "voice_guidance": {{
+    "suggested_tone": "authoritative/gentle/aggressive/etc based on dialogue",
+    "dialect_notes": "Any accent, regional speech, or class markers",
+    "verbal_tics": ["repeated phrase", "speech pattern"],
+    "formality_level": "formal/informal/moderate",
+    "example_quotes": ["quote1", "quote2"]
+  }},
+  "relationships": {{
+    "character_name_1": "relationship description (e.g., 'father', 'friend', 'rival')",
+    "character_name_2": "relationship description"
+  }},
+  "evidence": [
+    {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
+    {{"statement": "Has family in the area", "quote": "My cousin lived just across the bay", "position": 2456}}
+  ],
+  "confidence": 0.85,
+  "limitations": "What the text doesn't reveal"
+}}
+```
+
+CRITICAL INSTRUCTIONS:
+- You MUST include ALL fields in your response: profile, appearance, personality, voice_guidance, relationships, evidence, confidence, limitations
+- If information is not available in the text, use "unknown" or empty arrays [] for that field
+- Do NOT omit any field - every field must be present even if the value is "unknown" or []
+- Do NOT invent details - only use what's explicitly or clearly implied in the provided text
+- For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
+- For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
+- For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
+- Return ONLY valid JSON matching the above structure. No other text.
+
+RELATIONSHIPS EXTRACTION (IMPORTANT):
+Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
+Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
+If the text says "A's father" or "son of B", add the entry. If no relationships mentioned, use {{}}.
+
+Example relationships dict format:
+- If text says "Tom's wife Mary" → {{"Mary": "spouse"}}
+- If summary says "her father John Smith" → {{"John Smith": "father"}}
+- If both say "his nephew William" → {{"William": "nephew"}}"""
+
+        # Helper to parse JSON from LLM response
+        def _parse_json_blob(s: str):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                # Try to extract JSON object from text with better heuristics
+                # Look for first { and last } at the same nesting level
+                brace_count = 0
+                start_idx = -1
+                end_idx = -1
+
+                for i, char in enumerate(s):
+                    if char == '{':
+                        if brace_count == 0:
+                            start_idx = i
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0 and start_idx != -1:
+                            end_idx = i
+                            # Found a complete JSON object, try to parse it
+                            try:
+                                return json.loads(s[start_idx : end_idx + 1])
+                            except json.JSONDecodeError:
+                                # Continue searching for another potential JSON object
+                                start_idx = -1
+
+                # Fallback to simple extraction if balanced parsing failed
+                start = s.find("{")
+                end = s.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    try:
+                        return json.loads(s[start : end + 1])
+                    except json.JSONDecodeError:
+                        return None
+                return None
+
+        # Retry loop: try up to 3 times on LLM errors (increased for profile generation robustness)
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Character profiles are consumed as JSON; enforce JSON mode at the provider level when possible
+                # (e.g., Ollama `format: "json"`) to reduce malformed output and truncation artifacts.
+                response = llm.query(prompt, system=CHARACTER_PROFILE_SYSTEM, json_mode=True)
+                if response.success:
+                    # Clean up any thinking tags or extra formatting
+                    content = response.content.strip()
+
+                    # Strip thinking tags (common in reasoning models like DeepSeek-R1, QwQ, Qwen3)
+                    # These can appear as <think>...</think> or <thinking>...</thinking>
+                    import re as re_module
+                    content = re_module.sub(r'<think>.*?</think>', '', content, flags=re_module.DOTALL)
+                    content = re_module.sub(r'<thinking>.*?</thinking>', '', content, flags=re_module.DOTALL)
+
+                    # Try to extract JSON if wrapped in markdown code blocks
+                    # Handle multiple code blocks by taking the largest one (likely the JSON)
+                    if "```json" in content:
+                        # Extract all ```json blocks and take the longest one
+                        json_blocks = []
+                        remaining = content
+                        while "```json" in remaining:
+                            parts = remaining.split("```json", 1)
+                            if len(parts) > 1 and "```" in parts[1]:
+                                block = parts[1].split("```", 1)[0].strip()
+                                json_blocks.append(block)
+                                remaining = parts[1].split("```", 1)[1] if len(parts[1].split("```", 1)) > 1 else ""
+                            else:
+                                break
+                        if json_blocks:
+                            content = max(json_blocks, key=len)  # Take the longest JSON block
+                    elif "```" in content:
+                        # Try generic code blocks
+                        code_blocks = []
+                        parts = content.split("```")
+                        for i in range(1, len(parts), 2):  # Odd indices are inside code blocks
+                            code_blocks.append(parts[i].strip())
+                        if code_blocks:
+                            # Take the longest block that looks like JSON (starts with {)
+                            json_like_blocks = [b for b in code_blocks if b.startswith("{")]
+                            if json_like_blocks:
+                                content = max(json_like_blocks, key=len)
+                            else:
+                                content = max(code_blocks, key=len)
+
+                    try:
+                        result = _parse_json_blob(content)
+                        if result is None:
+                            raise json.JSONDecodeError("Could not parse JSON", content, 0)
+
+                        # DEBUG: Log the complete parsed result to diagnose relationship extraction
+                        logger.info(f"RAW LLM response for {character.canonical_name}: {json.dumps(result, indent=2)[:500]}...")
+
+                        # Check if "profile" field itself contains JSON (double-encoded or malformed)
+                        profile = result.get("profile", "")
+                        if profile:
+                            # Case 1: Profile starts with JSON structure
+                            if profile.startswith("{") or profile.startswith("["):
+                                logger.warning(
+                                    f"Character profile for {character.canonical_name} starts with JSON, attempting to parse"
+                                )
+                                try:
+                                    nested = json.loads(profile)
+                                    if isinstance(nested, dict) and "profile" in nested:
+                                        # Double-encoded JSON
+                                        profile = nested["profile"]
+                                        logger.info(
+                                            f"Successfully extracted profile from nested JSON for {character.canonical_name}"
+                                        )
+                                except json.JSONDecodeError:
+                                    # Not valid JSON - try to extract readable text
+                                    logger.warning(
+                                        f"Nested JSON parse failed for {character.canonical_name}, extracting text"
+                                    )
+                                    profile = self._extract_text_from_malformed_json(profile)
+                                    if not profile:
+                                        logger.warning(
+                                            f"Could not salvage text from malformed profile for {character.canonical_name}"
+                                        )
+
+                            # Case 2: Profile contains embedded JSON patterns (malformed response)
+                            # Look for patterns like: `text", "appearance": {` or similar
+                            elif (
+                                '", "appearance":' in profile
+                                or '", "personality":' in profile
+                                or '", "voice_guidance":' in profile
+                            ):
+                                logger.warning(
+                                    f"Character profile for {character.canonical_name} contains embedded JSON fields, attempting to extract"
+                                )
+
+                                # Try to extract the leading text as the profile description
+                                import re
+
+                                # Find where the JSON structure starts (first occurrence of structured field)
+                                json_start_match = re.search(
+                                    r'",\s*"(appearance|personality|voice_guidance)":', profile
+                                )
+                                if json_start_match:
+                                    # Extract the text before the JSON structure
+                                    text_part = profile[: json_start_match.start()]
+                                    # Remove any leading/trailing JSON artifacts
+                                    text_part = text_part.strip(" \"'{")
+
+                                    # Try to reconstruct and parse the embedded JSON
+                                    # The LLM returned malformed JSON like:
+                                    #   "appearance": "summary": "unknown", "age": "unknown", "personality": ...
+                                    # Should be:
+                                    #   "appearance": {"summary": "unknown", "age": "unknown"}, "personality": ...
+                                    json_part = profile[
+                                        json_start_match.start() + 2 :
+                                    ]  # Skip the leading quote+comma
+
+                                    # Strategy: Insert { after main field names, and } before the next main field
+                                    # Main fields are: appearance, personality, voice_guidance
+                                    main_fields = ["appearance", "personality", "voice_guidance"]
+
+                                    # Step 1: Add opening brace after each main field name
+                                    for field in main_fields:
+                                        json_part = re.sub(
+                                            rf'"{field}":\s*(?!\{{)',  # Match field name NOT followed by {
+                                            f'"{field}": {{',
+                                            json_part,
+                                        )
+
+                                    # Step 2: Add closing brace before each subsequent main field (and at end)
+                                    # Work backwards to avoid index shifting
+                                    for i, field in enumerate(main_fields):
+                                        if i < len(main_fields) - 1:
+                                            next_field = main_fields[i + 1]
+                                            # Insert } before next_field if not already there
+                                            json_part = re.sub(
+                                                rf'(?<!\}})\s*,\s*("{next_field}":)',
+                                                r"}, \1",
+                                                json_part,
+                                            )
+
+                                    # Attempt to wrap it in braces to make valid JSON
+                                    reconstructed = "{" + json_part
+
+                                    # Close any unclosed braces at the end
+                                    # Count opening and closing braces
+                                    open_count = reconstructed.count("{")
+                                    close_count = reconstructed.count("}")
+                                    if open_count > close_count:
+                                        reconstructed += "}" * (open_count - close_count)
+
+                                    try:
+                                        parsed_fields = json.loads(reconstructed)
+
+                                        # If we successfully parsed structured fields, use them
+                                        if parsed_fields.get("appearance") and not result.get(
+                                            "appearance"
+                                        ):
+                                            result["appearance"] = parsed_fields["appearance"]
+                                            logger.info(
+                                                f"Extracted appearance from embedded JSON for {character.canonical_name}"
+                                            )
+
+                                        if parsed_fields.get("personality") and not result.get(
+                                            "personality"
+                                        ):
+                                            result["personality"] = parsed_fields["personality"]
+                                            logger.info(
+                                                f"Extracted personality from embedded JSON for {character.canonical_name}"
+                                            )
+
+                                        if parsed_fields.get("voice_guidance") and not result.get(
+                                            "voice_guidance"
+                                        ):
+                                            result["voice_guidance"] = parsed_fields[
+                                                "voice_guidance"
+                                            ]
+                                            logger.info(
+                                                f"Extracted voice_guidance from embedded JSON for {character.canonical_name}"
+                                            )
+
+                                        # Use the cleaned text as profile
+                                        profile = text_part
+                                        logger.info(
+                                            f"Successfully extracted profile text and structured fields from malformed response for {character.canonical_name}"
+                                        )
+
+                                    except json.JSONDecodeError as e:
+                                        # Reconstruction failed, fall back to text extraction
+                                        logger.warning(
+                                            f"Could not reconstruct JSON from embedded fields for {character.canonical_name}: {e}"
+                                        )
+                                        profile = self._extract_text_from_malformed_json(profile)
+                                        if not profile:
+                                            logger.warning(
+                                                f"Could not salvage text from malformed profile for {character.canonical_name}"
+                                            )
+                                else:
+                                    # Pattern detected but no clear boundary, fall back to text extraction
+                                    profile = self._extract_text_from_malformed_json(profile)
+                                    if not profile:
+                                        logger.warning(
+                                            f"Could not salvage text from malformed profile for {character.canonical_name}"
+                                        )
+
+                        evidence = result.get("evidence", [])
+                        confidence = float(result.get("confidence", 0.5))
+
+                        # Extract structured fields (F8: Simplified Character Output)
+                        appearance = result.get("appearance")
+                        personality = result.get("personality")
+                        voice_guidance = result.get("voice_guidance")
+                        relationships = result.get("relationships")
+
+                        # Debug logging
+                        logger.info(
+                            f"Profile generation for {character.canonical_name}: "
+                            f"keys={list(result.keys())}, "
+                            f"appearance={'present' if appearance else 'missing'}, "
+                            f"personality={'present' if personality else 'missing'}, "
+                            f"voice_guidance={'present' if voice_guidance else 'missing'}, "
+                            f"relationships={'present' if relationships else 'missing'}"
+                        )
+
+                        # DETAILED DEBUG: Log the actual structured field contents
+                        if appearance:
+                            logger.info(f"  appearance content: {json.dumps(appearance)}")
+                        if personality:
+                            logger.info(f"  personality content: {json.dumps(personality)}")
+                        if voice_guidance:
+                            logger.info(f"  voice_guidance content: {json.dumps(voice_guidance)}")
+                        # ALWAYS log relationships, even if empty, to diagnose extraction issues
+                        logger.info(f"  relationships RAW from LLM: {json.dumps(relationships)} (type: {type(relationships).__name__})")
+
+                        # Preserve structured fields even if they contain "unknown" values
+                        def _clean_dict(d):
+                            if not isinstance(d, dict):
+                                return None
+                            # Return the dict as-is if it has any content
+                            # We keep "unknown" values because they indicate the LLM responded
+                            # but found no evidence in the text (which is valid information)
+                            return d if d else None
+
+                        appearance = _clean_dict(appearance)
+                        personality = _clean_dict(personality)
+                        voice_guidance = _clean_dict(voice_guidance)
+                        # Don't clean relationships - preserve whatever LLM returned (even empty {})
+                        # Empty dict {} is valid (means no relationships found in text)
+                        # Non-dict values get converted to None for safety
+                        if not isinstance(relationships, dict):
+                            relationships = None
+
+                        # DEBUG: Log after cleaning
+                        logger.info(
+                            f"After _clean_dict for {character.canonical_name}: "
+                            f"appearance={'present' if appearance else 'NULL'}, "
+                            f"personality={'present' if personality else 'NULL'}, "
+                            f"voice_guidance={'present' if voice_guidance else 'NULL'}, "
+                            f"relationships={json.dumps(relationships) if relationships else 'NULL (from _clean_dict)'}"
+                        )
+
+                        # Fallback: If LLM didn't provide structured fields or they're mostly empty,
+                        # attempt to structure the profile text via secondary LLM call
+                        # This handles cases where JSON parsing failed but we have profile text
+                        has_minimal_data = (
+                            (not appearance or (isinstance(appearance, dict) and not any(v for v in appearance.values() if v and v != "unknown")))
+                            and (not personality or (isinstance(personality, dict) and not any(v for v in personality.values() if v and v != "unknown")))
+                            and (not voice_guidance or (isinstance(voice_guidance, dict) and not any(v for v in voice_guidance.values() if v and v != "unknown")))
+                        )
+                        if has_minimal_data and profile and len(profile) > 50:
+                            logger.warning(
+                                f"Structured fields missing for {character.canonical_name}, "
+                                f"attempting to structure profile text via secondary LLM call"
+                            )
+                            # Use LLM to structure the existing profile text
+                            structuring_prompt = f"""The following character profile needs to be organized into structured fields.
+Extract information into the specified categories. Only use information explicitly present in the profile.
+
+Profile text:
+{profile}
+
+Return a JSON object with these fields:
+{{
+  "appearance": {{"summary": "Physical description if mentioned", "age_indication": "age if mentioned", "distinguishing_features": []}},
+  "personality": {{"summary": "Personality traits and behavior", "traits": ["trait1", "trait2"], "temperament": "overall temperament"}},
+  "voice_guidance": {{"suggested_tone": "tone based on character's manner", "formality_level": "formal/informal/moderate"}},
+  "relationships": {{"character_name": "relationship_type"}}
+}}
+
+If a category has no information in the profile, use "unknown", [], or {{}} for that field.
+Return ONLY the JSON object."""
+
+                            try:
+                                struct_response = llm.query(
+                                    structuring_prompt,
+                                    system="You are a helpful assistant that structures character information.",
+                                )
+                                if struct_response.success:
+                                    struct_content = struct_response.content.strip()
+                                    if "```json" in struct_content:
+                                        struct_content = (
+                                            struct_content.split("```json")[1]
+                                            .split("```")[0]
+                                            .strip()
+                                        )
+                                    elif "```" in struct_content:
+                                        struct_content = (
+                                            struct_content.split("```")[1].split("```")[0].strip()
+                                        )
+
+                                    struct_result = json.loads(struct_content)
+                                    appearance = _clean_dict(struct_result.get("appearance"))
+                                    personality = _clean_dict(struct_result.get("personality"))
+                                    voice_guidance = _clean_dict(
+                                        struct_result.get("voice_guidance")
+                                    )
+                                    relationships = _clean_dict(struct_result.get("relationships"))
+                                    logger.warning(
+                                        f"Successfully structured profile for {character.canonical_name}"
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to structure profile for {character.canonical_name}: {e}"
+                                )
+
+                        # Validate evidence structure
+                        validated_evidence = []
+                        for ev in evidence:
+                            if isinstance(ev, dict) and "statement" in ev and "quote" in ev:
+                                validated_evidence.append(
+                                    {
+                                        "statement": ev["statement"],
+                                        "quote": ev["quote"],
+                                        "position": ev.get("position", 0),
+                                        "confidence": (
+                                            "high"
+                                            if confidence >= 0.7
+                                            else "medium" if confidence >= 0.4 else "low"
+                                        ),
+                                    }
+                                )
+
+                        # If no valid evidence but we got a profile, mark as low confidence
+                        if profile and not validated_evidence:
+                            logger.warning(f"Profile for {character.canonical_name} lacks evidence")
+                            confidence = min(confidence, 0.3)
+
+                        return (
+                            profile,
+                            validated_evidence,
+                            confidence,
+                            appearance,
+                            personality,
+                            voice_guidance,
+                            relationships,
+                        )
+
+                    except json.JSONDecodeError as e:
+                        logger.error(
+                            f"Failed to parse JSON response for {character.canonical_name}: {e}"
+                        )
+                        logger.debug(f"Raw content (first 500 chars): {content[:500]}")
+                        # Try to extract readable text from malformed response
+                        salvaged = self._extract_text_from_malformed_json(content)
+                        if salvaged:
+                            logger.info(f"Salvaged profile text for {character.canonical_name}")
+                            return salvaged, [], 0.3, None, None, None, None
+                        return "", [], 0.0, None, None, None, None
+                else:
+                    # LLM returned error response
+                    error_msg = getattr(response, "error", None) or "unknown error"
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            f"LLM error for '{character.canonical_name}' (attempt {attempt + 1}/{max_attempts}): "
+                            f"{error_msg}, retrying..."
+                        )
+                        continue  # Retry
+                    else:
+                        logger.error(
+                            f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: "
+                            f"{error_msg}"
+                        )
+                        return "", [], 0.0, None, None, None, None
+
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    logger.warning(
+                        f"Exception generating profile for '{character.canonical_name}' (attempt {attempt + 1}/{max_attempts}): "
+                        f"{e}, retrying..."
+                    )
+                    continue  # Retry
+                else:
+                    logger.error(
+                        f"Profile generation failed for '{character.canonical_name}' after {max_attempts} attempts: {e}"
+                    )
+
+        return "", [], 0.0, None, None, None, None
 
     def _detect_narrator(self, full_text: str, characters: list) -> Optional[str]:
         """
@@ -2668,7 +3431,6 @@ class AudiobookAnalyzer:
                     personality=getattr(pc, "personality", None),
                     voice_guidance=getattr(pc, "voice_guidance", None),
                     role=getattr(pc, "role", None),
-                    relationships=getattr(pc, "relationships", {}),
                 )
             )
 
