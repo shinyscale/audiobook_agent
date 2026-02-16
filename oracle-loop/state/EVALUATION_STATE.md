@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 39
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -293,16 +293,14 @@ The core problem is that two characters share the EXACT SAME canonical name "Joh
 
 ## Pipeline Completion
 
-Analysis completed successfully in 37m 25s.
+Analysis completed successfully in 36m 3s.
 
 **Command executed:**
 ```bash
 audiobook-prep analyze ../Test_Texts/American Sir.txt \
   --html ../output/american_sir/report.html \
   --output ../output/american_sir/analysis.json \
-  --competitive-consensus \
-  --competitive-structure \
-  --competitive-summaries \
+  --competitive-all \
   --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
   --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
   --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
@@ -311,15 +309,24 @@ audiobook-prep analyze ../Test_Texts/American Sir.txt \
 
 **Pipeline Summary:**
 - Structure: 2 chapters detected
-- Characters: 7 found (including "John Donaldson (the father)" with disambiguator preserved!)
+- Characters: 8 found (including separate "John Donaldson", "John (the father)", "Uncle Bill")
+  - John Donaldson - 28 mentions
+  - John (the father) - 29 mentions
+  - Uncle Bill - 18 mentions
 - Summaries: 2 generated
-- Profiles: 3 generated
+- Profiles: 4 generated
 - Pronunciation: 20 words flagged
-- Total LLM calls: 71
-- Total tokens: 108,444
+- Total LLM calls: 69
+- Total tokens: 116,495
 
 **Warnings:**
-- F19: Some profiles have potentially ungrounded evidence quotes
+- F19: 4 profiles have potentially ungrounded evidence quotes (John Donaldson: 2, Uncle Bill: 6, John (the father): 5, Ted Frith: 2)
 - Pronunciation agent had JSON parsing issue (fallback to batch candidates worked)
+
+**Notable observations:**
+- TWO separate John Donaldson characters detected! "John Donaldson" (28 mentions) and "John (the father)" (29 mentions)
+- This is different from previous attempts where only one John Donaldson existed
+- The disambiguator labels "(the father)" are now being preserved in canonical names
+- Need evaluation to confirm if these are correctly representing father vs son
 
 **Phase:** awaiting_evaluation
