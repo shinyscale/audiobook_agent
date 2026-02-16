@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 48
-- **Phase:** awaiting_fix
+- **Attempt:** 49
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.60
 - **Competitive Mode:** single (all stages: characters, structure, summaries)
 
@@ -213,6 +213,17 @@ The son's profile is completely wrong because the passage gatherer can't find pa
 
 ## Fix History
 
+### Attempt 49 — Strip parenthetical disambiguators in passage gatherer — **PROFILE FIX**
+- **Issue targeted:** CRITICAL #1 from attempt 48 — Son's profile is entirely the father's profile
+- **Root cause:** `passage_gatherer.py:_find_passages_for_name()` searched for "John Donaldson (the son)" literally, which never appears in text. Zero passages found → fell back to aliases → gathered father's passages instead.
+- **Fix:** Strip parenthetical disambiguators from names before creating search pattern. "John Donaldson (the son)" → search for "John Donaldson", then existing disambiguator logic attributes passages to correct character.
+- **Smoke test:** PASS - Regex correctly strips disambiguators, finds 2 matches for "John Donaldson" in sample text
+- **Files modified:**
+  - `src/pipeline/character_profiling/passage_gatherer.py` (+5 lines)
+- **Expected impact:** Son's profile will contain son's passages (age 18, ambulance driver, brave) instead of father's (embezzlement, shame). Profile score should increase from 5.5 → ~7.5+
+- **Universality:** Fixes same-name characters with disambiguators in ANY book (father/son, Sr./Jr., generational names)
+- **Status:** Fresh file (never modified in oracle loop), deterministic bug fix, HIGH confidence
+
 ### Attempt 48 — REVERT attempt 47 deduplication + re-analyze — **BASELINE RECOVERY**
 - **Issue:** Attempt 47's deduplication caused catastrophic regression (7.08→5.95, -1.13 points)
 - **Action:** Reverted commit b13fd2f changes to main_cast.py, re-ran analysis
@@ -277,6 +288,7 @@ The son's profile is completely wrong because the passage gatherer can't find pa
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 49 | Strip parenthetical disambiguators in passage gatherer | `passage_gatherer.py` (+5 lines) | **AWAITING ANALYSIS** — Targets CRITICAL #1 (son's profile contamination) |
 | 48 | REVERT attempt 47's deduplication + re-analyze | `main_cast.py` (-78 lines) | **BASELINE RECOVERY** — Score: 5.95→6.88 |
 | 47 | Deduplicate identical canonical names after Pass 2 | `main_cast.py` (+75 lines) | **REGRESSION (REVERTED)** — Score: 7.08→5.95 |
 | 46 | Extend grounding gate for parenthetical disambiguators | `mention_search.py` (+5 lines), `test_character_extraction_v2.py` (+28 lines) | **PARTIAL SUCCESS** — Score: 6.88→7.08 |
@@ -324,6 +336,7 @@ The son's profile is completely wrong because the passage gatherer can't find pa
 | 46 | 7.08 | +0.48 | PARTIAL SUCCESS — best recent score |
 | 47 | 5.95 | -0.65 | **MAJOR REGRESSION** — dedup caused false merges |
 | 48 | 6.88 | +0.28 | BASELINE RECOVERY — revert confirmed |
+| 49 | TBD | TBD | passage_gatherer.py fix applied — awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1: Son's profile contamination in `passage_gatherer.py`. This is a fresh file (never modified in loop) with a deterministic, high-impact bug — the highest ROI fix available.
+Run PROMPT_analyze.md to re-analyze american_sir with the passage_gatherer.py fix. Expected: Son's profile should now contain son-specific passages (ambulance driver, brave, age 18) instead of father's passages (embezzlement, shame). Profile score should increase from 5.5 toward 7.5+.
