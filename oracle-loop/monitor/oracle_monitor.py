@@ -159,6 +159,11 @@ class OracleState:
     # Identity graph data (from identity_graph.json)
     identity_graph: Optional[dict] = None
 
+    # Diagnostic matrix data (from diagnostic_matrix.json)
+    diagnostic_matrix: Optional[dict] = None  # Full matrix data
+    diagnostic_timestamp: str = ""  # When diagnostic was last run
+    diagnostic_running: bool = False  # Is batch-diagnostic.sh running
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -909,6 +914,32 @@ class StateParser:
         except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, Exception):
             return {}
 
+    def parse_diagnostic_matrix(self) -> Optional[dict]:
+        """Parse state/diagnostic_matrix.json if it exists."""
+        possible_paths = [
+            self.base_dir / "state" / "diagnostic_matrix.json",
+            self.base_dir.parent / "state" / "diagnostic_matrix.json",
+        ]
+        for path in possible_paths:
+            if path.exists():
+                try:
+                    with open(path) as f:
+                        return json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    return None
+        return None
+
+    def check_diagnostic_running(self) -> bool:
+        """Check if batch-diagnostic.sh is currently running."""
+        try:
+            result = subprocess.run(
+                ['pgrep', '-f', 'batch-diagnostic.sh'],
+                capture_output=True, text=True, timeout=2
+            )
+            return result.returncode == 0 and result.stdout.strip() != ''
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
     def get_state(self) -> OracleState:
         """Get combined state from all sources."""
         state = OracleState()
@@ -1084,6 +1115,14 @@ class StateParser:
                     except (json.JSONDecodeError, IOError):
                         pass
                     break
+
+        # Parse diagnostic matrix
+        diag = self.parse_diagnostic_matrix()
+        if diag:
+            state.diagnostic_matrix = diag
+            state.diagnostic_timestamp = diag.get('timestamp', '')
+        state.diagnostic_running = self.check_diagnostic_running()
+
         state.last_updated = datetime.now()
 
         return state
@@ -2240,6 +2279,253 @@ class IdentityGraphPanel(Static):
             self.expanded = expanded
         self.refresh()
 
+class DiagnosticMatrixPanel(Static):
+    """Panel showing cross-book diagnostic matrix from batch-diagnostic.sh."""
+
+    def __init__(self, state: OracleState, expanded: bool = False):
+        super().__init__()
+        self.state = state
+        self.expanded = expanded
+
+    def render(self) -> Text:
+        text = Text()
+        diag = self.state.diagnostic_matrix
+
+        # No data at all
+        if not diag:
+            text.append("DIAGNOSTIC ", style="bold white")
+            if self.state.diagnostic_running:
+                text.append("[", style="dim")
+                text.append("RUNNING", style="bold yellow")
+                text.append("]", style="dim")
+            else:
+                text.append("[no data - run batch-diagnostic.sh]", style="dim")
+            text.append("  [d to expand]", style="dim cyan")
+            return text
+
+        texts = diag.get('texts', {})
+        column_stats = diag.get('column_stats', {})
+        timestamp = self.state.diagnostic_timestamp
+
+        # Count passing/failing
+        total = len(texts)
+        failing = sum(1 for t in texts.values() if not t.get('pass', True))
+        passing = total - failing
+
+        # Collapsed view: summary line
+        if not self.expanded:
+            text.append("DIAGNOSTIC", style="bold white")
+
+            # Timestamp
+            if timestamp:
+                # Format timestamp for display
+                ts_display = timestamp
+                if 'T' in ts_display:
+                    ts_display = ts_display.replace('T', ' ')
+                    # Truncate to minutes
+                    if '-' in ts_display.split(' ')[-1] or '+' in ts_display.split(' ')[-1]:
+                        ts_display = ts_display[:16]
+                text.append(f"  [last: {ts_display}]", style="dim cyan")
+
+            # Running indicator
+            if self.state.diagnostic_running:
+                text.append("  [", style="dim")
+                text.append("RUNNING", style="bold yellow")
+                text.append("]", style="dim")
+
+            text.append(f"  {total} texts scored", style="white")
+
+            # Highlight failures
+            if failing > 0:
+                # Find worst categories
+                worst_cats = sorted(
+                    [(cat, stats.get('failing_count', 0)) for cat, stats in column_stats.items()],
+                    key=lambda x: -x[1]
+                )
+                worst = [f"{c}: {n} failing" for c, n in worst_cats if n > 0]
+                text.append("  ", style="")
+                text.append(f"{failing} FAILING", style="bold red")
+                if worst:
+                    text.append(f" ({', '.join(worst[:2])})", style="red")
+            else:
+                text.append("  ", style="")
+                text.append("ALL PASSING", style="bold green")
+
+            text.append("  [d to expand]", style="dim cyan")
+            return text
+
+        # Expanded view: full matrix
+        text.append("DIAGNOSTIC MATRIX", style="bold white")
+        if self.state.diagnostic_running:
+            text.append("  [", style="dim")
+            text.append("RUNNING", style="bold yellow")
+            text.append("]", style="dim")
+        if timestamp:
+            ts_display = timestamp
+            if 'T' in ts_display:
+                ts_display = ts_display.replace('T', ' ')[:16]
+            text.append(f"  [last: {ts_display}]", style="dim cyan")
+        text.append("  [d to collapse]\n", style="dim cyan")
+        text.append("═" * 80, style="dim cyan")
+        text.append("\n")
+
+        # Category headers
+        cats = ['structure', 'characters', 'profiles', 'summaries', 'pronunciation', 'presentation']
+        abbrevs = ['Str', 'Chr', 'Pro', 'Sum', 'Prn', 'Prs']
+
+        # Header row
+        text.append("  ", style="")
+        text.append(f"{'Text':<20}", style="bold white")
+        for abbr in abbrevs:
+            text.append(f"{abbr:>6}", style="bold cyan")
+        text.append(f"{'  Ovr':>6}", style="bold white")
+        text.append(f"  {'Status':<8}", style="bold white")
+        text.append("\n")
+        text.append("  " + "─" * 76, style="dim")
+        text.append("\n")
+
+        # Sort: failing first, then by overall score ascending
+        sorted_texts = sorted(
+            texts.items(),
+            key=lambda x: (x[1].get('pass', True), x[1].get('overall', 0))
+        )
+
+        for text_name, tdata in sorted_texts:
+            scores = tdata.get('scores', {})
+            overall = tdata.get('overall', 0)
+            is_pass = tdata.get('pass', True)
+            source = tdata.get('source', '')
+
+            # Text name (truncated)
+            display_name = text_name[:18]
+            if source == 'historical':
+                display_name += '*'
+            text.append("  ", style="")
+            text.append(f"{display_name:<20}", style="white" if is_pass else "bold white")
+
+            # Category scores
+            for cat in cats:
+                score = scores.get(cat)
+                if score is None:
+                    text.append(f"{'?':>6}", style="dim")
+                else:
+                    score_str = f"{score:>5.1f}"
+                    if score >= 8.0:
+                        text.append(f"{score_str:>6}", style="green")
+                    elif score >= 7.0:
+                        text.append(f"{score_str:>6}", style="yellow")
+                    else:
+                        text.append(f"{score_str:>6}", style="bold red")
+
+            # Overall
+            ovr_str = f"{overall:>5.1f}"
+            if overall >= 8.0:
+                text.append(f"{ovr_str:>6}", style="bold green")
+            else:
+                text.append(f"{ovr_str:>6}", style="bold red")
+
+            # Pass/fail
+            if is_pass:
+                text.append("  ", style="")
+                text.append("PASS", style="green")
+            else:
+                text.append("  ", style="")
+                text.append("FAIL", style="bold red")
+
+            text.append("\n")
+
+        # Separator before stats
+        text.append("  " + "─" * 76, style="dim")
+        text.append("\n")
+
+        # Column statistics
+        text.append("  ", style="")
+        text.append(f"{'Mean':<20}", style="bold cyan")
+        for cat in cats:
+            stats = column_stats.get(cat, {})
+            mean = stats.get('mean', 0)
+            mean_str = f"{mean:>5.1f}"
+            if mean >= 8.0:
+                text.append(f"{mean_str:>6}", style="green")
+            else:
+                text.append(f"{mean_str:>6}", style="yellow")
+        text.append("\n")
+
+        text.append("  ", style="")
+        text.append(f"{'Min':<20}", style="bold cyan")
+        for cat in cats:
+            stats = column_stats.get(cat, {})
+            mn = stats.get('min', 0)
+            min_str = f"{mn:>5.1f}"
+            if mn >= 8.0:
+                text.append(f"{min_str:>6}", style="green")
+            else:
+                text.append(f"{min_str:>6}", style="red")
+        text.append("\n")
+
+        text.append("  ", style="")
+        text.append(f"{'Failing':<20}", style="bold cyan")
+        for cat in cats:
+            stats = column_stats.get(cat, {})
+            fc = stats.get('failing_count', 0)
+            if fc == 0:
+                text.append(f"{'0':>6}", style="dim green")
+            else:
+                text.append(f"{fc:>6}", style="bold red")
+        text.append("\n")
+
+        # Systemic pattern summary (categories sorted by severity)
+        problem_cats = sorted(
+            [(cat, column_stats.get(cat, {})) for cat in cats],
+            key=lambda x: x[1].get('failing_count', 0),
+            reverse=True
+        )
+        problem_cats = [(c, s) for c, s in problem_cats if s.get('failing_count', 0) > 0]
+        if problem_cats:
+            text.append("\n")
+            text.append("  Systemic Issues:\n", style="bold white")
+            for cat, stats in problem_cats:
+                fc = stats.get('failing_count', 0)
+                ft = stats.get('failing_texts', [])
+                text.append(f"    {cat}: ", style="yellow")
+                text.append(f"{fc} failing", style="red")
+                if ft:
+                    ft_str = ", ".join(ft[:3])
+                    if len(ft) > 3:
+                        ft_str += f" (+{len(ft)-3})"
+                    text.append(f" ({ft_str})", style="dim")
+                text.append("\n")
+
+        # Per-text notes for failing texts
+        failing_texts = [(name, tdata) for name, tdata in sorted_texts if not tdata.get('pass', True)]
+        if failing_texts:
+            text.append("\n")
+            text.append("  Fix Priorities:\n", style="bold white")
+            for text_name, tdata in failing_texts:
+                notes = tdata.get('notes', '')
+                text.append(f"    {text_name}: ", style="bold red")
+                if notes:
+                    # Truncate notes
+                    if len(notes) > 80:
+                        notes = notes[:77] + "..."
+                    text.append(notes, style="white")
+                else:
+                    text.append("(no notes)", style="dim")
+                text.append("\n")
+
+        # Legend
+        text.append("\n")
+        text.append("  * = historical baseline", style="dim")
+
+        return text
+
+    def update_state(self, state: OracleState, expanded: bool = None):
+        self.state = state
+        if expanded is not None:
+            self.expanded = expanded
+        self.refresh()
+
+
 class FooterInfo(Static):
     """Footer showing last updated time and polling interval."""
 
@@ -2379,6 +2665,18 @@ class OracleMonitorApp(App):
         max-height: 40;
     }
 
+    DiagnosticMatrixPanel {
+        height: auto;
+        max-height: 5;
+        border: solid $accent;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    DiagnosticMatrixPanel.expanded {
+        max-height: 60;
+    }
+
     FooterInfo {
         height: 1;
         padding: 0 1;
@@ -2404,6 +2702,7 @@ class OracleMonitorApp(App):
         Binding("e", "toggle_experiment", "Experiment", show=True),
         Binding("x", "export_thinking", "Export", show=True),
         Binding("g", "toggle_graph", "Graph", show=True),
+        Binding("d", "toggle_diagnostic", "Diagnostic", show=True),
     ]
 
     paused = reactive(False)
@@ -2411,6 +2710,7 @@ class OracleMonitorApp(App):
     votes_expanded = reactive(False)
     experiment_expanded = reactive(False)
     graph_expanded = reactive(False)
+    diagnostic_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
         super().__init__()
@@ -2430,6 +2730,7 @@ class OracleMonitorApp(App):
             yield ScorePanel(self.state)
             yield IdentityGraphPanel(self.state, expanded=self.graph_expanded)
             yield OverallProgress(self.state)
+            yield DiagnosticMatrixPanel(self.state, expanded=self.diagnostic_expanded)
             yield CompetitiveConsensusPanel(self.state, expanded=self.votes_expanded)
             yield OllamaActivityPanel(self.state)
             yield StderrPanel(self.state)
@@ -2486,6 +2787,7 @@ class OracleMonitorApp(App):
             self.query_one(ScorePanel).update_state(self.state)
             self.query_one(IdentityGraphPanel).update_state(self.state, expanded=self.graph_expanded)
             self.query_one(OverallProgress).update_state(self.state)
+            self.query_one(DiagnosticMatrixPanel).update_state(self.state, expanded=self.diagnostic_expanded)
             self.query_one(CompetitiveConsensusPanel).update_state(self.state, expanded=self.votes_expanded)
             self.query_one(OllamaActivityPanel).update_state(self.state)
             self.query_one(StderrPanel).update_state(self.state)
@@ -2592,6 +2894,22 @@ class OracleMonitorApp(App):
             graph_panel.update_state(self.state, expanded=self.graph_expanded)
         except Exception:
             pass
+
+    def action_toggle_diagnostic(self):
+        """Toggle diagnostic matrix panel expanded/collapsed."""
+        self.diagnostic_expanded = not self.diagnostic_expanded
+        try:
+            diag_panel = self.query_one(DiagnosticMatrixPanel)
+            if self.diagnostic_expanded:
+                diag_panel.add_class("expanded")
+                self.notify("Diagnostic panel expanded", title="View Mode")
+            else:
+                diag_panel.remove_class("expanded")
+                self.notify("Diagnostic panel collapsed", title="View Mode")
+            diag_panel.update_state(self.state, expanded=self.diagnostic_expanded)
+        except Exception:
+            pass
+
     def action_export_thinking(self):
         """Export full thinking text to file."""
         if not self.state.thinking_text:
