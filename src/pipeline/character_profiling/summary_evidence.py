@@ -137,7 +137,7 @@ EVIDENCE_EXTRACTION_PROMPT = """Extract evidence about "{character_name}" from t
 
 CHARACTER: {character_name}
 ALIASES: {aliases}
-
+{disambiguation_context}
 CHAPTER SUMMARIES:
 {summaries}
 
@@ -776,6 +776,58 @@ class SummaryEvidenceExtractor:
 
         return min(score, 1.0)
 
+    def _build_disambiguation_context(self, character_name: str, aliases: list[str]) -> str:
+        """Build disambiguation context for the LLM evidence extraction prompt.
+
+        When multiple characters share name components (e.g. father/son with same
+        surname), this provides explicit guidance so the LLM attributes evidence
+        to the correct character.
+        """
+        if not self.disambiguator:
+            return ""
+
+        # Check if any of this character's names are ambiguous
+        all_names = [character_name] + (aliases or [])
+        ambiguous_names = []
+        other_characters = []
+
+        for name in all_names:
+            # Check if this name appears in the disambiguator's ambiguity map
+            name_lower = name.lower()
+            for part in name_lower.split():
+                if hasattr(self.disambiguator, 'ambiguity_map'):
+                    amb_map = self.disambiguator.ambiguity_map
+                    if hasattr(amb_map, 'ambiguous_names') and part in getattr(amb_map, 'ambiguous_names', {}):
+                        ambiguous_names.append(part)
+                        candidates = getattr(amb_map, 'ambiguous_names', {}).get(part, [])
+                        for c in candidates:
+                            if c.lower() != character_name.lower():
+                                other_characters.append(c)
+
+        # Also check surname collisions
+        for name in all_names:
+            for part in name.lower().split():
+                if part in self.surname_collisions:
+                    for other in self.surname_collisions[part]:
+                        if other.lower() != character_name.lower() and other not in other_characters:
+                            other_characters.append(other)
+
+        if not other_characters:
+            return ""
+
+        context_lines = [
+            f"DISAMBIGUATION WARNING: This character shares name components with other characters.",
+            f"Be careful to attribute evidence ONLY to {character_name}, NOT to:",
+        ]
+        for other in other_characters[:5]:
+            context_lines.append(f"  - {other}")
+        context_lines.append(
+            f"When a shared name (e.g. a surname) appears, use surrounding context "
+            f"(age, role, relationships) to determine which character is being described."
+        )
+
+        return "\n".join(context_lines) + "\n"
+
     def _extract_llm_based(
         self,
         character_name: str,
@@ -796,9 +848,13 @@ class SummaryEvidenceExtractor:
                 f"Characters: {', '.join(summary.characters_present)}\n"
             )
 
+        # Build disambiguation context for same-name characters
+        disambiguation_context = self._build_disambiguation_context(character_name, aliases)
+
         prompt = EVIDENCE_EXTRACTION_PROMPT.format(
             character_name=character_name,
             aliases=", ".join(aliases) if aliases else "None",
+            disambiguation_context=disambiguation_context,
             summaries="\n".join(summaries_text),
         )
 

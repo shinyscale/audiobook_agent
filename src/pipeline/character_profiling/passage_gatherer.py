@@ -57,7 +57,7 @@ class CharacterPassageGatherer:
     def __init__(
         self,
         context_window: int = 2000,
-        max_passages_per_name: int = 20,
+        max_passages_per_name: int = 30,
         disambiguator: Optional["ContextDisambiguator"] = None,
         summary_map: Optional[ChapterSummaryMap] = None,
     ):
@@ -575,7 +575,7 @@ class CharacterPassageGatherer:
         self,
         passages: list[CharacterPassage],
         chapter_map: ChapterMap,
-        max_passages: int = 15,
+        max_passages: int = 25,
     ) -> list[CharacterPassage]:
         """
         Select representative passages distributed across the narrative.
@@ -621,7 +621,7 @@ def gather_character_passages(
     full_text: str,
     chapter_map: ChapterMap,
     context_window: int = 2000,
-    max_passages: int = 15,
+    max_passages: int = 25,
     disambiguator: Optional["ContextDisambiguator"] = None,
     summary_map: Optional[ChapterSummaryMap] = None,
     narrative_style: str = "unknown",

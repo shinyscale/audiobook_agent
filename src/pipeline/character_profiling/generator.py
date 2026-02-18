@@ -443,49 +443,62 @@ class CharacterProfileGenerator:
         """
         F19: Validate that evidence claims are grounded in the source text.
 
-        Logs warnings for potential hallucinations where evidence quotes
-        don't appear in the provided passages.
+        Filters out ungrounded evidence quotes that don't appear in the
+        provided passages, preventing hallucinated quotes from reaching
+        the final profile.
         """
         # Combine all passage text for validation
         all_passage_text = " ".join(p.text.lower() for p in passages)
 
-        def check_evidence(section_name: str, evidence: list[str]) -> int:
-            """Check evidence quotes against passage text, return ungrounded count."""
-            ungrounded = 0
+        def filter_evidence(section_name: str, evidence: list[str]) -> tuple[list[str], int]:
+            """Filter evidence quotes against passage text, return (grounded, removed_count)."""
+            grounded = []
+            removed = 0
             for quote in evidence:
                 # Normalize quote for matching
                 quote_lower = quote.lower().strip().strip("\"'")
                 if len(quote_lower) < 10:
-                    continue  # Skip very short quotes
+                    grounded.append(quote)  # Keep very short quotes (not checkable)
+                    continue
 
                 # Check if quote appears in passages (allow some flexibility)
-                if quote_lower not in all_passage_text:
+                if quote_lower in all_passage_text:
+                    grounded.append(quote)
+                else:
                     # Try partial match (first 30 chars)
                     partial = quote_lower[:30]
-                    if partial not in all_passage_text:
-                        ungrounded += 1
-                        logger.debug(
-                            f"F19: Potentially ungrounded evidence for {character_name} "
-                            f"in {section_name}: '{quote[:50]}...'"
+                    if partial in all_passage_text:
+                        grounded.append(quote)
+                    else:
+                        removed += 1
+                        logger.info(
+                            f"F19: Removing ungrounded evidence for {character_name} "
+                            f"in {section_name}: '{quote[:60]}...'"
                         )
-            return ungrounded
+            return grounded, removed
 
-        total_ungrounded = 0
+        total_removed = 0
 
-        # Check each profile section's evidence
+        # Filter each profile section's evidence in-place
         if profile.action_analysis and profile.action_analysis.evidence:
-            total_ungrounded += check_evidence("action_analysis", profile.action_analysis.evidence)
+            grounded, removed = filter_evidence("action_analysis", profile.action_analysis.evidence)
+            profile.action_analysis.evidence = grounded
+            total_removed += removed
 
         if profile.appearance and profile.appearance.evidence:
-            total_ungrounded += check_evidence("appearance", profile.appearance.evidence)
+            grounded, removed = filter_evidence("appearance", profile.appearance.evidence)
+            profile.appearance.evidence = grounded
+            total_removed += removed
 
         if profile.personality and profile.personality.evidence:
-            total_ungrounded += check_evidence("personality", profile.personality.evidence)
+            grounded, removed = filter_evidence("personality", profile.personality.evidence)
+            profile.personality.evidence = grounded
+            total_removed += removed
 
-        if total_ungrounded > 0:
+        if total_removed > 0:
             logger.warning(
-                f"F19: Profile for '{character_name}' has {total_ungrounded} potentially "
-                f"ungrounded evidence quotes - may indicate hallucination"
+                f"F19: Filtered {total_removed} ungrounded evidence quotes from "
+                f"profile for '{character_name}'"
             )
 
 
