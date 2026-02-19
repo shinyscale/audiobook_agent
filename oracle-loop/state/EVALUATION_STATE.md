@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
+- **Attempt:** 2
 - **Phase:** awaiting_fix
 - **baseline_score: 4.65**
 
@@ -12,64 +12,116 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 0/10 ✗ (CRITICAL FAILURE)
-  - Completeness: 0/10
-  - Identity Resolution: N/A (no characters to evaluate)
-  - Alias Grouping: N/A (no characters to evaluate)
-- Character Profiles: 0/10 ✗ (CRITICAL FAILURE - blocked by character extraction)
-- Chapter Summaries: 9/10 ✓
+- Character Extraction: 7/10 ✗
+  - Completeness: 9/10
+  - Identity Resolution: 8/10
+  - Alias Grouping: 5/10
+- Character Profiles: 5/10 ✗
+- Chapter Summaries: 7/10 ✗
 - Pronunciation Guide: 7/10 ✗
 - HTML Presentation: 8/10 ✓
-- **Overall: 4.65/10** (reference only)
+- **Overall: 7.10/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (4 categories below threshold)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Character extraction produced ZERO characters** [Completeness]
-   - Problem: The characters array in analysis.json is completely empty `[]`
-   - Evidence: Profiling shows Character Extraction ran with 2 LLM calls and 15.1 seconds of processing, but `items_processed: 0`. The LLM returned data (227 completion tokens across 2 calls) but nothing was successfully parsed or retained.
-   - Expected characters: Montresor (narrator, 50+ mentions), Fortunato (50+ mentions), Luchesi/Luchresi (6 mentions)
-   - The chapter summary correctly identifies both Montresor and Fortunato, proving the text is valid
-   - Location: `src/pipeline/character_extraction_v2/` — likely `main_cast.py` parsing failure. The LLM returned something but it was rejected/unparseable. Check `_parse_pass1_results()` or `_parse_profiles()`.
-   - Possible root cause: The text is very short (~2354 words, single section). The character extraction chunking (`character_llm_chunk_chars: 5000`) may be creating a single small chunk that the LLM handles differently. Or the LLM response format doesn't match expected schema. Need to check logs.
-   - Fix approach: Run with DEBUG logging to see what the LLM returned and why it was rejected. The 227 completion tokens suggest a response was generated — investigate parsing.
+1. **Montresor profile parsing failure — structured data dumped as raw string in description** [Profiles]
+   - Problem: Montresor's `appearance`, `personality`, and `voice_guidance` fields are all `null`. Instead, the LLM's structured profile response was concatenated into the `descriptions[0].text` field as a raw string containing JSON-like key-value pairs (e.g., `"appearance": "summary": "unknown"`, `"voice_guidance": "suggested_tone": "authoritative"`).
+   - Evidence: `jq '.characters[2].appearance' analysis.json` → `null`. But `descriptions[0].text` contains: `"Montresor is the narrator who lures Fortunato... He recounts the event fifty years later...", "appearance": "summary": "unknown"...`
+   - The data IS there — it was just not parsed into the proper structured fields. Fortunato's profile parsed correctly (appearance, personality, voice_guidance all populated), so this is an intermittent parsing issue.
+   - Montresor has ID `e3bdcd5e8982` (F6 reconciliation hash), not `supporting_*` — the profile pipeline may handle F6-reconciled characters differently.
+   - Location: `src/pipeline/character_extraction_v2/` — profile parsing logic. The LLM returned valid data but the parser failed to extract it into the structured fields for this character. Check how profiles are applied to F6-reconciled characters vs supporting_cast characters.
+   - Fix approach: Investigate why Fortunato (supporting_0) got parsed correctly but Montresor (e3bdcd5e8982) did not. The parser likely expects a specific JSON format and Montresor's response was slightly malformed or in a different format.
+
+2. **Plot summary contains Chinese characters (LLM hallucination)** [Summaries]
+   - Problem: The plot summary contains "Fortunato's起初的笑声 and escalating pleas" — Chinese characters meaning "initial laughter" were injected mid-sentence.
+   - Evidence: `jq '.overview.plot_summary.plot_summary' analysis.json` shows "起初的笑声" in paragraph 3.
+   - This is a known issue with the qwen3 model family occasionally producing Chinese text mid-output.
+   - Location: `src/pipeline/` — summary generation. Should have post-processing to strip non-Latin/non-IPA characters from English summaries, or the summary agent should validate output language.
+   - Fix approach: Add a post-processing sanitization step that detects and removes/replaces non-Latin script characters in summary text (excluding IPA and expected Unicode). Alternatively, add a validation check that rejects and retries summaries containing unexpected script characters.
 
 ### HIGH
-2. **Character profiles completely empty** [blocked by #1]
-   - Problem: 0 LLM calls for Character Profiles — stage was skipped because no characters exist
-   - Evidence: Profiling shows `duration_seconds: 0.0, llm_calls: 0` for Character Profiles
-   - Location: Will resolve automatically when character extraction is fixed
-   - Fix: Fix issue #1 first
+3. **Fortunato incorrectly labeled as "minor" role — should be a main character** [Character Extraction]
+   - Problem: Fortunato has `role: "minor"` and is tagged as a "minor" character in the HTML, but he is one of the two central characters. He has 14 mentions and is the primary antagonist/victim.
+   - Evidence: HTML shows `<span class="tag">minor</span>` next to Fortunato. In the JSON, `role: "minor"`. Fortunato is listed under "Main Characters" in the HTML (2 main characters) but tagged "minor".
+   - In a ~2,354 word short story, 14 mentions is very significant. The role classification may be calibrated for novel-length works.
+   - Location: Character role classification logic — likely in `src/pipeline/character_extraction_v2/supporting.py` since Fortunato's ID is `supporting_0`.
+   - Fix: The role determination needs to account for text length. In a short story, a character with 14 mentions across 2,354 words is a major character (equivalent to ~600+ mentions in a 100K word novel).
 
-3. **Pronunciation guide has excessive false positives** [Pronunciation]
-   - Problem: ~10 of 35 entries are common English words that don't need pronunciation guidance
-   - False positives: "tight-fitting", "parti-striped", "to-day", "web-work", "cough's", "leer", "Grave", "entrance", "Unsheathing", "reapproached", "re-echoed", "re-erected", "hearkened"
-   - Evidence: These are standard English words or simple hyphenated/prefixed forms. A narrator would not need pronunciation help for "leer" or "entrance"
-   - Good entries that should be kept: Amontillado, Luchresi, flambeaux, roquelaire, requiescat, impune lacessit, nitre, gemmary, rheum, puncheons, flagon, connoisseurship, imposture, gesticulation, Montresor(s)
-   - Missing: "Fortunato" (Italian name that narrators should have guidance for)
-   - Location: `src/pipeline/pronunciation/` — the flagging threshold may be too aggressive for short texts, or the word filtering isn't excluding common English words
-   - Fix: The false positive rate (~30%) needs to come down. Focus on filtering out standard English words and simple prefix/hyphenation compounds
+4. **Montresor has only 1 mention count — far too low** [Character Extraction]
+   - Problem: Montresor shows `mention_count: 1` despite being the narrator who refers to himself and is named multiple times.
+   - Evidence: `jq '.characters[2].mention_count' analysis.json` → `1`. The name "Montresor" appears at least twice explicitly in the text ("For the love of God, Montresor!" and the family name "Montresors"), plus first-person "I" references throughout.
+   - Montresor has an F6 reconciliation hash ID (`e3bdcd5e8982`), suggesting he was added during reconciliation rather than by the main extraction pipeline. The reconciliation may not properly count mentions.
+   - Location: F6 reconciliation in `src/analyzer.py` (around line 1220-1240) — mention counting for reconciled characters.
+   - Fix: Ensure F6-reconciled characters get proper mention counts, or ensure the narrator is detected during main extraction with accurate counts.
+
+5. **No relationships detected for any character** [Profiles]
+   - Problem: All three characters have `relationships: {}` despite the story being centered on the Montresor-Fortunato relationship, with Luchresi as a manipulative tool.
+   - Evidence: HTML shows "No explicit relationships detected." in the Key Relationships section.
+   - The profile pipeline ran (7 LLM calls, 247 seconds), so this isn't a skipped stage. The relationship extraction failed to populate the structured field.
+   - For Montresor, the relationship data IS present in the raw description string: `"relationships": "Fortunato": "acquaintance whom he lures to his death"` — but it wasn't parsed into the structured `relationships` field.
+   - Location: Profile/relationship extraction and parsing in `src/pipeline/character_extraction_v2/`.
+   - Fix: Related to issue #1 — fixing Montresor's profile parsing should also fix his relationships. For Fortunato and Luchresi, relationships should at minimum be: Fortunato↔Montresor (victim/antagonist), Fortunato↔Luchresi (rival connoisseur), Montresor↔Luchresi (manipulative tool).
+
+6. **Pronunciation false positives — common English words flagged** [Pronunciation]
+   - Problem: ~8 of 36 entries are standard English words or simple hyphenated compounds: "tight-fitting", "to-day", "web-work", "cough's", "leer", "Unsheathing", "reapproached", "mason-work".
+   - Evidence: These are common words any English narrator would know. "leer", "cough's", and "Unsheathing" are particularly egregious false positives.
+   - Improved from attempt 1: "hearkened", "re-echoed", "re-erected", "Grave" are borderline but acceptable. "parti-striped" is period-specific and acceptable.
+   - Location: `src/pipeline/pronunciation/` — word filtering/flagging threshold.
+   - Fix: Filter common English words more aggressively. Words like "leer", "cough's", "tight-fitting", "web-work", "mason-work", "Unsheathing", "reapproached" should not be flagged.
 
 ### MEDIUM
-4. **Structure section title is null**
-   - Problem: The single section has `"title": null` instead of a meaningful title
-   - Evidence: `jq '.structure[0].title' analysis.json` returns `null`
-   - Location: `src/pipeline/chapter_detection/` — for a continuous text with no headings, the title could default to the work's title or "Full Text"
-   - Impact: Minor — doesn't affect narrator preparation significantly
+7. **Amontillado classified as "unknown" type rather than "foreign" or "proper_noun"** [Pronunciation]
+   - Problem: "Amontillado" is in the "Other" category with type "unknown", but it's a Spanish wine term that should be classified as "foreign" (Spanish).
+   - Evidence: It appears 17 times and is the title object — it should be prominently categorized.
+   - Location: Pronunciation type classification logic.
+   - Fix: Classify wine/spirit terms from foreign languages appropriately.
+
+8. **Latin phrases split into individual words** [Pronunciation]
+   - Problem: "impune" and "lacessit" are listed separately rather than as the phrase "Nemo me impune lacessit". Similarly, "requiescat" should ideally be "In pace requiescat" (or "Requiescat in pace").
+   - Evidence: The context shows they appear as part of complete Latin phrases.
+   - Impact: Minor — a narrator can still piece them together, and individual word pronunciation is provided.
+   - Location: Pronunciation flagging — phrase detection.
+
+9. **Structure section title is null**
+   - Problem: The single section has `"title": null` instead of a meaningful title like "Full Text" or the story title.
+   - Evidence: `jq '.structure[0].title' analysis.json` → `null`
+   - Impact: Very minor for a single-section text.
+
+### LOW
+10. **"Grave" classified as foreign word when used as wine term**
+    - The pronunciation note correctly explains it's a French wine (Graves), but the classification and handling are reasonable. The note itself is thorough and helpful for a narrator. No fix needed.
 
 ## Fix History
-(First attempt — no previous fixes)
+- Attempt 1 (4.65/10): Character extraction produced ZERO characters. Character profiles scored 0/10 (blocked). Pronunciation had excessive false positives.
+- Attempt 2 (7.10/10): Character extraction now working (3 characters). Profiles partially working (Fortunato has rich profile, Montresor's profile failed to parse). Summary has Chinese character hallucination. Pronunciation still has false positives but improved.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| — | — | — | — |
+| 1→2 | Zero characters extracted | (unknown — analysis re-run) | Fixed — 3 characters now extracted |
+| 1→2 | Profiles scored 0 (blocked) | (unknown) | Partially fixed — Fortunato has rich profile, Montresor parse failure |
+| 1→2 | Pronunciation false positives | (unknown) | Slightly improved but still present |
+
+## Configuration Audit
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
+- Temperature: 0.7 for all agents (appropriate)
+- Context length: 32768 (sufficient for this short text)
+- character_llm_chunk_chars: 5000 (sufficient — text is only ~2,354 words)
+- Character Profiles: 7 LLM calls, 0 retries, 247s — high time suggests complex processing
+- Character Extraction: 2 LLM calls, 0 retries, 23.7s — produced 2 items (supporting characters)
+- Montresor added via F6 reconciliation (hash ID), not main extraction pipeline — this may explain profile parsing issues
 
 ## Next Action
-Run PROMPT_fix.md to address character extraction failure (Critical #1). This is the blocking issue — until characters are extracted, profiles will also score 0. Pronunciation false positives (High #3) should be addressed second.
+Run PROMPT_fix.md to address:
+1. **Priority 1 (Critical):** Fix Montresor's profile parsing — the data is in the description string but not parsed into structured fields. This affects profiles (5→8+) and relationships.
+2. **Priority 2 (Critical):** Add post-processing to strip non-Latin characters from summaries (Chinese character hallucination).
+3. **Priority 3 (High):** Fix role classification for short stories — Fortunato should be a major character.
+4. **Priority 4 (High):** Fix mention counting for F6-reconciled characters (Montresor has only 1 mention).
+5. **Priority 5 (High):** Reduce pronunciation false positives — filter out common English words.
 
-**Diagnosis priority for fix phase:** The 2 LLM calls with 227 completion tokens prove the model IS responding. The failure is in parsing/processing the response. Run with `DEBUG` logging or inspect `main_cast.py` parse methods to see what the model returned vs. what the parser expected.
+**Key insight for fix phase:** Fortunato's profile parsed correctly (supporting_0 ID) while Montresor's did not (F6 hash ID). The profile pipeline may have different parsing paths for these character origins. The fix should ensure consistent profile parsing regardless of character ID origin.
