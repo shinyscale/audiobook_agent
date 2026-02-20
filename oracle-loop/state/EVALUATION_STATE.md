@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 4.65**
 
 ## Output Files
@@ -92,6 +92,14 @@
 - Attempt 1 (4.65/10): Character extraction produced ZERO characters. Character profiles scored 0/10 (blocked). Pronunciation had excessive false positives.
 - Attempt 2 (7.10/10): Character extraction now working (3 characters). Profiles partially working (Fortunato has rich profile, Montresor's profile failed to parse). Summary had Chinese character hallucination. Pronunciation still had false positives but improved.
 - Attempt 3 (8.10/10): Chinese hallucination fixed. Fortunato role fixed (minor→protagonist). Character extraction improved. Summaries improved. BUT: Montresor profile still unparsed, relationships still empty (F9 fix didn't work), pronunciation false positives persist.
+- Attempt 3→4: **Fixed profile parsing and evidence extraction**
+  - Root cause: Secondary LLM structuring call was returning empty dicts `{}` for missing fields, which `_clean_dict()` was converting to `None`
+  - Root cause: Secondary call wasn't extracting evidence, and F9 requires evidence to trigger
+  - Fix 1: Changed `_clean_dict()` to preserve empty dicts (empty dict means "looked but found nothing", different from None meaning "didn't look")
+  - Fix 2: Added `json_mode=True` to secondary structuring call for reliability
+  - Fix 3: Added evidence extraction to secondary call prompt and result processing
+  - Modified: src/analyzer.py lines 2949, 3034, 3016-3028, 3054-3061
+  - **Expected improvement:** Montresor profile fields should now populate from secondary call; evidence should populate; F9 should trigger and extract relationships
 
 ## Modification History
 
@@ -103,6 +111,9 @@
 | 2→3 | Empty relationships for all characters | src/analyzer.py | **No change** — F9 method added but relationships still empty |
 | 2→3 | Chinese hallucination in summary | (not explicitly fixed) | Fixed — likely model variance on re-run |
 | 2→3 | Fortunato role "minor" | (not explicitly fixed) | Fixed — now "protagonist" on re-run |
+| 3→4 | Profile fields null (Montresor) | src/analyzer.py | Fixed `_clean_dict()` to preserve empty dicts, added json_mode and evidence to secondary call |
+| 3→4 | Empty evidence for all characters | src/analyzer.py | Added evidence extraction to secondary structuring call |
+| 3→4 | F9 not triggering (no evidence) | src/analyzer.py | Should trigger after evidence is populated by secondary call |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
@@ -114,9 +125,11 @@
 - Montresor added via F6 reconciliation (hash ID), not main extraction pipeline — this is the root cause of profile parsing issues
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL** — Montresor profile parse failure (profiles 5.5 → 8+)
-2. **CRITICAL** — Relationships empty for all characters (debug F9, fix or replace)
-3. **HIGH** — Pronunciation false positives (pronunciation 7.5 → 8+)
+Re-run analysis (PROMPT_analyze.md) to verify fixes for:
+1. ✓ Profile parsing (secondary call should now populate structured fields)
+2. ✓ Evidence extraction (secondary call now extracts evidence from profile text)
+3. ✓ F9 relationships (should trigger now that evidence will be populated)
 
-Focus on issues #1 and #2 first — they are the two halves of the same problem (profile parsing failure for F6-reconciled characters). Fixing Montresor's profile parsing should automatically fix his relationships since the data is already in the raw description string. The F9 fix needs debugging to understand why it didn't trigger/work for other characters.
+If profiles pass 8.0, address pronunciation false positives (8 common words flagged).
+
+**Note:** Did NOT fix pronunciation in this iteration — focused on CRITICAL profile issues first per priority order.

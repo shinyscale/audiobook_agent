@@ -2943,10 +2943,12 @@ Example relationships dict format:
                         def _clean_dict(d):
                             if not isinstance(d, dict):
                                 return None
-                            # Return the dict as-is if it has any content
-                            # We keep "unknown" values because they indicate the LLM responded
-                            # but found no evidence in the text (which is valid information)
-                            return d if d else None
+                            # Return the dict as-is, even if empty
+                            # Empty dict {} means "we looked but found nothing" (valid)
+                            # None means "we didn't look" or "parsing failed"
+                            # We keep "unknown" values and empty dicts because they indicate
+                            # the LLM responded but found no evidence (which is valid information)
+                            return d
 
                         appearance = _clean_dict(appearance)
                         personality = _clean_dict(personality)
@@ -3021,16 +3023,19 @@ Return a JSON object with these fields:
   "appearance": {{"summary": "Physical description if mentioned", "age_indication": "age if mentioned", "distinguishing_features": []}},
   "personality": {{"summary": "Personality traits and behavior", "traits": ["trait1", "trait2"], "temperament": "overall temperament"}},
   "voice_guidance": {{"suggested_tone": "tone based on character's manner", "formality_level": "formal/informal/moderate"}},
-  "relationships": {{"character_name": "relationship_type"}}
+  "relationships": {{"character_name": "relationship_type"}},
+  "evidence": [{{"statement": "claim made in profile", "quote": "quote supporting the claim", "position": 0}}]
 }}
 
 If a category has no information in the profile, use "unknown", [], or {{}} for that field.
+For evidence, extract key claims from the profile text as statements.
 Return ONLY the JSON object."""
 
                             try:
                                 struct_response = llm.query(
                                     structuring_prompt,
                                     system="You are a helpful assistant that structures character information.",
+                                    json_mode=True,
                                 )
                                 if struct_response.success:
                                     struct_content = struct_response.content.strip()
@@ -3052,6 +3057,14 @@ Return ONLY the JSON object."""
                                         struct_result.get("voice_guidance")
                                     )
                                     relationships = _clean_dict(struct_result.get("relationships"))
+                                    # Extract evidence from secondary call if primary didn't provide it
+                                    if not evidence:
+                                        secondary_evidence = struct_result.get("evidence", [])
+                                        if isinstance(secondary_evidence, list):
+                                            evidence = secondary_evidence
+                                            logger.info(
+                                                f"Extracted {len(evidence)} evidence items from secondary call for {character.canonical_name}"
+                                            )
                                     logger.warning(
                                         f"Successfully structured profile for {character.canonical_name}"
                                     )
