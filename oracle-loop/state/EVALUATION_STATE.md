@@ -3,12 +3,25 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 4.65**
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed in 12m 41s with competitive consensus enabled (all stages)
+- Warnings observed:
+  - LLM marker proposer returned dict instead of list (handled, returned single chapter)
+  - Narrator 'Montresor' not found in main_cast during initial extraction
+  - No passages provided for character profile generation (returned UNCERTAIN)
+  - JSON parse failure for Montresor profile (low confidence 0.30)
+  - Ollama json_mode validation error for pronunciation of 'Amontillado'
+- Pipeline completed successfully despite warnings
+- 3 characters extracted (Fortunato, Luchresi, Montresor)
+- 1 chapter detected
+- 36 pronunciation flags generated
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
