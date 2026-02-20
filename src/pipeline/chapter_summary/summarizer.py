@@ -868,6 +868,22 @@ class ChapterSummarizer:
             confidence=0.5,
         )
 
+    @staticmethod
+    def _sanitize_llm_text(text: str) -> str:
+        """Strip non-Latin script characters (CJK, Cyrillic, Arabic, etc.) from LLM output.
+
+        Preserves Latin, IPA, common punctuation, and standard Unicode.
+        Addresses Qwen3 model family occasionally producing Chinese text mid-output.
+        """
+        import re
+        # Remove CJK Unified Ideographs, Hiragana, Katakana, CJK symbols, CJK compatibility
+        text = re.sub(r'[　-鿿豈-﫿぀-ゟ゠-ヿ]+', '', text)
+        # Remove Arabic script
+        text = re.sub(r'[؀-ۿ]+', '', text)
+        # Clean up any resulting double-spaces or orphaned punctuation
+        text = re.sub(r'  +', ' ', text)
+        return text.strip()
+
     def _parse_chapter_result(
         self,
         result: dict,
@@ -898,11 +914,15 @@ class ChapterSummarizer:
             active_characters = result.get("characters_present", [])
             mentioned_characters = []
 
+        # Sanitize LLM text to remove CJK hallucinations from Qwen3
+        _summary = self._sanitize_llm_text(result.get("summary", ""))
+        _key_events = [self._sanitize_llm_text(e) for e in result.get("key_events", [])]
+
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
-            summary=result.get("summary", ""),
-            key_events=result.get("key_events", []),
+            summary=_summary,
+            key_events=_key_events,
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,

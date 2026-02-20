@@ -619,15 +619,33 @@ class CharacterAgent(Agent):
         PROTAGONIST_THRESHOLD = 200
         MAIN_THRESHOLD = 100
         PROMOTION_THRESHOLD = 50
+
+        # Scale thresholds for short texts where absolute counts are misleading
+        # e.g., 14 mentions in a 2,354-word story = ~595 per 100K words (very significant)
+        word_count = len(context.text.split()) if context.text else 100_000
+        if word_count < 20_000:
+            scale = 100_000 / max(word_count, 1000)
+            effective_protagonist = max(10, int(PROTAGONIST_THRESHOLD / scale))
+            effective_main = max(5, int(MAIN_THRESHOLD / scale))
+            effective_promotion = max(3, int(PROMOTION_THRESHOLD / scale))
+            logger.info(
+                f"V2 Step 5.8: Short text ({word_count} words), scaled thresholds: "
+                f"protagonist={effective_protagonist}, main={effective_main}, promotion={effective_promotion}"
+            )
+        else:
+            effective_protagonist = PROTAGONIST_THRESHOLD
+            effective_main = MAIN_THRESHOLD
+            effective_promotion = PROMOTION_THRESHOLD
+
         promoted_chars = []
         remaining_supporting = []
 
         for char in supporting_cast:
-            if char.mention_count >= PROMOTION_THRESHOLD:
+            if char.mention_count >= effective_promotion:
                 # Promote to main cast with role based on mention count
-                if char.mention_count >= PROTAGONIST_THRESHOLD:
+                if char.mention_count >= effective_protagonist:
                     char.role = "protagonist"
-                elif char.mention_count >= MAIN_THRESHOLD:
+                elif char.mention_count >= effective_main:
                     char.role = "main"
                 else:
                     char.role = "supporting"
