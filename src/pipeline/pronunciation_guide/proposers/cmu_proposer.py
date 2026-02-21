@@ -677,6 +677,8 @@ class CMUProposer(BasePronunciationProposer):
         - "jingled" → "jingle" + "ed" (if "jingle" is in CMU, "jingled" is common)
         - "familiarly" → "familiar" + "ly" (if "familiar" is in CMU, "familiarly" is common)
         - "recoiling" → "recoil" + "ing" (if "recoil" is in CMU, "recoiling" is common)
+        - "unsheathing" → strip "un" → "sheathing" (if in CMU, common)
+        - "reapproached" → strip "re" → "approached" (if in CMU, common)
         """
         word_lower = word.lower()
 
@@ -704,42 +706,40 @@ class CMUProposer(BasePronunciationProposer):
             "ion",    # connection, revision
         ]
 
-        for suffix in suffixes:
-            if word_lower.endswith(suffix):
-                # Try removing the suffix
-                base = word_lower[:-len(suffix)]
+        def _check_suffix_on(base_word: str) -> bool:
+            """Check if base_word with common suffixes stripped is in CMU."""
+            if base_word in self.known_words:
+                return True
+            for suffix in suffixes:
+                if base_word.endswith(suffix):
+                    base = base_word[:-len(suffix)]
+                    if len(base) < 3:
+                        continue
+                    if base in self.known_words:
+                        return True
+                    if len(base) >= 2 and base[-1] == base[-2]:
+                        if base[:-1] in self.known_words:
+                            return True
+                    if suffix == "ily" and (base + "y") in self.known_words:
+                        return True
+                    if suffix in ("ness", "ed", "er", "est") and (base + "y") in self.known_words:
+                        return True
+                    if suffix in ("ing", "ed", "er", "est", "y") and (base + "e") in self.known_words:
+                        return True
+            return False
 
-                # Skip if base is too short (likely not a real word)
-                if len(base) < 3:
-                    continue
+        # First, check suffix stripping on the full word
+        if _check_suffix_on(word_lower):
+            return True
 
-                # Check if base word is in CMU dictionary
-                if base in self.known_words:
+        # Also try stripping common derivational prefixes before checking suffixes.
+        # This catches words like "unsheathing" (un + sheathing) and "reapproached" (re + approached).
+        common_prefixes = ["un", "re", "dis", "in", "im", "pre", "out", "mis", "over", "under"]
+        for prefix in common_prefixes:
+            if word_lower.startswith(prefix) and len(word_lower) > len(prefix) + 3:
+                remainder = word_lower[len(prefix):]
+                if _check_suffix_on(remainder):
                     return True
-
-                # Handle consonant doubling (e.g., "running" → "run" + "n" + "ing")
-                if len(base) >= 2 and base[-1] == base[-2]:
-                    base_undoubled = base[:-1]
-                    if base_undoubled in self.known_words:
-                        return True
-
-                # Handle -ily suffix (e.g., "happily" → "happy", "unsteadily" → "unsteady")
-                if suffix == "ily":
-                    base_y = base + "y"
-                    if base_y in self.known_words:
-                        return True
-
-                # Handle y→i transformations (e.g., "happiness" from "happy")
-                if suffix in ("ness", "ed", "er", "est"):
-                    base_y = base + "y"
-                    if base_y in self.known_words:
-                        return True
-
-                # Handle e-dropping (e.g., "filing" → "file" + "ing")
-                if suffix in ("ing", "ed", "er", "est", "y"):
-                    base_e = base + "e"
-                    if base_e in self.known_words:
-                        return True
 
         return False
 
@@ -856,6 +856,15 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_common_derivation(word):
                 return False
             if self._is_ocr_artifact(word):
+                return False
+            # Hyphenated compounds: "tight-fitting" → ["tight", "fitting"]
+            # If ALL parts are in CMU, the pronunciation is predictable from the parts.
+            if "-" in word:
+                parts = word.split("-")
+                if all(p.lower() in self.known_words for p in parts if len(p) >= 2):
+                    return False
+            # Possessives: "cough's" → base "cough" in CMU
+            if word.endswith("'s") and word[:-2].lower() in self.known_words:
                 return False
             return True
 

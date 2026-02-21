@@ -2663,12 +2663,12 @@ CRITICAL INSTRUCTIONS:
 RELATIONSHIPS EXTRACTION (IMPORTANT):
 Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
 Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
-If the text says "A's father" or "son of B", add the entry. If no relationships mentioned, use {{}}.
+Include ANY type of relationship: family, social, antagonistic, professional, narrative (e.g., "enemy", "victim", "acquaintance", "rival", "pursuer", "ally").
 
 Example relationships dict format:
-- If text says "Tom's wife Mary" → {{"Mary": "spouse"}}
-- If summary says "her father John Smith" → {{"John Smith": "father"}}
-- If both say "his nephew William" → {{"William": "nephew"}}"""
+- Family: {{"Alice": "sister"}}
+- Social/antagonistic: {{"Bob": "enemy"}} or {{"Bob": "murder victim"}}
+- Narrative: {{"Carol": "pursuer"}} or {{"Carol": "unwitting dupe"}}"""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):
@@ -3223,8 +3223,8 @@ Return ONLY a JSON object in this format:
 }}
 
 Example valid responses:
-{{"Fortunato": "victim", "Luchresi": "rhetorical tool"}}
-{{"Tom": "rival", "Daisy": "beloved"}}
+{{"Alice": "murder victim", "Bob": "rival"}}
+{{"Eve": "trusted ally", "Frank": "employer"}}
 {{}}
 """
 
@@ -3232,6 +3232,7 @@ Example valid responses:
             response = llm.query(
                 prompt,
                 system="You are a literary analyst extracting character relationships. Return only valid JSON.",
+                json_mode=True,
                 temperature=0.3,  # Lower temperature for focused extraction
                 max_tokens=512
             )
