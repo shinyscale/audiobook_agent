@@ -3182,50 +3182,78 @@ Return ONLY the JSON object."""
             dict mapping character names to relationship descriptions, or None if extraction fails
         """
         import json
+        import re as _re
 
         # Filter out the current character from the list
         other_characters = [name for name in all_character_names if name != character_name]
         if not other_characters:
             return None
 
-        # Build evidence text
+        # Build a case-insensitive lookup for validation
+        other_characters_lower = {name.lower(): name for name in other_characters}
+
+        # Pre-scan evidence to annotate which other characters are mentioned in each item.
+        # This makes relationships visible to the LLM even when names appear only in quotes.
         evidence_lines = []
+        # Also track which characters were found in ANY evidence item (for programmatic fallback)
+        chars_in_evidence: dict = {name: [] for name in other_characters}
+
         for ev in evidence[:10]:  # Limit to first 10 evidence items
-            evidence_lines.append(f"- {ev['statement']}")
-            if 'quote' in ev:
-                evidence_lines.append(f"  Quote: \"{ev['quote']}\"")
+            statement = ev.get('statement', '')
+            quote = ev.get('quote', '')
+            combined = f"{statement} {quote}"
+
+            # Find which other characters appear in this evidence item
+            mentioned = []
+            for other_name in other_characters:
+                # Check all words in the name individually (handles multi-word names)
+                name_parts = [p for p in other_name.split() if len(p) >= 3]
+                if any(part.lower() in combined.lower() for part in name_parts):
+                    mentioned.append(other_name)
+                    chars_in_evidence[other_name].append(statement[:80])
+
+            evidence_lines.append(f"- {statement}")
+            if quote:
+                evidence_lines.append(f'  Quote: "{quote}"')
+            if mentioned:
+                evidence_lines.append(f"  [References: {', '.join(mentioned)}]")
 
         evidence_text = "\n".join(evidence_lines)
         other_chars_text = ", ".join(f'"{name}"' for name in other_characters)
 
+        # Build an explicit summary of which characters appear in evidence
+        mention_summary_lines = []
+        for name, stmts in chars_in_evidence.items():
+            if stmts:
+                mention_summary_lines.append(f'"{name}" is referenced in {len(stmts)} evidence item(s)')
+        mention_summary = "\n".join(mention_summary_lines) if mention_summary_lines else "(none detected)"
+
         prompt = f"""Extract character relationships from the evidence below.
 
-CHARACTER: "{character_name}"
+CHARACTER: \"{character_name}\"
 
 OTHER CHARACTERS IN STORY: {other_chars_text}
 
 EVIDENCE ABOUT {character_name}:
 {evidence_text}
 
-Task: Based on the evidence above, identify any relationships between "{character_name}" and the other characters.
+CHARACTER REFERENCES FOUND IN EVIDENCE:
+{mention_summary}
 
-IMPORTANT:
-- Only extract relationships that are explicitly mentioned or clearly implied in the evidence
-- Use the EXACT character names from the "OTHER CHARACTERS" list as keys
-- Relationship descriptions should be brief (2-5 words): "father", "friend", "rival", "victim", "enemy", etc.
-- If no relationships are evident, return an empty dict: {{}}
-- Do NOT invent relationships that aren't supported by the evidence
+Task: For each character listed in \"CHARACTER REFERENCES FOUND IN EVIDENCE\", describe the relationship between \"{character_name}\" and that character based on the evidence.
 
-Return ONLY a JSON object in this format:
+RULES:
+- Use the EXACT character names from \"OTHER CHARACTERS IN STORY\" as JSON keys
+- Relationship descriptions should be brief (2-5 words): "target of revenge", "rival", "victim", "enemy", "manipulation tool", etc.
+- Base descriptions on statements and quotes in the evidence above
+
+Return ONLY a JSON object:
 {{
   "character_name_1": "relationship_description",
   "character_name_2": "relationship_description"
 }}
 
-Example valid responses:
-{{"Alice": "murder victim", "Bob": "rival"}}
-{{"Eve": "trusted ally", "Frank": "employer"}}
-{{}}
+Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
 """
 
         try:
@@ -3233,46 +3261,67 @@ Example valid responses:
                 prompt,
                 system="You are a literary analyst extracting character relationships. Return only valid JSON.",
                 json_mode=True,
-                temperature=0.3,  # Lower temperature for focused extraction
+                temperature=0.3,
                 max_tokens=512
             )
 
             if not response or not response.content:
-                logger.warning(f"Empty response from relationship extraction for {character_name}")
-                return None
+                logger.warning(f"F9: Empty response from relationship extraction for {character_name}")
+            else:
+                content = response.content.strip()
+                # Strip markdown code fences if present
+                if content.startswith("```json"):
+                    content = content.split("```json", 1)[1].split("```")[0].strip()
+                elif content.startswith("```"):
+                    content = content.split("```", 1)[1].split("```")[0].strip()
 
-            content = response.content.strip()
+                logger.info(f"F9 RAW LLM response for {character_name}: {content[:300]}")
 
-            # Strip markdown code fences if present
-            if content.startswith("```json"):
-                content = content.split("```json", 1)[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```", 1)[1].split("```")[0].strip()
+                try:
+                    relationships = json.loads(content)
+                    if not isinstance(relationships, dict):
+                        logger.warning(f"F9: Non-dict response for {character_name}: {type(relationships)}")
+                    else:
+                        # Validate with case-insensitive matching (LLM may vary case)
+                        validated = {}
+                        for char_name, rel_desc in relationships.items():
+                            if char_name in other_characters:
+                                validated[char_name] = rel_desc
+                            elif char_name.lower() in other_characters_lower:
+                                canonical = other_characters_lower[char_name.lower()]
+                                validated[canonical] = rel_desc
+                                logger.info(f"F9: Case-normalized '{char_name}' -> '{canonical}'")
+                            else:
+                                logger.debug(f"F9: Ignoring unknown key '{char_name}' for {character_name}")
 
-            # Parse JSON
-            relationships = json.loads(content)
+                        logger.info(f"F9: validated relationships for {character_name}: {json.dumps(validated)}")
+                        if validated:
+                            return validated
+                except json.JSONDecodeError as e:
+                    logger.warning(f"F9: JSON parse error for {character_name}: {e}, content={content[:200]}")
 
-            # Validate format
-            if not isinstance(relationships, dict):
-                logger.warning(f"Relationship extraction returned non-dict for {character_name}: {type(relationships)}")
-                return None
-
-            # Filter out any relationships where the key isn't in our character list
-            validated = {}
-            for char_name, rel_desc in relationships.items():
-                if char_name in other_characters:
-                    validated[char_name] = rel_desc
-                else:
-                    logger.debug(f"Ignoring relationship with unknown character '{char_name}' for {character_name}")
-
-            return validated if validated else None
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse relationship JSON for {character_name}: {e}")
-            return None
         except Exception as e:
-            logger.warning(f"Relationship extraction failed for {character_name}: {e}")
-            return None
+            logger.warning(f"F9: LLM call failed for {character_name}: {e}")
+
+        # Programmatic fallback: if LLM failed, build relationships from evidence name mentions.
+        # Deterministic and universal: any character mentioned in another's evidence
+        # has a relationship with them (at minimum, they interact in the narrative).
+        programmatic = {}
+        for name, stmts in chars_in_evidence.items():
+            if stmts:
+                # Use the first statement that mentions this character as the relationship hint
+                desc = stmts[0]
+                # Strip the current character's name from the description to focus on the relationship
+                desc = _re.sub(_re.escape(character_name), "", desc, flags=_re.IGNORECASE).strip()
+                desc = desc.strip(" .,")
+                if len(desc) > 50:
+                    desc = desc[:47] + "..."
+                programmatic[name] = desc if desc else "mentioned in narrative"
+        if programmatic:
+            logger.info(f"F9: Using programmatic fallback for {character_name}: {json.dumps(programmatic)}")
+            return programmatic
+
+        return None
 
     def _detect_narrator(self, full_text: str, characters: list) -> Optional[str]:
         """

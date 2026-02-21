@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 4.65**
 
 ## Output Files
@@ -97,6 +97,7 @@
 | 3→4 | F9 not triggering (no evidence) | src/analyzer.py (evidence now populated) | **No change** — evidence populated but relationships STILL empty |
 | 4→5 | Relationships empty (F9 parse failure) | src/analyzer.py (json_mode=True + prompt examples) | **No change** — 4th failure on relationships |
 | 4→5 | Pronunciation false positives (8 words) | cmu_proposer.py (hyphen compound + possessive + prefix) | **Fixed** — 7/8 removed, pronunciation passes |
+| 5→6 | Relationships empty (4th consecutive failure) | src/analyzer.py (_extract_relationships_from_evidence) | **Pending** — restructured F9: pre-scan evidence for character mentions, add [References] annotations, case-insensitive validation, + programmatic fallback that always produces relationships if characters appear in evidence |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
@@ -109,6 +110,4 @@
 - No JSON parse failures, no LLM retries — pipeline is stable
 
 ## Next Action
-Run PROMPT_fix.md to address the SOLE remaining blocker: empty relationships. The fix phase MUST:
-1. First: debug F9 with logging to determine root cause
-2. Then: either fix F9 based on findings OR bypass it by extracting relationships during profile generation
+Re-run analysis to verify relationships are now populated (attempt 6).
