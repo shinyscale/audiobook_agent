@@ -1,0 +1,1012 @@
+{
+  "metadata": {
+    "title": "The Cask of Amontillado - Poe",
+    "author": "Edgar Allan Poe",
+    "source_file": "../Test_Texts/The Cask of Amontillado - Poe.txt",
+    "source_format": "txt",
+    "total_word_count": 2358,
+    "total_character_count": 13023,
+    "estimated_total_duration_minutes": 15.693333333333333,
+    "words_per_minute": 150
+  },
+  "structure": [
+    {
+      "type": "chapter",
+      "title": null,
+      "index": 1,
+      "start_position": 24,
+      "end_position": 13023,
+      "word_count": 2354,
+      "estimated_duration_minutes": 15.693333333333333,
+      "confidence": "medium",
+      "children": [],
+      "characters_present": [
+        "Montresor",
+        "Fortunato"
+      ],
+      "summary": "The chapter opens with the narrator, Montresor, vowing revenge against Fortunato for an unspecified insult, determined to punish him with impunity. During the chaotic carnival season at dusk, Montresor lures the intoxicated, costumed Fortunato—wearing a motley outfit with conical cap and bells—into his family's catacombs under the guise of tasting a pipe of rare Amontillado wine. Using flattery and false concern for Fortunato’s cough, Montresor guides him deep into the damp, bone-strewn vaults, offering wine to keep him compliant. At a remote niche lined with human remains, Montresor chains Fortunato to the wall under the pretense of retrieving the Amontillado, then begins sealing him alive behind a brick wall, layer by layer, while Fortunato alternates between drunken laughter, desperate pleas, and silence. The chapter ends with Montresor completing the wall, re-erecting the bones over it, and declaring that no one has disturbed the site in fifty years."
+    }
+  ],
+  "characters": [
+    {
+      "id": "supporting_0",
+      "canonical_name": "Fortunato",
+      "aliases": [],
+      "role": "protagonist",
+      "appearance": {
+        "summary": "Wears a motley outfit with a conical cap and bells during the carnival.",
+        "age_indication": "unknown",
+        "distinguishing_features": [
+          "motley outfit",
+          "conical cap and bells"
+        ]
+      },
+      "personality": {
+        "summary": "Confident in his wine connoisseurship, easily flattered, and unaware of Montresor’s hostility.",
+        "traits": [
+          "connoisseur",
+          "easily flattered",
+          "intoxicated"
+        ],
+        "temperament": "cheerful",
+        "emotional_range": "Shifts from drunken laughter to desperate pleas as he realizes his fate."
+      },
+      "voice_guidance": {
+        "suggested_tone": "boastful then pleading",
+        "dialect_notes": "unknown",
+        "verbal_tics": [
+          "he! he! he!",
+          "Amontillado!"
+        ],
+        "formality_level": "moderate",
+        "example_quotes": [
+          "How? said he. Amontillado, A pipe?",
+          "Ha! ha! ha! --he! he! he! --a very good joke, indeed --an excellent jest.",
+          "For the love of God, Montresor!"
+        ]
+      },
+      "descriptions": [
+        {
+          "text": "Fortunato is a man known for his expertise in wine, who is lured into a deadly trap by Montresor under false pretenses. He appears intoxicated and unaware of the danger until it is too late, alternating between laughter and desperate pleas as he is entombed alive.",
+          "source_position": 0,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {},
+      "evidence": [
+        {
+          "statement": "Fortunato prides himself on his connoisseurship in wine.",
+          "quote": "He prided himself on his connoisseurship in wine.",
+          "position": 921,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato is dressed in a motley outfit with a conical cap and bells during the carnival.",
+          "quote": "parti-striped dress, and his head was surmounted by the conical cap and bells.",
+          "position": 1924,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato dismisses Luchresi’s ability to distinguish wine.",
+          "quote": "And as for Luchresi, he cannot distinguish Sherry from Amontillado.",
+          "position": 3234,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato laughs humorously while being entombed.",
+          "quote": "Ha! ha! ha! --he! he! he! --a very good joke, indeed --an excellent jest.",
+          "position": 11900,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato pleads for his life before falling silent.",
+          "quote": "For the love of God, Montresor!",
+          "position": 12266,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor notes Fortunato does not perceive his hostile intent.",
+          "quote": "he did not perceive that my smile now was at the thought of his immolation.",
+          "position": 722,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 0,
+      "mention_count": 14,
+      "mentions": [],
+      "confidence": "high",
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    },
+    {
+      "id": "supporting_1",
+      "canonical_name": "Luchresi",
+      "aliases": [],
+      "role": "supporting",
+      "appearance": {
+        "summary": "unknown",
+        "age_indication": "unknown",
+        "distinguishing_features": []
+      },
+      "personality": {
+        "summary": "unknown",
+        "traits": [],
+        "temperament": "unknown",
+        "emotional_range": "unknown"
+      },
+      "voice_guidance": {
+        "suggested_tone": "unknown",
+        "dialect_notes": "unknown",
+        "verbal_tics": [],
+        "formality_level": "moderate",
+        "example_quotes": []
+      },
+      "descriptions": [
+        {
+          "text": "Luchresi is referenced as a wine connoisseur whose expertise is questioned by Fortunato, who claims Luchresi cannot distinguish Amontillado from Sherry. He serves as a rhetorical tool used by Fortunato to manipulate Montresor’s invitation into the vaults.",
+          "source_position": 0,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {},
+      "evidence": [
+        {
+          "statement": "Fortunato claims Luchresi cannot distinguish Amontillado from Sherry",
+          "quote": "Luchresi cannot tell Amontillado from Sherry.",
+          "position": 2573,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor uses Luchresi as a pretext to lure Fortunato into the vaults",
+          "quote": "As you are engaged, I am on my way to Luchresi. If any one has a critical turn it is he.",
+          "position": 2500,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato dismisses Luchresi’s expertise as inferior to his own",
+          "quote": "And as for Luchresi, he cannot distinguish Sherry from Amontillado.",
+          "position": 3160,
+          "confidence": "high"
+        },
+        {
+          "statement": "Luchresi is invoked again as a fallback option when Fortunato appears reluctant",
+          "quote": "Besides, there is Luchresi --",
+          "position": 4980,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato refers to Luchresi as an ignoramus in his intoxicated state",
+          "quote": "He is an ignoramus",
+          "position": 8683,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 0,
+      "mention_count": 4,
+      "mentions": [],
+      "confidence": "high",
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    },
+    {
+      "id": "e3bdcd5e8982",
+      "canonical_name": "Montresor",
+      "aliases": [],
+      "role": "protagonist",
+      "appearance": {
+        "summary": "unknown",
+        "age_indication": "unknown",
+        "distinguishing_features": []
+      },
+      "personality": {
+        "summary": "Montresor exhibits calculated control, manipulative intelligence, and emotional detachment, maintaining composure while orchestrating a prolonged, silent murder.",
+        "traits": [
+          "manipulative",
+          "calculating",
+          "patient",
+          "detached",
+          "deceptive"
+        ],
+        "temperament": "calm",
+        "emotional_range": "Montresor expresses no visible distress or guilt; his emotions appear suppressed or controlled, with rare instances of satisfaction masked as concern."
+      },
+      "voice_guidance": {
+        "suggested_tone": "authoritative",
+        "dialect_notes": "unknown",
+        "verbal_tics": [
+          "repeated use of 'I' to assert agency",
+          "use of formal phrasing to mask malice"
+        ],
+        "formality_level": "formal",
+        "example_quotes": [
+          "I must satisfy them.",
+          "My poor friend found it impossible to reply for many minutes.",
+          "I suffered him to hurry me to my palazzo.",
+          "For me it is no matter.",
+          "A mason,"
+        ]
+      },
+      "descriptions": [
+        {
+          "text": "Montresor is the narrator of a chilling tale in which he meticulously lures Fortunato to his death under the pretense of sharing rare wine, executing a plan of revenge with cold precision and no remorse.",
+          "source_position": 0,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {},
+      "evidence": [
+        {
+          "statement": "Montresor is the narrator of the story",
+          "quote": "I suffered him to hurry me to my palazzo.",
+          "position": 3549,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor seeks revenge against Fortunato for an unspecified insult",
+          "quote": "The chapter opens with the narrator, Montresor, vowing revenge against Fortunato for an unspecified insult, determined to punish him with impunity.",
+          "position": 1183,
+          "confidence": "high"
+        },
+        {
+          "statement": "Fortunato is a connoisseur of wine whom Montresor exploits",
+          "quote": "He prided himself on his connoisseurship in wine. ... in the matter of old wines he was sincere.",
+          "position": 1183,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor uses Luchresi as a decoy to manipulate Fortunato",
+          "quote": "I was fearful of losing a bargain. ... If any one has a critical turn it is he. He will tell...",
+          "position": 2366,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor deceives Fortunato by pretending to be a mason",
+          "quote": "\"You are not of the masons.\" \"Yes, yes,\" I said; \"yes, yes.\" ... producing from beneath the folds of my roquelaire a trowel.",
+          "position": 7098,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor shows no remorse and takes satisfaction in his act",
+          "quote": "I resumed the trowel, and finished without interruption the fifth, the sixth, and the seventh tier.",
+          "position": 10647,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor reveals the family motto indicating a code of vengeance",
+          "quote": "\"Nemo me impune lacessit.\"",
+          "position": 5915,
+          "confidence": "high"
+        },
+        {
+          "statement": "Montresor describes the murder as undisturbed for fifty years",
+          "quote": "no one has disturbed the site in fifty years.",
+          "position": 11830,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 1,
+      "mention_count": 3,
+      "mentions": [],
+      "confidence": "high",
+      "is_narrator": true,
+      "narrative_role": "narrator",
+      "is_symbolic": false
+    }
+  ],
+  "pronunciations": [
+    {
+      "word": "Fortunato",
+      "flag_reason": "proper_noun",
+      "occurrences": 14,
+      "first_position": 88,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "﻿The Cask of Amontillado by Edgar Allan Poe (published 1846) THE thousand injuries of Fortunato I had borne as I best could, but when he ventured upon insult I vowed revenge. You, who so well kno...",
+        "...uch to him who has done the wrong. It must be understood that neither by word nor deed had I given Fortunato cause to doubt my good will. I continued, as was my wont, to smile in his face, and he did not perc...",
+        "...d not perceive that my smile now was at the thought of his immolation. He had a weak point -- this Fortunato -- although in other regards he was a man to be respected and even feared. He prided himself on his..."
+      ],
+      "confidence": "high",
+      "ipa": "/fɔr.tuˈnɑː.toʊ/",
+      "phonetic_spelling": "for-tu-NAH-toh",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The stress falls on the third syllable ('NAH'). The 'o' at the end is pronounced like 'toe,' not a short 'o.' This is an Italian surname, so it follows Italian pronunciation patterns: each vowel is clearly enunciated."
+    },
+    {
+      "word": "Luchresi",
+      "flag_reason": "proper_noun",
+      "occurrences": 12,
+      "first_position": 2500,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...\"Amontillado!\" \"And I must satisfy them.\" \"Amontillado!\" \"As you are engaged, I am on my way to Luchresi. If any one has a critical turn it is he. He will tell me --\" \"Luchresi cannot tell Amontillado fr...",
+        "...engaged, I am on my way to Luchresi. If any one has a critical turn it is he. He will tell me --\" \"Luchresi cannot tell Amontillado from Sherry.\" \"And yet some fools will have it that his taste is a match f...",
+        "...ults.\" \"My friend, no; I will not impose upon your good nature. I perceive you have an engagement. Luchresi--\" \"I have no engagement; --come.\" \"My friend, no. It is not the engagement, but the severe cold..."
+      ],
+      "confidence": "high",
+      "ipa": "/luːˈkrɛsi/",
+      "phonetic_spelling": "loo-KREH-see",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Italian-sounding surname; stress on the second syllable. 'Lu' as in 'loo', 'cre' as in 'kreh' (rhymes with 'bed'), 'si' as in 'see'."
+    },
+    {
+      "word": "Montresor",
+      "flag_reason": "proper_noun",
+      "occurrences": 2,
+      "first_position": 12364,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...y Fortunato and the rest? Let us be gone.\" \"Yes,\" I said, \"let us be gone.\" \"For the love of God, Montresor!\" \"Yes,\" I said, \"for the love of God!\" But to these words I hearkened in vain for a reply. I gre..."
+      ],
+      "confidence": "high",
+      "ipa": "/mɒnˈtreɪ.sɔːr/",
+      "phonetic_spelling": "MON-tray-sor",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress on the second syllable; 'Mont' rhymes with 'font', 'tresor' sounds like 'tray-sore'. French-inspired spelling, but pronounced in English convention."
+    },
+    {
+      "word": "Amontillado",
+      "flag_reason": "unknown",
+      "occurrences": 17,
+      "first_position": 13,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "﻿The Cask of Amontillado by Edgar Allan Poe (published 1846) THE thousand injuries of Fortunato I had borne as I best coul...",
+        "...kily met. How remarkably well you are looking to-day. But I have received a pipe of what passes for Amontillado, and I have my doubts.\" \"How?\" said he. \"Amontillado, A pipe? Impossible! And in the middle of the...",
+        "...But I have received a pipe of what passes for Amontillado, and I have my doubts.\" \"How?\" said he. \"Amontillado, A pipe? Impossible! And in the middle of the carnival!\" \"I have my doubts,\" I replied; \"and I was..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˌæmən.tɪ.əˈdɑːʊ/",
+      "phonetic_spelling": "AM-uh-nih-uh-DAH-oh",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress falls on the fourth syllable (-DAH-oh). The 'till' is pronounced like 'tih-uh', not 'til'. This is a Spanish wine name, so the final 'o' is elongated and open, not clipped."
+    },
+    {
+      "word": "flambeaux",
+      "flag_reason": "foreign",
+      "occurrences": 6,
+      "first_position": 3774,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...immediate disappearance, one and all, as soon as my back was turned. I took from their sconces two flambeaux, and giving one to Fortunato, bowed him through several suites of rooms to the archway that led int...",
+        "...ssed on, and descending again, arrived at a deep crypt, in which the foulness of the air caused our flambeaux rather to glow than flame. At the most remote end of the crypt there appeared another less spaciou...",
+        "...seventh tier. The wall was now nearly upon a level with my breast. I again paused, and holding the flambeaux over the mason-work, threw a few feeble rays upon the figure within. A succession of loud and shri..."
+      ],
+      "confidence": "high",
+      "ipa": "/flɑ̃.bo/",
+      "phonetic_spelling": "flahn-BOH",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "French plural of 'flambeau,' meaning a torch. The 'x' is silent; the nasal vowel 'an' in 'flam' is pronounced through the nose, and the stress falls on the second syllable."
+    },
+    {
+      "word": "nitre",
+      "flag_reason": "unknown",
+      "occurrences": 5,
+      "first_position": 3045,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...with which I perceive you are afflicted. The vaults are insufferably damp. They are encrusted with nitre.\" \"Let us go, nevertheless. The cold is merely nothing. Amontillado! You have been imposed upon. A...",
+        "...towards me, and looked into my eyes with two filmy orbs that distilled the rheum of intoxication. \"Nitre?\" he asked, at length. \"Nitre,\" I replied. \"How long have you had that cough?\" \"Ugh! ugh! ugh! --...",
+        "...eyes with two filmy orbs that distilled the rheum of intoxication. \"Nitre?\" he asked, at length. \"Nitre,\" I replied. \"How long have you had that cough?\" \"Ugh! ugh! ugh! --ugh! ugh! ugh! --ugh! ugh! ugh!..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈnaɪtər/",
+      "phonetic_spelling": "NYE-tur",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Rhymes with 'higher'. Often confused with 'niter', which is an alternative spelling. Pronounced with a long 'i' sound, not like 'nit' (as in insect egg)."
+    },
+    {
+      "word": "roquelaire",
+      "flag_reason": "unknown",
+      "occurrences": 2,
+      "first_position": 3323,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...speaking, Fortunato possessed himself of my arm; and putting on a mask of black silk and drawing a roquelaire closely about my person, I suffered him to hurry me to my palazzo. There were no attendants at hom...",
+        "...ed. \"A sign,\" he said, \"a sign.\" \"It is this,\" I answered, producing from beneath the folds of my roquelaire a trowel. \"You jest,\" he exclaimed, recoiling a few paces. \"But let us proceed to the Amontillado...."
+      ],
+      "confidence": "medium",
+      "ipa": "/ʁɔ.kə.lɛʁ/",
+      "phonetic_spelling": "roh-kuh-LAIR",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "French origin; the 'r' is guttural (back of throat), and the final 'e' is silent. Stress on the last syllable. Sounds like 'roh-kuh-LAIR' with a soft, drawn-out 'air' at the end."
+    },
+    {
+      "word": "Montresors",
+      "flag_reason": "unknown",
+      "occurrences": 2,
+      "first_position": 4097,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...length to the foot of the descent, and stood together upon the damp ground of the catacombs of the Montresors. The gait of my friend was unsteady, and the bells upon his cap jingled as he strode. \"The pipe,\"...",
+        "...ng life.\" He again took my arm, and we proceeded. \"These vaults,\" he said, \"are extensive.\" \"The Montresors,\" I replied, \"were a great and numerous family.\" \"I forget your arms.\" \"A huge human foot d'or, i..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˌmɒn.treˈsɔːrz/",
+      "phonetic_spelling": "MON-tre-SOHRZ",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The stress is on the final syllable '-sors'. The 't' is pronounced clearly, not softened. The 'sors' rhymes with 'doors'. This appears to be a French-derived surname; if following French pronunciation norms, the final 's' may be silent, but in English contexts like this novel, it is typically pronounced."
+    },
+    {
+      "word": "connoisseurship",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 1031,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...-- although in other regards he was a man to be respected and even feared. He prided himself on his connoisseurship in wine. Few Italians have the true virtuoso spirit. For the most part their enthusiasm is adopted..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˌkɒn.əˈsɜː.ʃɪp/",
+      "phonetic_spelling": "KON-uh-SUR-ship",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The 'connoisseur' part is pronounced with a silent 'n' after the 'c', and the 'ss' sounds like 'sh'. The stress is on the third syllable. The '-ship' ending is pronounced as 'ship', as in 'friendship'."
+    },
+    {
+      "word": "gemmary",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 1262,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...and opportunity, to practise imposture upon the British and Austrian millionaires. In painting and gemmary, Fortunato, like his countrymen, was a quack, but in the matter of old wines he was sincere. In thi..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈdʒɛməri/",
+      "phonetic_spelling": "JEM-uh-ree",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Likely a variant or misspelling of 'gemmery', an archaic term relating to gemstones. Pronounce as three syllables with stress on the first, similar to 'jemma' + 'ry'."
+    },
+    {
+      "word": "rheum",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 4403,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...avern walls.\" He turned towards me, and looked into my eyes with two filmy orbs that distilled the rheum of intoxication. \"Nitre?\" he asked, at length. \"Nitre,\" I replied. \"How long have you had that co..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ruːm/",
+      "phonetic_spelling": "ROOM",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The 'rh' is silent; pronounced like 'room'. Refers to a thin mucus, often associated with illness or intoxication in this context."
+    },
+    {
+      "word": "leer",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 5464,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...hat lay upon the mould. \"Drink,\" I said, presenting him the wine. He raised it to his lips with a leer. He paused and nodded to me familiarly, while his bells jingled. \"I drink,\" he said, \"to the burie..."
+      ],
+      "confidence": "medium",
+      "ipa": "/lɪər/",
+      "phonetic_spelling": "LEER",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Pronounced like 'clear' without the 'c', rhyming with 'deer' or 'beer'. The 'ee' is a long vowel sound, and the 'r' is lightly rolled or tapped depending on accent."
+    },
+    {
+      "word": "impune",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 5941,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e foot crushes a serpent rampant whose fangs are imbedded in the heel.\" \"And the motto?\" \"Nemo me impune lacessit.\" \"Good!\" he said. The wine sparkled in his eyes and the bells jingled. My own fancy gre..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ɪmˈpjuːn/",
+      "phonetic_spelling": "im-PYOON",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress on the second syllable; 'pu' sounds like 'pyoo' as in 'pew'. This is Latin for 'with impunity', meaning unpunished."
+    },
+    {
+      "word": "lacessit",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 5948,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...crushes a serpent rampant whose fangs are imbedded in the heel.\" \"And the motto?\" \"Nemo me impune lacessit.\" \"Good!\" he said. The wine sparkled in his eyes and the bells jingled. My own fancy grew warm wi..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ləˈsɛsɪt/",
+      "phonetic_spelling": "luh-SES-it",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Latin motto meaning 'No one attacks me with impunity'; stress on the second syllable. The 'c' is pronounced as an 's' sound before 'e'."
+    },
+    {
+      "word": "puncheons",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 6138,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...fancy grew warm with the Medoc. We had passed through long walls of piled skeletons, with casks and puncheons intermingling, into the inmost recesses of the catacombs. I paused again, and this time I made bold..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈpʌnʃənz/",
+      "phonetic_spelling": "PUN-shonz",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Rhymes with 'hunches'. The 'ch' is pronounced as /ʃ/ (sh sound), not /tʃ/. The final 's' is voiced as /z/ due to following vowel sound in plural form."
+    },
+    {
+      "word": "flagon",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 6617,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...hing,\" he said; \"let us go on. But first, another draught of the Medoc.\" I broke and reached him a flagon of De Grave. He emptied it at a breath. His eyes flashed with a fierce light. He laughed and threw..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈflæɡən/",
+      "phonetic_spelling": "FLAG-uhn",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress on the first syllable; the 'o' is silent and the final 'n' is nasalized. Sounds like 'flag' + 'uhn'."
+    },
+    {
+      "word": "gesticulation",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 6749,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...t at a breath. His eyes flashed with a fierce light. He laughed and threw the bottle upwards with a gesticulation I did not understand. I looked at him in surprise. He repeated the movement --a grotesque one. \"Y..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˌdʒɛs.tɪ.kjʊˈleɪ.ʃən/",
+      "phonetic_spelling": "jes-ti-kew-LAY-shun",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress on the fourth syllable (-LAY-). The 'g' is soft like 'j', and the 'c' sounds like 'k'. The 'u' is pronounced as 'kyoo' (kew), not 'uh'."
+    },
+    {
+      "word": "hearken",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 10475,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e furious vibrations of the chain. The noise lasted for several minutes, during which, that I might hearken to it with the more satisfaction, I ceased my labours and sat down upon the bones. When at last the..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈhɑːrkən/",
+      "phonetic_spelling": "HAR-ken",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The 'ea' is pronounced like the 'a' in 'father'. The 'k' is clearly enunciated, and the final 'en' is a soft, unstressed syllable."
+    },
+    {
+      "word": "hearkened",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 12437,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e.\" \"For the love of God, Montresor!\" \"Yes,\" I said, \"for the love of God!\" But to these words I hearkened in vain for a reply. I grew impatient. I called aloud -- \"Fortunato!\" No answer. I called again -..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈhɑːrkənd/",
+      "phonetic_spelling": "HARK-uhnd",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "The 'e' at the end is silent; the stress is on the first syllable. 'Hark' sounds like 'hark' in 'hark! listen!', and the ending is a soft 'uhnd'."
+    },
+    {
+      "word": "requiescat",
+      "flag_reason": "unknown",
+      "occurrences": 1,
+      "first_position": 13012,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e-erected the old rampart of bones. For the half of a century no mortal has disturbed them. In pace requiescat!"
+      ],
+      "confidence": "medium",
+      "ipa": "/ˌrɛ.kiˈɛ.skæt/",
+      "phonetic_spelling": "rek-ee-ES-kat",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Latin word meaning 'may he/she rest in peace'; pronounced with stress on the third syllable. The 'qu' sounds like 'k', and the final 't' is clearly enunciated."
+    },
+    {
+      "word": "Grave",
+      "flag_reason": "foreign",
+      "occurrences": 1,
+      "first_position": 6630,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...d; \"let us go on. But first, another draught of the Medoc.\" I broke and reached him a flagon of De Grave. He emptied it at a breath. His eyes flashed with a fierce light. He laughed and threw the bottle u..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ɡrɑːv/",
+      "phonetic_spelling": "GRAHV",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Pronounced like the English word 'grave' (as in 'serious' or 'tomb'), not 'grahv' with a short 'a'. The 'a' is long and open, similar to the vowel in 'father'. Despite being labeled 'foreign (Latin)', in this context it refers to a French wine, and is pronounced with an English approximation of the French 'Grave' appellation — which is also /ɡrɑːv/ in English usage."
+    },
+    {
+      "word": "row",
+      "flag_reason": "homograph",
+      "occurrences": 1,
+      "first_position": 5344,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...oc will defend us from the damps. Here I knocked off the neck of a bottle which I drew from a long row of its fellows that lay upon the mould. \"Drink,\" I said, presenting him the wine. He raised it to..."
+      ],
+      "confidence": "high",
+      "ipa": null,
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Multiple pronunciations: line (ROH); argument (ROW)"
+    },
+    {
+      "word": "close",
+      "flag_reason": "homograph",
+      "occurrences": 1,
+      "first_position": 11459,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...ength. I did this, and the clamourer grew still. It was now midnight, and my task was drawing to a close. I had completed the eighth, the ninth and the tenth tier. I had finished a portion of the last and..."
+      ],
+      "confidence": "high",
+      "ipa": null,
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Multiple pronunciations: nearby (KLOHS); to shut (KLOHZ)"
+    },
+    {
+      "word": "entrance",
+      "flag_reason": "homograph",
+      "occurrences": 1,
+      "first_position": 9969,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e and mortar. With these materials and with the aid of my trowel, I began vigorously to wall up the entrance of the niche. I had scarcely laid the first tier of the masonry when I discovered that the intoxic..."
+      ],
+      "confidence": "high",
+      "ipa": null,
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Multiple pronunciations: way in (EN-truns); to charm (en-TRANS)"
+    }
+  ],
+  "glossary": null,
+  "overview": {
+    "structure": {
+      "chapter_count": 1,
+      "has_titles": false,
+      "has_parts": false,
+      "narrative_style": "unknown",
+      "description": "This book contains 1 chapters. Chapters are numbered sequentially."
+    },
+    "plot_summary": {
+      "plot_summary": "Montresor, driven by a deep-seated grievance over an unspecified insult from Fortunato, resolves to exact revenge with absolute impunity. He carefully crafts a plan to exploit Fortunato’s pride and love of wine during the chaotic carnival season, luring the intoxicated nobleman—dressed in a jester’s motley with bells—into the labyrinthine catacombs beneath his family’s palazzo under the false pretense of sampling a rare cask of Amontillado. Montresor’s demeanor is calculated and polite, masking his malevolent intent as he feigns concern for Fortunato’s health, using flattery and wine to keep his victim complacent and off-balance.\n\nAs they descend deeper into the damp, bone-choked vaults, the atmosphere grows increasingly sinister. Montresor leads Fortunato to a remote recess lined with human remains, where he claims the Amontillado is stored. There, under the guise of retrieving the wine, he chains Fortunato to the wall. The turning point arrives as Fortunato, now sobering from his drunken haze, begins to realize the horrifying truth: he is not being tricked, but entombed alive. His initial laughter gives way to desperate pleas and, finally, chilling silence as Montresor methodically begins building a brick wall to seal him in.\n\nWith cold precision, Montresor completes the wall, layer by layer, until Fortunato is fully encased. He finishes by re-erecting the bones over the new masonry, erasing all trace of his crime. The chapter closes with Montresor’s chilling retrospective declaration that for fifty years no one has disturbed the site, confirming not only the success of his revenge but the enduring weight of his silence. His act was not merely murder—it was a meticulously preserved act of vengeance, executed without consequence and remembered only by him.",
+      "themes": [
+        "revenge",
+        "deception",
+        "isolation"
+      ],
+      "narrative_style": "first-person retrospective"
+    },
+    "model_usage": {
+      "Chapter Detection": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama"
+      },
+      "Chapter Summaries": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama"
+      },
+      "Character Extraction": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama"
+      },
+      "Character Profiles": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama"
+      },
+      "Pronunciation Guide": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama"
+      }
+    },
+    "timing": {
+      "Chapter Detection": {
+        "duration_seconds": 30.95,
+        "duration_formatted": "30.9s"
+      },
+      "Chapter Summaries": {
+        "duration_seconds": 98.28,
+        "duration_formatted": "1m 38s"
+      },
+      "Character Extraction": {
+        "duration_seconds": 23.75,
+        "duration_formatted": "23.8s"
+      },
+      "Character Profiles": {
+        "duration_seconds": 186.17,
+        "duration_formatted": "3m 6s"
+      },
+      "Pronunciation Guide": {
+        "duration_seconds": 126.89,
+        "duration_formatted": "2m 7s"
+      },
+      "total": {
+        "duration_seconds": 691.99,
+        "duration_formatted": "11m 32s"
+      },
+      "started_at": "2026-02-20 17:46:12",
+      "ended_at": "2026-02-20 17:57:44"
+    }
+  },
+  "consensus_log": {
+    "enabled": true,
+    "mode": "single",
+    "models": [],
+    "stages": [
+      "characters",
+      "structure",
+      "summaries"
+    ],
+    "alias_votes": [],
+    "boundary_votes": [],
+    "summary_votes": [
+      {
+        "vote_type": "summary_merge",
+        "subject": "Chapter 1: Chapter 1",
+        "context": "3 models",
+        "votes": [],
+        "vote_count": 0,
+        "yes_count": 0,
+        "threshold": 0.67,
+        "outcome": "merged",
+        "reason": "0 events, 2 active chars agreed on by 2+ models"
+      }
+    ],
+    "total_votes": 1,
+    "accepted_count": 0,
+    "rejected_count": 0
+  },
+  "warnings": [],
+  "low_confidence_items": [],
+  "_analysis_metadata": {
+    "analyzed_at": "2026-02-20T17:58:17.553345",
+    "analyzer_version": "0.2.0",
+    "pipeline": "multi-agent",
+    "llm_model": "none",
+    "llm_provider": "ollama",
+    "analysis_duration_seconds": 724.6
+  },
+  "_profiling": {
+    "stages": [
+      {
+        "name": "Chapter Detection",
+        "duration_seconds": 30.95,
+        "llm_calls": 3,
+        "tokens_prompt": 9757,
+        "tokens_completion": 260,
+        "tokens_total": 10017,
+        "avg_latency_ms": 10279.27,
+        "items_processed": 1,
+        "high_confidence": 0,
+        "medium_confidence": 1,
+        "low_confidence": 0,
+        "model_used": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Chapter Summaries",
+        "duration_seconds": 98.28,
+        "llm_calls": 0,
+        "tokens_prompt": 0,
+        "tokens_completion": 0,
+        "tokens_total": 0,
+        "avg_latency_ms": 0.0,
+        "items_processed": 1,
+        "high_confidence": 1,
+        "medium_confidence": 0,
+        "low_confidence": 0,
+        "model_used": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Character Extraction",
+        "duration_seconds": 23.75,
+        "llm_calls": 2,
+        "tokens_prompt": 1259,
+        "tokens_completion": 351,
+        "tokens_total": 1610,
+        "avg_latency_ms": 10543.33,
+        "items_processed": 2,
+        "high_confidence": 0,
+        "medium_confidence": 2,
+        "low_confidence": 0,
+        "model_used": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Character Profiles",
+        "duration_seconds": 186.17,
+        "llm_calls": 5,
+        "tokens_prompt": 8291,
+        "tokens_completion": 3213,
+        "tokens_total": 11504,
+        "avg_latency_ms": 37229.78,
+        "items_processed": 3,
+        "high_confidence": 3,
+        "medium_confidence": 0,
+        "low_confidence": 0,
+        "model_used": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Pronunciation Guide",
+        "duration_seconds": 126.89,
+        "llm_calls": 23,
+        "tokens_prompt": 7384,
+        "tokens_completion": 2095,
+        "tokens_total": 9479,
+        "avg_latency_ms": 5496.81,
+        "items_processed": 24,
+        "high_confidence": 9,
+        "medium_confidence": 15,
+        "low_confidence": 0,
+        "model_used": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      }
+    ],
+    "totals": {
+      "duration_seconds": 724.55,
+      "llm_calls": 33,
+      "tokens": 32610
+    },
+    "bottleneck": [
+      "Character Profiles",
+      25.694810007105538
+    ],
+    "quality_concerns": [],
+    "timestamps": {
+      "started": "2026-02-20 17:46:12",
+      "ended": "2026-02-20 17:58:17"
+    }
+  },
+  "_config": {
+    "orchestrator": {
+      "default_model": "qwen3-next:80b-a3b-instruct-q8_0",
+      "default_provider": "ollama",
+      "parallel_execution": false,
+      "context_length": 32768
+    },
+    "agents": {
+      "structure": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "characters": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "summaries": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "pronunciation": {
+        "model": "qwen3-next:80b-a3b-instruct-q8_0",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      }
+    },
+    "tuning": {
+      "chapter_marker_chunk_chars": 15000,
+      "chapter_marker_chunk_overlap_chars": 1000,
+      "chapter_narrative_chunk_chars": 20000,
+      "chapter_narrative_chunk_overlap_chars": 2000,
+      "character_llm_chunk_chars": 5000,
+      "character_mention_context_chars": 250,
+      "summary_chunk_words": 2500,
+      "summary_chunk_overlap_words": 200
+    }
+  }
+}

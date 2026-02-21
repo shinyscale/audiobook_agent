@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score: 4.65**
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
-- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_171846/
+- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_175817/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -109,5 +109,15 @@
 - Pronunciation Guide: 23 LLM calls, 0 retries — stable
 - No JSON parse failures, no LLM retries — pipeline is stable
 
+## Pipeline Notes (Attempt 6)
+- Runtime: 12m 4s
+- Characters: Fortunato (14 mentions), Luchresi (4 mentions), Montresor (3 mentions)
+- Pronunciation flags: 24
+- Competitive consensus: ENABLED (single mode, all stages: characters, structure, summaries)
+- Warning: "Narrator 'Montresor' identified but NOT found in main_cast. Available characters: []"
+- Warning: "No passages provided for Fortunato/Luchresi/Montresor, returning UNCERTAIN"
+- 5 character profile LLM calls, 3H/0M/0L confidence — all profiles at HIGH
+- Relationship extraction pending evaluation
+
 ## Next Action
-Re-run analysis to verify relationships are now populated (attempt 6).
+Evaluate output (attempt 6) — check if relationships are now populated.

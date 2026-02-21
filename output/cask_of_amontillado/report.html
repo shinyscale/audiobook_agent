@@ -1,0 +1,2341 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Cask of Amontillado - Poe - Audiobook Prep Report</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface-alt: #1f2b47;
+            --primary: #0f3460;
+            --accent: #e94560;
+            --accent-soft: #c73e54;
+            --text: #eee;
+            --muted: #888;
+            --success: #2d5a27;
+            --warning: #5a5a27;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* Tab Navigation */
+        nav {
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            z-index: 100;
+            display: flex;
+            gap: 0;
+            flex-wrap: wrap;
+            justify-content: center;
+            overflow: hidden;
+        }
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 1rem 1.5rem;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            position: relative;
+        }
+        nav a:hover {
+            background: var(--primary);
+        }
+        nav a.active {
+            background: var(--surface-alt);
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Hide all tab content by default, show only active tab */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* View toggle buttons */
+        .view-toggle {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .view-toggle:hover {
+            background: var(--primary);
+        }
+        .view-toggle.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Pronunciation views */
+        .pron-view {
+            display: none;
+        }
+        .pron-view.active {
+            display: block;
+        }
+
+        /* Glossary styles */
+        .alphabet-nav a:hover {
+            background: var(--accent) !important;
+        }
+        .glossary-item:hover {
+            background: var(--primary) !important;
+        }
+
+        /* Print view: show all tabs and all pronunciation views */
+        @media print {
+            nav {
+                display: none;
+            }
+            .tab-content {
+                display: block !important;
+                page-break-before: always;
+            }
+            .tab-content:first-of-type {
+                page-break-before: auto;
+            }
+            .view-toggle {
+                display: none !important;
+            }
+            .pron-view {
+                display: block !important;
+                page-break-before: always;
+            }
+            /* Glossary print styles */
+            .alphabet-nav {
+                display: none !important;
+            }
+            #glossary-search, button[onclick="clearGlossarySearch()"] {
+                display: none !important;
+            }
+            #glossary-count {
+                display: none !important;
+            }
+            .glossary-section {
+                page-break-inside: avoid;
+            }
+        }
+
+        /* Mobile responsive tabs */
+        @media (max-width: 768px) {
+            nav {
+                flex-direction: column;
+            }
+            nav a {
+                text-align: center;
+            }
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem;
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        header h1 { color: var(--accent); margin-bottom: 0.5rem; font-size: 2.5rem; }
+        header .meta { color: var(--muted); }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-card .label { color: var(--muted); }
+
+        section {
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        section h2 {
+            color: var(--accent);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        section h3 {
+            color: var(--accent-soft);
+            margin: 1.5rem 0 1rem 0;
+            font-size: 1.2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--primary);
+        }
+
+        th { color: var(--accent); font-weight: 600; }
+
+        tr:hover { background: var(--primary); }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: var(--primary);
+            margin: 0.1rem;
+        }
+
+        .tag.homograph { background: #5a3d7a; }
+        .tag.proper_noun { background: #3d5a7a; }
+        .tag.foreign { background: #7a5a3d; }
+        .tag.unknown { background: #5a5a5a; }
+        .tag.llm_refined { background: var(--success); }
+        .tag.high { background: var(--success); }
+        .tag.medium { background: var(--warning); }
+        .tag.low { background: #5a2727; }
+
+        /* Confidence badges */
+        .confidence-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 0.5rem;
+        }
+        .confidence-badge.high {
+            background: var(--success);
+            color: #fff;
+        }
+        .confidence-badge.medium {
+            background: var(--warning);
+            color: #333;
+        }
+        .confidence-badge.low {
+            background: #5a2727;
+            color: #fff;
+        }
+
+        .context {
+            font-style: italic;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .aliases { color: var(--muted); font-size: 0.9rem; }
+
+        .description {
+            font-style: italic;
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .warning {
+            background: #5a4a27;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Relationship cards */
+        .relationship-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .relationship-card {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .relationship-card h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .relationship-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .relationship-card li {
+            padding: 0.25rem 0;
+            color: var(--text);
+        }
+
+        .relationship-card .rel-type {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        /* Character groups */
+        .character-group {
+            margin-bottom: 2rem;
+        }
+
+        .character-group h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .character-group h3 .count {
+            background: var(--primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        /* Pronunciation groups */
+        .pron-group {
+            margin-bottom: 2rem;
+        }
+
+        .pron-group h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pron-note {
+            font-size: 0.85rem;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        /* IPA and phonetic styling */
+        .ipa {
+            font-family: "Doulos SIL", "Charis SIL", "Gentium", "Arial Unicode MS", sans-serif;
+            color: var(--primary);
+            font-size: 0.95em;
+        }
+        .phonetic {
+            color: var(--muted);
+            font-size: 0.9em;
+            font-style: italic;
+        }
+
+        /* Collapsible pronunciation chapters */
+        .pron-chapter-details {
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--primary);
+        }
+        .pron-chapter-details summary {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            list-style: none;
+            display: flex;
+            align-items: center;
+        }
+        .pron-chapter-details summary::-webkit-details-marker {
+            display: none;
+        }
+        .pron-chapter-details summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 0.75rem;
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+            color: var(--muted);
+        }
+        .pron-chapter-details[open] summary::before {
+            transform: rotate(90deg);
+        }
+        .pron-chapter-details summary h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+        .pron-chapter-details[open] {
+            border-left-color: var(--accent);
+        }
+        .pron-chapter-details table {
+            margin: 0 1rem 1rem 1rem;
+        }
+
+        /* Chapter details */
+        .chapter-details {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--surface-alt);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .chapter-characters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        /* Chapter summaries */
+        .chapter-summary {
+            background: var(--surface-alt);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .chapter-card {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .chapter-card h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chapter-card .meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        /* Character profiles */
+        .character-profile {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .character-profile h4 {
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            font-size: 1.2rem;
+        }
+
+        .character-profile .profile-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .character-profile .profile-body {
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .character-profile .aliases-list {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        /* F20: Evidence citations */
+        .evidence-citation {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            margin-left: 0.2rem;
+            cursor: pointer;
+            text-decoration: none;
+            vertical-align: super;
+        }
+        .evidence-citation:hover {
+            background: var(--primary);
+        }
+        .evidence-list {
+            list-style: none;
+            padding: 0;
+            counter-reset: evidence;
+        }
+        .evidence-item {
+            counter-increment: evidence;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+        .evidence-item::before {
+            content: "[" counter(evidence) "]";
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        .evidence-quote {
+            font-style: italic;
+            color: var(--muted);
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            border-left: 2px solid var(--muted);
+        }
+        .evidence-chapter {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                color: black;
+                padding: 0.5rem;
+            }
+            nav { display: none; }
+            .stat-card, section {
+                border: 1px solid #ddd;
+                break-inside: avoid;
+            }
+            section { page-break-inside: avoid; }
+            .tag { border: 1px solid #999; background: #eee !important; color: black; }
+            header { page-break-after: avoid; }
+            h2 { page-break-after: avoid; }
+            tr { page-break-inside: avoid; }
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f5f5f5;
+                --surface: #fff;
+                --surface-alt: #f9f9f9;
+                --primary: #e0e0e0;
+                --accent: #d32f2f;
+                --accent-soft: #e57373;
+                --text: #333;
+                --muted: #666;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="#overview" class="tab-link" data-tab="overview">Overview</a>
+            <a href="#chapters" class="tab-link" data-tab="chapters">Chapters</a>
+            <a href="#characters" class="tab-link" data-tab="characters">Characters</a>
+            <a href="#pronunciations" class="tab-link" data-tab="pronunciations">Pronunciations</a>
+            
+        </nav>
+
+        <div id="overview" class="tab-content active">
+            <header>
+                <h1>The Cask of Amontillado - Poe</h1>
+                <p class="meta">
+                    by Edgar Allan Poe &middot; 
+                    Narrator's Guide &middot; Generated 2026-02-20 17:58
+                </p>
+                
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    
+                    Analyzed in 
+                    12m 4s
+                </p>
+                
+
+                
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                    <strong>Started:</strong> Feb 20, 2026 at 5:46 PM &middot;
+                    <strong>Ended:</strong> Feb 20, 2026 at 5:57 PM
+                </p>
+                
+            </header>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="value">2,358</div>
+                    <div class="label">Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">0h 15m</div>
+                    <div class="label">Est. Duration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">1</div>
+                    <div class="label">Chapters</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="value">2</div>
+                    <div class="label">Main Characters</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">24</div>
+                    <div class="label">Pronunciation Notes</div>
+                </div>
+            </div>
+
+            
+            <section>
+                <h2>📚 Book Structure</h2>
+                
+                <p style="margin-top: 1rem; line-height: 1.8;">This book contains 1 chapters. Chapters are numbered sequentially.</p>
+                
+                
+            </section>
+
+            
+            <section>
+                <h2>📖 Plot Summary</h2>
+                <div style="margin-top: 1rem; line-height: 1.8; white-space: pre-wrap;">Montresor, driven by a deep-seated grievance over an unspecified insult from Fortunato, resolves to exact revenge with absolute impunity. He carefully crafts a plan to exploit Fortunato’s pride and love of wine during the chaotic carnival season, luring the intoxicated nobleman—dressed in a jester’s motley with bells—into the labyrinthine catacombs beneath his family’s palazzo under the false pretense of sampling a rare cask of Amontillado. Montresor’s demeanor is calculated and polite, masking his malevolent intent as he feigns concern for Fortunato’s health, using flattery and wine to keep his victim complacent and off-balance.
+
+As they descend deeper into the damp, bone-choked vaults, the atmosphere grows increasingly sinister. Montresor leads Fortunato to a remote recess lined with human remains, where he claims the Amontillado is stored. There, under the guise of retrieving the wine, he chains Fortunato to the wall. The turning point arrives as Fortunato, now sobering from his drunken haze, begins to realize the horrifying truth: he is not being tricked, but entombed alive. His initial laughter gives way to desperate pleas and, finally, chilling silence as Montresor methodically begins building a brick wall to seal him in.
+
+With cold precision, Montresor completes the wall, layer by layer, until Fortunato is fully encased. He finishes by re-erecting the bones over the new masonry, erasing all trace of his crime. The chapter closes with Montresor’s chilling retrospective declaration that for fifty years no one has disturbed the site, confirming not only the success of his revenge but the enduring weight of his silence. His act was not merely murder—it was a meticulously preserved act of vengeance, executed without consequence and remembered only by him.</div>
+                
+                <p style="margin-top: 1rem; color: var(--muted);">
+                    <strong>Themes:</strong> revenge, deception, isolation
+                </p>
+                
+            </section>
+            
+
+            
+            <section>
+                <h2>🤖 Analysis Models</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Model</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Detection</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3-next:80b-a3b-instruct-q8_0</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Summaries</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3-next:80b-a3b-instruct-q8_0</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Extraction</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3-next:80b-a3b-instruct-q8_0</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Profiles</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3-next:80b-a3b-instruct-q8_0</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Pronunciation Guide</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3-next:80b-a3b-instruct-q8_0</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </section>
+            
+
+            
+            <section>
+                <h2>⏱️ Performance Timing</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--muted);">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Detection</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">30.9s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Summaries</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">1m 38s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Extraction</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">23.8s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Profiles</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">3m 6s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Pronunciation Guide</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">2m 7s</td>
+                        </tr>
+                        
+                        
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">started_at</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;"></td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">ended_at</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;"></td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-top: 2px solid var(--primary); font-weight: bold;">
+                            <td style="padding: 0.75rem;">Total</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">11m 32s</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </section>
+            
+            
+
+            <section id="relationships">
+                <h2>🔗 Key Relationships</h2>
+                
+                <p style="color: var(--muted);">No explicit relationships detected.</p>
+                
+            </section>
+
+            
+        </div>
+
+        <div id="chapters" class="tab-content">
+        <section>
+            <h2>📑 Chapter Guide</h2>
+
+            
+
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: var(--accent-soft);">Chapters</h3>
+            
+            <div class="chapter-card">
+                <h4>
+                    <span>Chapter 1</span>
+                    <span class="meta">2,354 words &middot; 15m</span>
+                </h4>
+                
+                <div class="chapter-summary">The chapter opens with the narrator, Montresor, vowing revenge against Fortunato for an unspecified insult, determined to punish him with impunity. During the chaotic carnival season at dusk, Montresor lures the intoxicated, costumed Fortunato—wearing a motley outfit with conical cap and bells—into his family's catacombs under the guise of tasting a pipe of rare Amontillado wine. Using flattery and false concern for Fortunato’s cough, Montresor guides him deep into the damp, bone-strewn vaults, offering wine to keep him compliant. At a remote niche lined with human remains, Montresor chains Fortunato to the wall under the pretense of retrieving the Amontillado, then begins sealing him alive behind a brick wall, layer by layer, while Fortunato alternates between drunken laughter, desperate pleas, and silence. The chapter ends with Montresor completing the wall, re-erecting the bones over it, and declaring that no one has disturbed the site in fifty years.</div>
+                
+                
+                <div class="chapter-characters" style="margin-top: 0.75rem;">
+                    <strong style="margin-right: 0.5rem; color: var(--muted);">Characters:</strong>
+                    
+                    <span class="tag">Montresor</span>
+                    
+                    <span class="tag">Fortunato</span>
+                    
+                    
+                </div>
+                
+            </div>
+            
+        </section>
+        </div>
+
+        <div id="characters" class="tab-content">
+        <section>
+            <h2>👥 Character Guide</h2>
+
+            <!-- Confidence Filter -->
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: var(--muted); margin-right: 0.5rem;">
+                    <input type="checkbox" id="show-low-confidence-only" onchange="filterByConfidence(this.checked)">
+                    Show only low-confidence items
+                </label>
+            </div>
+
+            
+            <div class="character-group">
+                <h3>Main Characters <span class="count">2</span></h3>
+
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        Fortunato
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">protagonist</span>
+                        
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">Wears a motley outfit with a conical cap and bells during the carnival.</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Features: motley outfit, conical cap and bells</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">Confident in his wine connoisseurship, easily flattered, and unaware of Montresor’s hostility.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: connoisseur, easily flattered, intoxicated</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: cheerful</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> boastful then pleading</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> unknown</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> he! he! he!, Amontillado!</div>
+                        
+                        
+                        
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"How? said he. Amontillado, A pipe?"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Ha! ha! ha! --he! he! he! --a very good joke, indeed --an excellent jest."</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"For the love of God, Montresor!"</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-1">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (6 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-1-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato prides himself on his connoisseurship in wine.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato is dressed in a motley outfit with a conical cap and bells during the carnival.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato dismisses Luchresi’s ability to distinguish wine.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato laughs humorously while being entombed.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato pleads for his life before falling silent.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor notes Fortunato does not perceive his hostile intent.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>14 mentions</span> •
+                            <span>First appears: Ch. ?</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        Montresor
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">protagonist</span>
+                        
+                        
+                        <span class="tag" style="background: var(--accent); color: var(--text); font-size: 0.75rem; margin-left: 0.5rem;" title="Narrator">📖 narrator</span>
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">unknown</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">Montresor exhibits calculated control, manipulative intelligence, and emotional detachment, maintaining composure while orchestrating a prolonged, silent murder.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: manipulative, calculating, patient, detached, deceptive</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: calm</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> authoritative</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> unknown</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> repeated use of 'I' to assert agency, use of formal phrasing to mask malice</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> formal</div>
+                        
+                        
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"I must satisfy them."</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"My poor friend found it impossible to reply for many minutes."</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"I suffered him to hurry me to my palazzo."</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-2">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (8 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-2-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor is the narrator of the story</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor seeks revenge against Fortunato for an unspecified insult</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Fortunato is a connoisseur of wine whom Montresor exploits</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor uses Luchresi as a decoy to manipulate Fortunato</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor deceives Fortunato by pretending to be a mason</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor shows no remorse and takes satisfaction in his act</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-7">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor reveals the family motto indicating a code of vengeance</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-8">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Montresor describes the murder as undisturbed for fifty years</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>3 mentions</span> •
+                            <span>First appears: Ch. 1</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+            </div>
+            
+
+            
+            <div class="character-group">
+                <h3>Supporting Characters <span class="count">1</span></h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Mentions</th>
+                            <th>First Appears</th>
+                            <th>Aliases</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>
+                                <strong>Luchresi</strong>
+                                
+                                
+                                <div class="description">Luchresi is referenced as a wine connoisseur whose expertise is questioned by Fortunato, who claims Luchresi cannot distinguish Amontillado from Sherry. He serves as a rhetorical tool used by Fortunat...</div>
+                                
+                            </td>
+                            <td>4</td>
+                            <td>Ch. ?</td>
+                            <td class="aliases">—</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+        </section>
+        </div>
+
+        <div id="pronunciations" class="tab-content">
+        <section>
+            <h2>🗣️ Pronunciation Guide</h2>
+
+            <!-- View Toggle and Search -->
+            <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="color: var(--muted); margin-right: 0.5rem;">View:</span>
+                    <button id="view-by-type" class="view-toggle" onclick="switchPronView('by-type')">By Type</button>
+                    <button id="view-by-chapter" class="view-toggle active" onclick="switchPronView('by-chapter')">By Chapter</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 250px;">
+                    <span style="color: var(--muted);">Search:</span>
+                    <input type="text" id="pron-search" placeholder="Filter pronunciations..."
+                           style="flex: 1; padding: 0.5rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px;"
+                           oninput="searchPronunciations(this.value)">
+                    <button onclick="clearPronSearch()"
+                            style="padding: 0.5rem 1rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px; cursor: pointer;">
+                        Clear
+                    </button>
+                </div>
+                <div id="pron-count" style="color: var(--muted); font-size: 0.9rem;"></div>
+            </div>
+
+            <!-- By Type View -->
+            <div id="pron-by-type" class="pron-view">
+            
+            <div class="pron-group">
+                <h3>Homographs <span class="tag homograph">3</span></h3>
+                <p class="pron-note">Words with multiple pronunciations depending on context</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Confidence</th>
+                            <th>Occurrences</th>
+                            <th>Options/Notes</th>
+                            <th>Example Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>row</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Multiple pronunciations: line (ROH); argument (ROW)</td>
+                            <td class="context">
+                                
+                                "......oc will defend us from the damps. Here I knocked off the neck of a bottle whi..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>close</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Multiple pronunciations: nearby (KLOHS); to shut (KLOHZ)</td>
+                            <td class="context">
+                                
+                                "......ength. I did this, and the clamourer grew still. It was now midnight, and my ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>entrance</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Multiple pronunciations: way in (EN-truns); to charm (en-TRANS)</td>
+                            <td class="context">
+                                
+                                "......e and mortar. With these materials and with the aid of my trowel, I began vig..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+
+            
+            <div class="pron-group">
+                <h3>Proper Nouns <span class="tag proper_noun">3</span></h3>
+                <p class="pron-note">Character names, places, and other proper nouns</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>Fortunato</strong></td>
+                            <td>
+                                <span class="ipa">/fɔr.tuˈnɑː.toʊ/</span>
+                                <br><span class="phonetic">for-tu-NAH-toh</span>
+                                
+                            </td>
+                            <td>14</td>
+                            <td class="context">
+                                
+                                "...﻿The Cask of Amontillado by Edgar Allan Poe (published 1846)..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Luchresi</strong></td>
+                            <td>
+                                <span class="ipa">/luːˈkrɛsi/</span>
+                                <br><span class="phonetic">loo-KREH-see</span>
+                                
+                            </td>
+                            <td>12</td>
+                            <td class="context">
+                                
+                                "......"Amontillado!" "And I must satisfy them." "Amontillado!" ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Montresor</strong></td>
+                            <td>
+                                <span class="ipa">/mɒnˈtreɪ.sɔːr/</span>
+                                <br><span class="phonetic">MON-tray-sor</span>
+                                
+                            </td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......y Fortunato and the rest? Let us be gone." "Yes," I said,..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+            
+
+            
+            <div class="pron-group">
+                <h3>Foreign Words <span class="tag foreign">2</span></h3>
+                <p class="pron-note">Words from other languages that may need special pronunciation</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Language/Notes</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>flambeaux</strong></td>
+                            <td>
+                                <span class="ipa">/flɑ̃.bo/</span>
+                                <br><span class="phonetic">flahn-BOH</span>
+                                
+                            </td>
+                            <td>French plural of 'flambeau,' meaning a torch. The 'x' is silent; the nasal vowel 'an' in 'flam' is pronounced through the nose, and the stress falls on the second syllable.</td>
+                            <td>6</td>
+                            <td class="context">
+                                
+                                "......immediate disappearance, one and all, as soon as my back ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Grave</strong></td>
+                            <td>
+                                <span class="ipa">/ɡrɑːv/</span>
+                                <br><span class="phonetic">GRAHV</span>
+                                
+                            </td>
+                            <td>Pronounced like the English word 'grave' (as in 'serious' or 'tomb'), not 'grahv' with a short 'a'. The 'a' is long and open, similar to the vowel in 'father'. Despite being labeled 'foreign (Latin)', in this context it refers to a French wine, and is pronounced with an English approximation of the French 'Grave' appellation — which is also /ɡrɑːv/ in English usage.</td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......d; "let us go on. But first, another draught of the Medoc..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+
+            
+            <div class="pron-group">
+                <h3>Other <span class="tag unknown">16</span></h3>
+                <p class="pron-note">Technical, archaic, or unusual words</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>Amontillado</strong></td>
+                            <td>
+                                <span class="ipa">/ˌæmən.tɪ.əˈdɑːʊ/</span>
+                                <br><span class="phonetic">AM-uh-nih-uh-DAH-oh</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>17</td>
+                            <td class="context">
+                                
+                                "...﻿The Cask of Amontillado by Edgar Allan Poe (published 1846)..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>nitre</strong></td>
+                            <td>
+                                <span class="ipa">/ˈnaɪtər/</span>
+                                <br><span class="phonetic">NYE-tur</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>5</td>
+                            <td class="context">
+                                
+                                "......with which I perceive you are afflicted. The vaults are i..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>roquelaire</strong></td>
+                            <td>
+                                <span class="ipa">/ʁɔ.kə.lɛʁ/</span>
+                                <br><span class="phonetic">roh-kuh-LAIR</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......speaking, Fortunato possessed himself of my arm; and putt..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Montresors</strong></td>
+                            <td>
+                                <span class="ipa">/ˌmɒn.treˈsɔːrz/</span>
+                                <br><span class="phonetic">MON-tre-SOHRZ</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......length to the foot of the descent, and stood together upo..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>connoisseurship</strong></td>
+                            <td>
+                                <span class="ipa">/ˌkɒn.əˈsɜː.ʃɪp/</span>
+                                <br><span class="phonetic">KON-uh-SUR-ship</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......-- although in other regards he was a man to be respected..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>gemmary</strong></td>
+                            <td>
+                                <span class="ipa">/ˈdʒɛməri/</span>
+                                <br><span class="phonetic">JEM-uh-ree</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......and opportunity, to practise imposture upon the British a..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>rheum</strong></td>
+                            <td>
+                                <span class="ipa">/ruːm/</span>
+                                <br><span class="phonetic">ROOM</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......avern walls." He turned towards me, and looked into my ey..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>leer</strong></td>
+                            <td>
+                                <span class="ipa">/lɪər/</span>
+                                <br><span class="phonetic">LEER</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......hat lay upon the mould. "Drink," I said, presenting him t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>impune</strong></td>
+                            <td>
+                                <span class="ipa">/ɪmˈpjuːn/</span>
+                                <br><span class="phonetic">im-PYOON</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e foot crushes a serpent rampant whose fangs are imbedded..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>lacessit</strong></td>
+                            <td>
+                                <span class="ipa">/ləˈsɛsɪt/</span>
+                                <br><span class="phonetic">luh-SES-it</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......crushes a serpent rampant whose fangs are imbedded in the..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>puncheons</strong></td>
+                            <td>
+                                <span class="ipa">/ˈpʌnʃənz/</span>
+                                <br><span class="phonetic">PUN-shonz</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......fancy grew warm with the Medoc. We had passed through lon..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>flagon</strong></td>
+                            <td>
+                                <span class="ipa">/ˈflæɡən/</span>
+                                <br><span class="phonetic">FLAG-uhn</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......hing," he said; "let us go on. But first, another draught..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>gesticulation</strong></td>
+                            <td>
+                                <span class="ipa">/ˌdʒɛs.tɪ.kjʊˈleɪ.ʃən/</span>
+                                <br><span class="phonetic">jes-ti-kew-LAY-shun</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......t at a breath. His eyes flashed with a fierce light. He l..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>hearken</strong></td>
+                            <td>
+                                <span class="ipa">/ˈhɑːrkən/</span>
+                                <br><span class="phonetic">HAR-ken</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e furious vibrations of the chain. The noise lasted for s..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>hearkened</strong></td>
+                            <td>
+                                <span class="ipa">/ˈhɑːrkənd/</span>
+                                <br><span class="phonetic">HARK-uhnd</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e." "For the love of God, Montresor!" "Yes," I said, "for..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>requiescat</strong></td>
+                            <td>
+                                <span class="ipa">/ˌrɛ.kiˈɛ.skæt/</span>
+                                <br><span class="phonetic">rek-ee-ES-kat</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e-erected the old rampart of bones. For the half of a cen..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+            </div>
+            <!-- End By Type View -->
+
+            <!-- By Chapter View (default) -->
+            <div id="pron-by-chapter" class="pron-view active">
+            
+            <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                <button onclick="expandAllChapters()" class="view-toggle">Expand All</button>
+                <button onclick="collapseAllChapters()" class="view-toggle">Collapse All</button>
+            </div>
+            
+            <details class="pron-chapter-details">
+                <summary>
+                    <h3>Chapter 1 <span class="tag">24 words</span></h3>
+                </summary>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>Amontillado</strong></td>
+                            <td>
+                                <span class="ipa">/ˌæmən.tɪ.əˈdɑːʊ/</span>
+                                <br><span class="phonetic">AM-uh-nih-uh-DAH-oh</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>17</td>
+                            <td class="context">
+                                
+                                "...﻿The Cask of Amontillado by Edgar Allan Poe (published 1846)..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>close</strong></td>
+                            <td>
+                                
+                                
+                                —
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......ength. I did this, and the clamourer grew still. It was n..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>connoisseurship</strong></td>
+                            <td>
+                                <span class="ipa">/ˌkɒn.əˈsɜː.ʃɪp/</span>
+                                <br><span class="phonetic">KON-uh-SUR-ship</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......-- although in other regards he was a man to be respected..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>entrance</strong></td>
+                            <td>
+                                
+                                
+                                —
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e and mortar. With these materials and with the aid of my..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>flagon</strong></td>
+                            <td>
+                                <span class="ipa">/ˈflæɡən/</span>
+                                <br><span class="phonetic">FLAG-uhn</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......hing," he said; "let us go on. But first, another draught..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>flambeaux</strong></td>
+                            <td>
+                                <span class="ipa">/flɑ̃.bo/</span>
+                                <br><span class="phonetic">flahn-BOH</span>
+                                
+                            </td>
+                            <td><span class="tag foreign">foreign</span></td>
+                            <td>6</td>
+                            <td class="context">
+                                
+                                "......immediate disappearance, one and all, as soon as my back ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Fortunato</strong></td>
+                            <td>
+                                <span class="ipa">/fɔr.tuˈnɑː.toʊ/</span>
+                                <br><span class="phonetic">for-tu-NAH-toh</span>
+                                
+                            </td>
+                            <td><span class="tag proper_noun">proper_noun</span></td>
+                            <td>14</td>
+                            <td class="context">
+                                
+                                "...﻿The Cask of Amontillado by Edgar Allan Poe (published 1846)..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>gemmary</strong></td>
+                            <td>
+                                <span class="ipa">/ˈdʒɛməri/</span>
+                                <br><span class="phonetic">JEM-uh-ree</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......and opportunity, to practise imposture upon the British a..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>gesticulation</strong></td>
+                            <td>
+                                <span class="ipa">/ˌdʒɛs.tɪ.kjʊˈleɪ.ʃən/</span>
+                                <br><span class="phonetic">jes-ti-kew-LAY-shun</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......t at a breath. His eyes flashed with a fierce light. He l..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Grave</strong></td>
+                            <td>
+                                <span class="ipa">/ɡrɑːv/</span>
+                                <br><span class="phonetic">GRAHV</span>
+                                
+                            </td>
+                            <td><span class="tag foreign">foreign</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......d; "let us go on. But first, another draught of the Medoc..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>hearken</strong></td>
+                            <td>
+                                <span class="ipa">/ˈhɑːrkən/</span>
+                                <br><span class="phonetic">HAR-ken</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e furious vibrations of the chain. The noise lasted for s..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>hearkened</strong></td>
+                            <td>
+                                <span class="ipa">/ˈhɑːrkənd/</span>
+                                <br><span class="phonetic">HARK-uhnd</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e." "For the love of God, Montresor!" "Yes," I said, "for..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>impune</strong></td>
+                            <td>
+                                <span class="ipa">/ɪmˈpjuːn/</span>
+                                <br><span class="phonetic">im-PYOON</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e foot crushes a serpent rampant whose fangs are imbedded..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>lacessit</strong></td>
+                            <td>
+                                <span class="ipa">/ləˈsɛsɪt/</span>
+                                <br><span class="phonetic">luh-SES-it</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......crushes a serpent rampant whose fangs are imbedded in the..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>leer</strong></td>
+                            <td>
+                                <span class="ipa">/lɪər/</span>
+                                <br><span class="phonetic">LEER</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......hat lay upon the mould. "Drink," I said, presenting him t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Luchresi</strong></td>
+                            <td>
+                                <span class="ipa">/luːˈkrɛsi/</span>
+                                <br><span class="phonetic">loo-KREH-see</span>
+                                
+                            </td>
+                            <td><span class="tag proper_noun">proper_noun</span></td>
+                            <td>12</td>
+                            <td class="context">
+                                
+                                "......"Amontillado!" "And I must satisfy them." "Amontillado!" ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Montresor</strong></td>
+                            <td>
+                                <span class="ipa">/mɒnˈtreɪ.sɔːr/</span>
+                                <br><span class="phonetic">MON-tray-sor</span>
+                                
+                            </td>
+                            <td><span class="tag proper_noun">proper_noun</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......y Fortunato and the rest? Let us be gone." "Yes," I said,..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Montresors</strong></td>
+                            <td>
+                                <span class="ipa">/ˌmɒn.treˈsɔːrz/</span>
+                                <br><span class="phonetic">MON-tre-SOHRZ</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......length to the foot of the descent, and stood together upo..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>nitre</strong></td>
+                            <td>
+                                <span class="ipa">/ˈnaɪtər/</span>
+                                <br><span class="phonetic">NYE-tur</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>5</td>
+                            <td class="context">
+                                
+                                "......with which I perceive you are afflicted. The vaults are i..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>puncheons</strong></td>
+                            <td>
+                                <span class="ipa">/ˈpʌnʃənz/</span>
+                                <br><span class="phonetic">PUN-shonz</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......fancy grew warm with the Medoc. We had passed through lon..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>requiescat</strong></td>
+                            <td>
+                                <span class="ipa">/ˌrɛ.kiˈɛ.skæt/</span>
+                                <br><span class="phonetic">rek-ee-ES-kat</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......e-erected the old rampart of bones. For the half of a cen..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>rheum</strong></td>
+                            <td>
+                                <span class="ipa">/ruːm/</span>
+                                <br><span class="phonetic">ROOM</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......avern walls." He turned towards me, and looked into my ey..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>roquelaire</strong></td>
+                            <td>
+                                <span class="ipa">/ʁɔ.kə.lɛʁ/</span>
+                                <br><span class="phonetic">roh-kuh-LAIR</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......speaking, Fortunato possessed himself of my arm; and putt..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>row</strong></td>
+                            <td>
+                                
+                                
+                                —
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......oc will defend us from the damps. Here I knocked off the ..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </details>
+            
+            
+            </div>
+            <!-- End By Chapter View -->
+
+        </section>
+        </div>
+
+        
+
+        <footer style="text-align: center; color: var(--muted); padding: 2rem;">
+            Generated by Audiobook Prep
+        </footer>
+    </div>
+
+    <script>
+        // Glossary search
+        function searchGlossary(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const items = document.querySelectorAll('.glossary-item');
+            let visibleCount = 0;
+
+            items.forEach(item => {
+                const term = item.querySelector('dt').textContent.toLowerCase();
+                const definition = item.querySelector('dd').textContent.toLowerCase();
+
+                if (searchTerm === '' || term.includes(searchTerm) || definition.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Update count
+            const countDiv = document.getElementById('glossary-count');
+            if (searchTerm) {
+                countDiv.textContent = `Showing ${visibleCount} of ${items.length} entries`;
+            } else {
+                countDiv.textContent = '';
+            }
+
+            // Hide empty letter sections
+            document.querySelectorAll('.glossary-section').forEach(section => {
+                const visibleItems = section.querySelectorAll('.glossary-item:not([style*="display: none"])');
+                section.style.display = visibleItems.length > 0 ? '' : 'none';
+            });
+        }
+
+        function clearGlossarySearch() {
+            document.getElementById('glossary-search').value = '';
+            searchGlossary('');
+        }
+
+        // Pronunciation search
+        function searchPronunciations(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const pronItems = document.querySelectorAll('.pron-item');
+            let visibleCount = 0;
+            let totalCount = pronItems.length;
+
+            pronItems.forEach(item => {
+                const row = item;
+                const cells = row.querySelectorAll('td');
+                let textContent = '';
+
+                // Get text from all cells
+                cells.forEach(cell => {
+                    textContent += cell.textContent.toLowerCase() + ' ';
+                });
+
+                // Show/hide based on search match
+                if (searchTerm === '' || textContent.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update count display
+            const countDiv = document.getElementById('pron-count');
+            if (searchTerm) {
+                countDiv.textContent = `Showing ${visibleCount} of ${totalCount} items`;
+            } else {
+                countDiv.textContent = '';
+            }
+        }
+
+        function clearPronSearch() {
+            document.getElementById('pron-search').value = '';
+            searchPronunciations('');
+        }
+
+        // Confidence filtering
+        function filterByConfidence(showLowOnly) {
+            const items = document.querySelectorAll('.character-item, .pron-item');
+            items.forEach(item => {
+                const confidence = item.getAttribute('data-confidence');
+                if (showLowOnly) {
+                    // Show only low confidence items
+                    if (confidence === 'low') {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                } else {
+                    // Show all items
+                    item.style.display = '';
+                }
+            });
+        }
+
+        // Expand/collapse all pronunciation chapters
+        function expandAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = true);
+        }
+        function collapseAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = false);
+        }
+
+        // Pronunciation view switching
+        function switchPronView(view) {
+            // Remove active class from all view toggles and views
+            document.querySelectorAll('.view-toggle').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.pron-view').forEach(div => {
+                div.classList.remove('active');
+            });
+
+            // Add active class to selected view
+            if (view === 'by-type') {
+                document.getElementById('view-by-type').classList.add('active');
+                document.getElementById('pron-by-type').classList.add('active');
+            } else if (view === 'by-chapter') {
+                document.getElementById('view-by-chapter').classList.add('active');
+                document.getElementById('pron-by-chapter').classList.add('active');
+            }
+        }
+
+        // Tab switching functionality
+        function switchTab(tabId) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Add active class to selected tab and content
+            const selectedLink = document.querySelector(`.tab-link[data-tab="${tabId}"]`);
+            const selectedContent = document.getElementById(tabId);
+
+            if (selectedLink) selectedLink.classList.add('active');
+            if (selectedContent) selectedContent.classList.add('active');
+
+            // Update URL hash without scrolling
+            if (history.pushState) {
+                history.pushState(null, null, `#${tabId}`);
+            } else {
+                window.location.hash = tabId;
+            }
+        }
+
+        // Handle tab clicks
+        document.querySelectorAll('.tab-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tabId = link.getAttribute('data-tab');
+                switchTab(tabId);
+            });
+        });
+
+        // Handle deep linking (URL hash on page load)
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1); // Remove the '#'
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            } else {
+                // Default to overview tab
+                switchTab('overview');
+            }
+        });
+
+        // Handle browser back/forward buttons
+        window.addEventListener('hashchange', () => {
+            const hash = window.location.hash.substring(1);
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            }
+        });
+    </script>
+</body>
+</html>
