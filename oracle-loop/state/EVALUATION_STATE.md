@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 7
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -18,93 +18,116 @@
   - Completeness: 9/10
   - Identity Resolution: 8.5/10
   - Alias Grouping: 9/10
-- Character Profiles: 6.5/10 ✗ (ONLY FAILING CATEGORY)
-  - Bidirectional relationship fix WORKED (John→John Donaldson now "son") — +0.5 from attempt 5
-  - But personality contamination unchanged — John still has father's traits
-- Chapter Summaries: 8.5/10 ✓ (IMPROVED from 7.5 — "brother's grandson" error FIXED)
-- Pronunciation Guide: 8.5/10 ✓ (IMPROVED from 8.0 — categories now populated)
+- Character Profiles: 6/10 ✗ (ONLY FAILING CATEGORY)
+  - Post-profile correction CRASHED (`profile_llm.generate()` → wrong method name)
+  - John personality still contaminated with father's traits
+  - Uncle Bill appearance still "Unknown" despite self-description in text
+  - Two wrong relationships persist
+- Chapter Summaries: 8/10 ✓ (REGRESSION from 8.5 — "brother's grandson" error returned)
+- Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 8.25/10** (reference only)
+- **Overall: 8.08/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold — Profiles only)
+**Status:** FAIL (1 category below threshold — Profiles at 6/10)
 
-## What Improved from Attempt 5
-- **Summary "brother's grandson" error FIXED:** Now correctly says John Donaldson is John's "long-lost father" ✓. No more "brother" or "grandson" errors.
-- **Pronunciation categories now populated:** Was all null, now has homograph, unknown, proper_noun, foreign ✓. Score 8.0→8.5.
-- **John→John Donaldson bidirectional relationship:** Now correctly says "son" instead of "unknown" ✓. The bidirectional relationship post-processing worked.
-- **Uncle Bill verbal tics slightly improved:** No longer reversed ("addressing John as 'Uncle Bill'"). Now says "used the phrase 'Uncle Bill' when addressed by John" — better but still slightly odd.
-- **Summaries now PASS threshold:** 7.5→8.5 (+1.0). Major improvement.
-- **Score improved:** 7.93 → 8.25 (+0.32)
+## What Changed from Attempt 6
 
-## What Didn't Improve
-- **John (son) personality STILL has father's traits:** "Impulsive, self-centered, and evasive; capable of charm but avoids consequences" — these are the FATHER's traits. The son is brave, earnest, patriotic.
-- **John example quotes are father's quotes:** "More money was needed always" and "John always thought that the world owed him a living" — clearly about the FATHER's financial irresponsibility, not the son.
-- **John verbal tics:** "thought that the world owed him a living" — FATHER's trait, not son's.
-- **John age: "middle-aged"** — wrong for the son (early 20s in WWI). This comes from father evidence contamination.
-- **Uncle Bill appearance STILL "unknown":** Despite text saying "I... am... an elderly, grizzled, small man, grim and unexhilarating." The fix attempt didn't fire — warning persists: "No definitive narrator identified from plot summary" and "Narrator 'the elderly, crabbed man' identified but NOT found in main_cast."
-- **Uncle Bill→John Donaldson relationship: "father-in-law"** — should be "cousin." The LLM invented a family connection through John's mother.
+### Fix attempts that CRASHED:
+- **Post-profile personality correction:** The approach was correct (detect same-name pairs, send both profiles to LLM, correct contamination) but CRASHED at runtime because `profile_llm.generate(correction_prompt)` used wrong method. The correct method is `profile_llm.query(correction_prompt)`. This is a **ONE-LINE FIX** at `src/analyzer.py:2054`.
+
+### Fix attempts that were INEFFECTIVE:
+- **Narrator self-description regex search:** The regex `r'\bI[\s.…]{0,20}(?:am|was)\b...'` was added at line 2687, but Uncle Bill's appearance is still "Unknown." Either:
+  - The regex didn't match (text encoding issue with "I... am..." dots), or
+  - The regex matched but the resulting synthetic mention didn't cause the LLM to extract the appearance
+  - Need to verify by adding debug logging, or by directly setting appearance from the regex match itself
+
+### Minor regression:
+- **Summary "brother's grandson" returned:** Was fixed in attempt 6 (said "long-lost father") but LLM regenerated with old error. The code fix (summary prompt guidance) is still in place — this is LLM stochasticity.
+
+### Unchanged:
+- John personality traits: "charming, financially irresponsible, emotionally avoidant, courageous in crisis" — still has father's traits (financially irresponsible, emotionally avoidant)
+- Uncle Bill→John Donaldson: "father-in-law" — still wrong (should be cousin)
+- John→Uncle Bill: "brother" — still wrong (should be uncle/guardian/nephew)
+- John age: "middle-aged" — still wrong (should be early 20s)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **John (son) personality has FATHER's traits — 6th consecutive failure** [Profiles]
-   - Problem: "John" (supporting_0, 30 mentions) personality: "Impulsive, self-centered, and evasive; capable of charm but avoids consequences"
-   - Traits: "impulsive, thriftless, entitled, emotionally avoidant" — ALL are the father's traits
-   - Example quotes are FATHER's: "More money was needed always" and "John always thought that the world owed him a living"
-   - Verbal tic is FATHER's: "thought that the world owed him a living"
-   - The son's actual traits: brave, earnest, patriotic, compassionate, forgiving, warm
-   - The son's actual scenes: enlisting as ambulance driver, serving at Caporetto/Piave, reuniting with dying father, forgiving his father
-   - **This has persisted through ALL 6 attempts.** Approaches tried:
-     - Attempt 5: ±500 char proximity filter — removed all John Donaldson evidence but left father evidence in John's collection
-     - Attempt 6: Disambiguation note with V2 character descriptions — insufficient, LLM still assigns father's traits to son
-   - The warning "No passages provided for John Donaldson, returning UNCERTAIN" persists — meaning the dedup filter is too aggressive for John Donaldson (removing all his evidence) while not aggressive enough for John (leaving father's evidence)
-   - **Root cause analysis:** The text uses just "John" when discussing the father's backstory. The proximity filter can't tell which "John" is being discussed because "John Donaldson" isn't always nearby when the father is discussed as "John." The disambiguation note approach also failed because it's just a hint — the LLM still generates the profile from the contaminated evidence passages.
-   - **RECOMMENDED FIX — Post-profile personality correction:** After generating ALL profiles, add a second LLM pass specifically for same-name characters. Prompt: "Two characters share the name 'John': (A) John — the son, an ambulance driver in WWI who reunites with his father at the front. (B) John Donaldson — the father, who faked his death and lived in exile. Character A was assigned these traits: [impulsive, thriftless, entitled, emotionally avoidant]. Character B was assigned these traits: [honest, reflective, resigned, emotionally vulnerable]. Review: Are any of Character A's traits actually about Character B? If so, generate corrected traits for Character A based only on scenes where the SON appears (WWI service, reunion with father, return home)."
-   - Location: `src/analyzer.py` — add post-profile correction pass after the main profile generation loop
-   - This approach is fundamentally different from previous attempts (which tried to fix evidence BEFORE profiling). By fixing AFTER profiling, both profiles exist and can be compared.
+1. **Post-profile correction has wrong method name — ONE-LINE FIX** [Profiles]
+   - Problem: `src/analyzer.py:2054` calls `profile_llm.generate(correction_prompt)` but `LLMClient` has no `generate()` method
+   - Evidence: Pipeline log "Post-profile correction FAILED: 'LLMClient' object has no attribute 'generate'"
+   - The correct method is `profile_llm.query(correction_prompt)` (see `src/llm/client.py:123`)
+   - The `query()` method returns an `LLMResponse` object with a `.text` attribute for the response content
+   - **FIX:** Change `profile_llm.generate(correction_prompt)` to `profile_llm.query(correction_prompt)` and access `.text` on the response
+   - Verify: Check how `profile_llm.query()` is called elsewhere in `analyzer.py` to match the calling pattern (it returns `LLMResponse`, not a string)
+   - Location: `src/analyzer.py:2054`
+   - **This one fix should resolve John's personality contamination AND age error**
 
 ### HIGH
 
-2. **Uncle Bill appearance "unknown" despite first-person self-description** [Profiles]
-   - Problem: Text says "I... am... an elderly, grizzled, small man, grim and unexhilarating" — but appearance shows "Unknown physical description"
-   - Pipeline warnings: "Narrator 'the elderly, crabbed man' identified but NOT found in main_cast" — narrator detection partially works but can't match to Uncle Bill
+2. **Uncle Bill appearance "Unknown" despite self-description — 7th consecutive failure** [Profiles]
+   - Problem: Text says "I... am... an elderly, grizzled, small man, grim and unexhilarating" but appearance shows "Unknown"
+   - The regex search (line 2687) was added but didn't resolve this
    - Uncle Bill IS tagged `is_narrator: true` in character data
-   - **6 attempts without resolution**
-   - Previous approaches: synthetic early mention (attempt 5), strengthened narrator note (attempt 6) — both failed because narrator identification from plot summary fails
-   - **RECOMMENDED FIX:** Don't rely on narrator detection from the plot summary at all. In `_generate_character_profile`, when `character.is_narrator == True`, directly search the FIRST 1000 characters of the raw text for first-person self-descriptions (patterns like "I am/was [adjective]", "I... am... [description]"). Extract any physical description found and PREPEND it to the appearance context. This bypasses the broken narrator detection pathway entirely.
-   - Location: `src/analyzer.py` — `_generate_character_profile()` method, appearance extraction section
+   - **ROOT CAUSE HYPOTHESIS:** The regex search creates a synthetic mention at the self-description position, but the LLM still generates "Unknown" appearance because it doesn't interpret first-person "I am" as referring to the character being profiled, even with the narrator note
+   - **RECOMMENDED FIX — Direct appearance injection:** Instead of relying on the LLM to extract appearance from the self-description, when the regex finds a match for a narrator character, DIRECTLY set `character.appearance["summary"]` to the matched text (cleaned up). This bypasses the LLM entirely for this specific case:
+     ```python
+     # After regex match for narrator self-description:
+     if match and character.is_narrator:
+         desc_text = match.group()  # e.g., "I... am... an elderly, grizzled, small man"
+         # Clean up: remove "I am/was" prefix
+         cleaned = re.sub(r'^I[\s.…]*(?:am|was)\s*', '', desc_text, flags=re.IGNORECASE).strip()
+         if character.appearance:
+             character.appearance["summary"] = cleaned
+         # Also fix age from the description
+         if "elderly" in desc_text.lower() or "old" in desc_text.lower():
+             character.appearance["age_indication"] = "elderly"
+     ```
+   - Location: `src/analyzer.py` — near line 2687 (narrator self-description search block)
+   - This is MORE reliable than depending on the LLM to correctly interpret first-person self-description
 
 3. **Uncle Bill→John Donaldson relationship: "father-in-law"** [Profiles]
-   - Problem: Should be "cousin" — John Donaldson is Uncle Bill's cousin, not father-in-law
-   - The LLM invented "by marriage connection through John's mother, implied by context"
-   - This persists from previous attempts (was "brother-in-law and estranged brother" in attempt 5)
-   - May improve naturally if the post-profile correction pass (issue #1) also reviews relationships, or could be addressed by providing clearer character description context to the relationship extraction
+   - Problem: Should be "cousin" — the text evidence says "I saw the charming boy, a cousin, who had come to be this lad's father"
+   - This relationship error has persisted through ALL attempts with different wrong answers (brother-in-law, estranged brother, father-in-law)
+   - May require either: (a) the post-profile correction pass to also review relationships, or (b) providing the "cousin" evidence more explicitly in the relationship context
+
+4. **John→Uncle Bill relationship: "brother"** [Profiles]
+   - Problem: Uncle Bill is John's uncle/guardian (raised him after father's death), not his brother
+   - Evidence from text: "I was not his uncle and almost never had I been addressed as 'Bill.'" — but Uncle Bill still functionally served as guardian
+   - May be partially addressable through the post-profile correction pass
 
 ### MEDIUM
 
-4. **John age listed as "middle-aged"** [Profiles]
-   - The son is in his early 20s during WWI, not middle-aged
-   - Same root cause as issue #1 — father's age evidence contaminating son's profile
-   - Will likely be fixed by the post-profile correction pass
+5. **John age "middle-aged" (father's age contamination)** [Profiles]
+   - Son is in his early 20s during WWI, not middle-aged
+   - **Will likely be fixed** by the post-profile correction (issue #1) since the correction prompt includes age
+   - Same root cause as personality contamination
 
-5. **Some pronunciation entries have "unknown" category** [Pronunciation]
-   - Piave, Venetia, Tagliamento, Bersagliari — these are Italian/foreign terms but categorized as "unknown"
-   - Should be "foreign" category
-   - Minor impact — the IPA and notes are correct
-   - Location: Foreign term detection in pronunciation pipeline
+6. **Uncle Bill age "middle-aged" should be "elderly"** [Profiles]
+   - Text says "an elderly, grizzled, small man"
+   - Will be fixed by issue #2 (direct appearance injection) if age is also extracted
+
+7. **Summary regression: "brother's grandson" returned** [Summaries]
+   - Summary says "his deceased brother's grandson, John" — should be "his cousin's son"
+   - The code fix from attempt 6 (summary prompt guidance) is still present
+   - This is LLM stochasticity — the prompt guides away from wrong family terms but doesn't guarantee it
+   - Score impact: 8.5→8.0 (still passing, not urgent)
 
 ### LOW
 
-6. **Homographs lack IPA** [Pronunciation]
-   - live, minute, read, close, moderate — flagged correctly with descriptive notes but no IPA for each pronunciation
-   - Acceptable since both pronunciations are described textually
+8. **Uncle Bill verbal tics confused** [Profiles]
+   - "addressing John as 'Uncle Bill' despite not being his uncle" — this describes how others address HIM, not his verbal tic
+   - Minor — Uncle Bill's example quotes are excellent
 
-7. **"dum-dums" note says "colloquial term for beans"** [Pronunciation]
-   - Dum-dum bullets are expanding bullets used in warfare — the note misidentifies this term
-   - In the context of a WWI story, "dum-dums" almost certainly refers to the expanding bullets
-   - Minor factual error in pronunciation notes
+9. **Some pronunciation entries have "unknown" category** [Pronunciation]
+   - Piave, Venetia, Tagliamento, Bersagliari — should be "foreign" category
+   - Score impact minimal — IPA and notes are correct
+
+10. **"dum-dums" note says "colloquial term for beans"** [Pronunciation]
+    - In WWI context, dum-dum bullets (expanding bullets) — not beans
+    - Minor factual error in pronunciation notes
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -115,6 +138,7 @@
 | 4 | 7.48 | +0.55 | Johnny merged, pronunciation passes 8.0, possessives filtered — but Ted/Ted Frith still split |
 | 5 | 7.93 | +1.00 | Ted merged, Red Cross removed, Characters passes 8.0 — but profiles 6/10, summaries 7.5 |
 | 6 | 8.25 | +1.32 | Summaries PASS (8.5), Pronunciation improved (8.5), bidirectional rels fixed — Profiles 6.5 only failing category |
+| 7 | 8.08 | +1.15 | Post-profile correction CRASHED (wrong method name). Profiles unchanged at 6/10. Summary minor regression (8.5→8.0). |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
@@ -136,6 +160,10 @@
 - Attempt 6: Evidence disambiguation, narrator appearance, bidirectional relationships, summary prompt, pronunciation category
   - Modified: `src/analyzer.py`, `src/models.py`, `src/pipeline/chapter_summary/summarizer.py`
   - Result: Summaries PASS ✓ (8.5), Pronunciation improved ✓ (8.5), bidirectional rels ✓, but John personality unchanged, Uncle Bill appearance unchanged
+
+- Attempt 7: Post-profile correction pass + narrator self-description regex search
+  - Modified: `src/analyzer.py` (post-profile correction at line ~1968, narrator regex at line ~2687)
+  - Result: Post-profile correction **CRASHED** (wrong method: `.generate()` instead of `.query()`). Narrator regex search added but appearance still "Unknown." Net effect: no improvement over attempt 6, slight summary regression.
 
 ## Modification History
 
@@ -161,86 +189,65 @@
 | 6 | Profiles: bidirectional rels | src/analyzer.py (reverse relationship inference) | **Fixed** ✓ |
 | 6 | Summaries: family terms | src/pipeline/chapter_summary/summarizer.py | **Fixed** ✓ — "brother's grandson" gone |
 | 6 | Pronunciation: categories | src/models.py (added category field) | **Fixed** ✓ — categories now populated |
+| 7 | Profiles: post-profile correction | src/analyzer.py:2054 (`.generate()` call) | **CRASHED** — wrong method name `.generate()` instead of `.query()` |
+| 7 | Profiles: narrator regex search | src/analyzer.py:2687 (self-description regex) | **NO CHANGE** — regex added but appearance still "Unknown" |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
 - character_llm_chunk_chars: 5000 (appropriate for 5,048 word text)
 - All characters from `supporting_*` IDs — main_cast pipeline did not fire
 - Temperature: 0.7 for all agents
-- Total time: 14m 21s, 32 LLM calls, 52,541 tokens
+- Total time: 13m 34s, 32 LLM calls, 51,891 tokens
 - 4 profiles generated with HIGH confidence
-- 18 pronunciation flags; categories now populated (homograph, unknown, proper_noun, foreign)
+- 18 pronunciation flags; categories populated (homograph, unknown, proper_noun, foreign)
 
-## Priority Fix Guidance for Attempt 7
+## Priority Fix Guidance for Attempt 8
 
-**ONE failing category remaining: Profiles at 6.5 → needs 8.0 (+1.5)**
+**ONE failing category: Profiles at 6/10 → needs 8.0 (+2.0)**
 
-### The John personality contamination has now persisted through ALL 6 attempts.
+### FIX 1 (CRITICAL — ONE-LINE FIX): Fix post-profile correction method name
 
-**Approaches that FAILED:**
-1. ±500 char proximity filter (attempt 5) — too blunt, removed all John Donaldson evidence while leaving father evidence in John's collection
-2. Disambiguation note with V2 descriptions (attempt 6) — insufficient, LLM still generates wrong personality from contaminated evidence
+The post-profile correction approach is **CORRECT** and already implemented. It just crashed due to a wrong method name.
 
-**All previous approaches tried to fix evidence BEFORE profiling. Attempt 7 must fix AFTER profiling.**
+**At `src/analyzer.py:2054`:**
+```python
+# CURRENT (broken):
+_corr_response = profile_llm.generate(correction_prompt)
 
-### REQUIRED: Post-profile personality correction pass
+# FIX:
+_corr_response = profile_llm.query(correction_prompt)
+```
 
-After generating all profiles in the main loop, add a SECOND LLM call specifically for characters that share a first name:
+**IMPORTANT:** `query()` returns an `LLMResponse` object, not a string. Check how the response is used on subsequent lines — ensure it accesses `_corr_response.text` (or whatever attribute `LLMResponse` uses) to get the string content. Look at how `profile_llm.query()` is called elsewhere in analyzer.py for the correct pattern.
 
-1. **Detect same-name pairs:** Iterate through characters. If character A's canonical name is a prefix/suffix/substring of character B's canonical name (e.g., "John" and "John Donaldson"), flag them for correction.
+This fix should resolve:
+- John personality contamination (CRITICAL)
+- John age "middle-aged" → should become early 20s (MEDIUM)
 
-2. **LLM correction prompt:** Send BOTH profiles to the LLM:
-   ```
-   Two characters share the name "John":
-   - Character A: "John" (the son) — ambulance driver in WWI, reunites with dying father
-   - Character B: "John Donaldson" (the father) — faked death, lived in exile, died at Piave
+### FIX 2 (HIGH): Direct narrator appearance injection
 
-   Character A was assigned: personality=[impulsive, thriftless, entitled], appearance=[middle-aged]
-   Character B was assigned: personality=[honest, reflective, resigned]
+The narrator self-description regex is in place but the LLM still outputs "Unknown." Instead of relying on the LLM, directly inject the appearance when the regex matches:
 
-   Are any of Character A's traits actually about Character B?
-   Provide corrected personality traits, appearance, and verbal tics for Character A
-   based ONLY on scenes where the SON appears.
-   ```
+**At `src/analyzer.py` near line 2694-2700 (after regex match is found):**
+```python
+# After finding the match, directly set appearance on the character
+# instead of just creating a synthetic mention
+if _m and is_narrator and hasattr(character, 'appearance') and character.appearance:
+    desc_text = _m.group()
+    # Strip "I am/was" prefix to get just the description
+    cleaned = re.sub(r'^I[\s.…]*(?:am|was)\s*', '', desc_text, flags=re.IGNORECASE).strip()
+    if cleaned and character.appearance.get("summary", "").lower() in ("unknown", ""):
+        character.appearance["summary"] = cleaned
+        logger.info(f"Narrator '{character.canonical_name}': directly set appearance from self-description: {cleaned}")
+        # Also set age from description keywords
+        if any(w in desc_text.lower() for w in ("elderly", "old", "aged")):
+            character.appearance["age_indication"] = "elderly"
+```
 
-3. **Apply corrections:** Replace the contaminated profile fields with the LLM's corrected output.
+**NOTE:** This code must run AFTER the profile is generated (post-processing), not before. If the appearance dict is created during profiling, this injection should happen after the profile generation loop, similar to the post-profile correction pass.
 
-### Uncle Bill appearance: Direct text search for narrator
-
-Don't rely on narrator detection from plot summary. When `character.is_narrator == True`:
-- Search the FIRST 1000 chars of raw text for first-person physical self-description patterns
-- Regex: `I\s+(?:am|was)\s+.*?(?:man|woman|person|old|young|tall|short|thin|fat|grizzled|small)`
-- Apply any found description directly to the character's appearance
-
-### WARNING: src/analyzer.py modified in 5 of 6 attempts
-This file MUST be modified again (it's the right place for post-profile processing). But the approach MUST be fundamentally different — post-profile correction, not pre-profile evidence filtering.
-
-## Pipeline Notes (Attempt 7)
-- **CRITICAL:** Post-profile correction FAILED: `'LLMClient' object has no attribute 'generate'`
-  - The correction pass ran but crashed — wrong method name used
-  - John's personality contamination likely UNCHANGED
-  - Fix attempt 8: Change `.generate()` to the correct LLMClient method name (probably `.complete()`)
-- `No passages provided for John Donaldson, returning UNCERTAIN` — same as before
-- `Narrator 'the narrator (unnamed)' identified but NOT found in main_cast` — Uncle Bill appearance still unknown
-- `No definitive narrator identified from plot summary` — narrator detection still failing
-- `LLM marker proposer returned non-list` — structure detection warnings (benign, 1 chapter correct)
-- Run time: 13m 34s, 32 LLM calls, 51,891 tokens
+### WARNING: src/analyzer.py modified in 6 of 7 attempts
+This file is the correct location for both fixes. Fix 1 is a one-line change to existing code. Fix 2 is a small addition to existing regex match handling.
 
 ## Next Action
-Evaluate attempt 7 output (likely same as attempt 6 since post-profile correction failed)
-
-## Attempt 7 Fix Applied
-- **Issue #1 (CRITICAL)**: Post-profile personality correction pass
-  - After ALL profiles are generated, find same-name character pairs (where name_a is a prefix of name_b)
-  - For each pair, send both personality profiles + summary evidence to LLM
-  - LLM detects whether shorter-name character's traits are contaminated by longer-name character
-  - If contamination detected, corrected personality (and age_indication) is applied
-  - Location: `src/analyzer.py` after bidirectional relationship post-processing
-  - Fix type: algorithmic (post-profile LLM verification)
-
-- **Issue #2 (HIGH)**: Narrator first-person self-description search
-  - Instead of fixed position 100, regex-searches first 20% of text for "I am/was [physical descriptor]" patterns
-  - Handles "I... am..." style (ellipsis between "I" and "am") via `[\s.…]{0,20}` in pattern
-  - Falls back to position 100 if no self-description pattern found
-  - Location: `src/analyzer.py` narrator synthetic mention block (~line 2687)
-  - Fix type: algorithmic (pattern search)
+Run PROMPT_fix.md to apply the one-line method name fix (Critical #1) and narrator appearance injection (High #2).
