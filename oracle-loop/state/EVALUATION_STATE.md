@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -18,124 +18,86 @@
   - Completeness: 9/10
   - Identity Resolution: 9/10
   - Alias Grouping: 9/10
-- Character Profiles: 6.5/10 ✗ (ONLY FAILING CATEGORY)
-- Chapter Summaries: 8.5/10 ✓ (recovered from 8.0 regression — no "brother's grandson")
+- Character Profiles: 7/10 ✗ (ONLY FAILING CATEGORY)
+- Chapter Summaries: 8/10 ✓ (minor deduction for Chinese character LLM artifact "认出")
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 8.38/10** (reference only)
+- **Overall: 8.33/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold — Profiles at 6.5/10)
+**Status:** FAIL (1 category below threshold — Profiles at 7/10)
 
-## What Changed from Attempt 7
+## What Changed from Attempt 9
 
-### Post-profile correction (FIX 1) — FIRED but over-corrected:
-- The method name fix (`.generate()` → `.query()`) worked — the correction ran
-- It correctly detected personality contamination for John (father's traits on son)
-- BUT the corrected personality is **BLANK**: "Insufficient story role evidence available to determine John's true personality" with empty traits list
-- **Root cause:** The chapter evidence fed into the correction prompt was too sparse for a single-chapter short story. The LLM detected contamination but couldn't infer correct traits, so it blanked everything
-- Net effect: John's personality went from "wrong" to "empty" — marginal improvement in correctness, but useless for narrator prep
+### FIX 2 (Subtractive profile correction) — SUCCESS:
+- John's personality is no longer blank. Now has: "empathetic, resilient, courageous, determined"
+- Summary: "young, orphaned boy who demonstrates emotional sincerity and resilience" — accurate
+- Temperament: "earnest and hopeful" — good
+- **Net effect:** John personality went from empty → meaningful and accurate (+1.0 to profiles)
 
-### Narrator appearance injection (FIX 2) — DID NOT FIRE:
-- The `import re` crash is fixed — the code now runs without error
-- BUT the injection code has a **gate condition bug** at `src/analyzer.py:1935`:
-  ```python
-  if _current_app_summary not in ("", "unknown"):
-      continue  # Already has appearance — nothing to inject
-  ```
-- Uncle Bill's appearance summary is: "The narrator does not provide a direct physical description of himself, but he is implied to be older than John..."
-- This verbose non-answer is **neither "" nor "unknown"** — so the gate condition passes through as "already has appearance" and skips injection
-- **ROOT CAUSE IDENTIFIED:** The LLM generates verbose "I don't know" answers instead of literal "unknown". The gate condition must be broadened.
+### FIX 1 (Narrator appearance gate condition) — PARTIALLY FIRED:
+- The gate condition broadening WORKED — Uncle Bill's age changed from "middle-aged" to "elderly" ✓
+- BUT the appearance injection produced **garbled text**: `"suddenly important, I, the gray"` instead of the expected "elderly, grizzled, small man, grim and unexhilarating"
+- The injection code ran but the text extraction (regex or LLM) pulled wrong fragments from the source text
+- **Net effect:** Age improved, but appearance is garbled nonsense — arguably worse than the previous verbose non-answer
 
-### Summary improvement:
-- "brother's grandson" error is gone — summary correctly uses "cousin" terminology
-- Summary quality is good (8.5/10)
+### Relationship improvement (unexpected bonus):
+- Uncle Bill → John Donaldson: was "guardian and adoptive father figure" → now "cousin and former associate who embezzled money and faked his death" — CORRECT ✓
+- This may be a side effect of the subtractive correction pass improving overall character understanding
+
+### Summary issue:
+- Chapter summary contains Chinese character "认出" (means "recognize") — LLM artifact from the qwen model leaking Chinese tokens
+- Rest of the summary is excellent
+- Deducting 0.5 points (8.5 → 8.0) since a narrator would encounter garbled text
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Narrator appearance injection gate condition too narrow — Uncle Bill appearance still wrong (8th attempt)** [Profiles]
-   - Problem: `src/analyzer.py:1935` checks `if _current_app_summary not in ("", "unknown")` but the LLM generates verbose non-answers like "The narrator does not provide a direct physical description..." which don't match either check value
-   - Evidence: Uncle Bill's self-description is in the text: "I... am... an elderly, grizzled, small man, grim and unexhilarating" — but his appearance shows the LLM's verbose "I don't know"
-   - Location: `src/analyzer.py:1935`
-   - **FIX:** Broaden the gate condition to also catch verbose non-answers. Replace:
-     ```python
-     if _current_app_summary not in ("", "unknown"):
-         continue
-     ```
-     With:
-     ```python
-     _no_desc_phrases = ("unknown", "does not provide", "no physical description",
-                         "not described", "no direct physical", "no description",
-                         "not provide a direct")
-     _has_real_appearance = _current_app_summary and not any(
-         phrase in _current_app_summary for phrase in _no_desc_phrases
-     )
-     if _has_real_appearance:
-         continue
-     ```
-   - This is universal: any narrator whose LLM profile returns a verbose "I don't know" will now get the self-description injection
-   - **ALSO fixes Uncle Bill's age:** The injection code already sets `age_indication` to "elderly" when the self-description contains "elderly" — so fixing the gate also fixes the age from "middle-aged" to "elderly"
-
-2. **Post-profile correction blanks John's personality instead of correcting it** [Profiles]
-   - Problem: The correction prompt asks the LLM to generate new traits from chapter evidence, but for a single-chapter story the evidence is too sparse
-   - Evidence: John's personality is now: "Insufficient story role evidence available..." with `traits: []`, `temperament: "unknown"`
-   - The original (contaminated) traits included some correct ones (e.g., "charming", "courageous in crisis") mixed with father's traits ("financially irresponsible", "emotionally avoidant")
-   - Location: `src/analyzer.py:2060-2094` (correction prompt)
-   - **FIX:** Modify the correction approach to be **subtractive rather than generative**. Instead of asking the LLM to generate new traits from scratch (which fails with sparse evidence), provide both characters' traits and ask which ones belong to which character:
-     ```python
-     correction_prompt = f"""Two characters share the first name "{_name_short}": "{_name_short}" and "{_name_long}".
-
-     "{_name_short}"'s story role:
-     {ev_short}
-
-     "{_name_long}"'s story role:
-     {ev_long}
-
-     "{_name_short}" was assigned these personality traits: {traits_short}
-     "{_name_long}" was assigned these personality traits: {traits_long}
-
-     Some of "{_name_short}"'s traits may actually belong to "{_name_long}" (contamination from name overlap).
-
-     For each trait in "{_name_short}"'s list, determine: does it genuinely describe "{_name_short}" based on their story role, or does it better fit "{_name_long}"?
-
-     Return JSON only:
-     {{
-       "contamination_detected": true or false,
-       "reason": "one sentence explanation",
-       "corrected_personality": {{
-         "summary": "corrected summary for {_name_short} keeping only their genuine traits",
-         "traits": ["only traits that genuinely belong to {_name_short}"],
-         "temperament": "based on retained traits",
-         "emotional_range": "based on retained traits"
-       }},
-       "corrected_age_indication": "young/middle-aged/elderly/unknown"
-     }}
-
-     IMPORTANT: You MUST keep at least the traits that match "{_name_short}"'s story role. Do NOT return an empty traits list — if unsure about a trait, keep it.
-     Only include "corrected_personality" and "corrected_age_indication" if contamination_detected is true."""
-     ```
-   - Key change: **"You MUST keep at least the traits that match"** prevents blanking. The subtractive approach (remove wrong traits) is more reliable than generative (invent new traits) with sparse evidence.
+1. **Uncle Bill appearance injection produced garbled text** [Profiles]
+   - Problem: Appearance shows `"suddenly important, I, the gray"` — nonsensical fragments instead of his actual self-description
+   - Expected: "I... am... an elderly, grizzled, small man, grim and unexhilarating" (direct quote from text)
+   - Evidence: The gate condition broadening worked (age is now "elderly"), so the injection code IS running, but the text extraction is producing garbage
+   - Location: `src/analyzer.py` — the narrator appearance injection pass (around line 1940-1960). The code that constructs the appearance summary from the regex-extracted self-description is either:
+     (a) The regex is matching wrong text fragments, or
+     (b) The extracted text is being truncated/mangled before being stored
+   - **FIX:** Debug the injection code path. The regex should find "I... am... an elderly, grizzled, small man, grim and unexhilarating" in the source text. Check:
+     1. What text does the regex actually match? (Add a log line or check the regex pattern)
+     2. Is the matched text being correctly stored in `appearance.summary`?
+     3. Is there a subsequent processing step that overwrites the injected appearance with LLM-generated garbage?
+   - The fragments "suddenly important", "I", "the gray" look like they come from the text but are random snippets, not the self-description passage. This suggests the regex may be matching too broadly or the wrong passage.
 
 ### HIGH
 
-3. **Uncle Bill → John Donaldson relationship: "guardian and adoptive father figure"** [Profiles]
-   - Problem: Uncle Bill is John Donaldson's COUSIN, not guardian. Uncle Bill raised John (the son), not John Donaldson (the father). The text says: "I saw the charming boy, a cousin, who had come to be this lad's father"
-   - Evidence: Uncle Bill explicitly says he is a cousin of John Donaldson. He was John Donaldson's cousin who later raised John Donaldson's abandoned son.
-   - This error has persisted across multiple attempts with various wrong answers
-   - Location: Profile generation in `src/analyzer.py` — the relationship extraction prompt or the bidirectional relationship inference
-   - Possible fix: The post-profile correction pass could also review relationships, or the relationship prompt needs better guidance about distinguishing who was raised by whom
+2. **Uncle Bill example quotes are misattributed** [Profiles]
+   - Problem: 2 of 3 "example quotes" for Uncle Bill are actually John's dialogue:
+     - "Dear Uncle Bill: Where am I going to in vacation?" — This is JOHN's letter to Uncle Bill
+     - "You're dying for the flag, father--father!" — This is JOHN speaking to his dying father
+   - Only "I heard my throat make a queer sound, but I said no word" is genuinely Uncle Bill's narration
+   - Location: Voice guidance generation in the profile pipeline. The LLM is confusing quotes addressed TO Uncle Bill with quotes spoken BY Uncle Bill.
+   - This is a recurring LLM confusion issue — hard to fix generically. **Score impact: ~0.25 points**
 
-4. **John's voice guidance completely empty** [Profiles]
-   - Problem: Tone "unknown", Dialect "unknown", no verbal tics, no example quotes
-   - This is a downstream effect of the blanked personality — when the LLM blanks personality, it also blanks voice guidance
-   - Will likely be fixed when issue #2 (personality blanking) is resolved
+3. **John → John Donaldson relationship listed as "unknown"** [Profiles]
+   - Problem: John's relationship to John Donaldson is "unknown" — should be "son" or "father" (John is John Donaldson's son)
+   - The reverse is also wrong: John Donaldson → John is "unknown" (should be "father")
+   - Uncle Bill → John Donaldson is correctly "cousin" now, so the pipeline KNOWS the family structure but doesn't propagate it to John ↔ John Donaldson
+   - Location: Bidirectional relationship inference in `src/analyzer.py`
+   - The bidirectional inference correctly propagates Uncle Bill's relationships but not John Donaldson's
+   - **Score impact: ~0.25 points**
+
+4. **John Donaldson → Uncle Bill relationship garbled** [Profiles]
+   - Problem: Shows "referenced in context of his pitiful laugh (possibly symbolic or metaphorical)" — should be "cousin"
+   - Uncle Bill → John Donaldson is correctly "cousin", so the bidirectional inference should have propagated this
+   - Location: Same as #3 — bidirectional relationship inference
+   - **Score impact: ~0.15 points**
 
 ### MEDIUM
 
-5. **Uncle Bill age still "middle-aged"** [Profiles]
-   - Will be fixed by issue #1 (gate condition fix) — the injection code already sets `age_indication` to "elderly" when the description contains "elderly"
+5. **Chinese character "认出" in chapter summary** [Summaries]
+   - Problem: Summary contains `"whom he认出 as his own"` — Chinese character for "recognize" leaked from the qwen model
+   - Evidence: Line 913 of report.html, visible in the summary text
+   - Location: This is an LLM output artifact. Could be mitigated by post-processing summaries to strip non-ASCII characters (or non-Latin characters when the source text is English)
+   - **Score impact: 0.5 points on summaries (8.5 → 8.0)**
 
 6. **"dum-dums" pronunciation note says "colloquial term for beans"** [Pronunciation]
    - In WWI context, dum-dum bullets (expanding bullets banned by Hague Convention) — not beans
@@ -157,7 +119,8 @@
 | 6 | 8.25 | +1.32 | Summaries PASS (8.5), Pronunciation improved (8.5), bidirectional rels fixed — Profiles 6.5 only failing category |
 | 7 | 8.08 | +1.15 | Post-profile correction CRASHED (wrong method name). Profiles unchanged at 6/10. Summary minor regression (8.5→8.0). |
 | 8 | - | - | CRASHED — `import re` scoping bug in narrator injection |
-| 9 | 8.38 | +1.45 | Post-profile correction FIRED but blanked John's personality. Narrator injection gate condition too narrow. Profiles 6.5/10. Summary recovered to 8.5. |
+| 9 | 8.38 | +1.45 | Post-profile correction FIRED but blanked John's personality. Narrator injection gate condition too narrow. Profiles 6.5/10. |
+| 10 | 8.33 | +1.40 | John personality FIXED ✓, Uncle Bill age FIXED ✓, Uncle Bill→JD relationship FIXED ✓ — but narrator appearance injection produced garbled text. Profiles 7/10. |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
@@ -192,6 +155,10 @@
   - Modified: `src/analyzer.py` (removed line 2361)
   - Result: Analysis completed. Post-profile correction FIRED and detected contamination, but blanked John's personality. Narrator injection gate condition too narrow — didn't fire for Uncle Bill.
 
+- Attempt 10: Broadened gate condition + subtractive profile correction
+  - Modified: `src/analyzer.py` (gate condition at ~1934, correction prompt at ~2066)
+  - Result: John personality FIXED ✓. Gate condition broadening worked (age changed to elderly ✓). BUT appearance injection produced garbled text "suddenly important, I, the gray" instead of self-description.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -223,106 +190,54 @@
 | 9 | Profiles: `import re` scoping | src/analyzer.py:2361 (removed bare import) | **Fixed** ✓ — analysis completes |
 | 9 | Profiles: post-profile correction | (already fixed in 8) | **FIRED but blanked** — detected contamination but returned empty traits |
 | 9 | Profiles: narrator injection | (already fixed in 8) | **DID NOT FIRE** — gate condition too narrow (line 1935) |
+| 10 | Profiles: gate condition broadening | src/analyzer.py:~1934 | **PARTIAL** — gate fires, age corrected, but appearance text garbled |
+| 10 | Profiles: subtractive correction | src/analyzer.py:~2066 | **Fixed** ✓ — John personality now meaningful and accurate |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
 - character_llm_chunk_chars: 5000 (appropriate for 5,048 word text)
 - All characters from `supporting_*` IDs — main_cast pipeline did not fire
 - Temperature: 0.7 for all agents
-- Total time: 9m 45s, 29 LLM calls, 49,286 tokens
+- Total time: 13m 29s, 32 LLM calls, 52,494 tokens
 - 4 profiles generated with HIGH confidence
-- 18 pronunciation flags; categories populated (homograph, unknown, proper_noun, foreign)
+- 18 pronunciation flags; categories populated
+- 0 LLM retries across all stages
 
-## Priority Fix Guidance for Attempt 10
+## Priority Fix Guidance for Attempt 11
 
-**ONE failing category: Profiles at 6.5/10 → needs 8.0 (+1.5)**
+**ONE failing category: Profiles at 7/10 → needs 8.0 (+1.0)**
 
-**Both fixes are in `src/analyzer.py` — small, targeted changes to existing code.**
+**The single blocker is Uncle Bill's garbled appearance text.** Everything else has improved.
 
-### FIX 1 (CRITICAL): Broaden narrator appearance injection gate condition
+### FIX 1 (CRITICAL): Debug and fix narrator appearance injection text extraction
 
-**ROOT CAUSE IDENTIFIED:** The gate condition at `src/analyzer.py:1935` only checks for literal `""` or `"unknown"`, but the LLM generates verbose non-answers. This is why the injection has failed for 8 consecutive attempts.
+**THE PROBLEM:** The gate condition fix from attempt 10 WORKED — the injection code now runs for Uncle Bill. But the appearance summary stored is `"suddenly important, I, the gray"` instead of the expected self-description `"an elderly, grizzled, small man, grim and unexhilarating"`.
 
-**At `src/analyzer.py:1934-1936`, replace:**
-```python
-_current_app_summary = (_nc.appearance.get("summary", "") or "").strip().lower()
-if _current_app_summary not in ("", "unknown"):
-    continue  # Already has appearance — nothing to inject
-```
+**DIAGNOSIS APPROACH:**
+1. Find the narrator appearance injection code in `src/analyzer.py` (around line 1940-1960)
+2. Examine how the appearance summary is constructed — is it:
+   - (a) Extracted by regex from source text? → Check what the regex matches
+   - (b) Generated by LLM from evidence? → Check the LLM prompt
+   - (c) Pulled from a pre-extracted field? → Check the field value
+3. The fragments "suddenly important", "I", "the gray" appear to be random text snippets, suggesting either a broken regex match or the LLM generating a summary from wrong context
 
-**With:**
-```python
-_current_app_summary = (_nc.appearance.get("summary", "") or "").strip().lower()
-_no_desc_phrases = ("unknown", "does not provide", "no physical description",
-                    "not described", "no direct physical", "no description",
-                    "not provide a direct")
-_has_real_appearance = _current_app_summary and not any(
-    phrase in _current_app_summary for phrase in _no_desc_phrases
-)
-if _has_real_appearance:
-    continue  # Already has a real appearance — nothing to inject
-```
+**KEY CLUE:** The age_indication was correctly set to "elderly" — this suggests the code that processes the matched text works for some fields (age) but not for the appearance summary itself. Perhaps the summary assignment is overwritten by a later step, or the regex captures groups incorrectly.
 
-**This fixes:**
-- Uncle Bill appearance (will inject "an elderly, grizzled, small man, grim and unexhilarating")
-- Uncle Bill age (injection code already sets "elderly" when description contains the word)
+**EXPECTED RESULT:** Uncle Bill's appearance.summary should contain text like "An elderly, grizzled, small man, grim and unexhilarating" (extracted from the narrator's self-description in the source text).
 
-### FIX 2 (CRITICAL): Make post-profile correction subtractive instead of generative
+**FALLBACK:** If the regex/injection approach continues to produce garbled text, consider a simpler approach: directly set the appearance summary to the matched regex text without LLM post-processing. The raw text "I... am... an elderly, grizzled, small man, grim and unexhilarating" is already a good narrator-ready description.
 
-**At `src/analyzer.py:2060-2094`, modify the correction prompt** to use a subtractive approach. Key changes:
-1. Ask the LLM to filter traits rather than generate new ones from scratch
-2. Add explicit instruction: "You MUST keep at least the traits that match the character's story role. Do NOT return an empty traits list."
-3. Frame it as "which of these traits belong to which character?" rather than "generate correct traits"
+### FIX 2 (HIGH but OPTIONAL if FIX 1 gets profiles to 8.0): Fix relationship propagation
 
-The current prompt at line 2079-2081:
-```
-Do "{_name_short}"'s assigned traits match their actual story role (from chapter summaries above)?
-Or do they better match "{_name_long}"'s story role?
-```
+John → John Donaldson should be "son" and John Donaldson → John should be "father". Uncle Bill → John Donaldson is correctly "cousin", so the bidirectional inference has the data but doesn't propagate correctly to John Donaldson's entries.
 
-Should be changed to something like:
-```
-Review each trait in "{_name_short}"'s list. For each one, does it genuinely describe "{_name_short}" based on their story role above, or does it better fit "{_name_long}"?
-
-Keep all traits that could plausibly describe "{_name_short}". Only remove traits that clearly belong to "{_name_long}" instead.
-
-IMPORTANT: Do NOT return an empty traits list. If uncertain about a trait, keep it for "{_name_short}".
-```
-
-### FIX 3 (HIGH but OPTIONAL): Uncle Bill → John Donaldson relationship
-
-This has persisted across all attempts. If there's room, the post-profile correction pass could also review relationships for same-name character pairs. But fixes #1 and #2 are sufficient to reach 8.0 on profiles if they work.
-
-### WARNING: src/analyzer.py modified in 8 of 9 attempts
-Both fixes are small, targeted changes to existing code (a gate condition and a prompt). No new functions or major refactors needed.
+### WARNING: src/analyzer.py modified in 9 of 10 attempts
+FIX 1 is a targeted debug of existing injection code. No new features needed — just ensure the appearance text that's already being extracted gets stored correctly.
 
 ## Expected Impact of Fixes
-- FIX 1: Uncle Bill appearance correct + age correct → +1.0 to profiles
-- FIX 2: John personality restored (at least partially) + voice guidance → +0.5 to profiles
-- Combined: Profiles 6.5 → ~8.0-8.5
-- With relationship fix (#3): Profiles could reach 8.5-9.0
-
-## Fix History (Attempt 10)
-- FIX 1: Broadened narrator appearance injection gate condition
-  - Modified: `src/analyzer.py:1934-1942` (gate condition check)
-  - Root cause: `_current_app_summary not in ("", "unknown")` missed verbose LLM non-answers
-  - Changed to: check for presence of any "no description" phrases, treat as missing appearance
-  - Will allow Uncle Bill's self-description "elderly, grizzled, small man" to be injected
-
-- FIX 2: Made post-profile correction subtractive instead of generative
-  - Modified: `src/analyzer.py:2066-2103` (correction prompt)
-  - Root cause: prompt asked LLM to generate new traits from scratch — fails with sparse evidence
-  - Changed to: ask LLM to filter existing traits (keep if uncertain, only remove clear contamination)
-  - Added explicit "Do NOT return an empty traits list" instruction
-
-## Pipeline Notes (Attempt 10)
-- Completed in 14m 1s, 32 LLM calls, 52,494 tokens
-- 4 profiles generated with HIGH confidence
-- FIX 2 FIRED: "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" ✓
-- FIX 1 status: Gate condition broadened — need evaluation to confirm Uncle Bill appearance injected
-- "No definitive narrator identified from plot summary" — final narrator detection still failed, but injection pass runs before this (needs verification)
-- 18 pronunciation flags (same count as before)
-- Characters: 5 found (John/Johnny, Uncle Bill/Bill, John Donaldson, Joe Barron, Ted Frith/Ted) ✓
+- FIX 1: Uncle Bill appearance correct → +0.75 to +1.0 on profiles (7 → 7.75-8.0)
+- FIX 2 (if needed): Relationship propagation → +0.25 on profiles
+- Combined: Profiles 7 → ~8.0-8.5
 
 ## Next Action
-Run PROMPT_evaluate.md to evaluate attempt 10 output.
+Run PROMPT_fix.md to debug and fix the narrator appearance injection text (Critical #1).
