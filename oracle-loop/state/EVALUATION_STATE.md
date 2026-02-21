@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -216,4 +216,20 @@ Don't rely on narrator detection from plot summary. When `character.is_narrator 
 This file MUST be modified again (it's the right place for post-profile processing). But the approach MUST be fundamentally different — post-profile correction, not pre-profile evidence filtering.
 
 ## Next Action
-Run PROMPT_fix.md to add post-profile personality correction pass (Critical #1) and direct narrator appearance search (High #2)
+Re-run analysis to verify fix (phase: awaiting_analysis)
+
+## Attempt 7 Fix Applied
+- **Issue #1 (CRITICAL)**: Post-profile personality correction pass
+  - After ALL profiles are generated, find same-name character pairs (where name_a is a prefix of name_b)
+  - For each pair, send both personality profiles + summary evidence to LLM
+  - LLM detects whether shorter-name character's traits are contaminated by longer-name character
+  - If contamination detected, corrected personality (and age_indication) is applied
+  - Location: `src/analyzer.py` after bidirectional relationship post-processing
+  - Fix type: algorithmic (post-profile LLM verification)
+
+- **Issue #2 (HIGH)**: Narrator first-person self-description search
+  - Instead of fixed position 100, regex-searches first 20% of text for "I am/was [physical descriptor]" patterns
+  - Handles "I... am..." style (ellipsis between "I" and "am") via `[\s.…]{0,20}` in pattern
+  - Falls back to position 100 if no self-description pattern found
+  - Location: `src/analyzer.py` narrator synthetic mention block (~line 2687)
+  - Fix type: algorithmic (pattern search)

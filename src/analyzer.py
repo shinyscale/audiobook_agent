@@ -1782,6 +1782,9 @@ class AudiobookAnalyzer:
                     )
                     logger.info("F2: Summary evidence extraction enabled with collision detection")
 
+                # Store summary evidence per character for post-profile correction pass
+                _char_summary_evidence_store: dict[str, object] = {}
+
                 for i, char in enumerate(eligible_chars):
                     logger.debug(f"Profile {i+1}/{len(eligible_chars)}: {char.canonical_name}")
 
@@ -1807,6 +1810,8 @@ class AudiobookAnalyzer:
                                     f"F2: Found {len(summary_evidence.evidence)} summary evidence items "
                                     f"for {char.canonical_name}"
                                 )
+                            # Store for post-profile correction pass
+                            _char_summary_evidence_store[char.canonical_name] = summary_evidence
                         except Exception as e:
                             logger.warning(
                                 f"F2: Summary evidence extraction failed for {char.canonical_name}: {e}"
@@ -1958,6 +1963,140 @@ class AudiobookAnalyzer:
                                 f"Bidirectional relationship inferred: "
                                 f"{other_name} → {char_a.canonical_name} = '{reverse_rel}' "
                                 f"(from {char_a.canonical_name} → {other_name} = '{rel_desc}')"
+                            )
+
+            # Post-profile correction: Fix trait contamination for same-name character pairs.
+            # When two characters share a first name (e.g., "John" and "John Donaldson"),
+            # the shorter-named character may be profiled with traits that belong to the
+            # longer-named character. This pass detects and corrects such contamination
+            # using BOTH profiles and their summary evidence for context.
+            # Universal: applies to any book where character A's name is a prefix of character B's.
+            if profile_llm and _char_summary_evidence_store:
+                import json as _json_corr
+                chars_with_profiles = [
+                    c for c in pipeline_char_map.characters
+                    if c.personality is not None and c.personality.get("traits")
+                ]
+                for _char_short in chars_with_profiles:
+                    _name_short = _char_short.canonical_name
+                    # Find a character whose name starts with _name_short + " " (prefix match)
+                    for _char_long in chars_with_profiles:
+                        _name_long = _char_long.canonical_name
+                        if _name_long == _name_short:
+                            continue
+                        if not _name_long.lower().startswith(_name_short.lower() + " "):
+                            continue
+                        # Found a same-name pair: _char_short is prefix of _char_long
+                        logger.info(
+                            f"Post-profile correction: checking pair "
+                            f"'{_name_short}' (shorter) vs '{_name_long}' (longer)"
+                        )
+                        # Build summary context for each character
+                        def _summarize_evidence(ev_store, name: str) -> str:
+                            ev = ev_store.get(name)
+                            if not ev or not getattr(ev, "evidence", None):
+                                return "(no summary evidence available)"
+                            lines = [
+                                f"- Chapter {e.chapter_index}: {e.statement}"
+                                for e in ev.evidence[:6]
+                            ]
+                            return "\n".join(lines)
+
+                        ev_short = _summarize_evidence(_char_summary_evidence_store, _name_short)
+                        ev_long = _summarize_evidence(_char_summary_evidence_store, _name_long)
+
+                        traits_short = _char_short.personality.get("traits", [])
+                        summary_short = _char_short.personality.get("summary", "")
+                        traits_long = _char_long.personality.get("traits", [])
+                        summary_long = _char_long.personality.get("summary", "")
+                        age_short = (
+                            (_char_short.appearance or {}).get("age_indication", "unknown")
+                            if _char_short.appearance else "unknown"
+                        )
+
+                        correction_prompt = f"""Two characters share the same first name: "{_name_short}" and "{_name_long}".
+
+Because their names overlap, the profiling system may have accidentally assigned "{_name_long}"'s traits to "{_name_short}".
+
+"{_name_short}"'s story role (chapter summaries):
+{ev_short}
+
+"{_name_long}"'s story role (chapter summaries):
+{ev_long}
+
+"{_name_short}" was assigned:
+- Personality traits: {traits_short}
+- Personality summary: {summary_short}
+- Age indication: {age_short}
+
+"{_name_long}" was assigned:
+- Personality traits: {traits_long}
+- Personality summary: {summary_long}
+
+Do "{_name_short}"'s assigned traits match their actual story role (from chapter summaries above)?
+Or do they better match "{_name_long}"'s story role?
+
+Return JSON only:
+{{
+  "contamination_detected": true or false,
+  "reason": "one sentence explanation",
+  "corrected_personality": {{
+    "summary": "corrected summary based on {_name_short}'s actual story role",
+    "traits": ["trait1", "trait2"],
+    "temperament": "calm/volatile/melancholic/etc",
+    "emotional_range": "brief note"
+  }},
+  "corrected_age_indication": "young/middle-aged/elderly/unknown"
+}}
+Only include "corrected_personality" and "corrected_age_indication" if contamination_detected is true."""
+
+                        try:
+                            _corr_response = profile_llm.generate(correction_prompt)
+                            # Parse JSON from response
+                            _corr_data = None
+                            try:
+                                _corr_data = _json_corr.loads(_corr_response)
+                            except _json_corr.JSONDecodeError:
+                                # Try to extract JSON block
+                                import re as _re_corr
+                                _json_match = _re_corr.search(r'\{.*\}', _corr_response, _re_corr.DOTALL)
+                                if _json_match:
+                                    try:
+                                        _corr_data = _json_corr.loads(_json_match.group())
+                                    except _json_corr.JSONDecodeError:
+                                        pass
+
+                            if _corr_data and _corr_data.get("contamination_detected"):
+                                logger.info(
+                                    f"Post-profile correction: contamination detected for '{_name_short}'. "
+                                    f"Reason: {_corr_data.get('reason', '')}"
+                                )
+                                # Apply corrected personality if provided
+                                corr_personality = _corr_data.get("corrected_personality")
+                                if corr_personality and isinstance(corr_personality, dict):
+                                    _char_short.personality = corr_personality
+                                    logger.info(
+                                        f"Post-profile correction: updated personality for '{_name_short}': "
+                                        f"{corr_personality.get('traits', [])}"
+                                    )
+                                # Apply corrected age indication if provided
+                                corr_age = _corr_data.get("corrected_age_indication")
+                                if corr_age and _char_short.appearance:
+                                    _char_short.appearance["age_indication"] = corr_age
+                                    logger.info(
+                                        f"Post-profile correction: updated age for '{_name_short}': {corr_age}"
+                                    )
+                                print(
+                                    f"   Corrected profile for '{_name_short}' "
+                                    f"(same-name contamination with '{_name_long}')"
+                                )
+                            else:
+                                logger.info(
+                                    f"Post-profile correction: no contamination detected for '{_name_short}'"
+                                )
+                        except Exception as _e_corr:
+                            logger.warning(
+                                f"Post-profile correction failed for '{_name_short}': {_e_corr}"
                             )
 
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
@@ -2532,8 +2671,7 @@ class AudiobookAnalyzer:
         # For narrators with named mentions, ensure early text is captured.
         # First-person narrators often describe themselves near the start ("I am an elderly man..."),
         # but that passage may not be near any named mention of the narrator.
-        # Always add early synthetic mentions for narrators to guarantee first-person
-        # self-descriptions (e.g., "I am an elderly man...") are captured.
+        # Search for actual first-person physical self-descriptions rather than using a fixed position.
         if is_narrator and all_mentions:
             def _chapter_for_pos_early(pos: int) -> int:
                 if chapter_map is None:
@@ -2543,19 +2681,36 @@ class AudiobookAnalyzer:
                         return ch.index
                 return 0
 
+            # Search the first portion of the text for first-person physical self-descriptions.
+            # This captures patterns like "I am an elderly, grizzled man" near the narrative start.
+            # Universal: works for any first-person narrator who describes themselves physically.
+            _self_desc_re = re.compile(
+                r'\bI[\s.…]{0,20}(?:am|was)\b[^\n]{0,300}?\b(?:man|woman|person|elderly|old|young|tall|short|thin|small|lean|stout|fat|grizzled|bald|gray|grey|large)\b',
+                re.IGNORECASE,
+            )
+            # Search in first 20% of text or 10000 chars, whichever is larger
+            search_end = min(len(full_text), max(10000, len(full_text) // 5))
+            narrator_desc_pos = 100  # Fallback position if no self-description found
+            for _m in _self_desc_re.finditer(full_text[:search_end]):
+                narrator_desc_pos = _m.start()
+                logger.info(
+                    f"Narrator '{character.canonical_name}': found first-person self-description "
+                    f"at position {narrator_desc_pos}: {_m.group()[:120]!r}"
+                )
+                break  # Use first match only
+
             early_mention = CharacterMention(
                 text=getattr(character, "canonical_name", "") or "",
-                position=100,
-                chapter_index=_chapter_for_pos_early(100),
+                position=narrator_desc_pos,
+                chapter_index=_chapter_for_pos_early(narrator_desc_pos),
                 context="",
                 in_dialogue=False,
             )
             all_mentions = [early_mention] + list(all_mentions)
             total_mentions = len(all_mentions)
             logger.info(
-                f"Narrator '{character.canonical_name}': first named mention at position "
-                f"{all_mentions[1].position} — prepended synthetic early mention to capture "
-                f"self-description"
+                f"Narrator '{character.canonical_name}': prepended synthetic mention at position "
+                f"{narrator_desc_pos} to capture self-description"
             )
 
         # Sample up to 10 mentions, distributed across the narrative
