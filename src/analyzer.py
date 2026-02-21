@@ -1922,10 +1922,26 @@ class AudiobookAnalyzer:
             #   2. The appearance summary is still "Unknown" or empty after profile generation, AND
             #   3. A first-person physical self-description is found in the text.
             # Universal: applies to any first-person narrator in any book.
-            _narrator_self_desc_re = re.compile(
-                r'\bI[\s.…]{0,20}(?:am|was)\b[^\n]{0,300}?\b(?:man|woman|person|elderly|old|young|tall|short|thin|small|lean|stout|fat|grizzled|bald|gray|grey|large)\b',
+            # Physical descriptor vocabulary used for narrator self-description detection.
+            _PHYS_WORDS_NARRATOR = {
+                "man", "woman", "person", "elderly", "old", "young", "tall",
+                "short", "thin", "small", "lean", "stout", "fat", "grizzled",
+                "bald", "gray", "grey", "large",
+            }
+            _phys_joined = '|'.join(sorted(_PHYS_WORDS_NARRATOR, key=len, reverse=True))
+            # Pattern A: direct self-description  ("I am an old man", "I was a lean person")
+            _narrator_desc_pA = re.compile(
+                r'\bI[\s.…]{0,20}(?:am|was)\b[^\n]{0,200}?\b(?:' + _phys_joined + r')\b',
                 re.IGNORECASE,
             )
+            # Pattern B: indirect self-description ("as I stood, an elderly, grizzled man")
+            # Uses DOTALL so the match can span a single line-wrap (e.g., "grizzled,\nsmall man").
+            # Cross-paragraph matches (containing \n\n) are excluded in the loop below.
+            _narrator_desc_pB = re.compile(
+                r'\bI\b.{0,80}?\ban?\s+(?:' + _phys_joined + r')\b.{0,150}?\b(?:man|woman|person)\b',
+                re.IGNORECASE | re.DOTALL,
+            )
+
             for _nc in pipeline_char_map.characters:
                 if not getattr(_nc, 'is_narrator', False):
                     continue
@@ -1940,13 +1956,51 @@ class AudiobookAnalyzer:
                 )
                 if _has_real_appearance:
                     continue  # Already has a real appearance — nothing to inject
-                # Search for a physical self-description in the first portion of the text
-                _search_end = min(len(doc.text), max(10000, len(doc.text) // 5))
-                for _nm in _narrator_self_desc_re.finditer(doc.text[:_search_end]):
-                    _desc_text = _nm.group()
-                    _cleaned = re.sub(
-                        r'^I[\s.…]*(?:am|was)\s*', '', _desc_text, flags=re.IGNORECASE
-                    ).strip().rstrip('.,;')
+
+                # Collect all matches from both patterns, score by unique physical
+                # descriptor count.  A genuine self-description has several physical
+                # words; incidental sentences typically have only one.
+                def _phys_score(text: str) -> int:
+                    tl = text.lower()
+                    return sum(1 for w in _PHYS_WORDS_NARRATOR if re.search(r'\b' + w + r'\b', tl))
+
+                _best_nm = None
+                _best_score = -1
+                _best_is_pB = False
+                for _nm in _narrator_desc_pA.finditer(doc.text):
+                    _s = _phys_score(_nm.group())
+                    if _s > _best_score:
+                        _best_score, _best_nm, _best_is_pB = _s, _nm, False
+                for _nm in _narrator_desc_pB.finditer(doc.text):
+                    if '\n\n' in _nm.group():
+                        continue  # Skip cross-paragraph matches
+                    _s = _phys_score(_nm.group())
+                    if _s > _best_score:
+                        _best_score, _best_nm, _best_is_pB = _s, _nm, True
+
+                if _best_nm is not None and _best_score >= 2:
+                    _desc_text = _best_nm.group()
+                    if _best_is_pB:
+                        # Extract from the "a/an [physical-word]" anchor onwards,
+                        # using a wider window from the original text so we also
+                        # capture trailing descriptors past the match endpoint.
+                        _window = doc.text[_best_nm.start():_best_nm.start() + 300]
+                        _art = re.search(
+                            r'\ban?\s+(?:' + _phys_joined + r')\b(?:[^\n]|\n(?!\n)){0,200}',
+                            _window, re.IGNORECASE,
+                        )
+                        if _art:
+                            _raw = _art.group()
+                            # Stop at em-dash (authorial aside / new clause)
+                            _raw = re.split(r'--|—', _raw)[0]
+                            # Collapse line-wraps within the phrase
+                            _cleaned = re.sub(r'\s*\n\s*', ' ', _raw).strip().rstrip('.,;- ')
+                        else:
+                            _cleaned = re.sub(r'\s*\n\s*', ' ', _desc_text).strip()[:200]
+                    else:
+                        _cleaned = re.sub(
+                            r'^I[\s.…]*(?:am|was)\s*', '', _desc_text, flags=re.IGNORECASE
+                        ).strip().rstrip('.,;')
                     if _cleaned:
                         _nc.appearance["summary"] = _cleaned
                         logger.info(
@@ -1960,7 +2014,6 @@ class AudiobookAnalyzer:
                                 _nc.appearance["age_indication"] = "elderly"
                             elif "young" in _desc_lower:
                                 _nc.appearance["age_indication"] = "young"
-                    break  # Use first match only
 
             # Post-process: Infer bidirectional family relationships.
             # If character A → B is "father", infer B → A is "son" (if not already set).
@@ -1999,6 +2052,15 @@ class AudiobookAnalyzer:
                         continue
                     rel_lower = rel_desc.strip().lower()
                     reverse_rel = _RELATIONSHIP_REVERSES.get(rel_lower)
+                    if not reverse_rel:
+                        # Also match when the relationship is part of a longer description
+                        # (e.g., "cousin and former associate...").  Sort by key length
+                        # descending so "grandfather" matches before "father".
+                        rel_words = set(rel_lower.split())
+                        for _rkey in sorted(_RELATIONSHIP_REVERSES, key=len, reverse=True):
+                            if _rkey in rel_words:
+                                reverse_rel = _RELATIONSHIP_REVERSES[_rkey]
+                                break
                     if reverse_rel and other_name in char_by_name:
                         char_b = char_by_name[other_name]
                         rels_b = getattr(char_b, "relationships", None)
@@ -2006,7 +2068,11 @@ class AudiobookAnalyzer:
                             rels_b = {}
                             char_b.relationships = rels_b
                         existing = rels_b.get(char_a.canonical_name, "").strip().lower()
-                        if not existing or existing == "unknown":
+                        # Override if: empty, "unknown", or the confirmed relationship
+                        # word is not even mentioned in the existing description
+                        # (indicates garbled or incorrect LLM output).
+                        existing_words = set(existing.split())
+                        if not existing or existing == "unknown" or reverse_rel not in existing_words:
                             rels_b[char_a.canonical_name] = reverse_rel
                             logger.info(
                                 f"Bidirectional relationship inferred: "

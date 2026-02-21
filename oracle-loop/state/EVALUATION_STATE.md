@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -239,5 +239,14 @@ FIX 1 is a targeted debug of existing injection code. No new features needed —
 - FIX 2 (if needed): Relationship propagation → +0.25 on profiles
 - Combined: Profiles 7 → ~8.0-8.5
 
+## Fix History (Attempt 11)
+- Attempt 11: Narrator appearance injection (dual-pattern + best-match) + bidirectional relationship override
+  - Root cause #1: The regex only used "I am/was" pattern, missing the indirect "as I stood, an elderly man" style. Also searched a truncated region and took the first match instead of the best.
+  - Root cause #2: Bidirectional inference only matched exact single-word keys, missing "cousin and former associate..." descriptions. Also never overrode garbled existing values.
+  - Modified: `src/analyzer.py` (narrator injection lines ~1925-2015, bidirectional inference lines ~2054-2081)
+  - Smoke test: PASS — regex now correctly finds "an elderly, grizzled, small man, grim and unexhilarating" (score=4 vs score=1 for wrong matches). Bidirectional logic correctly infers "cousin" from "cousin and former associate..." and overrides garbled descriptions.
+  - Expected: Uncle Bill appearance summary = "an elderly, grizzled, small man, grim and unexhilarating" ✓
+  - Expected: John Donaldson → Uncle Bill relationship = "cousin" (was garbled) ✓
+
 ## Next Action
-Run PROMPT_fix.md to debug and fix the narrator appearance injection text (Critical #1).
+Run analysis (PROMPT_analyze.md) to verify fix.
