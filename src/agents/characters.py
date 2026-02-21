@@ -44,6 +44,25 @@ from .config import AgentConfig, CompetitiveConfig
 
 logger = logging.getLogger(__name__)
 
+# Standard English diminutive forms mapped to their canonical long-form equivalents.
+# Used to merge nickname variants extracted by NER (e.g., "Johnny" → alias of "John").
+# Only unambiguous one-to-one mappings are included; standalone names like "Ted" or "Bob"
+# are intentionally excluded to avoid merging genuinely different characters.
+STANDARD_DIMINUTIVES: dict[str, str] = {
+    "johnny": "john",
+    "johnnie": "john",
+    "jimmy": "james",
+    "jimmie": "james",
+    "charlie": "charles",
+    "tommy": "thomas",
+    "bobby": "robert",
+    "robbie": "robert",
+    "billy": "william",
+    "willie": "william",
+    "freddie": "frederick",
+    "freddy": "frederick",
+}
+
 
 class CharacterAgent(Agent):
     """
@@ -2649,6 +2668,22 @@ class CharacterAgent(Agent):
                 # Fuzzy last name match (handles Wolfsheim/Wolfshiem)
                 if names_similar(char_name, other_lastname):
                     matches.append((other_idx, "fuzzy_lastname"))
+                    continue  # Skip first-name check for this other_char
+
+                # First-name match for rare full-name characters (e.g., "Ted" → "Ted Frith").
+                # Universal pattern: a character introduced by full name, then referenced by
+                # first name only. Conditions:
+                #   1. Single-word matches the FIRST WORD of the full name
+                #   2. Full-name appears rarely (≤ 3 mentions) — likely just the introduction
+                #   3. Single-word appears MORE often — it's the common reference form
+                # Safety: prevents false merge of "John" + "John Donaldson" (9 mentions > 3)
+                other_firstname = other_parts[0].strip(".,;:")
+                if (
+                    char_name.lower() == other_firstname.lower()
+                    and other_char.mention_count <= 3
+                    and char.mention_count > other_char.mention_count
+                ):
+                    matches.append((other_idx, "exact_firstname_of_rare_fullname"))
 
             # Merge if exactly ONE match
             if len(matches) == 1:
@@ -2730,6 +2765,45 @@ class CharacterAgent(Agent):
                             chars_with_new_aliases.add(other_char.id)
                         chars_to_remove.add(idx)
                         break  # Don't process this char anymore
+
+        # Pass 3: Merge standard English diminutives as aliases.
+        # Handles cases where NER extracts a nickname form separately from the canonical name.
+        # Example: "Johnny" (2 mentions) → alias of "John" (16 mentions).
+        # Uses the module-level STANDARD_DIMINUTIVES mapping.
+        for idx, char in enumerate(supporting_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            if not char_name or " " in char_name:
+                continue  # Only single-word names
+
+            canonical_form = STANDARD_DIMINUTIVES.get(char_name.lower())
+            if not canonical_form:
+                continue  # Not a known diminutive
+
+            # Find exactly one supporting character whose canonical name is the long form
+            dim_matches = []
+            for other_idx, other_char in enumerate(supporting_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+                if other_char.canonical_name.lower() == canonical_form:
+                    dim_matches.append(other_idx)
+
+            # Merge if exactly ONE match (avoid ambiguity when multiple same-name characters)
+            if len(dim_matches) == 1:
+                other_idx = dim_matches[0]
+                other_char = supporting_cast[other_idx]
+
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging diminutive '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' as alias (standard English diminutive)"
+                    )
+                    other_char.aliases.append(char_name)
+                    chars_with_new_aliases.add(other_char.id)
+
+                chars_to_remove.add(idx)
 
         # Remove merged characters
         updated_supporting = [

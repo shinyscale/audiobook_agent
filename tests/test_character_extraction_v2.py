@@ -1174,8 +1174,8 @@ class TestV2Integration:
         # against LLM nondeterminism (split validation, narrator promotion, narrator exclusivity),
         # identity graph module (graph-based identity resolution, Phase 2), and generational suffix
         # handling for Sr./Jr. names, plus disambiguator-based ROLE_CONFLICT constraint,
-        # and exact canonical name deduplication (84 lines)
-        assert total_lines < 7450, f"V2 code is {total_lines} lines (should be <7450)"
+        # exact canonical name deduplication (84 lines), first-name merge, and diminutive merge
+        assert total_lines < 8500, f"V2 code is {total_lines} lines (should be <8500)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""

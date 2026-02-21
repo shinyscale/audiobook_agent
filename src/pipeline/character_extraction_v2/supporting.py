@@ -175,6 +175,11 @@ class SupportingCastExtractor:
         if len(name) < 2:
             return False
 
+        # Skip possessive forms (e.g., "John Donaldson's") — these are not character names,
+        # they are ownership references. Possessives would otherwise appear as false alias entries.
+        if name.endswith("'s") or name.endswith("\u2019s"):
+            return False
+
         # Skip common false positives (religious terms, titles, etc.)
         skip_terms = {
             "god",

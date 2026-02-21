@@ -585,6 +585,13 @@ COMMON_WORDS_WHITELIST = {
     "strangers",
     "gentlemen",
     "ladies",
+    # Common informal / compound words with self-evident pronunciation
+    # (narrator would not need guidance to pronounce these)
+    "thickset",       # compound adj: thick + set (obvious pronunciation)
+    "greenhorns",     # common informal: plural of greenhorn (obvious pronunciation)
+    "whippersnapper", # common informal: compound (obvious pronunciation)
+    "johnny",         # standard English nickname (same as "john" — always whitelisted)
+    "johnnie",        # alternate spelling of the same nickname
 }
 
 # Contraction fragments that result from tokenization
@@ -737,6 +744,7 @@ class CMUProposer(BasePronunciationProposer):
             "est",    # fastest, tallest
             "er",     # faster, taller
             "y",      # filmy, cloudy
+            "less",   # thriftless (thrift), useless (use), harmless (harm), hopeless (hope)
             # Noun suffixes
             "ness",   # happiness, sadness
             "ment",   # enjoyment, improvement
