@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 6
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 4.65**
 
 ## Output Files
@@ -16,63 +16,48 @@
 - Character Extraction: 9/10 ✓
   - Completeness: 9/10
   - Identity Resolution: 9/10
-  - Alias Grouping: 8/10
-- Character Profiles: 7.5/10 ✗ (FAILING)
+  - Alias Grouping: 9/10
+- Character Profiles: 7.5/10 ✗ (FAILING — 5th consecutive failure on relationships)
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 8/10 ✓ (was 7.5 — IMPROVED)
+- Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
 - **Overall: 8.58/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold)
 
-## Improvements from Attempt 4
-- Pronunciation false positives: **7 of 8 FIXED** — "tight-fitting", "to-day", "web-work", "cough's", "mason-work", "Unsheathing", "reapproached" all removed. Only "leer" remains. Pronunciation now passes at 8/10.
-- Fortunato appearance: **FIXED** — no longer incorrectly attributes Montresor's mask/roquelaire to Fortunato. Now correctly shows "motley outfit with conical cap and bells".
-
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Relationships STILL empty for ALL characters — 4th consecutive fix failure** [Profiles]
-   - Problem: `relationships: {}` for Fortunato, Luchresi, and Montresor. This is the SOLE remaining blocker preventing this text from passing.
+1. **Relationships EMPTY for ALL characters — 5th consecutive fix failure** [Profiles]
+   - Problem: `relationships: {}` for Fortunato, Luchresi, and Montresor. This is the SOLE remaining blocker preventing this text from passing. The F9 `_extract_relationships_from_evidence()` approach has now been modified in **4 consecutive attempts** (2→3, 3→4, 4→5, 5→6) without producing a single relationship.
    - Evidence: `jq '[.characters[] | select(.relationships | length > 0)] | length'` → 0. HTML shows "No explicit relationships detected."
    - Expected relationships:
      - Montresor → Fortunato: target of revenge, outwardly feigned friendship
      - Fortunato → Montresor: friend/acquaintance (from Fortunato's perspective)
      - Montresor → Luchresi: uses as manipulation tool to goad Fortunato
      - Fortunato → Luchresi: rival wine connoisseur
-   - **Fix History (4 consecutive failures):**
-     - Attempt 2→3: Added F9 `_extract_relationships_from_evidence()` method → No change
-     - Attempt 3→4: Fixed evidence population (prerequisite for F9) → Evidence works, relationships still empty
-     - Attempt 4→5: Added `json_mode=True` to F9 LLM call + improved prompt examples → **Still empty**
-   - **MANDATORY ESCALATION:** The F9 approach has failed 3 times. Per loop rules, the fix phase MUST NOT modify F9 in `src/analyzer.py` with incremental tweaks again. Instead:
-     - **Step 1 (REQUIRED):** Add temporary DEBUG logging to F9 to trace what's actually happening. Run the analysis once with logging and capture the output. Determine:
-       - Is F9 even being called? (Check the conditional that triggers it)
-       - If called, what does the LLM return? (Log raw response)
-       - Is the response parsing failing silently?
-     - **Step 2 (based on findings):** If F9 is structurally broken beyond a quick fix, bypass it entirely. Extract relationships during the profile generation step (the same LLM call that already produces personality, voice_guidance, evidence, and appearance). Add `relationships` to the profile prompt's expected output format. This avoids the entire F9 pipeline.
-   - Location: `src/analyzer.py` — F9 conditional (~lines 3080-3094), `_extract_relationships_from_evidence()` (~lines 3135-3235)
+   - **MANDATORY: DO NOT MODIFY F9 IN `src/analyzer.py` AGAIN.** The F9 approach has failed 4 times in a row. The fix phase MUST use a fundamentally different approach:
+     - **Option A (RECOMMENDED):** Extract relationships during the **profile generation step** — the same LLM call that already produces personality, voice_guidance, evidence, and appearance. Add `relationships` to the profile prompt's expected output schema. This eliminates the entire F9 pipeline as a dependency. The profile LLM call already has full text context and character knowledge — it can produce relationships inline.
+     - **Option B:** Add a **post-processing step** after profiles are generated that programmatically infers basic relationships from evidence text (e.g., if Montresor's evidence says "seeks revenge against Fortunato", create a relationship entry). This is simpler but less rich.
+   - **Diagnostic question:** WHY has F9 failed 4 times? The fix phase should add a `print()` or `logger.debug()` statement at the top of `_extract_relationships_from_evidence()` to confirm whether it's even being called, and if so, what the LLM returns. Run once to capture output. Then proceed with Option A regardless.
+   - Location: Profile generation is in `src/analyzer.py` around the character profile LLM calls (search for `personality`, `voice_guidance`, `appearance` in the same prompt/schema)
 
 ### LOW
 2. **"leer" still flagged in pronunciation** [Pronunciation]
-   - Problem: "leer" is a common English word any narrator knows. It's not in CMU, so the current filter doesn't catch it.
+   - Problem: "leer" is a common English word any narrator knows.
    - Impact: 1 false positive out of 24 entries — marginal. Pronunciation already passes at 8/10.
-   - Fix: Not blocking. Could add a manual common-word allowlist or frequency-based filter, but this is polish.
+   - Not blocking.
 
-3. **Montresor confidence dropped from HIGH to MEDIUM** [Characters]
-   - Problem: In attempt 4, all 3 characters were HIGH confidence. Now Montresor is MEDIUM.
-   - Impact: Minor — doesn't affect output quality, just metadata.
-   - Likely cause: LLM variance on re-run. Not actionable.
+3. **Montresor appearance "unknown" despite text mentioning mask and roquelaire** [Profiles]
+   - Problem: Text says Montresor wears "a mask of black silk" and "a roquelaire" but his appearance shows "unknown".
+   - Impact: Minor detail. If relationships are fixed, profiles will pass regardless.
 
-4. **Pronunciation type/category still null for all entries** [Pronunciation]
-   - Problem: `type: null` and `category: null` for all 24 entries. "Fortunato" should be `proper_noun`, "Amontillado" should be `foreign` (Spanish), etc.
+4. **Pronunciation type/category null for all entries** [Pronunciation]
+   - Problem: `type: null` and `category: null` for all 24 entries.
    - Impact: Minor — pronunciation passes at 8/10 without this.
 
-5. **Montresor appearance "unknown" despite text mentioning mask and roquelaire** [Profiles]
-   - Problem: Montresor wears "a mask of black silk" and "a roquelaire" per the text, but his appearance is "unknown".
-   - Impact: Minor detail for narrator prep. The roquelaire is already in the pronunciation guide.
-
-6. **Structure section title is null** [Structure]
+5. **Structure section title is null** [Structure]
    - Impact: Very minor for a single-section short story.
 
 ## Fix History
@@ -81,6 +66,7 @@
 - Attempt 3 (8.10/10): Chinese hallucination fixed. Fortunato role fixed (minor→protagonist). Character extraction improved. Summaries improved. BUT: Montresor profile still unparsed, relationships still empty (F9 fix didn't work), pronunciation false positives persist.
 - Attempt 4 (8.53/10): Montresor profile parsing **FIXED** — personality, voice guidance, evidence all populated. All 3 characters at HIGH confidence. BUT: Relationships STILL empty (3rd failed attempt), pronunciation false positives persist.
 - Attempt 5 (8.58/10): Pronunciation false positives **FIXED** (7/8 removed, pronunciation now passes at 8/10). Fortunato appearance attribution **FIXED**. BUT: Relationships STILL empty (4th failed attempt). This is now the sole remaining blocker.
+- Attempt 6 (8.58/10): F9 was restructured with pre-scan evidence + programmatic fallback. **STILL NO RELATIONSHIPS.** Score unchanged. The F9 approach is fundamentally broken for this text — 5 attempts, zero relationships produced.
 
 ## Modification History
 
@@ -97,7 +83,9 @@
 | 3→4 | F9 not triggering (no evidence) | src/analyzer.py (evidence now populated) | **No change** — evidence populated but relationships STILL empty |
 | 4→5 | Relationships empty (F9 parse failure) | src/analyzer.py (json_mode=True + prompt examples) | **No change** — 4th failure on relationships |
 | 4→5 | Pronunciation false positives (8 words) | cmu_proposer.py (hyphen compound + possessive + prefix) | **Fixed** — 7/8 removed, pronunciation passes |
-| 5→6 | Relationships empty (4th consecutive failure) | src/analyzer.py (_extract_relationships_from_evidence) | **Pending** — restructured F9: pre-scan evidence for character mentions, add [References] annotations, case-insensitive validation, + programmatic fallback that always produces relationships if characters appear in evidence |
+| 5→6 | Relationships empty (pre-scan + fallback) | src/analyzer.py (_extract_relationships_from_evidence) | **No change** — 5th failure. F9 approach MUST BE ABANDONED. |
+
+**ESCALATION ALERT:** `src/analyzer.py` F9 relationship extraction has been modified in 4 consecutive attempts (2→3, 3→4, 4→5, 5→6) without success. Per escalation rules, the fix phase MUST NOT modify F9 again. It must extract relationships through the profile generation pipeline instead.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
@@ -109,15 +97,8 @@
 - Pronunciation Guide: 23 LLM calls, 0 retries — stable
 - No JSON parse failures, no LLM retries — pipeline is stable
 
-## Pipeline Notes (Attempt 6)
-- Runtime: 12m 4s
-- Characters: Fortunato (14 mentions), Luchresi (4 mentions), Montresor (3 mentions)
-- Pronunciation flags: 24
-- Competitive consensus: ENABLED (single mode, all stages: characters, structure, summaries)
-- Warning: "Narrator 'Montresor' identified but NOT found in main_cast. Available characters: []"
-- Warning: "No passages provided for Fortunato/Luchresi/Montresor, returning UNCERTAIN"
-- 5 character profile LLM calls, 3H/0M/0L confidence — all profiles at HIGH
-- Relationship extraction pending evaluation
-
 ## Next Action
-Evaluate output (attempt 6) — check if relationships are now populated.
+Run PROMPT_fix.md to address relationships via profile generation (NOT F9). The fix phase MUST:
+1. First: Add debug logging to confirm F9 is broken (optional but recommended)
+2. Then: Add `relationships` field to the profile generation prompt/schema so relationships are extracted alongside personality, voice_guidance, appearance, and evidence
+3. DO NOT touch `_extract_relationships_from_evidence()` or the F9 conditional in analyzer.py
