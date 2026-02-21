@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_234210/
+- Timestamped: ../output/American Sir_20260221_000533/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -315,5 +315,14 @@ Both fixes are small, targeted changes to existing code (a gate condition and a 
   - Changed to: ask LLM to filter existing traits (keep if uncertain, only remove clear contamination)
   - Added explicit "Do NOT return an empty traits list" instruction
 
+## Pipeline Notes (Attempt 10)
+- Completed in 14m 1s, 32 LLM calls, 52,494 tokens
+- 4 profiles generated with HIGH confidence
+- FIX 2 FIRED: "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" ✓
+- FIX 1 status: Gate condition broadened — need evaluation to confirm Uncle Bill appearance injected
+- "No definitive narrator identified from plot summary" — final narrator detection still failed, but injection pass runs before this (needs verification)
+- 18 pronunciation flags (same count as before)
+- Characters: 5 found (John/Johnny, Uncle Bill/Bill, John Donaldson, Joe Barron, Ted Frith/Ted) ✓
+
 ## Next Action
-Run PROMPT_analyze.md to re-run analysis and evaluate fixes.
+Run PROMPT_evaluate.md to evaluate attempt 10 output.
