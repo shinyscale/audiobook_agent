@@ -2242,6 +2242,124 @@ Only include fields if contamination_detected is true."""
                                 f"Post-profile correction failed for '{_name_short}': {_e_corr}"
                             )
 
+        # Post-profile evidence-based death reference check.
+        # If a character's description says the character died ("in death") but
+        # none of their profile evidence quotes reference dying/death, the claim is
+        # likely hallucinated — e.g., from same-name confusion where another character
+        # who shares the character's alias is the one who actually died.
+        # Universal: enforces evidence-grounded descriptions; works for any book/character.
+        _death_in_phrase_re = re.compile(r'\s+in\s+death(?=[.,;!?]|$)', re.IGNORECASE)
+        for _pc in pipeline_char_map.characters:
+            _pdesc = getattr(_pc, 'description', '') or ''
+            if not _death_in_phrase_re.search(_pdesc):
+                continue
+            # Check if any profile evidence quote references this character dying
+            _pevidence = getattr(_pc, 'profile_evidence', []) or []
+            _death_supported = any(
+                any(
+                    w in (
+                        (e.get('quote', '') if isinstance(e, dict) else getattr(e, 'quote', '')) or ''
+                    ).lower()
+                    for w in ('death', 'died', 'dying', 'dead', 'killed', 'perished', 'fatal')
+                )
+                for e in _pevidence
+            )
+            if not _death_supported:
+                _new_pdesc = _death_in_phrase_re.sub('', _pdesc).strip()
+                _new_pdesc = re.sub(r'\s{2,}', ' ', _new_pdesc)
+                if _new_pdesc != _pdesc:
+                    logger.info(
+                        f"Evidence-based death removal for '{_pc.canonical_name}': "
+                        f"'in death' not supported by profile evidence — removed"
+                    )
+                    _pc.description = _new_pdesc
+
+        # Post-profile description text relationship correction.
+        # If a character's description prose uses a family relationship term that does
+        # NOT appear in the raw text near that character's name mentions, replace it
+        # with the most-common relationship term found in the raw text near those mentions.
+        # This corrects hallucinated relationship terms that entered via summarizer errors
+        # or LLM inference without requiring both characters to be co-mentioned.
+        # Universal: data-driven correction using raw text as ground truth.
+        if doc and getattr(doc, 'text', None):
+            _desc_relfam_terms = (
+                "cousin", "brother", "sister", "uncle", "aunt", "nephew", "niece",
+                "father", "mother", "son", "daughter", "husband", "wife",
+                "grandfather", "grandmother", "grandson", "granddaughter",
+            )
+            _desc_rel_phrase_re = re.compile(
+                r'\b(?:a|an|(?:his|her|my|our|their|your)\s+(?:late\s+|dear\s+)?)\s*('
+                + '|'.join(_desc_relfam_terms) + r')\b',
+                re.IGNORECASE,
+            )
+            # Build name-match patterns (canonical + aliases) for each pipeline character
+            _desc_rv_pats: dict = {}
+            for _dpc in pipeline_char_map.characters:
+                _drvv = {re.escape(_dpc.canonical_name)}
+                for _dal in (getattr(_dpc, 'aliases', []) or []):
+                    if len(_dal) >= 3:
+                        _drvv.add(re.escape(_dal))
+                _desc_rv_pats[_dpc.canonical_name] = re.compile(
+                    r'\b(?:' + '|'.join(sorted(_drvv, key=len, reverse=True)) + r')\b',
+                    re.IGNORECASE,
+                )
+            _DESC_NEAR_WIN = 300  # chars on each side of a character name mention
+            for _dpc in pipeline_char_map.characters:
+                _pdesc = getattr(_dpc, 'description', '') or ''
+                if not _pdesc:
+                    continue
+                _dpa = _desc_rv_pats.get(_dpc.canonical_name)
+                if _dpa is None:
+                    continue
+                # Find family relationship terms present in the description text
+                _desc_fam_in_text = [
+                    t for t in _desc_relfam_terms
+                    if re.search(r'\b' + re.escape(t) + r'\b', _pdesc, re.IGNORECASE)
+                ]
+                if not _desc_fam_in_text:
+                    continue
+                # Search raw text near this character's name mentions for relationship phrases
+                _nearby_rel_counts: dict = {}
+                for _dma in _dpa.finditer(doc.text):
+                    _dws = max(0, _dma.start() - _DESC_NEAR_WIN)
+                    _dwe = min(len(doc.text), _dma.end() + _DESC_NEAR_WIN)
+                    _dwin = doc.text[_dws:_dwe]
+                    for _drm in _desc_rel_phrase_re.finditer(_dwin):
+                        _dterm = _drm.group(1).lower()
+                        _nearby_rel_counts[_dterm] = _nearby_rel_counts.get(_dterm, 0) + 1
+                if not _nearby_rel_counts:
+                    continue
+                # For each family term in description, check if the raw text agrees.
+                # IMPORTANT: Only correct terms in POSSESSIVE form (e.g., "brother's")
+                # since these describe an intermediate character's relationship and are
+                # more likely to be hallucinated from context (e.g., "his late brother's son"
+                # when the text says "a cousin"). Possessive form narrows the correction
+                # to intermediate-relationship terms, not direct mentions like "his son".
+                _desc_modified = _pdesc
+                for _dt in _desc_fam_in_text:
+                    # Only correct if this term appears in possessive form in the description
+                    if not re.search(r'\b' + re.escape(_dt) + r"'s\b", _desc_modified, re.IGNORECASE):
+                        continue  # Not in possessive form — skip (could be a direct mention)
+                    if _dt in _nearby_rel_counts:
+                        continue  # Raw text also uses this term — trust description
+                    # Possessive family term absent from raw text → likely hallucinated
+                    _best_raw_term = max(_nearby_rel_counts, key=_nearby_rel_counts.get)
+                    _new_d = re.sub(
+                        r'\b' + re.escape(_dt) + r"'s\b",
+                        _best_raw_term + "'s",
+                        _desc_modified,
+                        flags=re.IGNORECASE,
+                    )
+                    if _new_d != _desc_modified:
+                        logger.info(
+                            f"Desc text rel correction for '{_dpc.canonical_name}': "
+                            f"'{_dt}\\'s' → '{_best_raw_term}\\'s' "
+                            f"(raw text counts near character: {_nearby_rel_counts})"
+                        )
+                        _desc_modified = _new_d
+                if _desc_modified != _pdesc:
+                    _dpc.description = _desc_modified
+
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
             print("🗣️  Generating pronunciation guide...")

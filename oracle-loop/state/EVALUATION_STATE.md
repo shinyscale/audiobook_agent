@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 14
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -319,5 +319,24 @@ for char in characters:
 - Fix #2: +0.15-0.2 (remove contradictory death for surviving character)
 - **Combined: +0.35-0.5 → profiles 7.85-8.0**
 
+## Attempt 14 Fix Applied
+
+### Fix A: Evidence-based death claim removal (addresses Issue #2 — "reclaims dignity in death")
+- **Approach:** After profile generation, for each character whose description contains "in death", check if any profile_evidence quote contains death-related words (death/died/dying/dead/killed/perished/fatal). If NO evidence supports the death claim, remove " in death" from the description.
+- **Root cause addressed:** John's profile_evidence has no death quotes (he's alive). His description said "in death" due to alias confusion (alias "John Donaldson" = father's name who DID die). The check deterministically removes the unsupported death claim.
+- **Implementation:** `src/analyzer.py` — inserted after the post-profile contamination correction block (before Step 5 Pronunciation)
+- **Universal:** Works for any book/character where LLM hallucinates death for a surviving character
+
+### Fix B: Description text relationship correction using raw text (addresses Issue #1 — "brother's son")
+- **Approach:** After profile generation, for each character, find family relationship terms in possessive form in their description (e.g., "brother's"). Search raw text near that character's name mentions for explicit relationship phrases ("a cousin", "his uncle", etc.). If the possessive term is ABSENT from raw text but a different term is present, replace it.
+- **Root cause addressed:** Uncle Bill's description says "his late brother's son" but the raw text says "a cousin, who had come to be this lad's father". The raw text search finds "cousin" near Uncle Bill's mentions but not "brother", triggering the correction.
+- **Implementation:** `src/analyzer.py` — same block as Fix A, also before Step 5
+- **Universal:** Possessive-only filter prevents accidentally replacing direct relationship descriptions. Only corrects intermediate-character relationship terms.
+
+### Smoke test results
+- Fix A: "John is a...ambulance driver who reclaims dignity in death." → "...who reclaims dignity." ✓
+- Fix B: "guardian of his late brother's son" → "guardian of his late cousin's son" ✓; "son" not modified ✓
+- Full test suite: 256 passed (pre-existing failures in test_pdf_ingestion.py, test_refine.py, test_word_index.py unchanged)
+
 ## Next Action
-Run PROMPT_fix.md to apply deterministic description text corrections (attempt 14).
+Re-run analysis to verify fixes (awaiting_analysis).
