@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -220,8 +220,22 @@
   - Smoke test: imports OK, category field works, no new test failures
   - Modified: `src/analyzer.py`, `src/models.py`, `src/pipeline/chapter_summary/summarizer.py`
 
+## Output Files
+- HTML: ../output/american_sir/report.html
+- JSON: ../output/american_sir/analysis.json
+- Timestamped: ../output/American Sir_20260220_220915/
+
+## Pipeline Notes (Attempt 6)
+- Completed in 14m 21s, 32 LLM calls, 52,541 tokens
+- 5 characters found; 4 profiles at HIGH confidence
+- 18 pronunciation flags (6 unknown, 5 homograph, 4 foreign, 3 proper_noun)
+- Warning: "No passages provided for John Donaldson, returning UNCERTAIN" — persists
+- Warning: "No definitive narrator identified from plot summary" — narrator finalization still fails
+- Warning: "Narrator 'the elderly, crabbed man' identified but NOT found in main_cast" — partial narrator detection
+- Chapter detection had "LLM marker proposer returned non-list" warnings → fell back to single chapter (expected)
+
 ## Phase
-awaiting_analysis
+awaiting_evaluation
 
 ## Next Action
-Re-run analysis on american_sir to verify fixes
+Evaluate attempt 6 output against ground truth
