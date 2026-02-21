@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -275,5 +275,14 @@ The bidirectional relationship override from attempt 11 didn't correctly propaga
   - Fix 2: Universal "same person" invariant — after convert, scan all relationships and replace any "same person" / "same character" / "identical to" relationship between two distinct characters with "unknown". This prevents the John → John Donaldson "same person" confusion.
   - Expected result: Uncle Bill appearance = "an elderly, grizzled, small man, grim and unexhilarating"; John → JD relationship = "unknown" or corrected.
 
+## Pipeline Notes (Attempt 12)
+- Runtime: 14m 34s, 32 LLM calls, 53,087 tokens
+- **Uncle Bill appearance injection FIRED**: "an elderly, grizzled, small man, grim and unexhilarating" ✓
+- **Same-name contamination correction FIRED**: "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" ✓
+- 5 characters found: John (aka Johnny), Uncle Bill (aka Bill), John Donaldson, Joe Barron, Ted Frith (aka Ted)
+- 18 pronunciation flags (same as previous attempts)
+- All 4 profiles generated with HIGH confidence
+- Output: oracle-loop/../output/american_sir/analysis.json + report.html + timestamped in output/American Sir_20260221_013725/
+
 ## Next Action
-Run the analysis (attempt 12) to verify narrator appearance injection and same-person correction work in production.
+Evaluate attempt 12 output.
