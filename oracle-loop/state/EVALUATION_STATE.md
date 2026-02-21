@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -285,5 +285,14 @@ cleaned = re.sub(r'^I[\s.…]*(?:am|was)\s*', '', desc_text, flags=re.IGNORECASE
 
 **Location:** `src/analyzer.py` — narrator appearance injection block (approximately line 1916-1956)
 
+## Attempt 9 Fix Applied
+
+### FIX (CRITICAL — DONE): Added `import re` at module level of `src/analyzer.py`
+
+- **Root cause (precise):** `re` module was never imported at the module level of `src/analyzer.py`. All usages inside the `analyze()` function relied on `import re` statements inside conditional blocks (lines 1259, 1352, 1414, etc.). Because Python resolves local vs. global scope at compile time, any function containing an `import re` assignment treats `re` as a LOCAL variable throughout the entire function. When the narrator injection code at lines 1924–1941 ran BEFORE those conditional `import re` blocks executed, `re` was an unbound local → `UnboundLocalError`.
+- **Fix:** Added `import re` at module level (line 8, between `import logging` and `import time`). This makes `re` always available as a global — eliminates all such issues throughout the file.
+- **Smoke test:** `pytest tests/ --ignore=tests/test_semantic_conflicts.py` → 15 pre-existing failures, 323 passed, 0 new failures.
+- **Modified:** `src/analyzer.py` (line 8, one line added)
+
 ## Next Action
-FIX phase: Fix the `re` variable scoping bug in narrator appearance injection code.
+Re-run analysis to verify the narrator appearance injection and post-profile correction now execute without crashing.

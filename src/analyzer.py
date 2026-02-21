@@ -5,6 +5,7 @@ Coordinates ingestion and analysis pipeline.
 
 import json
 import logging
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
