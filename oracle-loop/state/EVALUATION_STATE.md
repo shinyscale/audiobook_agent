@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -16,9 +16,9 @@
 - Structure Detection: 9/10 ✓
 - Character Extraction: 9/10 ✓
   - Completeness: 9/10
-  - Identity Resolution: 9/10
+  - Identity Resolution: 8.5/10
   - Alias Grouping: 9/10
-- Character Profiles: 7.5/10 ✗ (ONLY FAILING CATEGORY — improved from 7/10)
+- Character Profiles: 7.5/10 ✗ (ONLY FAILING CATEGORY — unchanged from attempt 12)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8/10 ✓
@@ -27,116 +27,119 @@
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold — Profiles at 7.5/10)
 
-## What Changed from Attempt 11
+## What Changed from Attempt 12
 
-### Uncle Bill appearance — FIXED ✓ (CRITICAL fix from attempt 12)
-- Was: "Elderly man with a crabbed and critical demeanor; no physical description beyond age and temperament is provided."
-- Now: "an elderly, grizzled, small man, grim and unexhilarating"
-- This is the CORRECT text from source line 128. The post-convert injection approach worked!
-- **Score impact: +0.5 on profiles (7.0 → 7.5)**
+### Text-based relationship verification — PARTIAL SUCCESS
+- Relationship FIELDS changed: Uncle Bill ↔ John no longer says "brother" — now says "father" (Uncle Bill as father figure)
+- Ted Frith "nephew" hallucination: REMOVED ✓ — now "unknown"
+- BUT: Uncle Bill's DESCRIPTION TEXT still says "his late brother's son" — the verification only fixed `.relationships`, not `.descriptions[].text`
+- Plot summary and chapter summary also still say "brother" — not corrected
 
-### "Same person" invariant — WORKED ✓
-- John → John Donaldson: was "same person" (attempt 11) → now "unknown"
-- "Unknown" is not ideal (should be "son") but vastly better than "same person" which would confuse a narrator
-- **Score impact: +0.1**
+### Extended subtractive correction — DID NOT FIX DESCRIPTIONS
+- Fix 3 was supposed to pass description/appearance to the LLM for correction
+- John's description NOW says "reclaims dignity in death" (previously "meets a tragic end") — different wording but SAME ERROR
+- The LLM regenerated the profile with fresh contamination; the subtractive correction didn't catch it
+- Uncle Bill's description still says "late brother's" — LLM subtractive correction also missed this
 
-### Relationships — DIFFERENT but still wrong
-- Uncle Bill → John Donaldson: was "uncle" (attempt 11) → now "brother" — WRONG (should be "cousin")
-- John Donaldson → Uncle Bill: was "son" (attempt 11) → now "brother" — WRONG (should be "cousin")
-- Uncle Bill → Ted Frith: "nephew" — WRONG (Ted is a wartime acquaintance of John, no family relation to Uncle Bill)
-- Source text line 28: "the charming boy, a cousin, who had come to be this lad's father" — explicitly says "cousin"
+### John appearance — IMPROVED ✓
+- Was (attempt 12): concern about "Towering over others with young magnificence" on wrong character
+- Now: "Olive-skinned with blue eyes, thickset and long lashes, bearing a strong resemblance to his father"
+- This is CORRECT physical description from the source text ✓
 
-### John description contamination — PERSISTS
-- John's description says he "meets a tragic end" and shows "selfless sacrifice and quiet dignity in death" — WRONG (John the boy SURVIVES the war and returns home)
-- Evidence #6 for John: "died in combat, buried near where he died" — this is John Donaldson (the father), NOT John the boy
-- Evidence #7: "had a son who later became the narrator's ward" — also the father's evidence, not the boy's
-- The subtractive correction fixed personality traits but doesn't address descriptions or evidence
-
-### John Donaldson description/appearance swapped — PERSISTS
-- JD's description: "a young American who enlisted as an ambulance driver... encountered a man sharing his name" — this describes John the boy's experience
-- JD's appearance: "Towering over others with young magnificence" — this describes the 18-year-old son, not the elderly dying father
-- The LLM has swapped attributes between the two same-name characters
-
-### Uncle Bill quotes — REGRESSED
-- Attempt 11 had genuine Uncle Bill quotes ("I am crabbed and prejudiced...")
-- Attempt 12: "Dear Uncle Bill: Where am I going to in vacation?" (John's letter) and "American, sir!" (John Donaldson's dying words) — neither is actually Uncle Bill speaking
-- LLM variability; not directly fixable
+### Relationships summary
+- Uncle Bill → John: "father" (was "brother") — different error but closer to truth (he IS a father figure)
+- John → Uncle Bill: "father" — same in both directions; should be asymmetric
+- Uncle Bill → Ted Frith: "unknown" (was "nephew") — FIXED ✓
+- John → Ted Frith: "fellow ambulance driver and comrade" — CORRECT ✓
 
 ## Current Issues (Priority Order)
 
 ### HIGH
 
-1. **Uncle Bill ↔ John Donaldson relationship: "brother" instead of "cousin"** [Profiles]
-   - Problem: Both Uncle Bill → JD and JD → Uncle Bill show "brother", but the source text explicitly says "a cousin" (line 28)
+1. **Uncle Bill's description text says "late brother's son" — should be "late cousin's son"** [Profiles]
+   - Problem: The description reads "reluctantly becomes the guardian of his late brother's son, John" — the source text explicitly says "a cousin" (line 28)
    - Evidence: Line 28: "the charming boy, a cousin, who had come to be this lad's father"
-   - Additionally: Uncle Bill describes himself as "an uninteresting orphan" (line 34) — he was taken in by JD's parents, not their biological son
-   - Uncle Bill's descriptions and evidence also repeat this error: "his late brother", "Had a close relationship with his brother John Donaldson", "after his brother's death"
-   - Location: LLM-generated profiles in `src/analyzer.py`. The LLM keeps generating "brother" because they grew up together, but the text says "cousin"
-   - **FIX:** Add a text-based relationship verification after profile generation. Search the source text for explicit relationship terms (cousin, brother, uncle, father, son, etc.) in context of character names. When the source text explicitly states a relationship, override the LLM-generated one.
-   - **Score impact: ~0.2-0.3 points on profiles**
+   - Root cause: The text-based relationship verification CORRECTLY identified the relationship but only fixed the `.relationships` field. The `.descriptions[].text` field was not corrected.
+   - Note: The plot summary and chapter summary also say "brother" — same propagation
+   - **WHAT FAILED:** The LLM subtractive correction (Fix 3 from attempt 13) was supposed to catch this, but the LLM did not flag "brother" as needing correction in the description prose
+   - **FIX:** Use DETERMINISTIC string replacement, not LLM judgment. After the text-based relationship verification identifies that Uncle Bill ↔ John Donaldson = "cousin", scan ALL text fields (descriptions, plot summary, chapter summary) for "brother" in context of these characters and replace with "cousin"
+   - **Score impact: +0.2-0.3 points on profiles**
 
-2. **Uncle Bill → Ted Frith: "nephew" (completely wrong)** [Profiles]
-   - Problem: Ted Frith is a fellow Red Cross ambulance volunteer — a wartime comrade of John's, not Uncle Bill's nephew
-   - Evidence: Ted appears only in John's wartime recounting. He's introduced as "Ted Frith ran along shouting" — just another driver
-   - This is pure LLM hallucination of a family relationship
-   - Location: LLM profile generation
-   - **FIX:** In the post-profile correction, if a relationship is "nephew"/"niece"/"cousin" etc. but there's no evidence in the source text of family connection, replace with "unknown" or infer from context. Alternatively, validate family-type relationships against the character evidence — if no evidence supports a family tie, downgrade to contextual relationship.
-   - **Score impact: ~0.1 points**
-
-3. **John's description says he "meets a tragic end" — he SURVIVES** [Profiles]
-   - Problem: John (the boy/son) survives the war and comes home. His description says "meets a tragic end, later revealed to have been a courageous wartime hero whose final acts reflect redemption" and "selfless sacrifice and quiet dignity in death" — all describing his FATHER, not him
-   - Evidence: The framing narrative has John returning on the Santa Angela and recounting his story to Uncle Bill at home
-   - This is same-name contamination: the LLM merged the father's death into the son's profile
-   - Location: LLM profile generation + subtractive correction (which fixes personality but not descriptions)
-   - **FIX:** Extend the same-name contamination correction to also check descriptions. If a character appears in the framing narrative as alive/present, remove references to their death from their profile description. Alternatively, the subtractive correction prompt could be expanded to cover `descriptions[].text` in addition to personality.
-   - **Score impact: ~0.15-0.2 points**
-
-4. **John Donaldson's appearance describes the SON, not the father** [Profiles]
-   - Problem: JD's appearance is "Towering over others with young magnificence; physically resembles his father but with added manliness and force" — this is Uncle Bill's description of 18-year-old John the boy when he arrives home, NOT of John Donaldson the elderly dying father
-   - Evidence: "towering over me" describes the boy's arrival; JD (the father) is described as dying/wounded in a church
-   - Same-name contamination flowing in the other direction
-   - Location: Same LLM profile generation
-   - **FIX:** Same as issue #3 — extend subtractive correction to cover appearance. For the father: he should have appearance based on the wartime church scene where he's dying. For the son: he's "towering over" Uncle Bill at the pier.
-   - **Score impact: ~0.1 points**
+2. **John's description says "reclaims dignity in death" — he SURVIVES** [Profiles]
+   - Problem: John (the boy/son) survives the war. His description: "evolving from a neglected orphan to a self-sacrificing ambulance driver who reclaims dignity in death"
+   - Evidence: The framing narrative has John returning and telling the story to Uncle Bill. He is alive.
+   - Root cause: John and John Donaldson (father) are merged into one character. The father dies; the son survives. The LLM describes the merged entity as dying.
+   - **WHAT FAILED:** The LLM subtractive correction was supposed to fix description text but did not remove the death reference
+   - **FIX:** DETERMINISTIC approach: After profile generation, check if the character's canonical name appears in the final 20% of the source text in active/alive context (dialogue, action verbs). If yes, scan their description for death/dying references and remove them. OR: since John/John Donaldson are merged but the canonical is "John" (the survivor), remove death references from the merged profile.
+   - **Score impact: +0.15-0.2 points**
 
 ### MEDIUM
 
-5. **John evidence contaminated with father's history** [Profiles]
-   - Problem: Evidence #1 (pampered), #2 (Yale), #6 (died in combat), #7 (had a son) all describe John Donaldson the father, not John the boy
-   - Evidence #1: "worshipped and pampered John" — this is about the father's childhood
-   - Evidence #2: "graduated from Yale" — Uncle Bill and the father graduated together
-   - Evidence #6: "died in combat, buried near where he died" — the father's death, attributed to the son
-   - The subtractive correction doesn't filter evidence facts
-   - LOW visual impact since evidence is in a collapsed details section
+3. **Both Uncle Bill ↔ John relationships say "father" (asymmetric relationship not captured)** [Profiles]
+   - Problem: `John.relationships["Uncle Bill"] = "father"` AND `Uncle Bill.relationships["John"] = "father"` — both say the same thing
+   - Should be: John→Uncle Bill = "guardian/father figure" and Uncle Bill→John = "ward/adopted son"
+   - Low visual impact (narrator would understand) but technically incorrect
+   - **Score impact: ~0.05 points**
+
+4. **John evidence contaminated with father's history** [Profiles]
+   - Evidence #2: "avoided unpleasantness and stopped writing after a financial scandal" — father's story
+   - Evidence #4: "used the alias 'John Donaldson'" — confusing since JD IS the father's name
+   - Evidence #5: "died while serving as a stretcher-bearer" — father's death
+   - Low visual impact (collapsed details section)
    - **Score impact: ~0.1 points**
 
-6. **Piave, Venetia, Tagliamento, Bersagliari have "unknown" category** [Pronunciation]
+5. **Piave, Venetia, Tagliamento, Bersagliari have "unknown" category** [Pronunciation]
    - Should be "foreign" — they are Italian/geographic terms
    - IPA and notes are correct
    - **Score impact: negligible**
 
-## Score Projection for Attempt 13
+## Score Projection for Attempt 14
 
 Profiles currently at 7.5/10. To reach 8.0:
-- Fix #1 (cousin vs brother): +0.2-0.3
-- Fix #2 (Ted Frith nephew): +0.1
-- Fix #3 (John survives): +0.15-0.2
-- Fix #4 (JD appearance): +0.1
-- **Total achievable: +0.55-0.7 → profiles 8.0-8.2**
+- Fix #1 (deterministic "brother"→"cousin" in descriptions/summaries): +0.2-0.3
+- Fix #2 (remove death references for surviving character): +0.15-0.2
+- **Total achievable: +0.35-0.5 → profiles 7.85-8.0**
 
-### Recommended Approach for Fix Phase
+This is TIGHT. Both fixes need to land.
 
-**The most GENERIC and reusable fix:** Add a text-based relationship verification step after LLM profile generation that:
+### Recommended Approach for Fix Phase — ATTEMPT 14
 
-1. For each relationship pair, search the source text for sentences containing both character names (or aliases) near explicit relationship words (cousin, brother, uncle, father, son, wife, husband, friend, etc.)
-2. When an explicit relationship term is found in the source text, override the LLM-generated relationship
-3. This is data-driven (uses source text, not hardcoded) and works for ANY book
+**KEY LESSON FROM ATTEMPT 13:** The LLM subtractive correction is UNRELIABLE for catching specific factual errors in description prose. It was given the description and asked to correct it, but it did not flag "brother" or "death" as errors. **DO NOT rely on LLM judgment for these corrections. Use DETERMINISTIC string operations.**
 
-**For the description contamination (issues #3-4):** Extend the existing same-name subtractive correction to also cover:
-- `descriptions[].text` — flag/correct descriptions that attribute death to a living character or youth to an elderly character
-- `appearance.summary` — ensure appearance matches the character's actual described age/state
+### FIX 1 (HIGH): Deterministic "brother"→"cousin" replacement in text fields
 
-**IMPORTANT:** These fixes should be in `src/analyzer.py` as post-profile corrections (same pattern as existing subtractive correction). They should be GENERIC — driven by source text analysis, not hardcoded character names.
+**APPROACH:** After the text-based relationship verification step (which already correctly identified "cousin"), add a second pass that:
+
+1. Collects the verified relationship corrections (e.g., Uncle Bill ↔ John Donaldson: text says "cousin", LLM said "brother")
+2. For each correction, scans ALL text fields in the character data:
+   - `descriptions[].text`
+   - `plot_summary` in overview
+   - `structure[].summary` (chapter summaries)
+3. Uses regex to find "brother" in context of the relevant character names (e.g., within 100 chars of "Uncle Bill" or "John Donaldson" or aliases)
+4. Replaces "brother" with "cousin" (the text-verified term)
+
+**EXAMPLE:** In Uncle Bill's description: "his late brother's son" → "his late cousin's son"
+
+**This is GENERIC** — it works for any book where the LLM gets a family relationship wrong but the source text has the correct term.
+
+### FIX 2 (HIGH): Deterministic death/survival correction in descriptions
+
+**APPROACH:** After profile generation, for each character:
+
+1. Check if the character name (or aliases) appears in the final 25% of the source text
+2. If found in dialogue or with active verbs (said, stood, returned, walked, looked), the character is ALIVE at the end
+3. Scan their description for death-related phrases: "death", "died", "dying", "dignity in death", "fatal", "last moments", "final act"
+4. If the character is alive but description mentions death, remove the death-related clause
+
+**ALTERNATIVE simpler approach:** Since this is caused by the John/John Donaldson merge (father dies, son survives, merged profile says death), check if ANY alias of the character has a contradictory life/death state. If one alias is alive at end of text and description says death, flag for removal.
+
+**Score impact: +0.15-0.2**
+
+### IMPORTANT IMPLEMENTATION NOTES
+- Place these fixes in `src/analyzer.py` in the same post-convert location as the working fixes from attempt 12
+- These MUST be deterministic (string search/replace), NOT LLM-based corrections
+- The text-based relationship verification block from attempt 13 already exists — EXTEND it, don't replace it
+- Apply description corrections AFTER the relationship verification, using its output
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -153,6 +156,7 @@ Profiles currently at 7.5/10. To reach 8.0:
 | 10 | 8.33 | +1.40 | John personality FIXED ✓, Uncle Bill age FIXED ✓, Uncle Bill→JD relationship FIXED ✓ — but narrator appearance injection produced garbled text. Profiles 7/10. |
 | 11 | 8.45 | +1.52 | Chinese char gone ✓, quotes improved ✓, appearance less garbled but still wrong, relationships mixed. Profiles 7/10. |
 | 12 | 8.53 | +1.60 | Uncle Bill appearance FIXED ✓, "same person" invariant FIXED ✓ — but "brother" vs "cousin" and description contamination persist. Profiles 7.5/10. |
+| 13 | 8.53 | +1.60 | Relationship fields fixed (no more "brother"), Ted nephew FIXED, John appearance IMPROVED — but description TEXT still has "brother" and "death". LLM subtractive correction unreliable. Profiles 7.5/10. |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
@@ -201,6 +205,12 @@ Profiles currently at 7.5/10. To reach 8.0:
   - Fix 2: Universal "same person" invariant — **WORKED** ✓ — John → JD now "unknown" not "same person"
   - Remaining: "brother" vs "cousin" relationship, description contamination
 
+- Attempt 13: Text-based relationship verification + extended subtractive correction to description/appearance
+  - Fix 1+2: Text-based relationship verification in `.relationships` field — **PARTIAL** ✓ — relationships no longer say "brother" (say "father" instead); Ted "nephew" removed
+  - Fix 3: Extended LLM subtractive correction to also handle descriptions — **DID NOT WORK** — LLM did not correct "brother" or "death" in description text
+  - Modified: src/analyzer.py
+  - Key lesson: **LLM subtractive correction is unreliable for specific factual corrections in prose. Use deterministic string replacement.**
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -238,83 +248,76 @@ Profiles currently at 7.5/10. To reach 8.0:
 | 11 | Profiles: bidirectional rel override | src/analyzer.py:~2054-2081 | **Mixed** — some rels changed but not correctly; Uncle Bill→JD regressed from "cousin" to "uncle" |
 | 12 | Profiles: narrator appearance (post-convert final pass) | src/analyzer.py (after _convert_characters) | **Fixed** ✓ — appearance correct |
 | 12 | Profiles: "same person" universal invariant | src/analyzer.py (after _convert_characters) | **Fixed** ✓ — John→JD now "unknown" |
+| 13 | Profiles: text-based relationship verification | src/analyzer.py (post-convert) | **Partial** — relationship fields fixed but description text NOT corrected |
+| 13 | Profiles: LLM subtractive correction extended to descriptions | src/analyzer.py (subtractive correction prompt) | **DID NOT WORK** — LLM did not correct "brother" or "death" in description prose |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
 - character_llm_chunk_chars: 5000 (appropriate for 5,048 word text)
 - All characters from `supporting_*` IDs — main_cast pipeline did not fire
 - Temperature: 0.7 for all agents
-- Total time: 14m 34s, 32 LLM calls, 53,087 tokens
-- 4 profiles generated with HIGH confidence
+- Total time: 12m 41s, 30 LLM calls, 47,077 tokens
+- 3 profiles generated with HIGH confidence (was 4 in attempt 12)
 - 18 pronunciation flags; categories populated
 - 0 LLM retries across all stages
 
-## Priority Fix Guidance for Attempt 13
+## Priority Fix Guidance for Attempt 14
 
 **ONE failing category: Profiles at 7.5/10 → needs 8.0 (+0.5)**
 
-### ⚠️ PATTERN ALERT: src/analyzer.py modified in 11 of 12 attempts
+### ⚠️ CRITICAL LESSON: LLM corrections are UNRELIABLE for description text
 
-But the last two fixes (attempt 12) BOTH WORKED. The post-convert approach is viable. Continue using it.
+Attempt 13 proved that the LLM subtractive correction, even when given description text to correct, does NOT reliably catch factual errors like "brother" vs "cousin" or remove death references for surviving characters. **Attempt 14 MUST use deterministic string operations, not LLM judgment.**
 
-### FIX 1 (HIGH): Text-based relationship verification
+### FIX 1 (HIGH): Deterministic "brother"→"cousin" in description text
 
-**THE KEY INSIGHT:** The source text explicitly states "a cousin" (line 28) for Uncle Bill ↔ John Donaldson, but the LLM generates "brother." A text-based verification can catch and correct this.
+After the text-based relationship verification (already in place from attempt 13), add a SECOND PASS that applies the verified corrections to ALL text fields:
 
-**APPROACH:** After profile generation (same post-convert location as the working fixes from attempt 12), add a text-based relationship verification step:
+```python
+# Pseudocode — DETERMINISTIC, no LLM needed
+for char in characters:
+    for rel_name, verified_rel in text_verified_relationships.items():
+        if verified_rel != llm_rel:  # e.g., verified="cousin", llm="brother"
+            # Replace in description text
+            for desc in char.descriptions:
+                desc.text = desc.text.replace(f"brother's", f"cousin's")
+                desc.text = desc.text.replace(f"his brother", f"his cousin")
+                # etc. for common patterns
+            # Replace in plot summary, chapter summaries
+```
 
-1. For each character pair where a relationship exists
-2. Search the source text (~500 char window around mentions of either character) for explicit relationship words: cousin, brother, sister, uncle, aunt, father, mother, son, daughter, wife, husband, friend, companion
-3. When a relationship term is found near both character names, compare it to the LLM-generated relationship
-4. If they differ and the text-based term is a clear family relationship, override the LLM one
+**Target:** Uncle Bill's description "his late brother's son" → "his late cousin's son"
+**Also fixes:** Plot summary and chapter summary that say "brother"
 
-**EXPECTED RESULT:** Uncle Bill ↔ John Donaldson: "brother" → "cousin"
-**Score impact: +0.2-0.3**
+### FIX 2 (HIGH): Deterministic death-reference removal for surviving characters
 
-### FIX 2 (HIGH): Validate family relationships against evidence
+After profile generation, check if the character appears alive at end of text:
 
-**PROBLEM:** Uncle Bill → Ted Frith says "nephew" — completely fabricated family tie. Ted is a wartime comrade.
+```python
+# Pseudocode
+final_quarter = source_text[len(source_text)*3//4:]
+for char in characters:
+    if char.canonical_name in final_quarter:  # Character appears in ending
+        # Check for death references in description
+        death_patterns = ["dignity in death", "dies", "died", "death", "fatal", "last moments"]
+        for desc in char.descriptions:
+            for pattern in death_patterns:
+                if pattern in desc.text.lower():
+                    # Remove the death clause
+                    desc.text = remove_death_clause(desc.text, pattern)
+```
 
-**APPROACH:** After profile generation, for any family-type relationship (nephew, niece, cousin, brother, sister, uncle, aunt, father, mother, son, daughter), check whether the character's evidence supports the family connection. If no evidence mentions the family term, replace with a context-derived relationship or "unknown."
+**Target:** John's description "reclaims dignity in death" → remove death clause
 
-Alternatively, combine with Fix 1: if the text-based search finds no family term between two characters, downgrade any LLM-generated family relationship to a contextual one.
+### Implementation location
+- Same post-convert section of `src/analyzer.py` as the working fixes from attempts 12-13
+- Place AFTER the text-based relationship verification block (use its output)
+- MUST be purely deterministic — no LLM calls
 
-**Score impact: +0.1**
-
-### FIX 3 (MEDIUM): Extend subtractive correction to descriptions
-
-**PROBLEM:** John's description says "meets a tragic end" and "quiet dignity in death" — he survives. John Donaldson's appearance says "towering over others with young magnificence" — he's the dying elderly father.
-
-**APPROACH:** Expand the existing same-name contamination correction prompt to also review and correct `descriptions[].text` and `appearance.summary`. The LLM correction already handles personality; extend it to check: "Does this character's description contain events/attributes that actually belong to [same-name character]? If so, remove or replace them."
-
-**Score impact: +0.15-0.25**
-
-### Expected Impact of Fixes
-- FIX 1: cousin vs brother → +0.2-0.3
-- FIX 2: remove fabricated family ties → +0.1
-- FIX 3: fix description contamination → +0.15-0.25
-- Combined: Profiles 7.5 → ~8.0-8.15
-
-## Fix History (Attempt 13)
-
-- Attempt 13: Text-based relationship verification + extended subtractive correction to description/appearance
-  - Fix 1+2: Added post-convert text-based relationship verification block (after "same person" invariant)
-    - Searches source text for explicit relationship phrases ("a cousin", "his brother", etc.) in co-mention windows
-    - Overrides LLM relationship when text explicitly states a different term
-    - Downgrades family relationships to "acquaintance" when characters never co-appear in text (removes hallucinated ties like "nephew")
-  - Fix 3: Extended the subtractive correction prompt (lines 2131-2174) to also pass description and appearance summary to the LLM
-    - LLM now returns corrected_description and corrected_appearance_summary in addition to corrected_personality
-    - Apply block now also writes corrected_description to pipeline_char.description and corrected_appearance_summary to pipeline_char.appearance["summary"]
-  - Modified: src/analyzer.py
-  - Smoke test: All existing tests still pass (only pre-existing failures remain)
-
-## Pipeline Notes (Attempt 13)
-- Completed in 12m 41s, 30 LLM calls, 47,077 tokens
-- Found 5 characters → 3 profiles generated (all HIGH confidence)
-- Uncle Bill narrator appearance injected: "an elderly, grizzled, small man, grim and unexhilarating" ✓
-- 18 pronunciation flags
-- Characters: John (aka Johnny, John Donaldson), Uncle Bill (aka Bill), Joe Barron, Ted Frith (aka Ted)
-- Competitive consensus: ENABLED (characters, structure, summaries)
+### Expected Impact
+- Fix #1: +0.2-0.3 (correct family relationship in all visible text)
+- Fix #2: +0.15-0.2 (remove contradictory death for surviving character)
+- **Combined: +0.35-0.5 → profiles 7.85-8.0**
 
 ## Next Action
-Evaluate output (awaiting_evaluation phase).
+Run PROMPT_fix.md to apply deterministic description text corrections (attempt 14).
