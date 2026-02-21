@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -249,5 +249,22 @@ if _m and is_narrator and hasattr(character, 'appearance') and character.appeara
 ### WARNING: src/analyzer.py modified in 6 of 7 attempts
 This file is the correct location for both fixes. Fix 1 is a one-line change to existing code. Fix 2 is a small addition to existing regex match handling.
 
+## Attempt 8 Fixes Applied
+
+### FIX 1 (CRITICAL — DONE): Fixed post-profile correction method name
+- Changed `profile_llm.generate(correction_prompt)` → `profile_llm.query(correction_prompt)`
+- Added `_corr_response_text = _corr_response.content if _corr_response.success else ""`
+- Updated all downstream uses of `_corr_response` to use `_corr_response_text`
+- Location: `src/analyzer.py` (~line 2096)
+- Smoke test: Pre-existing test suite passes (no new failures)
+
+### FIX 2 (HIGH — DONE): Direct narrator appearance injection (post-profile pass)
+- Added a new post-profile pass (after all profiles generated, before bidirectional rels)
+- For each narrator with `appearance["summary"] == "Unknown"`, searches text for first-person self-description regex
+- Directly injects the cleaned description and age indication
+- Runs at `src/analyzer.py:1916-1956` (after profile generation loop)
+- NOTE: Previous attempt added injection INSIDE `_generate_character_profile` where `character.appearance` is None — this was dead code. New injection correctly runs POST-profile where `char.appearance` is already set.
+- Universality: Universal invariant — any first-person narrator who describes themselves physically gets that description injected if LLM returns "Unknown"
+
 ## Next Action
-Run PROMPT_fix.md to apply the one-line method name fix (Critical #1) and narrator appearance injection (High #2).
+Re-run analysis to verify fixes.

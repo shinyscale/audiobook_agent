@@ -1913,6 +1913,48 @@ class AudiobookAnalyzer:
                 f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters"
             )
 
+            # Post-profile narrator appearance injection.
+            # First-person narrators who describe themselves physically (e.g., "I am an elderly, grizzled man")
+            # often get "Unknown" appearance because the LLM does not always connect "I am" to the narrator
+            # character being profiled. This pass directly injects the self-description when:
+            #   1. The character is a narrator (is_narrator=True), AND
+            #   2. The appearance summary is still "Unknown" or empty after profile generation, AND
+            #   3. A first-person physical self-description is found in the text.
+            # Universal: applies to any first-person narrator in any book.
+            _narrator_self_desc_re = re.compile(
+                r'\bI[\s.…]{0,20}(?:am|was)\b[^\n]{0,300}?\b(?:man|woman|person|elderly|old|young|tall|short|thin|small|lean|stout|fat|grizzled|bald|gray|grey|large)\b',
+                re.IGNORECASE,
+            )
+            for _nc in pipeline_char_map.characters:
+                if not getattr(_nc, 'is_narrator', False):
+                    continue
+                if _nc.appearance is None:
+                    continue
+                _current_app_summary = (_nc.appearance.get("summary", "") or "").strip().lower()
+                if _current_app_summary not in ("", "unknown"):
+                    continue  # Already has appearance — nothing to inject
+                # Search for a physical self-description in the first portion of the text
+                _search_end = min(len(doc.text), max(10000, len(doc.text) // 5))
+                for _nm in _narrator_self_desc_re.finditer(doc.text[:_search_end]):
+                    _desc_text = _nm.group()
+                    _cleaned = re.sub(
+                        r'^I[\s.…]*(?:am|was)\s*', '', _desc_text, flags=re.IGNORECASE
+                    ).strip().rstrip('.,;')
+                    if _cleaned:
+                        _nc.appearance["summary"] = _cleaned
+                        logger.info(
+                            f"Post-profile narrator appearance injection for "
+                            f"'{_nc.canonical_name}': {_cleaned!r}"
+                        )
+                        _desc_lower = _desc_text.lower()
+                        _current_age = (_nc.appearance.get("age_indication", "") or "").lower()
+                        if _current_age in ("", "unknown"):
+                            if any(w in _desc_lower for w in ("elderly", "old", "aged")):
+                                _nc.appearance["age_indication"] = "elderly"
+                            elif "young" in _desc_lower:
+                                _nc.appearance["age_indication"] = "young"
+                    break  # Use first match only
+
             # Post-process: Infer bidirectional family relationships.
             # If character A → B is "father", infer B → A is "son" (if not already set).
             # This is a universal invariant: parent/child, sibling, and spouse relationships
@@ -2051,15 +2093,16 @@ Return JSON only:
 Only include "corrected_personality" and "corrected_age_indication" if contamination_detected is true."""
 
                         try:
-                            _corr_response = profile_llm.generate(correction_prompt)
+                            _corr_response = profile_llm.query(correction_prompt)
+                            _corr_response_text = _corr_response.content if _corr_response.success else ""
                             # Parse JSON from response
                             _corr_data = None
                             try:
-                                _corr_data = _json_corr.loads(_corr_response)
+                                _corr_data = _json_corr.loads(_corr_response_text)
                             except _json_corr.JSONDecodeError:
                                 # Try to extract JSON block
                                 import re as _re_corr
-                                _json_match = _re_corr.search(r'\{.*\}', _corr_response, _re_corr.DOTALL)
+                                _json_match = _re_corr.search(r'\{.*\}', _corr_response_text, _re_corr.DOTALL)
                                 if _json_match:
                                     try:
                                         _corr_data = _json_corr.loads(_json_match.group())
