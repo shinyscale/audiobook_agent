@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -14,124 +14,115 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7/10 ✗
-  - Completeness: 7.5/10
-  - Identity Resolution: 6/10
-  - Alias Grouping: 7/10
-- Character Profiles: 5.5/10 ✗
+- Character Extraction: 8.5/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 8.5/10
+  - Alias Grouping: 9/10
+- Character Profiles: 6/10 ✗
 - Chapter Summaries: 7.5/10 ✗
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.48/10** (reference only)
+- **Overall: 7.93/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (2 categories below threshold)
 
-## What Improved from Attempt 3
-- **Johnny→John merge WORKS:** "Johnny" now appears as alias of "John" ✓. The diminutive merge fix worked perfectly.
-- **Possessive forms filtered:** "John Donaldson's" no longer appears as alias ✓. The possessive check in `_is_valid_name()` worked.
-- **Pronunciation reduced from 25→19:** thriftless (derivation check), thickset, greenhorns, whippersnapper, johnny removed ✓. Whitelist expansion worked.
-- **John Donaldson personality improved:** Now "burdened by past shame, seeking redemption" — correct for the father. Was previously misattributed.
-- **Pronunciation now passes 8.0:** Good coverage of Italian/French words, proper nouns, homographs. Only 1 false positive (Cross).
-- **Score improved:** 7.23 → 7.48 (+0.25)
+## What Improved from Attempt 4
+- **Ted/Ted Frith MERGED:** Ted Frith now has 5 mentions with "Ted" as alias ✓. Root cause was NER count mismatch; removing the `char.mention_count > other_char.mention_count` condition fixed it.
+- **Red Cross REMOVED:** Organization filter (PERSON-only NER for supporting cast) worked ✓. Character count 6→5.
+- **"Cross" pronunciation false positive gone:** Removed naturally when Red Cross was excluded. 19→18 entries.
+- **John→John Donaldson relationship: no longer "same person":** Now shows "unknown" — still wrong but far less damaging than "same person." Improvement.
+- **John Donaldson→John: "father":** CORRECT ✓. The father-to-son relationship is now accurately labeled.
+- **John Donaldson personality improved:** "Introspective, burdened by guilt, seeks redemption through service" — accurate for the father ✓.
+- **Character Extraction now passes 8.0:** Up from 7/10 to 8.5/10 thanks to Ted merge + Red Cross removal.
+- **Score improved:** 7.48 → 7.93 (+0.45)
 
-## What Regressed or Didn't Improve
-- **Ted/Ted Frith STILL SPLIT:** The first-name merge fix was implemented but did NOT fire. Ted Frith has 2 mentions (≤3 threshold ✓) and Ted has 5 mentions (>2 ✓), so the condition SHOULD have triggered. Investigate why it didn't — possible ordering issue or ID mismatch.
-- **Red Cross STILL extracted:** Organization filter was not implemented in attempt 3's fix scope.
-- **Chapter summary regressed: "deceased brother's grandson"** — attempt 3 had fixed this to correctly say "cousin." Now the "brother" error is back. LLM stochasticity.
-- **Plot summary says "cousin's grandson"** — "cousin" is correct but should be "cousin's son," not grandson. John is John Donaldson's son.
-- **John (son) personality STILL has father's traits:** "impulsive, reckless with money, avoids discomfort" describes the FATHER. The son should be: brave, earnest, patriotic, compassionate. All 10 evidence citations for "John" describe the FATHER's life story.
-- **John→John Donaldson relationship: "same person"** — CRITICALLY WRONG. They are father and son, not the same person. A narrator reading this will be confused about the entire plot.
-- **Uncle Bill appearance still "unknown"** — first-person self-description not captured.
+## What Didn't Improve
+- **John (son) personality STILL has father's traits:** "impulsive, charming, avoidant of unpleasantness, thriftless" — 5 of 7 evidence citations are about the FATHER (financial irresponsibility, desire to live in Italy, faked death, avoided correspondence). Only evidence items #6 (ambulance driver) and #7 (light demeanor while wounded) are about the son. The ±500 char dedup filter didn't remove enough father evidence from John's collection.
+- **Uncle Bill appearance STILL "unknown":** The synthetic early mention fix for narrators didn't produce results. The pipeline warning "No definitive narrator identified from plot summary" suggests narrator detection failed, preventing the fix from firing.
+- **Uncle Bill verbal tics still backwards:** "addressing John as 'Uncle Bill'" — John addresses HIM as Uncle Bill, not the other way around.
+- **Uncle Bill→John Donaldson relationship: "brother-in-law and estranged brother"** — wrong (should be "cousin").
+- **Chapter summary STILL says "deceased brother's grandson":** "brother" should be "cousin," "grandson" should be "son." The plot summary has the same two errors. The plot summary correctly says "John's father" later, creating an internal contradiction.
+- **All physical_description fields null** — the `appearance` object has data for John Donaldson but `physical_description` remains null across all characters.
 - **Pronunciation categories still all null** — serialization bug persists.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **John (son) personality has FATHER's traits — evidence collection broken for same-name characters** [Profiles / Identity Resolution]
-   - Problem: "John" entry (the son, 30 mentions) has personality: "Charismatic and impulsive, avoids discomfort and responsibility, reckless with money" — these ALL describe the FATHER, not the son
-   - Evidence: All 10 evidence citations for "John" describe the father's life: "pampered in youth," "inherited debts," "avoided responsibility," "death was likely suicide," "is the father of the narrator's adopted son"
-   - The son's actual traits: brave, patriotic, earnest, compassionate (enlists in WWI, serves as ambulance driver, discovers his father in a war zone)
-   - Root cause: The name "John" is used for BOTH characters throughout the text. The evidence gatherer collects all "John" passages without distinguishing which John is discussed. The father's backstory dominates the early sections.
-   - Impact: Profiles 5.5→8.0 requires fixing this. A narrator voicing "John" would prepare the wrong characterization.
-   - **This has persisted through ALL 4 attempts.** The same pipeline layer (profiling evidence gathering) keeps collecting father's passages for the son's entry.
-   - Location: V2 character profiling — evidence gathering in `src/analyzer.py` or `src/pipeline/character_profiling/`
-   - Fix approaches (escalating):
-     a) **Position-aware evidence deduplication:** If evidence for "John" overlaps with evidence already collected for "John Donaldson," exclude it from "John" and use the remaining evidence (which should be about the son)
-     b) **Cross-reference with known relationships:** If "John" and "John Donaldson" are known to be father/son, partition evidence by which character is the subject
-     c) **Disambiguation prompt:** When evidence is ambiguous for same-name characters, ask the LLM to classify each passage as referring to Character A or Character B
-
-2. **John→John Donaldson relationship says "same person"** [Identity Resolution / Profiles]
-   - Problem: The relationship field states "same person (full name used in context)" — displayed prominently in the HTML
-   - Evidence: They are CLEARLY father and son. The text says "I saw the charming boy, a cousin, who had come to be this lad's father"
-   - Impact: A narrator reading this will be deeply confused about the plot
-   - Location: Relationship extraction in profiling pipeline
-   - Fix approach: Same root cause as issue #1 — the profiler can't distinguish the two Johns
+1. **John (son) personality has FATHER's traits — evidence dedup insufficient** [Profiles]
+   - Problem: "John" (supporting_0, 30 mentions) personality: "impulsive, charming, avoidant of unpleasantness, thriftless, courageous, casual" — 4 of 6 traits describe the FATHER
+   - Evidence contamination: 5 of 7 evidence citations are about the father:
+     - [1] "received financial support... lived extravagantly on inherited wealth" → FATHER
+     - [2] "had a lifelong desire to live in Italy" → FATHER
+     - [3] "frequently requested money and avoided correspondence" → FATHER
+     - [4] "death was likely a suicide" → FATHER
+     - [5] "nephew of the narrator and son of his deceased brother" → AMBIGUOUS
+     - [6] "served as an ambulance driver in WWI" → SON ✓
+     - [7] "maintained a light, affectionate demeanor even while severely wounded" → SON ✓
+   - The son's actual traits: brave, earnest, patriotic, compassionate, forgiving
+   - Root cause: The ±500 char proximity filter didn't work because many passages discussing "John" (the father) DON'T mention "John Donaldson" within 500 chars — they just use "John" throughout the early flashback sections
+   - The pipeline warning "No passages provided for John Donaldson, returning UNCERTAIN" suggests the filter was too aggressive for John Donaldson (removing all his passages) while not aggressive enough for John (leaving father's passages in)
+   - **This has persisted through ALL 5 attempts.** Approaches tried: position-aware dedup (attempt 5). The fundamental issue is the text uses "John" for BOTH characters and the father's backstory dominates the early narrative.
+   - Location: `src/analyzer.py` — evidence dedup logic
+   - Fix approach: **The proximity filter approach is flawed** because:
+     - Passages about the father use just "John" without "John Donaldson" nearby
+     - All "John Donaldson" passages DO have "John" nearby (trivially, as a substring)
+     - Better approach: **Temporal/positional partitioning** — Use the text structure: passages in the first half (flashback about the father) that mention "John" in past tense or in context of financial irresponsibility/disappearance should be attributed to John Donaldson. Passages in the second half (WWI, reunion) with "John" in active/present context should be attributed to the son.
+     - Alternative: **LLM disambiguation** — When two characters share a first name, prompt the LLM with each evidence passage and ask "Does this passage describe [John the son/young man] or [John Donaldson the father]?"
 
 ### HIGH
 
-3. **Ted/Ted Frith false split persists despite merge fix** [Identity Resolution]
-   - Problem: Ted Frith (supporting_6, 2 mentions) and Ted (supporting_7, 5 mentions) remain separate entries
-   - Evidence: Ted Frith is introduced by full name; "Ted" is used for all subsequent references. Even the profiler acknowledges in Ted's relationships: "same person... full name used interchangeably with first name only"
-   - The fix from attempt 3 (first-name merge in `_merge_within_supporting_cast`) should have fired: Ted Frith has 2 mentions (≤3) and Ted has 5 mentions (>2). **Why didn't it work?**
-   - Possible causes: (a) order of iteration — Ted Frith processed before Ted?, (b) the full-name character's first word comparison failed, (c) the merge condition uses wrong mention count field
-   - Location: `src/agents/characters.py` — `_merge_within_supporting_cast()` Pass 2 (first-name check)
-   - Fix: Debug the first-name merge condition. Add logging or verify with unit test. The condition should be: `if single_word_name == full_name.split()[0] and full_name_mentions <= 3 and single_word_mentions > full_name_mentions`
+2. **Uncle Bill appearance "unknown" despite first-person self-description** [Profiles]
+   - Problem: Text says "I... am... an elderly, grizzled, small man, grim and unexhilarating" — but appearance shows "unknown"
+   - The attempt 5 fix (synthetic early mention for narrators) didn't fire because "No definitive narrator identified from plot summary" — narrator detection failed
+   - Uncle Bill IS correctly tagged as `is_narrator: true` in the character data, but the appearance extraction didn't use this
+   - **This has been noted in attempts 2, 3, 4, and 5 without resolution**
+   - Location: `src/analyzer.py` or `src/pipeline/character_profiling/` — appearance extraction
+   - Fix: The narrator detection check needs to use the `is_narrator` flag from character data, not rely on plot summary narrator identification. When a character has `is_narrator: true`, search for first-person self-descriptions ("I am/was [physical]") in addition to third-person descriptions.
 
-4. **Red Cross still extracted as character** [Completeness]
-   - Problem: "Red Cross" (supporting_5, 4 mentions) is an organization, not a character or symbolic force
-   - Unlike "the monkey's paw" (antagonistic force), the Red Cross is just a background institution
-   - This was noted in attempts 2 and 3 but never fixed
-   - Location: V2 character extraction — needs entity type filtering
-   - Fix approach: Add known organization names (Red Cross, Army, Navy, United Nations, etc.) to an exclusion list in supporting cast extraction, OR filter entities with `is_symbolic: false` and no personality/voice data
-
-5. **Chapter summary regression: "deceased brother's grandson"** [Summaries]
-   - Problem: The chapter summary says "deceased brother's grandson, John" — TWO errors:
-     - "brother" should be "cousin" (John Donaldson is Uncle Bill's cousin)
-     - "grandson" should be "son" (John is John Donaldson's son, not grandson)
-   - This was fixed in attempt 3 but regressed due to LLM stochasticity on re-run
-   - The plot_summary correctly says "cousin" but also says "grandson" (should be "son")
-   - Location: Summary generation — LLM-generated content
-   - Fix approach: This is hard to fix generically. Options:
-     a) Post-processing: cross-reference character relationships with summary text
-     b) Stronger prompting: include extracted relationships in summary prompt context
-     c) Accept LLM variability — score will fluctuate between runs
-
-6. **Uncle Bill appearance still "unknown"** [Profiles]
-   - Problem: Text says "I... am... an elderly, grizzled, small man, grim and unexhilarating" — but appearance is "unknown"
-   - Root cause: Narrator describes himself in first person; appearance extraction searches for third-person descriptions
-   - Was noted in attempts 2, 3, and 4 but not fixed
-   - Location: V2 appearance extraction — needs first-person narrator self-description handling
-   - Fix: When `is_narrator: true`, search for "I am/was [physical description]" patterns in addition to third-person descriptions
+3. **Summary says "deceased brother's grandson" — two factual errors** [Summaries]
+   - Problem: Both chapter summary and plot summary open with "deceased brother's grandson, John"
+   - Error 1: "brother" should be "cousin" (John Donaldson is Uncle Bill's cousin, not brother)
+   - Error 2: "grandson" should be "son" (John is John Donaldson's son, not grandson)
+   - The plot summary correctly identifies "John's father, the charismatic but reckless John Donaldson" later — contradicting itself
+   - This error has appeared in attempts 1, 2, 4, and 5 (was correct in attempt 3 only)
+   - Location: Summary generation LLM prompts
+   - Fix approach: Include extracted character relationships in the summary prompt context so the LLM has explicit family relationship data. When John Donaldson→John is tagged "father," the summary prompt should say "John Donaldson is John's father; Uncle Bill is John's guardian (cousin of John Donaldson)."
 
 ### MEDIUM
 
-7. **Uncle Bill relationship errors** [Profiles]
-   - "uncle by marriage (deceased brother's son)" for John Donaldson — should be "cousin"
-   - "guardian figure / reluctant surrogate father" for John — acceptable but "son-in-law" prefix is wrong
-   - Uncle Bill verbal tics include "addressing the boy as 'Uncle Bill'" — this is how the boy addresses HIM, not his own speech pattern
-   - These are all consequences of the same profiling confusion
+4. **John→John Donaldson relationship: "unknown"** [Profiles]
+   - Problem: Should be "son" or "father and son" — John Donaldson→John correctly says "father" but the reverse shows "unknown"
+   - A narrator reading this sees the relationship only one way
+   - Location: Relationship extraction — bidirectional relationship inference
+   - Fix: When Character A→B has relationship "father," automatically set B→A to "son" if currently unknown
 
-8. **Pronunciation: "Cross" false positive** [Pronunciation]
-   - Common English word flagged because "Red Cross" was extracted as a character
-   - Fix: Add "Cross" to whitelist, OR removing Red Cross as a character would eliminate this naturally
+5. **Uncle Bill→John Donaldson relationship: "brother-in-law and estranged brother"** [Profiles]
+   - Problem: Should be "cousin" — John Donaldson is Uncle Bill's cousin, not brother or brother-in-law
+   - The summary correctly identifies a family connection but mischaracterizes it
+   - Same root cause as the summary "brother" error — the LLM confuses the relationship
 
-9. **Pronunciation categories all null** [Pronunciation]
-   - All 19 entries have `category: null` despite being clearly classifiable
-   - Terminal output during analysis showed category counts — data is computed but not serialized
+6. **Uncle Bill verbal tics reversed** [Profiles]
+   - Problem: Lists "addressing John as 'Uncle Bill'" — but John addresses HIM as Uncle Bill, not the other way around
+   - Also: "use of 'Uncle Bill' in narration" — this is his name/title used by others
+   - A narrator reading this would misunderstand the speech patterns
+
+7. **Pronunciation categories all null** [Pronunciation]
+   - All 18 entries have `category: null` despite being classifiable (proper_noun, foreign_term, homograph, etc.)
+   - Serialization bug — data is computed but not written to output model
    - Location: Pronunciation pipeline output serialization
-   - Fix: Check where `category` is set in the pronunciation pipeline and ensure it's written to the output model
+   - Impact: Minor for narrator utility but reduces data quality
 
 ### LOW
 
-10. **John appearance confusion** [Profiles]
-    - John's appearance: "Olive-skinned with blue eyes, thickset... physically resembles his son" — says "resembles his son" but John IS supposed to be the son. Age listed as "middle-aged" but the son is young.
-    - Same root cause as issue #1
+8. **John age listed as "young (early 20s) to middle-aged (near 40)"** [Profiles]
+   - Confusing range — the son is young. The wide range comes from conflating father and son evidence.
+   - Same root cause as issue #1.
 
-11. **Homographs lack IPA** [Pronunciation]
-    - live, minute, read, close, moderate — flagged correctly but only have descriptive notes, no IPA
-    - Acceptable since both pronunciations are given in notes, but IPA would be ideal
+9. **Homographs lack IPA** [Pronunciation]
+   - live, minute, read, close, moderate — flagged correctly with descriptive notes but no IPA
+   - Acceptable since both pronunciations are described, but IPA for each pronunciation would be ideal
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -140,6 +131,7 @@
 | 2 | 7.13 | +0.20 | Profiles populated (but inaccurate), pronunciation false positives fixed |
 | 3 | 7.23 | +0.30 | Uncle Bill personality excellent, summaries fixed, Ted Frith found — but fragmentation increased, pronunciation categories null |
 | 4 | 7.48 | +0.55 | Johnny merged, pronunciation passes 8.0, possessives filtered — but Ted/Ted Frith still split, summary regression, profiles unchanged |
+| 5 | 7.93 | +1.00 | Ted/Ted Frith merged, Red Cross removed, Characters now passes 8.0 — but profiles still 6/10 (father/son evidence contamination persists), summaries still 7.5 |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
@@ -154,6 +146,10 @@
   - Modified: `src/agents/characters.py` (possessive filter, first-name merge, diminutive merge), `cmu_proposer.py` (derivation check, whitelist)
   - Result: Johnny merged ✓, possessives filtered ✓, pronunciation improved to 8.0 ✓, but Ted/Ted Frith merge DID NOT FIRE ✗
 
+- Attempt 5: Ted/Ted Frith merge fix, Red Cross filter, profile evidence dedup, narrator appearance
+  - Modified: `src/agents/characters.py`, `src/pipeline/character_extraction_v2/supporting.py`, `src/analyzer.py`
+  - Result: Ted merged ✓, Red Cross removed ✓, Characters passes 8.0 ✓, but evidence dedup insufficient for John profile, narrator appearance fix didn't fire
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -167,64 +163,45 @@
 | 3 | Pronunciation: false positives | cmu_proposer.py (whitelist) | Partial — some removed, new ones remain |
 | 4 | Characters: possessive filter | src/agents/characters.py | Fixed — "John Donaldson's" no longer extracted |
 | 4 | Characters: Johnny→John merge | src/agents/characters.py (diminutive) | Fixed — Johnny now alias of John |
-| 4 | Characters: Ted→Ted Frith merge | src/agents/characters.py (first-name) | **NO CHANGE** — condition didn't fire despite being implemented |
+| 4 | Characters: Ted→Ted Frith merge | src/agents/characters.py (first-name) | **NO CHANGE** — condition didn't fire (NER count mismatch) |
 | 4 | Pronunciation: whitelist | cmu_proposer.py | Fixed — thriftless/thickset/greenhorns/whippersnapper removed |
+| 5 | Characters: Ted/Ted Frith merge | src/agents/characters.py (removed count condition) | **Fixed** ✓ |
+| 5 | Characters: Red Cross filter | src/pipeline/character_extraction_v2/supporting.py | **Fixed** ✓ |
+| 5 | Profiles: evidence dedup | src/analyzer.py (±500 char filter) | **Insufficient** — filter too blunt; removed all John Donaldson evidence but left father evidence in John's collection |
+| 5 | Profiles: narrator appearance | src/analyzer.py (synthetic early mention) | **NO CHANGE** — narrator detection from plot summary failed, fix didn't fire |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
 - character_llm_chunk_chars: 5000 (appropriate for 5,048 word text)
 - All characters from `supporting_*` IDs — main_cast pipeline did not fire
 - Temperature: 0.7 for all agents
-- Total time: 13m 31s, 31 LLM calls, 51,634 tokens
-- 4 profiles generated with HIGH confidence
-- 19 pronunciation flags; all categories null
+- Total time: 14m 3s, 32 LLM calls, 52,730 tokens
+- 4 profiles generated with HIGH confidence (John Donaldson personality now accurate)
+- 18 pronunciation flags; all categories null
 
-## Priority Fix Guidance for Attempt 5
+## Priority Fix Guidance for Attempt 6
 
-**The three failing categories and what's needed to reach 8.0:**
+**Two failing categories and what's needed to reach 8.0:**
 
-### Characters: 7 → 8.0 (needs +1.0)
-**Tractable fixes:**
-1. **Debug Ted/Ted Frith merge** — The code was added in attempt 4 but didn't fire. This is a debugging task, not a design task. Check `_merge_within_supporting_cast()` with actual data. If fixed: Identity Resolution 6→7, Alias Grouping 7→8.
-2. **Remove Red Cross** — Add organization exclusion list. If fixed: Completeness 7.5→8.5.
-3. Together these push Characters to ~8.0.
+### Profiles: 6 → 8.0 (needs +2.0) — PRIMARY BLOCKER
+
+**The father/son evidence contamination has persisted through ALL 5 attempts.** Previous approach (±500 char proximity filter) was insufficient. The fix must change strategy:
+
+1. **LLM-based evidence disambiguation (RECOMMENDED):** When two characters share a first name (e.g., "John" and "John Donaldson"), send each collected evidence passage to the LLM with a prompt: "Character A is [John, the son, young ambulance driver]. Character B is [John Donaldson, the father, who faked his death]. Which character does this passage describe?" Reassign evidence accordingly before generating personality/traits.
+   - This is the most robust generic approach — works for any same-name disambiguation
+   - Location: `src/analyzer.py` or `src/pipeline/character_profiling/`
+
+2. **Uncle Bill appearance: Use `is_narrator` flag directly** — Don't rely on plot summary narrator detection. Check the character's `is_narrator` field from extraction, and if true, search for first-person self-descriptions in the text.
+
+3. **Bidirectional relationships:** When John Donaldson→John is "father," automatically infer John→John Donaldson is "son."
 
 ### Summaries: 7.5 → 8.0 (needs +0.5)
-**Harder — LLM stochasticity:**
-- The "brother" error comes and goes between runs. Attempt 3 had it right, attempt 4 doesn't.
-- Options: (a) Re-run and hope for better luck. (b) Add extracted character relationships to summary prompt context so the LLM knows Uncle Bill's cousin is John Donaldson. (c) Post-process summary to fix known relationship errors.
-- Option (b) is the most robust generic approach.
 
-### Profiles: 5.5 → 8.0 (needs +2.5) — HARDEST
-**This is the critical blocker.** The father/son confusion has persisted through ALL 4 attempts.
-- **Evidence deduplication** is the most promising approach: if "John" evidence overlaps with "John Donaldson" evidence positions, exclude the overlapping passages from "John" and use remaining evidence (about the son).
-- **Uncle Bill appearance**: handle narrator first-person self-descriptions.
-- **Relationship accuracy**: fixing evidence deduplication should cascade to fix relationships.
-- Even with perfect execution, this may only get profiles to ~7. The pipeline fundamentally struggles with same-name father/son pairs.
+**Include character relationships in summary prompt context.** Pass the extracted relationship data (John Donaldson is John's father, Uncle Bill is John's guardian/cousin of John Donaldson) into the summary generation prompt. This gives the LLM explicit facts to work with instead of relying on inference.
 
-**Strategy recommendation:** Focus on Characters (debug Ted merge + Red Cross filter) and Summaries (add relationships to prompt context) as the tractable wins. For Profiles, attempt position-aware evidence deduplication — but this is the highest-risk fix with the most code complexity. If profiles remain below 8.0, this text may need to be flagged as requiring more fundamental pipeline changes.
-
-**WARNING: Same files modified repeatedly without success:**
-- `src/agents/characters.py` — modified in attempts 3 and 4 for Ted/Ted Frith. If attempt 5 modifies it again for the same issue, the fix approach needs to change.
-- `src/analyzer.py` — modified in attempts 2 and 3 for profiles. Profile evidence gathering is the root cause and has NOT been successfully addressed.
-
-## Fix History (continued)
-- Attempt 5: Debug Ted/Ted Frith merge, Red Cross filter, profile evidence deduplication, narrator appearance
-  - Issue 1 (Ted/Ted Frith): Root cause found — NER counts Ted=1 mention, Ted Frith=3 mentions; old condition `char.mention_count > other_char.mention_count` evaluated as `1 > 3 = False`, blocking the merge. Removed that condition since `other_char.mention_count <= 3` already guards against false merges.
-  - Issue 2 (Red Cross): Restricted supporting cast NER extraction to PERSON type only. Organizations like "Red Cross" are ORG-typed — the ORG inclusion was defensive but unnecessary since main cast catches important characters.
-  - Issue 3 (John personality/evidence): Added same-name disambiguation filter in profile generation. When "John" and "John Donaldson" both exist, filters out "John" mention contexts where "John Donaldson" appears within ±500 chars. This prevents father's passages from contaminating the son's profile.
-  - Issue 4 (Uncle Bill appearance): For narrator characters whose first named mention is >1500 chars from text start, adds a synthetic early mention at position 100 to capture first-person self-descriptions ("I am an elderly, grizzled, small man...").
-  - Modified: src/agents/characters.py, src/pipeline/character_extraction_v2/supporting.py, src/analyzer.py
-  - Smoke test: PASS — Ted/Ted Frith merge now fires (NER count mismatch was root cause); Red Cross excluded; no new test regressions
-
-## Pipeline Notes (Attempt 5)
-- Ted Frith (aka Ted) - 5 mentions: **MERGE WORKED** ✓
-- Red Cross: **NOT EXTRACTED** ✓ (organization filter worked)
-- 18 pronunciation flags (down from 19)
-- Warning: "No passages provided for John Donaldson, returning UNCERTAIN" — may affect John Donaldson profile
-- Warning: "No definitive narrator identified from plot summary" — narrator detection may be affected
-- "John (aka Johnny)" listed first with 30 mentions — Johnny alias preserved ✓
-- Total: 32 LLM calls, 52,730 tokens, 14m 36s
+### WARNING: Same files modified repeatedly
+- `src/analyzer.py` — modified in attempts 2, 3, and 5 for profiles. The ±500 char filter approach FAILED. Attempt 6 must use a fundamentally different approach (LLM disambiguation) rather than refining the proximity filter.
+- If the same approach is tried again, it will likely produce the same insufficient result.
 
 ## Next Action
-**Phase:** awaiting_evaluation
+Run PROMPT_fix.md to address profile evidence disambiguation (Critical #1) and summary relationship context (High #3)
