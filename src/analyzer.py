@@ -1932,8 +1932,14 @@ class AudiobookAnalyzer:
                 if _nc.appearance is None:
                     continue
                 _current_app_summary = (_nc.appearance.get("summary", "") or "").strip().lower()
-                if _current_app_summary not in ("", "unknown"):
-                    continue  # Already has appearance — nothing to inject
+                _no_desc_phrases = ("unknown", "does not provide", "no physical description",
+                                    "not described", "no direct physical", "no description",
+                                    "not provide a direct")
+                _has_real_appearance = _current_app_summary and not any(
+                    phrase in _current_app_summary for phrase in _no_desc_phrases
+                )
+                if _has_real_appearance:
+                    continue  # Already has a real appearance — nothing to inject
                 # Search for a physical self-description in the first portion of the text
                 _search_end = min(len(doc.text), max(10000, len(doc.text) // 5))
                 for _nm in _narrator_self_desc_re.finditer(doc.text[:_search_end]):
@@ -2076,18 +2082,21 @@ Because their names overlap, the profiling system may have accidentally assigned
 - Personality traits: {traits_long}
 - Personality summary: {summary_long}
 
-Do "{_name_short}"'s assigned traits match their actual story role (from chapter summaries above)?
-Or do they better match "{_name_long}"'s story role?
+Review each trait in "{_name_short}"'s list. For each one, does it genuinely describe "{_name_short}" based on their story role above, or does it better fit "{_name_long}"?
+
+Keep all traits that could plausibly describe "{_name_short}". Only remove traits that clearly belong to "{_name_long}" instead.
+
+IMPORTANT: Do NOT return an empty traits list. If uncertain about a trait, keep it for "{_name_short}".
 
 Return JSON only:
 {{
   "contamination_detected": true or false,
   "reason": "one sentence explanation",
   "corrected_personality": {{
-    "summary": "corrected summary based on {_name_short}'s actual story role",
-    "traits": ["trait1", "trait2"],
-    "temperament": "calm/volatile/melancholic/etc",
-    "emotional_range": "brief note"
+    "summary": "corrected summary keeping traits genuinely belonging to {_name_short}",
+    "traits": ["only traits that clearly belong to {_name_short} — keep if uncertain"],
+    "temperament": "based on retained traits",
+    "emotional_range": "based on retained traits"
   }},
   "corrected_age_indication": "young/middle-aged/elderly/unknown"
 }}

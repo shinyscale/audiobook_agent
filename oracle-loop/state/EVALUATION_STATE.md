@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -302,5 +302,18 @@ Both fixes are small, targeted changes to existing code (a gate condition and a 
 - Combined: Profiles 6.5 → ~8.0-8.5
 - With relationship fix (#3): Profiles could reach 8.5-9.0
 
+## Fix History (Attempt 10)
+- FIX 1: Broadened narrator appearance injection gate condition
+  - Modified: `src/analyzer.py:1934-1942` (gate condition check)
+  - Root cause: `_current_app_summary not in ("", "unknown")` missed verbose LLM non-answers
+  - Changed to: check for presence of any "no description" phrases, treat as missing appearance
+  - Will allow Uncle Bill's self-description "elderly, grizzled, small man" to be injected
+
+- FIX 2: Made post-profile correction subtractive instead of generative
+  - Modified: `src/analyzer.py:2066-2103` (correction prompt)
+  - Root cause: prompt asked LLM to generate new traits from scratch — fails with sparse evidence
+  - Changed to: ask LLM to filter existing traits (keep if uncertain, only remove clear contamination)
+  - Added explicit "Do NOT return an empty traits list" instruction
+
 ## Next Action
-Run PROMPT_fix.md to apply gate condition fix and correction prompt fix.
+Run PROMPT_analyze.md to re-run analysis and evaluate fixes.
