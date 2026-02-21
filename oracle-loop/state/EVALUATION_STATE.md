@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -266,5 +266,24 @@ This file is the correct location for both fixes. Fix 1 is a one-line change to 
 - NOTE: Previous attempt added injection INSIDE `_generate_character_profile` where `character.appearance` is None — this was dead code. New injection correctly runs POST-profile where `char.appearance` is already set.
 - Universality: Universal invariant — any first-person narrator who describes themselves physically gets that description injected if LLM returns "Unknown"
 
+## Attempt 8 Analysis Result: CRASHED
+
+**Error:** `cannot access local variable 're' where it is not associated with a value`
+
+**Root Cause:** Python scoping issue in FIX 2 code. The narrator appearance injection code at `src/analyzer.py:1916-1956` uses `re.sub(...)` but also assigns to a variable named `re` somewhere in the same function scope, causing Python to treat `re` as a local variable throughout the function.
+
+**Specifically:** In the injection code, something like:
+```python
+cleaned = re.sub(r'^I[\s.…]*(?:am|was)\s*', '', desc_text, flags=re.IGNORECASE).strip()
+```
+...fails because `re` is treated as a local variable (due to an assignment `re = something` later in the same function scope, or a loop variable `for re in ...`).
+
+**Fix Required:**
+- Option A: Rename the loop/intermediate variable that shadows `re` (e.g., `_re_match` instead of `re`)
+- Option B: Import `re` at the top of the function or use `import re as _re`
+- Option C: Move the `re.sub()` call to avoid the scoping conflict
+
+**Location:** `src/analyzer.py` — narrator appearance injection block (approximately line 1916-1956)
+
 ## Next Action
-Re-run analysis to verify fixes.
+FIX phase: Fix the `re` variable scoping bug in narrator appearance injection code.
