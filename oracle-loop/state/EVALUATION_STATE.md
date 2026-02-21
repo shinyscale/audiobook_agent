@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260221_000533/
+- Timestamped: ../output/American Sir_20260221_003933/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -238,6 +238,16 @@ FIX 1 is a targeted debug of existing injection code. No new features needed —
 - FIX 1: Uncle Bill appearance correct → +0.75 to +1.0 on profiles (7 → 7.75-8.0)
 - FIX 2 (if needed): Relationship propagation → +0.25 on profiles
 - Combined: Profiles 7 → ~8.0-8.5
+
+## Pipeline Notes (Attempt 11)
+- Completed in 14m 19s, 32 LLM calls, 52,792 tokens
+- 5 characters found: John (aka Johnny), Uncle Bill (aka Bill), John Donaldson, Joe Barron, Ted Frith (aka Ted)
+- 4 profiles generated with HIGH confidence
+- "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" — subtractive correction fired
+- Narrator: "Uncle Bill (first-person)" confirmed
+- Warning: "Narrator 'the elderly, crabbed man' identified but NOT found in main_cast" — intermediate step before narrator confirmed as Uncle Bill
+- 18 pronunciation flags; 1 json_mode validation error (non-fatal)
+- competitive-all flag used (characters + structure + summaries stages)
 
 ## Fix History (Attempt 11)
 - Attempt 11: Narrator appearance injection (dual-pattern + best-match) + bidirectional relationship override
