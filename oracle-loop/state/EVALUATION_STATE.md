@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_192255/
+- Timestamped: ../output/American Sir_20260220_200722/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -149,6 +149,17 @@
 - Profiling: 184.56s, 5 LLM calls, 3 items processed (all HIGH confidence)
 - All characters from `supporting_*` IDs — main_cast pipeline didn't fire
 - Total time: ~12m 8s
+
+## Pipeline Notes (Attempt 3)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
+- Competitive consensus: ENABLED (stages: characters, structure, summaries) via --competitive-all
+- 8 characters extracted (up from 4): John (16), Uncle Bill/Bill (18), John Donaldson (9), Joe Barron (3), Red Cross (4), + 3 more
+- 4 profiles generated with HIGH confidence
+- 25 pronunciation flags; categories now populated: proper_noun (6), homograph (5), foreign (4), unknown (10)
+- Warning: "Narrator 'John Donaldson' identified but NOT found in main_cast. Available characters: []"
+- Warning: "No passages provided for John, returning UNCERTAIN"
+- Profiling: 5m 20s, 10 LLM calls, 4 items processed (all HIGH confidence)
+- Total time: 14m 39s, 39 LLM calls, 56,216 tokens
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
