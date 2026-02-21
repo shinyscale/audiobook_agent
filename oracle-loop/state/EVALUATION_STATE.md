@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_184428/
+- Timestamped: ../output/American Sir_20260220_192255/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -113,10 +113,21 @@
     - Problem: For a short story, the single section has `title: null`. Could use the story title "American, Sir!"
     - Minor issue — single-section short story with no title is acceptable
 
+## Pipeline Notes (Attempt 2)
+- Competitive-all mode: 3 LLMs at 0.5/0.7/0.9 temperatures, 2/3 supermajority
+- 4 characters extracted: John (16), Uncle Bill (18), John Donaldson (7), Joe Barron (3)
+- 3 profiles generated for 3 eligible characters (vs null profiles in attempt 1)
+- 24 pronunciation flags: 13 unknown, 5 homograph, 4 foreign, 2 proper_noun
+- Warnings: "No passages provided for John/John Donaldson, returning UNCERTAIN"
+- Ted Frith still missing (below mention threshold)
+- "LLM validation failed (got dict)" and JSON array format errors (minor, non-fatal)
+- Total time: 12m 43s
+
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.93 | - | First analysis — profiles empty, character confusion |
+| 2 | TBD | TBD | Re-run after profile null fix + pronunciation false positive fix |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
