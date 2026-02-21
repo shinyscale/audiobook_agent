@@ -106,9 +106,11 @@ class SupportingCastExtractor:
             doc = nlp(chunk)
 
             for ent in doc.ents:
-                # Accept PERSON entities and ORG entities (some names misclassified as organizations)
-                # Reject GPE (geopolitical entities), LOC (locations), and other non-character types
-                if ent.label_ not in ("PERSON", "ORG"):
+                # Accept PERSON entities only — supporting cast characters are individual people.
+                # ORG (organizations like "Red Cross", "The Army") are not characters.
+                # Important characters misclassified by spaCy are caught by the main cast pipeline
+                # (LLM-based extraction from summaries), which runs before supporting cast.
+                if ent.label_ != "PERSON":
                     continue
 
                 name = ent.text.strip()

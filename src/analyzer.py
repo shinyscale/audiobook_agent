@@ -2458,6 +2458,33 @@ class AudiobookAnalyzer:
             total_mentions = len(all_mentions)
             logger.info(f"Generated {total_mentions} synthetic mentions for narrator profile")
 
+        # For narrators with named mentions, ensure early text is captured.
+        # First-person narrators often describe themselves near the start ("I am an elderly man..."),
+        # but that passage may not be near any named mention of the narrator.
+        if is_narrator and all_mentions and all_mentions[0].position > 1500:
+            def _chapter_for_pos_early(pos: int) -> int:
+                if chapter_map is None:
+                    return 0
+                for ch in chapter_map.chapters:
+                    if ch.start_position <= pos < ch.end_position:
+                        return ch.index
+                return 0
+
+            early_mention = CharacterMention(
+                text=getattr(character, "canonical_name", "") or "",
+                position=100,
+                chapter_index=_chapter_for_pos_early(100),
+                context="",
+                in_dialogue=False,
+            )
+            all_mentions = [early_mention] + list(all_mentions)
+            total_mentions = len(all_mentions)
+            logger.info(
+                f"Narrator '{character.canonical_name}': first named mention at position "
+                f"{all_mentions[1].position} — prepended synthetic early mention to capture "
+                f"self-description"
+            )
+
         # Sample up to 10 mentions, distributed across the narrative
         if total_mentions <= 10:
             sampled_mentions = all_mentions
@@ -2487,6 +2514,37 @@ class AudiobookAnalyzer:
                 f"Included first mention at position {first_mention.position}, "
                 f"plus {len(sampled_mentions)-1} sampled mentions"
             )
+
+        # Same-name disambiguation: filter mentions that refer to related characters.
+        # When character A's name is a substring of character B's name (e.g., "John" ⊂ "John Donaldson"),
+        # mentions of A where B's full name appears in nearby context likely refer to B, not A.
+        # This prevents father/son or other same-name confusion in profile generation.
+        _char_name_filter = getattr(character, "canonical_name", "")
+        if _char_name_filter and all_character_names and sampled_mentions:
+            _related_pats = [
+                re.compile(r'\b' + re.escape(other) + r'\b', re.IGNORECASE)
+                for other in all_character_names
+                if (other != _char_name_filter
+                    and _char_name_filter.lower() in other.lower()
+                    and len(other) > len(_char_name_filter))
+            ]
+            if _related_pats:
+                _filtered = [
+                    m for m in sampled_mentions
+                    if not any(
+                        pat.search(
+                            full_text[max(0, m.position - 500):min(len(full_text), m.position + 500)]
+                        )
+                        for pat in _related_pats
+                    )
+                ]
+                if len(_filtered) >= 3:
+                    logger.info(
+                        f"Profile dedup for '{_char_name_filter}': filtered "
+                        f"{len(sampled_mentions) - len(_filtered)} mention(s) referring to "
+                        f"longer-named characters"
+                    )
+                    sampled_mentions = _filtered
 
         # Gather context snippets from sampled mentions
         contexts = []

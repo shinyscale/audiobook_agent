@@ -2674,14 +2674,14 @@ class CharacterAgent(Agent):
                 # Universal pattern: a character introduced by full name, then referenced by
                 # first name only. Conditions:
                 #   1. Single-word matches the FIRST WORD of the full name
-                #   2. Full-name appears rarely (≤ 3 mentions) — likely just the introduction
-                #   3. Single-word appears MORE often — it's the common reference form
-                # Safety: prevents false merge of "John" + "John Donaldson" (9 mentions > 3)
+                #   2. Full-name appears rarely (≤ 3 NER mentions) — likely just the introduction
+                # Note: NER counts are unreliable for short/informal names vs formal full names.
+                # The ≤3 guard on the full name is sufficient to prevent false merges with
+                # frequently-mentioned characters (e.g., "John Donaldson" with 7 mentions > 3).
                 other_firstname = other_parts[0].strip(".,;:")
                 if (
                     char_name.lower() == other_firstname.lower()
                     and other_char.mention_count <= 3
-                    and char.mention_count > other_char.mention_count
                 ):
                     matches.append((other_idx, "exact_firstname_of_rare_fullname"))
 

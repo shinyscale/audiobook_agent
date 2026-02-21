@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -208,5 +208,14 @@
 - `src/agents/characters.py` — modified in attempts 3 and 4 for Ted/Ted Frith. If attempt 5 modifies it again for the same issue, the fix approach needs to change.
 - `src/analyzer.py` — modified in attempts 2 and 3 for profiles. Profile evidence gathering is the root cause and has NOT been successfully addressed.
 
+## Fix History (continued)
+- Attempt 5: Debug Ted/Ted Frith merge, Red Cross filter, profile evidence deduplication, narrator appearance
+  - Issue 1 (Ted/Ted Frith): Root cause found — NER counts Ted=1 mention, Ted Frith=3 mentions; old condition `char.mention_count > other_char.mention_count` evaluated as `1 > 3 = False`, blocking the merge. Removed that condition since `other_char.mention_count <= 3` already guards against false merges.
+  - Issue 2 (Red Cross): Restricted supporting cast NER extraction to PERSON type only. Organizations like "Red Cross" are ORG-typed — the ORG inclusion was defensive but unnecessary since main cast catches important characters.
+  - Issue 3 (John personality/evidence): Added same-name disambiguation filter in profile generation. When "John" and "John Donaldson" both exist, filters out "John" mention contexts where "John Donaldson" appears within ±500 chars. This prevents father's passages from contaminating the son's profile.
+  - Issue 4 (Uncle Bill appearance): For narrator characters whose first named mention is >1500 chars from text start, adds a synthetic early mention at position 100 to capture first-person self-descriptions ("I am an elderly, grizzled, small man...").
+  - Modified: src/agents/characters.py, src/pipeline/character_extraction_v2/supporting.py, src/analyzer.py
+  - Smoke test: PASS — Ted/Ted Frith merge now fires (NER count mismatch was root cause); Red Cross excluded; no new test regressions
+
 ## Next Action
-Run PROMPT_fix.md to address: (1) Debug Ted/Ted Frith first-name merge, (2) Add Red Cross organization filter, (3) Add character relationships to summary prompt, (4) Attempt position-aware evidence deduplication for same-name characters.
+**Phase:** awaiting_analysis
