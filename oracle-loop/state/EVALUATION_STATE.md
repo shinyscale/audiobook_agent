@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260221_003933/
+- Timestamped: ../output/American Sir_20260221_013725/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -18,106 +18,125 @@
   - Completeness: 9/10
   - Identity Resolution: 9/10
   - Alias Grouping: 9/10
-- Character Profiles: 7/10 ✗ (ONLY FAILING CATEGORY)
-- Chapter Summaries: 8.5/10 ✓ (Chinese character "认出" is GONE — fixed by LLM variability)
+- Character Profiles: 7.5/10 ✗ (ONLY FAILING CATEGORY — improved from 7/10)
+- Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 8.53/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold — Profiles at 7/10)
+**Status:** FAIL (1 category below threshold — Profiles at 7.5/10)
 
-## What Changed from Attempt 10
+## What Changed from Attempt 11
 
-### Chinese character "认出" — GONE ✓
-- The summary no longer contains the Chinese character artifact
-- Summaries improve from 8.0 → 8.5
-- Likely due to LLM variability between runs (not a code fix)
+### Uncle Bill appearance — FIXED ✓ (CRITICAL fix from attempt 12)
+- Was: "Elderly man with a crabbed and critical demeanor; no physical description beyond age and temperament is provided."
+- Now: "an elderly, grizzled, small man, grim and unexhilarating"
+- This is the CORRECT text from source line 128. The post-convert injection approach worked!
+- **Score impact: +0.5 on profiles (7.0 → 7.5)**
 
-### Uncle Bill example quotes — IMPROVED ✓
-- Attempt 10 had 2 of 3 misattributed quotes (John's dialogue attributed to Uncle Bill)
-- Now has 2 genuine Uncle Bill quotes: his letter to John, and his self-description ("I am crabbed and prejudiced...")
-- This is a meaningful improvement for narrator preparation
+### "Same person" invariant — WORKED ✓
+- John → John Donaldson: was "same person" (attempt 11) → now "unknown"
+- "Unknown" is not ideal (should be "son") but vastly better than "same person" which would confuse a narrator
+- **Score impact: +0.1**
 
-### Uncle Bill appearance — STILL WRONG (different failure mode)
-- Attempt 10: garbled "suddenly important, I, the gray" (regex extracting wrong text)
-- Attempt 11: "Elderly man with a crabbed and critical demeanor; no physical description beyond age and temperament is provided."
-- This is LESS garbled but STILL WRONG — the text contains: "as I stood muffled in a fur coat, an elderly, grizzled, small man, grim and unexhilarating" (line 128)
-- The statement "no physical description is provided" is factually incorrect
-- The smoke test showed the regex correctly finding this passage (score=4 vs score=1 for wrong matches)
-- **Conclusion:** The narrator appearance injection code either (a) didn't fire during the actual analysis run, or (b) fired but was overwritten by the LLM profile generation step that runs afterward
+### Relationships — DIFFERENT but still wrong
+- Uncle Bill → John Donaldson: was "uncle" (attempt 11) → now "brother" — WRONG (should be "cousin")
+- John Donaldson → Uncle Bill: was "son" (attempt 11) → now "brother" — WRONG (should be "cousin")
+- Uncle Bill → Ted Frith: "nephew" — WRONG (Ted is a wartime acquaintance of John, no family relation to Uncle Bill)
+- Source text line 28: "the charming boy, a cousin, who had come to be this lad's father" — explicitly says "cousin"
 
-### Relationships — MIXED (some regression)
-- Uncle Bill → John Donaldson: was "cousin and former associate..." (CORRECT in attempt 10) → now "uncle" — **REGRESSION**
-- John → John Donaldson: was "unknown" → now "same person" — **WRONG** (lateral move, both incorrect)
-- John Donaldson → Uncle Bill: was "referenced in context of his pitiful laugh" → now "son" — WORSE (was garbled, now confidently wrong)
-- John Donaldson → John: "cousin" — WRONG (should be "father")
-- These are LLM-generated relationships and vary between runs. The bidirectional override fix may not have fired or was overridden.
+### John description contamination — PERSISTS
+- John's description says he "meets a tragic end" and shows "selfless sacrifice and quiet dignity in death" — WRONG (John the boy SURVIVES the war and returns home)
+- Evidence #6 for John: "died in combat, buried near where he died" — this is John Donaldson (the father), NOT John the boy
+- Evidence #7: "had a son who later became the narrator's ward" — also the father's evidence, not the boy's
+- The subtractive correction fixed personality traits but doesn't address descriptions or evidence
+
+### John Donaldson description/appearance swapped — PERSISTS
+- JD's description: "a young American who enlisted as an ambulance driver... encountered a man sharing his name" — this describes John the boy's experience
+- JD's appearance: "Towering over others with young magnificence" — this describes the 18-year-old son, not the elderly dying father
+- The LLM has swapped attributes between the two same-name characters
+
+### Uncle Bill quotes — REGRESSED
+- Attempt 11 had genuine Uncle Bill quotes ("I am crabbed and prejudiced...")
+- Attempt 12: "Dear Uncle Bill: Where am I going to in vacation?" (John's letter) and "American, sir!" (John Donaldson's dying words) — neither is actually Uncle Bill speaking
+- LLM variability; not directly fixable
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-
-1. **Uncle Bill appearance injection not reaching final output** [Profiles]
-   - Problem: Appearance shows "Elderly man with a crabbed and critical demeanor; no physical description beyond age and temperament is provided." The claim "no physical description is provided" is factually wrong.
-   - Expected: Should include "an elderly, grizzled, small man, grim and unexhilarating" (source text line 128)
-   - Evidence: The smoke test from attempt 11's fix showed the regex correctly matching this text. But the final analysis output doesn't contain it.
-   - Root cause: The narrator appearance injection likely runs but is OVERWRITTEN by a subsequent step. The LLM profile generation produces its own appearance summary and replaces the injected text.
-   - Location: `src/analyzer.py` — check the ORDER of operations:
-     1. Does the narrator injection run BEFORE or AFTER profile generation?
-     2. If before → the LLM profile generation overwrites it
-     3. If after → something else is wrong (regex not matching in production context?)
-   - **FIX APPROACH:** Ensure narrator appearance injection runs AFTER all LLM profile generation, or add a guard that prevents LLM-generated appearance from overwriting an injected narrator appearance. The simplest fix is to move the injection to be the LAST step that touches `appearance.summary`.
-   - **Score impact: ~0.75-1.0 points**
-
 ### HIGH
 
-2. **John → John Donaldson relationship says "same person"** [Profiles]
-   - Problem: John (the boy/son) and John Donaldson (the father) are listed as "same person" in John's relationship to John Donaldson
-   - Evidence: They share the name "John Donaldson" but are father and son — the boy is named after his father
-   - This is particularly harmful for narrator preparation: a narrator reading "same person" would be deeply confused
-   - Location: LLM profile generation — the model is confusing same-name characters
-   - The subtractive correction fixes personality contamination but doesn't fix relationship contamination
-   - **FIX:** Extend the post-profile correction (the subtractive pass) to also check and fix relationships between same-name characters. When two characters share a name and one is identified as the other's father/son, the relationship should be "father" or "son", not "same person"
-   - **Score impact: ~0.5 points**
+1. **Uncle Bill ↔ John Donaldson relationship: "brother" instead of "cousin"** [Profiles]
+   - Problem: Both Uncle Bill → JD and JD → Uncle Bill show "brother", but the source text explicitly says "a cousin" (line 28)
+   - Evidence: Line 28: "the charming boy, a cousin, who had come to be this lad's father"
+   - Additionally: Uncle Bill describes himself as "an uninteresting orphan" (line 34) — he was taken in by JD's parents, not their biological son
+   - Uncle Bill's descriptions and evidence also repeat this error: "his late brother", "Had a close relationship with his brother John Donaldson", "after his brother's death"
+   - Location: LLM-generated profiles in `src/analyzer.py`. The LLM keeps generating "brother" because they grew up together, but the text says "cousin"
+   - **FIX:** Add a text-based relationship verification after profile generation. Search the source text for explicit relationship terms (cousin, brother, uncle, father, son, etc.) in context of character names. When the source text explicitly states a relationship, override the LLM-generated one.
+   - **Score impact: ~0.2-0.3 points on profiles**
 
-3. **John Donaldson → Uncle Bill relationship says "son"** [Profiles]
-   - Problem: John Donaldson's relationship to Uncle Bill is listed as "son" — completely wrong (should be "cousin")
-   - Evidence: Uncle Bill explicitly says John Donaldson is his cousin in the text
-   - The bidirectional override was supposed to fix this — Uncle Bill → John Donaldson was correctly "cousin" in attempt 10, so the reverse should have been inferred
-   - Location: `src/analyzer.py` — bidirectional relationship inference
-   - The fix may not have fired, or the LLM-generated relationship "son" overwrote the inferred "cousin"
-   - **Score impact: ~0.25 points**
+2. **Uncle Bill → Ted Frith: "nephew" (completely wrong)** [Profiles]
+   - Problem: Ted Frith is a fellow Red Cross ambulance volunteer — a wartime comrade of John's, not Uncle Bill's nephew
+   - Evidence: Ted appears only in John's wartime recounting. He's introduced as "Ted Frith ran along shouting" — just another driver
+   - This is pure LLM hallucination of a family relationship
+   - Location: LLM profile generation
+   - **FIX:** In the post-profile correction, if a relationship is "nephew"/"niece"/"cousin" etc. but there's no evidence in the source text of family connection, replace with "unknown" or infer from context. Alternatively, validate family-type relationships against the character evidence — if no evidence supports a family tie, downgrade to contextual relationship.
+   - **Score impact: ~0.1 points**
 
-4. **John Donaldson → John relationship says "cousin"** [Profiles]
-   - Problem: Should be "father" — John Donaldson is John's father, not cousin
-   - The plot summary correctly identifies "the father, dying from battle wounds, reveals his identity to his son"
-   - Location: Same LLM profile confusion as issue #2
-   - **Score impact: ~0.15 points**
+3. **John's description says he "meets a tragic end" — he SURVIVES** [Profiles]
+   - Problem: John (the boy/son) survives the war and comes home. His description says "meets a tragic end, later revealed to have been a courageous wartime hero whose final acts reflect redemption" and "selfless sacrifice and quiet dignity in death" — all describing his FATHER, not him
+   - Evidence: The framing narrative has John returning on the Santa Angela and recounting his story to Uncle Bill at home
+   - This is same-name contamination: the LLM merged the father's death into the son's profile
+   - Location: LLM profile generation + subtractive correction (which fixes personality but not descriptions)
+   - **FIX:** Extend the same-name contamination correction to also check descriptions. If a character appears in the framing narrative as alive/present, remove references to their death from their profile description. Alternatively, the subtractive correction prompt could be expanded to cover `descriptions[].text` in addition to personality.
+   - **Score impact: ~0.15-0.2 points**
+
+4. **John Donaldson's appearance describes the SON, not the father** [Profiles]
+   - Problem: JD's appearance is "Towering over others with young magnificence; physically resembles his father but with added manliness and force" — this is Uncle Bill's description of 18-year-old John the boy when he arrives home, NOT of John Donaldson the elderly dying father
+   - Evidence: "towering over me" describes the boy's arrival; JD (the father) is described as dying/wounded in a church
+   - Same-name contamination flowing in the other direction
+   - Location: Same LLM profile generation
+   - **FIX:** Same as issue #3 — extend subtractive correction to cover appearance. For the father: he should have appearance based on the wartime church scene where he's dying. For the son: he's "towering over" Uncle Bill at the pier.
+   - **Score impact: ~0.1 points**
 
 ### MEDIUM
 
-5. **Uncle Bill → John Donaldson regressed from "cousin" to "uncle"** [Profiles]
-   - Problem: Attempt 10 correctly had "cousin and former associate..." but this run has "uncle"
-   - This is LLM variability — the relationship was correctly generated before but not now
-   - Not directly fixable through code (LLM output varies), but the bidirectional override should at least ensure SOME correct relationship propagation
-   - **Score impact: ~0.15 points**
-
-6. **John's evidence facts are contaminated with father's history** [Profiles]
-   - Problem: 5 of 7 evidence citations for "John" describe John Donaldson (the father): "pampered by parents", "mining adventure", "debts", "died under suspicious circumstances"
-   - The subtractive correction fixes personality traits but doesn't filter evidence
-   - This is LOW priority since evidence is in a collapsed details section
+5. **John evidence contaminated with father's history** [Profiles]
+   - Problem: Evidence #1 (pampered), #2 (Yale), #6 (died in combat), #7 (had a son) all describe John Donaldson the father, not John the boy
+   - Evidence #1: "worshipped and pampered John" — this is about the father's childhood
+   - Evidence #2: "graduated from Yale" — Uncle Bill and the father graduated together
+   - Evidence #6: "died in combat, buried near where he died" — the father's death, attributed to the son
+   - The subtractive correction doesn't filter evidence facts
+   - LOW visual impact since evidence is in a collapsed details section
    - **Score impact: ~0.1 points**
 
-7. **"dum-dums" pronunciation note says "colloquial term for beans"** [Pronunciation]
-   - In WWI context, dum-dum bullets (expanding bullets banned by Hague Convention)
-   - Minor factual error in pronunciation notes
-   - **Score impact: negligible**
-
-8. **Piave, Venetia, Tagliamento, Bersagliari have "unknown" category** [Pronunciation]
-   - These Italian/geographic terms should have category "foreign"
+6. **Piave, Venetia, Tagliamento, Bersagliari have "unknown" category** [Pronunciation]
+   - Should be "foreign" — they are Italian/geographic terms
    - IPA and notes are correct
    - **Score impact: negligible**
+
+## Score Projection for Attempt 13
+
+Profiles currently at 7.5/10. To reach 8.0:
+- Fix #1 (cousin vs brother): +0.2-0.3
+- Fix #2 (Ted Frith nephew): +0.1
+- Fix #3 (John survives): +0.15-0.2
+- Fix #4 (JD appearance): +0.1
+- **Total achievable: +0.55-0.7 → profiles 8.0-8.2**
+
+### Recommended Approach for Fix Phase
+
+**The most GENERIC and reusable fix:** Add a text-based relationship verification step after LLM profile generation that:
+
+1. For each relationship pair, search the source text for sentences containing both character names (or aliases) near explicit relationship words (cousin, brother, uncle, father, son, wife, husband, friend, etc.)
+2. When an explicit relationship term is found in the source text, override the LLM-generated relationship
+3. This is data-driven (uses source text, not hardcoded) and works for ANY book
+
+**For the description contamination (issues #3-4):** Extend the existing same-name subtractive correction to also cover:
+- `descriptions[].text` — flag/correct descriptions that attribute death to a living character or youth to an elderly character
+- `appearance.summary` — ensure appearance matches the character's actual described age/state
+
+**IMPORTANT:** These fixes should be in `src/analyzer.py` as post-profile corrections (same pattern as existing subtractive correction). They should be GENERIC — driven by source text analysis, not hardcoded character names.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -133,6 +152,7 @@
 | 9 | 8.38 | +1.45 | Post-profile correction FIRED but blanked John's personality. Narrator injection gate condition too narrow. Profiles 6.5/10. |
 | 10 | 8.33 | +1.40 | John personality FIXED ✓, Uncle Bill age FIXED ✓, Uncle Bill→JD relationship FIXED ✓ — but narrator appearance injection produced garbled text. Profiles 7/10. |
 | 11 | 8.45 | +1.52 | Chinese char gone ✓, quotes improved ✓, appearance less garbled but still wrong, relationships mixed. Profiles 7/10. |
+| 12 | 8.53 | +1.60 | Uncle Bill appearance FIXED ✓, "same person" invariant FIXED ✓ — but "brother" vs "cousin" and description contamination persist. Profiles 7.5/10. |
 
 ## Fix History
 - Attempt 2: Fixed null character profiles + pronunciation false positives
@@ -175,6 +195,12 @@
   - Modified: `src/analyzer.py` (narrator injection lines ~1925-2015, bidirectional inference lines ~2054-2081)
   - Result: Smoke test PASSED (regex found correct text). But final output still doesn't have self-description. Appearance now "Elderly man with a crabbed and critical demeanor; no physical description beyond age and temperament is provided." Relationships mixed — some regressed. Quotes improved.
 
+- Attempt 12: Final narrator appearance injection (post-convert) + same-person relationship invariant
+  - Modified: `src/analyzer.py` (two blocks AFTER `_convert_characters` call)
+  - Fix 1: Post-convert narrator appearance injection — **WORKED** ✓ — appearance is now correct
+  - Fix 2: Universal "same person" invariant — **WORKED** ✓ — John → JD now "unknown" not "same person"
+  - Remaining: "brother" vs "cousin" relationship, description contamination
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -210,79 +236,64 @@
 | 10 | Profiles: subtractive correction | src/analyzer.py:~2066 | **Fixed** ✓ — John personality now meaningful and accurate |
 | 11 | Profiles: narrator appearance (dual-pattern + best-match) | src/analyzer.py:~1925-2015 | **NO CHANGE** — smoke test passed but final output still wrong; injection likely overwritten by LLM profile step |
 | 11 | Profiles: bidirectional rel override | src/analyzer.py:~2054-2081 | **Mixed** — some rels changed but not correctly; Uncle Bill→JD regressed from "cousin" to "uncle" |
-| 12 | Profiles: narrator appearance (post-convert final pass) | src/analyzer.py (after _convert_characters) | Pending analysis |
-| 12 | Profiles: "same person" universal invariant | src/analyzer.py (after _convert_characters) | Pending analysis |
+| 12 | Profiles: narrator appearance (post-convert final pass) | src/analyzer.py (after _convert_characters) | **Fixed** ✓ — appearance correct |
+| 12 | Profiles: "same person" universal invariant | src/analyzer.py (after _convert_characters) | **Fixed** ✓ — John→JD now "unknown" |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
 - character_llm_chunk_chars: 5000 (appropriate for 5,048 word text)
 - All characters from `supporting_*` IDs — main_cast pipeline did not fire
 - Temperature: 0.7 for all agents
-- Total time: 13m 50s, 32 LLM calls, 52,792 tokens
+- Total time: 14m 34s, 32 LLM calls, 53,087 tokens
 - 4 profiles generated with HIGH confidence
 - 18 pronunciation flags; categories populated
 - 0 LLM retries across all stages
 
-## Priority Fix Guidance for Attempt 12
+## Priority Fix Guidance for Attempt 13
 
-**ONE failing category: Profiles at 7/10 → needs 8.0 (+1.0)**
+**ONE failing category: Profiles at 7.5/10 → needs 8.0 (+0.5)**
 
-### ⚠️ PATTERN ALERT: src/analyzer.py modified in 10 of 11 attempts
+### ⚠️ PATTERN ALERT: src/analyzer.py modified in 11 of 12 attempts
 
-The narrator appearance injection approach has been tried 6 times (attempts 5-11) with varying failure modes. The fundamental problem is now clear:
+But the last two fixes (attempt 12) BOTH WORKED. The post-convert approach is viable. Continue using it.
 
-**The narrator appearance injection runs but is OVERWRITTEN by LLM profile generation.**
+### FIX 1 (HIGH): Text-based relationship verification
 
-The smoke test proves the regex works. The final output proves the injected value isn't present. Therefore the injection either:
-(a) Runs before profile generation → LLM overwrites it
-(b) Runs after but the LLM result takes priority in the merge
+**THE KEY INSIGHT:** The source text explicitly states "a cousin" (line 28) for Uncle Bill ↔ John Donaldson, but the LLM generates "brother." A text-based verification can catch and correct this.
 
-### FIX 1 (CRITICAL): Ensure narrator appearance injection is the LAST write to appearance.summary
+**APPROACH:** After profile generation (same post-convert location as the working fixes from attempt 12), add a text-based relationship verification step:
 
-**THE KEY INSIGHT:** The injection works (smoke test proves it). But something writes over it afterward. The fix must ensure the injected appearance is the FINAL value, not an intermediate one.
+1. For each character pair where a relationship exists
+2. Search the source text (~500 char window around mentions of either character) for explicit relationship words: cousin, brother, sister, uncle, aunt, father, mother, son, daughter, wife, husband, friend, companion
+3. When a relationship term is found near both character names, compare it to the LLM-generated relationship
+4. If they differ and the text-based term is a clear family relationship, override the LLM one
 
-**APPROACH:**
-1. Find ALL locations in `src/analyzer.py` that write to `character.appearance.summary` for the narrator
-2. Trace the execution order to determine which write happens last
-3. Either:
-   - (a) Move the narrator injection to be the VERY LAST step that touches appearance, OR
-   - (b) Add a flag like `_narrator_appearance_injected = True` and skip LLM-generated appearance when the flag is set, OR
-   - (c) After ALL profile processing is done, add a final pass that re-injects the narrator self-description (simplest approach — just overwrite at the end)
+**EXPECTED RESULT:** Uncle Bill ↔ John Donaldson: "brother" → "cousin"
+**Score impact: +0.2-0.3**
 
-**EXPECTED RESULT:** Uncle Bill's appearance.summary = "An elderly, grizzled, small man, grim and unexhilarating" (or similar text from source line 128)
+### FIX 2 (HIGH): Validate family relationships against evidence
 
-### FIX 2 (HIGH): Fix John → John Donaldson "same person" relationship
+**PROBLEM:** Uncle Bill → Ted Frith says "nephew" — completely fabricated family tie. Ted is a wartime comrade.
 
-The LLM profile generation is incorrectly labeling the father-son relationship as "same person" because they share the name "John Donaldson."
+**APPROACH:** After profile generation, for any family-type relationship (nephew, niece, cousin, brother, sister, uncle, aunt, father, mother, son, daughter), check whether the character's evidence supports the family connection. If no evidence mentions the family term, replace with a context-derived relationship or "unknown."
 
-**APPROACH:** Extend the post-profile subtractive correction to also fix relationships between same-name characters. When two characters share a name and the plot summary identifies a father-son relationship, override the LLM-generated "same person" with the correct relationship.
+Alternatively, combine with Fix 1: if the text-based search finds no family term between two characters, downgrade any LLM-generated family relationship to a contextual one.
 
-Alternatively, add a targeted relationship correction after profile generation that checks: if character A's name appears as a substring of character B's name, and B is described as A's father/parent in the plot summary or evidence, set the relationship to "father/son."
+**Score impact: +0.1**
 
-### FIX 3 (MEDIUM): Fix John Donaldson → Uncle Bill "son" relationship
+### FIX 3 (MEDIUM): Extend subtractive correction to descriptions
 
-The bidirectional relationship override from attempt 11 didn't correctly propagate "cousin" from Uncle Bill → John Donaldson to John Donaldson → Uncle Bill. Debug why.
+**PROBLEM:** John's description says "meets a tragic end" and "quiet dignity in death" — he survives. John Donaldson's appearance says "towering over others with young magnificence" — he's the dying elderly father.
+
+**APPROACH:** Expand the existing same-name contamination correction prompt to also review and correct `descriptions[].text` and `appearance.summary`. The LLM correction already handles personality; extend it to check: "Does this character's description contain events/attributes that actually belong to [same-name character]? If so, remove or replace them."
+
+**Score impact: +0.15-0.25**
 
 ### Expected Impact of Fixes
-- FIX 1: Uncle Bill appearance correct → +0.75-1.0 on profiles (7 → 7.75-8.0)
-- FIX 2: Correct father-son relationship → +0.25 on profiles
-- FIX 3: Correct cousin relationship → +0.15 on profiles
-- Combined: Profiles 7 → ~8.0-8.4
-
-- Attempt 12: Final narrator appearance injection + same-person relationship correction
-  - Modified: `src/analyzer.py` (two blocks AFTER `_convert_characters` call at line ~2357)
-  - Fix 1: Final narrator appearance injection — moved injection to after `_convert_characters` so it is the guaranteed-last write to `appearance.summary`. Uses `_nph_pB` regex (Pattern B: "I ... an [physical-word] ... man/woman/person"), best-match scoring, no gate condition. Smoke test confirmed it finds "an elderly, grizzled, small man, grim and unexhilarating" (score=4).
-  - Fix 2: Universal "same person" invariant — after convert, scan all relationships and replace any "same person" / "same character" / "identical to" relationship between two distinct characters with "unknown". This prevents the John → John Donaldson "same person" confusion.
-  - Expected result: Uncle Bill appearance = "an elderly, grizzled, small man, grim and unexhilarating"; John → JD relationship = "unknown" or corrected.
-
-## Pipeline Notes (Attempt 12)
-- Runtime: 14m 34s, 32 LLM calls, 53,087 tokens
-- **Uncle Bill appearance injection FIRED**: "an elderly, grizzled, small man, grim and unexhilarating" ✓
-- **Same-name contamination correction FIRED**: "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" ✓
-- 5 characters found: John (aka Johnny), Uncle Bill (aka Bill), John Donaldson, Joe Barron, Ted Frith (aka Ted)
-- 18 pronunciation flags (same as previous attempts)
-- All 4 profiles generated with HIGH confidence
-- Output: oracle-loop/../output/american_sir/analysis.json + report.html + timestamped in output/American Sir_20260221_013725/
+- FIX 1: cousin vs brother → +0.2-0.3
+- FIX 2: remove fabricated family ties → +0.1
+- FIX 3: fix description contamination → +0.15-0.25
+- Combined: Profiles 7.5 → ~8.0-8.15
 
 ## Next Action
-Evaluate attempt 12 output.
+Run PROMPT_fix.md to address relationship verification and description contamination.
