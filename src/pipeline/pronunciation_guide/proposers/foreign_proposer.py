@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Optional
 
 from ..models import PronunciationFlag, PronunciationMention, PronunciationProposal
 from .base import BasePronunciationProposer
+from .cmu_proposer import COMMON_WORDS_WHITELIST
 
 if TYPE_CHECKING:
     from ..word_index import WordIndex
@@ -183,8 +184,8 @@ class ForeignProposer(BasePronunciationProposer):
 
                     word_lower = word.lower()
 
-                    # Skip English exceptions
-                    if word_lower in ENGLISH_EXCEPTIONS:
+                    # Skip English exceptions and universally common English words
+                    if word_lower in ENGLISH_EXCEPTIONS or word_lower in COMMON_WORDS_WHITELIST:
                         continue
 
                     word_matches[language][word_lower].append((position, word, pattern.pattern))

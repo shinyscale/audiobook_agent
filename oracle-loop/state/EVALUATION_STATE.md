@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -119,13 +119,25 @@
 | 1 | 6.93 | - | First analysis — profiles empty, character confusion |
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 2: Fixed null character profiles + pronunciation false positives
+  - **Profile fix (Profiles: 4→8 target):** Secondary LLM call now triggers when profile is empty, using context_text as source instead of requiring existing profile text. Also generates profile description from the secondary call.
+    - Root cause: `analyzer.py:_generate_character_profile()` line 3009 — secondary call condition `if has_minimal_data and profile` excluded cases where profile was empty string
+    - Smoke test: PASS — secondary LLM call now triggers when profile is empty with context available
+    - Modified: `src/analyzer.py`
+  - **Pronunciation fix (Pronunciation: 7→8 target):**
+    1. Added common English nicknames (bill, joe, bob, jim, etc.) to COMMON_WORDS_WHITELIST — these are universal English names no narrator needs pronunciation guidance for
+    2. Made ForeignProposer check COMMON_WORDS_WHITELIST to prevent common verbs like "was" from being flagged as "foreign"
+    - Root cause A: "Bill", "Joe" not in COMMON_WORDS_WHITELIST so character proposer flagged them
+    - Root cause B: Foreign proposer found "la {word}" pattern matching in text, extracted the word, but didn't check COMMON_WORDS_WHITELIST — so "was" was incorrectly flagged
+    - Smoke test: PASS — "was" not flagged as foreign; "Bill"/"Joe" not flagged as character names needing pronunciation
+    - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`, `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | (baseline) | N/A | Baseline established |
+| 2 | Profiles: null descriptions / Pronunciation: false positives | analyzer.py, cmu_proposer.py, foreign_proposer.py | Pending re-analysis |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
@@ -145,4 +157,4 @@
 Issues #1 (father/son confusion) and #2 (cousin/brother) are likely LLM comprehension errors that may be hard to fix via code. Re-running the analysis may produce different results. Issues #3 (null physical descriptions), #8-10 (pronunciation) are more likely systematic/code issues.
 
 ## Next Action
-Run PROMPT_fix.md to address profile extraction and pronunciation issues.
+Re-run analysis to verify profile and pronunciation fixes improved scores.
