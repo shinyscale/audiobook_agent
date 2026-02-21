@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260221_095244/
+- Timestamped: ../output/American Sir_20260221_104447/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -338,5 +338,13 @@ for char in characters:
 - Fix B: "guardian of his late brother's son" → "guardian of his late cousin's son" ✓; "son" not modified ✓
 - Full test suite: 256 passed (pre-existing failures in test_pdf_ingestion.py, test_refine.py, test_word_index.py unchanged)
 
+## Pipeline Notes (Attempt 14)
+- Completed in 14m 15s, 30 LLM calls, 50,011 tokens
+- 4 profiles generated with HIGH confidence
+- 5 characters found: John, Uncle Bill, John Donaldson, Joe Barron, Ted Frith
+- 18 pronunciation flags; narrator appearance injection fired for Uncle Bill ✓
+- Fix A (death-reference removal) and Fix B (brother→cousin deterministic correction) applied
+- LLM marker proposer returned non-list (non-critical warning, single chapter detected OK)
+
 ## Next Action
-Re-run analysis to verify fixes (awaiting_analysis).
+Evaluate attempt 14 output (awaiting_evaluation).
