@@ -2492,8 +2492,8 @@ class AudiobookAnalyzer:
         contexts = []
         mention_positions = []
         for mention in sampled_mentions:
-            start = max(0, mention.position - 200)  # Increased context window
-            end = min(len(full_text), mention.position + 200)
+            start = max(0, mention.position - 400)  # Wide context to capture nearby descriptions
+            end = min(len(full_text), mention.position + 400)
             snippet = full_text[start:end].strip()
             # Clean up partial words at boundaries
             if start > 0:
@@ -2612,7 +2612,7 @@ CRITICAL REQUIREMENTS:
 2. For each claim, provide the exact quote that supports it
 3. Consider how the character develops or changes throughout the narrative (if evident from the samples)
 4. If the text doesn't provide enough information about a trait or relationship, DO NOT invent it
-5. Distinguish between what the text explicitly states vs. what might be inferred
+5. Write from a narrator's practical perspective — balanced, actionable descriptions without literary criticism or moral judgments
 
 Return a JSON response matching this example format exactly:
 
@@ -2620,9 +2620,9 @@ Return a JSON response matching this example format exactly:
 {{
   "profile": "A brief 2-3 sentence overview based on provided evidence.",
   "appearance": {{
-    "summary": "Brief physical description if available from text",
+    "summary": "Physical description: height, build, coloring, age markers, facial features, clothing, bearing — any that appear in text",
     "age_indication": "young/middle-aged/elderly/unknown",
-    "distinguishing_features": ["feature1", "feature2"]
+    "distinguishing_features": ["specific feature from text", "another feature"]
   }},
   "personality": {{
     "summary": "Brief personality summary",
@@ -2655,7 +2655,7 @@ CRITICAL INSTRUCTIONS:
 - If information is not available in the text, use "unknown" or empty arrays [] for that field
 - Do NOT omit any field - every field must be present even if the value is "unknown" or []
 - Do NOT invent details - only use what's explicitly or clearly implied in the provided text
-- For appearance: Only include if text mentions physical traits, otherwise use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
+- For appearance: Search the text snippets carefully for physical descriptions (height, build, coloring, hair, eyes, age, clothing, bearing). If found, describe them. If truly absent, use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
 - For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
 - Return ONLY valid JSON matching the above structure. No other text.

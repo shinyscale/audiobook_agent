@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -194,5 +194,35 @@
 
 **Strategy recommendation:** Focus on issues #2 (physical descriptions) and #7/#8/#9 (pronunciation fixes) as they are code-fixable and together could push profiles to ~6.5 and pronunciation to ~8.0. Issues #1 and #3 (father/son confusion, cousin/brother error) are LLM comprehension issues that are harder to fix systematically but may improve with prompt refinement or a re-run.
 
+## Fix History (Attempt 3)
+
+### Changes Made
+1. **Profile context window expanded** (Character Profiles — CRITICAL #2)
+   - Root cause: Text snippets around character name mentions (200 char radius) too narrow to capture physical description passages that appear further from the name.
+   - Fix: `src/analyzer.py:_generate_character_profile` — context window 200→400 chars each direction.
+   - Also improved appearance prompt: "Search the text snippets carefully for physical descriptions (height, build, coloring, hair, eyes, age, clothing, bearing)."
+   - Also updated requirement #5 to: "Write from a narrator's practical perspective — balanced, actionable descriptions without literary criticism or moral judgments."
+   - Universality: Any book benefits from wider context; not book-specific.
+
+2. **Moral valence ANTAGONIST constraint softened** (Character Profiles — HIGH #6)
+   - Root cause: ANTAGONIST constraint said "Profile MUST acknowledge their harmful actions" which forced the LLM to describe Uncle Bill as manipulative/harmful when the text shows him as caring.
+   - Fix: `src/pipeline/character_profiling/moral_valence.py` — removed mandatory negative attribution, replaced with "Acknowledge clearly evidenced harmful behaviors, but remain balanced and avoid attributing negative motives without direct textual support."
+   - Universality: Any character whose moral valence is misclassified was previously forced into unfair negative portrayal.
+
+3. **Grounding threshold adaptive for short texts** (Character Extraction — HIGH #4)
+   - Root cause: min_mentions=3 for supporting cast may filter Ted Frith if he has only 2 text mentions despite appearing in 4+ scenes (scenes can reference characters without restating their name).
+   - Fix: `src/agents/characters.py:run()` — adaptive threshold: 2 for texts < 10,000 words, 3 for longer texts.
+   - Universality: Short stories (<10K words) have fewer name repetitions per character; lower threshold is appropriate without introducing noise for longer books.
+
+4. **Pronunciation common word whitelist expanded** (Pronunciation — MEDIUM #7)
+   - Root cause: "magnificence", "manliness", "orderlies" and related common English words were missing from COMMON_WORDS_WHITELIST.
+   - Fix: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` — added 18 common English words to whitelist.
+   - Universality: These are standard English vocabulary words that no narrator needs pronunciation guidance for.
+
+### Fix Classification
+- **Fix types:** threshold adjustment (context window, grounding), prompt clarification (appearance, personality), keyword filter (whitelist — allowed as per guidelines: universal, small, for recognition not rejection)
+- **Universality:** All fixes would help a book with a totally different setting (wider context helps any book; lower short-text threshold correct for any short story; softer constraint prevents over-attribution of harm for any character)
+- **Smoke test:** Syntax checks passed; pre-existing test failures unchanged (15 failures same as before changes)
+
 ## Next Action
-Run PROMPT_fix.md to address physical description extraction and pronunciation remaining issues.
+Set phase to awaiting_analysis — re-run pipeline to verify fixes.

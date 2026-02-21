@@ -34,10 +34,9 @@ MORAL_VALENCE_CONSTRAINTS: dict[MoralValence, str] = {
         "Avoid overly negative characterization that contradicts their helpful actions."
     ),
     MoralValence.ANTAGONIST: (
-        "This character performs primarily HARMFUL actions (murder, manipulation, cruelty, etc.). "
-        "DO NOT use positive descriptors like 'charming', 'attractive', or 'charismatic' without "
-        "explicitly noting these are surface qualities that mask harmful behavior. "
-        "Profile MUST acknowledge their harmful actions and their impact on others."
+        "This character performs primarily harmful actions. "
+        "Acknowledge clearly evidenced harmful behaviors, but remain balanced and avoid attributing "
+        "negative motives without direct textual support. Describe from a narrator's practical perspective."
     ),
     MoralValence.MORALLY_AMBIGUOUS: (
         "This character performs BOTH significant harmful AND beneficial actions. "

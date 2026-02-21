@@ -423,9 +423,17 @@ class CharacterAgent(Agent):
         # STEP 5: Extract supporting cast (F3)
         logger.info("V2 Step 5: Extracting supporting cast via NER")
         main_cast_names = self._collect_all_names(main_cast)
+        # Adaptive threshold: short texts (< 10K words) need a lower threshold since
+        # characters with only 2 text mentions may still be significant
+        text_word_count = len(context.text.split())
+        supporting_min_mentions = 2 if text_word_count < 10000 else 3
+        logger.info(
+            f"V2 Step 5: text_word_count={text_word_count}, "
+            f"supporting_min_mentions={supporting_min_mentions}"
+        )
         supporting_extractor = SupportingCastExtractor(
             context.text,
-            min_mentions=3,  # Lowered to capture narrators with few explicit name mentions
+            min_mentions=supporting_min_mentions,
         )
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
