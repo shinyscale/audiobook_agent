@@ -203,5 +203,25 @@
 - `src/analyzer.py` — modified in attempts 2, 3, and 5 for profiles. The ±500 char filter approach FAILED. Attempt 6 must use a fundamentally different approach (LLM disambiguation) rather than refining the proximity filter.
 - If the same approach is tried again, it will likely produce the same insufficient result.
 
+## Fix History (continued)
+- Attempt 6: Evidence disambiguation, narrator appearance, bidirectional relationships, summary prompt
+  - Root causes:
+    - John contamination: `src/analyzer.py:_generate_character_profile()` disambiguation note didn't include other character's V2-extracted description
+    - Uncle Bill appearance: narrator note didn't explicitly say first-person "I" references describe the narrator; early text guarantee only fired for late first-mentions
+    - Bidirectional: no reverse relationship inference after profile generation loop
+    - Summary "brother's grandson": summarizer prompts allowed inferring family relationship types
+    - Pronunciation categories null: `src/models.py:PronunciationEntry` missing `category` field
+  - Fixes:
+    - Added `character_descriptions` parameter to `_generate_character_profile`; disambiguation note now includes other character's description from V2 extraction
+    - Changed narrator early-mention condition from `position > 1500` to ALWAYS add early context; strengthened narrator note to explicitly say first-person ("I am...") descriptions refer to this character
+    - Added bidirectional relationship post-processing after profile loop (father↔son, uncle↔nephew, etc.)
+    - Added "use only exact relationship terms from text" guideline to all three summarizer prompts
+    - Added `category: Optional[str]` field with `model_validator` to `PronunciationEntry` to mirror `flag_reason.value`
+  - Smoke test: imports OK, category field works, no new test failures
+  - Modified: `src/analyzer.py`, `src/models.py`, `src/pipeline/chapter_summary/summarizer.py`
+
+## Phase
+awaiting_analysis
+
 ## Next Action
-Run PROMPT_fix.md to address profile evidence disambiguation (Critical #1) and summary relationship context (High #3)
+Re-run analysis on american_sir to verify fixes

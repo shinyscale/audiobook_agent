@@ -6,7 +6,7 @@ These define the structure of extracted information.
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ConfidenceLevel(str, Enum):
@@ -121,6 +121,7 @@ class PronunciationEntry(BaseModel):
 
     word: str
     flag_reason: PronunciationFlag
+    category: Optional[str] = None  # Serialized alias for flag_reason.value
     occurrences: int = 1
     first_position: int
     chapter_indices: list[int] = Field(default_factory=list)
@@ -133,6 +134,12 @@ class PronunciationEntry(BaseModel):
     audio_url: Optional[str] = None
     user_pronunciation: Optional[str] = None  # User's custom pronunciation
     notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def populate_category(self) -> "PronunciationEntry":
+        if self.category is None and self.flag_reason is not None:
+            self.category = self.flag_reason.value
+        return self
 
 
 class GlossaryEntry(BaseModel):

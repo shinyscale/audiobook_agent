@@ -1756,6 +1756,23 @@ class AudiobookAnalyzer:
                 # (e.g., "John" vs "John Donaldson", "Mary" vs "Mary Smith")
                 all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
 
+                # Build character descriptions map for same-name disambiguation.
+                # When two characters share a name prefix (e.g., "John" and "John Donaldson"),
+                # passing the other character's extracted description helps the LLM distinguish
+                # which passages belong to which character.
+                character_descriptions_map: dict[str, str] = {}
+                for _c in pipeline_char_map.characters:
+                    descs = getattr(_c, "descriptions", []) or []
+                    if descs:
+                        # Use first description text (from V2 extraction)
+                        first_desc = descs[0]
+                        desc_text = (
+                            first_desc.get("text", "") if isinstance(first_desc, dict)
+                            else getattr(first_desc, "text", "")
+                        )
+                        if desc_text:
+                            character_descriptions_map[_c.canonical_name] = desc_text
+
                 # F2: Initialize summary evidence extractor with character names for collision detection
                 summary_evidence_extractor = None
                 if summary_map:
@@ -1832,6 +1849,7 @@ class AudiobookAnalyzer:
                             summary_evidence=summary_evidence,
                             moral_valence=moral_valence,
                             all_character_names=all_character_names,
+                            character_descriptions=character_descriptions_map,
                         )
                     )
 
@@ -1889,6 +1907,58 @@ class AudiobookAnalyzer:
             print(
                 f"   Generated {profile_count} profiles for {len(eligible_chars)} eligible characters"
             )
+
+            # Post-process: Infer bidirectional family relationships.
+            # If character A → B is "father", infer B → A is "son" (if not already set).
+            # This is a universal invariant: parent/child, sibling, and spouse relationships
+            # are always bidirectional with a known reverse.
+            _RELATIONSHIP_REVERSES = {
+                "father": "son",
+                "mother": "daughter",
+                "son": "father",
+                "daughter": "mother",
+                "brother": "brother",
+                "sister": "sister",
+                "grandfather": "grandson",
+                "grandmother": "granddaughter",
+                "grandson": "grandfather",
+                "granddaughter": "grandmother",
+                "uncle": "nephew",
+                "aunt": "niece",
+                "nephew": "uncle",
+                "niece": "aunt",
+                "cousin": "cousin",
+                "husband": "wife",
+                "wife": "husband",
+                "spouse": "spouse",
+                "partner": "partner",
+                "guardian": "ward",
+                "ward": "guardian",
+            }
+            char_by_name: dict[str, object] = {
+                c.canonical_name: c for c in pipeline_char_map.characters
+            }
+            for char_a in pipeline_char_map.characters:
+                rels_a = getattr(char_a, "relationships", None) or {}
+                for other_name, rel_desc in list(rels_a.items()):
+                    if not isinstance(rel_desc, str):
+                        continue
+                    rel_lower = rel_desc.strip().lower()
+                    reverse_rel = _RELATIONSHIP_REVERSES.get(rel_lower)
+                    if reverse_rel and other_name in char_by_name:
+                        char_b = char_by_name[other_name]
+                        rels_b = getattr(char_b, "relationships", None)
+                        if rels_b is None:
+                            rels_b = {}
+                            char_b.relationships = rels_b
+                        existing = rels_b.get(char_a.canonical_name, "").strip().lower()
+                        if not existing or existing == "unknown":
+                            rels_b[char_a.canonical_name] = reverse_rel
+                            logger.info(
+                                f"Bidirectional relationship inferred: "
+                                f"{other_name} → {char_a.canonical_name} = '{reverse_rel}' "
+                                f"(from {char_a.canonical_name} → {other_name} = '{rel_desc}')"
+                            )
 
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
@@ -2272,6 +2342,7 @@ class AudiobookAnalyzer:
         summary_evidence: Optional["CharacterSummaryEvidence"] = None,
         moral_valence: Optional["MoralValenceResult"] = None,
         all_character_names: Optional[list[str]] = None,
+        character_descriptions: Optional[dict[str, str]] = None,
     ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
@@ -2461,7 +2532,9 @@ class AudiobookAnalyzer:
         # For narrators with named mentions, ensure early text is captured.
         # First-person narrators often describe themselves near the start ("I am an elderly man..."),
         # but that passage may not be near any named mention of the narrator.
-        if is_narrator and all_mentions and all_mentions[0].position > 1500:
+        # Always add early synthetic mentions for narrators to guarantee first-person
+        # self-descriptions (e.g., "I am an elderly man...") are captured.
+        if is_narrator and all_mentions:
             def _chapter_for_pos_early(pos: int) -> int:
                 if chapter_map is None:
                     return 0
@@ -2577,7 +2650,7 @@ class AudiobookAnalyzer:
         # Check if this character is the narrator
         narrator_note = ""
         if hasattr(character, "is_narrator") and character.is_narrator:
-            narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). Your description should mention their role as the narrator/storyteller."
+            narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). IMPORTANT: Any first-person descriptions in the text (\"I am...\", \"I was...\", \"I look...\", \"I have...\") describe THIS character's appearance and traits. Look for self-descriptions where the narrator characterizes themselves physically or emotionally."
 
         # Build character disambiguation context for same-name characters
         # This helps when multiple characters share name components (e.g., "John" and "John Donaldson")
@@ -2594,27 +2667,34 @@ class AudiobookAnalyzer:
                         related_names.append(other_name)
 
             if related_names:
-                # Extract distinguishing information from the character's description field
-                char_description = ""
-                descriptions = getattr(character, "descriptions", []) or []
-                if descriptions and len(descriptions) > 0:
-                    desc_text = descriptions[0].get("text", "") if isinstance(descriptions[0], dict) else ""
-                    if desc_text:
-                        char_description = f"\n{desc_text}"
+                # Extract distinguishing information about the other characters from extraction data
+                other_char_info = []
+                for rname in related_names:
+                    desc_for_other = ""
+                    if character_descriptions and rname in character_descriptions:
+                        desc_for_other = character_descriptions[rname]
+                    if desc_for_other:
+                        other_char_info.append(f'- "{rname}": {desc_for_other}')
+                    else:
+                        other_char_info.append(f'- "{rname}": (a different character)')
 
                 related_list = ", ".join(f'"{name}"' for name in related_names)
+                other_info_text = "\n".join(other_char_info)
                 disambiguation_note = f"""
 
 CHARACTER DISAMBIGUATION (CRITICAL):
 This story has multiple characters with similar names: "{char_canonical}" and {related_list}.
-You are analyzing "{char_canonical}" specifically - NOT the other character(s).
+You are analyzing "{char_canonical}" ONLY.
 
-When attributing traits, events, or quotes to this character:
-1. Pay attention to which name form appears in each passage
-2. Passages that mention the FULL name of another character (e.g., both first AND last name) likely refer to that other character, NOT this one
-3. If a passage is ambiguous about which character is being discussed, mark the evidence as lower confidence{char_description}
+The other character(s) with similar names:
+{other_info_text}
 
-IMPORTANT: Carefully distinguish passages about "{char_canonical}" from passages about other characters with similar names."""
+When attributing traits, events, or quotes:
+1. Only use evidence that clearly describes "{char_canonical}", not the other character(s) above
+2. If a passage matches traits listed for the other character(s), EXCLUDE it from your analysis of "{char_canonical}"
+3. Passages mentioning the full name of another character refer to that other character, not "{char_canonical}"
+
+IMPORTANT: If the available evidence is ambiguous, report only what is clearly specific to "{char_canonical}"."""
 
         # Build character names list for relationship extraction
         character_names_text = ""

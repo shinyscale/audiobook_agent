@@ -58,6 +58,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
+- For family relationships (father/son, cousin/brother, etc.), use ONLY the exact relationship terms stated in the text; do not infer relationship types not explicitly written
 - **FIRST-PERSON NARRATORS**: If the text is told in first person ("I", "we") and the narrator's name is revealed in the text (e.g., another character addresses them by name, or they introduce themselves), USE THAT NAME in your summary instead of "the narrator". Only use "the narrator" if their name is not revealed in this section.
 {length_guidance}
 
@@ -107,8 +108,8 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - FACTUAL ACCURACY is more important than brevity - preserve ALL significant details from sections
 - Include setting details (location, transportation method, time) when mentioned
 - When events/objects are referenced, ALWAYS include context from the sections
-- Be precise about HOW characters travel and WHERE specific events occur
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
+- For family relationships (father/son, cousin/brother, etc.), use ONLY the exact relationship terms from the section summaries; do not infer relationship types not stated
 - **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently in the consolidated summary instead of "the narrator". Only use "the narrator" if their name is not revealed in any section.
 {length_guidance}
 
@@ -175,9 +176,9 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - FACTUAL ACCURACY is more important than brevity - include all significant events
 - Include specific setting details (location, transportation method, time of day)
 - When referencing events/objects, ALWAYS provide context (e.g., "the inheritance from his uncle" not just "the money")
-- Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
+- For family relationships (father/son, cousin/brother, etc.), use ONLY the exact relationship terms stated in the text; do not infer relationship types not explicitly written
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
