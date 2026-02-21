@@ -2128,10 +2128,15 @@ class AudiobookAnalyzer:
                             (_char_short.appearance or {}).get("age_indication", "unknown")
                             if _char_short.appearance else "unknown"
                         )
+                        desc_short = getattr(_char_short, 'description', None) or ""
+                        app_short = (
+                            (_char_short.appearance or {}).get("summary", "")
+                            if _char_short.appearance else ""
+                        )
 
                         correction_prompt = f"""Two characters share the same first name: "{_name_short}" and "{_name_long}".
 
-Because their names overlap, the profiling system may have accidentally assigned "{_name_long}"'s traits to "{_name_short}".
+Because their names overlap, the profiling system may have accidentally assigned "{_name_long}"'s traits/descriptions to "{_name_short}".
 
 "{_name_short}"'s story role (chapter summaries):
 {ev_short}
@@ -2143,30 +2148,30 @@ Because their names overlap, the profiling system may have accidentally assigned
 - Personality traits: {traits_short}
 - Personality summary: {summary_short}
 - Age indication: {age_short}
+- Description: {desc_short!r}
+- Appearance summary: {app_short!r}
 
 "{_name_long}" was assigned:
 - Personality traits: {traits_long}
 - Personality summary: {summary_long}
 
-Review each trait in "{_name_short}"'s list. For each one, does it genuinely describe "{_name_short}" based on their story role above, or does it better fit "{_name_long}"?
-
-Keep all traits that could plausibly describe "{_name_short}". Only remove traits that clearly belong to "{_name_long}" instead.
-
-IMPORTANT: Do NOT return an empty traits list. If uncertain about a trait, keep it for "{_name_short}".
+Review traits, description, and appearance for "{_name_short}". Remove only what clearly belongs to "{_name_long}" instead. Keep traits if uncertain. Do NOT return empty traits.
 
 Return JSON only:
 {{
   "contamination_detected": true or false,
   "reason": "one sentence explanation",
   "corrected_personality": {{
-    "summary": "corrected summary keeping traits genuinely belonging to {_name_short}",
-    "traits": ["only traits that clearly belong to {_name_short} — keep if uncertain"],
-    "temperament": "based on retained traits",
-    "emotional_range": "based on retained traits"
+    "summary": "...",
+    "traits": ["keep if uncertain"],
+    "temperament": "...",
+    "emotional_range": "..."
   }},
-  "corrected_age_indication": "young/middle-aged/elderly/unknown"
+  "corrected_age_indication": "young/middle-aged/elderly/unknown",
+  "corrected_description": "description for {_name_short} only — remove sentences about death or events that belong to {_name_long}",
+  "corrected_appearance_summary": "appearance for {_name_short} only — remove attributes that belong to {_name_long}"
 }}
-Only include "corrected_personality" and "corrected_age_indication" if contamination_detected is true."""
+Only include fields if contamination_detected is true."""
 
                         try:
                             _corr_response = profile_llm.query(correction_prompt)
@@ -2204,6 +2209,25 @@ Only include "corrected_personality" and "corrected_age_indication" if contamina
                                     _char_short.appearance["age_indication"] = corr_age
                                     logger.info(
                                         f"Post-profile correction: updated age for '{_name_short}': {corr_age}"
+                                    )
+                                # Apply corrected description if provided
+                                corr_desc = _corr_data.get("corrected_description")
+                                if corr_desc and isinstance(corr_desc, str) and corr_desc.strip():
+                                    _char_short.description = corr_desc.strip()
+                                    logger.info(
+                                        f"Post-profile correction: updated description for '{_name_short}'"
+                                    )
+                                # Apply corrected appearance summary if provided
+                                corr_app_sum = _corr_data.get("corrected_appearance_summary")
+                                if (
+                                    corr_app_sum
+                                    and isinstance(corr_app_sum, str)
+                                    and corr_app_sum.strip()
+                                    and _char_short.appearance
+                                ):
+                                    _char_short.appearance["summary"] = corr_app_sum.strip()
+                                    logger.info(
+                                        f"Post-profile correction: updated appearance for '{_name_short}'"
                                     )
                                 print(
                                     f"   Corrected profile for '{_name_short}' "
@@ -2472,6 +2496,95 @@ Only include "corrected_personality" and "corrected_age_indication" if contamina
                         f"Corrected 'same person' relationship: "
                         f"'{_rc.canonical_name}' → '{_other_name}' = '{_rel_desc}' → 'unknown'"
                     )
+
+        # Post-convert text-based relationship verification.
+        # For each character pair, searches source text for explicit relationship phrases
+        # (e.g., "a cousin", "his brother") in windows where both characters co-appear.
+        # When the text explicitly states a relationship that differs from the LLM-generated
+        # one, the LLM value is overridden with the text-evidenced term.
+        # When the LLM claims a family relationship but the characters never co-appear in
+        # the text, the relationship is downgraded to "acquaintance" (removes hallucinations).
+        # Universal: data-driven from source text, no character-specific hardcoding.
+        if doc and getattr(doc, 'text', None):
+            _RELFAM_TERMS = (
+                "cousin", "brother", "sister", "uncle", "aunt", "nephew", "niece",
+                "father", "mother", "son", "daughter", "husband", "wife",
+                "grandfather", "grandmother", "grandson", "granddaughter",
+            )
+            _RELFAM_SET = set(_RELFAM_TERMS)
+            # Match explicit relationship phrases: "a cousin", "his brother", "her late aunt", etc.
+            _rel_phrase_re = re.compile(
+                r'\b(?:a|an|(?:his|her|my|our|their|your)\s+(?:late\s+|dear\s+)?)\s*('
+                + '|'.join(_RELFAM_TERMS) + r')\b',
+                re.IGNORECASE,
+            )
+            # Build per-character name regex (canonical + aliases)
+            _rv_pats: dict = {}
+            for _rvc in characters:
+                _rvv = {re.escape(_rvc.canonical_name)}
+                for _al in (_rvc.aliases or []):
+                    if len(_al) >= 3:
+                        _rvv.add(re.escape(_al))
+                _rv_pats[_rvc.canonical_name] = re.compile(
+                    r'\b(?:' + '|'.join(sorted(_rvv, key=len, reverse=True)) + r')\b',
+                    re.IGNORECASE,
+                )
+            _CO_WIN = 500  # character window on each side of a name mention
+            for _rvc in characters:
+                if not _rvc.relationships:
+                    continue
+                _pa = _rv_pats.get(_rvc.canonical_name)
+                if _pa is None:
+                    continue
+                for _ok in list(_rvc.relationships.keys()):
+                    _cur = _rvc.relationships.get(_ok) or ""
+                    if not _cur:
+                        continue
+                    _cur_lo = _cur.lower()
+                    _is_fam = any(t in _cur_lo for t in _RELFAM_SET)
+                    # Resolve the other character object
+                    _oc = next(
+                        (c for c in characters
+                         if c.canonical_name == _ok
+                         or c.canonical_name.lower() == _ok.lower()
+                         or _ok in (c.aliases or [])
+                         or _ok.lower() in [a.lower() for a in (c.aliases or [])]),
+                        None,
+                    )
+                    if _oc is None:
+                        continue
+                    _pb = _rv_pats.get(_oc.canonical_name)
+                    if _pb is None:
+                        continue
+                    # Scan text for co-mention windows and collect explicit relationship terms
+                    _found: dict = {}
+                    _comention_count = 0
+                    for _ma in _pa.finditer(doc.text):
+                        _ws = max(0, _ma.start() - _CO_WIN)
+                        _we = min(len(doc.text), _ma.end() + _CO_WIN)
+                        _win = doc.text[_ws:_we]
+                        if not _pb.search(_win):
+                            continue
+                        _comention_count += 1
+                        for _rm in _rel_phrase_re.finditer(_win):
+                            _term = _rm.group(1).lower()
+                            _found[_term] = _found.get(_term, 0) + 1
+                    if _found:
+                        # Pick the most-found term; override LLM if it differs
+                        _best = max(_found, key=_found.get)
+                        if _best not in _cur_lo:
+                            logger.info(
+                                f"Text-based rel override: '{_rvc.canonical_name}' → '{_ok}': "
+                                f"'{_cur}' → '{_best}' (evidence: {_found})"
+                            )
+                            _rvc.relationships[_ok] = _best
+                    elif _is_fam and _comention_count == 0:
+                        # LLM claims family but characters never co-appear in text → hallucinated
+                        logger.info(
+                            f"Hallucinated family rel downgraded: "
+                            f"'{_rvc.canonical_name}' → '{_ok}': '{_cur}' → 'acquaintance'"
+                        )
+                        _rvc.relationships[_ok] = "acquaintance"
 
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)

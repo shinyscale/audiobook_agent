@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -295,5 +295,18 @@ Alternatively, combine with Fix 1: if the text-based search finds no family term
 - FIX 3: fix description contamination → +0.15-0.25
 - Combined: Profiles 7.5 → ~8.0-8.15
 
+## Fix History (Attempt 13)
+
+- Attempt 13: Text-based relationship verification + extended subtractive correction to description/appearance
+  - Fix 1+2: Added post-convert text-based relationship verification block (after "same person" invariant)
+    - Searches source text for explicit relationship phrases ("a cousin", "his brother", etc.) in co-mention windows
+    - Overrides LLM relationship when text explicitly states a different term
+    - Downgrades family relationships to "acquaintance" when characters never co-appear in text (removes hallucinated ties like "nephew")
+  - Fix 3: Extended the subtractive correction prompt (lines 2131-2174) to also pass description and appearance summary to the LLM
+    - LLM now returns corrected_description and corrected_appearance_summary in addition to corrected_personality
+    - Apply block now also writes corrected_description to pipeline_char.description and corrected_appearance_summary to pipeline_char.appearance["summary"]
+  - Modified: src/analyzer.py
+  - Smoke test: All existing tests still pass (only pre-existing failures remain)
+
 ## Next Action
-Run PROMPT_fix.md to address relationship verification and description contamination.
+Re-run analysis to verify fix.
