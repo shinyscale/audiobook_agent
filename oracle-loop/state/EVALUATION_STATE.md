@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_204834/
+- Timestamped: ../output/American Sir_20260220_212706/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -217,5 +217,14 @@
   - Modified: src/agents/characters.py, src/pipeline/character_extraction_v2/supporting.py, src/analyzer.py
   - Smoke test: PASS — Ted/Ted Frith merge now fires (NER count mismatch was root cause); Red Cross excluded; no new test regressions
 
+## Pipeline Notes (Attempt 5)
+- Ted Frith (aka Ted) - 5 mentions: **MERGE WORKED** ✓
+- Red Cross: **NOT EXTRACTED** ✓ (organization filter worked)
+- 18 pronunciation flags (down from 19)
+- Warning: "No passages provided for John Donaldson, returning UNCERTAIN" — may affect John Donaldson profile
+- Warning: "No definitive narrator identified from plot summary" — narrator detection may be affected
+- "John (aka Johnny)" listed first with 30 mentions — Johnny alias preserved ✓
+- Total: 32 LLM calls, 52,730 tokens, 14m 36s
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
