@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_220915/
+- Timestamped: ../output/American Sir_20260220_223923/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -215,8 +215,19 @@ Don't rely on narrator detection from plot summary. When `character.is_narrator 
 ### WARNING: src/analyzer.py modified in 5 of 6 attempts
 This file MUST be modified again (it's the right place for post-profile processing). But the approach MUST be fundamentally different — post-profile correction, not pre-profile evidence filtering.
 
+## Pipeline Notes (Attempt 7)
+- **CRITICAL:** Post-profile correction FAILED: `'LLMClient' object has no attribute 'generate'`
+  - The correction pass ran but crashed — wrong method name used
+  - John's personality contamination likely UNCHANGED
+  - Fix attempt 8: Change `.generate()` to the correct LLMClient method name (probably `.complete()`)
+- `No passages provided for John Donaldson, returning UNCERTAIN` — same as before
+- `Narrator 'the narrator (unnamed)' identified but NOT found in main_cast` — Uncle Bill appearance still unknown
+- `No definitive narrator identified from plot summary` — narrator detection still failing
+- `LLM marker proposer returned non-list` — structure detection warnings (benign, 1 chapter correct)
+- Run time: 13m 34s, 32 LLM calls, 51,891 tokens
+
 ## Next Action
-Re-run analysis to verify fix (phase: awaiting_analysis)
+Evaluate attempt 7 output (likely same as attempt 6 since post-profile correction failed)
 
 ## Attempt 7 Fix Applied
 - **Issue #1 (CRITICAL)**: Post-profile personality correction pass
