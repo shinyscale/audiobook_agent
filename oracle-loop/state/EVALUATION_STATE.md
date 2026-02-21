@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260221_013725/
+- Timestamped: ../output/American Sir_20260221_095244/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -308,5 +308,13 @@ Alternatively, combine with Fix 1: if the text-based search finds no family term
   - Modified: src/analyzer.py
   - Smoke test: All existing tests still pass (only pre-existing failures remain)
 
+## Pipeline Notes (Attempt 13)
+- Completed in 12m 41s, 30 LLM calls, 47,077 tokens
+- Found 5 characters → 3 profiles generated (all HIGH confidence)
+- Uncle Bill narrator appearance injected: "an elderly, grizzled, small man, grim and unexhilarating" ✓
+- 18 pronunciation flags
+- Characters: John (aka Johnny, John Donaldson), Uncle Bill (aka Bill), Joe Barron, Ted Frith (aka Ted)
+- Competitive consensus: ENABLED (characters, structure, summaries)
+
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate output (awaiting_evaluation phase).
