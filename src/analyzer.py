@@ -2356,6 +2356,123 @@ Only include "corrected_personality" and "corrected_age_indication" if contamina
         # Convert characters
         characters = self._convert_characters(pipeline_char_map)
 
+        # Final narrator appearance injection (guaranteed-last pass).
+        # Runs AFTER _convert_characters so no subsequent step can overwrite it.
+        # Universal: any first-person narrator who physically self-describes in text
+        # gets that description injected regardless of what the LLM generated.
+        # The score >= 2 threshold (multiple physical words) prevents false positives.
+        _NARRATOR_PHYS_WORDS = {
+            "man", "woman", "person", "elderly", "old", "young", "tall",
+            "short", "thin", "small", "lean", "stout", "fat", "grizzled",
+            "bald", "gray", "grey", "large",
+        }
+        _nph_joined = '|'.join(sorted(_NARRATOR_PHYS_WORDS, key=len, reverse=True))
+        _nph_pA = re.compile(
+            r'\bI[\s.…]{0,20}(?:am|was)\b[^\n]{0,200}?\b(?:' + _nph_joined + r')\b',
+            re.IGNORECASE,
+        )
+        _nph_pB = re.compile(
+            r'\bI\b.{0,80}?\ban?\s+(?:' + _nph_joined + r')\b.{0,150}?\b(?:man|woman|person)\b',
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        def _nph_score(text: str) -> int:
+            tl = text.lower()
+            return sum(1 for w in _NARRATOR_PHYS_WORDS if re.search(r'\b' + w + r'\b', tl))
+
+        for _fc in characters:
+            if not getattr(_fc, 'is_narrator', False):
+                continue
+            _fc_app = getattr(_fc, 'appearance', None)
+            if _fc_app is None:
+                continue
+            # Search text for narrator physical self-description
+            _nph_best = None
+            _nph_score_best = -1
+            _nph_is_pB = False
+            for _m in _nph_pA.finditer(doc.text):
+                _s = _nph_score(_m.group())
+                if _s > _nph_score_best:
+                    _nph_score_best, _nph_best, _nph_is_pB = _s, _m, False
+            for _m in _nph_pB.finditer(doc.text):
+                if '\n\n' in _m.group():
+                    continue
+                _s = _nph_score(_m.group())
+                if _s > _nph_score_best:
+                    _nph_score_best, _nph_best, _nph_is_pB = _s, _m, True
+            if _nph_best is None or _nph_score_best < 2:
+                logger.info(
+                    f"Final narrator injection: no strong physical description found for "
+                    f"'{_fc.canonical_name}' (best score={_nph_score_best})"
+                )
+                continue
+            if _nph_is_pB:
+                _nph_window = doc.text[_nph_best.start():_nph_best.start() + 300]
+                _nph_art = re.search(
+                    r'\ban?\s+(?:' + _nph_joined + r')\b[^\n]*(?:\n[^\n]+)?',
+                    _nph_window, re.IGNORECASE,
+                )
+                if _nph_art:
+                    _nph_raw = _nph_art.group()
+                    _nph_raw = re.split(r'--|—', _nph_raw)[0]
+                    _nph_cleaned = re.sub(r'\s*\n\s*', ' ', _nph_raw).strip().rstrip('.,;- ')
+                else:
+                    _nph_cleaned = re.sub(r'\s*\n\s*', ' ', _nph_best.group()).strip()[:200]
+            else:
+                _nph_cleaned = re.sub(
+                    r'^I[\s.…]*(?:am|was)\s*', '', _nph_best.group(), flags=re.IGNORECASE
+                ).strip().rstrip('.,;')
+            if _nph_cleaned:
+                _fc.appearance["summary"] = _nph_cleaned
+                print(
+                    f"   Final narrator appearance injection for "
+                    f"'{_fc.canonical_name}': {_nph_cleaned!r}"
+                )
+                logger.info(
+                    f"Final narrator appearance injection for "
+                    f"'{_fc.canonical_name}': {_nph_cleaned!r}"
+                )
+                _nph_desc_lower = _nph_best.group().lower()
+                if (_fc_app.get("age_indication", "") or "").lower() in ("", "unknown"):
+                    if any(w in _nph_desc_lower for w in ("elderly", "old", "aged")):
+                        _fc.appearance["age_indication"] = "elderly"
+                    elif "young" in _nph_desc_lower:
+                        _fc.appearance["age_indication"] = "young"
+
+        # Post-convert relationship correction: two distinct characters can never be
+        # "same person". This is a universal invariant — if the LLM erroneously labels
+        # character A as the same person as character B (they share a first name, etc.),
+        # clear the relationship to "unknown". Applies to any book.
+        _character_names_lower = {
+            c.canonical_name.lower() for c in characters
+        }
+        _alias_to_canonical_lower = {}
+        for _rc in characters:
+            for _al in (_rc.aliases or []):
+                _alias_to_canonical_lower[_al.lower()] = _rc.canonical_name.lower()
+        _same_person_phrases = ("same person", "same character", "identical to", "the same as", "same individual")
+        for _rc in characters:
+            if not _rc.relationships:
+                continue
+            for _other_name, _rel_desc in list(_rc.relationships.items()):
+                if not _rel_desc:
+                    continue
+                _rel_lower = _rel_desc.lower()
+                if not any(phrase in _rel_lower for phrase in _same_person_phrases):
+                    continue
+                # Check if _other_name refers to another character in our list
+                _other_lower = _other_name.lower()
+                _in_list = (
+                    _other_lower in _character_names_lower
+                    or _other_lower in _alias_to_canonical_lower
+                )
+                if _in_list:
+                    _rc.relationships[_other_name] = "unknown"
+                    logger.info(
+                        f"Corrected 'same person' relationship: "
+                        f"'{_rc.canonical_name}' → '{_other_name}' = '{_rel_desc}' → 'unknown'"
+                    )
+
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)
 

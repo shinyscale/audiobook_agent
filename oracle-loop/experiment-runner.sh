@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+export PATH="$HOME/.local/bin:$PATH"
 
 # Experiment Framework for Universal Config Discovery
 # Usage: ./experiment-runner.sh [experiment_id]
@@ -159,7 +160,7 @@ run_analysis_with_config() {
         audiobook-prep analyze "../$book_file" --output "../output/${book_name}/analysis.json" --html "../output/${book_name}/report.html" $cli_flags 2>&1 | tee "$log_file"
     else
         log_warn "audiobook-prep not found, using python module directly"
-        python -m src.cli analyze "../$book_file" --output "../output/${book_name}/analysis.json" --html "../output/${book_name}/report.html" $cli_flags 2>&1 | tee "$log_file"
+        python3 -m src.cli analyze "../$book_file" --output "../output/${book_name}/analysis.json" --html "../output/${book_name}/report.html" $cli_flags 2>&1 | tee "$log_file"
     fi
 
     return ${PIPESTATUS[0]}

@@ -1,0 +1,292 @@
+{
+  "timestamp": "2026-02-16T18:01:29-07:00",
+  "texts": {
+    "american_sir": {
+      "text": "american_sir",
+      "scores": {
+        "structure": 7,
+        "characters": 5,
+        "profiles": 5,
+        "summaries": 8,
+        "pronunciation": 7,
+        "presentation": 7
+      },
+      "overall": 6.5,
+      "pass": false,
+      "issues": [
+        {
+          "category": "characters",
+          "severity": "CRITICAL",
+          "description": "John Donaldson (the son) profile contains the father's appearance and personality data \u2014 complete identity swap between the two characters"
+        },
+        {
+          "category": "characters",
+          "severity": "HIGH",
+          "description": "Red Cross listed as a character (organization, not a person)"
+        },
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "Johnny not merged as alias of John Donaldson (the son) \u2014 kept as separate character"
+        },
+        {
+          "category": "profiles",
+          "severity": "CRITICAL",
+          "description": "Son's profile describes a 'dark-skinned, middle-aged man who committed grave betrayals' \u2014 entirely wrong person's data"
+        },
+        {
+          "category": "profiles",
+          "severity": "MEDIUM",
+          "description": "Quote 'No--no. It's covered over...' attributed to Uncle Bill but spoken by John the son"
+        },
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "Father labeled as antagonist and narrator (is_narrator: true) \u2014 he is neither"
+        },
+        {
+          "category": "structure",
+          "severity": "MEDIUM",
+          "description": "Title shows as author name 'Mary Raymond Shipman Andrews' instead of story title 'American Sir'"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "MEDIUM",
+          "description": "Missing important Italian place names: Perugia, Ventimiglia; includes unnecessary common English words (whippersnapper, thriftless, orderlies)"
+        },
+        {
+          "category": "presentation",
+          "severity": "LOW",
+          "description": "Performance timing table renders started_at/ended_at as empty rows"
+        },
+        {
+          "category": "summaries",
+          "severity": "LOW",
+          "description": "Ch 2 summary says 'deceased sister's son' but should be 'cousin's son'"
+        }
+      ],
+      "notes": "The critical flaw is a full identity swap between John Donaldson father and son \u2014 the son's profile contains the father's physical description, personality, quotes, and relationships, making the character guide unreliable for an audiobook narrator. Structure, summaries, and pronunciation are adequate but the character confusion undermines the core use case."
+    },
+    "cask_of_amontillado": {
+      "text": "cask_of_amontillado",
+      "scores": {
+        "structure": 10.0,
+        "characters": 8.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      },
+      "overall": 8.95,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "masque_of_red_death": {
+      "text": "masque_of_red_death",
+      "scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 10.0,
+        "pronunciation": 9.0,
+        "presentation": 10.0
+      },
+      "overall": 9.35,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "berenice": {
+      "text": "berenice",
+      "scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      },
+      "overall": 9.1,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "monkeys_paw": {
+      "text": "monkeys_paw",
+      "scores": {
+        "structure": 10.0,
+        "characters": 9.0,
+        "profiles": 8.0,
+        "summaries": 10.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      },
+      "overall": 9.2,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "gatsby": {
+      "text": "gatsby",
+      "scores": {
+        "structure": 9.5,
+        "characters": 9,
+        "profiles": 8,
+        "summaries": 9.5,
+        "pronunciation": 9,
+        "presentation": 9
+      },
+      "overall": 8.98,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "i_have_no_mouth": {
+      "text": "i_have_no_mouth",
+      "scores": {
+        "structure": 9.0,
+        "characters": 8.0,
+        "profiles": 8.0,
+        "summaries": 9.0,
+        "pronunciation": 9.0,
+        "presentation": 9.0
+      },
+      "overall": 8.8,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "frankenstein": {
+      "text": "frankenstein",
+      "scores": {
+        "structure": 8.0,
+        "characters": 8.0,
+        "profiles": 7.0,
+        "summaries": 8.0,
+        "pronunciation": 8.0,
+        "presentation": 9.0
+      },
+      "overall": 8.1,
+      "pass": false,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "gift_of_the_magi": {
+      "text": "gift_of_the_magi",
+      "scores": {
+        "structure": 10,
+        "characters": 9,
+        "profiles": 8,
+        "summaries": 9.5,
+        "pronunciation": 8,
+        "presentation": 8.5
+      },
+      "overall": 9.0,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "a_camping_trip": {
+      "text": "a_camping_trip",
+      "scores": {
+        "structure": 10,
+        "characters": 9,
+        "profiles": 8,
+        "summaries": 10,
+        "pronunciation": 8.5,
+        "presentation": 9
+      },
+      "overall": 9.2,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    },
+    "john_g": {
+      "text": "john_g",
+      "scores": {
+        "structure": 10,
+        "characters": 9,
+        "profiles": 8.5,
+        "summaries": 9,
+        "pronunciation": 8,
+        "presentation": 9
+      },
+      "overall": 8.9,
+      "pass": true,
+      "issues": [],
+      "notes": "(historical baseline from checkpoints.json)",
+      "source": "historical"
+    }
+  },
+  "column_stats": {
+    "structure": {
+      "mean": 9.41,
+      "min": 7,
+      "max": 10.0,
+      "count": 11,
+      "failing_count": 1,
+      "failing_texts": [
+        "american_sir"
+      ]
+    },
+    "characters": {
+      "mean": 8.36,
+      "min": 5,
+      "max": 9.0,
+      "count": 11,
+      "failing_count": 1,
+      "failing_texts": [
+        "american_sir"
+      ]
+    },
+    "profiles": {
+      "mean": 7.68,
+      "min": 5,
+      "max": 8.5,
+      "count": 11,
+      "failing_count": 2,
+      "failing_texts": [
+        "american_sir",
+        "frankenstein"
+      ]
+    },
+    "summaries": {
+      "mean": 9.18,
+      "min": 8,
+      "max": 10.0,
+      "count": 11,
+      "failing_count": 0,
+      "failing_texts": []
+    },
+    "pronunciation": {
+      "mean": 8.5,
+      "min": 7,
+      "max": 9.0,
+      "count": 11,
+      "failing_count": 1,
+      "failing_texts": [
+        "american_sir"
+      ]
+    },
+    "presentation": {
+      "mean": 8.86,
+      "min": 7,
+      "max": 10.0,
+      "count": 11,
+      "failing_count": 1,
+      "failing_texts": [
+        "american_sir"
+      ]
+    }
+  }
+}

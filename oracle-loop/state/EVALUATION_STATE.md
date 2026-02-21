@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Attempt:** 12
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
@@ -210,6 +210,8 @@
 | 10 | Profiles: subtractive correction | src/analyzer.py:~2066 | **Fixed** ✓ — John personality now meaningful and accurate |
 | 11 | Profiles: narrator appearance (dual-pattern + best-match) | src/analyzer.py:~1925-2015 | **NO CHANGE** — smoke test passed but final output still wrong; injection likely overwritten by LLM profile step |
 | 11 | Profiles: bidirectional rel override | src/analyzer.py:~2054-2081 | **Mixed** — some rels changed but not correctly; Uncle Bill→JD regressed from "cousin" to "uncle" |
+| 12 | Profiles: narrator appearance (post-convert final pass) | src/analyzer.py (after _convert_characters) | Pending analysis |
+| 12 | Profiles: "same person" universal invariant | src/analyzer.py (after _convert_characters) | Pending analysis |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (ollama) for all agents
@@ -267,5 +269,11 @@ The bidirectional relationship override from attempt 11 didn't correctly propaga
 - FIX 3: Correct cousin relationship → +0.15 on profiles
 - Combined: Profiles 7 → ~8.0-8.4
 
+- Attempt 12: Final narrator appearance injection + same-person relationship correction
+  - Modified: `src/analyzer.py` (two blocks AFTER `_convert_characters` call at line ~2357)
+  - Fix 1: Final narrator appearance injection — moved injection to after `_convert_characters` so it is the guaranteed-last write to `appearance.summary`. Uses `_nph_pB` regex (Pattern B: "I ... an [physical-word] ... man/woman/person"), best-match scoring, no gate condition. Smoke test confirmed it finds "an elderly, grizzled, small man, grim and unexhilarating" (score=4).
+  - Fix 2: Universal "same person" invariant — after convert, scan all relationships and replace any "same person" / "same character" / "identical to" relationship between two distinct characters with "unknown". This prevents the John → John Donaldson "same person" confusion.
+  - Expected result: Uncle Bill appearance = "an elderly, grizzled, small man, grim and unexhilarating"; John → JD relationship = "unknown" or corrected.
+
 ## Next Action
-Run PROMPT_fix.md to address narrator appearance overwrite (Critical #1) and relationship errors (High #2, Medium #3)
+Run the analysis (attempt 12) to verify narrator appearance injection and same-person correction work in production.

@@ -3,15 +3,25 @@
   "validation_threshold": 8.0,
   "category_regression_tolerance": 0.5,
   "book_sets": {
-    "screening": ["cask_of_amontillado", "masque_of_red_death"],
-    "validation": ["american_sir", "gatsby"],
-    "regression": ["berenice", "monkeys_paw", "gift_of_the_magi"]
+    "screening": [
+      "cask_of_amontillado",
+      "masque_of_red_death"
+    ],
+    "validation": [
+      "american_sir",
+      "gatsby"
+    ],
+    "regression": [
+      "berenice",
+      "monkeys_paw",
+      "gift_of_the_magi"
+    ]
   },
   "experiments": [
     {
       "id": "profiles-evidence-depth",
       "description": "Systemic profiles improvement: raise passage cap 15->25, hard-filter ungrounded evidence, add disambiguation context to LLM evidence extraction",
-      "status": "pending",
+      "status": "failed_screening",
       "config": {
         "character_model": "qwen3-next:80b-a3b-instruct-q8_0",
         "structure_model": "qwen3-next:80b-a3b-instruct-q8_0",
@@ -21,7 +31,21 @@
         "min_mentions": 2,
         "competitive_consensus": false
       },
-      "results": {},
+      "results": {
+        "cask_of_amontillado": {
+          "overall": 7.10,
+          "category_scores": {
+            "structure": 9,
+            "characters": 7,
+            "profiles": 5,
+            "summaries": 7,
+            "pronunciation": 7,
+            "presentation": 8
+          },
+          "status": "failed_screening",
+          "timestamp": "2026-02-18T23:27:02-07:00"
+        }
+      },
       "created": "2026-02-18T00:00:00-07:00"
     }
   ]
