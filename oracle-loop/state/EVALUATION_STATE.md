@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score: 4.65**
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
-- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_175817/
+- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_183015/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -98,9 +98,14 @@
 - Pronunciation Guide: 23 LLM calls, 0 retries — stable
 - No JSON parse failures, no LLM retries — pipeline is stable
 
+## Pipeline Notes (Attempt 7)
+- Analysis completed in 11m 46s
+- Relationships now POPULATED: Fortunato (2), Luchresi (2), Montresor (2)
+  - Fortunato → Montresor: "murder victim", → Luchresi: "rival in wine connoisseurship"
+  - Luchresi → Fortunato: "rival in wine connoisseurship", → Montresor: "instrumental pawn in manipulation"
+  - Montresor → Fortunato: "murder victim", → Luchresi: "rival connoisseur"
+- Note: character `name` field is null; `canonical_name` is properly populated (Fortunato, Luchresi, Montresor)
+- Warnings: "Narrator 'Montresor' identified but NOT found in main_cast" (cosmetic), pronunciation json_mode validation error (non-blocking)
+
 ## Next Action
-Re-run analysis to verify fix (attempt 7). Root cause found and fixed:
-- **Root cause:** `_convert_characters()` in `src/analyzer.py:3665` did NOT include `relationships` in the `OutputCharacter` constructor call. F9 was correctly computing and setting `char.relationships` on the pipeline Character objects, but that data was silently dropped during conversion to the output model.
-- **Fix:** Added `relationships=getattr(pc, "relationships", {})` to the OutputCharacter constructor call.
-- **Verification:** Simulated F9 programmatic fallback with real Montresor evidence — confirmed it produces `{"Fortunato": "seeks revenge against Fortunato...", "Luchresi": "uses Luchresi as a decoy..."}`. These will now be copied to the output.
-- **Phase:** awaiting_analysis
+Awaiting evaluation of attempt 7 output.
