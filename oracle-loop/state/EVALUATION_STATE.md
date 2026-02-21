@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score: 4.65**
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
-- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_144354/
+- Timestamped: ../output/The Cask of Amontillado - Poe_20260220_171846/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
