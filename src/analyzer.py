@@ -2358,8 +2358,6 @@ Only include "corrected_personality" and "corrected_age_indication" if contamina
             # Determine run directory
             # If output_dir looks like a per-run path (ends with _NNN pattern), use it directly
             # Otherwise, create a timestamped subdirectory (backward compat with CLI)
-            import re
-
             if re.search(r"_\d{3}$", self.output_dir.name):
                 # GUI-style: output/gatsby_001 - use directly
                 run_dir = self.output_dir

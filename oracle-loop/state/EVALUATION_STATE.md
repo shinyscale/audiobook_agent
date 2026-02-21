@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260220_223923/
+- Timestamped: ../output/American Sir_20260220_234210/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -287,12 +287,19 @@ cleaned = re.sub(r'^I[\s.…]*(?:am|was)\s*', '', desc_text, flags=re.IGNORECASE
 
 ## Attempt 9 Fix Applied
 
-### FIX (CRITICAL — DONE): Added `import re` at module level of `src/analyzer.py`
+### FIX (CRITICAL — DONE): Removed bare `import re` at line 2361 of `src/analyzer.py`
 
-- **Root cause (precise):** `re` module was never imported at the module level of `src/analyzer.py`. All usages inside the `analyze()` function relied on `import re` statements inside conditional blocks (lines 1259, 1352, 1414, etc.). Because Python resolves local vs. global scope at compile time, any function containing an `import re` assignment treats `re` as a LOCAL variable throughout the entire function. When the narrator injection code at lines 1924–1941 ran BEFORE those conditional `import re` blocks executed, `re` was an unbound local → `UnboundLocalError`.
-- **Fix:** Added `import re` at module level (line 8, between `import logging` and `import time`). This makes `re` always available as a global — eliminates all such issues throughout the file.
-- **Smoke test:** `pytest tests/ --ignore=tests/test_semantic_conflicts.py` → 15 pre-existing failures, 323 passed, 0 new failures.
-- **Modified:** `src/analyzer.py` (line 8, one line added)
+- **Root cause (precise):** Attempt 8's fix added `import re` at module level (line 8), but a bare `import re` at line 2361 was directly inside the `analyze()` method body (not in any nested function). Python treats any function with an `import re` assignment as having `re` as a LOCAL variable throughout the entire function scope. When line 1925 ran `re.compile(...)` before line 2361 executed, `re` was unbound → `UnboundLocalError`. Module-level import cannot help when the function itself shadows it.
+- **Fix:** Removed the bare `import re` at line 2361 (now redundant since module-level import exists).
+- **Result:** Analysis completed in 9m 45s. Post-profile correction FIRED: "Corrected profile for 'John' (same-name contamination with 'John Donaldson')" ✓
+
+## Pipeline Notes (Attempt 9)
+- Analysis completed successfully: 9m 45s, 29 LLM calls, 49,286 tokens
+- Post-profile correction ran and corrected John's profile ✓
+- Narrator appearance injection ran (unknown if it succeeded — Uncle Bill appearance TBD)
+- 4 profiles with HIGH confidence
+- 18 pronunciation flags: 6 unknown, 5 homograph, 4 foreign, 3 proper_noun
+- Characters: John (aka Johnny), Uncle Bill (aka Bill), John Donaldson, Joe Barron, Ted Frith (aka Ted)
 
 ## Next Action
-Re-run analysis to verify the narrator appearance injection and post-profile correction now execute without crashing.
+Evaluate the output for scoring.
