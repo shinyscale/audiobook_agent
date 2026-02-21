@@ -2704,6 +2704,40 @@ Only include fields if contamination_detected is true."""
                         )
                         _rvc.relationships[_ok] = "acquaintance"
 
+        # Post-convert gender consistency check for relationships.
+        # If a character is clearly male (from descriptions), they cannot be "mother",
+        # "sister", "wife", "daughter", "grandmother", "granddaughter", "aunt", "niece".
+        # Similarly, a clearly female character cannot be "father", "brother", "husband",
+        # "son", "grandfather", "grandson", "uncle", "nephew".
+        # When violated, replace with "unknown" — the text-based verification above
+        # may have already set the correct term, but if it missed the pair, this catches it.
+        _MALE_INDICATORS = {"man", " he ", " his ", "himself", "boy", "gentleman", "mr."}
+        _FEMALE_INDICATORS = {"woman", " she ", " her ", "herself", "girl", "lady", "mrs.", "miss"}
+        _FEMALE_ONLY_RELS = {"mother", "sister", "wife", "daughter", "grandmother", "granddaughter", "aunt", "niece"}
+        _MALE_ONLY_RELS = {"father", "brother", "husband", "son", "grandfather", "grandson", "uncle", "nephew"}
+        for _gc in characters:
+            _desc_text = " ".join(d.text.lower() for d in (_gc.descriptions or []) if d.text)
+            _is_male = any(ind in f" {_desc_text} " for ind in _MALE_INDICATORS)
+            _is_female = any(ind in f" {_desc_text} " for ind in _FEMALE_INDICATORS)
+            if not _gc.relationships:
+                continue
+            for _gk, _gv in list(_gc.relationships.items()):
+                if not _gv:
+                    continue
+                _gv_lower = _gv.strip().lower()
+                if _is_male and not _is_female and _gv_lower in _FEMALE_ONLY_RELS:
+                    logger.info(
+                        f"Gender consistency: '{_gc.canonical_name}' (male) cannot be "
+                        f"'{_gv}' to '{_gk}' — correcting to 'unknown'"
+                    )
+                    _gc.relationships[_gk] = "unknown"
+                elif _is_female and not _is_male and _gv_lower in _MALE_ONLY_RELS:
+                    logger.info(
+                        f"Gender consistency: '{_gc.canonical_name}' (female) cannot be "
+                        f"'{_gv}' to '{_gk}' — correcting to 'unknown'"
+                    )
+                    _gc.relationships[_gk] = "unknown"
+
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)
 
