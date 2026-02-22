@@ -53,8 +53,9 @@
     {
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
-      "complete": false,
-      "attempts": 14
+      "complete": true,
+      "attempts": 15,
+      "final_score": 8.60
     },
     {
       "name": "john_g",
