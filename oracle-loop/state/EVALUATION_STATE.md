@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.93
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
-- Timestamped: ../output/American Sir_20260221_104447/
+- Timestamped: ../output/American Sir_20260222_091252/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -247,5 +247,13 @@ for char in characters:
 - 18 pronunciation flags; narrator appearance injection fired for Uncle Bill ✓
 - 0 LLM retries across all stages
 
+## Pipeline Notes (Attempt 15)
+- Completed in 16m 13s, 32 LLM calls, 53,166 tokens
+- 5 characters found: John (aka Johnny), Uncle Bill (aka Bill), John Donaldson, Joe Barron, Ted Frith (aka Ted)
+- 4 profiles generated with HIGH confidence
+- 18 pronunciation flags
+- Narrator appearance injection fired for Uncle Bill ✓
+- "mother" relationship fix from attempt 14 should be reflected in profiles
+
 ## Next Action
-Run PROMPT_fix.md to correct "mother" relationship for Uncle Bill ↔ John Donaldson (HIGH #1). This is the ONLY blocking issue for profiles to reach 8.0.
+Run PROMPT_evaluate.md to evaluate attempt 15 output.
