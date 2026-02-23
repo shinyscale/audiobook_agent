@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -15,14 +15,14 @@
 ## Latest Scores
 - Structure Detection: 9/10 ✓
 - Character Extraction: 6/10 ✗ (FAILING)
-  - Completeness: 5/10 ← AM missing is critical
+  - Completeness: 5/10 ← AM still missing is the critical blocker
   - Identity Resolution: 9/10
   - Alias Grouping: 8/10
-- Character Profiles: 6/10 ✗ (FAILING)
+- Character Profiles: 6.5/10 ✗ (FAILING)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 6/10 ✗ (FAILING)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.35/10** (reference only)
+- **Overall: 7.4/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -31,84 +31,77 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.35 | 0.00 | Baseline. AM missing, false positives, pronunciation artifacts |
+| 2 | 7.40 | +0.05 | bush removed, roles improved, but AM still missing, narrator still undetected |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **AM (the supercomputer) is completely missing from character list** [Completeness]
-   - Problem: AM is the primary antagonist of the entire story — a sentient supercomputer that has imprisoned the 5 survivors for 109 years. It speaks directly (including a famous hate monologue), acts, tortures, and transforms characters. AM is referenced ~39 times in the report itself (in summaries, evidence, relationships) yet never extracted as a character entity.
-   - Evidence: "AM" appears throughout the text as a named entity. It has aliases: "Allied Mastercomputer", "Adaptive Manipulator", "Aggressive Menace". The story's entire plot revolves around AM's actions.
-   - Location: Character extraction pipeline (`src/pipeline/character_extraction_v2/`). AM may be getting filtered because it's a 2-letter acronym, or because NER doesn't recognize it as a name. All 7 extracted characters come from `supporting_*` IDs — the main cast pipeline produced 0 characters, suggesting it failed entirely for this text.
-   - Fix: The main cast pipeline needs to handle short-name/acronym entities better, or AM needs to be caught by the supporting cast pipeline. Since AM is referenced more than any individual character in the text, it should not be filtered by mention count.
+1. **AM (the supercomputer) is STILL completely missing from character list** [Completeness]
+   - Problem: AM is the primary antagonist — a sentient supercomputer that has imprisoned the 5 survivors for 109 years. It speaks directly (famous hate monologue), acts, tortures, and transforms characters. The story's title derives from AM's punishment of Ted. AM is referenced ~39 times in summaries, evidence, and relationships yet never extracted as a character entity.
+   - Evidence: All 6 extracted characters have `supporting_*` IDs — the main cast pipeline produced **zero** characters for the second consecutive attempt. AM has aliases: "Allied Mastercomputer", "Adaptive Manipulator", "Aggressive Menace". The pronunciation guide even includes "Mastercomputer" as an entry, proving the pipeline encounters the name but doesn't extract it as a character.
+   - Root cause analysis: AM is a 2-letter uppercase acronym. NER likely doesn't tag "AM" as PERSON. The main cast pipeline failed entirely (0 characters produced) — all characters come from the supporting cast pipeline's NER-based extraction. For 2 consecutive attempts, the main cast LLM pipeline has produced nothing, suggesting it's fundamentally failing for this text (possibly due to short story length, single chapter, or response format issues).
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` (main cast LLM pipeline) and `src/pipeline/character_extraction_v2/supporting.py` (supporting cast NER doesn't catch acronyms)
+   - Fix approach: **This has failed 2 attempts. The fix phase should investigate WHY main_cast produces 0 characters** — check logs, check if the LLM response is malformed, check if the chapter text is being passed correctly. If main_cast can't be fixed quickly, the supporting cast pipeline needs a fallback to catch high-frequency non-PERSON entities that are clearly characters (AM appears more than any human character).
 
-2. **Ted is not flagged as narrator** [Completeness / Profiles]
-   - Problem: Ted is the first-person narrator of the story. `is_narrator: false`. The story is told entirely from Ted's perspective using "I". His mention count (5) is artificially low because as narrator he uses first-person pronouns, not his name.
-   - Evidence: The story opens with Ted's narration and ends with his famous line "I have no mouth, and I must scream." The plot summary correctly identifies Ted as the one who kills the others, but doesn't flag him as narrator.
-   - Location: Narrator detection in summary/profile pipeline. The `narrative_style: "unknown"` in the overview confirms the pipeline failed to detect first-person narration.
-   - Fix: The narrator detection logic should recognize first-person narration patterns ("I said", "I thought", etc.) and link them to named characters who appear in the same passages.
+2. **Ted is STILL not flagged as narrator** [Completeness / Profiles]
+   - Problem: Ted is the first-person narrator. `is_narrator: false`. The narrator re-detection fix (STEP 5.8.5) was applied but didn't work. `narrative_style` is "unknown" in structure overview (but correctly "first-person retrospective" in plot_summary — contradictory).
+   - Evidence: The story is told entirely from Ted's "I" perspective. Plot summary correctly identifies "first-person retrospective" but `overview.structure.narrative_style` says "unknown". This inconsistency suggests the narrator detection code reads from the wrong field.
+   - Location: `src/pipeline/character_extraction_v2/narrator.py` (STEP 5.8.5 re-detection), and the narrative_style field inconsistency between `overview.structure` and `overview.plot_summary`
+   - Fix approach: Check why STEP 5.8.5 re-detection didn't fire or didn't succeed. The plot_summary already knows it's "first-person retrospective" — the narrator detection should be able to use that signal. Also Ted has only 5 mentions (as narrator he uses "I" not his name), so he's in "supporting" role and may not be considered as a narrator candidate.
 
 ### HIGH
-3. **False positive character: "Jesus"** [Completeness]
-   - Problem: "Jesus" (4 mentions) is extracted as a supporting character. In this text, "Jesus" appears only as an exclamation ("Jesus God", "Christ") not as an actual character in the story.
-   - Evidence: The character has no aliases, no appearance, no personality, no relationships, no evidence entries — completely empty. This is clearly an exclamation being treated as a character name.
-   - Location: Supporting cast pipeline filtering (`src/pipeline/character_extraction_v2/supporting.py`). Exclamatory religious names should be filtered.
-   - Fix: Add filtering for exclamatory name usage — if a name only appears in exclamation contexts (followed by "!", preceded by "Oh", etc.) and has zero profile data, it should be excluded.
+3. **False positive character: "Jesus" still present** [Completeness]
+   - Problem: "Jesus" (4 mentions) is extracted as a supporting character. Only appears as exclamation ("Jesus God", "Christ"), not as an actual character. Has zero profile data — no aliases, appearance, personality, relationships, or evidence.
+   - Evidence: Empty profile. Every real character's relationship dict includes `"Jesus": "unknown"`, polluting their profiles.
+   - Location: `src/pipeline/character_extraction_v2/supporting.py` — the lowercase filter from attempt 1 fixed "bush" but "Jesus" is capitalized so it passes the filter
+   - Fix approach: Add filtering for exclamatory name usage — if a name has zero profile data (no description, no relationships, no evidence entries from the profile pipeline), and appears only in exclamation contexts, exclude it. Or add a blocklist of common exclamation names ("Jesus", "Christ", "God", "Lord") that require actual character evidence to be included.
 
-4. **False positive character: "bush"** [Completeness]
-   - Problem: "bush" (2 mentions, lowercase) is extracted as a minor character. This is a common noun, not a character name. The pipeline itself flagged it as low confidence.
-   - Evidence: Lowercase, no profile data, no relationships, no evidence. Listed in `low_confidence_items`.
-   - Location: Supporting cast pipeline. A common-noun filter or minimum confidence threshold should exclude this.
-   - Fix: Characters flagged as low confidence with zero profile data should be automatically excluded.
+4. **Wrong ages STILL showing in HTML profiles** [Profiles]
+   - Problem: Benny, Ellen, and Gorrister all show "Age: five years" in the HTML report. The `age_indication` field in JSON is null (the john_g age fix cleared that), but the profile rendering pipeline independently extracted "five years" from the "five survivors" context and rendered it in HTML.
+   - Evidence: Lines 1036, 1234, 1442 of report.html show "Age: five years". The characters are adults who have been trapped for 109 years.
+   - Location: Profile generation pipeline (not the character age_indication field — the fix from john_g only cleared the JSON field, not the profile rendering data). Check `src/pipeline/character_extraction_v2/` profile generation and the HTML template rendering.
+   - Fix approach: The age validation logic needs to apply to profile-rendered ages too, not just the `age_indication` field. Or the profile pipeline needs better contextual understanding that "five" refers to group size, not age.
 
-5. **Systematic wrong age extraction for all characters** [Profiles]
-   - Problem: Benny, Ellen, and Gorrister all show "Age: five years". Ted shows "Age: nine years". These are nonsensical — the characters have been trapped for 109 years and are adults. The "five" likely comes from "five survivors" being misinterpreted as an age, and "nine" may come from a similar contextual misread.
-   - Evidence: Benny age "five years", Ellen age "five years", Gorrister age "five years", Ted age "nine years".
-   - Location: Age extraction in character profiles pipeline (`src/pipeline/character_extraction_v2/` or profile generation).
-   - Fix: This was addressed for john_g with "universal deterministic age extraction" (commit 592c0b2). Verify that fix applies here — these ages are clearly wrong and should not pass validation.
+5. **Ted demoted to "supporting" — gets no profile in HTML** [Profiles]
+   - Problem: Ted is the narrator/protagonist but has only 5 name-mentions (because he uses "I" as narrator). He's classified as "main" role in JSON but rendered in the "Supporting Characters" table in HTML, which shows no profile details — just name, mentions, first appearance. The narrator of the story gets the least detailed entry.
+   - Evidence: HTML lines 1800-1811 show Ted in the supporting table with a truncated description. No appearance, personality, voice guidance, or evidence sections rendered.
+   - Location: The role "main" maps to the supporting character table in HTML rendering. If Ted were flagged as narrator, he should be promoted to protagonist regardless of mention count.
+   - Fix approach: This resolves when issue #2 (narrator detection) is fixed — a detected narrator should automatically get protagonist role and full profile rendering.
 
 ### MEDIUM
-6. **PDF artifact words in pronunciation guide** [Pronunciation]
-   - Problem: 6 entries are concatenated word artifacts from PDF extraction: "we'lldie", "Nimdokwith", "ifwe", "mefrom", "myright", "mysurface". These are not real words.
-   - Evidence: These are clearly two words merged together during PDF text extraction. The ingestion pipeline rejoined 47 split words but these concatenations slipped through.
-   - Location: Pronunciation validation or ingestion refinement (`src/ingestion/refine.py`, `src/pipeline/pronunciation/`).
-   - Fix: Add validation to reject pronunciation entries that match common concatenation patterns (camelCase-like mid-word capitals, entries containing known word boundaries). Or improve PDF text extraction to catch these.
+6. **7 pronunciation artifact entries from PDF extraction** [Pronunciation]
+   - Problem: 7 entries are artifacts: "we'lldie", "Nimdokwith", "ifwe", "mefrom", "myright", "mysurface" (concatenated words from PDF text extraction), and "hermiene" (from the URL `hermiene.net` in the source PDF).
+   - Evidence: These are clearly not real words. "hermiene" comes from the story's source URL embedded in the PDF.
+   - Location: `src/pipeline/pronunciation/` (validation), `src/ingestion/refine.py` (text extraction)
+   - Fix approach: Add validation to reject entries that contain known word boundaries (camelCase patterns, lowercase-to-uppercase transitions). Filter URL-derived tokens.
 
 7. **Common word false positives in pronunciation** [Pronunciation]
-   - Problem: Several common English words don't need pronunciation guidance: "palette", "tinfoil", "firelight", "snowdrifts", "loonie", "piteously", "spastically". These are standard English words any narrator would know.
-   - Evidence: All are common English words with standard pronunciation. A narrator doesn't need help pronouncing "tinfoil" or "snowdrifts".
-   - Location: Pronunciation filtering (`src/pipeline/pronunciation/`).
-   - Fix: Improve the common-word filter or frequency threshold to exclude standard compound words and common English vocabulary.
+   - Problem: ~10 common English words don't need pronunciation guidance: "palette", "tinfoil", "firelight", "snowdrifts", "loonie", "piteously", "spastically", "sentience", "sentient", "eternities", "puckerings", "stalactites"
+   - Evidence: Standard English words any narrator would know. A narrator doesn't need IPA for "tinfoil" or "snowdrifts".
+   - Location: `src/pipeline/pronunciation/` frequency/common-word filtering
+   - Fix approach: Improve common-word filter threshold. Compound words (tinfoil, firelight, snowdrifts) and words with common suffixes (-ly, -ness, -tion) derived from common roots should be excluded.
 
-8. **Possessive forms as separate pronunciation entries** [Pronunciation]
-   - Problem: "Gorrister's" and "Nimdok's" appear as separate entries alongside "Gorrister" and "Nimdok". Possessive forms should not be separate pronunciation entries.
-   - Evidence: "Gorrister" and "Gorrister's" are separate entries with nearly identical IPA.
-   - Location: Pronunciation deduplication logic.
-   - Fix: Strip possessive suffixes ('s, s') before deduplication.
+8. **Possessive pronunciation duplicates** [Pronunciation]
+   - Problem: "Gorrister's" and "Nimdok's" appear alongside "Gorrister" and "Nimdok" as separate entries.
+   - Evidence: Near-identical IPA for base and possessive forms.
+   - Location: Pronunciation deduplication logic
+   - Fix approach: Strip possessive suffixes ('s, s') before deduplication.
 
 9. **Incorrect IPA for "choir"** [Pronunciation]
-   - Problem: IPA listed as /kwɑːr/ which is incorrect. The correct IPA is /kwaɪər/.
-   - Evidence: "choir" is pronounced with a diphthong, not a monophthong.
-   - Location: IPA generation in pronunciation pipeline.
-   - Fix: This may be an LLM hallucination. No easy generic fix beyond improving the IPA validation step.
-
-10. **Incorrect IPA for "cogito"** [Pronunciation]
-    - Problem: IPA listed as /kəˈdʒiː.toʊ/ which treats the 'g' as /dʒ/. Standard pronunciation is /ˈkoʊɡɪtoʊ/ (English) or /ˈkɔɡɪtɔː/ (Latin).
-    - Evidence: "cogito ergo sum" is a well-known Latin phrase with established pronunciation.
-    - Location: IPA generation in pronunciation pipeline.
-    - Fix: Same as above — LLM IPA generation quality issue.
+   - Problem: IPA listed as /kwɑːr/. Correct is /kwaɪər/.
+   - Evidence: Standard English pronunciation uses diphthong.
+   - Location: LLM IPA generation. No easy generic fix.
 
 ### LOW
-11. **Relationships reference "Jesus" and "bush" as "unknown"**
-    - Problem: Multiple real characters (Benny, Ellen, Nimdok, Ted) list relationships to "Jesus" and "bush" as "unknown". These should not appear in relationship lists.
-    - Evidence: Every character's relationship dict includes `"Jesus": "unknown"` and `"bush": "unknown"`.
-    - Location: Relationship extraction in profiles pipeline.
-    - Fix: Will be resolved automatically when false positive characters are removed.
+10. **Relationships reference false positive "Jesus"**
+    - Problem: Every real character lists `"Jesus": "unknown"` in relationships.
+    - Evidence: Pollutes relationship data.
+    - Fix: Auto-resolves when issue #3 (Jesus false positive) is fixed.
 
-12. **Nimdok's appearance incorrectly says "resembles a chimpanzee"**
-    - Problem: It's Benny who AM altered to have a monkey-like appearance, not Nimdok. Nimdok's distinguishing features list says "resembles a chimpanzee as intended by AM" which is incorrect attribution.
-    - Evidence: The text describes Benny as having been altered by AM to have simian features. Nimdok is not described this way.
-    - Location: Profile generation - evidence was attributed to the wrong character.
-    - Fix: LLM profile accuracy issue. No easy generic fix.
+11. **Themes identified as "identity, ambition, loss" — "ambition" is questionable**
+    - Problem: Better themes for this story: hatred, dehumanization, survival, mercy, suffering.
+    - Evidence: The story is about AM's hatred and the dehumanization of its prisoners. "Ambition" doesn't clearly apply.
+    - Fix: LLM theme extraction quality — low priority.
 
 ## Fix History
 
@@ -117,37 +110,52 @@
 **Fix 1 (characters.py):** Move supporting cast mention search to BEFORE promotion (new STEP 5.7.5)
 - Root cause: STEP 5.8 promotion was using NER mention counts (which undercount actual text occurrences), while the deterministic mention search only ran in STEP 5.10.5 AFTER promotion decisions were made. This caused all 5 human characters to remain "minor" despite having 5-35 actual mentions.
 - Fix: Added STEP 5.7.5 that runs `searcher.search_all(supporting_cast)` before STEP 5.8, so promotion uses accurate mention counts.
-- Expected: Benny (35), Ellen (30), Gorrister (29), Nimdok (17) → "protagonist"; Ted (5) → "supporting"
+- **Result: WORKED** — Benny (35), Ellen (30), Gorrister (29), Nimdok (17) promoted to protagonist. Ted (5) promoted to "main".
 
 **Fix 2 (characters.py):** Add narrator re-detection after promotion (STEP 5.8.5)
 - Root cause: Narrator detection (STEP 4) ran with an empty main_cast (all LLM characters failed grounding). With no candidates to match against, narrator returned "unknown".
 - Fix: After STEP 5.8 promotion, if narrator_info.narrator_name is None, re-run narrator detection with the updated main_cast (which now includes promoted characters like Ted).
+- **Result: DID NOT WORK** — Narrator still "No definitive narrator identified". Needs investigation.
 
 **Fix 3 (narrator.py):** Fix NARRATOR_DETECTION_PROMPT to account for 3rd-person summaries
 - Root cause: The prompt asked "does the narrator say 'I'?" but chapter summaries are always written in 3rd-person by the summarizer, so the LLM never sees first-person text in the summaries.
-- Fix: Added note that summaries are always in 3rd-person - the LLM should judge by story perspective and whose inner thoughts are revealed, not by summary grammar.
+- Fix: Added note that summaries are always in 3rd-person — the LLM should judge by story perspective and whose inner thoughts are revealed, not by summary grammar.
+- **Result: DID NOT WORK** — narrative_style in structure overview is still "unknown". However plot_summary correctly says "first-person retrospective", so the signal exists but narrator detection isn't using it.
 
 **Fix 4 (supporting.py):** Add universal invariant: proper names must start with uppercase
 - Root cause: NER sometimes tags lowercase common nouns (e.g., "bush") as PERSON entities.
-- Fix: Added check `if not name[0].isupper(): return False` in `_is_valid_name()`. Universal invariant: proper character names always start with uppercase in standard English prose.
+- Fix: Added check `if not name[0].isupper(): return False` in `_is_valid_name()`.
+- **Result: WORKED** — "bush" no longer appears.
 
 **Bug fix (characters.py):** Fixed `chapters` variable shadowing in STEP 5.10.5
-- The inner `chapters = sorted(...)` loop was overwriting the outer `chapters` (list of StructuralElement objects), potentially corrupting `total_chapters` in CharacterMap.
-- Renamed inner variable to `chapter_indices`.
+- **Result: Fixed** — inner variable renamed to `chapter_indices`.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Roles wrong, narrator undetected, false positives | characters.py, narrator.py, supporting.py | Awaiting analysis |
+| 1 | Characters not promoted due to late mention search | characters.py (STEP 5.7.5) | Fixed — characters promoted |
+| 1 | Narrator undetected due to empty main_cast | characters.py (STEP 5.8.5) | No change — narrator still undetected |
+| 1 | Narrator prompt assumes first-person in summaries | narrator.py | No change — narrator still undetected |
+| 1 | Lowercase false positive "bush" | supporting.py | Fixed — "bush" removed |
+| 1 | Variable shadowing bug | characters.py | Fixed |
 
-## Pipeline Notes (Attempt 2)
-- Completed in 18m 50s
-- Found 6 characters: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), +1 more
-- Narrator still "No definitive narrator identified" — narrator detection fix may not have fully worked
-- Structure: 1 chapter (expected for short story; LLM marker proposer returned dicts instead of lists - falling back to single chapter)
-- LLM validation errors in pronunciation (json_mode errors) but pipeline continued
-- "bush" false positive should be filtered (lowercase filter fix applied)
+**Pattern detected:** Narrator detection has been modified twice (characters.py STEP 5.8.5 + narrator.py prompt) without success. The fix phase should investigate the actual LLM response from narrator detection to understand why it's failing, rather than guessing at prompt changes.
+
+**Pattern detected:** Main cast pipeline has produced 0 characters for 2 consecutive attempts. This suggests a systemic issue with the main cast LLM pipeline for short stories or single-chapter texts, not a parameter tuning issue.
+
+## Configuration Audit
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
+- Context: 32768 tokens — sufficient for a short story
+- Temperature: 0.7 for all stages — reasonable
+- No retries logged in profiling
+- Main cast pipeline produced 0 characters — this is a pipeline failure, not a config issue
 
 ## Next Action
-Phase: awaiting_evaluation - Evaluate attempt 2 output for i_have_no_mouth.
+Run PROMPT_fix.md to address:
+1. **Priority 1:** Investigate and fix why main cast pipeline produces 0 characters (Critical #1 — AM missing)
+2. **Priority 2:** Investigate why narrator re-detection fails (Critical #2 — Ted not narrator)
+3. **Priority 3:** Filter exclamatory names like "Jesus" (High #3)
+4. **Priority 4:** Fix age rendering in HTML profiles (High #4)
+
+The fix phase should focus on DIAGNOSTIC investigation for issues #1 and #2, since blind prompt/code changes have failed twice. Check actual LLM responses and pipeline logs.
