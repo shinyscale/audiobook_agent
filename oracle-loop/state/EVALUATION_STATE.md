@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Attempt:** 15
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_132726/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_142521/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -250,16 +250,14 @@ Expected impact: AM personality either gets clean adjective-based description (P
 - Pronunciation: 23 entries (unchanged from attempt 10)
 - Runtime: 17m 10s
 
-## Pipeline Notes (Attempt 14)
+## Pipeline Notes (Attempt 15)
 - 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
-- Character Profiles: **5H/0M/0L** — ALL profiles high confidence (Ellen no longer failing)
+- Character Profiles: **5H/0M/0L** — ALL profiles high confidence
 - AM safety net fired: role=antagonist, 74 mentions ✓
-- Execution ordering fix applied: OutputCharacterCorrector now runs AFTER _plot_summary_safety_net ✓
-- clean_plot_summary_personality() FIRED on AM: detected 3+ other character names, replaced with source-text subject sentences
-- Replacement result: "AM. AM had been as ruthless with its own life aswith ours. AM had blinded him." (garbled)
+- Two-part fix applied: Part A (intro-phrase extraction in _plot_summary_safety_net) + Part B (quality filter in clean_plot_summary_personality)
 - LLM marker proposer returned non-list (dict) × 3 during structure detection → fell back to "No valid proposals - returning single chapter" → found 1 chapter
 - 23 pronunciation entries (unchanged)
-- Runtime: 17m 10s
+- Runtime: 15m 51s
 
 ## Next Action
-Run PROMPT_analyze.md to re-run pipeline and verify AM personality quality (attempt 15 fix applied)
+Run PROMPT_evaluate.md to evaluate attempt 15 output — verify AM personality quality (two-part fix: intro-phrase extraction + quality filter)
