@@ -225,16 +225,14 @@ class CharacterAgent(Agent):
                         fallback_chars, fallback_mentions
                     )
                     mention_results.update(fallback_mentions)
-                    fallback_gate = GroundingGate(
-                        min_mentions=self.min_grounding_mentions,
-                        remove_ungrounded_aliases=True,
-                    )
-                    fallback_report = fallback_gate.apply(fallback_chars, fallback_mentions)
-                    fallback_gate.log_report(fallback_report)
-                    main_cast = fallback_report.grounded_characters
+                    # Fallback characters come from the LLM-generated plot_summary, which is
+                    # itself a distillation of the text. They are implicitly grounded and do
+                    # NOT need the grounding gate — which would incorrectly reject short names
+                    # like "AM" (2-letter abbreviation with ambiguous lowercase matches).
+                    main_cast = fallback_chars
                     logger.info(
                         f"V2 Step 3.1 fallback: {len(fallback_profiles)} profiles → "
-                        f"{len(main_cast)} grounded characters"
+                        f"{len(main_cast)} characters (grounding skipped for plot_summary fallback)"
                     )
             else:
                 logger.warning(
@@ -3362,6 +3360,8 @@ class CharacterAgent(Agent):
             ps = summaries_result.plot_summary
             if isinstance(ps, dict):
                 return ps.get("narrative_style")
+            elif hasattr(ps, "narrative_style"):
+                return getattr(ps, "narrative_style", None)
         return None
 
     def _heuristic_narrator_from_mention_count(

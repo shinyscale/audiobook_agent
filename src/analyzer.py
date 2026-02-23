@@ -4464,6 +4464,21 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
         characters = []
 
         for pc in char_map.characters:
+            # Post-profiling evidence filter: discard characters that were profiled but
+            # produced zero evidence citations. A real character always yields at least
+            # one supporting quote; zero evidence indicates a false positive (e.g. an
+            # exclamation captured by NER as a PERSON entity). This is a universal
+            # invariant — applies to any book, any genre.
+            if (
+                hasattr(pc, "profile_evidence")
+                and not pc.profile_evidence
+                and not getattr(pc, "is_narrator", False)
+            ):
+                logger.info(
+                    f"Discarding '{pc.canonical_name}' — profiled with 0 evidence (false positive)"
+                )
+                continue
+
             # Map confidence - use profile confidence if available
             profile_conf = getattr(pc, "profile_confidence", None)
             if profile_conf is not None:
