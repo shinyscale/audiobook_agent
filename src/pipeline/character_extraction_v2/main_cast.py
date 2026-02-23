@@ -312,6 +312,13 @@ class MainCastExtractor:
             logger.warning("No chapter summaries provided for main cast extraction")
             return []
 
+        total_summary_chars = sum(len(s) for s in chapter_summaries)
+        logger.info(
+            f"[DIAG] main_cast.extract: {len(chapter_summaries)} chapter summaries, "
+            f"total_chars={total_summary_chars}, "
+            f"first_summary_preview={repr(chapter_summaries[0][:200]) if chapter_summaries else 'N/A'}"
+        )
+
         # Pre-warm competitor models for true parallel execution
         # This ensures all models are loaded into Ollama memory before analysis
         if self._use_competitive_consensus():
@@ -423,8 +430,16 @@ class MainCastExtractor:
         if pattern_section:
             prompt = prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
+        logger.info(f"[DIAG] Single-pass: summaries_text_length={len(summaries_text)}, plot_section_length={len(plot_section)}")
+
         # Query LLM
         result, response = self.llm.query_json(prompt)
+
+        logger.info(
+            f"[DIAG] Single-pass LLM response: success={response.success}, "
+            f"content_preview={repr(response.content[:400]) if response.content else 'None'}, "
+            f"error={response.error}"
+        )
 
         if not response.success:
             logger.error(f"LLM query failed: {response.error}")
@@ -435,7 +450,9 @@ class MainCastExtractor:
             return []
 
         # Parse the result into profiles
-        return self._parse_profiles(result)
+        profiles = self._parse_profiles(result)
+        logger.info(f"[DIAG] Single-pass parsed: {len(profiles)} profiles from result type={type(result).__name__}")
+        return profiles
 
     def _extract_two_pass(self, summaries_text: str, plot_section: str, pattern_hints: Optional[dict] = None) -> list[MainCastProfile]:
         """Two-pass extraction: first identify characters, then resolve aliases."""
@@ -458,7 +475,15 @@ class MainCastExtractor:
         if pattern_section:
             pass1_prompt = pass1_prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
+        logger.info(f"[DIAG] Two-pass Pass 1: summaries_text_length={len(summaries_text)}, plot_section_length={len(plot_section)}")
+
         result, response = self.llm.query_json(pass1_prompt)
+
+        logger.info(
+            f"[DIAG] Two-pass Pass 1 LLM response: success={response.success}, "
+            f"content_preview={repr(response.content[:400]) if response.content else 'None'}, "
+            f"error={response.error}"
+        )
 
         if not response.success:
             logger.error(f"Pass 1 LLM query failed: {response.error}")
@@ -470,6 +495,7 @@ class MainCastExtractor:
 
         # Parse Pass 1 results
         initial_characters = self._parse_pass1_results(result)
+        logger.info(f"[DIAG] Pass 1 parsed: {len(initial_characters)} characters from result type={type(result).__name__}, result_preview={repr(str(result)[:200])}")
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
         # Pass 2: Alias Resolution for each character

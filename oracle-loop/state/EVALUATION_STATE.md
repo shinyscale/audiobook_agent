@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -130,6 +130,19 @@
 ### Attempt 4 Fix Applied
 - **Fix**: Escape JSON example braces in MAIN_CAST_PROMPT → **Fixed crash** (pipeline ran successfully)
 
+### Attempt 5 Fixes Applied (diagnostic + data flow)
+- **Fix 1**: Added `[DIAG]` debug logging to `main_cast.py` (`extract()`, `_extract_two_pass()`, `_extract_single_pass()`) to capture: chapter summary count/length, raw LLM response preview, parse outcome. Next run will show exactly what the LLM returns.
+- **Fix 2**: Added `[DIAG]` debug logging to `narrator.py` (`detect()`) to capture: main_cast input, raw LLM response, parsed result.
+- **Fix 3**: Added `[DIAG]` debug logging to `characters.py` (`_get_chapter_summaries()`) to log which data source summaries came from and their count.
+- **Fix 4**: Fixed `_get_plot_summary()` in `characters.py` — was always returning `None` because `ChapterSummaryMap` has no `.plot_summary` attribute. Now falls back to constructing combined plot summary from available chapter summaries. This provides the narrator detector with labeled "PLOT SUMMARY" context, potentially helping it identify the narrator's name.
+- **Fix 5**: Improved `NARRATOR_DETECTION_PROMPT` rule #2 — explicitly instructs the LLM to output the character's EXACT name from the main cast (not "the narrator") when summaries use generic references.
+
+**Root cause findings (pre-fix):**
+- `ChapterSummaryMap` has `.summaries` but NO `.plot_summary` → `_get_plot_summary()` always returned `None` → neither main_cast extraction nor narrator detection received the plot summary context.
+- The actual LLM response content for character extraction is unknown (no prior logging) — next run will expose it.
+- Chapter summary IS rich (mentions AM extensively per JSON inspection) — the extraction failure is NOT due to missing summary content.
+- Narrator issue: chapter summaries say "the narrator" not "Ted" — LLM cannot match generic descriptor to character name without explicit instruction.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -145,19 +158,23 @@
 | 3 | Narrator prompt missing plot_summary | narrator.py | No change — narrator still undetected |
 | 3 | Pronunciation concatenation artifacts | cmu_proposer.py | Partially fixed (6/7 removed) |
 | 4 | MAIN_CAST_PROMPT crash (unescaped braces) | main_cast.py | Fixed crash |
-
-**ESCALATION REQUIRED:**
-- **main_cast.py** modified 3 times across 3 attempts → still produces 0 characters. The fix phase MUST add debug logging to capture the actual LLM response and diagnose the root cause rather than guessing at parser fixes.
-- **narrator.py / characters.py (STEP 5.8.5)** modified 4 times across 3 attempts → narrator still undetected. The fix phase MUST add debug logging to see what candidates are evaluated and what the LLM responds.
+| 5 | main_cast LLM produces 0 chars — root cause unknown | main_cast.py | Added [DIAG] logging — pending analysis |
+| 5 | Narrator still undetected — root cause unknown | narrator.py | Added [DIAG] logging + prompt fix — pending analysis |
+| 5 | _get_plot_summary() always returns None | characters.py | Fixed — now constructs from chapter summaries |
+| 5 | Narrator prompt doesn't specify exact name needed | narrator.py | Clarified rule #2 — pending analysis |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
 - Context: 32768 tokens — sufficient for a short story (~5400 words)
 - Temperature: 0.7 for all stages — reasonable
 - Two-pass→single-pass fallback fired successfully (crash fixed)
-- Main cast pipeline produced 0 characters — pipeline failure, not config issue
+- Main cast pipeline produced 0 characters — LLM response content unknown until next run with [DIAG] logging
 - 0 low-confidence items reported
 - 0 LLM retries
 
 ## Next Action
-Run PROMPT_fix.md to address issues #1 and #2 (CRITICAL). **The fix phase MUST add debug logging** to main_cast extraction and narrator detection to capture actual LLM responses before making further code changes. Blind prompt/parser changes have failed 3 times.
+Re-run analysis with `[DIAG]` logging active. The logs will show:
+1. What `_get_chapter_summaries()` actually returns
+2. What the main_cast LLM returns (raw response + parse outcome)
+3. What the narrator detector LLM returns and which candidate it selects
+Use these logs to determine the definitive root cause before making further code changes.

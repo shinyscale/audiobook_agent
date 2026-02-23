@@ -38,7 +38,7 @@ NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of vi
 
 Based on the summaries below, determine:
 1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are always written in third-person regardless of the original story's style—judge by whose perspective drives the story and whose inner thoughts/fears are described, not by the summary's grammar.
-2. If first-person, WHO is the narrator? (must be a character from the main cast)
+2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. If summaries say "the narrator" without naming them, identify which main cast character they correspond to from context.
 3. Is this a nested/frame narrative with multiple narrators?
 
 CHAPTER SUMMARIES:
@@ -137,7 +137,19 @@ class NarratorDetector:
             plot_summary_section=plot_summary_section,
         )
 
+        logger.info(
+            f"[DIAG] Narrator detection: {len(chapter_summaries)} summaries, "
+            f"{len(main_cast)} main_cast chars: {[c.canonical_name for c in main_cast]}"
+        )
+
         result, response = self.llm.query_json(prompt)
+
+        logger.info(
+            f"[DIAG] Narrator detection LLM response: success={response.success}, "
+            f"result={result}, "
+            f"content_preview={repr(response.content[:300]) if response.content else 'None'}, "
+            f"error={response.error}"
+        )
 
         if not response.success or result is None:
             logger.warning(f"Narrator detection failed: {response.error}")

@@ -917,16 +917,24 @@ class CharacterAgent(Agent):
         """Extract chapter summaries from context."""
         # Try getting from previous_results (SummaryAgent output)
         summaries_result = context.get_result("summaries")
+        logger.info(
+            f"[DIAG] _get_chapter_summaries: summaries_result type={type(summaries_result).__name__ if summaries_result else 'None'}, "
+            f"has_summaries={hasattr(summaries_result, 'summaries') if summaries_result else False}"
+        )
         if summaries_result:
             # SummaryAgent returns a list of ChapterSummary objects or similar
             if hasattr(summaries_result, "summaries"):
-                return [s.summary for s in summaries_result.summaries if s.summary]
+                result = [s.summary for s in summaries_result.summaries if s.summary]
+                logger.info(f"[DIAG] _get_chapter_summaries: found {len(result)} summaries via .summaries attribute, total_chars={sum(len(s) for s in result)}")
+                return result
             elif isinstance(summaries_result, list):
-                return [
+                result = [
                     s.get("summary") if isinstance(s, dict) else str(s)
                     for s in summaries_result
                     if s
                 ]
+                logger.info(f"[DIAG] _get_chapter_summaries: found {len(result)} summaries via list path")
+                return result
 
         # Try getting from chapter_map (summaries may be stored on chapters)
         if context.chapter_map:
@@ -936,8 +944,10 @@ class CharacterAgent(Agent):
                 if hasattr(ch, "summary") and ch.summary:
                     summaries.append(ch.summary)
             if summaries:
+                logger.info(f"[DIAG] _get_chapter_summaries: found {len(summaries)} summaries via chapter_map.chapters")
                 return summaries
 
+        logger.warning("[DIAG] _get_chapter_summaries: no summaries found from any source")
         return []
 
     def _get_chapters(self, context: AgentContext) -> list[StructuralElement]:
@@ -962,13 +972,40 @@ class CharacterAgent(Agent):
         return []
 
     def _get_plot_summary(self, context: AgentContext) -> Optional[str]:
-        """Get overall plot summary if available."""
+        """Get overall plot summary if available.
+
+        ChapterSummaryMap does not have a .plot_summary attribute, so we construct
+        a combined summary from the available chapter summaries. This combined text
+        gives narrator detection and main cast extraction a holistic view of the story.
+        """
         summaries_result = context.get_result("summaries")
         if summaries_result:
+            # Primary: ChapterSummaryMap.plot_summary (if it exists in some variant)
             if hasattr(summaries_result, "plot_summary"):
-                return summaries_result.plot_summary
-            elif isinstance(summaries_result, dict):
-                return summaries_result.get("plot_summary")
+                ps = summaries_result.plot_summary
+                # Handle nested dict structure (e.g., {"plot_summary": "...", "narrative_style": "..."})
+                if isinstance(ps, dict):
+                    ps = ps.get("plot_summary") or ps.get("summary") or ps.get("text")
+                if isinstance(ps, str) and ps.strip():
+                    return ps
+            # Fallback: dict-type result
+            if isinstance(summaries_result, dict):
+                ps = summaries_result.get("plot_summary")
+                if isinstance(ps, dict):
+                    ps = ps.get("plot_summary") or ps.get("summary") or ps.get("text")
+                if isinstance(ps, str) and ps.strip():
+                    return ps
+            # Construct from chapter summaries when no dedicated plot_summary exists
+            # (ChapterSummaryMap has .summaries but no .plot_summary)
+            if hasattr(summaries_result, "summaries") and summaries_result.summaries:
+                parts = [s.summary for s in summaries_result.summaries if s.summary]
+                if parts:
+                    combined = "\n\n".join(parts)
+                    logger.info(
+                        f"[DIAG] _get_plot_summary: constructed from {len(parts)} chapter summaries, "
+                        f"total_chars={len(combined)}"
+                    )
+                    return combined
         return None
 
     def _collect_all_names(self, characters: list[Character]) -> set[str]:
