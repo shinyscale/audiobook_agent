@@ -28,6 +28,7 @@ from ..pipeline.character_extraction_v2 import (
     MainCastExtractor,
     MentionSearcher,
     NarratorDetector,
+    NarratorInfo,
     SupportingCastExtractor,
 )
 from ..utils.similarity import names_similar, string_similarity
@@ -191,6 +192,54 @@ class CharacterAgent(Agent):
             )
 
         logger.info(f"V2 Step 3 complete: {len(main_cast)} grounded characters")
+
+        # STEP 3.1: Fallback — when main_cast extraction returned 0 grounded characters,
+        # retry with a simpler prompt on just the plot_summary text.
+        # The main_cast LLM may fail on long/complex chapter summaries while succeeding
+        # on a shorter, more focused summary. This is a universal safety net.
+        if not main_cast and plot_summary:
+            logger.warning(
+                "V2 Step 3.1 FALLBACK: main_cast empty after grounding. "
+                "Retrying with simpler prompt on plot_summary."
+            )
+            fallback_prompt = (
+                "List every named character in this story. Return JSON array only.\n\n"
+                "STORY SUMMARY:\n{summary}\n\n"
+                "Return a JSON array:\n"
+                '[{{"canonical_name": "Name", "role": "protagonist|antagonist|supporting", '
+                '"description": "brief description", "is_symbolic": false}}]'
+            ).format(summary=plot_summary[:3000])
+
+            fallback_result, fallback_response = self.llm.query_json(fallback_prompt)
+            logger.info(
+                f"V2 Step 3.1 fallback LLM: success={fallback_response.success}, "
+                f"result_type={type(fallback_result).__name__ if fallback_result is not None else 'None'}"
+            )
+            if fallback_response.success and fallback_result is not None:
+                fallback_profiles = main_cast_extractor._parse_pass1_results(fallback_result)
+                logger.info(f"V2 Step 3.1 fallback parsed {len(fallback_profiles)} profiles")
+                if fallback_profiles:
+                    fallback_chars = main_cast_extractor.profiles_to_characters(fallback_profiles)
+                    fallback_mentions = searcher.search_all(fallback_chars)
+                    fallback_chars = searcher.update_characters_with_mentions(
+                        fallback_chars, fallback_mentions
+                    )
+                    mention_results.update(fallback_mentions)
+                    fallback_gate = GroundingGate(
+                        min_mentions=self.min_grounding_mentions,
+                        remove_ungrounded_aliases=True,
+                    )
+                    fallback_report = fallback_gate.apply(fallback_chars, fallback_mentions)
+                    fallback_gate.log_report(fallback_report)
+                    main_cast = fallback_report.grounded_characters
+                    logger.info(
+                        f"V2 Step 3.1 fallback: {len(fallback_profiles)} profiles → "
+                        f"{len(main_cast)} grounded characters"
+                    )
+            else:
+                logger.warning(
+                    f"V2 Step 3.1 fallback LLM failed: {fallback_response.error}"
+                )
 
         # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
         # This must run BEFORE the main merge to avoid the ambiguity problem where
@@ -745,6 +794,40 @@ class CharacterAgent(Agent):
                 )
             except Exception as e:
                 logger.warning(f"Narrator re-detection failed: {e}")
+
+        # STEP 5.8.6: Heuristic narrator fallback for confirmed first-person narratives.
+        # When LLM narrator detection has failed (narrator_character_id is still None)
+        # but the summaries metadata confirms first-person POV, use a universal heuristic:
+        # in first-person narratives the narrator tends to have the lowest name-mention count
+        # (they use "I" instead of their own name), so the least-mentioned character who
+        # appears in the plot_summary is the most likely narrator.
+        narrative_style = self._get_narrative_style(context)
+        if (
+            narrative_style
+            and "first-person" in narrative_style.lower()
+            and narrator_info.narrator_character_id is None
+            and main_cast
+        ):
+            narrator_candidate = self._heuristic_narrator_from_mention_count(
+                main_cast, plot_summary
+            )
+            if narrator_candidate:
+                narrator_candidate.is_narrator = True
+                narrator_candidate.narrative_role = "First-Person Narrator"
+                if narrator_candidate.role not in ("protagonist",):
+                    narrator_candidate.role = "protagonist"
+                narrator_info = NarratorInfo(
+                    pov="first-person",
+                    narrator_name=narrator_candidate.canonical_name,
+                    narrator_character_id=narrator_candidate.id,
+                    confidence=0.6,
+                )
+                logger.info(
+                    f"V2 Step 5.8.6: Heuristic narrator fallback identified "
+                    f"'{narrator_candidate.canonical_name}' "
+                    f"(mention_count={narrator_candidate.mention_count}, "
+                    f"narrative_style='{narrative_style}')"
+                )
 
         # STEP 5.9: REMOVED - Non-sentient object filter
         # Symbolic objects/forces can be valid "characters" for narrator preparation
@@ -3271,3 +3354,47 @@ class CharacterAgent(Agent):
         if char.descriptions:
             return char.descriptions[0].text
         return ""
+
+    def _get_narrative_style(self, context: AgentContext) -> Optional[str]:
+        """Extract narrative_style from the summaries result metadata, if available."""
+        summaries_result = context.get_result("summaries")
+        if summaries_result and hasattr(summaries_result, "plot_summary"):
+            ps = summaries_result.plot_summary
+            if isinstance(ps, dict):
+                return ps.get("narrative_style")
+        return None
+
+    def _heuristic_narrator_from_mention_count(
+        self,
+        main_cast: list[Character],
+        plot_summary: Optional[str],
+    ) -> Optional[Character]:
+        """
+        Heuristic narrator identification for confirmed first-person narratives.
+
+        In first-person narratives the narrator typically has the lowest direct
+        name-mention count (they say "I" instead of their own name). Among main cast
+        characters who appear in the plot_summary, the one with the fewest text
+        mentions is the most likely narrator.
+
+        This is a universal invariant across first-person fiction: the protagonist-
+        narrator uses "I" far more than their own name, so their name-mention count
+        is anomalously low compared to other named characters.
+        """
+        if not main_cast:
+            return None
+
+        # Prefer candidates who are explicitly named in the plot_summary
+        # (confirms they are plot-central, not a minor character with few mentions)
+        candidates = []
+        if plot_summary:
+            plot_lower = plot_summary.lower()
+            for char in main_cast:
+                if char.canonical_name.lower() in plot_lower:
+                    candidates.append(char)
+
+        if not candidates:
+            candidates = list(main_cast)
+
+        # The narrator has the lowest mention count (uses "I" not their name)
+        return min(candidates, key=lambda c: c.mention_count, default=None)

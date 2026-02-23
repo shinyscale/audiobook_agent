@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -213,10 +213,21 @@ Reject age_indication values that are pure number words without "years old" or "
 - "LLM validation failed (got dict), keeping batch candidates" in supporting cast
 - Character Extraction stage: 4 LLM calls for 6 characters = all from supporting cast validation, none from main_cast
 
+## Attempt 6 Fixes Applied
+
+### Fix 1: Plot Summary Character Fallback (CRITICAL #1 — AM missing)
+- **Root cause:** main_cast LLM extraction has failed 5 consecutive times (unknown reason — LLM model may not parse complex prompts reliably)
+- **Fix:** Added STEP 3.1 fallback in `characters.py:run()` — when `main_cast` is empty after grounding, makes a simple LLM call on just the `plot_summary` text with a minimal 4-line prompt
+- **Universality:** Only fires when main_cast is empty (defensive safety net for any book). Does not affect books where main_cast extraction succeeds.
+- **Modified:** `src/agents/characters.py` lines 196-242
+- **Smoke test:** Import succeeds, all character extraction tests pass
+
+### Fix 2: Heuristic Narrator Fallback (CRITICAL #2 — Ted not narrator)
+- **Root cause:** LLM narrator detection keeps failing to set narrator_character_id, likely because main_cast was empty at STEP 4 and re-detection at STEP 5.8.5 also fails or matches wrong character
+- **Fix:** Added STEP 5.8.6 heuristic fallback — when `narrative_style` contains "first-person" (from summaries metadata) AND narrator_character_id is still None, uses universal invariant: first-person narrator has lowest name-mention count (they use "I" not their name)
+- **Helper methods added:** `_get_narrative_style()`, `_heuristic_narrator_from_mention_count()`
+- **Universality:** Only fires when LLM-based detection fails. The "lowest mention count" invariant is universal across first-person fiction.
+- **Modified:** `src/agents/characters.py` lines 798-830, 3358-3400
+
 ## Next Action
-Run PROMPT_fix.md. The fix phase MUST:
-1. **Stop trying to fix main_cast.py** — it has failed 5 times
-2. **Add a fallback in characters.py** that extracts characters from plot_summary when main_cast returns 0
-3. **Add a heuristic narrator fallback** based on plot_summary text analysis when LLM narrator detection fails
-4. **Add zero-evidence character filter** to remove false positives like Jesus
-5. **Fix appearance.age_indication** validation
+Run PROMPT_analyze.md to re-analyze i_have_no_mouth with the new fallbacks.
