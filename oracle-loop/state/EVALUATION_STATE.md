@@ -2,36 +2,29 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_002951/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_014514/
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 6/10 ✗ (FAILING)
-  - Completeness: 5/10 ← AM still missing is the critical blocker
-  - Identity Resolution: 9/10
-  - Alias Grouping: 8/10
-- Character Profiles: 6.5/10 ✗ (FAILING)
-- Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 6/10 ✗ (FAILING)
-- HTML Presentation: 8.5/10 ✓
-- **Overall: 7.4/10** (reference only)
+(Awaiting evaluation)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** PENDING
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.35 | 0.00 | Baseline. AM missing, false positives, pronunciation artifacts |
 | 2 | 7.40 | +0.05 | bush removed, roles improved, but AM still missing, narrator still undetected |
+| 3 | CRASH | - | Pipeline crash: KeyError in MAIN_CAST_PROMPT format() due to unescaped JSON braces |
+| 4 | TBD | TBD | Two-pass fallback fired; 6 chars found; narrator still undetected; awaiting evaluation |
 
 ## Current Issues (Priority Order)
 
@@ -225,5 +218,14 @@ This bug was dormant because `_extract_single_pass()` was only added as a fallba
 - Files: `src/pipeline/character_extraction_v2/main_cast.py`
 - Smoke test: PASS — `MAIN_CAST_PROMPT.format(summaries=..., plot_summary_section=...)` no longer raises `KeyError`; all 297+ passing tests still pass; 2 pre-existing failures unchanged
 
+## Pipeline Notes (Attempt 4)
+
+- Runtime: 17m 23s (60 LLM calls, 73,085 tokens)
+- "Two-pass extraction returned 0 characters; retrying with single-pass" — fallback fired successfully (crash from attempt 3 fixed)
+- 6 characters extracted (5 profiles for 5 eligible; 6th is likely AM or Jesus)
+- Narrator: "No definitive narrator identified" — narrator detection still failing
+- "LLM marker proposer returned non-list: <class 'dict'>" x3 → "No valid proposals - returning single chapter" — structure detection still falling back to single chapter (OK for this text)
+- 38 pronunciation flags
+
 ## Next Action
-Re-run analysis to verify all Attempt 3 + Attempt 4 fixes work together. Key things to verify: (1) main cast pipeline now extracts characters (including AM via single-pass fallback), (2) Ted is flagged as narrator, (3) Jesus false positive, (4) wrong ages, (5) pronunciation artifacts.
+Evaluate the output to see if AM was extracted and what the new scores are.
