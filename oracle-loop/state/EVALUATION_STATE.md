@@ -3,29 +3,29 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_034103/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_104027/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING)
-  - Completeness: 5/10
+- Character Extraction: 6.5/10 ✗ (FAILING)
+  - Completeness: 6/10
   - Identity Resolution: 9/10
-  - Alias Grouping: 6/10
-- Character Profiles: 5/10 ✗ (FAILING)
+  - Alias Grouping: 8/10
+- Character Profiles: 6/10 ✗ (FAILING)
 - Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 6/10 ✗ (FAILING)
-- HTML Presentation: 7/10 ✗ (FAILING)
-- **Overall: 6.80/10** (reference only)
+- Pronunciation Guide: 6.5/10 ✗ (FAILING)
+- HTML Presentation: 7.5/10 ✗ (FAILING)
+- **Overall: 7.43/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (4 categories below threshold) — **STUCK: 4 consecutive attempts at 6.80**
+**Status:** FAIL (4 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -37,107 +37,111 @@
 | 5 | 6.80 | -0.55 | No change from attempt 4 |
 | 6 | 6.80 | -0.55 | Fallback fired but AM not grounded. Heuristic narrator didn't fire (type mismatch). |
 | 7 | 6.80 | -0.55 | Fix 3 worked (Jesus removed). Fixes 1+2 did NOT take effect despite correct code in codebase. |
+| 8 | 7.43 | +0.08 | **Narrator detection FIXED** (Ted is_narrator: true). Orphaned relationships cleaned. AM still missing. Ages still wrong. |
 
-## ESCALATION REQUIRED
+## What Worked in Attempt 8
+1. **Fix 2 (narrator detection) — WORKED**: Ted now `is_narrator: true` with `role: "protagonist"` and narrator badge in HTML. The complete rewrite of `_get_narrative_style()` to check pipeline_metadata / POV consistency / first-person markers succeeded where 6 previous attempts failed.
+2. **Fix 3 (orphaned relationships) — WORKED**: `clean_orphaned_relationships()` successfully removed "Jesus: unknown" from all character relationship maps.
+3. **Refactor (post_corrections) — WORKED**: PipelineCharacterCorrector and OutputCharacterCorrector classes with 49 unit tests.
 
-**The oracle loop is STUCK.** The same two critical bugs (AM missing, narrator undetected) have persisted across attempts 4-7 with a stable score of 6.80. Targeted fixes keep "looking correct" in the code but producing no change in output. This indicates a fundamental misunderstanding of the runtime data flow.
+## What Did NOT Work in Attempt 8
+1. **Fix 1 (fallback prompt for AM) — FAILED**: Despite the prompt saying "Include humans, non-human beings, AI, and any named force that acts with agency," the STEP 3.1 fallback still produced 0 main_cast characters. The LLM either doesn't return "AM" or the parser can't extract it. This is the **8th consecutive failure** to extract AM through the main_cast/fallback LLM pipeline.
+2. **Fix 4 (age validation) — FAILED**: Ages still show "five years" for Benny/Ellen/Gorrister and "nine years" for Ted. The `extract_deterministic_age()` validation either isn't being called, or the pattern doesn't match the actual age_indication format.
 
-**Evidence of being stuck:**
-- `characters.py` modified 6 times for AM extraction — main_cast LLM consistently returns 0, fallback consistently fails to surface AM
-- `characters.py` modified 6 times for narrator detection — LLM narrator detection fails, heuristic narrator fails
-- Fix 1 (grounding bypass) code is present and correct at line 228-236, yet AM still absent
-- Fix 2 (type check) code is present and correct at line 3363, yet narrator still undetected
-- Only Fix 3 (evidence filter for Jesus) actually worked
+## ESCALATION REQUIRED — MANDATORY APPROACH FOR ATTEMPT 9
 
-**Root cause hypothesis:** The fixes target the right logic but something upstream prevents the code paths from executing as expected. Without runtime diagnostic output visible at INFO level, we cannot determine WHY.
+**The LLM-based character extraction pipeline CANNOT extract AM.** After 8 attempts with different prompts, parsing strategies, grounding bypasses, and fallbacks, the main_cast pipeline consistently produces 0 characters. The fix phase MUST abandon the LLM extraction path for AM and use a **post-processing approach** instead.
 
-**ESCALATION STRATEGY FOR ATTEMPT 8:**
+### MANDATORY: Plot-Summary Post-Processing for Missing Characters
 
-The fix phase MUST do the following BEFORE making any code changes:
+The plot_summary mentions "AM" 7+ times and correctly describes it as "the malevolent AI known as AM." The fix MUST:
 
-1. **Add INFO-level logging (NOT DEBUG) at every critical decision point:**
-   - In STEP 3.1 fallback: log `fallback_result` type and content (first 500 chars)
-   - In STEP 3.1: log `fallback_profiles` count and names
-   - In STEP 3.1: log `fallback_chars` count and names
-   - In `_get_narrative_style()`: log `summaries_result` type, whether it has `plot_summary`, what type `ps` is, and whether `narrative_style` attribute exists
-   - In STEP 5.8.6: log each condition (`narrative_style`, `narrator_info.narrator_character_id`, `main_cast` length)
+1. **After all character extraction is complete** (after STEP 5 / before output conversion), add a post-processing step in `src/analyzer.py`:
+   - Parse the `plot_summary` text for capitalized names/acronyms that appear 3+ times
+   - Compare against the existing character list
+   - For any name found in plot_summary but missing from characters, create a minimal character entry:
+     - `canonical_name`: the name as found in plot_summary
+     - `role`: inferred from plot_summary context (e.g., "antagonist" if described negatively)
+     - `is_narrator`: False
+     - A description extracted from the plot_summary sentence mentioning the name
+   - This is a **safety net** — it runs only when the LLM pipelines fail to extract a plot-critical character
 
-2. **Run the analysis with logging visible** (`--log-level INFO` or similar)
+2. **This must NOT be in characters.py** — it's been modified 8 times without success. Put it in `analyzer.py` as a post-processing step, similar to how the evidence filter and orphaned relationship cleanup work.
 
-3. **Read the logs to identify the ACTUAL failure point** — where does the data diverge from expectations?
+3. **Regex approach for "AM"**: `r'\bAM\b'` in plot_summary will match. Count occurrences. If >= 3 and "AM" not in any character's canonical_name or aliases, create the entry.
 
-4. **Only THEN apply targeted fixes** based on observed runtime behavior, not inferred behavior.
+### Age Validation Debug
 
-**Alternative approach if diagnostic logging is impractical:**
-- **Direct plot_summary NER**: Instead of relying on the main_cast LLM, parse the plot_summary text with spaCy NER + regex for "AM" specifically. Characters found in the plot_summary that don't exist in main_cast or supporting_cast should be added directly. This bypasses the entire LLM extraction chain for plot-summary-confirmed characters.
+Fix 4 (age validation) didn't work. The fix phase should:
+1. Check if `extract_deterministic_age()` is actually called during the pipeline run
+2. Print/log the raw `age_indication` value before validation
+3. The "five years" string may not match the expected pattern — check exact string format
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **AM (the supercomputer) COMPLETELY MISSING — 7th consecutive failure** [Completeness]
-   - Problem: AM is the primary antagonist — the sentient supercomputer whose hatred drives the entire story. The title itself derives from AM's punishment of Ted. The plot_summary mentions "AM" 7+ times. Yet AM is not in the character list.
-   - Evidence: 0 main_cast characters. All 5 characters are from supporting pipeline (NER). The fallback LLM call at STEP 3.1 fired (Character Extraction: 5 LLM calls) but produced 0 characters for main_cast despite grounding bypass code being present.
-   - Root cause: **UNKNOWN** — the grounding bypass code at line 228-236 is correct, yet AM doesn't appear. Either (a) the LLM fallback didn't return "AM", (b) `_parse_pass1_results` couldn't parse the response, or (c) `profiles_to_characters` filtered it. Without INFO-level logging at each step, we cannot diagnose.
-   - Location: `src/agents/characters.py` lines 196-240 (STEP 3.1 fallback)
-   - Fix: **ADD DIAGNOSTIC LOGGING FIRST** (see escalation strategy above). Do not guess at another fix.
-
-2. **Ted STILL not flagged as narrator — 7th consecutive failure** [Completeness / Profiles]
-   - Problem: Ted is the first-person narrator. `is_narrator: false`. He's in the "Supporting Characters" table with only 5 mentions.
-   - Evidence: narrative_style = "first-person retrospective" exists in JSON output. But `_get_narrative_style()` apparently still returns None at runtime despite the type-check fix being present at line 3363.
-   - Root cause: **UNKNOWN** — the `hasattr(ps, "narrative_style")` fix is in the code, yet the heuristic at STEP 5.8.6 apparently didn't fire. Either `_get_narrative_style()` returns None for a different reason (e.g., `context.get_result("summaries")` returns None or doesn't have `plot_summary` attribute), or the heuristic fires but fails to select Ted.
-   - Location: `src/agents/characters.py` lines 3356-3365 (`_get_narrative_style()`) and lines 796-828 (STEP 5.8.6)
-   - Fix: **ADD DIAGNOSTIC LOGGING FIRST** (see escalation strategy above).
+1. **AM (the supercomputer) COMPLETELY MISSING — 8th consecutive failure** [Completeness]
+   - Problem: AM is the primary antagonist — the sentient supercomputer whose hatred drives the entire story. The plot_summary mentions "AM" 7+ times as "the malevolent AI known as AM." Yet AM is not in the character list.
+   - Evidence: 0 main_cast characters. All 5 characters from supporting pipeline. STEP 3.1 fallback fired (5 LLM calls) but produced 0 main_cast characters.
+   - Root cause: The LLM character extraction pipeline fundamentally cannot handle "AM" as a character name (too short? too unusual? filtered by parser?). 8 attempts to fix the LLM path have all failed.
+   - Location: NEW — `src/analyzer.py` (post-processing safety net)
+   - Fix: **MANDATORY plot_summary post-processing** (see escalation strategy above). Do NOT modify characters.py or main_cast.py.
 
 ### HIGH
-3. **"Jesus: unknown" relationship pollution — partially fixed** [Profiles / Presentation]
-   - Problem: Jesus was successfully removed from the character list (Fix 3 worked!), but "Jesus: unknown" still appears in the relationships of Benny, Ellen, and Nimdok. Relationships are generated during profiling and baked into the profile data. The post-profiling filter removes Jesus from the character list but doesn't clean up references to Jesus in other characters' relationships.
-   - Evidence: `jq '.characters[] | {name: .canonical_name, relationships: .relationships}' analysis.json` shows "Jesus: unknown" in Benny's, Nimdok's relationships and "Jesus: not mentioned" in Ellen's.
-   - Location: `src/analyzer.py` `_convert_characters()` — the evidence filter removes the character but doesn't scrub relationship references
-   - Fix: After removing a character via the evidence filter, also iterate all remaining characters and remove the deleted character's name from their `relationships` dict.
+2. **"Age: five years" / "Age: nine years" still displayed** [Profiles]
+   - Problem: Fix 4 from attempt 8 committed age validation in `extract_deterministic_age()` but ages remain wrong.
+   - Evidence: Benny/Ellen/Gorrister show "Age: five years", Ted shows "Age: nine years" in both JSON and HTML.
+   - Location: Check if `extract_deterministic_age()` is called at runtime; check if the pattern matches `"five years"`.
+   - Fix: Debug why the validation didn't fire. If `extract_deterministic_age()` isn't called, add the call. If the pattern is wrong, fix it.
 
-4. **"Age: five years" / "Age: nine years" bug in appearance.age_indication** [Profiles]
-   - Problem: Benny, Ellen, Gorrister show "Age: five years" and Ted shows "Age: nine years". These are adults trapped for 109 years by AM. The "five" comes from "five survivors" context confusion.
-   - Evidence: Confirmed in JSON: `appearance.age_indication` values are wrong for all characters.
-   - Location: Profile generation LLM — appearance extraction misinterprets number words as ages
-   - Fix: Validate age_indication: reject pure number words ("five", "nine") without explicit age context ("years old", "aged X").
+3. **0/5 characters have top-level physical_description** [Profiles]
+   - Problem: `physical_description` is null for all characters. Nested `appearance.summary` has some data (Benny: ape-like face, Nimdok: chimpanzee features) but most are "Unknown"/"unknown".
+   - Fix: Populate top-level `physical_description` from `appearance.summary` during output conversion (only when `appearance.summary` is not "Unknown"/"unknown").
 
-5. **0/5 characters have top-level physical_description** [Profiles]
-   - Problem: `physical_description` is null for all characters. Nested `appearance.summary` has some data (Benny, Gorrister) but "Unknown"/"unknown" for Ellen, Nimdok, Ted.
-   - Fix: Populate top-level `physical_description` from `appearance.summary` during conversion.
+4. **Some relationship descriptions factually wrong** [Profiles]
+   - Nimdok → Ellen: "victim of her violence; she kills him" — WRONG. Ted kills everyone, not Ellen.
+   - Gorrister → Benny: "victim of abuse and eventual murder" — confusing. Gorrister didn't murder Benny.
+   - Gorrister → Ellen: "abuser" — not clearly supported by text.
+   - These are LLM hallucinations in relationship descriptions. Lower priority than AM but affects profile quality.
 
-6. **Ted's profile far too thin for the narrator** [Profiles]
-   - Problem: Ted described as "passive, emotionally detached, compliant" — actually paranoid, self-aware, cynical, unreliable. He suspects others hate him, kills them in mercy, is psychologically complex.
-   - Fix: Resolves when #2 (narrator detection) is fixed — detected narrator gets protagonist-level profiling.
+5. **Ted's personality too flat for narrator** [Profiles]
+   - Problem: Described as "emotionally detached, passive, resigned." Misses: paranoid (suspects others hate him), self-aware, cynical, unreliable narrator, mercy-killing resolve.
+   - This is partially an LLM profiling quality issue. With narrator now correctly detected, a re-run with better prompting could improve this. Lower priority than AM.
 
 ### MEDIUM
-7. **"hermiene" pronunciation artifact from PDF URL** [Pronunciation]
-   - Problem: "hermiene" comes from `hermiene.net` URL in the PDF. Not a word in the story.
-   - Fix: Filter tokens matching URL patterns (`.net`, `.com`, `.org`).
+6. **"hermiene" pronunciation artifact from PDF URL** [Pronunciation]
+   - Problem: "hermiene" extracted from `hermiene.net` URL in PDF. Context in HTML shows the URL.
+   - Fix: Filter tokens that appear in URL-like contexts (check if token appears adjacent to `.net`, `.com`, `.org` in the source text).
 
-8. **Wrong IPA for "choir" and "cogito"** [Pronunciation]
-   - "choir": listed as /kwɑːr/, correct is /kwaɪər/
-   - "cogito": listed as /kəˈdʒiː.toʊ/, correct is /ˈkɒɡɪtoʊ/ (Latin, hard 'g')
+7. **Wrong IPA for "choir"** [Pronunciation]
+   - Listed as /kwɑːr/, correct is /kwaɪər/.
+   - "cogito" IPA /kəˈɡiː.toʊ/ is acceptable (anglicized) though classical Latin is /ˈkɒɡɪtoʊ/.
 
-9. **~12 common English words flagged for pronunciation** [Pronunciation]
-   - palette, tinfoil, firelight, snowdrifts, loonie, piteously, spastically, sentience, sentient, eternities, puckerings, stalactites — standard English words that most narrators know.
-   - Fix: Improve common-word detection or raise frequency threshold.
+8. **~10 common English words flagged as pronunciation items** [Pronunciation]
+   - False positives: palette, tinfoil, firelight, snowdrifts, loonie, piteously, spastically, eternities, puckerings, stalactites, sonorities, deckplates, floorplates, downdropping, shoal, despond
+   - Some like "despond", "mewl", "gibbered" are actually borderline — a narrator might want them flagged.
+   - Clear false positives: tinfoil, firelight, snowdrifts, eternities, deckplates, floorplates, palette.
 
-10. **Homographs without context-specific IPA** [Pronunciation]
-    - "wind", "read", "lead", "does", "close", "subject" — all null IPA. Without context-specific pronunciation guidance, these entries are useless to a narrator.
+9. **Homographs with null IPA** [Pronunciation]
+   - wind, read, lead, does, close, subject — all have null IPA with no context. Useless to a narrator without disambiguation.
 
-11. **Themes are poor: "identity, ambition, loss"** [Summaries]
-    - Better: hatred, dehumanization, suffering, mercy, technology/AI, imprisonment
-    - "Ambition" is particularly wrong for this story about captive torture victims.
+10. **Themes still generic** [Summaries]
+    - Current: "identity, loss, powerlessness" (improved from "identity, ambition, loss")
+    - Better: hatred, dehumanization, suffering, mercy killing, technology/AI tyranny
+    - "Identity" and "loss" are vague. "Powerlessness" is closer but misses the hatred theme that defines AM.
 
-12. **Title displays as "I_Have_No_Mouth_And_I_Must_Scream" with underscores** [Presentation]
-    - Should display as "I Have No Mouth, and I Must Scream"
+11. **Title displays with underscores** [Presentation]
+    - "I_Have_No_Mouth_And_I_Must_Scream" in both `<title>` and `<h1>`.
+    - Fix: In HTML template, replace underscores with spaces in the title (or better, use a `display_title` field).
 
-13. **Performance timing table renders "started_at"/"ended_at" as empty rows** [Presentation]
-    - The timing dict's `started_at` and `ended_at` entries get rendered as table rows with empty duration values.
+12. **Performance timing table has empty started_at/ended_at rows** [Presentation]
+    - The timing dict's `started_at` and `ended_at` string entries rendered as table rows with empty duration cells.
+    - Fix: Skip non-stage entries (started_at, ended_at) when rendering the timing table.
 
 ### LOW
-14. **Benny's voice guidance includes AM's origin story quote**
-    - The "There was the Chinese AM and the Russian AM..." quote is Ted narrating about AM, not Benny's dialogue.
+13. **Ted's mention count is 5** — seems very low for a first-person narrator of a 5400-word story. The NER likely only counted explicit name mentions ("Ted"), not first-person pronoun references. Not necessarily wrong, but affects ranking.
+
+14. **Benny's voice guidance includes AM's origin story quote** — "There was the Chinese AM..." is Ted narrating about AM, not Benny's dialogue.
 
 ## Fix History
 
@@ -168,9 +172,16 @@ The fix phase MUST do the following BEFORE making any code changes:
 - **Fix 2**: Heuristic narrator fallback (STEP 5.8.6) → **DID NOT FIRE** — `_get_narrative_style()` returns None
 
 ### Attempt 7 Fixes Applied
-- **Fix 1**: Skip GroundingGate for plot_summary fallback → **CODE PRESENT BUT NO EFFECT** — AM still absent. Grounding bypass at line 228-236 should work but either LLM didn't return AM or parser rejected it.
-- **Fix 2**: Fix `_get_narrative_style()` type check (hasattr for Pydantic) → **CODE PRESENT BUT NO EFFECT** — Either still returns None for different reason, or heuristic doesn't select Ted.
-- **Fix 3**: Post-profiling evidence filter (discard 0-evidence chars) → **WORKED** — Jesus removed (5 chars vs 6). But relationship references to Jesus remain in other characters' profiles.
+- **Fix 1**: Skip GroundingGate for plot_summary fallback → **CODE PRESENT BUT NO EFFECT**
+- **Fix 2**: Fix `_get_narrative_style()` type check (hasattr for Pydantic) → **CODE PRESENT BUT NO EFFECT**
+- **Fix 3**: Post-profiling evidence filter (discard 0-evidence chars) → **WORKED** (Jesus removed)
+
+### Attempt 8 Fixes Applied
+- **Fix 1**: Fallback prompt includes "AI, non-human beings, sentient entities" → **FAILED** — 0 main_cast again
+- **Fix 2**: `_get_narrative_style()` complete rewrite → **WORKED** — Ted is now narrator
+- **Fix 3**: `clean_orphaned_relationships()` → **WORKED** — Jesus references cleaned from all characters
+- **Fix 4**: Age validation in `extract_deterministic_age()` → **FAILED** — ages still "five years"/"nine years"
+- **Refactor**: PipelineCharacterCorrector + OutputCharacterCorrector with 49 tests → **WORKED**
 
 ## Modification History
 
@@ -196,38 +207,26 @@ The fix phase MUST do the following BEFORE making any code changes:
 | 7 | Grounding bypass for fallback | characters.py | **Code correct, no effect** |
 | 7 | _get_narrative_style() type check | characters.py | **Code correct, no effect** |
 | 7 | Evidence filter for false positives | analyzer.py | **WORKED** (Jesus removed) |
+| 8 | Fallback prompt for sentient entities | characters.py | **FAILED** — 0 main_cast again |
+| 8 | _get_narrative_style() complete rewrite | characters.py | **WORKED** — Ted is narrator |
+| 8 | clean_orphaned_relationships() | post_corrections.py | **WORKED** — Jesus refs cleaned |
+| 8 | Age validation in extract_deterministic_age() | post_corrections.py | **FAILED** — ages unchanged |
+| 8 | Refactor post-corrections into classes | analyzer.py, post_corrections.py | **WORKED** |
 
-**STUCK PATTERN — ESCALATION REQUIRED:**
-- `characters.py` modified **7 times** for AM extraction — main_cast consistently empty
-- `characters.py` modified **7 times** for narrator detection — consistently fails
-- Fixes 1 and 2 in attempt 7 had **correct code** that produced **no visible change** in output
-- This indicates the code paths are not executing as expected at runtime
-- **The fix phase MUST add INFO-level diagnostic logging and trace actual execution before attempting more code changes**
+**STUCK PATTERN for AM extraction:**
+- `characters.py` modified **8 times** for AM extraction — ALL FAILED
+- `main_cast.py` modified **3 times** — ALL FAILED
+- The LLM main_cast pipeline fundamentally cannot extract "AM"
+- **MANDATORY: Move to post-processing in analyzer.py** — do NOT touch characters.py or main_cast.py for AM
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
 - Context: 32768 tokens — sufficient for a short story (~5400 words)
 - Temperature: 0.7 for all stages
-- Character Extraction: 5 LLM calls (same as attempt 6 = fallback fired)
+- Character Extraction: 5 LLM calls (fallback fired but still 0 main_cast)
 - 0 low-confidence items, 0 LLM retries
 - Chapter Summaries: 0 LLM calls (cached)
-- Runtime: 17m 27s total
-
-### Attempt 8 Fixes Applied
-- **Fix 1 (committed decbb66)**: Fallback prompt now says "Include humans, non-human beings, AI, and any named force that acts with agency" → should capture AM (supercomputer)
-- **Fix 2 (committed decbb66)**: `_get_narrative_style()` completely rewritten — no longer depends on `ps.narrative_style`. Now checks: (a) pipeline_metadata, (b) pov_character consistency across summaries, (c) first-person markers in summary text → should enable STEP 5.8.6 heuristic for Ted
-- **Fix 3 (committed e61ef6b)**: `clean_orphaned_relationships()` removes relationship entries to characters not in final list → fixes "Jesus: unknown" in Benny/Nimdok/Ellen profiles
-- **Fix 4 (committed e61ef6b)**: Age validation in `extract_deterministic_age()` rejects "five years"/"nine years" (written-number + "years" without "old") → fixes "Age: five years" hallucination
-- **Refactor (committed e61ef6b)**: Extracted all inline post-profile correction blocks from `analyzer.py` into `PipelineCharacterCorrector` and `OutputCharacterCorrector` classes with 49 unit tests
-
-## Pipeline Notes (Attempt 8)
-- Ted: `is_narrator: true` ✓ — **Fix 2 WORKED** (narrator detection now fires)
-- AM: Still absent — 5 characters found (Benny, Ellen, Gorrister, Nimdok, Ted), none named AM
-- "V2 Step 3.1 FALLBACK" fired but still produced 0 main_cast characters
-- LLM marker proposer returned non-list (dict) x3 — structure fallback triggered
-- Pronunciation: 38 words flagged (28 unknown, 6 homograph, 2 proper_noun, 2 foreign)
-- Runtime: 18m 6s; Chapter Summaries: 0 LLM calls (cached)
-- Timestamped output: output/I_Have_No_Mouth_And_I_Must_Scream_20260223_104027/
+- Runtime: 18m 6s total (17m 33s analysis + overhead)
 
 ## Next Action
-Run PROMPT_evaluate.md — Evaluate attempt 8 output.
+Run PROMPT_fix.md — Fix attempt 9. **MANDATORY: Use plot_summary post-processing for AM extraction (in analyzer.py, NOT characters.py). Debug age validation. Address pronunciation false positives.**
