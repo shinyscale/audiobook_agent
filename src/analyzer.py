@@ -2064,17 +2064,19 @@ class AudiobookAnalyzer:
         characters = self._convert_characters(pipeline_char_map)
 
 
-        # Post-processing corrections on output characters (Phase B).
-        # Extracts: final narrator appearance injection, deterministic age extraction,
-        # same-person relationship fix, text-based relationship verification, gender consistency.
-        from .pipeline.character_profiling.post_corrections import OutputCharacterCorrector
-        OutputCharacterCorrector().run_all(characters, doc.text)
-
         # Plot-summary safety net: add characters mentioned in plot_summary but missed
         # by the extraction pipeline. Handles all-caps acronym names (e.g. "AM", "HAL")
         # that spaCy NER and the LLM extraction pipeline routinely fail to capture.
+        # Must run BEFORE OutputCharacterCorrector so safety-net characters are included.
         if overview:
             self._plot_summary_safety_net(characters, overview, doc.text)
+
+        # Post-processing corrections on output characters (Phase B).
+        # Extracts: final narrator appearance injection, deterministic age extraction,
+        # same-person relationship fix, text-based relationship verification, gender consistency.
+        # Runs AFTER safety net so all characters (including safety-net additions) are corrected.
+        from .pipeline.character_profiling.post_corrections import OutputCharacterCorrector
+        OutputCharacterCorrector().run_all(characters, doc.text)
 
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)

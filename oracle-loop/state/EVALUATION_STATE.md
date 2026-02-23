@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -184,6 +184,9 @@ Expected impact: AM personality cleaned → +1.0 on Profiles → 8.0. Combined w
 ### Attempt 13 Fix Applied
 - **Fix 1**: `clean_plot_summary_personality()` post-correction in OutputCharacterCorrector → **DID NOT WORK** (4th failure) — ROOT CAUSE: OutputCharacterCorrector runs BEFORE safety net adds AM. Code is correct but never sees AM.
 
+### Attempt 14 Fix Applied
+- **Fix 1**: Reordered execution in `analyzer.py:2067-2079` — moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()`. Safety net now adds AM first; post-corrections then clean all characters including AM. This is the root cause fix for 4 consecutive personality failures.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -250,4 +253,4 @@ Expected impact: AM personality cleaned → +1.0 on Profiles → 8.0. Combined w
 - Runtime: 16m 48s
 
 ## Next Action
-Run PROMPT_fix.md. The fix is a simple reorder in `analyzer.py`: move `OutputCharacterCorrector().run_all()` to AFTER `_plot_summary_safety_net()`. This ensures `clean_plot_summary_personality()` can see and fix AM's personality.
+Run PROMPT_analyze.md to re-run the pipeline and verify fix.
