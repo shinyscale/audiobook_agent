@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
@@ -17,120 +17,137 @@
 - 2,228 words extracted (short text)
 - 1 chapter detected (single chapter story)
 - 5 characters total (John G. + 4 others)
-- John G. (aka John) - 19 mentions — false split RESOLVED
+- John G. (aka John) - 19 mentions — false split RESOLVED ✓
+- Newline alias artifact RESOLVED ✓
 - 4 profiles generated with HIGH confidence
 - 20 pronunciation flags (7 homograph, 6 proper_noun, 6 unknown, 1 foreign)
-- Warnings: "LLM marker proposer returned non-list" → fell back to single chapter (expected)
-- Warnings: "No passages provided for First Sergeant Price / Two Troopers" → UNCERTAIN (expected)
-- No narrator identified
+- Greensburg IPA fix DID NOT TAKE EFFECT — still German pronunciation
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6/10 ✗ (FAILING)
-  - Completeness: 7/10
-  - Identity Resolution: 5/10 ← false split is primary blocker
-  - Alias Grouping: 5/10
-- Character Profiles: 7/10 ✗ (FAILING)
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 7/10 ✗ (FAILING)
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.55/10** (reference only)
+- Character Extraction: 8.5/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 9/10
+  - Alias Grouping: 8/10
+- Character Profiles: 7.5/10 ✗ (FAILING)
+- Chapter Summaries: 8.5/10 ✓
+- Pronunciation Guide: 6.5/10 ✗ (FAILING)
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 8.15/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold: Characters 6, Profiles 7, Pronunciation 7)
+**Status:** FAIL (2 categories below threshold: Profiles 7.5, Pronunciation 6.5)
+
+## What Improved (Attempt 1 → 2)
+- Character Extraction: 6/10 → 8.5/10 (+2.5) — John/John G. merge worked perfectly
+- "John\nG." newline alias eliminated
+- Plot summary no longer claims "John G. collapses" (previous hallucination fixed)
+- Overall: 7.55 → 8.15 (+0.60)
+
+## What Didn't Improve
+- Greensburg pronunciation: Still German IPA despite fix to foreign_proposer.py — fix may not have been in the right codepath
+- Sergeant IPA: Still wrong (`/səˈdʒɑːrənt/` "suh-JAR-ent")
+- sharp-fanged IPA: Still wrong (`/feɪŋd/` "FAYND")
+- 6 common-word false positives still present in pronunciation
+- John G. still missing from chapter characters_present
+- Profile age for John G. says "young" — he's 22 (ancient for a horse)
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **False character split: "John" vs "John G."** [Identity Resolution]
-   - Problem: "John G." (15 mentions, id: supporting_0) and "John" (4 mentions, id: supporting_1) are listed as separate characters. They are the SAME entity — John G. is a horse, and "John" is used as a short form of address on lines 126, 131, 133, 159 of the source text (e.g., "Come along, John, it's all right, old man!")
-   - Evidence: Both profiles describe horse-like behavior; the "John" profile says "exhibits calmness, caution, and quiet resilience under stress" with traits like "cautious, reliable, resilient" — clearly describing the same horse
-   - IDs: supporting_0 (John G.) and supporting_1 (John) — both from supporting cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` — alias resolution should recognize "John" as a short form of "John G."
-   - Fix: The supporting cast or alias resolution logic needs to recognize that when a character named "X Y" exists and a separate entry "X" appears with far fewer mentions, "X" is very likely a short form. Especially when one entity is central to the narrative.
-
 ### HIGH
-2. **Alias "John\nG." contains literal newline** [Alias Grouping]
-   - Problem: The alias list for "John G." contains `"John\nG."` with a literal newline between "John" and "G." — this displays as a line break in the HTML report
-   - Evidence: `jq` output shows `"John\nG."` in alias array
-   - Location: Likely in text extraction/parsing or alias generation in `src/pipeline/character_extraction_v2/`
-   - Fix: Strip or normalize whitespace (including newlines) in alias strings before storing
+1. **Greensburg IPA still German — fix didn't take effect** [Pronunciation]
+   - Problem: IPA is `/ˈɡʁɛnˌbʊʁk/` "GREHN-buurk" with notes referencing "guttural G like German Garten" and "ü is rounded and pronounced with lips puckered." This is an American city in Pennsylvania.
+   - Evidence: Correct pronunciation is `/ˈɡriːnzbɜːrɡ/` "GREENZ-burg"
+   - The attempt 2 fix modified `foreign_proposer.py:_validate_with_llm()` but Greensburg still has German IPA. The entry has `type: null` — it may not be going through the foreign proposer at all, or the LLM is generating the IPA in a different codepath.
+   - Location: Need to trace WHERE Greensburg's IPA is actually generated. Check all pronunciation proposers, not just foreign_proposer.py. The `type: null` suggests it might come from `proper_noun_proposer.py` or the main pronunciation pipeline.
+   - Fix: Identify which proposer is generating this entry and ensure proper nouns in American English text get American English IPA.
 
-3. **Missing aliases for John G.** [Alias Grouping]
-   - Problem: "John" should be listed as an alias (not a separate character). Additional terms of address "Johnny boy" (line 161) and "old man" (lines 126, 159, used as direct address) are also missing
-   - Evidence: Text uses "Come along, John, old man" and "Make a pace, Johnny boy!" as direct addresses for the horse
-   - Location: `src/pipeline/character_extraction_v2/` — alias detection
-   - Fix: After merging "John" into "John G.", ensure "John", "Johnny boy" are captured as aliases
+2. **Sergeant IPA completely wrong** [Pronunciation]
+   - Problem: `/səˈdʒɑːrənt/` "suh-JAR-ent" — stress on wrong syllable, wrong vowel pattern
+   - Evidence: Correct is `/ˈsɑːr.dʒənt/` "SAR-jent" — stress on first syllable
+   - Location: Pronunciation LLM generation (likely proper_noun proposer since it's a rank/title)
+   - Fix: This is an LLM accuracy issue. Could be addressed by dictionary lookup for common English words, or by filtering "Sergeant" as a false positive (it's a common word that doesn't need pronunciation guidance)
 
-4. **Greensburg pronunciation uses German IPA instead of American English** [Pronunciation]
-   - Problem: IPA is `/ˈɡʁɛnˌzʊʁk/` with phonetic "GREHN-zoork" — this is German pronunciation. Greensburg, Pennsylvania is an American city pronounced `/ˈɡriːnzbɜːrɡ/` (GREENZ-burg)
-   - Evidence: The story is set in Pennsylvania ("hill-town of Greensburg", "Pennsylvania State Police")
-   - Location: `src/pipeline/pronunciation.py` or pronunciation agent — the LLM is providing German pronunciation for an American place name
-   - Fix: Context should help the LLM understand this is an American English text; place names should be pronounced in the language of the narrative
+3. **sharp-fanged IPA wrong** [Pronunciation]
+   - Problem: `/ʃɑːrp-feɪŋd/` "SHARP-FAYND" — "fanged" should be /fæŋd/ (rhymes with "banged"), not /feɪŋd/ (rhymes with "frayed"). Note incorrectly says "the 'g' is silent"
+   - Evidence: Standard American English: "fanged" = /fæŋd/
+   - Location: Pronunciation LLM generation
+   - Fix: LLM accuracy issue; consider dictionary-based verification for compound words
 
-5. **"sharp-fanged" IPA is wrong** [Pronunciation]
-   - Problem: IPA shows `/feɪnd/` for "fanged" (rhymes with "frayed"), but correct pronunciation is `/fæŋd/` (rhymes with "banged"). Note says "the 'g' is silent" which is incorrect — "fanged" has a hard /ŋ/ sound
-   - Location: Pronunciation agent LLM generation
-   - Fix: This is an LLM accuracy issue; may need better verification or dictionary lookup
+4. **6 common-word false positive pronunciation entries** [Pronunciation]
+   - Problem: "Sergeant", "Price", "Corporal", "Richardson", "Troopers", "Adams" — all common English words/surnames/ranks. A professional narrator knows these.
+   - Evidence: These entries add noise and reduce signal-to-noise ratio (6/20 = 30% false positives)
+   - Location: Pronunciation flagging in `src/pipeline/pronunciation.py` or proposers
+   - Fix: Add a common-word filter for military ranks and common English surnames. Or increase the "unusualness" threshold.
 
-6. **Excessive false positive proper nouns in pronunciation** [Pronunciation]
-   - Problem: 6 out of 20 pronunciation entries are common English words that any professional narrator knows: "Sergeant", "Corporal", "Price", "Adams", "Richardson", "Troopers"
-   - Evidence: These are standard English words/surnames; a narrator preparation guide should flag unusual or tricky words, not common ones
-   - Location: Pronunciation flagging logic in `src/pipeline/pronunciation.py`
-   - Fix: Add filtering for common English military ranks and common English surnames
+5. **John G. age listed as "young"** [Profiles]
+   - Problem: The profile shows `Age: young` but John G. is 22 years old. The text explicitly states: "if you counted his twenty-two years by human standards he would be eighty-eight." He is very old for a horse.
+   - Evidence: Text clearly describes his age and implies he's elderly
+   - Location: Profile generation in character profiles pipeline
+   - Fix: LLM accuracy issue — the profile agent may be confused because 22 seems young for a human. The text explicitly states his age; the LLM should capture it accurately.
 
-### MEDIUM
-7. **Corporal Richardson's relationship to Price described as "tense"** [Profiles]
-   - Problem: Listed as "subordinate-to-superior (tense professional relationship)" but the text shows a warm, bantering dynamic — the Sergeant jokes about grooming a horse with "teeth and toes" and Richardson responds with gentle philosophy
-   - Evidence: Lines 238-264 show mutual respect and humor, not tension
-   - Location: Character profile generation in `src/pipeline/character_extraction_v2/` or profile agent
+6. **Richardson-Price relationship inaccurate** [Profiles]
+   - Problem: Listed as "colleague with conflicting priorities" — should be warm subordinate-superior relationship. Richardson is a Corporal, Price is a First Sergeant. The text shows mutual respect, humor, and camaraderie.
+   - Evidence: Their dialogue shows bantering and gentle philosophy, not conflict
+   - Location: Profile generation
    - Fix: LLM accuracy issue in relationship characterization
 
-8. **Plot summary hallucination: "John G. collapses"** [Profiles/Summaries]
-   - Problem: The plot summary says "John G., the stalwart horse who carried them through the trestle, collapses from physical depletion" — the text never says John G. collapses. He has a "smoking back" (steaming from exertion) and Richardson brings medicine, but the horse doesn't collapse. In fact, after 3 hours of care "not a wet hair was left on him" and next morning he "walked out of his stall as fresh and as fit as if he had come from pasture"
-   - Evidence: Source text lines 221-268
-   - Location: Summary/overview generation
-   - Fix: LLM hallucination — the summary agent embellished the horse's condition
+### MEDIUM
+7. **John G.-Richardson relationship listed as "unknown"** [Profiles]
+   - Problem: From John G.'s perspective, Richardson is listed as relationship "unknown." Richardson spends 3 hours tending to John G. — the relationship is clearly "caretaker."
+   - Evidence: Richardson's profile correctly lists "John G.: caretaker" but the reverse direction is "unknown"
+   - Location: Profile generation — bidirectional relationship consistency
+   - Fix: If one character has relationship X→Y, the reverse Y→X should be inferred
 
-9. **Missing pronunciation entries for notable terms** [Pronunciation]
-   - Problem: Missing entries for "Allegheny" (river name, common mispronunciation), "Tien Tsin" (only "Tsin" flagged, not full place name), "I. W. W." (acronym — Industrial Workers of the World)
-   - Location: Pronunciation flagging
-   - Fix: These are genuinely useful entries for a narrator
+8. **John G. missing from chapter characters_present** [Presentation]
+   - Problem: Chapter 1's characters list shows Price, Adams, Richardson, Two Troopers — but NOT John G., the title character and protagonist
+   - Evidence: HTML chapter card lists 4 characters, John G. absent
+   - Location: Chapter summary character extraction
+   - Fix: John G. is mentioned extensively in the chapter — should be in characters_present
 
-10. **Chapter characters list missing John G.** [Presentation]
-    - Problem: The chapter's "Characters Present" list shows First Sergeant Price, Captain Adams, Corporal Richardson, Two Troopers — but NOT John G., who is the title character and central to the entire story
-    - Evidence: HTML report chapter card, line 948-961
-    - Location: Chapter summary character extraction or structure agent
-    - Fix: John G. should appear in characters_present for the chapter
+9. **"Verbal tics" for John G. are Price's dialogue** [Profiles]
+   - Problem: The "verbal tics" section shows "Come along, John, it's all right, old man!" — these are words spoken BY Price TO John G., not by the horse. This is confusing for narrator prep.
+   - Evidence: John G. is a horse and doesn't speak
+   - Location: Profile generation — the LLM attached quotes to the wrong character
+   - Fix: LLM accuracy issue; quotes should be attributed to the speaker (Price), not the addressee
 
 ### LOW
-11. **"Two Troopers" as a character entry** [Completeness]
-    - Problem: "Two Troopers" is a collective reference, not a named individual. While acceptable for narrator prep, it's unusual as a character entry
-    - This is not blocking — just notable
+10. **Missing pronunciation: "Allegheny"** — river name, commonly mispronounced
+11. **"Tien Tsin" only partially flagged** — "Tsin" captured but not full "Tien Tsin"
 
-12. **No narrator identified for third-person narrative** [Profiles]
-    - Problem: The narrative is third-person limited (following Price). No narrator is flagged. For an audiobook narrator, knowing the POV style would be useful
-    - Evidence: The overview correctly identifies "third-person limited" narrative style
-    - This is not blocking — the overview captures it
+## Priority for Fix Phase
+
+**To get Pronunciation from 6.5 → 8.0:** Fix Greensburg IPA (#1), remove false positive common words (#4). These two fixes alone would bring pronunciation to ~8.0 by eliminating the worst IPA error and improving signal-to-noise ratio. Sergeant/sharp-fanged IPA (#2, #3) are LLM accuracy issues that are harder to fix generically.
+
+**To get Profiles from 7.5 → 8.0:** Fix John G. age (#5) is the most impactful single fix. The relationship issues (#6, #7) and verbal tics (#9) are LLM accuracy issues that are harder to fix generically without novel-specific prompting.
+
+**Recommended focus:** Issues #1 and #4 (pronunciation) are most actionable with generic code changes. Issue #5 (age) may be hard to fix generically.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.55 | — (baseline) | 3 categories failing: Characters 6, Profiles 7, Pronunciation 7 |
+| 2 | 8.15 | +0.60 | 2 categories failing: Profiles 7.5, Pronunciation 6.5. Character extraction fixed (+2.5) |
 
 ## Fix History
 - Attempt 2: Three fixes applied:
-  1. **Newline normalization in NER entity names** — `supporting.py:extract():116`: changed `ent.text.strip()` to `re.sub(r"\s+", " ", ent.text).strip()`. Prevents "John\nG." artifact when text has line breaks inside names. Universal fix for any book with line-wrapped proper nouns.
-  2. **First-name+initial merge in supporting cast** — `characters.py:_merge_within_supporting_cast():~2681`: Added "firstname of initial name" pattern: when a single-word name matches the first part of a "FirstName LastInitial." name (e.g., "John" + "John G."), they're merged unconditionally (regardless of mention count). Ambiguity guard: only merges when exactly ONE candidate matches. Universal fix for any book using initial-style names (military fiction, period fiction).
-  3. **Greensburg German IPA fix** — `foreign_proposer.py:_validate_with_llm():264`: Updated LLM validation prompt to explicitly note that capitalized proper nouns (place names, personal names) with foreign-origin spellings are English words, not foreign. Prevents Greensburg and similar American place names from receiving German IPA.
-  - Root causes: (1) no internal whitespace normalization at NER extraction; (2) first-name match threshold (≤3 mentions) too conservative for initial-style names; (3) LLM validation prompt insufficient guidance on proper noun vs foreign word distinction
-  - Smoke tests: PASS — verified merging works for "John G."+"John" case and ambiguous case is correctly skipped
+  1. **Newline normalization in NER entity names** — `supporting.py:extract():116`: changed `ent.text.strip()` to `re.sub(r"\s+", " ", ent.text).strip()`. **RESULT: FIXED** ✓
+  2. **First-name+initial merge in supporting cast** — `characters.py:_merge_within_supporting_cast():~2681`: Added "firstname of initial name" pattern. **RESULT: FIXED** ✓
+  3. **Greensburg German IPA fix** — `foreign_proposer.py:_validate_with_llm():264`: Updated LLM validation prompt for proper nouns. **RESULT: NO CHANGE** ✗ — Greensburg still has German IPA. The fix was likely in the wrong codepath (entry has `type: null`, may not use foreign_proposer).
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | CRITICAL: false split + newline alias + Greensburg IPA | supporting.py, characters.py, foreign_proposer.py | awaiting analysis |
+| 2 | false split John/John G. | supporting.py, characters.py | Fixed ✓ |
+| 2 | newline alias | supporting.py | Fixed ✓ |
+| 2 | Greensburg German IPA | foreign_proposer.py | No change ✗ — wrong codepath |
+
+## Configuration Audit
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all stages — reasonable
+- Profile generation: 9 LLM calls, 4 HIGH confidence, 0 retries — healthy
+- Character extraction: 2 LLM calls, 2 MEDIUM confidence, 0 retries — fine for short text
+- No concerning retry counts or parse failures
 
 ## Next Action
-Run PROMPT_analyze.md to re-analyze with fixes applied.
+Run PROMPT_fix.md to address pronunciation issues (Greensburg IPA codepath, false positive filtering) and profile accuracy (John G. age).
