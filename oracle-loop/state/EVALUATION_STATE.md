@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_104027/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_112239/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -240,5 +240,16 @@ Fix 4 (age validation) didn't work. The fix phase should:
 | 9 | HTML timing empty rows | html_report.py | Pending re-run |
 | 9 | Pronunciation URL artifact (hermiene) | cmu_proposer.py | Pending re-run |
 
+## Pipeline Notes (Attempt 9)
+- AM added via plot_summary safety net: role=supporting, 74 text mentions ✓
+- Ted is_narrator=True confirmed ✓
+- Ages are None (age validation fix worked — no more "five years"/"nine years") ✓
+- HTML title fix confirmed: "I Have No Mouth And I Must Scream" (no underscores) ✓
+- HTML timing table fix confirmed: started_at/ended_at filtered out ✓
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority), all stages
+- 6 characters total (5 + AM from safety net)
+- Runtime: 18m 15s
+- Competitive warning: "No definitive narrator identified yet" during pipeline, but final JSON shows Ted is_narrator=True — consistent with attempt 8 behavior
+
 ## Next Action
-Run PROMPT_analyze.md — Re-analyze i_have_no_mouth with attempt 9 fixes applied.
+Run PROMPT_evaluate.md — Evaluate i_have_no_mouth attempt 9 output.
