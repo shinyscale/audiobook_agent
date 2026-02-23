@@ -568,10 +568,26 @@ class OutputCharacterCorrector:
         self.inject_narrator_appearance_final(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
         self.clean_unknown_appearance(characters)
+        self.propagate_physical_description(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.enforce_gender_consistency(characters)
+
+    def propagate_physical_description(self, characters) -> None:
+        """Copy appearance.summary to physical_description when the latter is absent.
+
+        Provides a flat top-level field for narrator convenience without duplicating
+        structured appearance data.  Skips placeholder values like 'unknown'.
+        """
+        _skip = {"", "unknown", "not described", "no physical description available in text."}
+        for char in characters:
+            if getattr(char, "physical_description", None):
+                continue  # already set
+            app = getattr(char, "appearance", None) or {}
+            summary = (app.get("summary", "") or "").strip() if isinstance(app, dict) else ""
+            if summary and summary.lower() not in _skip:
+                char.physical_description = summary
 
     def inject_narrator_appearance_final(self, characters, source_text: str) -> None:
         """Final narrator appearance injection (guaranteed-last pass).

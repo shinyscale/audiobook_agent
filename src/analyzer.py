@@ -3917,23 +3917,36 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             elif any(w in context_text for w in ("protagonist", "narrator", "hero")):
                 role = "protagonist"
 
-            # Build a minimal personality profile from plot-summary context.
-            # Uses whatever the summarizer wrote about this entity — no book-specific parsing.
+            # Build a minimal personality profile from sentences in the plot summary
+            # that directly name this character.  Sentence-level extraction avoids
+            # capturing the surrounding narrative and keeps the summary concise.
             personality = None
-            if contexts_original:
-                profile_text = " ".join(contexts_original).strip()
-                if len(profile_text) > 350:
-                    profile_text = profile_text[:350].rsplit(" ", 1)[0] + "…"
+            _plot_sentences = re.split(r'(?<=[.!?;])\s+', plot_summary_text)
+            _name_sentences = [
+                s for s in _plot_sentences
+                if re.search(r'\b' + re.escape(name) + r'\b', s)
+            ]
+            if _name_sentences:
+                profile_text = " ".join(_name_sentences[:3]).strip()
+                if len(profile_text) > 200:
+                    profile_text = profile_text[:200].rsplit(" ", 1)[0] + "…"
                 personality = {"summary": profile_text}
 
-            # Build relationships: any existing character mentioned in context
+            # Build relationships: any existing character mentioned in context.
+            # Use a role-appropriate label instead of a generic placeholder.
+            if role == "antagonist":
+                rel_label = "adversary"
+            elif role == "protagonist":
+                rel_label = "ally"
+            else:
+                rel_label = "associate"
             known_names = {c.canonical_name for c in characters}
             relationships: dict = {}
             for other_name in known_names:
                 if other_name != name and re.search(
                     r'\b' + re.escape(other_name) + r'\b', context_text, re.IGNORECASE
                 ):
-                    relationships[other_name] = "see plot summary"
+                    relationships[other_name] = rel_label
 
             new_char = OutputCharacter(
                 id=f"plot_summary_{name.lower()}",

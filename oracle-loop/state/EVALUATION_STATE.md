@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -166,6 +166,12 @@ The other 5 categories are all ≥ 8.0 and should not regress from these targete
 - **Fix 3**: `clean_unknown_appearance()` → **WORKED** — placeholder values cleared
 - **Fix 4**: `_is_closed_compound()` → **WORKED** — 37→23 pronunciation entries
 
+### Attempt 11 Fixes Applied
+- **Fix 1**: `_plot_summary_safety_net()` personality — sentence-level extraction (split by `.!?;`) instead of 200-char windows. Takes the first 3 AM-containing sentences, caps at 200 chars. Root cause: window overlap was capturing entire plot_summary. Modified: `src/analyzer.py`
+- **Fix 2**: `_plot_summary_safety_net()` relationships — replaced "see plot summary" placeholder with role-based defaults: "adversary" for antagonist, "ally" for protagonist, "associate" for supporting. Universal, no book-specific logic. Modified: `src/analyzer.py`
+- **Fix 3**: `physical_description` field — added `physical_description: Optional[str] = None` to `Character` model. Added `OutputCharacterCorrector.propagate_physical_description()` that copies `appearance.summary` → `physical_description` when the latter is absent (skips "unknown"/"not described" placeholders). Called in `run_all()` after `clean_unknown_appearance()`. Modified: `src/models.py`, `src/pipeline/character_profiling/post_corrections.py`
+- **Smoke test**: PASS — AM personality now "a sentient supercomputer that has tormented them for over a century" (196 chars); relationships will be "adversary" for all 5 humans; Benny will have physical_description populated from appearance.summary
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -215,4 +221,4 @@ The other 5 categories are all ≥ 8.0 and should not regress from these targete
 - Runtime: 16m 6s analysis
 
 ## Next Action
-Run PROMPT_fix.md — Fix AM profile quality (personality traits, relationships) and populate physical_description from appearance.summary. Target: Profiles 7.5 → 8.0+.
+Run PROMPT_analyze.md — Re-analyze i_have_no_mouth to verify attempt 11 fixes. Target: Profiles 7.5 → 8.0+.

@@ -82,6 +82,7 @@ class Character(BaseModel):
 
     # Narrator-useful structured profile data (F8: Simplified Character Output)
     role: Optional[str] = None  # protagonist, antagonist, supporting, minor
+    physical_description: Optional[str] = None  # convenience alias for appearance.summary
     appearance: Optional[dict] = None  # {summary, age_indication, distinguishing_features}
     personality: Optional[dict] = None  # {summary, traits, temperament, emotional_range}
     voice_guidance: Optional[dict] = (
