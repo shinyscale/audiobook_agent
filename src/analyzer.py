@@ -3759,10 +3759,14 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             # one supporting quote; zero evidence indicates a false positive (e.g. an
             # exclamation captured by NER as a PERSON entity). This is a universal
             # invariant — applies to any book, any genre.
+            # Exception: characters with significant mention counts (>5) are real
+            # regardless of whether profile JSON parsing succeeded — a failed parse
+            # can produce empty evidence for a genuine character (e.g. Nimdok).
             if (
                 hasattr(pc, "profile_evidence")
                 and not pc.profile_evidence
                 and not getattr(pc, "is_narrator", False)
+                and getattr(pc, "mention_count", 0) <= 5
             ):
                 logger.info(
                     f"Discarding '{pc.canonical_name}' — profiled with 0 evidence (false positive)"
@@ -3918,8 +3922,10 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                 role = "protagonist"
 
             # Build a minimal personality profile from sentences in the plot summary
-            # that directly name this character.  Sentence-level extraction avoids
-            # capturing the surrounding narrative and keeps the summary concise.
+            # that directly name this character.  Prefer sentences where the character
+            # is the subject (sentence starts with the name or possessive) — these
+            # describe the character's actions/traits directly.  Fall back to any
+            # sentence mentioning the name if no subject-position sentences exist.
             personality = None
             _plot_sentences = re.split(r'(?<=[.!?;])\s+', plot_summary_text)
             _name_sentences = [
@@ -3927,7 +3933,13 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                 if re.search(r'\b' + re.escape(name) + r'\b', s)
             ]
             if _name_sentences:
-                profile_text = " ".join(_name_sentences[:3]).strip()
+                # Prefer sentences where the character leads (subject/possessive)
+                _subject_sentences = [
+                    s for s in _name_sentences
+                    if re.match(r"^" + re.escape(name) + r"(\b|'s?\b)", s)
+                ]
+                _selected = _subject_sentences[:3] if _subject_sentences else _name_sentences[:3]
+                profile_text = " ".join(_selected).strip()
                 if len(profile_text) > 200:
                     profile_text = profile_text[:200].rsplit(" ", 1)[0] + "…"
                 personality = {"summary": profile_text}

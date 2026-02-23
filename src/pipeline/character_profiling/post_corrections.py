@@ -577,6 +577,7 @@ class OutputCharacterCorrector:
     def propagate_physical_description(self, characters) -> None:
         """Copy appearance.summary to physical_description when the latter is absent.
 
+        Falls back to joining distinguishing_features when summary is null.
         Provides a flat top-level field for narrator convenience without duplicating
         structured appearance data.  Skips placeholder values like 'unknown'.
         """
@@ -585,9 +586,18 @@ class OutputCharacterCorrector:
             if getattr(char, "physical_description", None):
                 continue  # already set
             app = getattr(char, "appearance", None) or {}
-            summary = (app.get("summary", "") or "").strip() if isinstance(app, dict) else ""
+            if not isinstance(app, dict):
+                continue
+            summary = (app.get("summary", "") or "").strip()
             if summary and summary.lower() not in _skip:
                 char.physical_description = summary
+                continue
+            # Fall back: build from distinguishing_features when summary is absent
+            features = app.get("distinguishing_features") or []
+            if isinstance(features, list):
+                valid = [f.strip() for f in features if isinstance(f, str) and f.strip()]
+                if valid:
+                    char.physical_description = "; ".join(valid).capitalize() + "."
 
     def inject_narrator_appearance_final(self, characters, source_text: str) -> None:
         """Final narrator appearance injection (guaranteed-last pass).

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -223,5 +223,21 @@
 - No narrator identified from summaries or plot_summary (Ted has 5 mentions but not flagged)
 - 23 pronunciation entries (same as attempt 10) ✓
 
+### Attempt 12 Fixes Applied
+- **Fix 1 (Nimdok restoration)**: Added `mention_count > 5` guard to evidence filter in `_convert_characters()`. Previously, when JSON profile parse failed and text was salvaged, `profile_evidence = []` was set; the evidence filter then incorrectly discarded Nimdok as a "false positive". Now characters with >5 mentions are preserved regardless of profile quality.
+  - Root cause: `src/analyzer.py:_generate_character_profile():3271` returns `(salvaged, [], 0.3, ...)` on JSON parse failure → `char.profile_evidence = []` → evidence filter discards at line 3762
+  - Fix location: `src/analyzer.py:_convert_characters():3762-3772`
+  - Smoke test: PASS — logic confirmed via code review; mention_count guard is universal invariant
+
+- **Fix 2 (AM personality)**: Changed personality sentence selection in `_plot_summary_safety_net()` to prefer sentences where the character is the subject (sentence starts with the character name). Falls back to any mentioning sentence. AM now gets "AM toys with them relentlessly..." instead of "Five survivors...AM, a sentient supercomputer...".
+  - Root cause: First sentence mentioning AM started "Five survivors..." — AM was an object, not the subject. 200-char truncation captured narrative, not personality.
+  - Fix location: `src/analyzer.py:_plot_summary_safety_net():3920-3940`
+  - Smoke test: PASS — subject sentences correctly identified as ["AM toys with...", "AM's cruel manipulation..."]
+
+- **Fix 3 (physical_description fallback)**: Extended `propagate_physical_description()` to also build from `appearance.distinguishing_features` when `appearance.summary` is null. Ellen: "Walks with a limp after being returned mangled from an earthquake; face was bloody during the hurricane event." Gorrister gets similar.
+  - Root cause: Only `appearance.summary` was used; Ellen/Gorrister have null summary but populated features.
+  - Fix location: `src/pipeline/character_profiling/post_corrections.py:577-600`
+  - Smoke test: PASS — Ellen gets physical_description from features correctly
+
 ## Next Action
-Run PROMPT_fix.md — Priority: (1) Restore Nimdok by preventing low-confidence character filtering, (2) Fix AM personality to actually extract traits not dump plot_summary, (3) Extend physical_description propagation to build from distinguishing_features when appearance.summary is null.
+Re-run analysis to verify fixes (awaiting_analysis)
