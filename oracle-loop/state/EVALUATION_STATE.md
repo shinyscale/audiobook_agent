@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 14
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -18,14 +18,14 @@
   - Completeness: 9/10
   - Identity Resolution: 10/10
   - Alias Grouping: 9/10
-- Character Profiles: 7/10 ✗ (FAILING — down from 7.5 in attempt 12; Ellen profile REGRESSED, AM still broken)
+- Character Profiles: 7.5/10 ✗ (FAILING — up from 7.0 in attempt 13; execution ordering fix WORKED but replacement quality poor)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 8.53/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold — Profiles regressed from 7.5 to 7.0)
+**Status:** FAIL (1 category below threshold — Profiles at 7.5)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -43,81 +43,85 @@
 | 11 | 8.03 | +0.68 | **REGRESSION.** Nimdok DROPPED (6→5 chars). AM personality still plot_summary dump. 1→2 failing categories. |
 | 12 | 8.53 | +1.18 | Nimdok RESTORED. 4/6 physical_desc (up from 1/6). AM personality STILL broken (3rd failed attempt). 2→1 failing category. |
 | 13 | 8.45 | +1.10 | **MINOR REGRESSION.** AM personality post-correction DID NOT WORK (4th failure — root cause found: execution ordering). Ellen profile REGRESSED (stochastic LLM failure). 3/6 physical_desc (was 4/6). |
+| 14 | 8.53 | +1.18 | Execution ordering fix WORKED — plot dump gone! But replacement is garbled sentence fragments. Ellen restored. Nimdok improved. AM personality still not useful. |
 
-## What Happened in Attempt 13
+## What Happened in Attempt 14
 
 ### Fix Applied
-1. **`clean_plot_summary_personality()` post-correction (IMPLEMENTED)**: Added to `OutputCharacterCorrector` in `post_corrections.py`. Detects personality summaries mentioning 3+ other character names. Should replace with character-subject sentences from source text or clear to None.
+1. **Execution ordering fix in `analyzer.py`**: Moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()`. The post-correction now sees AM in the character list.
 
-### Result: DID NOT WORK — ROOT CAUSE IDENTIFIED
+### Result: PARTIALLY WORKED — Ordering Fixed, Replacement Quality Poor
 
-**The post-correction code is correct but NEVER SEES AM due to execution ordering:**
-- `OutputCharacterCorrector().run_all(characters, doc.text)` runs at `analyzer.py:2071`
-- `_plot_summary_safety_net()` adds AM at `analyzer.py:2077`
-- The post-correction runs 6 lines BEFORE AM is added to the characters list
-- Therefore `clean_plot_summary_personality()` cannot detect or fix AM's personality — AM doesn't exist yet
+**The execution ordering fix succeeded:**
+- `clean_plot_summary_personality()` now detects AM's personality mentions 3+ other characters ✓
+- It replaces the full plot dump with source-text subject sentences ✓
+- The plot dump is GONE — no more multi-paragraph narrative in personality ✓
 
-This is the root cause of ALL 4 consecutive failures (attempts 10-13). Every approach that runs in OutputCharacterCorrector or before the safety net will fail because AM is added AFTER all post-corrections.
+**But the replacement is garbled:**
+- AM personality is now: `"AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."`
+- Problems:
+  1. First "sentence" is just `"AM."` — the character name with a period, not a personality descriptor
+  2. `"aswith"` — text artifact from missing space in source PDF extraction
+  3. These are narrative action sentences, not personality traits
+  4. Doesn't capture any of AM's key personality: sadistic, omnipotent, hateful, creative in cruelty
+  5. Less useful than null — a narrator reading this gets confused rather than informed
 
-### Stochastic Regression
-- **Ellen profile REGRESSED**: Character Profiles stage shows 4H/0M/1L (was 5H/0M/0L in attempt 12). Ellen's profile parse FAILED (low confidence 0.30, "Failed to parse JSON response for Ellen"). This is LLM variance, not caused by code changes.
-- **physical_description dropped from 4/6 to 3/6**: Ellen lost her physical_description along with her entire profile.
+### Stochastic Improvements (not from code changes)
+- **Ellen profile RESTORED**: 5H/0M/0L (was 4H/0M/1L in attempt 13). Ellen now has full personality, physical_description, and relationships ✓
+- **Nimdok chimpanzee error GONE**: No longer says "resembling a chimpanzee AM intended him to resemble" (that was Benny's description). Now has accurate description ✓
+- **AM relationships complete**: All 5 humans listed as "adversary" including Ellen (was missing in attempt 13) ✓
+- **physical_description: 4/6** (up from 3/6 in attempt 13, same as attempt 12)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **AM personality.summary is STILL the plot_summary dump — 4 FAILED ATTEMPTS, ROOT CAUSE FOUND** [Profiles]
-   - Problem: AM's personality reads: "In the desolate, subterranean ruins of a post-apocalyptic world, five survivors—Ted, Ellen, Nimdok, Gorrister, and Benny—trudge through caverns…" — narrative text, not personality traits.
-   - **ROOT CAUSE**: `OutputCharacterCorrector().run_all()` at `analyzer.py:2071` runs BEFORE `_plot_summary_safety_net()` at `analyzer.py:2077`. The `clean_plot_summary_personality()` method works correctly but AM doesn't exist in the character list when it runs.
-   - **FIX**: Move `OutputCharacterCorrector().run_all(characters, doc.text)` to AFTER `_plot_summary_safety_net()`. Specifically, swap lines 2071 and 2077 so the safety net adds AM first, then post-corrections clean up all characters including AM. This is a 2-line change in `analyzer.py`.
-   - **ALTERNATIVE**: Call `OutputCharacterCorrector().clean_plot_summary_personality(characters, doc.text)` a SECOND time after the safety net. But the move is cleaner.
-   - Target: AM's personality should be replaced with subject sentences from the source text or cleared to None.
-
-### HIGH
-2. **Nimdok physical_description factual error** [Profiles]
-   - Problem: "resembling a chimpanzee AM intended him to resemble" — this is Benny, not Nimdok.
-   - Root cause: LLM profiling hallucination in `appearance.distinguishing_features`.
-   - Not addressable with a simple code fix — would need cross-character consistency checking.
-   - **Deprioritize**: Fixing CRITICAL #1 should be sufficient to reach 8.0. Nimdok's error is minor compared to AM's broken personality.
-
-3. **Ellen profile empty (stochastic)** [Profiles]
-   - Problem: Ellen has null personality, null physical_description, null appearance. Profile parse failed this run.
-   - Root cause: Stochastic LLM failure ("Failed to parse JSON response for Ellen", confidence 0.30).
-   - This is LLM variance — re-running may restore it. Not a code fix issue.
-   - Impact: Contributes to 3/6 physical descriptions (was 4/6).
+1. **AM personality is garbled sentence fragments — replacement quality too low** [Profiles]
+   - Problem: AM's personality reads: `"AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."` — extracted source-text sentences that are narrative actions, not personality traits. Contains text artifact ("aswith"). Worse than null for narrator preparation.
+   - Root cause: `clean_plot_summary_personality()` extracts sentences from source text where "AM" is the grammatical subject. For Ellison's prose, those sentences describe AM's actions ("had blinded", "had been ruthless") not personality traits. The method correctly detects the plot dump and correctly extracts subject sentences, but the subject sentences are the wrong type of content.
+   - **TWO-PART FIX needed:**
+     - **Part A — Safety net personality** (`analyzer.py:3926-3947`): Instead of building personality from full plot-summary sentences (which mention other characters → trigger post-correction → get replaced with poor source sentences), extract ADJECTIVE PHRASES from the plot_summary context that describe the character. The plot summary already contains: "omnipotent and sadistic AI", "relentless cruelty", "Enraged by this ultimate defiance". Build personality like: `"Omnipotent and sadistic. Shows relentless cruelty and becomes enraged by defiance."` This personality won't mention 3+ other characters → post-correction won't flag it → clean personality survives.
+     - **Part B — Fallback quality** (`post_corrections.py:949-967`): Add a quality filter to `clean_plot_summary_personality()`. If extracted subject sentences are < 50 chars total, or if ANY sentence is just the character name + period (e.g., "AM."), fall back to `None` instead of using garbled fragments. The method's docstring already says "Clearing (None) is always preferable to retaining a misleading plot dump."
+   - Location: `analyzer.py` (`_plot_summary_safety_net`), `post_corrections.py` (`clean_plot_summary_personality`)
+   - Expected impact: AM gets a usable personality description → Profiles reaches 8.0
 
 ### MEDIUM
-4. **AM missing Ellen from relationships** [Profiles]
-   - AM's relationships list Ted, Nimdok, Benny, Gorrister as "adversary" but omits Ellen.
-   - Minor — relationships are generic anyway.
-
-5. **Remaining pronunciation false positives** [Pronunciation]
+2. **Remaining pronunciation false positives** [Pronunciation]
    - "palette", "piteously", "eternities", "shoal" are standard English words.
    - Not a threshold blocker (Pronunciation at 8.0).
 
-6. **"choir" IPA wrong** [Pronunciation]
+3. **"choir" IPA wrong** [Pronunciation]
    - Listed as /kwɑːr/, correct is /kwaɪər/.
    - Not a threshold blocker.
 
 ### LOW
-7. **Ted's personality too flat** [Profiles]
+4. **Ted's personality too flat** [Profiles]
    - Misses paranoid, cynical, unreliable narrator traits.
-   - LLM profiling quality issue.
+   - LLM profiling quality issue, not code-fixable.
 
-8. **AM relationships too generic** [Profiles]
+5. **AM relationships too generic** [Profiles]
    - All say "adversary". More specific descriptions would help narrators.
+   - Low priority — relationships are functional.
 
-## Fix Priority for Attempt 14
+## Fix Priority for Attempt 15
 
-**The ONLY fix needed is CRITICAL #1 — move OutputCharacterCorrector to run AFTER the safety net.**
+**CRITICAL #1 is the ONLY remaining blocker.**
 
-In `analyzer.py`, change the order so that:
-1. `_plot_summary_safety_net()` runs FIRST (adds AM to characters)
-2. `OutputCharacterCorrector().run_all(characters, doc.text)` runs SECOND (cleans up all characters including AM)
+The fix has two parts (both needed):
 
-This is a ~5 line reorder. The `clean_plot_summary_personality()` code is already correct and tested — it just needs to see AM in the character list.
+### Part A: Better safety net personality (analyzer.py)
+In `_plot_summary_safety_net()` at lines 3926-3947, replace the sentence-extraction approach with adjective/descriptor extraction from the plot_summary context:
+1. From the `contexts_original` list (already computed at line 3913-3914), extract adjective phrases that modify or describe the character
+2. Look for patterns like `"{NAME}.*?(adjective|trait word)"` or `"(adjective) {common_noun_for_character}"`
+3. Build a short personality summary from these descriptors: e.g., "Omnipotent and sadistic. Shows relentless cruelty."
+4. This personality will NOT mention 3+ other character names → `clean_plot_summary_personality()` won't flag it
 
-Expected impact: AM personality cleaned → +1.0 on Profiles → 8.0. Combined with existing passing scores, this should PASS.
+### Part B: Quality filter in post-correction (post_corrections.py)
+In `clean_plot_summary_personality()` at lines 963-967, add quality checks before using extracted sentences:
+1. Filter out sentences that are just the character name + punctuation (e.g., "AM.")
+2. If remaining sentences total < 50 chars, fall back to `None` instead of using them
+3. Check for text artifacts (consecutive words without spaces) — if found, fall back to `None`
+
+Expected impact: AM personality either gets clean adjective-based description (Part A) or falls to null (Part B). Either is 8.0-worthy compared to current garbled fragments.
 
 ## Fix History
 
@@ -185,7 +189,7 @@ Expected impact: AM personality cleaned → +1.0 on Profiles → 8.0. Combined w
 - **Fix 1**: `clean_plot_summary_personality()` post-correction in OutputCharacterCorrector → **DID NOT WORK** (4th failure) — ROOT CAUSE: OutputCharacterCorrector runs BEFORE safety net adds AM. Code is correct but never sees AM.
 
 ### Attempt 14 Fix Applied
-- **Fix 1**: Reordered execution in `analyzer.py:2067-2079` — moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()`. Safety net now adds AM first; post-corrections then clean all characters including AM. This is the root cause fix for 4 consecutive personality failures.
+- **Fix 1**: Reordered execution in `analyzer.py:2067-2079` — moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()` → **PARTIALLY WORKED** — Plot dump replaced with source sentences, but extracted sentences are garbled fragments ("AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."). Ordering is now correct; replacement quality is the issue.
 
 ## Modification History
 
@@ -231,35 +235,30 @@ Expected impact: AM personality cleaned → +1.0 on Profiles → 8.0. Combined w
 | 12 | AM personality subject-sentence | analyzer.py (_plot_summary_safety_net) | **DID NOT WORK** (3rd failure) |
 | 12 | physical_description from features | post_corrections.py | **WORKED** — 4/6 chars have desc |
 | 13 | AM personality post-correction | post_corrections.py (clean_plot_summary_personality) | **DID NOT WORK** — correct code but runs before AM exists |
+| 14 | Execution ordering (safety net before post-corrections) | analyzer.py | **PARTIALLY WORKED** — ordering fixed, but replacement quality poor |
 
-**⚠️ ROOT CAUSE FOUND:** The issue is execution ordering in `analyzer.py`. `OutputCharacterCorrector().run_all()` at line 2071 runs BEFORE `_plot_summary_safety_net()` at line 2077. Moving post-corrections to AFTER the safety net will fix AM's personality on the next run.
+**⚠️ AM PERSONALITY — 5TH ATTEMPT**: The execution ordering is now correct. The problem is now PURELY about replacement quality: source-text subject sentences are narrative actions, not personality descriptors. Fix must target the personality content generation, not the detection/execution flow.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
 - Context: 32768 tokens — sufficient for a short story (~5400 words)
 - Temperature: 0.7 for all stages
 - Character Extraction: 5 LLM calls (0 main_cast, 5 supporting, 1 safety net)
-- Character Profiles: 15 LLM calls, 5 items processed, 4H/0M/1L (Ellen failed parse)
-- 0 LLM retries, 0 JSON parse failures (in extraction — profile parse failure is separate)
+- Character Profiles: 15 LLM calls, 5 items processed, **5H/0M/0L** (ALL high confidence — Ellen restored)
+- 0 LLM retries, 0 JSON parse failures
 - Pronunciation: 23 entries (unchanged from attempt 10)
-- Runtime: 16m 48s
+- Runtime: 17m 10s
 
 ## Pipeline Notes (Attempt 14)
 - 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
 - Character Profiles: **5H/0M/0L** — ALL profiles high confidence (Ellen no longer failing)
 - AM safety net fired: role=antagonist, 74 mentions ✓
+- Execution ordering fix applied: OutputCharacterCorrector now runs AFTER _plot_summary_safety_net ✓
+- clean_plot_summary_personality() FIRED on AM: detected 3+ other character names, replaced with source-text subject sentences
+- Replacement result: "AM. AM had been as ruthless with its own life aswith ours. AM had blinded him." (garbled)
 - LLM marker proposer returned non-list (dict) × 3 during structure detection → fell back to "No valid proposals - returning single chapter" → found 1 chapter
 - 23 pronunciation entries (unchanged)
 - Runtime: 17m 10s
-- Execution ordering fix applied: OutputCharacterCorrector now runs AFTER _plot_summary_safety_net
-
-## Pipeline Notes (Attempt 13)
-- 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
-- Character Profiles: 4H/0M/1L — Ellen profile parse FAILED (low confidence 0.30), "Failed to parse JSON response for Ellen"
-- AM safety net fired: role=antagonist, 74 mentions ✓
-- LLM marker proposer returned non-list (dict) × 3 during structure detection → fell back to "No valid proposals - returning single chapter" → found 1 chapter
-- 23 pronunciation entries (unchanged)
-- Runtime: 16m 48s
 
 ## Next Action
-Run PROMPT_analyze.md to re-run the pipeline and verify fix.
+Run PROMPT_fix.md to improve AM personality quality (CRITICAL #1 — two-part fix in analyzer.py and post_corrections.py)
