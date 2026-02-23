@@ -177,6 +177,11 @@ class SupportingCastExtractor:
         if len(name) < 2:
             return False
 
+        # Proper names start with an uppercase letter (universal invariant).
+        # Lowercase NER detections (e.g., "bush", "cat") are common nouns, not character names.
+        if not name[0].isupper():
+            return False
+
         # Skip possessive forms (e.g., "John Donaldson's") — these are not character names,
         # they are ownership references. Possessives would otherwise appear as false alias entries.
         if name.endswith("'s") or name.endswith("\u2019s"):

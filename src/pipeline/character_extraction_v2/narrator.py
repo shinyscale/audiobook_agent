@@ -37,7 +37,7 @@ class NarratorInfo:
 NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of view.
 
 Based on the summaries below, determine:
-1. Is this told in first-person (narrator says "I") or third-person?
+1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are always written in third-person regardless of the original story's style—judge by whose perspective drives the story and whose inner thoughts/fears are described, not by the summary's grammar.
 2. If first-person, WHO is the narrator? (must be a character from the main cast)
 3. Is this a nested/frame narrative with multiple narrators?
 
@@ -69,7 +69,7 @@ For nested narratives (like Frankenstein with Walton's letters framing Victor's 
 }}
 ```
 
-Analyze the narrative structure now:"""
+Determine the narrative POV now:"""
 
 
 class NarratorDetector:

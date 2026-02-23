@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -111,20 +111,35 @@
     - Fix: LLM profile accuracy issue. No easy generic fix.
 
 ## Fix History
-(No previous attempts)
+
+### Attempt 1 Fixes Applied
+
+**Fix 1 (characters.py):** Move supporting cast mention search to BEFORE promotion (new STEP 5.7.5)
+- Root cause: STEP 5.8 promotion was using NER mention counts (which undercount actual text occurrences), while the deterministic mention search only ran in STEP 5.10.5 AFTER promotion decisions were made. This caused all 5 human characters to remain "minor" despite having 5-35 actual mentions.
+- Fix: Added STEP 5.7.5 that runs `searcher.search_all(supporting_cast)` before STEP 5.8, so promotion uses accurate mention counts.
+- Expected: Benny (35), Ellen (30), Gorrister (29), Nimdok (17) → "protagonist"; Ted (5) → "supporting"
+
+**Fix 2 (characters.py):** Add narrator re-detection after promotion (STEP 5.8.5)
+- Root cause: Narrator detection (STEP 4) ran with an empty main_cast (all LLM characters failed grounding). With no candidates to match against, narrator returned "unknown".
+- Fix: After STEP 5.8 promotion, if narrator_info.narrator_name is None, re-run narrator detection with the updated main_cast (which now includes promoted characters like Ted).
+
+**Fix 3 (narrator.py):** Fix NARRATOR_DETECTION_PROMPT to account for 3rd-person summaries
+- Root cause: The prompt asked "does the narrator say 'I'?" but chapter summaries are always written in 3rd-person by the summarizer, so the LLM never sees first-person text in the summaries.
+- Fix: Added note that summaries are always in 3rd-person - the LLM should judge by story perspective and whose inner thoughts are revealed, not by summary grammar.
+
+**Fix 4 (supporting.py):** Add universal invariant: proper names must start with uppercase
+- Root cause: NER sometimes tags lowercase common nouns (e.g., "bush") as PERSON entities.
+- Fix: Added check `if not name[0].isupper(): return False` in `_is_valid_name()`. Universal invariant: proper character names always start with uppercase in standard English prose.
+
+**Bug fix (characters.py):** Fixed `chapters` variable shadowing in STEP 5.10.5
+- The inner `chapters = sorted(...)` loop was overwriting the outer `chapters` (list of StructuralElement objects), potentially corrupting `total_chapters` in CharacterMap.
+- Renamed inner variable to `chapter_indices`.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Roles wrong, narrator undetected, false positives | characters.py, narrator.py, supporting.py | Awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: AM missing from character list (main cast pipeline failure)
-2. CRITICAL: Ted not flagged as narrator
-3. HIGH: False positive characters "Jesus" and "bush"
-4. HIGH: Wrong age extraction
-5. MEDIUM: Pronunciation artifacts and false positives
-
-Focus on issues #1-4 first as they affect Character Extraction (6/10) and Profiles (6/10) — the two biggest failing categories. Pronunciation fixes (#6-8) can follow if needed.
+Phase: awaiting_analysis - Re-run analysis on i_have_no_mouth to verify fixes.

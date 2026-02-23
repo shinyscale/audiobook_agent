@@ -633,6 +633,28 @@ class CharacterAgent(Agent):
             f"after final narrator filter"
         )
 
+        # STEP 5.7.5: Update mention counts for supporting cast BEFORE promotion
+        # Supporting cast NER counts may undercount actual text occurrences (spaCy misses some
+        # entity detections). Running deterministic mention search here ensures that STEP 5.8
+        # promotion decisions are based on accurate counts, not NER approximations.
+        if supporting_cast:
+            logger.info(
+                f"V2 Step 5.7.5: Pre-promotion mention search for {len(supporting_cast)} supporting characters"
+            )
+            try:
+                pre_promotion_results = searcher.search_all(supporting_cast)
+                supporting_cast = searcher.update_characters_with_mentions(
+                    supporting_cast, pre_promotion_results
+                )
+                mention_results.update(pre_promotion_results)
+                for char in supporting_cast:
+                    r = pre_promotion_results.get(char.id)
+                    if r and r.chapter_distribution:
+                        chapter_indices = sorted(r.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapter_indices[0]
+            except Exception as e:
+                logger.warning(f"Pre-promotion mention search failed: {e}")
+
         # STEP 5.8: Post-processing - Promote high-mention supporting characters to main cast
         # This addresses cases where the LLM fails to extract key characters in main_cast
         # but they get picked up by NER-based supporting_cast extraction
@@ -694,6 +716,30 @@ class CharacterAgent(Agent):
             f"after promotion"
         )
 
+        # STEP 5.8.5: Re-run narrator detection if narrator was not identified in STEP 4
+        # This handles the case where main_cast was empty during STEP 4 (LLM extraction failed
+        # or all candidates were filtered by grounding), but promotion in STEP 5.8 has now
+        # added characters to main_cast. With actual characters available, narrator detection
+        # has better context to match the narrator name to a known character.
+        if (narrator_info.pov in ("unknown", "") or narrator_info.narrator_name is None) and main_cast:
+            logger.info(
+                f"V2 Step 5.8.5: Re-running narrator detection with {len(main_cast)} characters "
+                f"(initial detection returned pov='{narrator_info.pov}')"
+            )
+            try:
+                narrator_info = narrator_detector.detect(
+                    chapter_summaries, main_cast, plot_summary
+                )
+                main_cast = narrator_detector.update_characters_with_narrator(
+                    main_cast, narrator_info
+                )
+                logger.info(
+                    f"V2 Step 5.8.5 complete: pov={narrator_info.pov}, "
+                    f"narrator={narrator_info.narrator_name}"
+                )
+            except Exception as e:
+                logger.warning(f"Narrator re-detection failed: {e}")
+
         # STEP 5.9: REMOVED - Non-sentient object filter
         # Symbolic objects/forces can be valid "characters" for narrator preparation
         # Examples: "the monkey's paw" (title antagonist), "the eyes of Doctor T. J. Eckleburg" (symbolic presence)
@@ -733,8 +779,8 @@ class CharacterAgent(Agent):
                 for char in supporting_cast:
                     r = supporting_results.get(char.id)
                     if r and r.chapter_distribution:
-                        chapters = sorted(r.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+                        chapter_indices = sorted(r.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapter_indices[0]
             except Exception as e:
                 logger.warning(f"Supporting cast mention search failed: {e}")
 
