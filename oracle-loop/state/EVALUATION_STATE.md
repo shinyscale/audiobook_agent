@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_030910/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_034103/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -266,5 +266,13 @@ After profiling completes, discard any character whose `evidence` list is empty 
 - **File:** `src/analyzer.py:_convert_characters()` (13 lines added before confidence mapping)
 - **Smoke test:** Import check passes. Jesus has `profile_evidence = []` after profiling → filtered out.
 
+## Pipeline Notes (Attempt 7)
+- Runtime: 17m 58s, 61 LLM calls, 73,785 tokens
+- Characters found: 5 (Benny, Ellen, Gorrister, Nimdok, Ted) — AM still absent
+- "V2 Step 3.1 FALLBACK" fired again but AM still not in output — grounding bypass may not have taken effect
+- "No definitive narrator identified" — Ted narrator fix did not fire
+- Fix 3 (Jesus false positive) appears to have worked — 5 chars vs 6 previously
+- Chapter Summaries: 0 LLM calls (cached from prior run)
+
 ## Next Action
-Set phase to awaiting_analysis and re-run the pipeline.
+Evaluate attempt 7 output.
