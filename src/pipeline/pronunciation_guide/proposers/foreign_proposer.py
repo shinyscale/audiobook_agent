@@ -261,8 +261,7 @@ class ForeignProposer(BasePronunciationProposer):
                     f'- Word: "{p.word}" (flagged as {p.language_hint})\n' f'  Context: "{context}"'
                 )
 
-            prompt = f"""Review these words that were flagged as potentially foreign based on spelling patterns.
-For each, determine if it's ACTUALLY being used as a foreign word/phrase, or if it's just a common English word that happens to match a foreign pattern.
+            prompt = f"""Review these words flagged as potentially foreign. Determine if each is ACTUALLY used as a non-English term in the text, or an English/American word that happens to match a foreign spelling pattern.
 
 {chr(10).join(candidates_text)}
 
@@ -271,7 +270,7 @@ Return a JSON array with your assessment for each word:
   {{"word": "example", "is_foreign": true/false, "reason": "brief explanation"}}
 ]
 
-Only mark as foreign if the word is genuinely from another language and would need special pronunciation guidance for an English narrator."""
+Only mark as foreign if the word is genuinely used as a non-English term in context. Capitalized proper nouns (place names, personal names) with foreign-origin spellings are English words—mark them not foreign."""
 
             try:
                 result, response = self.llm_client.query_json(prompt)

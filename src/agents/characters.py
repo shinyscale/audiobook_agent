@@ -2670,20 +2670,26 @@ class CharacterAgent(Agent):
                     matches.append((other_idx, "fuzzy_lastname"))
                     continue  # Skip first-name check for this other_char
 
-                # First-name match for rare full-name characters (e.g., "Ted" → "Ted Frith").
-                # Universal pattern: a character introduced by full name, then referenced by
-                # first name only. Conditions:
-                #   1. Single-word matches the FIRST WORD of the full name
-                #   2. Full-name appears rarely (≤ 3 NER mentions) — likely just the introduction
-                # Note: NER counts are unreliable for short/informal names vs formal full names.
-                # The ≤3 guard on the full name is sufficient to prevent false merges with
-                # frequently-mentioned characters (e.g., "John Donaldson" with 7 mentions > 3).
+                # First-name match for two cases:
+                # Case A: "FirstName LastInitial." pattern (e.g., "John" → "John G.")
+                #   When a full name uses a single-letter last initial, a reference to
+                #   just the first name is always the same person. Universal: any book
+                #   with initial-style names (military, formal, period fiction) benefits.
+                # Case B: Rare full-name characters (e.g., "Ted" → "Ted Frith").
+                #   Universal pattern: character introduced by full name, then referenced
+                #   by first name only. The ≤3 guard prevents false merges with
+                #   frequently-mentioned characters.
                 other_firstname = other_parts[0].strip(".,;:")
-                if (
-                    char_name.lower() == other_firstname.lower()
-                    and other_char.mention_count <= 3
-                ):
-                    matches.append((other_idx, "exact_firstname_of_rare_fullname"))
+                if char_name.lower() == other_firstname.lower():
+                    remaining_parts = other_parts[1:]
+                    all_initials = bool(remaining_parts) and all(
+                        len(p.strip(".,;:")) == 1 and p.strip(".,;:").isalpha()
+                        for p in remaining_parts
+                    )
+                    if all_initials:
+                        matches.append((other_idx, "firstname_of_initial_name"))
+                    elif other_char.mention_count <= 3:
+                        matches.append((other_idx, "exact_firstname_of_rare_fullname"))
 
             # Merge if exactly ONE match
             if len(matches) == 1:

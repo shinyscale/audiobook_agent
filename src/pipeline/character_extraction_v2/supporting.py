@@ -113,7 +113,7 @@ class SupportingCastExtractor:
                 if ent.label_ != "PERSON":
                     continue
 
-                name = ent.text.strip()
+                name = re.sub(r"\s+", " ", ent.text).strip()
 
                 # Skip if it's a main cast name
                 if self._normalize_name(name) in main_cast_normalized:

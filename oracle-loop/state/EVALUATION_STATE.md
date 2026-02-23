@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
@@ -119,18 +119,18 @@
 | 1 | 7.55 | — (baseline) | 3 categories failing: Characters 6, Profiles 7, Pronunciation 7 |
 
 ## Fix History
-(No fixes yet — first attempt)
+- Attempt 2: Three fixes applied:
+  1. **Newline normalization in NER entity names** — `supporting.py:extract():116`: changed `ent.text.strip()` to `re.sub(r"\s+", " ", ent.text).strip()`. Prevents "John\nG." artifact when text has line breaks inside names. Universal fix for any book with line-wrapped proper nouns.
+  2. **First-name+initial merge in supporting cast** — `characters.py:_merge_within_supporting_cast():~2681`: Added "firstname of initial name" pattern: when a single-word name matches the first part of a "FirstName LastInitial." name (e.g., "John" + "John G."), they're merged unconditionally (regardless of mention count). Ambiguity guard: only merges when exactly ONE candidate matches. Universal fix for any book using initial-style names (military fiction, period fiction).
+  3. **Greensburg German IPA fix** — `foreign_proposer.py:_validate_with_llm():264`: Updated LLM validation prompt to explicitly note that capitalized proper nouns (place names, personal names) with foreign-origin spellings are English words, not foreign. Prevents Greensburg and similar American place names from receiving German IPA.
+  - Root causes: (1) no internal whitespace normalization at NER extraction; (2) first-name match threshold (≤3 mentions) too conservative for initial-style names; (3) LLM validation prompt insufficient guidance on proper noun vs foreign word distinction
+  - Smoke tests: PASS — verified merging works for "John G."+"John" case and ambiguous case is correctly skipped
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | — | — | — |
+| 2 | CRITICAL: false split + newline alias + Greensburg IPA | supporting.py, characters.py, foreign_proposer.py | awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Merge "John" into "John G." (false split) — supporting cast alias resolution
-2. HIGH: Fix newline in alias string
-3. HIGH: Fix Greensburg pronunciation (German → American English)
-4. HIGH: Reduce false positive proper noun pronunciations
-5. MEDIUM: Fix relationship characterization and plot summary hallucination
+Run PROMPT_analyze.md to re-analyze with fixes applied.
