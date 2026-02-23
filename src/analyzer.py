@@ -3923,28 +3923,70 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             elif any(w in context_text for w in ("protagonist", "narrator", "hero")):
                 role = "protagonist"
 
-            # Build a minimal personality profile from sentences in the plot summary
-            # that directly name this character.  Prefer sentences where the character
-            # is the subject (sentence starts with the name or possessive) — these
-            # describe the character's actions/traits directly.  Fall back to any
-            # sentence mentioning the name if no subject-position sentences exist.
+            # Build a minimal personality profile from the plot summary.
+            # Strategy 1 (preferred): extract a descriptive introduction phrase
+            # using the universal "the/a [description] known as NAME" pattern that
+            # plot summaries commonly use.  Combine with relative clause if present.
+            # This produces a trait-based summary (not narrative actions) and does
+            # NOT mention other character names, avoiding the plot-dump post-correction.
+            # Strategy 2 (fallback): sentences mentioning the name that do NOT also
+            # mention other known character names.
+            # Strategy 3 (last resort): subject-position sentences, then any mention.
             personality = None
-            _plot_sentences = re.split(r'(?<=[.!?;])\s+', plot_summary_text)
-            _name_sentences = [
-                s for s in _plot_sentences
-                if re.search(r'\b' + re.escape(name) + r'\b', s)
-            ]
-            if _name_sentences:
-                # Prefer sentences where the character leads (subject/possessive)
-                _subject_sentences = [
-                    s for s in _name_sentences
-                    if re.match(r"^" + re.escape(name) + r"(\b|'s?\b)", s)
-                ]
-                _selected = _subject_sentences[:3] if _subject_sentences else _name_sentences[:3]
-                profile_text = " ".join(_selected).strip()
-                if len(profile_text) > 200:
-                    profile_text = profile_text[:200].rsplit(" ", 1)[0] + "…"
+            _other_names = {c.canonical_name for c in characters}
+
+            # Strategy 1: "the/a/an [DESC] known as NAME[, which/who CLAUSE]"
+            # Use [^,\n.!?;] to keep the descriptor to a tight noun phrase
+            # (commas signal clause boundaries, so they delimit the descriptor).
+            _intro_re = re.compile(
+                r'(?:the|a|an)\s+([^,\n.!?;]{1,80}?)\s+(?:known\s+as|called|referred\s+to\s+as)\s+'
+                + re.escape(name),
+                re.IGNORECASE,
+            )
+            _intro_match = _intro_re.search(plot_summary_text)
+            if _intro_match:
+                descriptor = _intro_match.group(1).strip().rstrip(',')
+                # Check for a relative clause immediately after the name
+                _rel_re = re.compile(
+                    re.escape(name) + r',?\s+(?:who|which)\s+([^.;!?]{10,150})',
+                    re.IGNORECASE,
+                )
+                _rel_match = _rel_re.search(plot_summary_text)
+                if _rel_match:
+                    rel_clause = _rel_match.group(1).strip().rstrip(',')
+                    # Use title-case on first word only (preserves acronyms like "AI")
+                    profile_text = f"{descriptor[0].upper() + descriptor[1:]} that {rel_clause}."
+                else:
+                    profile_text = f"{descriptor[0].upper() + descriptor[1:]}."
                 personality = {"summary": profile_text}
+            else:
+                # Strategy 2: sentences mentioning name but NOT other known character names
+                _plot_sentences = re.split(r'(?<=[.!?;])\s+', plot_summary_text)
+                _name_sentences = [
+                    s for s in _plot_sentences
+                    if re.search(r'\b' + re.escape(name) + r'\b', s)
+                ]
+                if _name_sentences:
+                    _clean_sentences = [
+                        s for s in _name_sentences
+                        if not any(
+                            re.search(r'\b' + re.escape(other) + r'\b', s, re.IGNORECASE)
+                            for other in _other_names
+                        )
+                    ]
+                    _subject_sentences = [
+                        s for s in _name_sentences
+                        if re.match(r"^" + re.escape(name) + r"(\b|'s?\b)", s)
+                    ]
+                    _selected = (
+                        _clean_sentences[:3] if _clean_sentences else
+                        _subject_sentences[:3] if _subject_sentences else
+                        _name_sentences[:3]
+                    )
+                    profile_text = " ".join(_selected).strip()
+                    if len(profile_text) > 200:
+                        profile_text = profile_text[:200].rsplit(" ", 1)[0] + "…"
+                    personality = {"summary": profile_text}
 
             # Build relationships: any existing character mentioned in context.
             # Use a role-appropriate label instead of a generic placeholder.

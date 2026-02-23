@@ -961,15 +961,34 @@ class OutputCharacterCorrector:
                         break
 
             if subject_sentences:
-                new_summary = ' '.join(subject_sentences)
-                if len(new_summary) > 250:
-                    new_summary = new_summary[:250].rsplit(' ', 1)[0] + '…'
-                personality['summary'] = new_summary
-                logger.info(
-                    f"Plot-synopsis personality replaced for '{char.canonical_name}': "
-                    f"extracted {len(subject_sentences)} subject sentence(s) from source text "
-                    f"(was mentioning {other_names_found} other characters)"
+                # Quality filter: discard bare-name sentences (e.g. "AM.") and
+                # sentences that are clearly too short to be useful.
+                name_only_re = re.compile(
+                    r'^' + re.escape(char.canonical_name) + r'[.!?,;:\s]*$',
+                    re.IGNORECASE,
                 )
+                quality_sentences = [
+                    s for s in subject_sentences
+                    if not name_only_re.match(s.strip()) and len(s.strip()) > 20
+                ]
+                total_len = sum(len(s) for s in quality_sentences)
+                if quality_sentences and total_len >= 50:
+                    new_summary = ' '.join(quality_sentences)
+                    if len(new_summary) > 250:
+                        new_summary = new_summary[:250].rsplit(' ', 1)[0] + '…'
+                    personality['summary'] = new_summary
+                    logger.info(
+                        f"Plot-synopsis personality replaced for '{char.canonical_name}': "
+                        f"extracted {len(quality_sentences)} subject sentence(s) from source text "
+                        f"(was mentioning {other_names_found} other characters)"
+                    )
+                else:
+                    personality['summary'] = None
+                    logger.info(
+                        f"Plot-synopsis personality cleared for '{char.canonical_name}': "
+                        f"subject sentences too short or bare-name-only after quality filtering "
+                        f"(was mentioning {other_names_found} other characters)"
+                    )
             else:
                 personality['summary'] = None
                 logger.info(

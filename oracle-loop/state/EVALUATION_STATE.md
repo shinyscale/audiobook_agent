@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -236,6 +236,7 @@ Expected impact: AM personality either gets clean adjective-based description (P
 | 12 | physical_description from features | post_corrections.py | **WORKED** — 4/6 chars have desc |
 | 13 | AM personality post-correction | post_corrections.py (clean_plot_summary_personality) | **DID NOT WORK** — correct code but runs before AM exists |
 | 14 | Execution ordering (safety net before post-corrections) | analyzer.py | **PARTIALLY WORKED** — ordering fixed, but replacement quality poor |
+| 15 | AM personality: intro-phrase extraction (Part A) + quality filter (Part B) | analyzer.py, post_corrections.py | Pending analysis |
 
 **⚠️ AM PERSONALITY — 5TH ATTEMPT**: The execution ordering is now correct. The problem is now PURELY about replacement quality: source-text subject sentences are narrative actions, not personality descriptors. Fix must target the personality content generation, not the detection/execution flow.
 
@@ -261,4 +262,4 @@ Expected impact: AM personality either gets clean adjective-based description (P
 - Runtime: 17m 10s
 
 ## Next Action
-Run PROMPT_fix.md to improve AM personality quality (CRITICAL #1 — two-part fix in analyzer.py and post_corrections.py)
+Run PROMPT_analyze.md to re-run pipeline and verify AM personality quality (attempt 15 fix applied)
