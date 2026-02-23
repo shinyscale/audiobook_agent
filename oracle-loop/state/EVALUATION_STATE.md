@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -101,15 +101,9 @@
 
 ## Fix Priority for Attempt 13
 
-**To cross 8.0 in Character Profiles (currently 7.5) — ONLY failing category:**
+**APPLIED (Attempt 13):**
 
-The AM personality is the single biggest profile quality issue. It has failed 3 times via `analyzer.py`. **MUST use a different approach:**
-
-1. **Fix CRITICAL #1 via post-correction (NEW APPROACH)**: Add a `clean_plot_summary_personality()` method to `OutputCharacterCorrector` in `post_corrections.py` that detects when a character's `personality.summary` contains plot-summary-style narrative (heuristics: >150 chars, mentions 3+ other character names, reads like a story synopsis) and replaces it with a concise role-based personality. For safety-net characters (role=antagonist), generate: "{name} is a {role_descriptor}" based on role and context. This bypasses the stuck `_plot_summary_safety_net` entirely. **Expected impact: +0.5 on Profiles → 8.0**
-
-2. **Optionally fix HIGH #2** (Nimdok factual error): Add cross-character feature deduplication — if the same distinguishing feature text appears on two characters, keep it only on the character where it's most frequently mentioned. **Expected impact: +0.2 on Profiles**
-
-**Fix #1 alone should push Profiles from 7.5 → 8.0, crossing the threshold.**
+1. **Fix CRITICAL #1 via post-correction (IMPLEMENTED)**: Added `clean_plot_summary_personality()` method to `OutputCharacterCorrector` in `post_corrections.py`. Detects when a character's `personality.summary` mentions 3+ other character names (or 2+ names AND another character leads the sentence) — indicating a plot-synopsis dump. Replaces with character-subject sentences from source text (sentences starting with the character's canonical name). Falls back to clearing to None if no subject sentences found. Added to `run_all()` after `clean_unknown_appearance()`. Expected impact: +0.5 on Profiles → 8.0.
 
 ## Fix History
 
@@ -216,6 +210,7 @@ The AM personality is the single biggest profile quality issue. It has failed 3 
 | 12 | Nimdok evidence filter guard | analyzer.py (_convert_characters) | **WORKED** — 6 chars restored |
 | 12 | AM personality subject-sentence | analyzer.py (_plot_summary_safety_net) | **DID NOT WORK** (3rd failure) |
 | 12 | physical_description from features | post_corrections.py | **WORKED** — 4/6 chars have desc |
+| 13 | AM personality post-correction | post_corrections.py (clean_plot_summary_personality) | Pending verification |
 
 **⚠️ STUCK PATTERN DETECTED:** `analyzer.py:_plot_summary_safety_net()` has been modified 3 times (attempts 10, 11, 12) for AM personality with NO SUCCESS. Fix phase MUST use a different approach — post-correction in `post_corrections.py` recommended.
 
@@ -239,4 +234,4 @@ The AM personality is the single biggest profile quality issue. It has failed 3 
 - 23 pronunciation entries (unchanged)
 
 ## Next Action
-Run PROMPT_fix.md — MUST use post-correction approach for AM personality (do NOT modify _plot_summary_safety_net again)
+Re-run analysis to verify fix. AM personality should now be either: (a) extracted from source-text sentences where AM is the grammatical subject, or (b) null (cleared). Either is better than the plot-synopsis dump.

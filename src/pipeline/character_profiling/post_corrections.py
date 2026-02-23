@@ -568,6 +568,7 @@ class OutputCharacterCorrector:
         self.inject_narrator_appearance_final(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
         self.clean_unknown_appearance(characters)
+        self.clean_plot_summary_personality(characters, source_text)
         self.propagate_physical_description(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
@@ -875,6 +876,107 @@ class OutputCharacterCorrector:
                         f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'acquaintance'"
                     )
                     char.relationships[other_key] = "acquaintance"
+
+    def clean_plot_summary_personality(self, characters, source_text: str = "") -> None:
+        """Replace personality.summary that narrates other characters' actions.
+
+        Universal invariant: personality.summary must describe THIS character's
+        traits and psychology, not what other characters are doing. When the
+        summary mentions 3+ other cast members (strong signal) — or 2+ other
+        cast members AND another character name leads the sentence (medium signal)
+        — it is almost certainly a plot-synopsis copy, not a personality profile.
+
+        Replacement: attempts to extract character-subject sentences from source
+        text (sentences that START with the character's canonical name). Falls back
+        to clearing the summary if no subject sentences are found in the text.
+        Clearing (None) is always preferable to retaining a misleading plot dump.
+        """
+        canonical_names = {c.canonical_name for c in characters}
+
+        # Pre-split source text into candidate sentences once for efficiency.
+        # Use sentence-boundary heuristic: split on ". " or "! " or "? " followed
+        # by an uppercase letter to avoid splitting mid-sentence abbreviations.
+        source_sentences: list[str] = []
+        if source_text:
+            source_sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', source_text)
+
+        for char in characters:
+            personality = getattr(char, 'personality', None)
+            if not isinstance(personality, dict):
+                continue
+            summary = personality.get('summary', '') or ''
+            if not summary or len(summary) < 80:
+                continue
+
+            # Count other character canonical names mentioned in the summary.
+            other_names_found = sum(
+                1 for name in canonical_names
+                if name != char.canonical_name
+                and re.search(r'\b' + re.escape(name) + r'\b', summary, re.IGNORECASE)
+            )
+
+            # Strong signal: 3+ other cast member names → almost certainly a plot synopsis.
+            # Medium signal: 2+ names AND another character's name leads the summary.
+            is_plot_dump = False
+            if other_names_found >= 3:
+                is_plot_dump = True
+            elif other_names_found >= 2:
+                other_name_leads = any(
+                    re.match(
+                        r'^' + re.escape(other) + r'\b',
+                        summary.strip(),
+                        re.IGNORECASE,
+                    )
+                    for other in canonical_names
+                    if other != char.canonical_name
+                )
+                if other_name_leads:
+                    is_plot_dump = True
+
+            if not is_plot_dump:
+                continue
+
+            # Allow through if the character's own name leads the summary
+            # (subject-position sentence — already about this character).
+            name_leads = bool(re.match(
+                r'^' + re.escape(char.canonical_name) + r'\b',
+                summary.strip(),
+                re.IGNORECASE,
+            ))
+            if name_leads:
+                continue
+
+            # Attempt to replace with character-subject sentences from source text.
+            # These sentences start with the character's own name (or possessive),
+            # so they directly describe the character's actions/nature.
+            name_re_str = r'^' + re.escape(char.canonical_name) + r"(\b|'s?\b)"
+            subject_sentences: list[str] = []
+            for sent in source_sentences:
+                sent = sent.strip()
+                if not sent:
+                    continue
+                if re.match(name_re_str, sent, re.IGNORECASE):
+                    subject_sentences.append(sent)
+                    if len(subject_sentences) >= 3:
+                        break
+
+            if subject_sentences:
+                new_summary = ' '.join(subject_sentences)
+                if len(new_summary) > 250:
+                    new_summary = new_summary[:250].rsplit(' ', 1)[0] + '…'
+                personality['summary'] = new_summary
+                logger.info(
+                    f"Plot-synopsis personality replaced for '{char.canonical_name}': "
+                    f"extracted {len(subject_sentences)} subject sentence(s) from source text "
+                    f"(was mentioning {other_names_found} other characters)"
+                )
+            else:
+                personality['summary'] = None
+                logger.info(
+                    f"Plot-synopsis personality cleared for '{char.canonical_name}': "
+                    f"summary mentioned {other_names_found} other characters and no "
+                    f"subject sentences found in source text"
+                )
 
     def enforce_gender_consistency(self, characters) -> None:
         """Correct gender-inconsistent relationship labels.
