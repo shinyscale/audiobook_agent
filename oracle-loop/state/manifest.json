@@ -60,8 +60,9 @@
     {
       "name": "john_g",
       "file": "Test_Texts/John G - Katherine Mayo.txt",
-      "complete": false,
-      "attempts": 3
+      "complete": true,
+      "attempts": 4,
+      "final_score": 8.48
     },
     {
       "name": "i_have_no_mouth",
