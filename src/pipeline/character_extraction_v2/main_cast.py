@@ -335,6 +335,9 @@ class MainCastExtractor:
         # Choose extraction method
         if use_two_pass:
             profiles = self._extract_two_pass(summaries_text, plot_section, pattern_hints)
+            if not profiles:
+                logger.warning("Two-pass extraction returned 0 characters; retrying with single-pass")
+                profiles = self._extract_single_pass(summaries_text, plot_section, pattern_hints)
         else:
             profiles = self._extract_single_pass(summaries_text, plot_section, pattern_hints)
 
@@ -512,7 +515,21 @@ class MainCastExtractor:
 
         # Handle both list and dict formats
         if isinstance(result, dict):
-            result = result.get("characters", result.get("main_cast", []))
+            # Try known wrapper keys in order of likelihood
+            unwrapped = False
+            for key in ("characters", "main_cast", "cast", "character_list", "main_characters", "result"):
+                if key in result and isinstance(result[key], list):
+                    result = result[key]
+                    unwrapped = True
+                    break
+            if not unwrapped:
+                # Fall back to first list-valued key
+                for val in result.values():
+                    if isinstance(val, list):
+                        result = val
+                        break
+                else:
+                    result = []
 
         if not isinstance(result, list):
             logger.warning(f"Expected list from Pass 1, got {type(result)}")
@@ -522,7 +539,10 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = item.get("canonical_name", "").strip()
+            # Accept "name" or "character_name" as fallbacks for "canonical_name"
+            canonical = (
+                item.get("canonical_name") or item.get("name") or item.get("character_name") or ""
+            ).strip()
             if not canonical:
                 continue
 
@@ -545,7 +565,20 @@ class MainCastExtractor:
 
         # Handle both list and dict with characters key
         if isinstance(result, dict):
-            result = result.get("characters", result.get("main_cast", []))
+            # Try known wrapper keys in order of likelihood
+            unwrapped = False
+            for key in ("characters", "main_cast", "cast", "character_list", "main_characters", "result"):
+                if key in result and isinstance(result[key], list):
+                    result = result[key]
+                    unwrapped = True
+                    break
+            if not unwrapped:
+                for val in result.values():
+                    if isinstance(val, list):
+                        result = val
+                        break
+                else:
+                    result = []
 
         if not isinstance(result, list):
             logger.warning(f"Expected list, got {type(result)}")
@@ -555,7 +588,10 @@ class MainCastExtractor:
             if not isinstance(item, dict):
                 continue
 
-            canonical = item.get("canonical_name", "").strip()
+            # Accept "name" or "character_name" as fallbacks for "canonical_name"
+            canonical = (
+                item.get("canonical_name") or item.get("name") or item.get("character_name") or ""
+            ).strip()
             if not canonical:
                 continue
 

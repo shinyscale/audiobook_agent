@@ -47,7 +47,7 @@ CHAPTER SUMMARIES:
 MAIN CAST (potential narrators if first-person):
 {main_cast}
 
-OUTPUT FORMAT (JSON):
+{plot_summary_section}OUTPUT FORMAT (JSON):
 ```json
 {{
   "pov": "first-person|third-person|omniscient|epistolary",
@@ -124,9 +124,17 @@ class NarratorDetector:
             f"- {c.canonical_name} ({c.role}): {self._get_description(c)}" for c in main_cast
         )
 
+        # Include plot summary when available — it often captures narrative style explicitly
+        plot_summary_section = ""
+        if plot_summary:
+            plot_summary_section = (
+                f"PLOT SUMMARY (for narrative style context):\n{plot_summary[:400]}\n\n"
+            )
+
         prompt = NARRATOR_DETECTION_PROMPT.format(
             summaries=summaries_text,
             main_cast=cast_text,
+            plot_summary_section=plot_summary_section,
         )
 
         result, response = self.llm.query_json(prompt)

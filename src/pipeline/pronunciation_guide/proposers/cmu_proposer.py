@@ -673,7 +673,7 @@ class CMUProposer(BasePronunciationProposer):
         """
         word_lower = word.lower()
 
-        # Common starting words that appear in OCR artifacts
+        # Common starting words that appear in OCR artifacts (missing space after short word)
         common_prefixes = [
             "we",
             "it",
@@ -688,6 +688,14 @@ class CMUProposer(BasePronunciationProposer):
             "at",
             "in",
             "on",
+            "me",
+            "my",
+            "if",
+            "he",
+            "she",
+            "her",
+            "his",
+            "him",
             "for",
             "the",
             "and",
@@ -708,6 +716,19 @@ class CMUProposer(BasePronunciationProposer):
                             f"Detected OCR artifact: '{word}' = '{prefix}' + '{remainder}'"
                         )
                         return True
+
+        # Check if word ends with a common short function word (missing space before it)
+        # E.g., "Nimdokwith" = "Nimdok" + "with"
+        common_suffixes = ["with", "from", "into", "upon", "over", "then", "when", "that"]
+        for suffix in common_suffixes:
+            if word_lower.endswith(suffix) and len(word_lower) > len(suffix) + 3:
+                prefix = word_lower[: -len(suffix)]
+                # If prefix itself is NOT a known word, this is likely a name+word concatenation
+                if prefix not in self.known_words and len(prefix) >= 3:
+                    logger.debug(
+                        f"Detected OCR artifact: '{word}' = '{prefix}' + '{suffix}'"
+                    )
+                    return True
 
         return False
 
@@ -912,6 +933,21 @@ class CMUProposer(BasePronunciationProposer):
             # Possessives: "cough's" → base "cough" in CMU
             if word.endswith("'s") and word[:-2].lower() in self.known_words:
                 return False
+            # Possessives of unknown words (e.g., "Gorrister's"): narrator can infer
+            # pronunciation from the base form, which will appear as its own entry.
+            if word.endswith("'s") and len(word) > 4:
+                return False
+            # Contraction-concatenation artifacts (e.g., "we'lldie" = "we'll" + "die"):
+            # The pre-apostrophe fragment is a common pronoun/auxiliary.
+            if "'" in word and not word.endswith("'s"):
+                apostrophe_idx = word.index("'")
+                pre = word[:apostrophe_idx].lower()
+                if pre in {
+                    "we", "it", "i", "you", "they", "he", "she",
+                    "do", "can", "let", "might", "must", "have", "has", "had",
+                    "would", "should", "could", "will", "shall",
+                }:
+                    return False
             return True
 
         # Filter all words through predicate - O(n) where n is unique words

@@ -721,7 +721,13 @@ class CharacterAgent(Agent):
         # or all candidates were filtered by grounding), but promotion in STEP 5.8 has now
         # added characters to main_cast. With actual characters available, narrator detection
         # has better context to match the narrator name to a known character.
-        if (narrator_info.pov in ("unknown", "") or narrator_info.narrator_name is None) and main_cast:
+        # Also re-runs when narrator was named but could not be matched (narrator_character_id is None),
+        # e.g. when STEP 4 identified "Ted" as narrator but main_cast was empty so no match was possible.
+        if (
+            narrator_info.pov in ("unknown", "")
+            or narrator_info.narrator_name is None
+            or narrator_info.narrator_character_id is None
+        ) and main_cast:
             logger.info(
                 f"V2 Step 5.8.5: Re-running narrator detection with {len(main_cast)} characters "
                 f"(initial detection returned pov='{narrator_info.pov}')"

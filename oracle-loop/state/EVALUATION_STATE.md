@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -105,6 +105,41 @@
 
 ## Fix History
 
+### Attempt 3 Fixes Applied
+
+**Fix 1 (main_cast.py): Robust LLM JSON parsing in `_parse_pass1_results` and `_parse_profiles`**
+- Root cause: If LLM returns JSON with `"name"` instead of `"canonical_name"`, OR wraps the list under a key other than `"characters"` or `"main_cast"` (e.g. `"cast"`, `"character_list"`), all characters were silently dropped → 0 main cast characters
+- Fix: Accept `"name"` / `"character_name"` as fallbacks for `"canonical_name"`; try additional dict wrapper keys (`"cast"`, `"character_list"`, `"main_characters"`, `"result"`) and fall back to first list-valued key
+- Files: `src/pipeline/character_extraction_v2/main_cast.py`
+- Smoke test: PASS — correctly extracts characters from JSON with `"name"` key, `"cast"` wrapper, mixed keys
+
+**Fix 2 (main_cast.py): Two-pass → single-pass fallback in `extract()`**
+- Root cause: If two-pass extraction returns 0 characters (any reason), no fallback existed
+- Fix: If `_extract_two_pass` returns 0 profiles, immediately retry with `_extract_single_pass`
+- Files: `src/pipeline/character_extraction_v2/main_cast.py`
+- Smoke test: PASS — fallback path correctly invoked
+
+**Fix 3 (characters.py): STEP 5.8.5 re-detection condition fix**
+- Root cause: STEP 5.8.5 only fired if `pov == "unknown"` OR `narrator_name is None`. If STEP 4 identified narrator by name (e.g. "Ted") but could NOT match to a character (because main_cast was empty at STEP 4 time), `narrator_character_id=None` but condition was False → re-detection never ran even with Ted now in main_cast
+- Fix: Added `narrator_info.narrator_character_id is None` to STEP 5.8.5 condition
+- Files: `src/agents/characters.py:724`
+- Smoke test: PASS — condition verified in code
+
+**Fix 4 (narrator.py): Include plot_summary in narrator detection prompt**
+- Root cause: `plot_summary` received by `detect()` was never passed to the LLM prompt; plot summary often explicitly identifies narrative style ("first-person retrospective"), which is a strong signal
+- Fix: Added `{plot_summary_section}` placeholder to `NARRATOR_DETECTION_PROMPT`; `detect()` includes first 400 chars of plot_summary when available
+- Files: `src/pipeline/character_extraction_v2/narrator.py`
+- Smoke test: PASS — prompt correctly includes plot summary section
+
+**Fix 5 (cmu_proposer.py): Pronunciation artifact detection improvements**
+- Root cause (concatenated words): `_is_ocr_artifact` only checked prefixes in a small list; `"me"`, `"my"`, `"if"`, `"he"`, `"she"`, `"her"`, `"him"`, `"his"` were missing → `mefrom`, `myright`, `mysurface`, `ifwe` passed through
+- Root cause (suffix): No suffix-based detection → `Nimdokwith` (ends with "with") passed through
+- Root cause (possessives): Only skipped possessives of CMU-known words; `Gorrister's`/`Nimdok's` passed through since character names not in CMU
+- Root cause (contraction-concat): `we'lldie` had apostrophe, making standard prefix check fail
+- Fix: Added 8 new prefixes; added suffix-based detection for common function words; skip all possessives with base len >= 3; added contraction-concatenation detection
+- Files: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+- Smoke test: PASS — all 5 artifact types correctly detected/filtered
+
 ### Attempt 1 Fixes Applied
 
 **Fix 1 (characters.py):** Move supporting cast mention search to BEFORE promotion (new STEP 5.7.5)
@@ -151,11 +186,20 @@
 - No retries logged in profiling
 - Main cast pipeline produced 0 characters — this is a pipeline failure, not a config issue
 
-## Next Action
-Run PROMPT_fix.md to address:
-1. **Priority 1:** Investigate and fix why main cast pipeline produces 0 characters (Critical #1 — AM missing)
-2. **Priority 2:** Investigate why narrator re-detection fails (Critical #2 — Ted not narrator)
-3. **Priority 3:** Filter exclamatory names like "Jesus" (High #3)
-4. **Priority 4:** Fix age rendering in HTML profiles (High #4)
+## Modification History
 
-The fix phase should focus on DIAGNOSTIC investigation for issues #1 and #2, since blind prompt/code changes have failed twice. Check actual LLM responses and pipeline logs.
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 | Characters not promoted due to late mention search | characters.py (STEP 5.7.5) | Fixed — characters promoted |
+| 1 | Narrator undetected due to empty main_cast | characters.py (STEP 5.8.5) | No change — narrator still undetected |
+| 1 | Narrator prompt assumes first-person in summaries | narrator.py | No change — narrator still undetected |
+| 1 | Lowercase false positive "bush" | supporting.py | Fixed — "bush" removed |
+| 1 | Variable shadowing bug | characters.py | Fixed |
+| 3 | Main cast 0 chars: LLM uses "name" not "canonical_name", or wraps in "cast" key | main_cast.py | Pending re-analysis |
+| 3 | Main cast 0 chars: no fallback from two-pass to single-pass | main_cast.py | Pending re-analysis |
+| 3 | STEP 5.8.5 didn't fire when narrator named but not matched | characters.py | Pending re-analysis |
+| 3 | Narrator prompt didn't use plot_summary context | narrator.py | Pending re-analysis |
+| 3 | Pronunciation artifacts (mefrom, myright, Nimdokwith, possessives, contraction-concat) | cmu_proposer.py | Pending re-analysis |
+
+## Next Action
+Re-run analysis on `i_have_no_mouth` to evaluate fixes.
