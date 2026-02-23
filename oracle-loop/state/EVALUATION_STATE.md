@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_014514/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_023137/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -172,9 +172,22 @@
 - 0 low-confidence items reported
 - 0 LLM retries
 
+## Pipeline Notes (Attempt 5)
+- Runtime: 17m 16s, 60 LLM calls, 72,732 tokens
+- "Two-pass extraction returned 0 characters; retrying with single-pass" — single-pass fallback still produced 0 main_cast characters
+- AM is STILL completely missing from character list (6 chars, all supporting_* IDs)
+- Narrator still undetected: Ted is_narrator=False
+- [DIAG] log messages NOT visible in output — likely need --debug flag or log level set to DEBUG to see them
+- plot_summary.narrative_style = "first-person retrospective" (correct, fix from attempt 5 worked)
+- structure.narrative_style = "unknown" (still wrong — inconsistency persists)
+- Chapter Summaries: 0 LLM calls reported (summaries generated without LLM? or competitive caching?)
+- Structure: "LLM marker proposer returned non-list: <class 'dict'>" — 3 times, fell back to single chapter
+- Jesus false positive persists
+- "LLM validation failed (got dict), keeping batch candidates" — in supporting cast pipeline
+- Pronunciation: "hermiene" artifact likely still present (from PDF URL)
+
 ## Next Action
-Re-run analysis with `[DIAG]` logging active. The logs will show:
-1. What `_get_chapter_summaries()` actually returns
-2. What the main_cast LLM returns (raw response + parse outcome)
-3. What the narrator detector LLM returns and which candidate it selects
-Use these logs to determine the definitive root cause before making further code changes.
+EVALUATE this run, then proceed to FIX phase. Key open questions:
+1. [DIAG] logs were not emitted — the fix phase added them but they require DEBUG log level to appear
+2. Main cast LLM root cause still unknown — need to run with DEBUG logging or inspect via test_alias_debug.py
+3. Narrator root cause: plot_summary.narrative_style = "first-person retrospective" NOW available, but narrator still undetected — is the new _get_plot_summary() fix actually reaching the narrator detector?
