@@ -126,7 +126,7 @@ Return JSON in this exact format:
       "build": "physical build",
       "distinguishing": "notable features"
     }},
-    "age_indication": "young adult/middle-aged/elderly/unknown",
+    "age_indication": "exact age phrase from text if stated (e.g., '22 years old'), otherwise young adult/middle-aged/elderly/unknown",
     "distinguishing_features": ["feature1", "feature2"],
     "evidence": ["quote supporting appearance claim"]
   }},

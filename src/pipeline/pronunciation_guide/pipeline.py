@@ -76,11 +76,14 @@ class PronunciationGuidePipeline:
 
         # Default proposers
         if proposers is None:
+            cmu_proposer = CMUProposer()
             self.proposers = [
-                CMUProposer(),
+                cmu_proposer,
                 ForeignProposer(llm_client=llm_client),  # Pass LLM for validation
                 HomographProposer(),
-                CharacterProposer(),
+                # Share CMU known_words so CharacterProposer skips standard-pronunciation
+                # character name words (e.g., "Price", "Sergeant") that a narrator knows.
+                CharacterProposer(cmu_known_words=cmu_proposer.known_words),
             ]
         else:
             self.proposers = proposers

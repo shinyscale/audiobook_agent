@@ -5,7 +5,7 @@ Flags character names from the character extraction pipeline for pronunciation a
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Set
 
 from ..models import PronunciationFlag, PronunciationProposal
 from .base import BasePronunciationProposer
@@ -22,14 +22,39 @@ class CharacterProposer(BasePronunciationProposer):
 
     name = "character"
 
-    def __init__(self, additional_whitelist: Optional[set[str]] = None):
+    def __init__(
+        self,
+        additional_whitelist: Optional[set[str]] = None,
+        cmu_known_words: Optional[Set[str]] = None,
+    ):
         """
         Args:
             additional_whitelist: Additional words to never flag
+            cmu_known_words: Set of words in the CMU pronouncing dictionary.
+                Words found in CMU have standard pronunciations a narrator already
+                knows; skip them to reduce false-positive noise. If not provided,
+                loaded automatically from the pronouncing library.
         """
         self.whitelist = COMMON_WORDS_WHITELIST.copy()
         if additional_whitelist:
             self.whitelist.update(additional_whitelist)
+        # Words in the CMU dict have standard English pronunciations — skip them
+        # even when they appear as character names (e.g., "Price", "Sergeant").
+        if cmu_known_words is not None:
+            self.cmu_known_words: Set[str] = cmu_known_words
+        else:
+            self.cmu_known_words = self._load_cmu_dict()
+
+    def _load_cmu_dict(self) -> Set[str]:
+        """Load words from CMU dictionary via pronouncing library."""
+        try:
+            import pronouncing
+            words = set(pronouncing.cmudict.dict().keys())
+            logger.info(f"CharacterProposer loaded {len(words)} words from CMU dictionary")
+            return words
+        except (ImportError, Exception) as e:
+            logger.warning(f"Could not load CMU dictionary: {e}")
+            return set()
 
     def propose(
         self,
@@ -95,6 +120,14 @@ class CharacterProposer(BasePronunciationProposer):
 
                 # Skip whitelist
                 if word_lower in self.whitelist:
+                    continue
+
+                # Skip words in the CMU dictionary — they have standard English
+                # pronunciations a professional narrator already knows.
+                if self.cmu_known_words and word_lower in self.cmu_known_words:
+                    logger.debug(
+                        f"Skipping '{word}' — in CMU dictionary (standard pronunciation)"
+                    )
                     continue
 
                 # Skip very short words

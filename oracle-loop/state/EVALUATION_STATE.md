@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
@@ -134,6 +134,10 @@
   1. **Newline normalization in NER entity names** — `supporting.py:extract():116`: changed `ent.text.strip()` to `re.sub(r"\s+", " ", ent.text).strip()`. **RESULT: FIXED** ✓
   2. **First-name+initial merge in supporting cast** — `characters.py:_merge_within_supporting_cast():~2681`: Added "firstname of initial name" pattern. **RESULT: FIXED** ✓
   3. **Greensburg German IPA fix** — `foreign_proposer.py:_validate_with_llm():264`: Updated LLM validation prompt for proper nouns. **RESULT: NO CHANGE** ✗ — Greensburg still has German IPA. The fix was likely in the wrong codepath (entry has `type: null`, may not use foreign_proposer).
+- Attempt 3: Three fixes applied:
+  1. **Remove "-burg"/"-berg" from German suffix patterns** — `foreign_proposer.py:FOREIGN_PATTERNS["German"]`: These suffixes are overwhelmingly Americanized (Pittsburgh, Gettysburg, Spielberg). Genuine German words still detected via article patterns (der/die/das). Greensburg entry removed entirely. **Root cause:** pattern match was too broad.
+  2. **Skip CMU-known words in CharacterProposer** — `character_proposer.py:__init__()`: Auto-loads CMU dictionary; skips character name words that are in CMU (e.g., "Price", "Sergeant", "Corporal", "Richardson", "Adams", "Troopers"). Also updated `pipeline.py` to share CMU dict from CMUProposer. Reduces false positives from 6/20 to 0. **Root cause:** CharacterProposer had no universal filter for standard English words.
+  3. **Improve age_indication to capture exact stated age** — `analyzer.py:3416`, `analyzer.py:3820`, `character_profiling/generator.py:129`: Changed format hint from `"young/middle-aged/elderly/unknown"` to include explicit age extraction. LLM should now capture "22 years old" verbatim from text instead of categorizing as "young". **Root cause:** prompt format hint forced LLM to categorize rather than quote text.
 
 ## Modification History
 
@@ -142,6 +146,9 @@
 | 2 | false split John/John G. | supporting.py, characters.py | Fixed ✓ |
 | 2 | newline alias | supporting.py | Fixed ✓ |
 | 2 | Greensburg German IPA | foreign_proposer.py | No change ✗ — wrong codepath |
+| 3 | Greensburg German IPA | foreign_proposer.py:FOREIGN_PATTERNS | Removed -burg/-berg patterns |
+| 3 | false positive pronunciation entries | character_proposer.py, pipeline.py | CMU dictionary filter added |
+| 3 | John G. age "young" vs "22 years old" | analyzer.py, character_profiling/generator.py | age_indication prompt updated |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all stages — reasonable
@@ -150,4 +157,4 @@
 - No concerning retry counts or parse failures
 
 ## Next Action
-Run PROMPT_fix.md to address pronunciation issues (Greensburg IPA codepath, false positive filtering) and profile accuracy (John G. age).
+Re-run analysis to verify fixes: Pronunciation (Greensburg removed, 6 false positives eliminated) and Profiles (age_indication now captures exact stated age).

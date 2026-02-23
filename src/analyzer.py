@@ -3413,7 +3413,7 @@ Return a JSON response matching this example format exactly:
   "profile": "A brief 2-3 sentence overview based on provided evidence.",
   "appearance": {{
     "summary": "Physical description: height, build, coloring, age markers, facial features, clothing, bearing — any that appear in text",
-    "age_indication": "young/middle-aged/elderly/unknown",
+    "age_indication": "exact age phrase from text if stated (e.g., '22 years old', 'thirty-five'), otherwise young/middle-aged/elderly/unknown",
     "distinguishing_features": ["specific feature from text", "another feature"]
   }},
   "personality": {{
@@ -3817,7 +3817,7 @@ Example relationships dict format:
 Return a JSON object with these fields:
 {{
   "profile": "2-3 sentence overview of this character based only on the text above",
-  "appearance": {{"summary": "Physical description if mentioned", "age_indication": "young/middle-aged/elderly/unknown", "distinguishing_features": []}},
+  "appearance": {{"summary": "Physical description if mentioned", "age_indication": "exact age phrase from text if stated, otherwise young/middle-aged/elderly/unknown", "distinguishing_features": []}},
   "personality": {{"summary": "Personality traits and behavior", "traits": ["trait1", "trait2"], "temperament": "overall temperament"}},
   "voice_guidance": {{"suggested_tone": "tone based on character's manner", "formality_level": "formal/informal/moderate"}},
   "relationships": {{"character_name": "relationship_type"}},

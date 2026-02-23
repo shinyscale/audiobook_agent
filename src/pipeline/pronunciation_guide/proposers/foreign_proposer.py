@@ -26,7 +26,10 @@ FOREIGN_PATTERNS = {
         # Note: -tion/-sion pattern removed - too noisy, flags common English words
     ],
     "German": [
-        r"\b\w*(?:burg|berg|stein|mann|schaft|keit|heit|chen|lein)\b",
+        # Note: -burg and -berg removed — overwhelmingly used in Americanized place/person
+        # names (Pittsburgh, Gettysburg, Goldberg, Spielberg). Genuine German -burg/-berg
+        # words are caught by the article pattern below (der/die/das Burg, etc.).
+        r"\b\w*(?:stein|mann|schaft|keit|heit|chen|lein)\b",
         r"\b(?:der|die|das|ein|eine)\s+\w+",
         r"\b\w*(?:schlag|fahr|wald|dorf)\b",
     ],
