@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_112239/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_115856/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -221,5 +221,14 @@
 - **Fix 3**: `clean_unknown_appearance()` — new step in `OutputCharacterCorrector.run_all()` that clears "unknown"/"not described"/"n/a" placeholder values from `appearance.summary`, `appearance.age_indication`, `appearance.distinguishing_features`. Absence of data is better than noise. File: `post_corrections.py`.
 - **Fix 4**: `_is_closed_compound()` — new method in CMU proposer that skips words that split into two known CMU words (e.g., "tinfoil"→tin+foil, "firelight"→fire+light, "deckplates"→deck+plates). Universal invariant: closed compounds of known words are fully predictable. File: `cmu_proposer.py`.
 
+## Pipeline Notes (Attempt 10)
+- AM added via safety net with role=antagonist (Fix 2 from attempt 10 worked)
+- Pronunciation: 23 flags (down from 37 in attempt 9 — compound filter Fix 4 working)
+- 6 characters found, 5 profiled + AM via safety net
+- Runtime: 16m 6s
+- Structure: 1 chapter (consistent with previous attempts)
+- LLM marker proposer returned non-list (non-fatal, fell back to single chapter)
+- Two-pass extraction returned 0 characters; retried with single-pass (consistent pattern)
+
 ## Next Action
-Run PROMPT_analyze.md — Re-run analysis for attempt 10.
+Run PROMPT_evaluate.md — Evaluate attempt 10 output.
