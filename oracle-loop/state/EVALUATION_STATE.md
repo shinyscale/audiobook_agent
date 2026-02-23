@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** john_g
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
@@ -144,4 +144,17 @@ All other categories are at 8.0+. Only Profiles needs to improve.
 - No concerning retry counts or parse failures
 
 ## Next Action
-Run PROMPT_fix.md to address Profiles age_indication (HIGH #1). This is the ONLY blocking issue. All other categories pass at 8.0+.
+Re-run analysis to verify age_indication fix. Attempt 4 fix applied (see Fix History).
+
+## Attempt 4 Fix Applied
+
+**Phase:** awaiting_analysis
+
+### Fix: Universal deterministic age extraction (analyzer.py)
+- **Root cause:** Narrator appearance injection (lines 2578-2582) only runs for `is_narrator` characters and only matches qualitative keywords ("elderly", "old", "young"). Non-narrator characters like John G. (`supporting_0`) had no age post-processing fallback.
+- **Fix type:** Algorithmic (deterministic post-processing) — universal, not book-specific
+- **Modified:** `src/analyzer.py` — added universal age extraction pass after narrator appearance injection loop
+- **What it does:** After all profiles are generated, iterates any character with `age_indication == "unknown"` or "". For each, searches `doc.text` near name occurrences for age patterns (both numeric: "22 years old", "22-year-old", and written: "twenty-two years old"). Updates `age_indication` if found.
+- **Universality:** Works for any book with explicit age mentions regardless of genre, era, or vocabulary
+- **Smoke test:** Regex unit tests pass for all forms including "twenty-two years old" and "twenty-two-year-old" ✓
+- **Regression check:** All 139 non-pre-existing tests pass ✓

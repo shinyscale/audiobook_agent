@@ -2581,6 +2581,54 @@ Only include fields if contamination_detected is true."""
                     elif "young" in _nph_desc_lower:
                         _fc.appearance["age_indication"] = "young"
 
+        # Universal deterministic age extraction pass.
+        # For any character whose age_indication is still unknown, search the raw source
+        # text for explicit age mentions near the character's name. Handles both numeric
+        # forms ("22 years old", "22-year-old") and written-out forms ("twenty-two years
+        # old"). This is universal — it works for any book regardless of genre, setting,
+        # or vocabulary.
+        _written_num_pat = (
+            r"(?:twenty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"thirty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"forty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"fifty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"sixty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"seventy(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"eighty(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"ninety(?:[\s-](?:one|two|three|four|five|six|seven|eight|nine))?|"
+            r"(?:one|two|three|four|five|six|seven|eight|nine)(?:teen)?)"
+        )
+        _age_extract_pat = re.compile(
+            r"(?:\d+[\s-]+years?[\s-]+old|\d+[\s-]+year[\s-]+old|"
+            r"aged?\s+\d+|age\s+of\s+\d+|"
+            r"(?:" + _written_num_pat + r")[\s-]+years?(?:[\s-]+old)?)",
+            re.IGNORECASE,
+        )
+        for _ac in characters:
+            _ac_app = getattr(_ac, 'appearance', None)
+            if _ac_app is None:
+                continue
+            if (_ac_app.get("age_indication", "") or "").lower() not in ("", "unknown"):
+                continue
+            _ac_names = [_ac.canonical_name] + list(_ac.aliases or [])
+            _age_found = None
+            for _ac_name in _ac_names:
+                if not _ac_name or len(_ac_name) < 2:
+                    continue
+                for _nm in re.finditer(re.escape(_ac_name), doc.text, re.IGNORECASE):
+                    _window = doc.text[max(0, _nm.start() - 50):min(len(doc.text), _nm.end() + 300)]
+                    _am = _age_extract_pat.search(_window)
+                    if _am:
+                        _age_found = _am.group().strip()
+                        break
+                if _age_found:
+                    break
+            if _age_found:
+                _ac.appearance["age_indication"] = _age_found
+                logger.info(
+                    f"Deterministic age extraction: '{_ac.canonical_name}' → '{_age_found}'"
+                )
+
         # Post-convert relationship correction: two distinct characters can never be
         # "same person". This is a universal invariant — if the LLM erroneously labels
         # character A as the same person as character B (they share a first name, etc.),
