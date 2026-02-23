@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260222_234032/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_002951/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -141,5 +141,13 @@
 |---------|-------|----------------|--------|
 | 1 | Roles wrong, narrator undetected, false positives | characters.py, narrator.py, supporting.py | Awaiting analysis |
 
+## Pipeline Notes (Attempt 2)
+- Completed in 18m 50s
+- Found 6 characters: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), +1 more
+- Narrator still "No definitive narrator identified" — narrator detection fix may not have fully worked
+- Structure: 1 chapter (expected for short story; LLM marker proposer returned dicts instead of lists - falling back to single chapter)
+- LLM validation errors in pronunciation (json_mode errors) but pipeline continued
+- "bush" false positive should be filtered (lowercase filter fix applied)
+
 ## Next Action
-Phase: awaiting_analysis - Re-run analysis on i_have_no_mouth to verify fixes.
+Phase: awaiting_evaluation - Evaluate attempt 2 output for i_have_no_mouth.
