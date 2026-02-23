@@ -2,26 +2,27 @@
 
 ## Active Text
 - **Name:** john_g
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/john_g/report.html
 - JSON: ../output/john_g/analysis.json
-- Timestamped: ../output/John G - Katherine Mayo_20260222_222918/
+- Timestamped: ../output/John G - Katherine Mayo_20260222_225644/
 
 ## Pipeline Notes
-- Completed in 11m 44s, 29 LLM calls, 34,719 tokens
+- Completed in 11m 23s, 21 LLM calls, 31,697 tokens
 - 2,228 words extracted (short text)
 - 1 chapter detected (single chapter story)
 - 5 characters total (John G. + 4 others)
-- John G. (aka John) - 19 mentions — false split RESOLVED ✓
-- Newline alias artifact RESOLVED ✓
+- John G. (aka John) - 19 mentions ✓
 - 4 profiles generated with HIGH confidence
-- 20 pronunciation flags (7 homograph, 6 proper_noun, 6 unknown, 1 foreign)
-- Greensburg IPA fix DID NOT TAKE EFFECT — still German pronunciation
+- 13 pronunciation flags (7 homograph, 6 unknown) — down from 20 in attempt 2
+- proper_noun and foreign entries eliminated by CMU filter ✓
+- Greensburg: check if still present (type: null entries may be gone)
+- Ollama json_mode validation error on one retry (recovered successfully)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
