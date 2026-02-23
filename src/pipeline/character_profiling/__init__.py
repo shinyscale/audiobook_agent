@@ -60,6 +60,7 @@ from .tag_identity import (
     extract_tag_identities,
     parse_compound_name,
 )
+from .post_corrections import OutputCharacterCorrector, PipelineCharacterCorrector
 
 __all__ = [
     # Models
@@ -121,4 +122,7 @@ __all__ = [
     "parse_compound_name",
     "extract_tag_identities",
     "apply_tag_identities_to_merge_candidates",
+    # Post-processing corrections
+    "PipelineCharacterCorrector",
+    "OutputCharacterCorrector",
 ]
