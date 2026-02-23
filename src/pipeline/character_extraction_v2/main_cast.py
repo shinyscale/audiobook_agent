@@ -55,14 +55,14 @@ Task:
 - Provide canonical_name and aliases/variants used in summaries.
 
 Output JSON array, each item:
-{
+{{
   "canonical_name": string,
   "aliases": [string],
   "role": "protagonist"|"antagonist"|"supporting"|"minor",
   "description": string,
   "is_unnamed": boolean,
   "is_symbolic": boolean
-}
+}}
 
 CHAPTER SUMMARIES:
 {summaries}

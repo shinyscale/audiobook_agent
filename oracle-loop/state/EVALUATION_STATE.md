@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -200,6 +200,7 @@
 | 3 | STEP 5.8.5 didn't fire when narrator named but not matched | characters.py | Pending re-analysis |
 | 3 | Narrator prompt didn't use plot_summary context | narrator.py | Pending re-analysis |
 | 3 | Pronunciation artifacts (mefrom, myright, Nimdokwith, possessives, contraction-concat) | cmu_proposer.py | Pending re-analysis |
+| 4 | MAIN_CAST_PROMPT crash: unescaped {{ }} in JSON example caused KeyError in format() | main_cast.py | Fixed — awaiting analysis |
 
 ## Pipeline Crash — Attempt 3
 
@@ -208,11 +209,21 @@ Analysis run FAILED with:
 Error during analysis: '\n  "canonical_name"'
 ```
 
-**New error introduced by Attempt 3 fixes.** The pipeline reaches character extraction (after summaries are generated), then crashes. The error string `'\n  "canonical_name"'` looks like a `KeyError` or `ValueError` where a multi-line JSON fragment is being used as a string key — suggesting the JSON parsing logic in `main_cast.py` (Attempt 3 Fix 1) introduced a regression.
+**Root cause identified and fixed:** The `MAIN_CAST_PROMPT` template in `main_cast.py` had unescaped `{` and `}` in its JSON example section (lines 58-65 before fix). When Python's `str.format()` processed this template, it interpreted the JSON example braces `{\n  "canonical_name": string,\n  ...}` as format placeholders, raising `KeyError: '\n  "canonical_name"'`.
 
-The two-pass extraction correctly falls back to single-pass (logged: "Two-pass extraction returned 0 characters; retrying with single-pass"), but then crashes during the single-pass parsing or during profile generation.
+This bug was dormant because `_extract_single_pass()` was only added as a fallback in Attempt 3 — before that, it was never called (the `else` branch of `if use_two_pass:`). The fix was to escape `{` → `{{` and `}` → `}}` in the JSON example.
 
-**Output files on disk are from a PREVIOUS run — not from this attempt.**
+**Fix applied:** Escaped the JSON example braces in `MAIN_CAST_PROMPT`.
+
+**Output files on disk are from a PREVIOUS run — not from Attempt 3.**
+
+### Attempt 4 Fix Applied
+
+**Fix (main_cast.py): Escape JSON example braces in `MAIN_CAST_PROMPT`**
+- Root cause: `MAIN_CAST_PROMPT` (lines 57-65) contained unescaped `{` and `}` in its JSON schema example. Python's `str.format()` interpreted `{\n  "canonical_name": string,\n  ...}` as a format placeholder named `\n  "canonical_name"` and raised `KeyError`. The single-pass extraction was never exercised before Attempt 3 added the two-pass → single-pass fallback.
+- Fix: Changed `{` → `{{` and `}` → `}}` around the JSON example in `MAIN_CAST_PROMPT`
+- Files: `src/pipeline/character_extraction_v2/main_cast.py`
+- Smoke test: PASS — `MAIN_CAST_PROMPT.format(summaries=..., plot_summary_section=...)` no longer raises `KeyError`; all 297+ passing tests still pass; 2 pre-existing failures unchanged
 
 ## Next Action
-Fix the regression in `main_cast.py` introduced by Attempt 3 Fix 1. The `'\n  "canonical_name"'` error string suggests a JSON parsing path is using a raw LLM string fragment as a dict key instead of the parsed value.
+Re-run analysis to verify all Attempt 3 + Attempt 4 fixes work together. Key things to verify: (1) main cast pipeline now extracts characters (including AM via single-pass fallback), (2) Ted is flagged as narrator, (3) Jesus false positive, (4) wrong ages, (5) pronunciation artifacts.
