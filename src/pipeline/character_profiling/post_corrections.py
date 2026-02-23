@@ -114,7 +114,7 @@ _written_num_pat = (
 _age_extract_pat = re.compile(
     r"(?:\d+[\s-]+years?[\s-]+old|\d+[\s-]+year[\s-]+old|"
     r"aged?\s+\d+|age\s+of\s+\d+|"
-    r"(?:" + _written_num_pat + r")[\s-]+years?(?:[\s-]+old)?)",
+    r"(?:" + _written_num_pat + r")[\s-]+years?[\s-]+old)",  # written nums MUST have "old"
     re.IGNORECASE,
 )
 
@@ -567,6 +567,7 @@ class OutputCharacterCorrector:
         """Run all Phase B corrections in order. Mutates characters in place."""
         self.inject_narrator_appearance_final(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
+        self.clean_unknown_appearance(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
@@ -682,6 +683,31 @@ class OutputCharacterCorrector:
                 logger.info(
                     f"Deterministic age extraction: '{char.canonical_name}' → '{age_found}'"
                 )
+
+    def clean_unknown_appearance(self, characters) -> None:
+        """Clear appearance fields whose value is a placeholder like 'unknown'.
+
+        When the LLM cannot describe a character it emits 'unknown', 'Unknown',
+        'not described', etc.  These are noise — rendering "unknown" in the HTML
+        provides no narrator guidance.  Clearing them lets the template skip the
+        section entirely.  Universal invariant: absence of data is better than
+        obviously-empty placeholder text.
+        """
+        _placeholder = frozenset({
+            "", "unknown", "not described", "no physical description",
+            "no description", "n/a", "none",
+        })
+        for char in characters:
+            app = getattr(char, 'appearance', None)
+            if not app:
+                continue
+            for key in ("summary", "age_indication", "distinguishing_features"):
+                val = app.get(key)
+                if isinstance(val, str) and val.strip().lower() in _placeholder:
+                    app[key] = None
+                    logger.info(
+                        f"Cleared placeholder appearance.{key}='{val}' for '{char.canonical_name}'"
+                    )
 
     def clean_orphaned_relationships(self, characters) -> None:
         """Remove relationship entries that reference characters not in the final list.

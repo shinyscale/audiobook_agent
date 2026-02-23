@@ -828,6 +828,33 @@ class CMUProposer(BasePronunciationProposer):
 
         return False
 
+    def _is_closed_compound(self, word: str) -> bool:
+        """Return True if word is a predictable closed compound of two CMU words.
+
+        Closed compounds like "firelight" (fire+light), "tinfoil" (tin+foil), and
+        "deckplates" (deck+plates) are fully predictable from their components —
+        a narrator who can say each part needs no extra guidance for the combination.
+
+        Universal invariant: when every component of a concatenated word appears
+        independently in the CMU dictionary the combined pronunciation is unambiguous.
+        """
+        word_lower = word.lower()
+        if len(word_lower) < 6:
+            return False
+        for split in range(3, len(word_lower) - 2):
+            left = word_lower[:split]
+            right = word_lower[split:]
+            if len(left) < 3 or len(right) < 3:
+                continue
+            if left not in self.known_words:
+                continue
+            # Right part: try direct match, or strip common plural 's'
+            if right in self.known_words:
+                return True
+            if right.endswith("s") and len(right) > 3 and right[:-1] in self.known_words:
+                return True
+        return False
+
     def propose(
         self,
         full_text: str,
@@ -874,6 +901,10 @@ class CMUProposer(BasePronunciationProposer):
 
             # Skip common derivations (e.g., "jingled" if "jingle" is in CMU)
             if self._is_common_derivation(word_lower):
+                continue
+
+            # Skip closed compounds whose every part is in CMU (e.g., "firelight", "tinfoil")
+            if self._is_closed_compound(word_lower):
                 continue
 
             # Skip OCR artifacts (missing spaces between words)
@@ -943,6 +974,8 @@ class CMUProposer(BasePronunciationProposer):
             if word in self.known_words:
                 return False
             if self._is_common_derivation(word):
+                return False
+            if self._is_closed_compound(word):
                 return False
             if self._is_ocr_artifact(word):
                 return False

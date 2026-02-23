@@ -3899,18 +3899,41 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                 continue
 
             # Infer role from surrounding plot-summary context
-            contexts = []
+            contexts_lower = []
+            contexts_original = []
             for m in re.finditer(r'\b' + re.escape(name) + r'\b', plot_summary_text):
-                start = max(0, m.start() - 120)
-                end = min(len(plot_summary_text), m.end() + 120)
-                contexts.append(plot_summary_text[start:end].lower())
-            context_text = " ".join(contexts)
+                start = max(0, m.start() - 200)
+                end = min(len(plot_summary_text), m.end() + 200)
+                contexts_lower.append(plot_summary_text[start:end].lower())
+                contexts_original.append(plot_summary_text[start:end])
+            context_text = " ".join(contexts_lower)
 
             role = "supporting"
-            if any(w in context_text for w in ("antagonist", "villain", "malevolent", "adversary", "evil")):
+            if any(w in context_text for w in (
+                "antagonist", "villain", "malevolent", "adversary", "evil",
+                "sadistic", "hateful", "cruel", "torturer", "torment",
+            )):
                 role = "antagonist"
             elif any(w in context_text for w in ("protagonist", "narrator", "hero")):
                 role = "protagonist"
+
+            # Build a minimal personality profile from plot-summary context.
+            # Uses whatever the summarizer wrote about this entity — no book-specific parsing.
+            personality = None
+            if contexts_original:
+                profile_text = " ".join(contexts_original).strip()
+                if len(profile_text) > 350:
+                    profile_text = profile_text[:350].rsplit(" ", 1)[0] + "…"
+                personality = {"summary": profile_text}
+
+            # Build relationships: any existing character mentioned in context
+            known_names = {c.canonical_name for c in characters}
+            relationships: dict = {}
+            for other_name in known_names:
+                if other_name != name and re.search(
+                    r'\b' + re.escape(other_name) + r'\b', context_text, re.IGNORECASE
+                ):
+                    relationships[other_name] = "see plot summary"
 
             new_char = OutputCharacter(
                 id=f"plot_summary_{name.lower()}",
@@ -3918,6 +3941,8 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                 role=role,
                 confidence=ConfidenceLevel.MEDIUM,
                 mention_count=text_count,
+                personality=personality,
+                relationships=relationships,
             )
             characters.append(new_char)
             added += 1

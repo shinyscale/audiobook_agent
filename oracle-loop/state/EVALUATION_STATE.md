@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -215,9 +215,11 @@
 - Runtime: 17m 45s analysis
 - Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)
 
+### Attempt 10 Fixes Applied
+- **Fix 1**: `_age_extract_pat` — require "old" for written-number forms → prevents re-extracting duration "five years" after clearing. Root cause: extraction pattern was inconsistent with validation pattern. File: `post_corrections.py:114-119`.
+- **Fix 2**: Safety net profile enrichment — expand role detection keywords (sadistic, hateful, cruel, torment, torturer); collect original-case context sentences; populate `personality.summary` from context; populate `relationships` to co-mentioned characters. File: `analyzer.py:_plot_summary_safety_net`.
+- **Fix 3**: `clean_unknown_appearance()` — new step in `OutputCharacterCorrector.run_all()` that clears "unknown"/"not described"/"n/a" placeholder values from `appearance.summary`, `appearance.age_indication`, `appearance.distinguishing_features`. Absence of data is better than noise. File: `post_corrections.py`.
+- **Fix 4**: `_is_closed_compound()` — new method in CMU proposer that skips words that split into two known CMU words (e.g., "tinfoil"→tin+foil, "firelight"→fire+light, "deckplates"→deck+plates). Universal invariant: closed compounds of known words are fully predictable. File: `cmu_proposer.py`.
+
 ## Next Action
-Run PROMPT_fix.md — Fix attempt 10. Focus on 4 fixes:
-1. Clean `appearance.age_indication` for implausible ages (post_corrections.py)
-2. Enrich AM profile from plot_summary context (analyzer.py safety net)
-3. Populate `physical_description` from `appearance.summary` (post_corrections.py)
-4. Strengthen pronunciation false positive filter (pronunciation pipeline)
+Run PROMPT_analyze.md — Re-run analysis for attempt 10.
