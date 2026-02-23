@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_023137/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_030910/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -229,5 +229,15 @@ Reject age_indication values that are pure number words without "years old" or "
 - **Universality:** Only fires when LLM-based detection fails. The "lowest mention count" invariant is universal across first-person fiction.
 - **Modified:** `src/agents/characters.py` lines 798-830, 3358-3400
 
+## Pipeline Notes (Attempt 6)
+- Runtime: 17m 14s, 61 LLM calls, 73,394 tokens
+- **Fix 1 (AM fallback) FIRED**: "V2 Step 3.1 FALLBACK: main_cast empty after grounding. Retrying with simpler prompt on plot_summary."
+- Character Extraction: 5 LLM calls (was 4) — 1 extra from fallback
+- 6 characters found (same count as before) — "1 more" beyond the 5 survivors could be AM
+- **Narrator still undetected**: "No definitive narrator identified yet" and "No definitive narrator identified from plot summary"
+- Fix 2 (heuristic narrator fallback from mention count) did not produce result — needs evaluation to verify
+- "LLM marker proposer returned non-list: dict" × 3 — same as before
+- Chapter Summaries: 0 LLM calls (cached)
+
 ## Next Action
-Run PROMPT_analyze.md to re-analyze i_have_no_mouth with the new fallbacks.
+Run PROMPT_evaluate.md to evaluate attempt 6 output.
