@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -213,5 +213,21 @@ The fix phase MUST do the following BEFORE making any code changes:
 - Chapter Summaries: 0 LLM calls (cached)
 - Runtime: 17m 27s total
 
+### Attempt 8 Fixes Applied
+- **Fix 1 (committed decbb66)**: Fallback prompt now says "Include humans, non-human beings, AI, and any named force that acts with agency" → should capture AM (supercomputer)
+- **Fix 2 (committed decbb66)**: `_get_narrative_style()` completely rewritten — no longer depends on `ps.narrative_style`. Now checks: (a) pipeline_metadata, (b) pov_character consistency across summaries, (c) first-person markers in summary text → should enable STEP 5.8.6 heuristic for Ted
+- **Fix 3 (committed e61ef6b)**: `clean_orphaned_relationships()` removes relationship entries to characters not in final list → fixes "Jesus: unknown" in Benny/Nimdok/Ellen profiles
+- **Fix 4 (committed e61ef6b)**: Age validation in `extract_deterministic_age()` rejects "five years"/"nine years" (written-number + "years" without "old") → fixes "Age: five years" hallucination
+- **Refactor (committed e61ef6b)**: Extracted all inline post-profile correction blocks from `analyzer.py` into `PipelineCharacterCorrector` and `OutputCharacterCorrector` classes with 49 unit tests
+
+## Pipeline Notes (Attempt 8)
+- Ted: `is_narrator: true` ✓ — **Fix 2 WORKED** (narrator detection now fires)
+- AM: Still absent — 5 characters found (Benny, Ellen, Gorrister, Nimdok, Ted), none named AM
+- "V2 Step 3.1 FALLBACK" fired but still produced 0 main_cast characters
+- LLM marker proposer returned non-list (dict) x3 — structure fallback triggered
+- Pronunciation: 38 words flagged (28 unknown, 6 homograph, 2 proper_noun, 2 foreign)
+- Runtime: 18m 6s; Chapter Summaries: 0 LLM calls (cached)
+- Timestamped output: output/I_Have_No_Mouth_And_I_Must_Scream_20260223_104027/
+
 ## Next Action
-Run PROMPT_fix.md — **ESCALATION MODE**: Add diagnostic logging first, trace execution, then fix based on observed runtime behavior.
+Run PROMPT_evaluate.md — Evaluate attempt 8 output.
