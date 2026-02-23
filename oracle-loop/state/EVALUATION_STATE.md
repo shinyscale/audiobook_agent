@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 10
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -14,18 +14,18 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 8/10 ✓
+- Character Extraction: 8.5/10 ✓
   - Completeness: 9/10
   - Identity Resolution: 9/10
   - Alias Grouping: 8/10
-- Character Profiles: 6.5/10 ✗ (FAILING)
+- Character Profiles: 7.5/10 ✗ (FAILING)
 - Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 7/10 ✗ (FAILING)
-- HTML Presentation: 8/10 ✓
-- **Overall: 7.98/10** (reference only)
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 8.40/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (1 category below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -39,90 +39,80 @@
 | 7 | 6.80 | -0.55 | Fix 3 worked (Jesus removed). Fixes 1+2 did NOT take effect despite correct code in codebase. |
 | 8 | 7.43 | +0.08 | Narrator detection FIXED (Ted is_narrator: true). Orphaned relationships cleaned. AM still missing. Ages still wrong. |
 | 9 | 7.98 | +0.63 | **AM ADDED via safety net!** Title/timing HTML fixes. hermiene removed. Ages null at top level but still in appearance. 4→2 failing categories. |
+| 10 | 8.40 | +1.05 | Ages GONE. AM=antagonist with personality. Pronunciation 37→23. **1 failing category remaining (Profiles 7.5).** |
 
-## What Worked in Attempt 9
-1. **Fix 1 (plot_summary safety net) — WORKED**: AM now present with id `plot_summary_am`, 74 mentions, role "supporting". The `_plot_summary_safety_net` in analyzer.py successfully found "AM" (8 occurrences in plot_summary) and added it as a character. This resolved the 8-attempt-long stuck pattern.
-2. **Fix 2 (HTML title underscores) — WORKED**: Title now displays "I Have No Mouth And I Must Scream" (no underscores).
-3. **Fix 3 (HTML timing table) — WORKED**: started_at/ended_at rows no longer render in timing table.
-4. **Fix 4 (URL token filter) — WORKED**: "hermiene" no longer in pronunciation list (was from hermiene.net URL).
-5. **Age validation (from attempt 8) — PARTIALLY WORKED**: Top-level `age` field is now null for all characters, but `appearance.age_indication` still has the wrong values ("five years", "nine years"), and the HTML template renders from the nested field.
+## What Worked in Attempt 10
+1. **Fix 1 (age pattern fix) — WORKED**: `appearance.age_indication` is now null for all characters. The `_age_extract_pat` fix requiring "old" for written-number forms prevented re-extraction of "five years" duration strings. Combined with Fix 3 (`clean_unknown_appearance()`), all spurious age data is gone from both data and HTML.
+2. **Fix 2 (AM safety net profile enrichment) — PARTIALLY WORKED**: AM now has:
+   - `role: "antagonist"` ✓ (keyword detection working)
+   - `personality.summary` populated ✓ (but it's the full plot_summary text, not actual personality traits — see issues below)
+   - `relationships` to all 5 humans ✓ (but all say "see plot summary" — lazy placeholder)
+3. **Fix 3 (clean_unknown_appearance) — WORKED**: "unknown"/"not described" placeholder values cleared from appearance fields. Absence > noise.
+4. **Fix 4 (compound word filter) — WORKED**: Pronunciation entries dropped from 37→23. Compounds like tinfoil, firelight, snowdrifts, deckplates, floorplates all correctly filtered out.
 
 ## What Did NOT Fully Work
-1. **Age validation — INCOMPLETE**: The fix nulled top-level `age_indication` but not `appearance.age_indication`. HTML still shows "Age: five years" for Benny/Ellen/Gorrister and "Age: nine years" for Ted.
-2. **AM's profile — EMPTY**: The safety net creates a minimal entry (name, role, mentions) but AM has no personality, relationships, appearance, voice guidance, or backstory. For the story's central antagonist, this is a significant gap.
-3. **AM's role — WRONG**: Listed as "supporting" when AM is clearly the primary antagonist driving the entire plot.
+1. **AM's personality is the plot_summary itself**: Instead of extracting personality traits (sadistic, omnipotent, hateful), the safety net copied the entire plot_summary paragraph into `personality.summary`. It's truncated and reads as narrative ("Five survivors—Ted, Ellen, Nimdok..."), not personality description. The context sentence extraction likely captured the entire plot_summary rather than just AM-relevant sentences.
+2. **AM's relationships are all "see plot summary"**: All 5 relationships just say "see plot summary" rather than describing the actual relationship (e.g., "captor and torturer", "transforms into mouthless blob"). The safety net's relationship population is too simplistic.
+3. **physical_description still null for all 6 characters**: Benny has `appearance.summary` = "monkey-like face with radiation scars..." and Nimdok has distinguishing features, but `physical_description` at top level is never populated. The attempt 9 plan mentioned this (Fix #4) but it was not implemented in attempt 10's fixes.
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-(none)
-
 ### HIGH
-1. **appearance.age_indication still has wrong ages — showing in HTML** [Profiles]
-   - Problem: HTML shows "Age: five years" for Benny/Ellen/Gorrister and "Age: nine years" for Ted (4 occurrences: lines 1001, 1233, 1441, 1819). These are nonsensical — the characters have been trapped for 109 years.
-   - Evidence: `jq '.characters[].appearance.age_indication'` returns "five years", "five years", "five years", null, "nine years", null. Top-level `age` is correctly null.
-   - Root cause: The age validation in `extract_deterministic_age()` cleaned the top-level field but the HTML template reads from `appearance.age_indication` which was never cleaned.
-   - Location: `src/pipeline/character_extraction_v2/post_corrections.py` (OutputCharacterCorrector) OR `src/export/html_report.py`
-   - Fix: Either (a) clean `appearance.age_indication` in the post-correction step when the age is implausible (non-numeric or < 18 for characters with adult context), OR (b) in the HTML template, skip rendering age_indication when it matches implausible patterns. Option (a) is preferred — fix the data, not the template.
+1. **AM's personality.summary is the full plot_summary, not actual personality traits** [Profiles]
+   - Problem: AM's personality reads: "Five survivors—Ted, Ellen, Nimdok, Gorrister, and Benny—trudge through the nightmarish..." — this is the entire plot summary, not personality traits. It's truncated mid-sentence.
+   - Evidence: `jq '.characters[] | select(.canonical_name == "AM") | .personality.summary' analysis.json` returns the full plot_summary text.
+   - Root cause: The safety net's context sentence extraction captured the entire plot_summary paragraph instead of extracting personality-relevant descriptors.
+   - Location: `src/analyzer.py` (`_plot_summary_safety_net`)
+   - Fix: Instead of dumping context sentences verbatim, extract short descriptor phrases from plot_summary sentences that mention the character. For AM: find "sadistic", "sentient supercomputer", "tormented", "manipulations", "cruel", "silent cruelty" in context and build a personality summary like "Sadistic, omnipotent sentient supercomputer; endlessly creative in devising torments; motivated by hatred of humanity." Cap personality.summary at ~200 chars.
 
-2. **AM has zero profile** [Profiles]
-   - Problem: AM (the sentient AI antagonist driving the entire story) has: no personality, no relationships, no appearance, no voice, no backstory. The safety net creates a minimal entry but doesn't generate profile data.
-   - Evidence: `jq '.characters[] | select(.canonical_name == "AM") | {personality, voice, backstory, relationships, appearance}'` → all null/empty.
-   - Location: `src/analyzer.py` (`_plot_summary_safety_net` method)
-   - Fix: When the safety net adds a character, extract basic profile information from the plot_summary. The plot_summary says "the sadistic, omnipotent AI known as AM" — use this to populate: personality (sadistic, omnipotent, hateful), role (change to "antagonist"), and at minimum a description. Also add relationships to all 5 humans (AM tortures them all). This doesn't need LLM calls — simple regex extraction from plot_summary sentences mentioning AM.
+2. **AM's relationships are all "see plot summary"** [Profiles]
+   - Problem: All 5 relationships say "see plot summary" — useless for a narrator.
+   - Evidence: `jq '.characters[] | select(.canonical_name == "AM") | .relationships'` → all values "see plot summary"
+   - Root cause: Safety net creates relationships with placeholder text instead of extracting actual relationship descriptions.
+   - Location: `src/analyzer.py` (`_plot_summary_safety_net`)
+   - Fix: Use the plot_summary context to generate meaningful relationship descriptions. For a character detected as "antagonist" who appears with other characters, the relationship is likely "captor/torturer" or "antagonist" by default. At minimum: "AM tortures and controls [character], keeping them alive indefinitely as objects of hatred."
 
-3. **~10 common English words as pronunciation false positives** [Pronunciation]
-   - Problem: These standard English words don't need pronunciation help: tinfoil, firelight, snowdrifts, eternities, deckplates, floorplates, palette, puckerings, loonie, piteously, shoal, downdropping, spastically.
-   - Evidence: 13 of 37 entries (35%) are common words or obvious compounds. A narrator doesn't need IPA for "tinfoil" or "firelight."
-   - Location: `src/pipeline/pronunciation_guide/` — the false positive filtering needs strengthening.
-   - Fix: Add a compound-word filter (if a word can be split into two common English words, skip it: tin+foil, fire+light, snow+drifts, floor+plates, deck+plates). Also expand the common-word exclusion list to include standard dictionary words like palette, eternities, puckerings, piteously, shoal, loonie.
+3. **physical_description null for all characters** [Profiles]
+   - Problem: 0/6 characters have `physical_description` at top level, but `appearance.summary` and `appearance.distinguishing_features` are populated for some (Benny, Nimdok, Gorrister).
+   - Evidence: `jq '[.characters[] | select(.physical_description != null)] | length'` → 0. But Benny's `appearance.summary` = "Benny has a monkey-like face with radiation scars..."
+   - Location: `src/pipeline/character_extraction_v2/post_corrections.py` (OutputCharacterCorrector)
+   - Fix: Add a step in `OutputCharacterCorrector.run_all()` that copies `appearance.summary` to `physical_description` when `physical_description` is null and `appearance.summary` is not null/empty/"unknown". Generic fix, helps all texts.
 
 ### MEDIUM
-4. **Physical descriptions all null at top level** [Profiles]
-   - Problem: 0/6 characters have `physical_description` populated. But Benny has `appearance.summary`: "monkey-like face, enlarged genitalia, radiation scars" and Nimdok has "resembling a chimpanzee."
-   - Fix: In post-correction or output conversion, copy `appearance.summary` to `physical_description` when summary is not "unknown"/"Unknown". Generic fix — applies to all texts.
+4. **Remaining pronunciation false positives** [Pronunciation]
+   - Problem: "palette", "piteously", "eternities", "shoal" are standard English words that a narrator shouldn't need help with. 4 of 17 non-homograph entries (~24%) are mild false positives.
+   - Impact: Not a threshold blocker (Pronunciation is at 8.0), but could be better.
+   - Fix: Lower priority — these are borderline and some narrators might actually appreciate the notes.
 
-5. **AM role="supporting" should be "antagonist"** [Characters]
-   - Problem: The safety net assigns role="supporting" by default. AM is clearly the primary antagonist.
-   - Fix: In the safety net, if the plot_summary context around a character name includes negative descriptors (sadistic, malevolent, cruel, antagonist, villain, evil), assign role="antagonist" instead of "supporting."
-
-6. **choir IPA wrong** [Pronunciation]
+5. **"choir" IPA wrong** [Pronunciation]
    - Problem: Listed as /kwɑːr/, correct is /kwaɪər/.
-   - Evidence: Standard English pronunciation; this appears to be a CMU dictionary error or LLM hallucination.
-   - Location: Could be in CMU proposer or LLM pronunciation generation.
-   - Fix: Lower priority — one wrong IPA among 31 is not a threshold blocker.
+   - Impact: One wrong IPA among 17 entries with IPA. Not a threshold blocker.
 
-7. **6 homographs with null IPA** [Pronunciation]
-   - Problem: wind, read, lead, does, close, subject all listed as homographs without IPA, only text disambiguation notes.
-   - Evidence: The entries show e.g., "Multiple pronunciations: air movement (WIND); to turn (WYND)" which is actually useful for a narrator even without IPA.
-   - Fix: Lower priority — the disambiguation notes are useful even without IPA. The homograph detection is working correctly.
+6. **Themes too generic** [Summaries]
+   - Current: "identity", "ambition", "loss"
+   - "ambition" is particularly wrong for this story. Better: dehumanization, technological tyranny, mercy/suffering, hatred.
+   - Impact: Minor — themes are supplementary.
 
 ### LOW
-8. **Themes too generic** [Summaries]
-   - Current: "identity, loss, powerlessness"
-   - Better: hatred/revenge, dehumanization, suffering, mercy killing, AI tyranny
-   - Impact: Minor — themes are supplementary information.
+7. **Ted's personality too flat** [Profiles]
+   - "emotional detachment and resignation" — misses paranoid, cynical, unreliable narrator traits.
+   - Impact: LLM profiling quality; hard to fix generically.
 
-9. **Ted's personality too flat** [Profiles]
-   - "detached, resigned, observant, decisive" — misses paranoid, cynical, unreliable narrator.
-   - Impact: LLM profiling quality issue — not easily fixed generically.
+8. **Some relationship descriptions questionable** [Profiles]
+   - Ellen → Gorrister: "abuser" — strong for text evidence.
+   - Ted's relationships list others as "murder victim" — technically correct (Ted mercy-kills them) but misleading without context.
+   - Impact: LLM phrasing issue; hard to fix generically.
 
-10. **Some relationship descriptions inaccurate** [Profiles]
-    - Ellen → Gorrister: "abuser, physically assaults her" — strong wording for text evidence
-    - Gorrister → Ted: "victim" — ambiguous direction (Ted kills Gorrister, not vice versa)
-    - Impact: LLM hallucination in relationship phrasing. Hard to fix generically.
+## Fix Priority for Attempt 11
 
-## Fix Priority for Attempt 10
+**To cross 8.0 in Profiles (currently 7.5):**
+- Fix #1 (AM personality — extract traits, don't dump plot_summary) — fixes the most jarring profile issue (+0.3)
+- Fix #2 (AM relationships — generate meaningful descriptions) — eliminates "see plot summary" placeholders (+0.2)
+- Fix #3 (physical_description from appearance.summary) — populates top-level field for narrator reference (+0.3)
 
-**To cross 8.0 in Profiles (currently 6.5):**
-- Fix #1 (age_indication cleanup) — removes wrong ages from HTML (+0.5)
-- Fix #2 (AM profile from plot_summary) — fills the biggest profile gap (+0.5)
-- Fix #4 (physical_description from appearance.summary) — populates descriptions (+0.5)
+**These 3 fixes should push Profiles from 7.5 → 8.0-8.5.**
 
-**To cross 8.0 in Pronunciation (currently 7.0):**
-- Fix #3 (false positive filtering) — removing ~10 false positives drops from 37→~24 entries with much better signal-to-noise (+1.0)
-
-**These 4 fixes should be sufficient to pass both failing categories.**
+The other 5 categories are all ≥ 8.0 and should not regress from these targeted profile fixes.
 
 ## Fix History
 
@@ -170,6 +160,12 @@
 - **Fix 3**: HTML timing table empty rows fix → **WORKED**
 - **Fix 4**: URL token filter in CMU pronunciation proposer → **WORKED** — "hermiene" removed
 
+### Attempt 10 Fixes Applied
+- **Fix 1**: `_age_extract_pat` — require "old" for written-number forms → **WORKED** — ages gone from HTML
+- **Fix 2**: Safety net profile enrichment (role detection, context sentences, personality, relationships) → **PARTIALLY WORKED** — role=antagonist ✓, but personality=plot_summary dump, relationships="see plot summary"
+- **Fix 3**: `clean_unknown_appearance()` → **WORKED** — placeholder values cleared
+- **Fix 4**: `_is_closed_compound()` → **WORKED** — 37→23 pronunciation entries
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -203,6 +199,10 @@
 | 9 | HTML title underscores | html_report.py | **WORKED** |
 | 9 | HTML timing empty rows | html_report.py | **WORKED** |
 | 9 | Pronunciation URL artifact (hermiene) | cmu_proposer.py | **WORKED** |
+| 10 | Age pattern re-extraction | post_corrections.py | **WORKED** — ages gone |
+| 10 | AM personality from plot_summary | analyzer.py | **PARTIAL** — dumped full plot_summary instead of traits |
+| 10 | Unknown appearance cleanup | post_corrections.py | **WORKED** |
+| 10 | Compound word filter | cmu_proposer.py | **WORKED** — 37→23 entries |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
@@ -211,24 +211,8 @@
 - Character Extraction: 5 LLM calls (0 main_cast, 5 supporting, 1 safety net)
 - Character Profiles: 15 LLM calls for 5 supporting characters (AM not profiled — safety net bypass)
 - 0 low-confidence items, 0 LLM retries, 0 JSON parse failures
-- Pronunciation: 34 LLM calls for 37 items
-- Runtime: 17m 45s analysis
-- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority)
-
-### Attempt 10 Fixes Applied
-- **Fix 1**: `_age_extract_pat` — require "old" for written-number forms → prevents re-extracting duration "five years" after clearing. Root cause: extraction pattern was inconsistent with validation pattern. File: `post_corrections.py:114-119`.
-- **Fix 2**: Safety net profile enrichment — expand role detection keywords (sadistic, hateful, cruel, torment, torturer); collect original-case context sentences; populate `personality.summary` from context; populate `relationships` to co-mentioned characters. File: `analyzer.py:_plot_summary_safety_net`.
-- **Fix 3**: `clean_unknown_appearance()` — new step in `OutputCharacterCorrector.run_all()` that clears "unknown"/"not described"/"n/a" placeholder values from `appearance.summary`, `appearance.age_indication`, `appearance.distinguishing_features`. Absence of data is better than noise. File: `post_corrections.py`.
-- **Fix 4**: `_is_closed_compound()` — new method in CMU proposer that skips words that split into two known CMU words (e.g., "tinfoil"→tin+foil, "firelight"→fire+light, "deckplates"→deck+plates). Universal invariant: closed compounds of known words are fully predictable. File: `cmu_proposer.py`.
-
-## Pipeline Notes (Attempt 10)
-- AM added via safety net with role=antagonist (Fix 2 from attempt 10 worked)
-- Pronunciation: 23 flags (down from 37 in attempt 9 — compound filter Fix 4 working)
-- 6 characters found, 5 profiled + AM via safety net
-- Runtime: 16m 6s
-- Structure: 1 chapter (consistent with previous attempts)
-- LLM marker proposer returned non-list (non-fatal, fell back to single chapter)
-- Two-pass extraction returned 0 characters; retried with single-pass (consistent pattern)
+- Pronunciation: 23 entries (down from 37), compound filter working
+- Runtime: 16m 6s analysis
 
 ## Next Action
-Run PROMPT_evaluate.md — Evaluate attempt 10 output.
+Run PROMPT_fix.md — Fix AM profile quality (personality traits, relationships) and populate physical_description from appearance.summary. Target: Profiles 7.5 → 8.0+.
