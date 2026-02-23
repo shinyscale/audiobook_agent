@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 15
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -18,7 +18,7 @@
   - Completeness: 9/10
   - Identity Resolution: 10/10
   - Alias Grouping: 9/10
-- Character Profiles: 7.5/10 ✗ (FAILING — up from 7.0 in attempt 13; execution ordering fix WORKED but replacement quality poor)
+- Character Profiles: 7.5/10 ✗ (FAILING — two-part fix changed AM personality from garbled fragments to coherent plot summary, but it's STILL a plot narrative, not personality traits)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
@@ -44,84 +44,89 @@
 | 12 | 8.53 | +1.18 | Nimdok RESTORED. 4/6 physical_desc (up from 1/6). AM personality STILL broken (3rd failed attempt). 2→1 failing category. |
 | 13 | 8.45 | +1.10 | **MINOR REGRESSION.** AM personality post-correction DID NOT WORK (4th failure — root cause found: execution ordering). Ellen profile REGRESSED (stochastic LLM failure). 3/6 physical_desc (was 4/6). |
 | 14 | 8.53 | +1.18 | Execution ordering fix WORKED — plot dump gone! But replacement is garbled sentence fragments. Ellen restored. Nimdok improved. AM personality still not useful. |
+| 15 | 8.53 | +1.18 | Two-part fix changed AM personality form (garbled fragments → coherent plot narrative) but STILL not personality traits. Nimdok chimpanzee cross-contamination returned (stochastic). **6th failed AM personality attempt.** |
 
-## What Happened in Attempt 14
+## What Happened in Attempt 15
 
-### Fix Applied
-1. **Execution ordering fix in `analyzer.py`**: Moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()`. The post-correction now sees AM in the character list.
+### Fixes Applied
+1. **Part A — Intro-phrase extraction in `_plot_summary_safety_net()`**: Instead of extracting full sentences with AM as subject, extract adjective/descriptor phrases from the plot_summary context.
+2. **Part B — Quality filter in `clean_plot_summary_personality()`**: Filter out garbled fragments (name-only sentences, text artifacts, too-short content) and fall back to None.
 
-### Result: PARTIALLY WORKED — Ordering Fixed, Replacement Quality Poor
+### Result: DID NOT WORK — Plot summary content changed form but is still narrative
 
-**The execution ordering fix succeeded:**
-- `clean_plot_summary_personality()` now detects AM's personality mentions 3+ other characters ✓
-- It replaces the full plot dump with source-text subject sentences ✓
-- The plot dump is GONE — no more multi-paragraph narrative in personality ✓
+**AM personality is now:** `"As time and space warp under AM's control, their fragile camaraderie fractures; AM weaponizes their memories, fears, and relationships, turning trust into paranoia and love into resentment. The story…"`
 
-**But the replacement is garbled:**
-- AM personality is now: `"AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."`
-- Problems:
-  1. First "sentence" is just `"AM."` — the character name with a period, not a personality descriptor
-  2. `"aswith"` — text artifact from missing space in source PDF extraction
-  3. These are narrative action sentences, not personality traits
-  4. Doesn't capture any of AM's key personality: sadistic, omnipotent, hateful, creative in cruelty
-  5. Less useful than null — a narrator reading this gets confused rather than informed
+**Analysis of what happened:**
+- Part A produced a plot summary narrative instead of adjective-based personality traits. The output describes story events ("camaraderie fractures", "turning trust into paranoia") not personality characteristics ("sadistic", "omnipotent", "hateful").
+- Part B quality filter likely did NOT trigger because the personality text is coherent prose (not garbled) and uses pronouns ("their") instead of naming 3+ characters by name. `clean_plot_summary_personality()` checks for named character mentions, not pronouns.
+- Net result: the personality text changed from garbled fragments to coherent narrative, but it's still fundamentally a plot summary rather than personality traits.
 
-### Stochastic Improvements (not from code changes)
-- **Ellen profile RESTORED**: 5H/0M/0L (was 4H/0M/1L in attempt 13). Ellen now has full personality, physical_description, and relationships ✓
-- **Nimdok chimpanzee error GONE**: No longer says "resembling a chimpanzee AM intended him to resemble" (that was Benny's description). Now has accurate description ✓
-- **AM relationships complete**: All 5 humans listed as "adversary" including Ellen (was missing in attempt 13) ✓
-- **physical_description: 4/6** (up from 3/6 in attempt 13, same as attempt 12)
+### Stochastic Changes (not from code fixes)
+- **Nimdok chimpanzee cross-contamination RETURNED**: Physical description says "resembling a chimpanzee in posture and movement" — this is Benny's ape-like description incorrectly attributed to Nimdok. Was GONE in attempt 14, back now (stochastic regression).
+- **Other profiles stable**: Benny, Ellen, Gorrister profiles similar to attempt 14. physical_description: 4/6.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **AM personality is garbled sentence fragments — replacement quality too low** [Profiles]
-   - Problem: AM's personality reads: `"AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."` — extracted source-text sentences that are narrative actions, not personality traits. Contains text artifact ("aswith"). Worse than null for narrator preparation.
-   - Root cause: `clean_plot_summary_personality()` extracts sentences from source text where "AM" is the grammatical subject. For Ellison's prose, those sentences describe AM's actions ("had blinded", "had been ruthless") not personality traits. The method correctly detects the plot dump and correctly extracts subject sentences, but the subject sentences are the wrong type of content.
-   - **TWO-PART FIX needed:**
-     - **Part A — Safety net personality** (`analyzer.py:3926-3947`): Instead of building personality from full plot-summary sentences (which mention other characters → trigger post-correction → get replaced with poor source sentences), extract ADJECTIVE PHRASES from the plot_summary context that describe the character. The plot summary already contains: "omnipotent and sadistic AI", "relentless cruelty", "Enraged by this ultimate defiance". Build personality like: `"Omnipotent and sadistic. Shows relentless cruelty and becomes enraged by defiance."` This personality won't mention 3+ other characters → post-correction won't flag it → clean personality survives.
-     - **Part B — Fallback quality** (`post_corrections.py:949-967`): Add a quality filter to `clean_plot_summary_personality()`. If extracted subject sentences are < 50 chars total, or if ANY sentence is just the character name + period (e.g., "AM."), fall back to `None` instead of using garbled fragments. The method's docstring already says "Clearing (None) is always preferable to retaining a misleading plot dump."
-   - Location: `analyzer.py` (`_plot_summary_safety_net`), `post_corrections.py` (`clean_plot_summary_personality`)
-   - Expected impact: AM gets a usable personality description → Profiles reaches 8.0
+1. **AM personality is STILL a plot summary narrative — 6th failed fix attempt** [Profiles]
+   - Problem: AM's personality reads: `"As time and space warp under AM's control, their fragile camaraderie fractures; AM weaponizes their memories, fears, and relationships, turning trust into paranoia and love into resentment. The story…"` — this describes story events, not AM's personality. It's coherent (not garbled) but fundamentally the wrong type of content. Truncated ("The story…"). Does not capture AM's key traits: sadistic, omnipotent, hateful, creative in cruelty, imprisoned by its own existence.
+   - Root cause: Every heuristic approach to extract personality from LLM-generated plot_summary text has failed because the plot_summary is narrative prose — regex/pattern approaches can't distinguish "personality-relevant prose" from "plot-relevant prose" since they're interleaved in the same sentences.
+   - **6 FAILED APPROACHES SO FAR:**
+     1. Attempt 10: Direct dump of plot_summary → too long, mentions everyone
+     2. Attempt 11: Sentence extraction → unchanged (code didn't take effect)
+     3. Attempt 12: Subject-sentence selection → unchanged (code didn't take effect)
+     4. Attempt 13: Post-correction cleanup → correct code but ran before AM existed
+     5. Attempt 14: Execution ordering fix → garbled source-text fragments
+     6. Attempt 15: Intro-phrase extraction + quality filter → coherent plot narrative (pronouns bypass name-check)
+   - **RECOMMENDED APPROACH — Set personality to `None` for safety-net characters:**
+     - After 6 failed heuristic extraction attempts, the simplest reliable fix is to NOT set personality at all for safety-net characters. A null personality is strictly better than a misleading plot summary for narrator preparation.
+     - The narrator still gets: role="antagonist", 74 mentions, 5 adversary relationships — this is functionally useful.
+     - Null personality is honest (says "I don't have detailed personality info") vs. plot narrative (misleads the narrator with story events presented as personality).
+     - Implementation: In `_plot_summary_safety_net()`, simply don't set `personality` (or set it to `None`). Remove the personality extraction logic that has failed 6 times.
+   - **ALTERNATIVE — Minimal hardcoded personality from role:**
+     - For safety-net characters with role="antagonist", set personality to: `{"summary": "Primary antagonist.", "traits": [], "temperament": null, "emotional_range": null}`
+     - This is one step above null — tells the narrator "this is the antagonist" without any risk of plot summary contamination.
+   - Location: `analyzer.py` (`_plot_summary_safety_net` personality generation logic)
+   - Expected impact: AM gets clean minimal profile → removes the only source of deduction on Profiles score from code-fixable issues. Combined with favorable stochastic outcomes on other profiles → Profiles reaches 8.0.
 
 ### MEDIUM
-2. **Remaining pronunciation false positives** [Pronunciation]
+2. **Nimdok physical_description cross-contamination** [Profiles — stochastic]
+   - Problem: Nimdok described as "resembling a chimpanzee in posture and movement" — this is Benny's ape-like description from the text, not Nimdok's. Nimdok has minimal physical description in the source text.
+   - This is a stochastic LLM profiling error — was correct in attempt 14, wrong again in attempt 15. Not code-fixable.
+
+3. **Remaining pronunciation false positives** [Pronunciation]
    - "palette", "piteously", "eternities", "shoal" are standard English words.
    - Not a threshold blocker (Pronunciation at 8.0).
 
-3. **"choir" IPA wrong** [Pronunciation]
+4. **"choir" IPA wrong** [Pronunciation]
    - Listed as /kwɑːr/, correct is /kwaɪər/.
    - Not a threshold blocker.
 
 ### LOW
-4. **Ted's personality too flat** [Profiles]
+5. **Ted's personality too flat** [Profiles]
    - Misses paranoid, cynical, unreliable narrator traits.
    - LLM profiling quality issue, not code-fixable.
 
-5. **AM relationships too generic** [Profiles]
+6. **AM relationships too generic** [Profiles]
    - All say "adversary". More specific descriptions would help narrators.
    - Low priority — relationships are functional.
 
-## Fix Priority for Attempt 15
+7. **Gorrister personality partially inaccurate** [Profiles — stochastic]
+   - Described as "cruel and domineering" but in the text Gorrister is more passive/nihilistic.
+   - LLM profiling quality issue, not code-fixable.
 
-**CRITICAL #1 is the ONLY remaining blocker.**
+## Fix Priority for Attempt 16
 
-The fix has two parts (both needed):
+**CRITICAL #1 is the ONLY remaining blocker and the ONLY code-fixable issue.**
 
-### Part A: Better safety net personality (analyzer.py)
-In `_plot_summary_safety_net()` at lines 3926-3947, replace the sentence-extraction approach with adjective/descriptor extraction from the plot_summary context:
-1. From the `contexts_original` list (already computed at line 3913-3914), extract adjective phrases that modify or describe the character
-2. Look for patterns like `"{NAME}.*?(adjective|trait word)"` or `"(adjective) {common_noun_for_character}"`
-3. Build a short personality summary from these descriptors: e.g., "Omnipotent and sadistic. Shows relentless cruelty."
-4. This personality will NOT mention 3+ other character names → `clean_plot_summary_personality()` won't flag it
+After 6 failed heuristic attempts, the fix must be SIMPLE and RELIABLE:
 
-### Part B: Quality filter in post-correction (post_corrections.py)
-In `clean_plot_summary_personality()` at lines 963-967, add quality checks before using extracted sentences:
-1. Filter out sentences that are just the character name + punctuation (e.g., "AM.")
-2. If remaining sentences total < 50 chars, fall back to `None` instead of using them
-3. Check for text artifacts (consecutive words without spaces) — if found, fall back to `None`
+### Recommended Fix: Null out safety-net personality
+In `_plot_summary_safety_net()` in `analyzer.py`, remove ALL personality extraction/generation logic for safety-net characters. Set personality to `None` or omit it entirely. The current heuristic approaches have failed 6 consecutive times because they cannot distinguish personality-relevant text from plot-relevant text in LLM-generated summaries.
 
-Expected impact: AM personality either gets clean adjective-based description (Part A) or falls to null (Part B). Either is 8.0-worthy compared to current garbled fragments.
+**Why this will work:** It eliminates the entire class of bugs. There's nothing to extract incorrectly, nothing to filter, nothing for post-correction to catch. The AM profile will show: role=antagonist, 74 mentions, 5 adversary relationships, no personality text. This is honest and functional.
+
+**Why null is acceptable:** The post-correction docstring itself says: "Clearing (None) is always preferable to retaining a misleading plot dump." Every version of personality we've generated for AM has been misleading — garbled fragments, plot narrative, truncated text. Null is the first option that is NOT misleading.
 
 ## Fix History
 
@@ -191,6 +196,10 @@ Expected impact: AM personality either gets clean adjective-based description (P
 ### Attempt 14 Fix Applied
 - **Fix 1**: Reordered execution in `analyzer.py:2067-2079` — moved `_plot_summary_safety_net()` BEFORE `OutputCharacterCorrector().run_all()` → **PARTIALLY WORKED** — Plot dump replaced with source sentences, but extracted sentences are garbled fragments ("AM. AM had been as ruthless with its own life aswith ours. AM had blinded him."). Ordering is now correct; replacement quality is the issue.
 
+### Attempt 15 Fixes Applied
+- **Fix 1 (Part A)**: Intro-phrase extraction in `_plot_summary_safety_net()` → **DID NOT WORK** — produced coherent plot narrative instead of adjective-based personality traits. Pronouns bypass post-correction name check.
+- **Fix 2 (Part B)**: Quality filter in `clean_plot_summary_personality()` → **DID NOT TRIGGER** — personality text is coherent prose, passes length/quality heuristics despite being wrong content type.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -236,28 +245,20 @@ Expected impact: AM personality either gets clean adjective-based description (P
 | 12 | physical_description from features | post_corrections.py | **WORKED** — 4/6 chars have desc |
 | 13 | AM personality post-correction | post_corrections.py (clean_plot_summary_personality) | **DID NOT WORK** — correct code but runs before AM exists |
 | 14 | Execution ordering (safety net before post-corrections) | analyzer.py | **PARTIALLY WORKED** — ordering fixed, but replacement quality poor |
-| 15 | AM personality: intro-phrase extraction (Part A) + quality filter (Part B) | analyzer.py, post_corrections.py | Pending analysis |
+| 15 | AM personality intro-phrase extraction (Part A) | analyzer.py (_plot_summary_safety_net) | **DID NOT WORK** — produced plot narrative, not personality traits |
+| 15 | AM personality quality filter (Part B) | post_corrections.py (clean_plot_summary_personality) | **DID NOT TRIGGER** — coherent prose passes heuristics |
 
-**⚠️ AM PERSONALITY — 5TH ATTEMPT**: The execution ordering is now correct. The problem is now PURELY about replacement quality: source-text subject sentences are narrative actions, not personality descriptors. Fix must target the personality content generation, not the detection/execution flow.
+**⚠️ AM PERSONALITY — 6TH FAILED ATTEMPT**: Every heuristic approach to extract personality from plot_summary text has failed. The recommended fix is to STOP trying to extract personality and set it to None. Null is strictly better than any of the 6 wrong results produced so far. See CRITICAL #1 above for implementation details.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
 - Context: 32768 tokens — sufficient for a short story (~5400 words)
 - Temperature: 0.7 for all stages
 - Character Extraction: 5 LLM calls (0 main_cast, 5 supporting, 1 safety net)
-- Character Profiles: 15 LLM calls, 5 items processed, **5H/0M/0L** (ALL high confidence — Ellen restored)
+- Character Profiles: 15 LLM calls, 5 items processed, **5H/0M/0L** (ALL high confidence)
 - 0 LLM retries, 0 JSON parse failures
 - Pronunciation: 23 entries (unchanged from attempt 10)
-- Runtime: 17m 10s
-
-## Pipeline Notes (Attempt 15)
-- 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
-- Character Profiles: **5H/0M/0L** — ALL profiles high confidence
-- AM safety net fired: role=antagonist, 74 mentions ✓
-- Two-part fix applied: Part A (intro-phrase extraction in _plot_summary_safety_net) + Part B (quality filter in clean_plot_summary_personality)
-- LLM marker proposer returned non-list (dict) × 3 during structure detection → fell back to "No valid proposals - returning single chapter" → found 1 chapter
-- 23 pronunciation entries (unchanged)
 - Runtime: 15m 51s
 
 ## Next Action
-Run PROMPT_evaluate.md to evaluate attempt 15 output — verify AM personality quality (two-part fix: intro-phrase extraction + quality filter)
+Run PROMPT_fix.md to address CRITICAL #1 — set AM personality to None in `_plot_summary_safety_net()` (remove 6x-failed heuristic extraction logic). This is a simple, reliable fix that eliminates the entire class of personality content bugs for safety-net characters.
