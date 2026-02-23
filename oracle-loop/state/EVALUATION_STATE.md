@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_122557/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_125544/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -222,6 +222,14 @@
 - Nimdok: Failed JSON profile parse → low_confidence (0.30) → DROPPED from final output
 - No narrator identified from summaries or plot_summary (Ted has 5 mentions but not flagged)
 - 23 pronunciation entries (same as attempt 10) ✓
+
+## Pipeline Notes (Attempt 12)
+- 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
+- Character Profiles: 5 items processed, 5H/0M/0L (all high confidence — no low_confidence entries)
+- AM safety net fired: role=antagonist, 74 mentions ✓
+- Nimdok FIX appears to have worked — 6 chars in output (was 5 in attempt 11)
+- 23 pronunciation entries (unchanged)
+- Runtime: 16m 52s
 
 ### Attempt 12 Fixes Applied
 - **Fix 1 (Nimdok restoration)**: Added `mention_count > 5` guard to evidence filter in `_convert_characters()`. Previously, when JSON profile parse failed and text was salvaged, `profile_evidence = []` was set; the evidence filter then incorrectly discarded Nimdok as a "false positive". Now characters with >5 mentions are preserved regardless of profile quality.
