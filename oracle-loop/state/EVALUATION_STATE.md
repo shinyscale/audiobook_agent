@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -183,6 +183,13 @@ Fix 4 (age validation) didn't work. The fix phase should:
 - **Fix 4**: Age validation in `extract_deterministic_age()` → **FAILED** — ages still "five years"/"nine years"
 - **Refactor**: PipelineCharacterCorrector + OutputCharacterCorrector with 49 tests → **WORKED**
 
+### Attempt 9 Fixes Applied
+- **Fix 1**: Plot_summary safety net in `analyzer.py` (`_plot_summary_safety_net`) — finds all-caps names (3+ times in plot_summary, case-sensitive in source text), adds missing characters. Target: AM. Root cause: LLM extraction pipeline cannot capture all-caps acronym character names. Smoke test: "AM" correctly found (8 times in plot_summary), "AI" filtered (1 time, below threshold), hermiene excluded (URL context). Modified: `src/analyzer.py`
+- **Fix 2**: HTML title underscores fix — replaces underscores with spaces in title rendering. Modified: `src/export/html_report.py` line 1731
+- **Fix 3**: HTML timing table empty rows fix — adds `info is mapping` guard to skip string entries (started_at, ended_at). Modified: `src/export/html_report.py` line 724
+- **Fix 4**: URL token filter in CMU pronunciation proposer — `_is_url_context()` method skips words appearing in URL-like contexts. Removes "hermiene" from hermiene.net URL artifact. Universal: any book with URLs in PDF. Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+- **Note**: Age validation (`extract_deterministic_age`) was committed in attempt 8 (e61ef6b) AFTER the analysis ran. First test on re-run.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -228,5 +235,10 @@ Fix 4 (age validation) didn't work. The fix phase should:
 - Chapter Summaries: 0 LLM calls (cached)
 - Runtime: 18m 6s total (17m 33s analysis + overhead)
 
+| 9 | AM missing | analyzer.py (_plot_summary_safety_net) | Pending re-run |
+| 9 | HTML title underscores | html_report.py | Pending re-run |
+| 9 | HTML timing empty rows | html_report.py | Pending re-run |
+| 9 | Pronunciation URL artifact (hermiene) | cmu_proposer.py | Pending re-run |
+
 ## Next Action
-Run PROMPT_fix.md — Fix attempt 9. **MANDATORY: Use plot_summary post-processing for AM extraction (in analyzer.py, NOT characters.py). Debug age validation. Address pronunciation false positives.**
+Run PROMPT_analyze.md — Re-analyze i_have_no_mouth with attempt 9 fixes applied.

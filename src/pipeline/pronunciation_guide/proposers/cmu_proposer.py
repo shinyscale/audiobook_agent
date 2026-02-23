@@ -732,6 +732,24 @@ class CMUProposer(BasePronunciationProposer):
 
         return False
 
+    # Regex to detect URL-like patterns surrounding a word.
+    # Matches: scheme://, www., .tld extensions, and path-separators /
+    _URL_CONTEXT_PAT = re.compile(
+        r'(?:https?://|www\.|\.[a-z]{2,6}(?:/|\s|$)|/[a-zA-Z])',
+        re.IGNORECASE,
+    )
+
+    def _is_url_context(self, text: str, pos: int, word_len: int) -> bool:
+        """Return True if the word at text[pos:pos+word_len] appears inside a URL.
+
+        Checks a window around the token for URL indicators (scheme, TLD, path
+        separators). Tokens in URLs are never useful pronunciation entries.
+        """
+        window_start = max(0, pos - 30)
+        window_end = min(len(text), pos + word_len + 30)
+        window = text[window_start:window_end]
+        return bool(self._URL_CONTEXT_PAT.search(window))
+
     def _is_common_derivation(self, word: str) -> bool:
         """
         Check if word is a regular derivation of a known word.
@@ -862,6 +880,10 @@ class CMUProposer(BasePronunciationProposer):
             if self._is_ocr_artifact(word):
                 continue
 
+            # Skip tokens that appear inside a URL (e.g. "hermiene" from "hermiene.net")
+            if self._is_url_context(full_text, match.start(), len(word)):
+                continue
+
             word_data[word_lower].append((match.start(), word))
 
         # Filter by occurrence count and build proposals
@@ -958,9 +980,11 @@ class CMUProposer(BasePronunciationProposer):
             if len(occurrences) < self.min_occurrences:
                 continue
 
-            # Build mentions from occurrences
+            # Build mentions from occurrences, skipping URL-context tokens
             mentions = []
             for occ in occurrences:
+                if self._is_url_context(full_text, occ.position, len(occ.original_form)):
+                    continue
                 context = self._extract_context(full_text, occ.position, len(occ.original_form))
                 mentions.append(
                     PronunciationMention(
@@ -970,6 +994,10 @@ class CMUProposer(BasePronunciationProposer):
                         context=context,
                     )
                 )
+
+            # Skip word if all occurrences were in URL contexts
+            if not mentions:
+                continue
 
             # Use most common capitalization as canonical
             word_forms = [occ.original_form for occ in occurrences]

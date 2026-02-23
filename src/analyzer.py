@@ -2070,6 +2070,12 @@ class AudiobookAnalyzer:
         from .pipeline.character_profiling.post_corrections import OutputCharacterCorrector
         OutputCharacterCorrector().run_all(characters, doc.text)
 
+        # Plot-summary safety net: add characters mentioned in plot_summary but missed
+        # by the extraction pipeline. Handles all-caps acronym names (e.g. "AM", "HAL")
+        # that spaCy NER and the LLM extraction pipeline routinely fail to capture.
+        if overview:
+            self._plot_summary_safety_net(characters, overview, doc.text)
+
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)
 
@@ -3831,6 +3837,98 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             )
 
         return characters
+
+    def _plot_summary_safety_net(
+        self,
+        characters: list,
+        overview: dict,
+        source_text: str,
+    ) -> None:
+        """Universal safety net: add characters present in the plot summary but missed
+        by the extraction pipeline.
+
+        Targets all-caps acronym names (AM, HAL, VIKI, etc.) that spaCy NER and LLM
+        extraction routinely fail to identify.  Works for any book where the summarizer
+        correctly names a character but the extraction pipeline does not.
+
+        Algorithm:
+        1. Find all-caps words (2–10 chars) that appear 3+ times in the plot summary.
+        2. Skip any that are already in the character list.
+        3. Require at least one case-sensitive occurrence in the raw source text
+           (prevents adding terms invented by the summarizer).
+        4. Infer role from surrounding plot-summary context.
+        5. Append a minimal Character entry so downstream HTML/JSON includes it.
+        """
+        # Extract plot summary text
+        plot_summary_obj = overview.get("plot_summary")
+        if not plot_summary_obj:
+            return
+        if isinstance(plot_summary_obj, dict):
+            plot_summary_text = plot_summary_obj.get("plot_summary", "")
+        else:
+            plot_summary_text = str(plot_summary_obj)
+        if not plot_summary_text or len(plot_summary_text) < 50:
+            return
+
+        # Build set of all known names (canonical + aliases), lower-cased
+        from collections import Counter
+        known_lower: set[str] = set()
+        for char in characters:
+            known_lower.add(char.canonical_name.lower())
+            for alias in (char.aliases or []):
+                known_lower.add(alias.lower())
+
+        # Find all-caps 2–10 char words in the plot summary
+        counts: Counter = Counter()
+        for m in re.finditer(r'\b([A-Z]{2,10})\b', plot_summary_text):
+            name = m.group(1)
+            if name.lower() not in known_lower:
+                counts[name] += 1
+
+        added = 0
+        for name, count in counts.most_common():
+            if count < 3:
+                break  # Counter.most_common() is sorted descending
+
+            # Require case-sensitive occurrence in raw source text (grounding)
+            text_count = len(re.findall(r'\b' + re.escape(name) + r'\b', source_text))
+            if text_count == 0:
+                logger.info(
+                    f"Plot summary safety net: '{name}' not found case-sensitively in source text, skipping"
+                )
+                continue
+
+            # Infer role from surrounding plot-summary context
+            contexts = []
+            for m in re.finditer(r'\b' + re.escape(name) + r'\b', plot_summary_text):
+                start = max(0, m.start() - 120)
+                end = min(len(plot_summary_text), m.end() + 120)
+                contexts.append(plot_summary_text[start:end].lower())
+            context_text = " ".join(contexts)
+
+            role = "supporting"
+            if any(w in context_text for w in ("antagonist", "villain", "malevolent", "adversary", "evil")):
+                role = "antagonist"
+            elif any(w in context_text for w in ("protagonist", "narrator", "hero")):
+                role = "protagonist"
+
+            new_char = OutputCharacter(
+                id=f"plot_summary_{name.lower()}",
+                canonical_name=name,
+                role=role,
+                confidence=ConfidenceLevel.MEDIUM,
+                mention_count=text_count,
+            )
+            characters.append(new_char)
+            added += 1
+            print(f"   Plot summary safety net: added '{name}' (role={role}, text mentions={text_count})")
+            logger.info(
+                f"Plot summary safety net: added '{name}' "
+                f"(summary mentions={count}, text mentions={text_count}, role={role})"
+            )
+
+        if added == 0:
+            logger.info("Plot summary safety net: no missing characters found")
 
     def _convert_pronunciations(
         self,

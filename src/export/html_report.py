@@ -721,7 +721,7 @@ HTML_TEMPLATE = """
                     </thead>
                     <tbody>
                         {% for phase, info in overview.timing.items() %}
-                        {% if phase != 'total' %}
+                        {% if phase != 'total' and info is mapping %}
                         <tr style="border-bottom: 1px solid var(--primary);">
                             <td style="padding: 0.75rem;">{{ phase }}</td>
                             <td style="padding: 0.75rem; text-align: right; font-family: monospace;">{{ info.duration_formatted }}</td>
@@ -1728,7 +1728,7 @@ def export_html_report(
             ended_at = format_timestamp(result.overview["timing"]["ended_at"])
 
     html = template.render(
-        title=result.metadata.title or "Untitled",
+        title=(result.metadata.title or "Untitled").replace("_", " "),
         author=result.metadata.author,
         analyzed_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
         word_count=format_number(result.metadata.total_word_count),
