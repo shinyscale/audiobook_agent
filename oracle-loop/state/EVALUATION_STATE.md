@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_125544/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_132726/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -223,6 +223,14 @@
 - 0 LLM retries, 0 JSON parse failures
 - Pronunciation: 23 entries (unchanged from attempt 10)
 - Runtime: 16m 52s
+
+## Pipeline Notes (Attempt 13)
+- 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
+- Character Profiles: 4H/0M/1L — Ellen profile parse FAILED (low confidence 0.30), "Failed to parse JSON response for Ellen"
+- AM safety net fired: role=antagonist, 74 mentions ✓
+- LLM marker proposer returned non-list (dict) × 3 during structure detection → fell back to "No valid proposals - returning single chapter" → found 1 chapter
+- 23 pronunciation entries (unchanged)
+- Runtime: 16m 48s
 
 ## Pipeline Notes (Attempt 12)
 - 6 characters found: Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), AM via safety net (74 mentions) ✓
