@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_115856/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_122557/
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -220,5 +220,12 @@ The other 5 categories are all ≥ 8.0 and should not regress from these targete
 - Pronunciation: 23 entries (down from 37), compound filter working
 - Runtime: 16m 6s analysis
 
+## Pipeline Notes (Attempt 11)
+- AM safety net fired: role=antagonist, 74 mentions ✓
+- Nimdok: Failed to parse JSON profile → low confidence (0.30) — may affect Profiles score
+- No narrator identified from summaries or plot_summary (Ted has 5 mentions but not flagged)
+- 23 pronunciation entries (same as attempt 10) ✓
+- Runtime: 15m 42s
+
 ## Next Action
-Run PROMPT_analyze.md — Re-analyze i_have_no_mouth to verify attempt 11 fixes. Target: Profiles 7.5 → 8.0+.
+Run PROMPT_evaluate.md — Evaluate attempt 11 output. Target: Profiles 7.5 → 8.0+.
