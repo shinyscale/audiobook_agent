@@ -3,25 +3,23 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/john_g/report.html
 - JSON: ../output/john_g/analysis.json
-- Timestamped: ../output/John G - Katherine Mayo_20260222_225644/
+- Timestamped: ../output/John G - Katherine Mayo_20260222_232326/
 
 ## Pipeline Notes
-- Completed in 11m 23s, 21 LLM calls, 31,697 tokens
+- Completed in 11m 25s, 21 LLM calls, 31,600 tokens
 - 2,228 words extracted (short text)
 - 1 chapter detected (single chapter story)
 - 5 characters total (John G. + 4 others)
 - John G. (aka John) - 19 mentions ✓
-- 13 pronunciation flags (7 homograph, 6 unknown) — down from 20 in attempt 2
-- Greensburg removed entirely ✓
-- 6 false positive character names removed by CMU filter ✓
-- age_indication fix did NOT take effect — still "unknown" ✗
+- 13 pronunciation flags (7 homograph, 6 unknown)
+- Universal deterministic age extraction applied (attempt 4 fix)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
