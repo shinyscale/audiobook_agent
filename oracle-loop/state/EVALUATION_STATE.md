@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -201,5 +201,18 @@
 | 3 | Narrator prompt didn't use plot_summary context | narrator.py | Pending re-analysis |
 | 3 | Pronunciation artifacts (mefrom, myright, Nimdokwith, possessives, contraction-concat) | cmu_proposer.py | Pending re-analysis |
 
+## Pipeline Crash — Attempt 3
+
+Analysis run FAILED with:
+```
+Error during analysis: '\n  "canonical_name"'
+```
+
+**New error introduced by Attempt 3 fixes.** The pipeline reaches character extraction (after summaries are generated), then crashes. The error string `'\n  "canonical_name"'` looks like a `KeyError` or `ValueError` where a multi-line JSON fragment is being used as a string key — suggesting the JSON parsing logic in `main_cast.py` (Attempt 3 Fix 1) introduced a regression.
+
+The two-pass extraction correctly falls back to single-pass (logged: "Two-pass extraction returned 0 characters; retrying with single-pass"), but then crashes during the single-pass parsing or during profile generation.
+
+**Output files on disk are from a PREVIOUS run — not from this attempt.**
+
 ## Next Action
-Re-run analysis on `i_have_no_mouth` to evaluate fixes.
+Fix the regression in `main_cast.py` introduced by Attempt 3 Fix 1. The `'\n  "canonical_name"'` error string suggests a JSON parsing path is using a raw LLM string fragment as a dict key instead of the parsed value.
