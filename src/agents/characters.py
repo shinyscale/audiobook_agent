@@ -203,7 +203,9 @@ class CharacterAgent(Agent):
                 "Retrying with simpler prompt on plot_summary."
             )
             fallback_prompt = (
-                "List every named character in this story. Return JSON array only.\n\n"
+                "List every named character or sentient entity in this story. "
+                "Include humans, non-human beings, AI, and any named force that acts with agency. "
+                "Return JSON array only.\n\n"
                 "STORY SUMMARY:\n{summary}\n\n"
                 "Return a JSON array:\n"
                 '[{{"canonical_name": "Name", "role": "protagonist|antagonist|supporting", '
@@ -3354,14 +3356,36 @@ class CharacterAgent(Agent):
         return ""
 
     def _get_narrative_style(self, context: AgentContext) -> Optional[str]:
-        """Extract narrative_style from the summaries result metadata, if available."""
+        """Extract narrative_style from summaries result metadata or chapter POV heuristics."""
         summaries_result = context.get_result("summaries")
-        if summaries_result and hasattr(summaries_result, "plot_summary"):
-            ps = summaries_result.plot_summary
-            if isinstance(ps, dict):
-                return ps.get("narrative_style")
-            elif hasattr(ps, "narrative_style"):
-                return getattr(ps, "narrative_style", None)
+        if not summaries_result:
+            return None
+
+        # Check pipeline_metadata first (if populated upstream)
+        if hasattr(summaries_result, "pipeline_metadata"):
+            style = summaries_result.pipeline_metadata.get("narrative_style")
+            if style:
+                return style
+
+        # Heuristic: check pov_character across chapter summaries
+        if hasattr(summaries_result, "summaries"):
+            pov_chars = [
+                s.pov_character for s in summaries_result.summaries
+                if s.pov_character
+            ]
+            if pov_chars:
+                from collections import Counter
+                most_common = Counter(pov_chars).most_common(1)[0]
+                if most_common[1] >= len(summaries_result.summaries) * 0.5:
+                    return "first-person"
+
+        # Fallback: check summary text for first-person indicators
+        if hasattr(summaries_result, "summaries") and summaries_result.summaries:
+            first_summary = summaries_result.summaries[0].summary.lower()
+            first_person_markers = [" i ", " my ", " me ", "narrator", "first-person", "first person"]
+            if sum(1 for m in first_person_markers if m in first_summary) >= 2:
+                return "first-person"
+
         return None
 
     def _heuristic_narrator_from_mention_count(
