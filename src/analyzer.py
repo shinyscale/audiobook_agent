@@ -1561,6 +1561,7 @@ class AudiobookAnalyzer:
                     return False
 
                 missing_names = []
+                f6_seen_normalized = set()  # Track normalized names already added in this F6 pass
                 for name in summary_character_names:
                     # Skip generic descriptors - these are likely aliases of existing characters
                     if _is_generic_descriptor(name):
@@ -1586,6 +1587,16 @@ class AudiobookAnalyzer:
                     if _is_likely_alias_of_existing(name):
                         logger.debug(f"F6: Skipping '{name}' (likely alias of existing character)")
                         continue
+
+                    # Skip if a case variant of this name was already added in this F6 pass
+                    # (e.g., "the butler" and "The butler" from different chapter summaries)
+                    normalized_for_f6 = _normalize_name_for_matching(name)
+                    if normalized_for_f6 in f6_seen_normalized:
+                        logger.debug(
+                            f"F6: Skipping '{name}' (case/article variant of already-added name in this pass)"
+                        )
+                        continue
+                    f6_seen_normalized.add(normalized_for_f6)
 
                     # Name is truly missing - add it
                     missing_names.append(name)

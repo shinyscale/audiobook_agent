@@ -184,6 +184,25 @@ def _find_best_narrator_match(source_text: str):
     return best_match, best_score, best_is_pb
 
 
+def _is_compact_physical_description(text: str) -> bool:
+    """Return True if the text looks like a concise physical description.
+
+    Physical descriptions are dense with descriptor words relative to their length.
+    Narrative prose (e.g., "a young man at the office suggested that we...") is long
+    but sparse in physical descriptors. This filter rejects the latter.
+
+    Universal invariant: a valid appearance.summary should be a brief description
+    of physical attributes, not a plot excerpt that happens to mention a physical word.
+    """
+    score = _physical_descriptor_score(text)
+    if score < 2:
+        return False
+    # Long text with low physical word density is narrative prose, not a description
+    if len(text) > 60 and score / len(text) < 0.04:
+        return False
+    return True
+
+
 def _build_name_patterns(characters) -> dict:
     """Build per-character name regex patterns (canonical + aliases)."""
     patterns = {}
@@ -247,7 +266,7 @@ class PipelineCharacterCorrector:
 
             if best_match is not None and best_score >= 2:
                 cleaned = _extract_narrator_description(best_match, source_text, is_pb)
-                if cleaned:
+                if cleaned and _is_compact_physical_description(cleaned):
                     char.appearance["summary"] = cleaned
                     logger.info(
                         f"Post-profile narrator appearance injection for "
@@ -260,6 +279,11 @@ class PipelineCharacterCorrector:
                             char.appearance["age_indication"] = "elderly"
                         elif "young" in desc_lower:
                             char.appearance["age_indication"] = "young"
+                elif cleaned:
+                    logger.info(
+                        f"Post-profile narrator injection skipped: sparse description "
+                        f"for '{char.canonical_name}': {cleaned[:60]!r}"
+                    )
 
     def infer_bidirectional_relationships(self, characters) -> None:
         """Infer reverse family relationships.
@@ -574,6 +598,7 @@ class OutputCharacterCorrector:
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.enforce_gender_consistency(characters)
+        self.clean_unknown_relationships(characters)
 
     def propagate_physical_description(self, characters) -> None:
         """Copy appearance.summary to physical_description when the latter is absent.
@@ -606,6 +631,8 @@ class OutputCharacterCorrector:
         Runs AFTER _convert_characters so no subsequent step can overwrite it.
         Any first-person narrator who physically self-describes in text gets
         that description injected regardless of what the LLM generated.
+        Only injects when the extracted text is a compact physical description,
+        not narrative prose that happens to mention a physical word.
         """
         for char in characters:
             if not getattr(char, 'is_narrator', False):
@@ -624,7 +651,7 @@ class OutputCharacterCorrector:
                 continue
 
             cleaned = _extract_narrator_description(best_match, source_text, is_pb)
-            if cleaned:
+            if cleaned and _is_compact_physical_description(cleaned):
                 char.appearance["summary"] = cleaned
                 print(
                     f"   Final narrator appearance injection for "
@@ -640,6 +667,11 @@ class OutputCharacterCorrector:
                         char.appearance["age_indication"] = "elderly"
                     elif "young" in desc_lower:
                         char.appearance["age_indication"] = "young"
+            elif cleaned:
+                logger.info(
+                    f"Final narrator injection skipped: sparse description "
+                    f"for '{char.canonical_name}': {cleaned[:60]!r}"
+                )
 
     # Valid age category words that do not require pattern matching
     _VALID_AGE_CATEGORIES = frozenset({
@@ -1028,3 +1060,25 @@ class OutputCharacterCorrector:
                         f"'{rel_val}' to '{other_key}' — correcting to 'unknown'"
                     )
                     char.relationships[other_key] = "unknown"
+
+    def clean_unknown_relationships(self, characters) -> None:
+        """Remove relationship entries labeled 'unknown' - they provide no information.
+
+        'unknown' is a sentinel value meaning the relationship could not be determined.
+        Better to omit the entry than show a meaningless label to the narrator.
+        Runs last so all other corrections (verify_relationships, enforce_gender) have
+        already run and may have resolved some entries.
+        """
+        for char in characters:
+            if not char.relationships:
+                continue
+            to_remove = [
+                k for k, v in char.relationships.items()
+                if (v or "").strip().lower() == "unknown"
+            ]
+            for k in to_remove:
+                del char.relationships[k]
+                logger.info(
+                    f"Removed uninformative relationship: "
+                    f"'{char.canonical_name}' → '{k}': 'unknown'"
+                )

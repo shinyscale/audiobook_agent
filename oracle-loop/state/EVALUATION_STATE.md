@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -175,6 +175,11 @@
 **Fix I: Eckleburg duplicate — reverse title check** [HIGH] — SUCCESS ✓
 **Fix J: "like" pronunciation exception** [LOW] — SUCCESS ✓
 
+### gatsby — Attempt 5 Fixes
+**Fix K: Butler/Butler F6 case dedup** [HIGH] — Added `f6_seen_normalized` set to track normalized names within each F6 pass; prevents "the butler"/"The butler" from being added as separate characters when they appear with different capitalization in different chapter summaries. (src/analyzer.py)
+**Fix L: Remove "unknown" relationships** [CRITICAL] — Added `clean_unknown_relationships()` to OutputCharacterCorrector.run_all(); strips relationship entries where the value is "unknown" since they provide no information. Smoke test: Nick's 4 "unknown" entries were removed, leaving only meaningful ones. (src/pipeline/character_profiling/post_corrections.py)
+**Fix M: Narrator appearance prose filter** [HIGH] — Added `_is_compact_physical_description()` density check; narrator appearance injection now rejects extractions where len > 60 AND descriptor_score/len < 0.04 (narrative prose), preventing Nick's appearance from being set to "a young man at the office suggested..." (src/pipeline/character_profiling/post_corrections.py)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -190,14 +195,15 @@
 | 4 | Physical description narrative text | `src/analyzer.py` (validation) | Failed — narrator injection overwrites after validation |
 | 4 | Eckleburg duplicate (Doctor/no-Doctor) | `src/agents/characters.py` | Fixed ✓ |
 | 4 | "like" flagged as foreign | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Fixed ✓ |
+| 5 | Butler/Butler F6 case sensitivity dedup | `src/analyzer.py` | Fixed ✓ (f6_seen_normalized set) |
+| 5 | "unknown" relationship labels in output | `src/pipeline/character_profiling/post_corrections.py` | Fixed ✓ (clean_unknown_relationships) |
+| 5 | Nick appearance: narrative prose from narrator injection | `src/pipeline/character_profiling/post_corrections.py` | Fixed ✓ (density check in _is_compact_physical_description) |
 
 **Pattern alert:** `src/analyzer.py` has been modified 3 times for relationship/profile issues (attempts 3, 4, 4) without resolving the core problem. The fix phase should consider whether the issue is in the profile extraction pipeline (`src/pipeline/character_extraction_v2/`) rather than the secondary structuring call in analyzer.py.
 
 ## Next Action
 
-Run PROMPT_fix.md to address (in priority order):
-1. **CRITICAL: Relationship post-processing validation** — Prompt-level fixes have failed twice. Add CODE-LEVEL validation: reject familial labels (mother, father, daughter, son, wife, husband, sister, brother) unless both characters share a surname OR the text explicitly states the family relationship. Default rejected labels to "acquaintance".
-2. **CRITICAL: Personality traits / speech patterns** — Ensure profile schema includes these fields and the prompt requests them.
-3. **HIGH: Fix H placement** — Move physical description validation AFTER narrator appearance injection, not before.
-4. **HIGH: Butler/Butler dedup** — Case-insensitive comparison in F6 reconciliation.
-5. **MEDIUM: Homograph IPA** — Provide both pronunciations for homographs.
+Re-run analysis (Attempt 5) to verify fixes K/L/M. Expected improvements:
+- Character Extraction: butler/Butler dedup removed → +0.5 Identity Resolution
+- Character Profiles: "unknown" relationships removed → cleaner relationships dict; Nick appearance no longer narrative prose → +1 or more
+- Remaining open issues: hallucinated familial relationship labels (Daisy→Gatsby "mother", etc.) if LLM still generates them before clean_unknown strips "unknown" but NOT wrong-non-unknown labels; Gatsby/Myrtle null appearance
