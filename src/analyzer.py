@@ -2069,7 +2069,33 @@ class AudiobookAnalyzer:
         # that spaCy NER and the LLM extraction pipeline routinely fail to capture.
         # Must run BEFORE OutputCharacterCorrector so safety-net characters are included.
         if overview:
-            self._plot_summary_safety_net(characters, overview, doc.text)
+            safety_net_chars = self._plot_summary_safety_net(characters, overview, doc.text)
+
+            # LLM-profile safety-net characters so they get real personality/appearance
+            # fields instead of empty stubs.  The safety net only handles *detection*;
+            # profiling is the LLM's job.
+            if safety_net_chars:
+                profile_llm = self._get_agent_llm_client("characters") or llm
+                if profile_llm:
+                    all_char_names = [c.canonical_name for c in characters]
+                    for new_char in safety_net_chars:
+                        print(f"   Profiling safety-net character: {new_char.canonical_name}")
+                        profile, evidence, confidence, appearance, personality, voice_guidance, relationships = (
+                            self._generate_character_profile(
+                                profile_llm, new_char, doc.text,
+                                all_character_names=all_char_names,
+                            )
+                        )
+                        if personality:
+                            new_char.personality = personality
+                        if appearance:
+                            new_char.appearance = appearance
+                        if voice_guidance:
+                            new_char.voice_guidance = voice_guidance
+                        if relationships:
+                            new_char.relationships = relationships
+                        if profile:
+                            new_char.description = profile
 
         # Post-processing corrections on output characters (Phase B).
         # Extracts: final narrator appearance injection, deterministic age extraction,
@@ -3849,7 +3875,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
         characters: list,
         overview: dict,
         source_text: str,
-    ) -> None:
+    ) -> list:
         """Universal safety net: add characters present in the plot summary but missed
         by the extraction pipeline.
 
@@ -3864,17 +3890,20 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
            (prevents adding terms invented by the summarizer).
         4. Infer role from surrounding plot-summary context.
         5. Append a minimal Character entry so downstream HTML/JSON includes it.
+
+        Returns:
+            List of newly added OutputCharacter objects (empty if none added).
         """
         # Extract plot summary text
         plot_summary_obj = overview.get("plot_summary")
         if not plot_summary_obj:
-            return
+            return []
         if isinstance(plot_summary_obj, dict):
             plot_summary_text = plot_summary_obj.get("plot_summary", "")
         else:
             plot_summary_text = str(plot_summary_obj)
         if not plot_summary_text or len(plot_summary_text) < 50:
-            return
+            return []
 
         # Build set of all known names (canonical + aliases), lower-cased
         from collections import Counter
@@ -3891,7 +3920,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             if name.lower() not in known_lower:
                 counts[name] += 1
 
-        added = 0
+        added_chars: list = []
         for name, count in counts.most_common():
             if count < 3:
                 break  # Counter.most_common() is sorted descending
@@ -3923,70 +3952,8 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             elif any(w in context_text for w in ("protagonist", "narrator", "hero")):
                 role = "protagonist"
 
-            # Build a minimal personality profile from the plot summary.
-            # Strategy 1 (preferred): extract a descriptive introduction phrase
-            # using the universal "the/a [description] known as NAME" pattern that
-            # plot summaries commonly use.  Combine with relative clause if present.
-            # This produces a trait-based summary (not narrative actions) and does
-            # NOT mention other character names, avoiding the plot-dump post-correction.
-            # Strategy 2 (fallback): sentences mentioning the name that do NOT also
-            # mention other known character names.
-            # Strategy 3 (last resort): subject-position sentences, then any mention.
-            personality = None
-            _other_names = {c.canonical_name for c in characters}
-
-            # Strategy 1: "the/a/an [DESC] known as NAME[, which/who CLAUSE]"
-            # Use [^,\n.!?;] to keep the descriptor to a tight noun phrase
-            # (commas signal clause boundaries, so they delimit the descriptor).
-            _intro_re = re.compile(
-                r'(?:the|a|an)\s+([^,\n.!?;]{1,80}?)\s+(?:known\s+as|called|referred\s+to\s+as)\s+'
-                + re.escape(name),
-                re.IGNORECASE,
-            )
-            _intro_match = _intro_re.search(plot_summary_text)
-            if _intro_match:
-                descriptor = _intro_match.group(1).strip().rstrip(',')
-                # Check for a relative clause immediately after the name
-                _rel_re = re.compile(
-                    re.escape(name) + r',?\s+(?:who|which)\s+([^.;!?]{10,150})',
-                    re.IGNORECASE,
-                )
-                _rel_match = _rel_re.search(plot_summary_text)
-                if _rel_match:
-                    rel_clause = _rel_match.group(1).strip().rstrip(',')
-                    # Use title-case on first word only (preserves acronyms like "AI")
-                    profile_text = f"{descriptor[0].upper() + descriptor[1:]} that {rel_clause}."
-                else:
-                    profile_text = f"{descriptor[0].upper() + descriptor[1:]}."
-                personality = {"summary": profile_text}
-            else:
-                # Strategy 2: sentences mentioning name but NOT other known character names
-                _plot_sentences = re.split(r'(?<=[.!?;])\s+', plot_summary_text)
-                _name_sentences = [
-                    s for s in _plot_sentences
-                    if re.search(r'\b' + re.escape(name) + r'\b', s)
-                ]
-                if _name_sentences:
-                    _clean_sentences = [
-                        s for s in _name_sentences
-                        if not any(
-                            re.search(r'\b' + re.escape(other) + r'\b', s, re.IGNORECASE)
-                            for other in _other_names
-                        )
-                    ]
-                    _subject_sentences = [
-                        s for s in _name_sentences
-                        if re.match(r"^" + re.escape(name) + r"(\b|'s?\b)", s)
-                    ]
-                    _selected = (
-                        _clean_sentences[:3] if _clean_sentences else
-                        _subject_sentences[:3] if _subject_sentences else
-                        _name_sentences[:3]
-                    )
-                    profile_text = " ".join(_selected).strip()
-                    if len(profile_text) > 200:
-                        profile_text = profile_text[:200].rsplit(" ", 1)[0] + "…"
-                    personality = {"summary": profile_text}
+            # Personality is left to the LLM profiling step that runs after the
+            # safety net returns.  The safety net only handles *detection*.
 
             # Build relationships: any existing character mentioned in context.
             # Use a role-appropriate label instead of a generic placeholder.
@@ -4010,19 +3977,20 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                 role=role,
                 confidence=ConfidenceLevel.MEDIUM,
                 mention_count=text_count,
-                personality=personality,
                 relationships=relationships,
             )
             characters.append(new_char)
-            added += 1
+            added_chars.append(new_char)
             print(f"   Plot summary safety net: added '{name}' (role={role}, text mentions={text_count})")
             logger.info(
                 f"Plot summary safety net: added '{name}' "
                 f"(summary mentions={count}, text mentions={text_count}, role={role})"
             )
 
-        if added == 0:
+        if not added_chars:
             logger.info("Plot summary safety net: no missing characters found")
+
+        return added_chars
 
     def _convert_pronunciations(
         self,
