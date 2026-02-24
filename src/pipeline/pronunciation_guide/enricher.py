@@ -15,6 +15,29 @@ from .models import PronunciationEnrichment, PronunciationProposal
 logger = logging.getLogger(__name__)
 
 
+def _is_valid_ipa(ipa: str) -> bool:
+    """Return True if the IPA string contains only valid IPA Unicode codepoints.
+
+    IPA notation uses characters from Latin/IPA-extension blocks (up to U+02FF)
+    plus combining diacritics (U+0300–U+036F) and Phonetic Extensions (U+1D00–U+1DBF).
+    Characters in CJK / Hiragana / Katakana blocks (U+2E80+) indicate LLM corruption.
+    """
+    for ch in ipa:
+        cp = ord(ch)
+        # Allow: ASCII (0x20–0x7E), Latin+IPA extensions (0x00A0–0x02FF),
+        #        combining marks (0x0300–0x036F), Phonetic Extensions (0x1D00–0x1DBF)
+        if cp < 0x0080:
+            continue  # ASCII — always fine
+        if 0x00A0 <= cp <= 0x02FF:
+            continue  # Latin Extended / IPA Extensions / Spacing Modifiers
+        if 0x0300 <= cp <= 0x036F:
+            continue  # Combining Diacritical Marks
+        if 0x1D00 <= cp <= 0x1DBF:
+            continue  # Phonetic Extensions
+        return False  # Anything else (CJK, Hiragana, Katakana, etc.) is invalid
+    return True
+
+
 ENRICHER_SYSTEM_PROMPT = """You are an expert phonetician helping audiobook narrators with pronunciation.
 
 CRITICAL: Base your pronunciation guidance ONLY on standard phonetic rules.
@@ -165,9 +188,10 @@ class PronunciationEnricher:
             for item in result:
                 word = item.get("word", "")
                 if word:  # Only add if word is not empty
+                    raw_ipa = item.get("ipa")
                     enrichments[word.lower()] = PronunciationEnrichment(
                         word=word,
-                        ipa=item.get("ipa"),
+                        ipa=raw_ipa if (raw_ipa and _is_valid_ipa(raw_ipa)) else None,
                         phonetic_spelling=item.get("phonetic_spelling"),
                         notes=item.get("notes"),
                         confidence=0.8,
@@ -176,9 +200,10 @@ class PronunciationEnricher:
             # LLM returned a single object instead of an array (common with 1 word)
             word = result.get("word", "")
             if word:  # Only add if word is not empty
+                raw_ipa = result.get("ipa")
                 enrichments[word.lower()] = PronunciationEnrichment(
                     word=word,
-                    ipa=result.get("ipa"),
+                    ipa=raw_ipa if (raw_ipa and _is_valid_ipa(raw_ipa)) else None,
                     phonetic_spelling=result.get("phonetic_spelling"),
                     notes=result.get("notes"),
                     confidence=0.8,
@@ -246,9 +271,10 @@ class PronunciationEnricher:
                 confidence=0.0,
             )
 
+        raw_ipa = result.get("ipa")
         return PronunciationEnrichment(
             word=result.get("word", proposal.word),
-            ipa=result.get("ipa"),
+            ipa=raw_ipa if (raw_ipa and _is_valid_ipa(raw_ipa)) else None,
             phonetic_spelling=result.get("phonetic_spelling"),
             notes=result.get("notes"),
             confidence=0.8,

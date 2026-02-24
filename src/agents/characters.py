@@ -1007,7 +1007,18 @@ class CharacterAgent(Agent):
         if summaries_result:
             # SummaryAgent returns a list of ChapterSummary objects or similar
             if hasattr(summaries_result, "summaries"):
-                result = [s.summary for s in summaries_result.summaries if s.summary]
+                result = []
+                for s in summaries_result.summaries:
+                    if not s.summary:
+                        continue
+                    text = s.summary
+                    # Prepend structured character list when available.
+                    # CHARACTER_IDENTIFICATION_PROMPT references `characters_present` lists
+                    # but they were never actually included in the text — this fixes that gap.
+                    chars = getattr(s, "characters_present", None) or []
+                    if chars:
+                        text = f"[Characters present: {', '.join(chars)}]\n{text}"
+                    result.append(text)
                 logger.info(f"[DIAG] _get_chapter_summaries: found {len(result)} summaries via .summaries attribute, total_chars={sum(len(s) for s in result)}")
                 return result
             elif isinstance(summaries_result, list):
