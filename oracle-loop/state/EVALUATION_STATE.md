@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -13,199 +13,170 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING)
-  - Completeness: 7/10
-  - Identity Resolution: 3/10 ← primary blocker (5 major false splits, unchanged)
-  - Alias Grouping: 5.5/10 (Gatsby aliases improved)
-- Character Profiles: 3/10 ✗ (FAILING)
+- Character Extraction: 7.5/10 ✗ (FAILING)
+  - Completeness: 8/10
+  - Identity Resolution: 8/10
+  - Alias Grouping: 7/10 ← shared ambiguous aliases, Eckleburg duplicate
+- Character Profiles: 4/10 ✗ (FAILING) ← primary blocker
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 7.5/10 ✗ (FAILING)
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.15/10** (reference only)
+- **Overall: 7.93/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold: Characters 5, Profiles 3, Pronunciation 7.5)
+**Status:** FAIL (3 categories below threshold: Characters 7.5, Profiles 4, Pronunciation 7.5)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.55 | — | Baseline. main_cast pipeline failed; massive false splits; profiles catastrophically wrong |
 | 2 | 7.15 | +0.60 | Fix A partially worked (Gatsby aliases resolved); main_cast STILL fails; IPA corruption fixed |
+| 3 | 7.93 | +1.38 | Main cast pipeline FIXED (Fix C). 5 false splits resolved. Profiles still wrong. |
 
-## Pipeline Notes (Attempt 3)
-- Analysis completed in 75m 49s
-- 9 chapters detected (correct)
-- 22 characters extracted; 21 profiles generated
-- **Main cast pipeline FIXED** — Fix C (dict wrapper JSON format) resolved the grounding failure
-  - Nick Carraway (aka Nick, Carraway) ✓ — no longer split
-  - Tom Buchanan (aka Tom, Buchanan) ✓ — no longer split
-  - Daisy Buchanan (aka Daisy, Buchanan) ✓ — now has full name
-  - Jordan Baker (aka Jordan, Baker) ✓ — no longer split
-  - Jay Gatsby (aka Gatsby, James Gatz) ✓ — aliases maintained
-- Narrator correctly detected as Nick Carraway (first-person) ✓
-- 130 pronunciation flags; unknown: 67 (down from 92), proper_noun: 28 (up from 3)
-- 20 LLM marker proposer non-list warnings (competitive structure falls back to regex — still found 9 chapters correctly)
-- Chapter Summaries: 20m7s but 0 LLM calls in profiler (likely profiling instrumentation gap for competitive-summaries mode)
-- "No passages provided for The Policeman/The butler" — UNCERTAIN confidence for those minor characters
-- LLM validation errors on pronunciation enrichment for non-words (sickantired, Gratulate) — handled gracefully
-- Output saved to ../output/gatsby/ (analysis.json: 239KB, report.html: 510KB)
-
-## Pipeline Notes (Attempt 2)
-- Analysis completed in 78m 34s
-- 9 chapters detected (correct)
-- 23 characters total: 21 from supporting_cast + 2 from F6 reconciliation (both are "the butler" duplicates)
-- **Main cast pipeline STILL produced 0 characters** — "V2 Step 3.1 FALLBACK: main_cast empty after grounding"
-- 133 pronunciation flags, 114 with IPA (85%), 0 corrupt IPA entries (Fix B worked ✓)
-- Improvements from Fix A:
-  - Jay Gatsby: aliases correctly resolved (Gatsby, James Gatz, Gatz) ✓
-  - Dan Cody: aliases [Cody] ✓
-  - Meyer Wolfshiem: aliases [Wolfshiem] ✓
-  - George Wilson / Myrtle Wilson: aliases [George] / [Myrtle] ✓
-- Persistent failures:
-  - main_cast pipeline still produces 0 characters after grounding (2nd failure on same path)
-  - Tom/Tom Buchanan still split; Jordan/Jordan Baker still split; Nick/Carraway still split
-  - "Jordan" (supporting_4) still incorrectly marked as narrator
-  - Relationships still catastrophically wrong (same labels: wife, mother, husband)
-  - "the butler" / "The butler" duplicated from F6 reconciliation (case difference)
-  - Owl Eyes and Henry C. Gatz NOT in character list despite being in Ch 9 characters_present
+## Key Improvements in Attempt 3
+- **Main cast pipeline now works!** 9 characters from main_cast (was 0 in attempts 1-2)
+- **All 5 major false splits from attempt 2 are FIXED**: Nick/Carraway → Nick Carraway, Tom/Tom Buchanan → Tom Buchanan, Jordan/Jordan Baker → Jordan Baker, Daisy now "Daisy Buchanan", Wilson disambiguation improved
+- **Narrator correctly assigned** to Nick Carraway (was wrongly "Jordan" in attempt 2)
+- **Foreign pronunciation false positives reduced** — kitchen, cigarette removed (Fix E)
+- **UNKNOWN→PROPER_NOUN reclassification** — 28 proper nouns now categorized (was 3)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Main cast pipeline grounding failure — 2nd consecutive failure** [Identity Resolution]
-   - Problem: The main_cast pipeline produces 0 characters after the grounding step. Fix A (injecting `characters_present` into summaries) provided the LLM with correct character names, but the grounding step STILL rejects all candidates. This is the root cause of all identity resolution failures.
-   - Evidence: `main_cast_ids: 0`, `supporting_ids: 21`, log warning "V2 Step 3.1 FALLBACK: main_cast empty after grounding"
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — the grounding function
-   - **ESCALATION NOTE:** This is the 2nd attempt modifying the character extraction path without fixing grounding. Fix A modified `src/agents/characters.py` (upstream data), but the grounding logic itself in `main_cast.py` was never examined. The fix phase MUST read and debug the grounding function directly — not just feed it better data.
-   - Suggested approach: Add debug logging to the grounding step to see what candidates it receives and why it rejects them. The grounding criteria may be too strict, or the candidate format may not match what grounding expects.
+1. **Relationships still catastrophically wrong** [Profiles]
+   - Problem: Fix D (preventing secondary overwrites + adding examples to template) did NOT fix the root cause. The LLM is producing nonsensical relationship labels:
+     - Nick → Daisy: "daughter" (WRONG — second cousin once removed)
+     - Nick → Tom: "daughter" (WRONG — college acquaintance)
+     - Nick → Jordan: "mother" (WRONG — romantic interest)
+     - Nick → Gatsby: "wife" (WRONG — friend/neighbor)
+     - Gatsby → Wolfsheim: "husband" (WRONG — business associate)
+     - Gatsby → Dan Cody: "son" (WRONG — protégé/employee)
+     - McKee → Myrtle: "husband" (WRONG — party guest)
+     - Catherine → Tom: "nephew" (WRONG — acquaintance)
+     - Some CORRECT: Daisy ↔ Tom "wife"/"husband" ✓, Myrtle ↔ George "wife" ✓, Catherine ↔ Myrtle "sister" ✓
+   - Evidence: ~30% correct, 30% "unknown", 40% wrong labels. The relationship type vocabulary is too limited — labels like "daughter", "wife", "husband", "mother", "son", "sister" are being forced onto non-familial relationships
+   - Root cause: The relationship prompt/schema allows only familial labels plus "unknown" and freeform strings. The LLM defaults to familial labels when forced to classify non-familial relationships. Need to expand the allowed types to include: friend, romantic_interest, rival, employer, employee, business_associate, mentor, acquaintance, neighbor, etc.
+   - Location: Must find and fix the relationship extraction prompt in `src/pipeline/character_extraction_v2/` or `src/analyzer.py` secondary structuring call
+   - **IMPORTANT:** Fix D modified the secondary structuring call in `src/analyzer.py` but the primary relationship source may be the profile extraction pipeline. Need to trace which pipeline actually produces these labels.
 
-2. **5 major false character splits** [Identity Resolution]
-   - Problem: Same as attempt 1 — all unchanged:
-     - "Tom" (191 mentions) + "Tom Buchanan" (22 mentions) — **same person**
-     - "Jordan" (73 mentions) + "Jordan Baker" (40 mentions) — **same person**
-     - "Nick" (24 mentions) + "Carraway" (10 mentions) — **same person** (Nick Carraway)
-     - "Daisy" (186 mentions) — should be "Daisy Buchanan"
-     - "Wilson" (77 mentions) — ambiguous between George Wilson and Myrtle Wilson
-   - Evidence: All have `supporting_*` IDs with empty alias lists (no merge happened)
-   - Root cause: Downstream of Issue #1 — supporting_cast pipeline doesn't perform first-name/full-name alias merging
-   - Fix: Primary fix is Issue #1. If main_cast can't be fixed, add a post-processing merge step for obvious first-name/full-name pairs
-
-3. **Wrong narrator assignment** [Identity Resolution]
-   - Problem: "Jordan" (supporting_4) is marked `is_narrator: True`. The actual narrator is Nick Carraway.
-   - Evidence: HTML report shows Jordan with "First-Person Narrator" badge. The profile text even says "The character 'Jordan' is not a distinct person... appears to be a misattribution of the narrator Nick Carraway"
-   - Root cause: Pipeline correctly identifies "Nick Carraway" as narrator but can't match to any character because Nick/Carraway are split entries with no full-name match
-   - Location: Narrator assignment fallback in `src/analyzer.py` or `src/pipeline/character_extraction_v2/`
-   - Fix: If main_cast is fixed, Nick Carraway will exist as a single entry. If not, the narrator fallback should fuzzy-match "Nick Carraway" against "Nick" (first name match) rather than assigning to an arbitrary character.
-
-4. **Relationships catastrophically wrong** [Profiles]
-   - Problem: Relationship labels are nonsensical — the LLM is forced to pick from a restricted enum:
-     - Jay Gatsby → Nick: "wife" (WRONG — friend/neighbor)
-     - Jay Gatsby → Daisy: "wife" (WRONG — romantic interest, not married)
-     - Jay Gatsby → Tom Buchanan: "wife" (WRONG — rival)
-     - Jay Gatsby → Meyer Wolfshiem: "husband" (WRONG — business associate)
-     - Jay Gatsby → Wilson: "sister" (WRONG)
-     - Daisy → Jay Gatsby: "mother" (WRONG — romantic interest)
-     - Tom Buchanan → Myrtle Wilson: "husband" (WRONG — affair partner)
-     - Jordan Baker → Daisy: "wife" (WRONG — friends)
-     - Myrtle Wilson → Catherine: "husband" (WRONG — sisters)
-   - Evidence: `jq` extraction shows virtually every relationship has a wrong label
-   - Location: `src/pipeline/character_extraction_v2/` — find the relationship extraction prompt and the allowed relationship types enum
-   - Fix: The relationship type enum likely only includes family/marital labels (wife, husband, mother, father, sister, son). It MUST be expanded to include: friend, romantic_interest, rival, employer, employee, business_associate, mentor, neighbor, acquaintance, etc. This is a prompt/schema fix, not a pipeline logic fix.
+2. **Personality traits and speech patterns ALL null** [Profiles]
+   - Problem: All 21 characters have `personality_traits: null` and `speech_pattern: null`. This is critical for narrator preparation — Gatsby's "old sport" catchphrase, Wolfsheim's accent (Oggsford, gonnegtion), Tom's aggressive speech are all missing.
+   - Evidence: `with_traits: 0/21`, `with_speech: 0/21`
+   - Location: Profile generation in `src/pipeline/character_extraction_v2/` — the profile prompt may not request these fields, or the schema may not include them
+   - Fix: Ensure the profile extraction prompt explicitly requests personality traits and speech patterns, and that the response schema includes these fields
 
 ### HIGH
 
-5. **No personality traits or speech patterns** [Profiles]
-   - Problem: All 23 characters have `personality_traits: null` and `speech_pattern: null`. Critical for narrators — Gatsby's "old sport" catchphrase, Wolfshiem's accent (Oggsford, gonnegtion), Tom's aggressive speaking style are all missing.
-   - Evidence: All null in analysis.json
-   - Location: Profile generation in `src/pipeline/character_extraction_v2/`
-   - Fix: Check if the profile prompt requests personality traits and speech patterns. If the fields exist in the schema but aren't being populated, the prompt may not be extracting them.
+3. **Main character physical descriptions missing or wrong** [Profiles]
+   - Problem:
+     - Nick Carraway: physical_description is WRONG — contains narrative text ("a young man at the office suggested that we take a house together...") instead of physical appearance
+     - Jay Gatsby: NULL — should describe his elegant appearance, gorgeous smile, tanned, formal dress
+     - Daisy Buchanan: NULL — should mention beautiful face, white dress, musical/thrilling voice
+     - Myrtle Wilson: NULL — should mention stout, thick-bodied, sensuous vitality
+   - Evidence: 4 of 5 main characters have missing or wrong physical descriptions
+   - Location: Profile extraction prompt — LLM sometimes returns arbitrary text instead of physical description
+   - Fix: Tighten the profile prompt to explicitly request ONLY physical appearance details (hair, build, clothing, distinguishing features). Add a validation step that rejects descriptions not containing physical terms.
 
-6. **Duplicate "the butler" entries** [Completeness]
-   - Problem: F6 reconciliation produced two entries: "the butler" (id: `a939b1174a88`) and "The butler" (id: `431ff1f64d63`), both with 13 mentions. These are identical except for capitalization.
-   - Evidence: Two hash-ID entries in character list with same mention count
-   - Location: F6 reconciliation in `src/analyzer.py` (~line 1220-1240) — case-insensitive dedup needed
-   - Fix: Add case-insensitive matching when reconciling F6 characters to prevent duplicates
+4. **"T. J. Eckleburg" duplicate of "Doctor T. J. Eckleburg"** [Identity Resolution / Alias Grouping]
+   - Problem: main_cast_12 "Doctor T. J. Eckleburg" and supporting_14 "T. J. Eckleburg" are the same entity listed twice
+   - Evidence: Both have 5 mentions, both describe the same billboard eyes
+   - Location: Post-extraction merge logic — supporting_cast entries aren't being deduplicated against main_cast when one is a substring of the other
+   - Fix: Add fuzzy/substring matching when reconciling supporting_cast against main_cast. "T. J. Eckleburg" should match "Doctor T. J. Eckleburg".
 
-7. **Missing Owl Eyes and Henry C. Gatz** [Completeness]
-   - Problem: Both appear in Ch 9 `characters_present` list ("The owl-eyed man", "Henry C. Gatz") but neither made it into the final character list. Both are narratively significant.
-   - Evidence: Ch 9 characters_present includes them; final output does not
-   - Location: F6 reconciliation should have caught these from characters_present data
-   - Fix: Check why F6 reconciliation picked up "the butler" (twice!) but not "Henry C. Gatz" or "Owl Eyes". May be a mention-count threshold issue.
+5. **"Wilson" alias misassigned to Myrtle instead of George** [Alias Grouping]
+   - Problem: Myrtle Wilson (main_cast_5) has aliases ["Myrtle", "Wilson"]. George Wilson (supporting_17) has aliases ["George"]. In the text, bare "Wilson" almost always refers to George Wilson, not Myrtle. The alias assignment is inverted for the surname.
+   - Evidence: George Wilson is the character usually called "Wilson" in the narrative (garage scene, after Myrtle's death)
+   - Location: Main cast alias resolution — surname aliases should be assigned based on text usage frequency
+   - Fix: This is difficult to fix generically. The main_cast pipeline assigned "Wilson" to Myrtle because she's listed first. A post-processing step could check which character "Wilson" more often co-occurs with in context.
 
-8. **Jordan's physical_description contains wrong narrative text** [Profiles]
-   - Problem: "Jordan" (supporting_4, the falsely-split entry) has physical_description: "a young man at the office suggested that we take a house together in a commuting town..." — this is Nick's narrative about renting a house, not a physical description.
-   - Evidence: Direct from analysis.json
-   - Location: Profile extraction prompt — LLM returned arbitrary narrative text instead of physical description
-   - Fix: The profile prompt needs stricter instructions. Also, if main_cast is fixed, "Jordan" as a separate entry won't exist.
-
-9. **Gatsby falsely attributed with Wolfshiem's physical traits** [Profiles]
-   - Problem: Jay Gatsby's physical_description mentions "tragic nose" — this is actually Meyer Wolfshiem's distinctive feature, not Gatsby's. Wolfshiem's profile correctly notes "Tragic nose" as well.
-   - Evidence: Compare Gatsby and Wolfshiem entries in analysis.json
-   - Fix: Profile extraction may be confusing co-occurring characters. Likely downstream of chunking — if Gatsby and Wolfshiem appear in the same text chunk, the LLM may misattribute physical features.
+6. **"Buchanan" alias shared between Tom and Daisy** [Alias Grouping]
+   - Problem: Both Daisy Buchanan and Tom Buchanan list "Buchanan" as an alias. This creates ambiguity — which character does bare "Buchanan" refer to?
+   - Evidence: main_cast_2 and main_cast_3 both have "Buchanan" in aliases
+   - Fix: When a surname alias would be shared between two characters, either assign it to the character more commonly referred to by surname alone, or remove it from both to avoid ambiguity.
 
 ### MEDIUM
 
-10. **Pronunciation false positives** [Pronunciation]
-    - Problem: Common English words "kitchen" and "cigarette" flagged as category "foreign". Also "week" flagged as foreign.
-    - Evidence: All three in pronunciation list with category "foreign"
-    - Location: `src/pipeline/pronunciation_guide/` extraction or filtering logic
-    - Fix: Add common-word exclusion list for everyday English words of foreign etymological origin
+7. **Missing "Owl Eyes" (the owl-eyed man)** [Completeness]
+   - Problem: The bespectacled man from Gatsby's library (Ch 3) who appears at Gatsby's funeral (Ch 9) is not in the character list. He's narratively significant — one of only a few non-family attendees at the funeral.
+   - Evidence: Ch 9 summary mentions "the man with owl-eyed glasses" but he's not a character entry
+   - Location: May be filtered by mention count threshold or not detected by NER
+   - Fix: Check if "Owl Eyes" or "owl-eyed" appears in NER candidates; may need lower threshold for nicknamed characters
 
-11. **92 "unknown" category pronunciations** [Pronunciation]
-    - Problem: 92 of 133 pronunciations categorized as "unknown". Many are actually useful entries (dialect: Oggsford, gonnegtion, comin; proper nouns: Montauk, Tuolomee; archaic: plagiaristic, murmurous) but the category is unhelpful.
-    - Evidence: Category distribution: unknown: 92, homograph: 19, foreign: 19, proper_noun: 3
-    - Fix: Improve the categorization prompt. Most "unknown" entries are classifiable as dialect, proper_noun, or archaic/literary.
+8. **"Gatz" (supporting_13) should be "Henry C. Gatz"** [Completeness]
+   - Problem: Supporting character "Gatz" with 11 mentions is Gatsby's father Henry C. Gatz. The canonical name should include his full name. "Gatz" alone is confusing because "James Gatz" is Jay Gatsby's real name.
+   - Evidence: Ch 9 summary explicitly mentions "Gatsby's father, Henry C. Gatz, arrives from Minnesota"
+   - Location: Supporting cast extraction or F6 reconciliation didn't use the full name
+   - Fix: Minor — could be handled by better NER or by F6 reconciliation preferring full names from chapter summaries
 
-12. **Homographs lack IPA** [Pronunciation]
-    - Problem: All 19 homograph entries (minute, live, close, wind, read, does, subject, row, excuse, elaborate...) have `ipa: null`. Providing both pronunciations for each homograph would be more useful for narrators.
-    - Evidence: All homograph entries in analysis.json have null IPA
-    - Fix: The pronunciation pipeline should provide both IPA variants for homographs (e.g., /rɛd/ vs /riːd/ for "read")
+9. **"like" flagged as foreign pronunciation** [Pronunciation]
+   - Problem: The common English word "like" is categorized as "foreign" in the pronunciation guide
+   - Evidence: `jq` shows "like" in foreign category list
+   - Location: `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py`
+   - Fix: Add "like" to ENGLISH_EXCEPTIONS list
+
+10. **67 pronunciation entries still categorized as "unknown"** [Pronunciation]
+    - Problem: Many unknown entries are classifiable: dialect words (gonnegtion, comin, prac), literary terms (murmurous, contralto, extemporizing), archaic words (plagiaristic, decencies), etc.
+    - Evidence: Only 28 upgraded to proper_noun by Fix F; 67 remain unknown
+    - Fix: Expand the reclassification logic in consolidator.py beyond just capitalized words — add heuristics for dialect spellings, literary/archaic terms
+
+11. **19 homograph entries lack IPA** [Pronunciation]
+    - Problem: Homographs (minute, live, close, wind, read, does, subject, row, excuse, elaborate) all have `ipa: null`. These are exactly the words narrators need pronunciation guidance for.
+    - Evidence: All 19 homograph entries have null IPA
+    - Fix: The pronunciation enrichment pipeline should provide BOTH IPA variants for homographs (e.g., /rɛd/ vs /riːd/ for "read")
 
 ### LOW
 
-13. **Daisy and Myrtle Wilson lack physical descriptions** [Profiles]
-    - Problem: Daisy (white dresses, golden voice, blonde) and Myrtle (stout, thick-bodied, vitality) have no physical_description despite being richly described in the text.
-    - Fix: Would be resolved if profile extraction prompt is improved (Issue #5/8/9 fixes)
+12. **"aluminium" flagged as foreign** [Pronunciation]
+    - Problem: "aluminium" is the standard British English spelling, not truly foreign
+    - Evidence: Listed as foreign category
+    - Fix: Could add to ENGLISH_EXCEPTIONS, though it's borderline — American narrators might need the note
 
 ## Configuration Audit
 
 ### Model Configuration
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) — same model for all agents
 - Context length: 32768 — adequate for Gatsby (48K words)
-- Temperature: 0.7 for all agents — may be too high for character extraction (structured task)
-- think_mode: false — disables chain-of-thought, may hurt quality
-
-### Chunking Configuration
-- `character_llm_chunk_chars`: 5000 — **potentially too small** for proper character identification across chapter context
-- `summary_chunk_words`: 2500 — adequate
-- `character_mention_context_chars`: 250 — small, may miss relationship context
+- Temperature: 0.7 for all agents — may be too high for structured extraction (character profiles, relationships)
+- think_mode: false — disables chain-of-thought
 
 ### Processing Issues
-- Character Extraction: Only 5 LLM calls, 54s total — very fast, suggesting minimal processing
-- Character Profiles: 63 LLM calls, 2224s — bulk of time, but profiles are still bad
-- All character confidence is MEDIUM (0 HIGH) — pipeline isn't confident
-- Character Profiles: All HIGH confidence despite catastrophically wrong relationships — confidence scoring is broken for profiles
-- No LLM retries or JSON parse failures across any stage
+- Character Extraction: 32 LLM calls, 315s — reasonable, main_cast pipeline now working
+- Character Profiles: 53 LLM calls, 1855s — significant time but profiles still poor quality. The prompt/schema is the issue, not processing.
+- Pronunciation Guide: 118 LLM calls, 639s — high call count suggests per-word enrichment
+- No LLM retries or parse failures — pipeline is stable
 
 ## Fix History
 
 ### flowers_for_algernon — Deferred (image-based PDF, no OCR available)
-- **Issue:** Flowers_For_Algernon.pdf is a scanned/image-based PDF — 0 words extracted
-- **Root cause:** Missing system dependency: tesseract-ocr (required by ocrmypdf / pytesseract)
-- **Action:** Moved flowers_for_algernon to the END of manifest.texts so the loop continues with text-extractable books
-- **Resolution:** When tesseract is installed, flowers_for_algernon will be re-attempted.
 
 ### gatsby — Attempt 2 Fixes
 
-**Fix A: Include `characters_present` in summaries for main_cast LLM extraction** [CRITICAL - Issues #1, #2, #3]
-- **Root cause:** `src/agents/characters.py:_get_chapter_summaries():1007-1012` returns only `s.summary`, discarding the structured `s.characters_present` field.
-- **Fix:** Modified `_get_chapter_summaries()` to prefix each chapter summary with `[Characters present: ...]` when the field is populated.
-- **Result:** PARTIAL SUCCESS — Jay Gatsby now has correct aliases (Gatsby, James Gatz, Gatz). But main_cast grounding STILL rejects all candidates. The fix improved data quality but didn't address the grounding logic itself.
+**Fix A: Include `characters_present` in summaries for main_cast LLM extraction** [CRITICAL]
+- Modified `src/agents/characters.py:_get_chapter_summaries()` to prefix summaries with character lists
+- Result: PARTIAL — aliases improved but main_cast grounding still rejected all candidates
 
-**Fix B: IPA validation to reject corrupt entries** [MEDIUM - Issue #10]
-- **Fix:** Added `_is_valid_ipa()` function that rejects IPA values containing non-IPA Unicode characters.
-- **Result:** SUCCESS — 0 corrupt IPA entries in attempt 2 output (was 1 in attempt 1).
+**Fix B: IPA validation to reject corrupt entries** [MEDIUM]
+- Added `_is_valid_ipa()` in `src/pipeline/pronunciation_guide/enricher.py`
+- Result: SUCCESS ✓
+
+### gatsby — Attempt 3 Fixes
+
+**Fix C: Main cast prompts changed to dict wrapper format** [CRITICAL]
+- Changed both `CHARACTER_IDENTIFICATION_PROMPT` and `MAIN_CAST_PROMPT` in `main_cast.py` from bare JSON array to `{"characters":[...]}` dict wrapper
+- Result: SUCCESS ✓ — main_cast pipeline now produces 9 characters
+
+**Fix D: Secondary relationship call no longer overwrites primary** [CRITICAL]
+- Modified `src/analyzer.py` secondary structuring call to only set relationships when primary produced none; added relationship examples to template
+- Result: PARTIAL — relationships still catastrophically wrong. The primary pipeline itself produces bad labels. Secondary overwrite prevention doesn't help if primary output is bad.
+
+**Fix E: Pronunciation false positive exclusions** [MEDIUM]
+- Added kitchen/cigarette/week/chicken etc. to ENGLISH_EXCEPTIONS in `foreign_proposer.py`
+- Result: SUCCESS ✓ — kitchen, cigarette, week removed
+
+**Fix F: UNKNOWN → PROPER_NOUN reclassification** [MEDIUM]
+- Capitalized UNKNOWN words upgraded to PROPER_NOUN in `consolidator.py`
+- Result: PARTIAL — 28 now proper_noun (was 3), but 67 still unknown
 
 ## Modification History
 
@@ -214,16 +185,19 @@
 | 1 | (baseline — no fixes yet) | — | — |
 | 2 | Main cast pipeline failure (data) | `src/agents/characters.py` | Partial — aliases improved but grounding still fails |
 | 2 | IPA corruption | `src/pipeline/pronunciation_guide/enricher.py` | Fixed ✓ |
-| 3 | Main cast grounding failure (model JSON format) | `src/pipeline/character_extraction_v2/main_cast.py` | Changed both prompts from bare-array to `{"characters":[...]}` dict wrapper. qwen3-next returns error dicts for bare array requests; `_parse_pass1_results` already handles "characters" wrapper key. |
-| 3 | Relationship labels wrong (secondary call overwrites) | `src/analyzer.py` | Secondary structuring call now only writes relationships if primary call produced none; added relationship examples to template. |
-| 3 | Pronunciation false positives (kitchen, cigarette, week) | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Added to ENGLISH_EXCEPTIONS: kitchen, chicken, thicken, quicken, stricken, sicken, cigarette, week, year, cent. |
-| 3 | 92 UNKNOWN pronunciation entries | `src/pipeline/pronunciation_guide/consolidator.py` | Capitalized UNKNOWN words upgraded to PROPER_NOUN in `_build_entry()`. |
+| 3 | Main cast grounding failure (JSON format) | `src/pipeline/character_extraction_v2/main_cast.py` | Fixed ✓ — main_cast produces 9 characters |
+| 3 | Relationship labels wrong (secondary overwrites) | `src/analyzer.py` | No change — primary pipeline also produces bad labels |
+| 3 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Fixed ✓ |
+| 3 | UNKNOWN pronunciation categorization | `src/pipeline/pronunciation_guide/consolidator.py` | Partial — 28 reclassified, 67 remain |
 
 ## Next Action
-Run PROMPT_analyze.md for attempt 3.
 
-### Attempt 3 Fixes Applied
-1. **Fix C: main_cast prompts changed to dict wrapper format** — Both `CHARACTER_IDENTIFICATION_PROMPT` and `MAIN_CAST_PROMPT` now request `{"characters":[...]}` instead of bare JSON array. Root cause: qwen3-next returns error dicts when forced to produce bare arrays via json_mode.
-2. **Fix D: Secondary relationship call no longer overwrites primary** — `analyzer.py` secondary structuring call only sets relationships when primary produced none. Template updated with proper relationship type examples.
-3. **Fix E: Pronunciation false positive exclusions** — Added kitchen/cigarette/week/chicken etc. to ENGLISH_EXCEPTIONS.
-4. **Fix F: UNKNOWN → PROPER_NOUN reclassification** — Capitalized UNKNOWN words upgraded to PROPER_NOUN in consolidator.
+Run PROMPT_fix.md to address:
+1. **Priority 1 — Profiles (4→8):** Fix relationship type vocabulary (CRITICAL #1), enable personality traits + speech patterns (CRITICAL #2), fix physical description extraction (HIGH #3). These are all profile pipeline issues.
+2. **Priority 2 — Characters (7.5→8):** Fix Eckleburg duplicate (HIGH #4), fix shared aliases (HIGH #5-6). These are post-processing merge issues.
+3. **Priority 3 — Pronunciation (7.5→8):** Add "like" to exceptions (MEDIUM #9). Incremental.
+
+**Fix phase guidance:**
+- The relationship issue is the BIGGEST blocker. Fix D failed because it addressed the secondary structuring call, but the PRIMARY relationship source in the profile pipeline also uses a limited vocabulary. The fix phase MUST find the relationship type enum/prompt in the profile extraction code and expand it.
+- Personality traits and speech patterns being all null suggests the profile schema may not include these fields or the prompt doesn't ask for them. Check the Pydantic model and the profile extraction prompt.
+- The Eckleburg duplicate can be fixed with substring matching in post-extraction dedup.
