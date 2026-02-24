@@ -43,7 +43,22 @@ RELATIONSHIP_REVERSES = {
     "partner": "partner",
     "guardian": "ward",
     "ward": "guardian",
+    # Parent/child (generic forms)
+    "parent": "child",
+    "child": "parent",
+    # Employment
+    "employer": "employee",
+    "employee": "employer",
+    # Mentor/apprentice
+    "mentor": "protégé",
+    "protégé": "mentor",
 }
+
+# Relationships that are symmetric: A→B implies B→A with the same label.
+_SYMMETRIC_RELATIONSHIPS = frozenset({
+    "acquaintance", "associate", "business partner", "close friend",
+    "friend", "ally", "neighbor", "rival", "enemy",
+})
 
 FAMILY_TERMS = (
     "cousin", "brother", "sister", "uncle", "aunt", "nephew", "niece",
@@ -98,6 +113,36 @@ _rel_phrase_re = re.compile(
 
 # Death phrase pattern
 _death_phrase_re = re.compile(r'\s+in\s+death(?=[.,;!?]|$)', re.IGNORECASE)
+
+# Attribution phrase pattern — detects clauses like "(as described by X)" that indicate
+# a physical feature was sourced from another character's description, not this character's.
+_attribution_re = re.compile(r'\(as described by\b', re.IGNORECASE)
+
+
+def _strip_attribution_clauses(text: str, other_canonical_names: set) -> str:
+    """Remove semicolon-separated clauses that attribute a description to another character.
+
+    When an appearance summary contains a clause like 'has red hair (as described by
+    Catherine)', that feature belongs to Catherine, not the subject. This is a universal
+    invariant: cross-character attribution signals contamination of the description.
+    Only removes clauses where the attribution refers to an actual cast member.
+    """
+    if not _attribution_re.search(text):
+        return text  # fast path: no attribution in text
+    parts = re.split(r';\s*', text)
+    kept = []
+    for part in parts:
+        if _attribution_re.search(part):
+            # Check whether the attribution refers to a known cast member
+            part_lower = part.lower()
+            if any(
+                name.lower() in part_lower or name.split()[-1].lower() in part_lower
+                for name in other_canonical_names
+            ):
+                logger.debug(f"Stripping attribution clause: {part!r}")
+                continue  # skip contaminated clause
+        kept.append(part)
+    return '; '.join(kept)
 
 # Age extraction patterns
 _written_num_pat = (
@@ -287,11 +332,11 @@ class PipelineCharacterCorrector:
                     )
 
     def infer_bidirectional_relationships(self, characters) -> None:
-        """Infer reverse family relationships.
+        """Infer reverse relationships.
 
         If character A -> B is "father", infer B -> A is "son" (if not
-        already set). Parent/child, sibling, and spouse relationships
-        are always bidirectional with a known reverse.
+        already set). Family, employment, and symmetric social relationships
+        are all bidirectional with known reverses.
         """
         char_by_name = {c.canonical_name: c for c in characters}
 
@@ -303,11 +348,21 @@ class PipelineCharacterCorrector:
                 rel_lower = rel_desc.strip().lower()
                 reverse_rel = RELATIONSHIP_REVERSES.get(rel_lower)
                 if not reverse_rel:
-                    rel_words = set(rel_lower.split())
-                    for key in sorted(RELATIONSHIP_REVERSES, key=len, reverse=True):
-                        if key in rel_words:
-                            reverse_rel = RELATIONSHIP_REVERSES[key]
-                            break
+                    # Check symmetric relationships (A→B means B→A with same label)
+                    if rel_lower in _SYMMETRIC_RELATIONSHIPS:
+                        reverse_rel = rel_lower
+                    else:
+                        # Fall back to word-set lookup for multi-word relationship labels
+                        rel_words = set(rel_lower.split())
+                        for key in sorted(RELATIONSHIP_REVERSES, key=len, reverse=True):
+                            if key in rel_words:
+                                reverse_rel = RELATIONSHIP_REVERSES[key]
+                                break
+                        if not reverse_rel:
+                            for sym in _SYMMETRIC_RELATIONSHIPS:
+                                if sym in rel_lower:
+                                    reverse_rel = sym
+                                    break
                 if reverse_rel and other_name in char_by_name:
                     char_b = char_by_name[other_name]
                     rels_b = getattr(char_b, "relationships", None)
@@ -588,6 +643,9 @@ class OutputCharacterCorrector:
     Runs after _convert_characters(), before building the final AnalysisResult.
     """
 
+    def __init__(self, llm_client=None):
+        self._llm = llm_client
+
     def run_all(self, characters, source_text: str) -> None:
         """Run all Phase B corrections in order. Mutates characters in place."""
         self.inject_narrator_appearance_final(characters, source_text)
@@ -606,12 +664,16 @@ class OutputCharacterCorrector:
         """Copy appearance.summary to physical_description when the latter is absent.
 
         Falls back to joining distinguishing_features when summary is null, and then
-        to a deterministic text scan for major characters (>50 mentions) that still
-        have no description.
-        Provides a flat top-level field for narrator convenience without duplicating
-        structured appearance data.  Skips placeholder values like 'unknown'.
+        to an LLM call focused on the character's first appearance in the source text
+        for major characters (>50 mentions) that still have no description.
+
+        Authors typically describe characters physically when they first appear on the
+        page, so the first-appearance context is the most reliable source for physical
+        descriptions and avoids cross-contamination from nearby characters introduced
+        later in the same scene.
         """
         _skip = {"", "unknown", "not described", "no physical description available in text."}
+        needs_llm: list = []
         for char in characters:
             if getattr(char, "physical_description", None):
                 continue  # already set
@@ -629,62 +691,140 @@ class OutputCharacterCorrector:
                 if valid:
                     char.physical_description = "; ".join(valid).capitalize() + "."
                     continue
-            # Final fallback: deterministic text scan for major characters.
-            # When the LLM didn't extract a physical description (e.g., sampled contexts
-            # didn't include descriptive passages), search the raw text for sentences
-            # near character name occurrences that contain physical descriptor words.
+            # Collect major characters that still need a description
             if source_text and getattr(char, "mention_count", 0) > 50:
-                desc = self._find_physical_description_in_text(char, source_text)
+                needs_llm.append(char)
+
+        # LLM fallback: extract physical descriptions from first-appearance context.
+        if needs_llm and self._llm:
+            all_names = [c.canonical_name for c in characters]
+            for char in needs_llm:
+                desc = self._llm_first_appearance_description(
+                    char, source_text, all_names,
+                )
                 if desc:
                     char.physical_description = desc
+                    # Also populate appearance.summary so downstream consumers see it
+                    app = getattr(char, "appearance", None)
+                    if isinstance(app, dict) and not app.get("summary"):
+                        app["summary"] = desc
                     logger.info(
-                        f"Deterministic physical description for '{char.canonical_name}': "
-                        f"{desc!r}"
+                        f"LLM first-appearance description for "
+                        f"'{char.canonical_name}': {desc!r}"
                     )
+        elif needs_llm:
+            logger.info(
+                f"No LLM client available for first-appearance description "
+                f"fallback ({len(needs_llm)} characters need descriptions)"
+            )
 
-    def _find_physical_description_in_text(self, char, source_text: str) -> str:
-        """Scan source text for a physical description near character name matches.
+    def _llm_first_appearance_description(
+        self, char, source_text: str, all_character_names: list[str],
+    ) -> str:
+        """Extract physical description from a character's first appearance.
 
-        Searches for sentences containing physical descriptor words in a window
-        immediately after character name occurrences (descriptions typically follow
-        introductions). Returns the highest-scoring candidate sentence.
-
-        Universal: works for any book where characters are described in prose.
+        Finds the earliest mention of the character in the source text and sends
+        the surrounding context to the LLM with a focused extraction prompt.
+        Authors typically describe characters physically when they first appear,
+        making this the most reliable source for accurate, uncontaminated descriptions.
         """
-        _phys_terms = PHYS_DESCRIPTOR_WORDS | {
-            "pale", "dark", "hair", "eyes", "face", "complexion",
-            "figure", "built", "handsome", "beautiful", "slender",
-            "elegant", "flesh", "features", "cheek", "chin", "brow",
-        }
         names = [char.canonical_name]
         if hasattr(char, "aliases") and char.aliases:
-            names.extend(char.aliases)
+            names.extend(a for a in char.aliases if isinstance(a, str) and a.strip())
 
-        best_score = 0
-        best_desc = ""
+        # Compute last-name tokens of other characters to filter ambiguous single-word aliases.
+        # E.g., "Buchanan" is Daisy's alias but also Tom Buchanan's last name — using it as a
+        # search anchor would find Tom's first appearance, not Daisy's.
+        other_last_tokens: set[str] = set()
+        for other_name in all_character_names:
+            if other_name == char.canonical_name:
+                continue
+            parts = other_name.strip().split()
+            if parts:
+                other_last_tokens.add(parts[-1].lower())
 
-        for name in names:
+        filtered_names = [
+            n for n in names
+            if len(n.split()) > 1  # multi-word names are never ambiguous
+            or n.lower() not in other_last_tokens  # single-word name not shared with another char
+        ]
+        if not filtered_names:
+            filtered_names = names  # safety fallback
+
+        # Find earliest occurrence across unambiguous name variants
+        first_pos = len(source_text)
+        first_name = char.canonical_name
+        for name in filtered_names:
             if not name or len(name) < 2:
                 continue
-            for match in re.finditer(r"\b" + re.escape(name) + r"\b", source_text, re.IGNORECASE):
-                # Look in the 400 chars after the name match — descriptions tend to
-                # follow introductions ("Mrs Wilson ... She was faintly stout").
-                we = min(len(source_text), match.end() + 400)
-                window = source_text[match.start():we]
-                for sent in re.split(r"(?<=[.!?])\s+", window):
-                    sent = sent.strip()
-                    if len(sent) < 20 or len(sent) > 250:
-                        continue
-                    sent_lower = sent.lower()
-                    score = sum(
-                        1 for t in _phys_terms
-                        if re.search(r"\b" + re.escape(t) + r"\b", sent_lower)
-                    )
-                    if score > best_score:
-                        best_score = score
-                        best_desc = sent
+            m = re.search(r"\b" + re.escape(name) + r"\b", source_text, re.IGNORECASE)
+            if m and m.start() < first_pos:
+                first_pos = m.start()
+                first_name = name
 
-        return best_desc if best_score >= 1 else ""
+        if first_pos >= len(source_text):
+            return ""
+
+        # Extract a generous window around the first appearance.
+        # Bias forward (more text after the name) since descriptions follow introductions.
+        ctx_start = max(0, first_pos - 500)
+        ctx_end = min(len(source_text), first_pos + 1500)
+        context = source_text[ctx_start:ctx_end]
+
+        # Clean up partial words at boundaries
+        if ctx_start > 0:
+            context = "..." + (context.split(" ", 1)[-1] if " " in context else context)
+        if ctx_end < len(source_text):
+            context = (context.rsplit(" ", 1)[0] if " " in context else context) + "..."
+
+        # Build list of other characters for disambiguation
+        others = [n for n in all_character_names if n != char.canonical_name]
+
+        prompt = (
+            f"Below is a passage from a novel surrounding the first appearance of "
+            f'the character "{char.canonical_name}"'
+        )
+        if len(names) > 1:
+            aliases = ", ".join(f'"{a}"' for a in names[1:])
+            prompt += f" (also known as {aliases})"
+        prompt += (
+            f".\n\nOther characters in this story: {', '.join(others[:15])}\n\n"
+            f"PASSAGE:\n{context}\n\n"
+            f"Extract ONLY the physical description of \"{char.canonical_name}\" "
+            f"from this passage. Include details like build, height, age, hair, "
+            f"eyes, complexion, clothing, and any distinctive physical features.\n\n"
+            f"RULES:\n"
+            f"- Only describe \"{char.canonical_name}\", not any other character\n"
+            f"- Use only details explicitly stated in the passage\n"
+            f"- Write a concise 1-3 sentence description\n"
+            f"- If the passage contains no physical description of this character, "
+            f"respond with exactly: NONE"
+        )
+
+        try:
+            response = self._llm.query(prompt, temperature=0.1, max_tokens=256)
+            if not response.success:
+                logger.warning(
+                    f"LLM first-appearance query failed for "
+                    f"'{char.canonical_name}': {response.error}"
+                )
+                return ""
+            text = response.content.strip()
+            if not text or text.upper() == "NONE" or "none" == text.lower():
+                return ""
+            # Filter out responses that are just negations
+            if any(phrase in text.lower() for phrase in NO_DESC_PHRASES):
+                return ""
+            # Truncate overly long responses
+            if len(text) > 400:
+                text = text[:400].rsplit(" ", 1)[0] + "..."
+            return text
+        except Exception as e:
+            logger.warning(
+                f"LLM first-appearance extraction error for "
+                f"'{char.canonical_name}': {e}"
+            )
+            return ""
 
     def inject_narrator_appearance_final(self, characters, source_text: str) -> None:
         """Final narrator appearance injection (guaranteed-last pass).
@@ -817,6 +957,10 @@ class OutputCharacterCorrector:
             "", "unknown", "not described", "no physical description",
             "no description", "n/a", "none",
         })
+        other_names_by_char = {
+            c.canonical_name: {o.canonical_name for o in characters if o is not c}
+            for c in characters
+        }
         for char in characters:
             app = getattr(char, 'appearance', None)
             if not app:
@@ -842,6 +986,20 @@ class OutputCharacterCorrector:
                         f"Cleared self-negating appearance.summary for '{char.canonical_name}': "
                         f"{val[:80]!r}"
                     )
+                    continue
+                # Remove cross-character attribution clauses: "(as described by X)" where X is
+                # another cast member signals that the feature belongs to X, not this character.
+                # Universal invariant: descriptions must describe THIS character only.
+                if key == "summary":
+                    others = other_names_by_char.get(char.canonical_name, set())
+                    cleaned = _strip_attribution_clauses(val, others)
+                    if cleaned != val:
+                        new_val = cleaned.strip('; ').strip() or None
+                        app[key] = new_val
+                        logger.info(
+                            f"Removed attribution clause from appearance.summary for "
+                            f"'{char.canonical_name}': {val[:80]!r} → {str(new_val)[:80]!r}"
+                        )
 
     def clean_orphaned_relationships(self, characters) -> None:
         """Remove relationship entries that reference characters not in the final list.
@@ -1147,8 +1305,8 @@ class OutputCharacterCorrector:
 
         This runs AFTER verify_relationships_from_text, which can introduce incorrect
         family labels when nearby family phrases in 500-char windows belong to a
-        different character pair (e.g. "her husband" referring to Tom Buchanan found
-        in a Gatsby+Daisy co-mention window).
+        different character pair (e.g., a possessive phrase like "her husband"
+        referring to a third character found in a co-mention window).
         """
         if not source_text:
             return

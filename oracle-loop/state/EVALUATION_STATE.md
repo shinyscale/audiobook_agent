@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -211,9 +211,29 @@
 - `src/pipeline/character_profiling/post_corrections.py` is attempt 3 for physical descriptions (Fix H failed in analyzer.py, Fix S/T in post_corrections partially worked). The functions exist and work for some characters — they need refinement, not a new approach.
 - Profiles are the SOLE remaining blocker at 7.5/10. Need +0.5 across: Daisy description (+0.3), Myrtle decontamination (+0.1), Gatsby relationships (+0.15).
 
+## Attempt 8 Fixes Applied
+
+### Fix U: Alias-ambiguity filter in `_llm_first_appearance_description` [CRITICAL #1]
+- **Root cause:** Alias "Buchanan" for Daisy matches Tom Buchanan's first appearance, sending wrong context to the LLM → LLM returns NONE for Daisy
+- **Fix:** Before searching for first occurrence, filter out single-word aliases that are last-name tokens of other characters. "Buchanan" is filtered because it ends Tom Buchanan's name. Search now uses "Daisy Buchanan" and "Daisy" only.
+- **File:** `src/pipeline/character_profiling/post_corrections.py` — `_llm_first_appearance_description()`
+- **Universal:** Yes — any alias that is a bare last name shared by another cast member could produce wrong first-appearance context
+- **Smoke test:** PASS — "Buchanan" correctly excluded from search, "Daisy" and "Daisy Buchanan" kept
+
+### Fix V: Cross-character attribution detection in `clean_unknown_appearance` [HIGH #2]
+- **Root cause:** Myrtle's summary "has a red bob of hair (as described by her sister Catherine)" wasn't caught by `NO_DESC_PHRASES` check since it doesn't self-negate — it positively attributes Catherine's feature to Myrtle
+- **Fix:** Added `_strip_attribution_clauses()` helper + call in `clean_unknown_appearance`. Detects "(as described by X)" clauses where X is another cast member and removes those semicolon-delimited clauses from the summary
+- **File:** `src/pipeline/character_profiling/post_corrections.py` — `clean_unknown_appearance()` + new `_strip_attribution_clauses()`
+- **Universal:** Yes — cross-character attributions with explicit "(as described by [name])" language can appear in any book
+- **Smoke test:** PASS — "has a red bob of hair (as described by her sister Catherine)" clause removed; other clauses preserved
+
+### Fix W: Extended bidirectional relationship inference [HIGH #3]
+- **Root cause:** `RELATIONSHIP_REVERSES` missing "parent"→"child", "employer"→"employee"; no handling for symmetric relationships like "acquaintance"/"rival"/"friend". Gatsby has zero relationships even though others list him as employer/parent-child target
+- **Fix:** Added "parent"/"child", "employer"/"employee", "mentor"/"protégé" to `RELATIONSHIP_REVERSES`. Added `_SYMMETRIC_RELATIONSHIPS` frozenset ("acquaintance", "close friend", "rival", "enemy", "associate", etc.). Updated `infer_bidirectional_relationships` to check symmetric set and fall back to word-set match for compound labels
+- **File:** `src/pipeline/character_profiling/post_corrections.py` — `RELATIONSHIP_REVERSES`, `_SYMMETRIC_RELATIONSHIPS`, `infer_bidirectional_relationships()`
+- **Universal:** Yes — bidirectional inference for employment, parent-child, and symmetric social relationships applies to all books
+- **Smoke test:** PASS — Gatsby now gets: Klipspringer→employee, Henry C. Gatz→child, Lucille→acquaintance from bidirectional inference
+
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Expand `propagate_physical_description()` term vocabulary + alias matching for Daisy
-2. HIGH #2: Add cross-contamination detection (if description mentions another character's name, clear it)
-3. HIGH #3: Add co-occurrence relationship backfill for major characters with zero relationships
+Re-run analysis to verify fixes (awaiting_analysis)
