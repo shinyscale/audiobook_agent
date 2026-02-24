@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -31,16 +31,21 @@
 |---------|-------|---------------------|-------|
 | 1 | 6.55 | — | Baseline. main_cast pipeline failed; massive false splits; profiles catastrophically wrong |
 
-## Pipeline Notes
-- Analysis completed in 100m 6s
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 78m 34s
 - 9 chapters detected (correct)
-- 22 characters extracted — **0 from main_cast, 21 from supporting_cast, 1 from F6 reconciliation**
-- 134 pronunciation flags (115 with IPA)
-- Warnings:
-  - "V2 Step 3.1 FALLBACK: main_cast empty after grounding" — **ROOT CAUSE of character issues**
-  - "Two-pass extraction returned 0 characters; retrying with single-pass" — character extraction fallback triggered
-  - "Narrator 'Nick Carraway' identified but NOT found in main_cast" — narrator detection found correct narrator but couldn't link it
-  - "LLM marker proposer returned non-list: dict" (20x) — structure agent response parsing issue (didn't affect structure quality)
+- 25 characters extracted (up from 22) — main_cast FALLBACK still triggered; 14 additional chars from F6 reconciliation
+- 133 pronunciation flags
+- Improvements from Fix A (characters_present injection):
+  - Jay Gatsby: aliases correctly resolved (Gatsby, James Gatz) ✓
+  - Nick Carraway: narrator correctly identified ✓
+  - Henry C. Gatz, Owl Eyes added via F6 reconciliation (characters_present data)
+  - F6 added 14 characters from chapter summaries
+- Persistent issues:
+  - "V2 Step 3.1 FALLBACK: main_cast empty after grounding" — main_cast pipeline STILL fails
+  - Tom/Tom Buchanan still split; Jordan/Jordan Baker still split; Wilson unresolved
+  - "Jordan" still gets wrong narrative text as physical description
+  - "LLM marker proposer returned non-list: dict" (20x) — structure agent (doesn't affect quality)
 
 ## Current Issues (Priority Order)
 
