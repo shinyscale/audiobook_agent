@@ -2,14 +2,21 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Completed in 87m 1s, 298 LLM calls, 449,366 tokens
+- 9 chapters detected, 19 characters extracted, 130 pronunciation entries
+- Jay Gatsby now canonical name (not James Gatz) ✓
+- Nick Carraway narrator confirmed ✓ (first-person)
+- Competitive-all mode: --competitive-consensus --competitive-structure --competitive-summaries
 
 ## Pipeline Notes (Attempt 6)
 - Completed in 76m 33s, 253 LLM calls, 401,362 tokens
