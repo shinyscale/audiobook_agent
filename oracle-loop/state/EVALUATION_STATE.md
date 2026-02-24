@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -206,6 +206,11 @@
 **Fix P: Personality traits + speech patterns** [CRITICAL] — SUCCESS ✓ (src/analyzer.py — data in personality/voice_guidance nested dicts)
 **Fix Q: Homograph IPA** [HIGH] — SUCCESS ✓ (src/pipeline/pronunciation_guide/enricher.py)
 
+### gatsby — Attempt 7 Fixes
+**Fix R: Familial labels Option B** [CRITICAL] — PENDING (src/pipeline/character_profiling/post_corrections.py — `reject_unfounded_familial_labels()` now only allows sibling/brother text-evidence exception for non-surname-sharing pairs; all other family labels removed)
+**Fix S: Self-negating appearance summary** [HIGH] — PENDING (src/pipeline/character_profiling/post_corrections.py — `clean_unknown_appearance()` now clears summaries containing "not directly described" etc. via NO_DESC_PHRASES substring check; targets Myrtle's Catherine-contaminated description)
+**Fix T: Deterministic physical description fallback** [HIGH] — PENDING (src/pipeline/character_profiling/post_corrections.py — `propagate_physical_description()` now scans raw text for physical-term sentences near character name mentions for major chars with null descriptions)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -228,6 +233,9 @@
 | 6 | Familial label validation | `src/pipeline/character_profiling/post_corrections.py` | Partial — filter too permissive |
 | 6 | Personality traits + speech patterns | `src/analyzer.py` | Fixed ✓ |
 | 6 | Homograph IPA | `src/pipeline/pronunciation_guide/enricher.py` | Fixed ✓ |
+| 7 | Familial labels Option B | `src/pipeline/character_profiling/post_corrections.py` | Pending |
+| 7 | Self-negating appearance descriptions | `src/pipeline/character_profiling/post_corrections.py` | Pending |
+| 7 | Physical description text fallback | `src/pipeline/character_profiling/post_corrections.py` | Pending |
 
 **Pattern alerts:**
 - `src/pipeline/character_profiling/post_corrections.py` is the correct location for relationship fixes — `reject_unfounded_familial_labels()` exists but needs tightening. This is attempt 2 at this file for relationships (after Fix L succeeded for "unknown" removal). The method logic needs refinement, not a new location.
@@ -236,6 +244,4 @@
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Tighten or replace `reject_unfounded_familial_labels()` — Option B (delete familial labels for non-surname-sharing pairs, with sister/brother exception for text-evidenced cases) is simplest and most reliable
-2. HIGH #2-4: Add second-pass physical description extraction for major characters with null descriptions (Gatsby, Daisy, Myrtle)
+Re-run analysis on gatsby (attempt 7) to verify fixes R/S/T close the Profiles gap.

@@ -66,7 +66,8 @@ SAME_PERSON_PHRASES = ("same person", "same character", "identical to", "the sam
 
 NO_DESC_PHRASES = (
     "unknown", "does not provide", "no physical description",
-    "not described", "no direct physical", "no description",
+    "not described", "not directly described", "not physically described",
+    "no direct physical", "no description",
     "not provide a direct",
 )
 
@@ -593,7 +594,7 @@ class OutputCharacterCorrector:
         self.extract_deterministic_age(characters, source_text)
         self.clean_unknown_appearance(characters)
         self.clean_plot_summary_personality(characters, source_text)
-        self.propagate_physical_description(characters)
+        self.propagate_physical_description(characters, source_text)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
@@ -601,10 +602,12 @@ class OutputCharacterCorrector:
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
 
-    def propagate_physical_description(self, characters) -> None:
+    def propagate_physical_description(self, characters, source_text: str = "") -> None:
         """Copy appearance.summary to physical_description when the latter is absent.
 
-        Falls back to joining distinguishing_features when summary is null.
+        Falls back to joining distinguishing_features when summary is null, and then
+        to a deterministic text scan for major characters (>50 mentions) that still
+        have no description.
         Provides a flat top-level field for narrator convenience without duplicating
         structured appearance data.  Skips placeholder values like 'unknown'.
         """
@@ -625,6 +628,63 @@ class OutputCharacterCorrector:
                 valid = [f.strip() for f in features if isinstance(f, str) and f.strip()]
                 if valid:
                     char.physical_description = "; ".join(valid).capitalize() + "."
+                    continue
+            # Final fallback: deterministic text scan for major characters.
+            # When the LLM didn't extract a physical description (e.g., sampled contexts
+            # didn't include descriptive passages), search the raw text for sentences
+            # near character name occurrences that contain physical descriptor words.
+            if source_text and getattr(char, "mention_count", 0) > 50:
+                desc = self._find_physical_description_in_text(char, source_text)
+                if desc:
+                    char.physical_description = desc
+                    logger.info(
+                        f"Deterministic physical description for '{char.canonical_name}': "
+                        f"{desc!r}"
+                    )
+
+    def _find_physical_description_in_text(self, char, source_text: str) -> str:
+        """Scan source text for a physical description near character name matches.
+
+        Searches for sentences containing physical descriptor words in a window
+        immediately after character name occurrences (descriptions typically follow
+        introductions). Returns the highest-scoring candidate sentence.
+
+        Universal: works for any book where characters are described in prose.
+        """
+        _phys_terms = PHYS_DESCRIPTOR_WORDS | {
+            "pale", "dark", "hair", "eyes", "face", "complexion",
+            "figure", "built", "handsome", "beautiful", "slender",
+            "elegant", "flesh", "features", "cheek", "chin", "brow",
+        }
+        names = [char.canonical_name]
+        if hasattr(char, "aliases") and char.aliases:
+            names.extend(char.aliases)
+
+        best_score = 0
+        best_desc = ""
+
+        for name in names:
+            if not name or len(name) < 2:
+                continue
+            for match in re.finditer(r"\b" + re.escape(name) + r"\b", source_text, re.IGNORECASE):
+                # Look in the 400 chars after the name match — descriptions tend to
+                # follow introductions ("Mrs Wilson ... She was faintly stout").
+                we = min(len(source_text), match.end() + 400)
+                window = source_text[match.start():we]
+                for sent in re.split(r"(?<=[.!?])\s+", window):
+                    sent = sent.strip()
+                    if len(sent) < 20 or len(sent) > 250:
+                        continue
+                    sent_lower = sent.lower()
+                    score = sum(
+                        1 for t in _phys_terms
+                        if re.search(r"\b" + re.escape(t) + r"\b", sent_lower)
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_desc = sent
+
+        return best_desc if best_score >= 1 else ""
 
     def inject_narrator_appearance_final(self, characters, source_text: str) -> None:
         """Final narrator appearance injection (guaranteed-last pass).
@@ -763,10 +823,24 @@ class OutputCharacterCorrector:
                 continue
             for key in ("summary", "age_indication", "distinguishing_features"):
                 val = app.get(key)
-                if isinstance(val, str) and val.strip().lower() in _placeholder:
+                if not isinstance(val, str):
+                    continue
+                val_lower = val.strip().lower()
+                if val_lower in _placeholder:
                     app[key] = None
                     logger.info(
                         f"Cleared placeholder appearance.{key}='{val}' for '{char.canonical_name}'"
+                    )
+                    continue
+                # Also clear summary fields that explicitly state the character is not
+                # described — the LLM sometimes wraps a long explanation around a denial
+                # ("X is not directly described in the text; however her sister Y is...").
+                # NO_DESC_PHRASES uses substring matching to catch these multi-sentence values.
+                if key == "summary" and any(phrase in val_lower for phrase in NO_DESC_PHRASES):
+                    app[key] = None
+                    logger.info(
+                        f"Cleared self-negating appearance.summary for '{char.canonical_name}': "
+                        f"{val[:80]!r}"
                     )
 
     def clean_orphaned_relationships(self, characters) -> None:
@@ -1122,7 +1196,23 @@ class OutputCharacterCorrector:
                 if char_surnames & other_surnames:
                     continue
 
-                # Check 2: Tight text co-mention with a family possessive phrase.
+                # Option B: Only allow text evidence exception for sibling (sister/brother)
+                # labels.  For all other non-surname-sharing family pairs, the label is
+                # removed unconditionally — a universal invariant because almost all books
+                # use shared surnames for spouses, parents, and children, and the 100-char
+                # co-mention check for non-sibling terms causes too many false positives
+                # (e.g., "her husband" in a scene window where two unrelated characters appear).
+                sibling_terms = {"sister", "brother"}
+                is_sibling = any(t in rel_lower for t in sibling_terms)
+                if not is_sibling:
+                    del char.relationships[other_key]
+                    logger.info(
+                        f"Removed non-sibling familial label (no shared surname): "
+                        f"'{char.canonical_name}' → '{other_key}': '{rel}'"
+                    )
+                    continue
+
+                # For sibling labels: check text co-mention evidence.
                 pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
                 has_evidence = False
                 if pat_a and pat_b:
@@ -1137,7 +1227,7 @@ class OutputCharacterCorrector:
                 if has_evidence:
                     continue
 
-                # No evidence: remove the label.
+                # No sibling evidence: remove the label.
                 del char.relationships[other_key]
                 logger.info(
                     f"Removed unfounded familial label: "
