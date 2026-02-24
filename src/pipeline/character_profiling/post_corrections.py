@@ -70,6 +70,11 @@ PHYS_DESCRIPTOR_WORDS = {
     "man", "woman", "person", "elderly", "old", "young", "tall",
     "short", "thin", "small", "lean", "stout", "fat", "grizzled",
     "bald", "gray", "grey", "large",
+    # Extended physical appearance descriptors
+    "face", "eyes", "eye", "hair", "mouth", "lips", "chin", "brow",
+    "complexion", "build", "figure", "slim", "slender", "dark", "fair",
+    "skin", "handsome", "beautiful", "pale", "flushed", "broad", "muscular",
+    "athletic", "stocky", "lanky", "wiry", "gaunt", "plump", "heavyset",
 }
 
 MALE_INDICATORS = {"man", " he ", " his ", "himself", "boy", "gentleman", "mr."}
@@ -653,12 +658,127 @@ class OutputCharacterCorrector:
         self.clean_unknown_appearance(characters)
         self.clean_plot_summary_personality(characters, source_text)
         self.propagate_physical_description(characters, source_text)
+        self.extract_relationships_from_evidence(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
+
+    def extract_relationships_from_evidence(self, characters) -> None:
+        """Mine evidence statements to populate missing relationships.
+
+        The profiling LLM often captures character relationships in the evidence
+        field as statement text (e.g., "Has a romantic history with Jay Gatsby")
+        but fails to surface them in the relationships dict. This method scans
+        each character's evidence statements for co-mentions of other cast
+        members and infers a relationship type from universal indicator words.
+
+        Universal invariant: a character mentioned in another character's evidence
+        statement is at minimum "associated" with that character.
+        """
+        _ROMANTIC_WORDS = frozenset({
+            "romantic", "affair", "loves", "love", "passion", "longing", "intimate",
+        })
+        _RIVAL_WORDS = frozenset({
+            "rival", "rivals", "rivalry", "opposes", "opposition",
+        })
+        _ENEMY_WORDS = frozenset({
+            "enemy", "enemies", "hates", "hatred",
+        })
+        _NEIGHBOR_WORDS = frozenset({
+            "neighbor", "next door", "next to", "lives near",
+        })
+
+        def _infer_rel(stmt: str) -> str:
+            sl = stmt.lower()
+            if any(w in sl for w in _ROMANTIC_WORDS):
+                return "romantic interest"
+            if any(w in sl for w in _RIVAL_WORDS):
+                return "rival"
+            if any(w in sl for w in _ENEMY_WORDS):
+                return "enemy"
+            if any(w in sl for w in _NEIGHBOR_WORDS):
+                return "neighbor"
+            return "associated"
+
+        for char in characters:
+            evidence = getattr(char, 'evidence', None) or []
+            rels = getattr(char, 'relationships', None)
+            if rels is None:
+                rels = {}
+            if not isinstance(rels, dict):
+                continue
+
+            changed = False
+            for ev in evidence:
+                if not isinstance(ev, dict):
+                    continue
+                stmt = ev.get('statement', '') or ''
+                if not isinstance(stmt, str) or not stmt:
+                    continue
+
+                for other in characters:
+                    if other is char:
+                        continue
+                    other_name = other.canonical_name
+                    if other_name in rels:
+                        continue  # relationship already known
+                    # Check canonical name and aliases in the statement text
+                    all_names = [other_name] + list(getattr(other, 'aliases', None) or [])
+                    for n in all_names:
+                        if n and len(n) >= 3 and re.search(
+                            r'\b' + re.escape(n) + r'\b', stmt, re.IGNORECASE
+                        ):
+                            rel_type = _infer_rel(stmt)
+                            rels[other_name] = rel_type
+                            changed = True
+                            logger.info(
+                                f"Evidence-inferred relationship: "
+                                f"'{char.canonical_name}' → '{other_name}' "
+                                f"({rel_type!r}) from: {stmt[:80]!r}"
+                            )
+                            break
+
+            if changed:
+                char.relationships = rels
+
+        # Apply symmetric bidirectional inference for newly added relationships.
+        # Covers: "associated", "neighbor", "romantic interest", "rival", "enemy",
+        # and other social labels where A→B implies B→A.
+        symmetric = _SYMMETRIC_RELATIONSHIPS | frozenset({"associated", "romantic interest"})
+        for char_a in characters:
+            rels_a = getattr(char_a, 'relationships', None) or {}
+            if not isinstance(rels_a, dict):
+                continue
+            for other_key, label in list(rels_a.items()):
+                label_lower = (label or "").lower()
+                if label_lower not in symmetric:
+                    continue
+                char_b = next(
+                    (c for c in characters if c.canonical_name == other_key),
+                    None,
+                )
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, 'relationships', None)
+                if rels_b is None:
+                    rels_b = {}
+                    char_b.relationships = rels_b
+                if not isinstance(rels_b, dict):
+                    continue
+                existing = rels_b.get(char_a.canonical_name)
+                # Add if missing, or upgrade from generic "associated" to a
+                # more specific type inferred from the other side.
+                if existing is None or (
+                    existing.lower() == "associated" and label.lower() != "associated"
+                ):
+                    rels_b[char_a.canonical_name] = label
+                    logger.info(
+                        f"Symmetric inference: '{char_b.canonical_name}' → "
+                        f"'{char_a.canonical_name}' ({label!r})"
+                    )
 
     def propagate_physical_description(self, characters, source_text: str = "") -> None:
         """Copy appearance.summary to physical_description when the latter is absent.
@@ -751,24 +871,37 @@ class OutputCharacterCorrector:
         if not filtered_names:
             filtered_names = names  # safety fallback
 
-        # Find earliest occurrence across unambiguous name variants
-        first_pos = len(source_text)
-        first_name = char.canonical_name
+        # Find the occurrence with the most physical-word context across unambiguous
+        # name variants. Authors often introduce a character by name before describing
+        # them physically, so the first mention may have no physical context while a
+        # later one does. We score up to 5 occurrences per name by counting physical
+        # descriptor words in the surrounding 800-char window, then use the best-
+        # scoring position (tie-broken by earliest position for stability).
+        best_pos = len(source_text)
+        best_score = -1
+        best_name = char.canonical_name
         for name in filtered_names:
             if not name or len(name) < 2:
                 continue
-            m = re.search(r"\b" + re.escape(name) + r"\b", source_text, re.IGNORECASE)
-            if m and m.start() < first_pos:
-                first_pos = m.start()
-                first_name = name
+            pat = re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE)
+            for idx, m in enumerate(pat.finditer(source_text)):
+                if idx >= 5:
+                    break
+                ctx_s = max(0, m.start() - 200)
+                ctx_e = min(len(source_text), m.start() + 800)
+                score = _physical_descriptor_score(source_text[ctx_s:ctx_e])
+                if score > best_score or (score == best_score and m.start() < best_pos):
+                    best_score = score
+                    best_pos = m.start()
+                    best_name = name
 
-        if first_pos >= len(source_text):
+        if best_pos >= len(source_text):
             return ""
 
-        # Extract a generous window around the first appearance.
+        # Extract a generous window around the best appearance.
         # Bias forward (more text after the name) since descriptions follow introductions.
-        ctx_start = max(0, first_pos - 500)
-        ctx_end = min(len(source_text), first_pos + 1500)
+        ctx_start = max(0, best_pos - 500)
+        ctx_end = min(len(source_text), best_pos + 1500)
         context = source_text[ctx_start:ctx_end]
 
         # Clean up partial words at boundaries

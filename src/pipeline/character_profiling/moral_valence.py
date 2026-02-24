@@ -213,6 +213,32 @@ class MoralValenceClassifier:
                 reasoning=f"Classification failed: {response.error}",
             )
 
+        # Handle case where LLM wraps the response in a list
+        if isinstance(result, list):
+            result = result[0] if result else None
+            if result is None:
+                logger.warning(
+                    f"Moral valence classification for '{character_name}': empty list response"
+                )
+                return MoralValenceResult(
+                    character_name=character_name,
+                    valence=MoralValence.UNCERTAIN,
+                    confidence=0.0,
+                    reasoning="Empty list response from LLM",
+                )
+
+        if not isinstance(result, dict):
+            logger.warning(
+                f"Moral valence classification for '{character_name}': "
+                f"unexpected response type {type(result).__name__}"
+            )
+            return MoralValenceResult(
+                character_name=character_name,
+                valence=MoralValence.UNCERTAIN,
+                confidence=0.0,
+                reasoning=f"Unexpected response format: {type(result).__name__}",
+            )
+
         # Parse result
         try:
             valence_str = result.get("valence", "uncertain").lower()

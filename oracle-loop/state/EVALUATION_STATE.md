@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -201,6 +201,25 @@
 **Fix V: Cross-character attribution detection** [HIGH] — SUCCESS ✓ (src/pipeline/character_profiling/post_corrections.py — Myrtle decontaminated)
 **Fix W: Bidirectional relationship inference** [HIGH] — PARTIAL (src/pipeline/character_profiling/post_corrections.py — Gatsby +4, Jordan +2, but all minor; core relationships still absent)
 
+### gatsby — Attempt 9 Fixes
+**Fix X: F3 bug — handle list response in moral_valence.py** [CRITICAL] — APPLIED
+- Root cause: `query_json` returns `list` when LLM wraps result; `.get()` fails on list
+- Fixed: Add `isinstance(result, list)` guard in `classify_character()`; extract first element or return UNCERTAIN
+- File: `src/pipeline/character_profiling/moral_valence.py`
+- Smoke test: PASS — tested mock list/empty-list/dict responses
+
+**Fix Y: Evidence-to-relationship extraction** [CRITICAL] — APPLIED
+- Root cause: Profiling LLM captures relationships in `evidence.statement` but doesn't populate `relationships` dict
+- Fixed: Added `extract_relationships_from_evidence()` to `OutputCharacterCorrector`; scans evidence for cast co-mentions; infers type from universal indicators (romantic/rival/enemy/neighbor); applies symmetric bidirectional inference with "associated"→more-specific upgrade
+- File: `src/pipeline/character_profiling/post_corrections.py`
+- Smoke test: PASS — Nick→Gatsby:neighbor, Gatsby→Daisy:romantic interest, Tom→Gatsby:rival all correctly inferred; bidirectional upgrades confirmed
+
+**Fix Z: Physical description — best-context occurrence** [HIGH] — APPLIED
+- Root cause: `_llm_first_appearance_description()` used first name occurrence which may have no physical context
+- Fixed: Score up to 5 occurrences per name by physical-word density; use the highest-scoring position (tie-broken by earliest); also expanded `PHYS_DESCRIPTOR_WORDS` with face/eyes/hair/etc.
+- File: `src/pipeline/character_profiling/post_corrections.py`
+- Smoke test: PASS — code runs, logic verified
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -229,6 +248,9 @@
 | 8 | Alias-ambiguity filter for Daisy | `src/pipeline/character_profiling/post_corrections.py` | Uncertain — F3 bug may have blocked |
 | 8 | Cross-character attribution | `src/pipeline/character_profiling/post_corrections.py` | Fixed ✓ (Myrtle decontaminated) |
 | 8 | Bidirectional relationship inference | `src/pipeline/character_profiling/post_corrections.py` | Partial — added minor rels only |
+| 9 | F3 bug: list response in moral valence | `src/pipeline/character_profiling/moral_valence.py` | Applied — deterministic code fix |
+| 9 | Evidence-to-relationship extraction | `src/pipeline/character_profiling/post_corrections.py` | Applied — new method; smoke test PASS |
+| 9 | Physical description best-context selection | `src/pipeline/character_profiling/post_corrections.py` | Applied — scores 5 occurrences per name |
 
 **Pattern alerts:**
 - `src/pipeline/character_profiling/post_corrections.py` modified in attempts 5, 6, 7, 8 (4 consecutive attempts). Physical descriptions partially improved but remain unreliable. Relationship fixes keep adding incremental post-processing but the ROOT issue is upstream: the LLM profiling prompt doesn't generate main-character relationships.
@@ -237,7 +259,12 @@
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. F3 code bug (deterministic — must fix first)
-2. Evidence-to-relationship extraction (new approach for core relationships)
-3. Physical description reliability improvements
+Run PROMPT_analyze.md to re-run the pipeline with attempt 9 fixes:
+- Fix X: F3 bug resolved (moral_valence.py)
+- Fix Y: Evidence-to-relationship extraction added (post_corrections.py)
+- Fix Z: Physical description uses best-context window (post_corrections.py)
+
+Expected improvements:
+- Daisy's profile should now complete fully (F3 bug unblocked)
+- Core main-character relationships (Nick↔Gatsby, Gatsby↔Daisy, Tom↔Gatsby, etc.) should now appear
+- Physical descriptions for Gatsby/Daisy/Myrtle should be more consistently populated
