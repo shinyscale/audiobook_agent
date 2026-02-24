@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Attempt:** 17
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
@@ -124,16 +124,14 @@ In `analyzer.py`, `_plot_summary_safety_net()` now returns the list of newly-add
 
 This completely replaces the 6x-failed heuristic extraction approach. AM will be profiled the same way as Ted, Ellen, Gorrister, Benny, and Nimdok.
 
-**Status: CRASHED — `"Character" object has no field "description"`**
+**Status for attempt 16: CRASHED — `"Character" object has no field "description"` (NOW FIXED)**
 
-### Crash Details (Attempt 16)
-- Pipeline ran normally through profiling 5 eligible characters
-- Safety net fired: `Plot summary safety net: added 'AM' (role=antagonist, text mentions=74)`
-- Then: `Profiling safety-net character: AM`
-- Crashed: `Error during analysis: "Character" object has no field "description"`
-- `_generate_character_profile()` tries to set a `description` field that doesn't exist on the `Character` Pydantic model
-- Need to identify which field name is correct in the `Character` model (likely `summary` or `personality` or some nested structure)
-- Fix: Find the correct field name in `Character` model and update `_generate_character_profile()` accordingly
+### Crash Details (Attempt 16) — Fixed in Attempt 17
+- Root cause: `new_char` created by `_plot_summary_safety_net()` is an `OutputCharacter` (= `Character` from models.py), which has `descriptions` (plural list) but NOT `description` (singular string).
+- Main profiling loop at line 1876 also does `char.description = profile`, but `char` there is a PIPELINE character (which has a `description` field) — NOT a models.py Character.
+- Fix: Changed `new_char.description = profile` → `new_char.descriptions.append(CharacterDescription(...))` to use the correct field on the OutputCharacter model.
+- Location: `analyzer.py:2098`
+- Smoke test: PASS — `Character.descriptions.append(CharacterDescription(...))` works correctly in Pydantic v2.12.5
 
 ## Fix History
 
@@ -254,7 +252,8 @@ This completely replaces the 6x-failed heuristic extraction approach. AM will be
 | 14 | Execution ordering (safety net before post-corrections) | analyzer.py | **PARTIALLY WORKED** — ordering fixed, but replacement quality poor |
 | 15 | AM personality intro-phrase extraction (Part A) | analyzer.py (_plot_summary_safety_net) | **DID NOT WORK** — produced plot narrative, not personality traits |
 | 15 | AM personality quality filter (Part B) | post_corrections.py (clean_plot_summary_personality) | **DID NOT TRIGGER** — coherent prose passes heuristics |
-| 16 | LLM-profile safety-net characters via _generate_character_profile() | analyzer.py | **UNTESTED** — replaces all heuristic extraction; safety net only detects, LLM profiles |
+| 16 | LLM-profile safety-net characters via _generate_character_profile() | analyzer.py | **CRASHED** — `"Character" has no field "description"` |
+| 17 | Fix crash: use `descriptions.append(CharacterDescription(...))` instead of `new_char.description = profile` | analyzer.py:2098 | **PENDING** — type mismatch fix, smoke test PASS |
 
 **⚠️ AM PERSONALITY — 7TH ATTEMPT (APPROACH CHANGE)**: Instead of heuristic extraction from plot_summary text, safety-net characters are now LLM-profiled via `_generate_character_profile()`, same as all other characters. Applied in commit d062607. **CRASHED** — `Character` has no field `description`. Fix needed: use correct field name from Character Pydantic model.
 
@@ -269,4 +268,4 @@ This completely replaces the 6x-failed heuristic extraction approach. AM will be
 - Runtime: 15m 51s
 
 ## Next Action
-Run PROMPT_analyze.md to evaluate attempt 16 — LLM profiling for safety-net characters (commit d062607) is applied and ready for analysis. The fix replaces all heuristic personality extraction with a proper `_generate_character_profile()` call, the same pipeline used for all other characters.
+Run PROMPT_analyze.md to evaluate attempt 17 — crash fix applied (use `descriptions` list instead of non-existent `description` field on OutputCharacter). The LLM profiling for safety-net characters (from commit d062607) should now work correctly.

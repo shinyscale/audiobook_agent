@@ -2095,7 +2095,13 @@ class AudiobookAnalyzer:
                         if relationships:
                             new_char.relationships = relationships
                         if profile:
-                            new_char.description = profile
+                            new_char.descriptions.append(
+                                CharacterDescription(
+                                    text=profile,
+                                    source_position=0,
+                                    confidence=ConfidenceLevel.LLM_REFINED,
+                                )
+                            )
 
         # Post-processing corrections on output characters (Phase B).
         # Extracts: final narrator appearance injection, deterministic age extraction,
