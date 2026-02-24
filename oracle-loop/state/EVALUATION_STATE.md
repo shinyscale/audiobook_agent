@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 15
+- **Attempt:** 16
 - **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
@@ -115,18 +115,25 @@
    - Described as "cruel and domineering" but in the text Gorrister is more passive/nihilistic.
    - LLM profiling quality issue, not code-fixable.
 
-## Fix Priority for Attempt 16
+## Fix Applied for Attempt 16
 
-**CRITICAL #1 is the ONLY remaining blocker and the ONLY code-fixable issue.**
+**CRITICAL #1 fix was applied in commit d062607 (previous session):**
 
-After 6 failed heuristic attempts, the fix must be SIMPLE and RELIABLE:
+### Applied Fix: LLM-profile safety-net characters
+In `analyzer.py`, `_plot_summary_safety_net()` now returns the list of newly-added characters. The caller then calls `_generate_character_profile()` for each safety-net character, giving them real LLM-generated personality/appearance fields instead of heuristic extracts.
 
-### Recommended Fix: Null out safety-net personality
-In `_plot_summary_safety_net()` in `analyzer.py`, remove ALL personality extraction/generation logic for safety-net characters. Set personality to `None` or omit it entirely. The current heuristic approaches have failed 6 consecutive times because they cannot distinguish personality-relevant text from plot-relevant text in LLM-generated summaries.
+This completely replaces the 6x-failed heuristic extraction approach. AM will be profiled the same way as Ted, Ellen, Gorrister, Benny, and Nimdok.
 
-**Why this will work:** It eliminates the entire class of bugs. There's nothing to extract incorrectly, nothing to filter, nothing for post-correction to catch. The AM profile will show: role=antagonist, 74 mentions, 5 adversary relationships, no personality text. This is honest and functional.
+**Status: CRASHED — `"Character" object has no field "description"`**
 
-**Why null is acceptable:** The post-correction docstring itself says: "Clearing (None) is always preferable to retaining a misleading plot dump." Every version of personality we've generated for AM has been misleading — garbled fragments, plot narrative, truncated text. Null is the first option that is NOT misleading.
+### Crash Details (Attempt 16)
+- Pipeline ran normally through profiling 5 eligible characters
+- Safety net fired: `Plot summary safety net: added 'AM' (role=antagonist, text mentions=74)`
+- Then: `Profiling safety-net character: AM`
+- Crashed: `Error during analysis: "Character" object has no field "description"`
+- `_generate_character_profile()` tries to set a `description` field that doesn't exist on the `Character` Pydantic model
+- Need to identify which field name is correct in the `Character` model (likely `summary` or `personality` or some nested structure)
+- Fix: Find the correct field name in `Character` model and update `_generate_character_profile()` accordingly
 
 ## Fix History
 
@@ -247,8 +254,9 @@ In `_plot_summary_safety_net()` in `analyzer.py`, remove ALL personality extract
 | 14 | Execution ordering (safety net before post-corrections) | analyzer.py | **PARTIALLY WORKED** — ordering fixed, but replacement quality poor |
 | 15 | AM personality intro-phrase extraction (Part A) | analyzer.py (_plot_summary_safety_net) | **DID NOT WORK** — produced plot narrative, not personality traits |
 | 15 | AM personality quality filter (Part B) | post_corrections.py (clean_plot_summary_personality) | **DID NOT TRIGGER** — coherent prose passes heuristics |
+| 16 | LLM-profile safety-net characters via _generate_character_profile() | analyzer.py | **UNTESTED** — replaces all heuristic extraction; safety net only detects, LLM profiles |
 
-**⚠️ AM PERSONALITY — 6TH FAILED ATTEMPT**: Every heuristic approach to extract personality from plot_summary text has failed. The recommended fix is to STOP trying to extract personality and set it to None. Null is strictly better than any of the 6 wrong results produced so far. See CRITICAL #1 above for implementation details.
+**⚠️ AM PERSONALITY — 7TH ATTEMPT (APPROACH CHANGE)**: Instead of heuristic extraction from plot_summary text, safety-net characters are now LLM-profiled via `_generate_character_profile()`, same as all other characters. Applied in commit d062607. **CRASHED** — `Character` has no field `description`. Fix needed: use correct field name from Character Pydantic model.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all stages)
@@ -261,4 +269,4 @@ In `_plot_summary_safety_net()` in `analyzer.py`, remove ALL personality extract
 - Runtime: 15m 51s
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1 — set AM personality to None in `_plot_summary_safety_net()` (remove 6x-failed heuristic extraction logic). This is a simple, reliable fix that eliminates the entire class of personality content bugs for safety-net characters.
+Run PROMPT_analyze.md to evaluate attempt 16 — LLM profiling for safety-net characters (commit d062607) is applied and ready for analysis. The fix replaces all heuristic personality extraction with a proper `_generate_character_profile()` call, the same pipeline used for all other characters.
