@@ -3,14 +3,23 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_142521/
+- Timestamped: ../output/I_Have_No_Mouth_And_I_Must_Scream_20260223_190203/
+
+## Pipeline Notes (Attempt 17)
+- No crash — fix for `descriptions.append(CharacterDescription(...))` worked
+- AM profiled via LLM: "Profiling safety-net character: AM" — 7th approach now active
+- 6 characters found (Ted, Benny, Ellen, Gorrister, Nimdok + AM via safety net)
+- 23 pronunciation entries (same as attempts 10-15)
+- Runtime: 18m 4s
+- Character Profiles: 15 LLM calls, 5 items (pre-safety-net) + AM profiled separately
+- Competitive consensus: ENABLED (characters, structure, summaries)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
