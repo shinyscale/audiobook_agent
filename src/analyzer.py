@@ -1859,6 +1859,29 @@ class AudiobookAnalyzer:
                         )
                     )
 
+                    # Validate appearance.summary: if it contains no physical descriptor words,
+                    # it's likely narrative text or a misextraction — reset to "unknown".
+                    # This is a universal invariant: physical descriptions must contain physical terms.
+                    if appearance and isinstance(appearance, dict):
+                        _summary = appearance.get("summary", "")
+                        if _summary and _summary.lower() != "unknown" and len(_summary) > 80:
+                            _phys_terms = {
+                                "tall", "short", "thin", "slim", "fat", "stout", "heavy",
+                                "build", "built", "hair", "eye", "brow", "face", "chin",
+                                "cheek", "skin", "complexion", "young", "old", "aged",
+                                "blonde", "dark", "fair", "lean", "broad", "lanky",
+                                "muscular", "athletic", "handsome", "beautiful", "plain",
+                                "pale", "tan", "tanned", "wrinkle", "figure", "slender",
+                                "stocky", "portly", "wiry", "gaunt", "robust", "frail",
+                            }
+                            _summary_lower = _summary.lower()
+                            if not any(term in _summary_lower for term in _phys_terms):
+                                logger.info(
+                                    f"Appearance summary for {char.canonical_name} contains no "
+                                    f"physical terms — resetting to unknown"
+                                )
+                                appearance["summary"] = "unknown"
+
                     # Store structured profile fields FIRST (F8: Simplified Character Output)
                     # These should be saved even if the profile description is empty,
                     # since the LLM may have extracted relationships/appearance/etc.
@@ -2802,8 +2825,8 @@ Return a JSON response matching this example format exactly:
     "example_quotes": ["quote1", "quote2"]
   }},
   "relationships": {{
-    "character_name_1": "relationship description (e.g., 'father', 'friend', 'rival')",
-    "character_name_2": "relationship description"
+    "character_name_1": "relationship label (e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'acquaintance', 'employer', 'business partner')",
+    "character_name_2": "relationship label"
   }},
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
@@ -2827,12 +2850,9 @@ CRITICAL INSTRUCTIONS:
 RELATIONSHIPS EXTRACTION (IMPORTANT):
 Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
 Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
-Include ANY type of relationship: family, social, antagonistic, professional, narrative (e.g., "enemy", "victim", "acquaintance", "rival", "pursuer", "ally").
-
-Example relationships dict format:
-- Family: {{"Alice": "sister"}}
-- Social/antagonistic: {{"Bob": "enemy"}} or {{"Bob": "murder victim"}}
-- Narrative: {{"Carol": "pursuer"}} or {{"Carol": "unwitting dupe"}}"""
+Use specific labels: "romantic interest", "rival", "business partner", "mentor", "close friend", "acquaintance", "enemy", "employer", "employee", "neighbor".
+Use familial labels (parent, child, sibling, spouse) ONLY when the text EXPLICITLY states a family relationship.
+If the relationship is unclear from the text, use "acquaintance" or "unknown"."""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):

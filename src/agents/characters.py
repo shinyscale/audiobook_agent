@@ -1548,9 +1548,14 @@ class CharacterAgent(Agent):
             r"\bMs\.",
             r"\bMiss\b",
             r"\bDr\.",
+            r"\bDoctor\b",
+            r"\bProf\.",
+            r"\bProfessor\b",
             r"\bLord\b",
             r"\bLady\b",
             r"\bSir\b",
+            r"\bReverend\b",
+            r"\bRev\.",
         ]
 
         # Remove any leading title
@@ -2572,6 +2577,28 @@ class CharacterAgent(Agent):
                 # If we processed this as a title variant, skip last-name processing
                 if supp_idx in supporting_to_remove:
                     continue
+
+            # Check reverse: MAIN cast has title, SUPPORTING cast does not.
+            # e.g., main = "Doctor T. J. Eckleburg", supporting = "T. J. Eckleburg"
+            if supp_idx not in supporting_to_remove:
+                for main_idx, main_char in enumerate(main_cast):
+                    main_title_stripped = self._strip_title(main_char.canonical_name)
+                    if (
+                        main_title_stripped != main_char.canonical_name
+                        and main_title_stripped.lower() == supp_name.lower()
+                    ):
+                        if supp_name not in main_char.aliases:
+                            logger.info(
+                                f"Merging title-free variant '{supp_name}' → "
+                                f"'{main_char.canonical_name}' as alias (main has title)"
+                            )
+                            main_char.aliases.append(supp_name)
+                            chars_with_new_aliases.add(main_char.id)
+                        supporting_to_remove.add(supp_idx)
+                        break
+
+            if supp_idx in supporting_to_remove:
+                continue
 
             # Check for "the X" → "X" normalization (e.g., "Owl-eyed man" vs "the owl-eyed man")
             # Strip leading "the " for comparison

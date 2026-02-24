@@ -128,6 +128,8 @@ ENGLISH_EXCEPTIONS = {
     "week",
     "year",
     "cent",
+    # Common English words that pattern-match foreign language rules
+    "like",
 }
 
 

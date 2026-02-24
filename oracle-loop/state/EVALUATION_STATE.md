@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -178,6 +178,32 @@
 - Capitalized UNKNOWN words upgraded to PROPER_NOUN in `consolidator.py`
 - Result: PARTIAL — 28 now proper_noun (was 3), but 67 still unknown
 
+### gatsby — Attempt 4 Fixes
+
+**Fix G: Relationship prompt — replace biasing familial examples with diverse social/professional ones** [CRITICAL]
+- Root cause: JSON schema example used `(e.g., 'father', 'friend', 'rival')` with "father" as first example, biasing LLM toward familial labels for non-familial relationships. LLM returned "daughter", "wife", "mother" for Nick→Daisy, Nick→Jordan, Nick→Gatsby etc.
+- Changed JSON schema example to `(e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'acquaintance', 'employer', 'business partner')`
+- Replaced RELATIONSHIPS EXTRACTION section examples with explicit rule: "Use familial labels ONLY when text EXPLICITLY states a family relationship. If unclear, use 'acquaintance' or 'unknown'."
+- Smoke test: N/A (prompt change — verified correct examples in output)
+- Modified: `src/analyzer.py` (line ~2804-2835)
+
+**Fix H: Physical description validation** [HIGH]
+- Root cause: LLM returned narrative text ("a young man at the office suggested that we take a house together...") as Nick's appearance.summary instead of physical descriptors. Any appearance summary >80 chars with no physical terms is likely wrong.
+- Added post-processing check: if `appearance.summary` is >80 chars and contains no physical terms (hair, eyes, tall, slim, etc.), reset to "unknown"
+- Universal invariant: physical descriptions must contain physical descriptor words
+- Modified: `src/analyzer.py` (lines ~1862-1883)
+
+**Fix I: Eckleburg duplicate — reverse title check** [HIGH]
+- Root cause: `_merge_lastname_aliases` only handled SUPPORTING-has-title case (e.g., "Mr. X" → "X"). It didn't handle MAIN-has-title case (e.g., main_cast "Doctor T. J. Eckleburg" vs supporting_cast "T. J. Eckleburg").
+- Added "Doctor", "Professor", "Reverend", "Rev.", "Prof." to `_strip_title` titles list
+- Added reverse check in `_merge_lastname_aliases`: when main_cast name stripped of titles matches supporting_cast name, merge as alias
+- Universal invariant: title-free and title-prefixed versions of the same name should merge
+- Modified: `src/agents/characters.py` (lines ~1545, 2577-2600)
+
+**Fix J: "like" pronunciation exception** [LOW]
+- Added "like" to ENGLISH_EXCEPTIONS in `foreign_proposer.py`
+- Modified: `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -189,15 +215,15 @@
 | 3 | Relationship labels wrong (secondary overwrites) | `src/analyzer.py` | No change — primary pipeline also produces bad labels |
 | 3 | Pronunciation false positives | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Fixed ✓ |
 | 3 | UNKNOWN pronunciation categorization | `src/pipeline/pronunciation_guide/consolidator.py` | Partial — 28 reclassified, 67 remain |
+| 4 | Relationship biased toward familial labels | `src/analyzer.py` | Pending analysis |
+| 4 | Physical description returns narrative text | `src/analyzer.py` | Pending analysis |
+| 4 | Eckleburg duplicate (Doctor/no-Doctor) | `src/agents/characters.py` | Pending analysis |
+| 4 | "like" flagged as foreign | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Pending analysis |
 
 ## Next Action
 
-Run PROMPT_fix.md to address:
-1. **Priority 1 — Profiles (4→8):** Fix relationship type vocabulary (CRITICAL #1), enable personality traits + speech patterns (CRITICAL #2), fix physical description extraction (HIGH #3). These are all profile pipeline issues.
-2. **Priority 2 — Characters (7.5→8):** Fix Eckleburg duplicate (HIGH #4), fix shared aliases (HIGH #5-6). These are post-processing merge issues.
-3. **Priority 3 — Pronunciation (7.5→8):** Add "like" to exceptions (MEDIUM #9). Incremental.
-
-**Fix phase guidance:**
-- The relationship issue is the BIGGEST blocker. Fix D failed because it addressed the secondary structuring call, but the PRIMARY relationship source in the profile pipeline also uses a limited vocabulary. The fix phase MUST find the relationship type enum/prompt in the profile extraction code and expand it.
-- Personality traits and speech patterns being all null suggests the profile schema may not include these fields or the prompt doesn't ask for them. Check the Pydantic model and the profile extraction prompt.
-- The Eckleburg duplicate can be fixed with substring matching in post-extraction dedup.
+Re-run analysis (gatsby attempt 4) to verify:
+1. Relationships are now reasonable (not catastrophically wrong with familial labels)
+2. Nick's appearance.summary is "unknown" instead of narrative text
+3. "T. J. Eckleburg" supporting entry merged into "Doctor T. J. Eckleburg" main cast
+4. "like" removed from pronunciation guide
