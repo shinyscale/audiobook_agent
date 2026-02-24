@@ -2,14 +2,25 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 4)
+- Analysis completed in 76m 39s
+- 9 chapters, 21 characters, 129 pronunciation flags
+- **James Gatz alias**: BLOCKED by co-occurrence check during one proposer run, but final output shows "Jay Gatsby (aka Gatsby, James Gatz)" — alias IS present in final result
+- **Nick appearance injection WARNING**: "Final narrator appearance injection for 'Nick Carraway'" still shows narrative text ("a young man at the office suggested that we take a house together..."). Fix H may not catch this — there appears to be a separate "narrator appearance injection" step that runs AFTER Fix H's validation check and overwrites the field.
+- **"Buchanan" alias shared**: Both Daisy and Tom still list "Buchanan" as alias
+- **"Wilson" alias**: Still assigned to Myrtle Wilson (not George)
+- Pronunciation: 66 unknown (was 67), 29 proper_noun (was 28), 15 foreign, 19 homograph
+- No LLM parse failures or pipeline crashes
+- 1 low-confidence profile (McKee: 0.30)
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
