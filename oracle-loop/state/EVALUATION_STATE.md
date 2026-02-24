@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Completed in 85m 30s, 295 LLM calls, 464,786 tokens
+- 9 chapters detected, 21 characters extracted, 21 profiles generated
+- "The butler" still appears (as single entry with UNCERTAIN passages — F6 case dedup may have worked)
+- Nick Carraway still not in main_cast (same warning as previous attempts)
+- Blocked: Owl Eyes / Eckleburg billboard aliases blocked correctly ✓
+- Fix K (butler case dedup), Fix L (unknown relationships), Fix M (narrator prose filter) all applied
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
