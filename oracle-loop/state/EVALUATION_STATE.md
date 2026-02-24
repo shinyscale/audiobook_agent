@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 8)
+- Completed in 77m 47s, 227 LLM calls, 357,689 tokens
+- 9 chapters detected, 19 characters extracted, 130 pronunciation entries
+- New warning: `F3: Moral valence classification failed for Daisy Buchanan: 'list' object has no attribute 'get'` — may affect profile quality
+- Fix U (alias-ambiguity filter for Daisy description): should now prevent wrong context from Tom Buchanan match
+- Fix V (cross-character attribution detection): should remove Myrtle's "red bob" contamination
+- Fix W (bidirectional relationship inference): should give Gatsby/Jordan relationships from bidirectional inference
 
 ## Pipeline Notes (Attempt 7)
 - Completed in 87m 1s, 298 LLM calls, 449,366 tokens
