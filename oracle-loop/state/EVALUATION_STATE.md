@@ -1,38 +1,34 @@
 # Current Evaluation State
 
 ## Active Text
-- **Name:** flowers_for_algernon
+- **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** null
 - **Competitive Mode:** single
 
 ## Output Files
-- HTML: ../output/flowers_for_algernon/report.html
-- JSON: ../output/flowers_for_algernon/analysis.json
+- HTML: ../output/gatsby/report.html
+- JSON: ../output/gatsby/analysis.json
 
-## Pipeline Notes
-- **CRITICAL FAILURE:** `Flowers_For_Algernon.pdf` is a scanned/image-based PDF
-- ALL 23 pages returned: "No text extracted (contains images, may need OCR)"
-- Result: 0 words extracted, 0 characters found, 0 chapters (fell back to 1)
-- The pipeline completed without crashing but produced empty/useless output
-- Pipeline recommended: `--pdf-ocr` flag for OCR fallback
-
-## Error
-```
-⚠️  Page 1-23: No text extracted (contains images, may need OCR)
-⚠️  Low text extraction rate (0%). Consider using --pdf-ocr for OCR fallback.
-Extracted 0 words
-Found 1 chapters (fallback)
-Found 0 characters
-```
-
-## Fix Options
-1. **Use `--pdf-ocr` flag** if the pipeline supports it (check CLI for this option)
-2. **Replace the PDF** with a text-extractable version of Flowers for Algernon
-3. **Skip this text** and update manifest to mark as skipped/problematic
+## Latest Scores
+(Awaiting first analysis)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
-| 1 | FAIL | - | Image-based PDF — 0 words extracted, requires OCR |
+| (none yet) | - | - | - |
+
+## Notes
+Starting analysis for gatsby.
+
+## Fix History
+
+### flowers_for_algernon — Deferred (image-based PDF, no OCR available)
+- **Issue:** Flowers_For_Algernon.pdf is a scanned/image-based PDF — 0 words extracted
+- **Root cause:** Missing system dependency: tesseract-ocr (required by ocrmypdf / pytesseract)
+- **Action:** Moved flowers_for_algernon to the END of manifest.texts so the loop continues with
+  text-extractable books (gatsby, frankenstein, dracula, etc.) first
+- **Resolution:** When tesseract is installed (`sudo apt install tesseract-ocr && pip install ocrmypdf`),
+  flowers_for_algernon will be re-attempted. The manifest entry has a `note` field documenting this.
+- **Modified:** oracle-loop/state/manifest.json (reordered texts array)

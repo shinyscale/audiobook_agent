@@ -72,12 +72,6 @@
       "final_score": 8.68
     },
     {
-      "name": "flowers_for_algernon",
-      "file": "Test_Texts/Flowers_For_Algernon.pdf",
-      "complete": false,
-      "attempts": 0
-    },
-    {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
       "complete": false,
@@ -112,6 +106,13 @@
       "file": "Test_Texts/Don Quixote - Cervantes.txt",
       "complete": false,
       "attempts": 0
+    },
+    {
+      "name": "flowers_for_algernon",
+      "file": "Test_Texts/Flowers_For_Algernon.pdf",
+      "complete": false,
+      "attempts": 0,
+      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
     }
   ]
 }
