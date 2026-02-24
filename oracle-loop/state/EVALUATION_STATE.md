@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 7
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -16,32 +16,24 @@
 - 9 chapters detected, 19 characters extracted, 130 pronunciation entries
 - Jay Gatsby now canonical name (not James Gatz) ✓
 - Nick Carraway narrator confirmed ✓ (first-person)
-- Competitive-all mode: --competitive-consensus --competitive-structure --competitive-summaries
-
-## Pipeline Notes (Attempt 6)
-- Completed in 76m 33s, 253 LLM calls, 401,362 tokens
-- 9 chapters detected, 19 characters extracted (was 21 — Nick/Carraway merge succeeded), 19 profiles generated
-- Fix N SUCCESS: Nick Carraway merged (34 mentions, aliases: Nick, Carraway), narrator correctly identified as "Nick Carraway (first-person)"
-- Ella Kaye narrator regression from attempt 5 resolved — Ella Kaye no longer in character list
-- Fix P SUCCESS: personality.traits populated for 17/19 characters, personality.speech_patterns for 15/19, voice_guidance populated with verbal_tics/dialect_notes/example_quotes
-- Fix Q SUCCESS: All 129/129 pronunciations now have IPA, all 19 homographs have dual-IPA with context labels
-- Fix O PARTIAL: `reject_unfounded_familial_labels()` exists and removed SOME wrong relationships (Daisy→George, Daisy→Wolfsheim gone) but many survive due to 100-char co-mention check being too permissive
-- Henry C. Gatz has full name restored (was "Gatz" in attempt 5) with aliases ["Gatsby's father", "Gatz"]
+- Fix R SUCCESS: ALL hallucinated familial labels removed ✓
+- Fix S PARTIAL: Myrtle still has Catherine's "red bob" contamination — `clean_unknown_appearance()` didn't catch it because the description doesn't contain "not directly described" phrasing
+- Fix T PARTIAL: Gatsby got a physical description ✓, but Daisy still null — fallback didn't find her descriptions
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 8/10 ✓
+- Character Extraction: 8.5/10 ✓
   - Completeness: 8/10
-  - Identity Resolution: 8.5/10
-  - Alias Grouping: 7/10
-- Character Profiles: 6.5/10 ✗ (FAILING) ← sole remaining blocker
-- Chapter Summaries: 8.5/10 ✓
+  - Identity Resolution: 9/10
+  - Alias Grouping: 8/10
+- Character Profiles: 7.5/10 ✗ (FAILING) ← sole remaining blocker
+- Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.43/10** (reference only)
+- **Overall: 8.80/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold: Profiles 6.5)
+**Status:** FAIL (1 category below threshold: Profiles 7.5)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -52,137 +44,108 @@
 | 4 | 7.98 | +1.43 | Fixes G/H/I/J: Eckleburg deduped ✓, "like" removed ✓, Nick rels→unknown (marginal), profiles STILL primary blocker |
 | 5 | 7.83 | +1.28 | Fixes K/L/M all SUCCESS ✓. LLM variance regressions: Ella Kaye narrator, Gatz name. Core blockers unchanged. |
 | 6 | 8.43 | +1.88 | Fix N ✓ (Nick merged+narrator), Fix P ✓ (traits/speech populated), Fix Q ✓ (homograph IPA). Fix O partial (familial labels persist). Profiles sole remaining blocker. |
+| 7 | 8.80 | +2.25 | Fix R ✓ (ALL wrong familial labels removed!). Fix S partial (Myrtle still contaminated). Fix T partial (Gatsby desc ✓, Daisy still null). Profiles STILL sole blocker at 7.5. |
 
-## What Changed in Attempt 6
+## What Changed in Attempt 7
 
 ### Fix Results
-- **Fix N (Nick/Carraway merge + narrator):** SUCCESS ✓ — Nick Carraway is now main_cast_0, narrator: true, 34 mentions, aliases: ["Nick", "Carraway"]. Ella Kaye no longer in output. This resolved the #1 issue from all 5 prior attempts.
-- **Fix O (Familial label validation):** PARTIAL — Code exists and runs in post_corrections.py. Removed some wrong labels (Daisy→George "wife", Daisy→Wolfsheim "husband", Sloane's wrong entries gone). But many wrong labels survive because the 100-char co-mention text check catches incidental nearby family phrases (e.g., "her mother" mentioned near both characters in a scene, but referring to a third character).
-- **Fix P (Personality traits + speech patterns):** SUCCESS ✓ — Personality data IS populated in nested `personality` and `voice_guidance` dicts:
-  - `personality.traits`: 17/19 characters have traits (was 0)
-  - `personality.speech_patterns`: 15/19 characters have speech patterns (was 0)
-  - `voice_guidance.verbal_tics`: 14/19 characters have verbal tics
-  - `voice_guidance.dialect_notes`: populated for characters with distinctive speech
-  - `voice_guidance.example_quotes`: present for most characters
-  - Note: The previous evaluation's "0/19" was checking nonexistent top-level fields (`personality_traits`, `speech_pattern`). The real data lives in nested personality/voice_guidance dicts.
-- **Fix Q (Homograph IPA):** SUCCESS ✓ — All 129 pronunciations have IPA. All 19 homographs have excellent dual-IPA with context labels (e.g., minute: "/ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)"). This is exactly what narrators need.
+- **Fix R (Familial labels Option B):** SUCCESS ✓ — `reject_unfounded_familial_labels()` now correctly removes all familial labels between non-surname-sharing pairs. ALL 11 wrong familial labels from attempt 6 are gone. Correct labels survive: Tom↔Daisy husband/wife ✓, Myrtle→George wife ✓, Catherine↔Myrtle sister ✓, Henry C. Gatz→Jay Gatsby parent ✓, Rosy→Wolfsheim close friend ✓.
+- **Fix S (Self-negating appearance):** PARTIAL — `clean_unknown_appearance()` targets "not directly described" phrasing, but Myrtle's contaminated description doesn't contain that phrase. The description says "has a red bob of hair (as described by her sister Catherine)" — it's not self-negating, it's cross-contaminated with Catherine's features while acknowledging the source.
+- **Fix T (Physical description fallback):** PARTIAL — `propagate_physical_description()` successfully found Gatsby's description ("elegant young roughneck; wears a pink suit") but failed to find Daisy's. Daisy's text descriptions use different patterns: "face was sad and lovely with bright things in it" — the word "face" + adjectives may not match the physical-term detection patterns.
 
-### Remaining Issues from Attempt 5 — Status
-- Nick/Carraway split: **FIXED** ✓ (Fix N)
-- Ella Kaye narrator: **FIXED** ✓ (Fix N — no longer in output)
-- Personality traits 0/21: **FIXED** ✓ (Fix P — 17/19 populated)
-- Speech patterns 0/21: **FIXED** ✓ (Fix P — 15/19 populated)
-- 19 homographs lacking IPA: **FIXED** ✓ (Fix Q — all have dual IPA)
-- Henry C. Gatz name regression: **FIXED** (stochastic — full name restored this run)
-- Hallucinated familial labels: **PARTIAL** (Fix O — some removed, many persist)
-- Gatsby physical description null: **UNCHANGED**
-- Daisy physical description: **CHANGED** — now null (was Jordan's misattributed text in attempt 5). Null is better than wrong, but still needs the correct description.
-- Myrtle physical description: **WRONG** — now contains Catherine's description instead of Myrtle's
-- Owl Eyes missing: **UNCHANGED**
+### Issue Resolution from Attempt 6
+- Hallucinated familial labels: **FIXED** ✓ (Fix R — 0 wrong labels now, was 11)
+- Gatsby physical description null: **FIXED** ✓ (Fix T — now has description)
+- Gatsby canonical name "James Gatz": **FIXED** ✓ (now "Jay Gatsby" with "James Gatz" as alias)
+- Wolfsheim "old sport": **FIXED** ✓ (no longer in speech patterns)
+- Gatsby misattributed quote: **FIXED** ✓ (example quotes all correct)
+- Daisy physical description null: **UNCHANGED** — Fix T fallback didn't match
+- Myrtle physical description contaminated: **UNCHANGED** — Fix S didn't catch non-self-negating contamination
+- Owl Eyes missing: **UNCHANGED** — still not in character list (mentioned in Ch 9 summary though)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Relationships still have hallucinated familial labels despite Fix O** [Profiles]
-   - Problem: Fix O's `reject_unfounded_familial_labels()` runs but is too permissive. The 100-char co-mention check with `_rel_phrase_re` catches incidental text matches where family phrases (e.g., "her mother") appear near two characters who are in the same scene but aren't related.
-   - Surviving wrong labels:
-     - Daisy → Jordan Baker: "mother" (WRONG — friend)
-     - Daisy → Jay Gatsby: "mother" (WRONG — former lover)
-     - Daisy → Myrtle Wilson: "wife" (WRONG — rival/unaware)
-     - Jordan → Daisy: "wife" (WRONG — friend)
-     - Jordan → Tom: "wife" (WRONG — acquaintance)
-     - Jordan → Gatsby: "mother" (WRONG — acquaintance)
-     - Myrtle → Tom: "wife" (WRONG — lover/affair)
-     - McKee → Myrtle: "husband" (WRONG — acquaintance)
-     - McKee → Tom: "husband" (WRONG — acquaintance)
-     - Henry C. Gatz → Dan Cody: "mentor" (WRONG — no relationship; Dan Cody was GATSBY's mentor, not Gatz's)
-     - James Gatz → Henry C. Gatz: "son" (WRONG direction — Henry Gatz is James Gatz's FATHER, not son)
-   - Correct relationships: Tom↔Daisy "husband"/"wife" ✓, Myrtle→George "wife" ✓, Catherine→Myrtle "sister" ✓, Henry C. Gatz→James Gatz "son" ✓, Rosy→Wolfsheim "close friend" ✓, George→Eckleburg "symbolic figure of judgment" ✓
-   - Location: `src/pipeline/character_profiling/post_corrections.py` line 1065 — `reject_unfounded_familial_labels()`
-   - **Required fix approach:** The 100-char co-mention check is too generous. Two options:
-     - **Option A (recommended):** Tighten to 40-char window AND require the possessive pronoun ("his/her") to be adjacent to one of the two character names (not a third-party reference). Currently, "her mother" anywhere in a 100-char window where both characters appear is enough — even if "her" refers to a third character.
-     - **Option B (simpler, more aggressive):** For non-surname-sharing character pairs, simply DELETE all familial labels. Only allow familial labels between characters whose canonical names share a surname component. This is safe because the only correct familial labels in Gatsby are between surname-sharing pairs (Buchanan↔Buchanan, Wilson↔Wilson, Gatz↔Gatz) or the Catherine↔Myrtle sister relationship (which Fix O should protect via text evidence).
-     - **Exception needed for Option B:** Catherine and Myrtle Wilson don't share a surname in canonical names. Add logic: if the text contains "[CharA]'s sister" or "[CharB]'s sister" near the other character within 50 chars, keep the "sister"/"brother" label.
-   - Impact: +1.0 to Profiles if fixed (from 6.5 to ~7.5)
+1. **Daisy Buchanan has null physical description** [Profiles]
+   - Problem: Daisy (main_cast_2, 208 mentions, central female character) has `physical_description: null`
+   - Expected: "face was sad and lovely with bright things in it, bright eyes and a bright passionate mouth" (Ch 1), white dress imagery, voice described extensively
+   - Why Fix T missed it: `propagate_physical_description()` scans for physical-term sentences near character mentions, but Daisy's descriptions use "face" + adjectives, "eyes", "mouth" which may not be in the physical-term set, or the pattern matching missed the "sad and lovely" phrasing
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `propagate_physical_description()`
+   - Fix: Expand the physical-term vocabulary in `propagate_physical_description()` to include face-related terms (face, eyes, mouth, lips, hair, smile, voice, complexion, skin) and adjective-rich descriptive patterns. Also check if "Daisy" name matching is failing — the function may only check `canonical_name` but text uses "Daisy" not "Daisy Buchanan"
+   - Impact: +0.3 to Profiles (from 7.5 to ~7.8)
 
 ### HIGH
 
-2. **Gatsby (protagonist) has null physical description** [Profiles]
-   - Problem: James Gatz (main_cast_13, 275 mentions) has `physical_description: null`
-   - Expected: Elegant appearance, tanned, gorgeous smile, "an elegant young roughneck," pink suit, "He smiled understandingly — much more than understandingly"
-   - Physical descriptions are available in Ch 3 ("a man of about my age... an elegant young roughneck"), Ch 5 ("He was pale, and there were dark signs of sleeplessness beneath his eyes"), Ch 7 (pink suit)
-   - Location: Profile extraction chunking — the LLM assigned to Gatsby's profile may not receive the chapters containing his physical descriptions
-   - Fix: Add a second-pass extraction for major characters (>50 mentions) who have null physical_description — scan full text for descriptive passages mentioning the character
-   - Impact: +0.3 to Profiles
+2. **Myrtle's physical description contaminated with Catherine's features** [Profiles]
+   - Problem: Myrtle's `physical_description` says "has a red bob of hair (as described by her sister Catherine)" — the red bob is CATHERINE's, not Myrtle's
+   - Myrtle's actual description: "thickish figure," "middle thirties, faintly stout," "she carried her surplus flesh sensuously," "immediately perceptible vitality"
+   - Why Fix S missed it: `clean_unknown_appearance()` looks for "not directly described" phrases. This description doesn't negate itself — it positively attributes Catherine's features to Myrtle.
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: Add cross-contamination detection — if a character's `physical_description` mentions another character's canonical_name or aliases by name, clear it and let `propagate_physical_description()` rescan. Regex check: if description contains any other character's name (case-insensitive), mark it as contaminated.
+   - Impact: +0.1 to Profiles (from ~7.8 to ~7.9)
 
-3. **Daisy has null physical description** [Profiles]
-   - Problem: Daisy Buchanan (main_cast_1, 208 mentions) has `physical_description: null`
-   - Expected: "face was sad and lovely with bright things in it, bright eyes and a bright passionate mouth"
-   - In attempt 5, Daisy had Jordan's description misattributed. Now it's null — an improvement (not actively wrong), but still a gap.
-   - Impact: +0.2 to Profiles
-
-4. **Myrtle's physical description is actually Catherine's** [Profiles]
-   - Problem: Myrtle Wilson's `physical_description` says "Described as having a 'slender, worldly' sister Catherine with a 'solid, sticky bob of red hair' and powdered milky white complexion; Myrtle herself is not directly described..."
-   - This IS Catherine's description (correctly also in Catherine's entry), cross-contaminated to Myrtle.
-   - Myrtle's actual appearance: "thickish figure of a woman... she was in the middle thirties, and faintly stout, but she carried her surplus flesh sensuously"
-   - Location: Profile extraction — LLM is extracting from Catherine's description in the same Ch 2 apartment scene
-   - Impact: +0.2 to Profiles
+3. **Jay Gatsby (protagonist) has ZERO relationships** [Profiles]
+   - Problem: Jay Gatsby (main_cast_1, 271 mentions) has `relationships: {}` — completely empty
+   - Expected at minimum: Daisy Buchanan (obsession/former lover), Nick Carraway (friend/neighbor), Tom Buchanan (rival), Wolfsheim (associate/mentor), Dan Cody (former employer/mentor)
+   - Why: Fix R correctly removed wrong familial labels, but the LLM didn't generate non-familial labels for Gatsby either. The aggressive cleanup left him with nothing.
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: After `reject_unfounded_familial_labels()` runs, add a safety check: for characters with >100 mentions who end up with ZERO relationships, generate minimal "associated" relationships from co-occurrence data. Any character pair where both have >50 mentions and appear in >3 common chapters should get an "associated" or "connected" relationship label.
+   - Impact: +0.15 to Profiles (from ~7.9 to ~8.05)
 
 ### MEDIUM
 
-5. **Wolfsheim's speech_patterns incorrectly include "old sport"** [Profiles]
-   - Problem: Wolfsheim's `personality.speech_patterns` lists "uses 'old sport' in addressing others" — this is GATSBY's catchphrase, not Wolfsheim's.
-   - Wolfsheim's actual distinctive speech: accent rendering ("Oggsford" for "Oxford," "gonnegtion" for "connection"), dialect_notes should reflect this but says "unknown"
-   - Impact: Minor — narrator might use wrong speech pattern for Wolfsheim
+4. **Jordan Baker has ZERO relationships** [Profiles]
+   - Problem: Jordan (main_cast_4, 101 mentions) has `relationships: {}` — completely empty
+   - Expected: Daisy (close friend), Nick (love interest), Tom/Gatsby (acquaintance)
+   - Same root cause as issue #3 — LLM didn't generate, and no post-processing backfill
+   - Would be addressed by the same co-occurrence fix as issue #3
 
-6. **James Gatz → Henry C. Gatz relationship direction wrong** [Profiles]
-   - Problem: James Gatz's relationship to Henry C. Gatz is listed as "son" — meaning "Henry C. Gatz is my son." But Henry C. Gatz is James Gatz's FATHER.
-   - Meanwhile, Henry C. Gatz correctly has "James Gatz: son" (meaning "James Gatz is my son" ✓)
-   - The label should be "father" from James Gatz's perspective
-   - Impact: Minor — confusing for narrator but Henry Gatz's entry has the correct direction
+5. **Eckleburg has 5 inappropriate "acquaintance" relationships** [Profiles]
+   - Problem: Doctor T. J. Eckleburg (a billboard/symbol) has relationships with George Wilson, Michaelis, Myrtle, Tom, and Nick — all labeled "acquaintance"
+   - A billboard can't be acquainted with people. Should have 0 or at most George Wilson (symbolic connection: "God sees everything")
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: LOW priority — doesn't significantly impact narrator prep. Could add a filter for symbolic/inanimate entities, but not worth the complexity for 0.05 points.
 
-7. **"Buchanan" alias shared between Tom and Daisy** [Alias Grouping]
-   - Both main_cast_1 (Daisy) and main_cast_2 (Tom) list "Buchanan" as alias. Similarly, "Gatz" is shared between James Gatz and Henry C. Gatz.
-   - These are defensible (shared surname) but could confuse narrator lookup.
+6. **Butler→Jordan relationship labeled "employee" is wrong** [Profiles]
+   - Problem: The butler's relationship to Jordan Baker is "employee" (meaning "Jordan is my employee"). The butler works for Gatsby, not Jordan.
+   - Minor — doesn't significantly mislead narrator
 
-8. **Self-alias: "James Gatz" in alias list of canonical "James Gatz"** [Alias Grouping]
-   - The canonical name appears in its own alias list — redundant and looks like a bug.
+7. **Duplicate "Daisy" in Daisy's alias list** [Alias Grouping]
+   - Daisy Buchanan's aliases: `["Daisy", "Daisy", "Buchanan"]` — "Daisy" appears twice
 
-9. **Canonical name "James Gatz" rather than "Jay Gatsby"** [Completeness]
-   - The character is overwhelmingly known as "Gatsby" (275 mentions are mostly for "Gatsby"/"Jay Gatsby"). Using his birth name as canonical is confusing for a narrator. "Jay Gatsby" would be more intuitive as the canonical name.
-
-10. **Missing "Owl Eyes"** [Completeness]
-    - The bespectacled man from Gatsby's library (Ch 3, Ch 9 funeral) not in character list. Narratively significant as the only non-family funeral attendee. Ch 3 summary mentions him.
-
-11. **Chapter 7 summary has car arrangement error** [Summaries]
-    - Summary says "Daisy and Tom returning home in Gatsby's car" — WRONG. It was Gatsby and Daisy in the yellow car (Daisy driving). Tom, Nick, Jordan returned in Tom's car.
-    - Internally contradicts the next sentence: "killed by a yellow car (driven by Daisy)" — if Daisy was with Tom, who was driving?
-
-12. **66 pronunciation entries still "unknown" category** [Pronunciation]
-    - Many classifiable: dialect (gonnegtion, comin), literary (murmurous, contralto, extemporizing), archaic (plagiaristic). 66/129 = 51% unknown.
+8. **66/130 pronunciations still "unknown" category** [Pronunciation]
+   - Many are classifiable: "contralto" (musical term), "gonnegtion" (dialect), "murmurous" (literary), "gaiety" (archaic). 51% unknown.
+   - Quality of entries is good (all have IPA, notes, context), just miscategorized.
 
 ### LOW
 
-13. **Gatsby's example_quote misattributed** [Profiles]
-    - James Gatz's `voice_guidance.example_quotes` includes "Don't you call me 'old sport'!" — this is TOM speaking to Gatsby, not Gatsby himself.
+9. **Owl Eyes still missing from character list** [Completeness]
+   - The owl-eyed man from Gatsby's library (Ch 3, Ch 9 funeral) not extracted. Mentioned in Ch 9 summary as "the man with owl-eyed glasses."
+   - Narratively significant but minor character. Pipeline filters by mention count.
+
+10. **Gatsby's physical description includes speech description** [Profiles]
+    - "Elaborate formality of speech; elegant young roughneck; wears a pink suit" — the first clause is about speech, not appearance.
+    - Minor — still captures key visual details.
 
 ## Configuration Audit
 
 ### Model Configuration
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) — same model for all agents
 - Context length: 32768 — adequate for Gatsby
-- Temperature: 0.7 — still too high for relationship extraction
+- Temperature: 0.7 — acceptable for most tasks
 - think_mode: false
 
 ### Processing Issues
-- 253 LLM calls total (down from 295 in attempt 5), 0 retries — pipeline mechanically stable
-- Profile generation producing rich personality/voice data now — Fix P working well
-- Relationship labels remain the weak point — LLM still hallucinating familial labels, post-processing filter too permissive
+- 298 LLM calls, 0 retries — mechanically stable
+- Profile generation producing rich personality/voice data (17/19 traits, 15/19 speech patterns)
+- Relationship extraction remains the weak point — LLM generates sparse non-familial labels even when familial labels are correctly filtered
+- Physical description fallback (Fix T) works for some characters but misses face/feature-based descriptions
 
 ### Recommendation
-- HIGH: Tighten or replace the familial label filter (CRITICAL #1 above)
-- MEDIUM: Add second-pass physical description extraction for major characters with null descriptions
+- HIGH: Expand physical-term vocabulary in `propagate_physical_description()` for Daisy
+- HIGH: Add cross-contamination detection for physical descriptions
+- MEDIUM: Add co-occurrence-based relationship backfill for major characters with zero relationships
 
 ## Fix History
 
@@ -214,9 +177,9 @@
 **Fix Q: Homograph IPA** [HIGH] — SUCCESS ✓ (src/pipeline/pronunciation_guide/enricher.py)
 
 ### gatsby — Attempt 7 Fixes
-**Fix R: Familial labels Option B** [CRITICAL] — PENDING (src/pipeline/character_profiling/post_corrections.py — `reject_unfounded_familial_labels()` now only allows sibling/brother text-evidence exception for non-surname-sharing pairs; all other family labels removed)
-**Fix S: Self-negating appearance summary** [HIGH] — PENDING (src/pipeline/character_profiling/post_corrections.py — `clean_unknown_appearance()` now clears summaries containing "not directly described" etc. via NO_DESC_PHRASES substring check; targets Myrtle's Catherine-contaminated description)
-**Fix T: Deterministic physical description fallback** [HIGH] — PENDING (src/pipeline/character_profiling/post_corrections.py — `propagate_physical_description()` now scans raw text for physical-term sentences near character name mentions for major chars with null descriptions)
+**Fix R: Familial labels Option B** [CRITICAL] — SUCCESS ✓ (src/pipeline/character_profiling/post_corrections.py — all wrong familial labels removed)
+**Fix S: Self-negating appearance summary** [HIGH] — PARTIAL (src/pipeline/character_profiling/post_corrections.py — catches "not directly described" but not cross-character contamination)
+**Fix T: Deterministic physical description fallback** [HIGH] — PARTIAL (src/pipeline/character_profiling/post_corrections.py — found Gatsby's description, missed Daisy's)
 
 ## Modification History
 
@@ -240,15 +203,17 @@
 | 6 | Familial label validation | `src/pipeline/character_profiling/post_corrections.py` | Partial — filter too permissive |
 | 6 | Personality traits + speech patterns | `src/analyzer.py` | Fixed ✓ |
 | 6 | Homograph IPA | `src/pipeline/pronunciation_guide/enricher.py` | Fixed ✓ |
-| 7 | Familial labels Option B | `src/pipeline/character_profiling/post_corrections.py` | Pending |
-| 7 | Self-negating appearance descriptions | `src/pipeline/character_profiling/post_corrections.py` | Pending |
-| 7 | Physical description text fallback | `src/pipeline/character_profiling/post_corrections.py` | Pending |
+| 7 | Familial labels Option B | `src/pipeline/character_profiling/post_corrections.py` | Fixed ✓ |
+| 7 | Self-negating appearance descriptions | `src/pipeline/character_profiling/post_corrections.py` | Partial — didn't catch cross-contamination |
+| 7 | Physical description text fallback | `src/pipeline/character_profiling/post_corrections.py` | Partial — Gatsby ✓, Daisy missed |
 
 **Pattern alerts:**
-- `src/pipeline/character_profiling/post_corrections.py` is the correct location for relationship fixes — `reject_unfounded_familial_labels()` exists but needs tightening. This is attempt 2 at this file for relationships (after Fix L succeeded for "unknown" removal). The method logic needs refinement, not a new location.
-- `src/analyzer.py` prompt-level relationship fixes exhausted (4 attempts). Post-processing is the only viable path.
-- Profiles are the SOLE remaining blocker. Fix the familial filter + add null-description second-pass → should cross 8.0.
+- `src/pipeline/character_profiling/post_corrections.py` is attempt 3 for physical descriptions (Fix H failed in analyzer.py, Fix S/T in post_corrections partially worked). The functions exist and work for some characters — they need refinement, not a new approach.
+- Profiles are the SOLE remaining blocker at 7.5/10. Need +0.5 across: Daisy description (+0.3), Myrtle decontamination (+0.1), Gatsby relationships (+0.15).
 
 ## Next Action
 
-Re-run analysis on gatsby (attempt 7) to verify fixes R/S/T close the Profiles gap.
+Run PROMPT_fix.md to address:
+1. CRITICAL #1: Expand `propagate_physical_description()` term vocabulary + alias matching for Daisy
+2. HIGH #2: Add cross-contamination detection (if description mentions another character's name, clear it)
+3. HIGH #3: Add co-occurrence relationship backfill for major characters with zero relationships
