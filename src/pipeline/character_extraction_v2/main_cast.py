@@ -54,14 +54,18 @@ Task:
 - Do not invent names not supported by the summaries.
 - Provide canonical_name and aliases/variants used in summaries.
 
-Output JSON array, each item:
+Output a JSON object with a "characters" array, each item:
 {{
-  "canonical_name": string,
-  "aliases": [string],
-  "role": "protagonist"|"antagonist"|"supporting"|"minor",
-  "description": string,
-  "is_unnamed": boolean,
-  "is_symbolic": boolean
+  "characters": [
+    {{
+      "canonical_name": string,
+      "aliases": [string],
+      "role": "protagonist"|"antagonist"|"supporting"|"minor",
+      "description": string,
+      "is_unnamed": boolean,
+      "is_symbolic": boolean
+    }}
+  ]
 }}
 
 CHAPTER SUMMARIES:
@@ -97,17 +101,19 @@ CHAPTER SUMMARIES:
 {plot_summary_section}
 
 OUTPUT FORMAT (JSON):
-Return a JSON array of character objects with ONLY canonical names:
+Return a JSON object with a "characters" array:
 ```json
-[
-  {{
-    "canonical_name": "Full Name or Descriptive Handle",
-    "role": "protagonist|antagonist|supporting|minor",
-    "description": "Brief description of character's role",
-    "is_unnamed": false,
-    "is_symbolic": false
-  }}
-]
+{{
+  "characters": [
+    {{
+      "canonical_name": "Full Name or Descriptive Handle",
+      "role": "protagonist|antagonist|supporting|minor",
+      "description": "Brief description of character's role",
+      "is_unnamed": false,
+      "is_symbolic": false
+    }}
+  ]
+}}
 ```
 
 Extract the main characters now:"""

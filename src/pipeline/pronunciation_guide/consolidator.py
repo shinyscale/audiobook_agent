@@ -147,6 +147,12 @@ class PronunciationConsolidator:
             (p.flag_reason for p in proposals), key=lambda f: flag_priority.get(f, 99)
         )
 
+        # Upgrade UNKNOWN to PROPER_NOUN for words that appear capitalized in context.
+        # Capitalized words not in the CMU dictionary are almost always proper nouns
+        # (place names, character names not caught by the character proposer, titles).
+        if flag_reason == PronunciationFlag.UNKNOWN and canonical_word and canonical_word[0].isupper():
+            flag_reason = PronunciationFlag.PROPER_NOUN
+
         # Collect homograph options if any
         homograph_options = None
         for p in proposals:

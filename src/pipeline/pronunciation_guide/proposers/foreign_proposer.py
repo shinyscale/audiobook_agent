@@ -115,6 +115,19 @@ ENGLISH_EXCEPTIONS = {
     "an",
     "one",
     "a",  # English articles that match German "ein/eine"
+    # Common English words matching German -chen/-lein patterns (not foreign in modern English)
+    "kitchen",
+    "chicken",
+    "thicken",
+    "quicken",
+    "stricken",
+    "sicken",
+    # Common English words matching French -ette pattern that are fully naturalized
+    "cigarette",
+    # Common English words flagged via Latin "per + word" pattern
+    "week",
+    "year",
+    "cent",
 }
 
 

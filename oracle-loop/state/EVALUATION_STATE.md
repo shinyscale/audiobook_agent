@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -196,11 +196,16 @@
 | 1 | (baseline — no fixes yet) | — | — |
 | 2 | Main cast pipeline failure (data) | `src/agents/characters.py` | Partial — aliases improved but grounding still fails |
 | 2 | IPA corruption | `src/pipeline/pronunciation_guide/enricher.py` | Fixed ✓ |
-
-**ESCALATION WARNING:** `src/agents/characters.py` was modified in attempt 2 to improve data flowing INTO main_cast, but the grounding logic IN `src/pipeline/character_extraction_v2/main_cast.py` was never examined. Attempt 3 MUST directly debug `main_cast.py` grounding, not just upstream data.
+| 3 | Main cast grounding failure (model JSON format) | `src/pipeline/character_extraction_v2/main_cast.py` | Changed both prompts from bare-array to `{"characters":[...]}` dict wrapper. qwen3-next returns error dicts for bare array requests; `_parse_pass1_results` already handles "characters" wrapper key. |
+| 3 | Relationship labels wrong (secondary call overwrites) | `src/analyzer.py` | Secondary structuring call now only writes relationships if primary call produced none; added relationship examples to template. |
+| 3 | Pronunciation false positives (kitchen, cigarette, week) | `src/pipeline/pronunciation_guide/proposers/foreign_proposer.py` | Added to ENGLISH_EXCEPTIONS: kitchen, chicken, thicken, quicken, stricken, sicken, cigarette, week, year, cent. |
+| 3 | 92 UNKNOWN pronunciation entries | `src/pipeline/pronunciation_guide/consolidator.py` | Capitalized UNKNOWN words upgraded to PROPER_NOUN in `_build_entry()`. |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Priority 1:** Debug main_cast.py grounding function directly (read the code, add logging, understand WHY candidates are rejected)
-2. **Priority 2:** Fix relationship type enum/schema (expand beyond family labels)
-3. **Priority 3:** Fix pronunciation categorization (reduce "unknown" entries, remove false positives)
+Run PROMPT_analyze.md for attempt 3.
+
+### Attempt 3 Fixes Applied
+1. **Fix C: main_cast prompts changed to dict wrapper format** — Both `CHARACTER_IDENTIFICATION_PROMPT` and `MAIN_CAST_PROMPT` now request `{"characters":[...]}` instead of bare JSON array. Root cause: qwen3-next returns error dicts when forced to produce bare arrays via json_mode.
+2. **Fix D: Secondary relationship call no longer overwrites primary** — `analyzer.py` secondary structuring call only sets relationships when primary produced none. Template updated with proper relationship type examples.
+3. **Fix E: Pronunciation false positive exclusions** — Added kitchen/cigarette/week/chicken etc. to ENGLISH_EXCEPTIONS.
+4. **Fix F: UNKNOWN → PROPER_NOUN reclassification** — Capitalized UNKNOWN words upgraded to PROPER_NOUN in consolidator.
