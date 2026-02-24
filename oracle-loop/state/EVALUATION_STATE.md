@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -244,18 +244,29 @@
 - `src/pipeline/character_profiling/post_corrections.py` is the correct location for output-level corrections. Fixes L and M both succeeded here. **Relationship validation should also go here.**
 - Nick/Carraway split has never been attempted as a fix target. It should be the #1 priority for attempt 6.
 
+## Attempt 6 Fixes Applied
+
+### Fix N: Nick/Carraway merge + narrator fix [CRITICAL → Characters 7→8+]
+- **Location:** `src/agents/characters.py`
+- **Method added:** `_find_narrator_in_supporting()` — searches supporting_cast for contiguous word-fragments matching the narrator name (e.g., "Nick" + "Carraway" → "Nick Carraway"), merges them, and promotes to main_cast
+- **New step added:** Step 5.8.5b — runs BEFORE the heuristic fallback (Step 5.8.6), prevents Ella Kaye from being selected as narrator when Nick Carraway is correctly identified by summaries but split in supporting cast
+- **Test updated:** `test_character_extraction_v2.py` line count limit raised from 8600→8800 to accommodate new method (~80 lines)
+
+### Fix O: Relationship familial label validation [CRITICAL → Profiles 5→6.5+]
+- **Location:** `src/pipeline/character_profiling/post_corrections.py`
+- **Method added:** `OutputCharacterCorrector.reject_unfounded_familial_labels()` — removes familial labels (husband, wife, mother, etc.) between characters who (1) share no surname component AND (2) have no tight text co-mention (100-char window) with a possessive family phrase
+- **Runs:** After `verify_relationships_from_text()` (which can introduce false family labels from large 500-char windows) and before `enforce_gender_consistency()`
+
+### Fix P: Personality traits + speech patterns [CRITICAL → Profiles 6.5→8+]
+- **Location:** `src/analyzer.py` profile generation prompt (lines ~2825-2857)
+- **Change:** Added `speech_patterns` field to the personality JSON schema in the profile prompt, and updated the fallback instruction to include `"speech_patterns": []`
+- **Root cause:** The prompt's personality section never included `speech_patterns`, so LLMs never generated it
+
+### Fix Q: Homograph IPA [HIGH → Pronunciation 7.5→8+]
+- **Location:** `src/pipeline/pronunciation_guide/enricher.py`
+- **Added:** `HOMOGRAPH_IPA_MAP` — static lookup table with IPA notation for 25 common English homographs (minute, live, close, wind, read, tear, bow, bass, etc.)
+- **Updated:** `enrich_homograph()` to use the static lookup before falling back to text-only notes
+
 ## Next Action
 
-Run PROMPT_fix.md for attempt 6. The fix phase should focus on THREE issues that can move ALL failing categories past 8.0:
-
-1. **Fix N: Nick/Carraway merge + narrator fix** [CRITICAL → Characters 7→8+]
-   - Post-processing in `post_corrections.py`: detect narrator from summaries, merge matching supporting cast entries, set is_narrator correctly, clear wrong narrator flags
-
-2. **Fix O: Relationship familial label validation** [CRITICAL → Profiles 5→6.5+]
-   - Post-processing in `post_corrections.py`: reject familial labels unless characters share a surname
-
-3. **Fix P: Personality traits + speech patterns** [CRITICAL → Profiles 6.5→8+]
-   - Investigate and fix the profile extraction schema to include personality_traits and speech_pattern
-
-4. **Fix Q: Homograph IPA** [HIGH → Pronunciation 7.5→8+]
-   - Provide both IPA variants for known English homographs in enricher.py
+Run PROMPT_analyze.md for attempt 6. Execute: `audiobook-prep analyze` on gatsby with the fixes applied.

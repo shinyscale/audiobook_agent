@@ -597,6 +597,7 @@ class OutputCharacterCorrector:
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
+        self.reject_unfounded_familial_labels(characters, source_text)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
 
@@ -1060,6 +1061,88 @@ class OutputCharacterCorrector:
                         f"'{rel_val}' to '{other_key}' — correcting to 'unknown'"
                     )
                     char.relationships[other_key] = "unknown"
+
+    def reject_unfounded_familial_labels(self, characters, source_text: str) -> None:
+        """Remove familial relationship labels unsupported by shared surname or text evidence.
+
+        Universal invariant: a familial label (mother, father, husband, wife, etc.)
+        is hallucinated if:
+        1. The two characters share NO surname component, AND
+        2. No tight text co-mention (within 100 chars) with a possessive/family phrase
+           connects them.
+
+        This runs AFTER verify_relationships_from_text, which can introduce incorrect
+        family labels when nearby family phrases in 500-char windows belong to a
+        different character pair (e.g. "her husband" referring to Tom Buchanan found
+        in a Gatsby+Daisy co-mention window).
+        """
+        if not source_text:
+            return
+
+        family_set = set(FAMILY_TERMS)
+        name_patterns = _build_name_patterns(characters)
+        _skip_titles = {"jr.", "sr.", "jr", "sr", "ii", "iii", "iv",
+                        "md", "phd", "dr", "mr", "mrs", "ms", "miss"}
+        tight_window = 100
+
+        def _surnames(name: str) -> set:
+            parts = name.split()
+            if len(parts) <= 1:
+                return set()
+            return {
+                p.lower().rstrip(".,")
+                for p in parts[1:]
+                if len(p) > 2 and p.lower().rstrip(".,") not in _skip_titles
+            }
+
+        # Build lookup: lower name/alias → Character
+        char_by_lower: dict = {}
+        for c in characters:
+            char_by_lower[c.canonical_name.lower()] = c
+            for alias in (getattr(c, 'aliases', None) or []):
+                char_by_lower[alias.lower()] = c
+
+        for char in characters:
+            if not char.relationships:
+                continue
+            char_surnames = _surnames(char.canonical_name)
+            pat_a = name_patterns.get(char.canonical_name)
+
+            for other_key in list(char.relationships.keys()):
+                rel = char.relationships.get(other_key) or ""
+                if not rel:
+                    continue
+                rel_lower = rel.strip().lower()
+                if not any(t in rel_lower for t in family_set):
+                    continue
+
+                # Check 1: Shared surname → probably a real family relationship.
+                other_char = char_by_lower.get(other_key.lower())
+                other_surnames = _surnames(other_char.canonical_name) if other_char else set()
+                if char_surnames & other_surnames:
+                    continue
+
+                # Check 2: Tight text co-mention with a family possessive phrase.
+                pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
+                has_evidence = False
+                if pat_a and pat_b:
+                    for match_a in pat_a.finditer(source_text):
+                        ws = max(0, match_a.start() - tight_window)
+                        we = min(len(source_text), match_a.end() + tight_window)
+                        win = source_text[ws:we]
+                        if pat_b.search(win) and _rel_phrase_re.search(win):
+                            has_evidence = True
+                            break
+
+                if has_evidence:
+                    continue
+
+                # No evidence: remove the label.
+                del char.relationships[other_key]
+                logger.info(
+                    f"Removed unfounded familial label: "
+                    f"'{char.canonical_name}' → '{other_key}': '{rel}'"
+                )
 
     def clean_unknown_relationships(self, characters) -> None:
         """Remove relationship entries labeled 'unknown' - they provide no information.

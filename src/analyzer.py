@@ -2826,7 +2826,8 @@ Return a JSON response matching this example format exactly:
     "summary": "Brief personality summary",
     "traits": ["trait1", "trait2"],
     "temperament": "calm/volatile/melancholic/cheerful/etc or unknown",
-    "emotional_range": "Brief note on emotional expression"
+    "emotional_range": "Brief note on emotional expression",
+    "speech_patterns": ["catchphrase or verbal tic if present", "dialect feature", "speech style"]
   }},
   "voice_guidance": {{
     "suggested_tone": "authoritative/gentle/aggressive/etc based on dialogue",
@@ -2854,7 +2855,7 @@ CRITICAL INSTRUCTIONS:
 - Do NOT omit any field - every field must be present even if the value is "unknown" or []
 - Do NOT invent details - only use what's explicitly or clearly implied in the provided text
 - For appearance: Search the text snippets carefully for physical descriptions (height, build, coloring, hair, eyes, age, clothing, bearing). If found, describe them. If truly absent, use {{"summary": "unknown", "age_indication": "unknown", "distinguishing_features": []}}
-- For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown"}}
+- For personality: Only include if you can infer from behavior, otherwise use {{"summary": "unknown", "traits": [], "temperament": "unknown", "emotional_range": "unknown", "speech_patterns": []}}
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
 - Return ONLY valid JSON matching the above structure. No other text.
 

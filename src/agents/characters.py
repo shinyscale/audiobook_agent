@@ -795,6 +795,35 @@ class CharacterAgent(Agent):
             except Exception as e:
                 logger.warning(f"Narrator re-detection failed: {e}")
 
+        # STEP 5.8.5b: Search supporting_cast for narrator name fragments.
+        # When narrator_name was identified (e.g., "Nick Carraway") but not matched
+        # to any main_cast character, the narrator may exist in supporting_cast as
+        # fragments (e.g., "Nick" + "Carraway") that individually fell below the
+        # promotion threshold.  Merge any matches and promote to main_cast BEFORE
+        # the heuristic fallback, which would otherwise pick the wrong character.
+        if (
+            narrator_info.narrator_name is not None
+            and narrator_info.narrator_character_id is None
+            and supporting_cast
+        ):
+            result = self._find_narrator_in_supporting(
+                narrator_info.narrator_name, supporting_cast
+            )
+            if result is not None:
+                merged_narrator, supporting_cast = result
+                main_cast.append(merged_narrator)
+                narrator_info = NarratorInfo(
+                    pov=narrator_info.pov or "first-person",
+                    narrator_name=merged_narrator.canonical_name,
+                    narrator_character_id=merged_narrator.id,
+                    confidence=max(narrator_info.confidence, 0.75),
+                )
+                logger.info(
+                    f"V2 Step 5.8.5b: Narrator '{merged_narrator.canonical_name}' "
+                    f"found in supporting cast, promoted to main cast "
+                    f"(mention_count={merged_narrator.mention_count})"
+                )
+
         # STEP 5.8.6: Heuristic narrator fallback for confirmed first-person narratives.
         # When LLM narrator detection has failed (narrator_character_id is still None)
         # but the summaries metadata confirms first-person POV, use a universal heuristic:
@@ -3425,6 +3454,91 @@ class CharacterAgent(Agent):
                 return "first-person"
 
         return None
+
+    def _find_narrator_in_supporting(
+        self,
+        narrator_name: str,
+        supporting_cast: list[Character],
+    ) -> Optional[tuple[Character, list[Character]]]:
+        """
+        Search supporting_cast for name fragment(s) matching the narrator name.
+
+        Handles split identities where e.g. "Nick Carraway" was extracted as
+        separate supporting entries "Nick" (24 mentions) and "Carraway" (10 mentions),
+        neither of which crossed the promotion threshold.  All fragments whose
+        canonical name or alias is a contiguous word-sequence within narrator_name
+        are merged into a single promoted character.
+
+        Returns (merged_character, remaining_supporting) or None if no match found.
+        """
+        if not narrator_name or not supporting_cast:
+            return None
+
+        narrator_words = narrator_name.strip().lower().split()
+        if not narrator_words:
+            return None
+
+        matches: list[Character] = []
+        for char in supporting_cast:
+            all_forms = [char.canonical_name] + list(char.aliases or [])
+            for form in all_forms:
+                form_lower = form.strip().lower()
+                if not form_lower or len(form_lower) < 3:
+                    continue
+                form_words = form_lower.split()
+                # Accept only if form_words is a contiguous sub-sequence of narrator_words
+                n = len(narrator_words)
+                k = len(form_words)
+                found = any(
+                    narrator_words[i:i + k] == form_words
+                    for i in range(n - k + 1)
+                )
+                if found:
+                    matches.append(char)
+                    break
+
+        if not matches:
+            return None
+
+        base = max(matches, key=lambda c: c.mention_count)
+        merged_count = sum(c.mention_count for c in matches)
+
+        all_aliases: list[str] = list(base.aliases or [])
+        for char in matches:
+            if char is base:
+                continue
+            if char.canonical_name != narrator_name and char.canonical_name not in all_aliases:
+                all_aliases.append(char.canonical_name)
+            for a in char.aliases or []:
+                if a != narrator_name and a not in all_aliases:
+                    all_aliases.append(a)
+
+        first_chap = min(
+            (c.first_appearance_chapter for c in matches if c.first_appearance_chapter is not None),
+            default=None,
+        )
+
+        merged = Character(
+            id=base.id,
+            canonical_name=narrator_name,
+            aliases=all_aliases,
+            role="protagonist",
+            mention_count=merged_count,
+            is_narrator=True,
+            narrative_role="First-Person Narrator",
+            confidence=base.confidence,
+            first_appearance_chapter=first_chap,
+        )
+
+        matched_ids = {c.id for c in matches}
+        remaining = [c for c in supporting_cast if c.id not in matched_ids]
+
+        logger.info(
+            f"_find_narrator_in_supporting: merged "
+            f"{[c.canonical_name for c in matches]} → '{narrator_name}' "
+            f"(total mentions: {merged_count})"
+        )
+        return merged, remaining
 
     def _heuristic_narrator_from_mention_count(
         self,

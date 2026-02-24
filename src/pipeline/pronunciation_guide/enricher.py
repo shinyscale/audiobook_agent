@@ -38,6 +38,38 @@ def _is_valid_ipa(ipa: str) -> bool:
     return True
 
 
+# Static IPA lookup for common English homographs.
+# Provides both pronunciation variants so narrators know context-dependent choices.
+# This is a universal reference lexicon (not a filter/deny-list).
+HOMOGRAPH_IPA_MAP: dict[str, str] = {
+    "minute": "/ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)",
+    "live": "/lɪv/ (to exist, present) or /laɪv/ (in real time, alive)",
+    "close": "/kloʊs/ (nearby, adj) or /kloʊz/ (to shut, verb)",
+    "wind": "/wɪnd/ (moving air, noun) or /waɪnd/ (to coil/turn, verb)",
+    "read": "/riːd/ (present tense) or /rɛd/ (past tense)",
+    "does": "/dʌz/ (verb: he does) or /doʊz/ (female deer, plural)",
+    "subject": "/ˈsʌbdʒɪkt/ (noun/adj: topic) or /səbˈdʒɛkt/ (verb: to expose)",
+    "row": "/roʊ/ (a line or to row a boat) or /raʊ/ (a noisy argument, British)",
+    "excuse": "/ɪkˈskjuːs/ (noun: a reason) or /ɪkˈskjuːz/ (verb: to pardon)",
+    "elaborate": "/ɪˈlæbərɪt/ (adj: detailed) or /ɪˈlæbəreɪt/ (verb: to expand on)",
+    "intimate": "/ˈɪntɪmɪt/ (adj/noun: close) or /ˈɪntɪmeɪt/ (verb: to hint)",
+    "content": "/ˈkɒntɛnt/ (noun: material) or /kənˈtɛnt/ (adj: satisfied)",
+    "bow": "/boʊ/ (bow and arrow; ribbon bow) or /baʊ/ (ship's bow; to bow one's head)",
+    "refuse": "/ˈrɛfjuːs/ (noun: garbage) or /rɪˈfjuːz/ (verb: to decline)",
+    "bass": "/bæs/ (musical bass; bass guitar) or /beɪs/ (bass fish)",
+    "entrance": "/ˈɛntrəns/ (noun: doorway) or /ɪnˈtræns/ (verb: to enchant)",
+    "polish": "/ˈpoʊlɪʃ/ (from Poland; Polish language) or /ˈpɒlɪʃ/ (to shine; shoe polish)",
+    "separate": "/ˈsɛpərɪt/ (adj: apart) or /ˈsɛpəreɪt/ (verb: to divide)",
+    "moderate": "/ˈmɒdərɪt/ (adj: middle, not extreme) or /ˈmɒdəreɪt/ (verb: to oversee)",
+    "object": "/ˈɒbdʒɪkt/ (noun: a thing) or /əbˈdʒɛkt/ (verb: to protest)",
+    "permit": "/ˈpɜːrmɪt/ (noun: authorization) or /pərˈmɪt/ (verb: to allow)",
+    "present": "/ˈprɛzənt/ (noun/adj: gift; here) or /prɪˈzɛnt/ (verb: to introduce)",
+    "record": "/ˈrɛkərd/ (noun: a recording) or /rɪˈkɔːrd/ (verb: to record)",
+    "wound": "/wuːnd/ (past tense of wind) or /wuːnd/ (an injury) — context: injury=wuːnd; wound up=waʊnd",
+    "tear": "/tɪər/ (from the eye) or /tɛər/ (to rip)",
+}
+
+
 ENRICHER_SYSTEM_PROMPT = """You are an expert phonetician helping audiobook narrators with pronunciation.
 
 CRITICAL: Base your pronunciation guidance ONLY on standard phonetic rules.
@@ -285,11 +317,25 @@ class PronunciationEnricher:
         proposal: PronunciationProposal,
     ) -> PronunciationEnrichment:
         """
-        Special handling for homographs - note the multiple pronunciations.
+        Special handling for homographs - provide both IPA variants.
 
-        For homographs, we don't generate a single pronunciation but rather
-        return the known options as notes.
+        Uses a static IPA lookup table for common English homographs so
+        narrators see the full phonetic options for context-dependent words.
+        Falls back to a note when the word is not in the lookup table.
         """
+        word_lower = proposal.word.lower()
+        ipa_variants = HOMOGRAPH_IPA_MAP.get(word_lower)
+
+        if ipa_variants:
+            # IPA from static lookup - reliable and consistent
+            notes = f"Context-dependent: {ipa_variants}"
+            return PronunciationEnrichment(
+                word=proposal.word,
+                ipa=ipa_variants,
+                notes=notes,
+                confidence=0.95,
+            )
+
         if proposal.homograph_options:
             notes = "Multiple pronunciations: " + "; ".join(proposal.homograph_options)
         else:
