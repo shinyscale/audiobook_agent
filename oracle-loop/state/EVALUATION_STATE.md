@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
@@ -31,6 +31,24 @@
 |---------|-------|---------------------|-------|
 | 1 | 6.55 | — | Baseline. main_cast pipeline failed; massive false splits; profiles catastrophically wrong |
 | 2 | 7.15 | +0.60 | Fix A partially worked (Gatsby aliases resolved); main_cast STILL fails; IPA corruption fixed |
+
+## Pipeline Notes (Attempt 3)
+- Analysis completed in 75m 49s
+- 9 chapters detected (correct)
+- 22 characters extracted; 21 profiles generated
+- **Main cast pipeline FIXED** — Fix C (dict wrapper JSON format) resolved the grounding failure
+  - Nick Carraway (aka Nick, Carraway) ✓ — no longer split
+  - Tom Buchanan (aka Tom, Buchanan) ✓ — no longer split
+  - Daisy Buchanan (aka Daisy, Buchanan) ✓ — now has full name
+  - Jordan Baker (aka Jordan, Baker) ✓ — no longer split
+  - Jay Gatsby (aka Gatsby, James Gatz) ✓ — aliases maintained
+- Narrator correctly detected as Nick Carraway (first-person) ✓
+- 130 pronunciation flags; unknown: 67 (down from 92), proper_noun: 28 (up from 3)
+- 20 LLM marker proposer non-list warnings (competitive structure falls back to regex — still found 9 chapters correctly)
+- Chapter Summaries: 20m7s but 0 LLM calls in profiler (likely profiling instrumentation gap for competitive-summaries mode)
+- "No passages provided for The Policeman/The butler" — UNCERTAIN confidence for those minor characters
+- LLM validation errors on pronunciation enrichment for non-words (sickantired, Gratulate) — handled gracefully
+- Output saved to ../output/gatsby/ (analysis.json: 239KB, report.html: 510KB)
 
 ## Pipeline Notes (Attempt 2)
 - Analysis completed in 78m 34s
