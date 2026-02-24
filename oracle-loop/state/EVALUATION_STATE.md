@@ -3,13 +3,21 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 6)
+- Completed in 76m 33s, 253 LLM calls, 401,362 tokens
+- 9 chapters detected, 19 characters extracted (was 21 — Nick/Carraway merge succeeded), 19 profiles generated
+- Fix N SUCCESS: Nick Carraway merged (34 mentions, aliases: Nick, Carraway), narrator correctly identified as "Nick Carraway (first-person)"
+- Ella Kaye narrator regression from attempt 5 likely resolved (narrator detection now uses summary-grounded name)
+- Pronunciation: 129 flags (unknown: 66, proper_noun: 29, homograph: 19, foreign: 15)
+- Warnings: Gutenberg boilerplate removal (19320 chars, 6.7%)
 
 ## Pipeline Notes (Attempt 5)
 - Completed in 85m 30s, 295 LLM calls, 464,786 tokens
