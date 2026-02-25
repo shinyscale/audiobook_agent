@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -116,13 +116,21 @@
 | 1 | 6.20 | - | Baseline. Creature/Turkish merchant merge is primary blocker. |
 
 ## Fix History
-(No fixes yet — first attempt)
+- Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
+  - Root cause: `main_cast.py:competitive_verify_aliases:1344-1347` used only first 5 chapters as context, which for Frankenstein (28 chapters) only covered Walton's letters. The Creature doesn't appear until chapter 5+, so all Creature aliases ("daemon", "monster") were rejected, and the false "the Creature → Turkish merchant" alias was accepted because neither character appeared in the limited context.
+  - Smoke test: PASS — verified competitive context now uses all chapters; confirmed Turkish merchant/Creature conflict correctly split
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+- Attempt 2 (Fix 2): Added occupation titles (merchant, magistrate, officer, soldier) to `human_descriptors` in `_split_semantic_conflicts` as safety net
+  - These are universally human occupation titles; prevents creature terms from being accepted as aliases of human-titled characters even if competitive voting fails
+  - Smoke test: PASS — "the Turkish merchant" + "the Creature" conflict now detected and split
+  - Modified: `src/agents/characters.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | CRITICAL #1/#2/#4: Creature/Turkish merchant merge + Alphonse missing | `src/pipeline/character_extraction_v2/main_cast.py`, `src/agents/characters.py` | Awaiting analysis |
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
@@ -132,9 +140,8 @@
 - No obvious config issues contributing to the character merge problem
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL:** Extract the Creature as a standalone character, unmerge from Turkish merchant
-2. **CRITICAL:** Add Alphonse Frankenstein
-3. **HIGH:** Fix relationships for major characters
-4. **HIGH:** Improve physical descriptions
-5. **MEDIUM:** Fix Letter 1 structure detection
+Re-run analysis to verify fix. Expected improvements:
+1. **CRITICAL #1:** the Creature should now be a standalone character with proper aliases (daemon, monster, etc.)
+2. **CRITICAL #2:** Alphonse Frankenstein should now appear (aliases "Father"/"Victor's father" should pass competitive voting with full context)
+3. **CRITICAL #4:** Turkish merchant should no longer be flagged as narrator
+4. Remaining issues (relationships, physical descriptions, structure Letter 1) to be addressed in subsequent fix rounds.

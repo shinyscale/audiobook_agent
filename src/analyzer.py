@@ -2142,7 +2142,8 @@ class AudiobookAnalyzer:
         # same-person relationship fix, text-based relationship verification, gender consistency.
         # Runs AFTER safety net so all characters (including safety-net additions) are corrected.
         from .pipeline.character_profiling.post_corrections import OutputCharacterCorrector
-        OutputCharacterCorrector().run_all(characters, doc.text)
+        profile_llm = self._get_agent_llm_client("characters") or llm
+        OutputCharacterCorrector(llm_client=profile_llm).run_all(characters, doc.text)
 
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)

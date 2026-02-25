@@ -241,9 +241,9 @@ class CharacterAgent(Agent):
                     f"V2 Step 3.1 fallback LLM failed: {fallback_response.error}"
                 )
 
-        # STEP 3.4: Pre-merge same-firstname variants (handles Daisy Buchanan + Daisy Fay case)
+        # STEP 3.4: Pre-merge same-firstname variants (e.g., maiden/married name)
         # This must run BEFORE the main merge to avoid the ambiguity problem where
-        # "Daisy" matches multiple full names and gets skipped
+        # a first-name-only reference matches multiple full names and gets skipped
         logger.info("V2 Step 3.4: Pre-merging same-firstname variants")
         main_cast = self._merge_same_firstname_variants(main_cast)
         logger.info(f"V2 Step 3.4 complete: {len(main_cast)} after same-firstname merge")
@@ -796,11 +796,12 @@ class CharacterAgent(Agent):
                 logger.warning(f"Narrator re-detection failed: {e}")
 
         # STEP 5.8.5b: Search supporting_cast for narrator name fragments.
-        # When narrator_name was identified (e.g., "Nick Carraway") but not matched
-        # to any main_cast character, the narrator may exist in supporting_cast as
-        # fragments (e.g., "Nick" + "Carraway") that individually fell below the
-        # promotion threshold.  Merge any matches and promote to main_cast BEFORE
-        # the heuristic fallback, which would otherwise pick the wrong character.
+        # When narrator_name was identified but not matched to any main_cast
+        # character, the narrator may exist in supporting_cast as fragments
+        # (e.g., first name + last name separately) that individually fell below
+        # the promotion threshold.  Merge any matches and promote to main_cast
+        # BEFORE the heuristic fallback, which would otherwise pick the wrong
+        # character.
         if (
             narrator_info.narrator_name is not None
             and narrator_info.narrator_character_id is None
@@ -1029,10 +1030,6 @@ class CharacterAgent(Agent):
         """Extract chapter summaries from context."""
         # Try getting from previous_results (SummaryAgent output)
         summaries_result = context.get_result("summaries")
-        logger.info(
-            f"[DIAG] _get_chapter_summaries: summaries_result type={type(summaries_result).__name__ if summaries_result else 'None'}, "
-            f"has_summaries={hasattr(summaries_result, 'summaries') if summaries_result else False}"
-        )
         if summaries_result:
             # SummaryAgent returns a list of ChapterSummary objects or similar
             if hasattr(summaries_result, "summaries"):
@@ -1048,7 +1045,6 @@ class CharacterAgent(Agent):
                     if chars:
                         text = f"[Characters present: {', '.join(chars)}]\n{text}"
                     result.append(text)
-                logger.info(f"[DIAG] _get_chapter_summaries: found {len(result)} summaries via .summaries attribute, total_chars={sum(len(s) for s in result)}")
                 return result
             elif isinstance(summaries_result, list):
                 result = [
@@ -1056,7 +1052,6 @@ class CharacterAgent(Agent):
                     for s in summaries_result
                     if s
                 ]
-                logger.info(f"[DIAG] _get_chapter_summaries: found {len(result)} summaries via list path")
                 return result
 
         # Try getting from chapter_map (summaries may be stored on chapters)
@@ -1067,10 +1062,9 @@ class CharacterAgent(Agent):
                 if hasattr(ch, "summary") and ch.summary:
                     summaries.append(ch.summary)
             if summaries:
-                logger.info(f"[DIAG] _get_chapter_summaries: found {len(summaries)} summaries via chapter_map.chapters")
                 return summaries
 
-        logger.warning("[DIAG] _get_chapter_summaries: no summaries found from any source")
+        logger.warning("No chapter summaries found from any source")
         return []
 
     def _get_chapters(self, context: AgentContext) -> list[StructuralElement]:
@@ -1124,10 +1118,6 @@ class CharacterAgent(Agent):
                 parts = [s.summary for s in summaries_result.summaries if s.summary]
                 if parts:
                     combined = "\n\n".join(parts)
-                    logger.info(
-                        f"[DIAG] _get_plot_summary: constructed from {len(parts)} chapter summaries, "
-                        f"total_chars={len(combined)}"
-                    )
                     return combined
         return None
 
@@ -1151,7 +1141,7 @@ class CharacterAgent(Agent):
         - "Narrator"
         - "the narrator"
         - "The Narrator"
-        - "Nick Carraway (narrator)"
+        - "John Smith (narrator)"
 
         These are descriptive references that should not be separate characters.
 
@@ -1564,8 +1554,8 @@ class CharacterAgent(Agent):
         Strip honorific titles from a name.
 
         Examples:
-        - "Mr. Gatsby" → "Gatsby"
-        - "Mrs. Wilson" → "Wilson"
+        - "Mr. Smith" → "Smith"
+        - "Mrs. Jones" → "Jones"
         - "Dr. Jekyll" → "Jekyll"
         """
         import re
@@ -1662,15 +1652,13 @@ class CharacterAgent(Agent):
         """
         Pre-merge characters that share the same first name but have different last names.
 
-        This handles cases like:
-        - "Daisy" + "Daisy Buchanan" + "Daisy Fay" → all same person (maiden/married name)
+        This handles cases like maiden/married name variants where a character
+        appears under multiple full names sharing the same first name.
 
-        Unlike the Wilson case (George Wilson vs Myrtle Wilson = different people with
-        different first names), same-first-name variants are likely the same person.
-
-        The key insight: When multiple matches share the SAME first name, they're
-        probably the same person. When matches have DIFFERENT first names (like
-        George Wilson vs Myrtle Wilson), they're different people.
+        Characters who share a last name but have DIFFERENT first names are
+        typically different people (e.g., spouses, siblings). But when multiple
+        matches share the SAME first name, they're probably the same person
+        with name variants (maiden name, married name, title variations).
 
         Returns:
             Updated list with same-firstname variants merged
@@ -1706,8 +1694,8 @@ class CharacterAgent(Agent):
             if len(indices) < 2:
                 continue
 
-            # Multiple full names share the same first name (e.g., "Daisy Buchanan", "Daisy Fay")
-            # These are likely the same person with maiden/married names
+            # Multiple full names share the same first name
+            # These are likely the same person with maiden/married name variants
             [(idx, main_cast[idx]) for idx in indices]
 
             # Find the canonical entry: prefer the one with most mentions
@@ -2016,7 +2004,9 @@ class CharacterAgent(Agent):
         creature_terms = {"creature", "monster", "fiend", "daemon", "wretch", "being"}
 
         # Group 2: Human descriptors (when used in "the X" pattern)
-        # These should NOT merge with creature terms
+        # These should NOT merge with creature terms.
+        # Includes age/gender forms, social roles, and occupation titles that
+        # unambiguously denote human persons (universal across genres and eras).
         human_descriptors = {
             "man",
             "woman",
@@ -2033,6 +2023,11 @@ class CharacterAgent(Agent):
             "peasant",
             "sailor",
             "cottager",
+            # Occupation/civic titles — unambiguously human in any literary work
+            "merchant",
+            "magistrate",
+            "officer",
+            "soldier",
         }
 
         split_count = 0

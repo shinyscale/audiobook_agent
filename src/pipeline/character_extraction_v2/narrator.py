@@ -137,19 +137,7 @@ class NarratorDetector:
             plot_summary_section=plot_summary_section,
         )
 
-        logger.info(
-            f"[DIAG] Narrator detection: {len(chapter_summaries)} summaries, "
-            f"{len(main_cast)} main_cast chars: {[c.canonical_name for c in main_cast]}"
-        )
-
         result, response = self.llm.query_json(prompt)
-
-        logger.info(
-            f"[DIAG] Narrator detection LLM response: success={response.success}, "
-            f"result={result}, "
-            f"content_preview={repr(response.content[:300]) if response.content else 'None'}, "
-            f"error={response.error}"
-        )
 
         if not response.success or result is None:
             logger.warning(f"Narrator detection failed: {response.error}")

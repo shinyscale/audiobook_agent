@@ -318,13 +318,6 @@ class MainCastExtractor:
             logger.warning("No chapter summaries provided for main cast extraction")
             return []
 
-        total_summary_chars = sum(len(s) for s in chapter_summaries)
-        logger.info(
-            f"[DIAG] main_cast.extract: {len(chapter_summaries)} chapter summaries, "
-            f"total_chars={total_summary_chars}, "
-            f"first_summary_preview={repr(chapter_summaries[0][:200]) if chapter_summaries else 'N/A'}"
-        )
-
         # Pre-warm competitor models for true parallel execution
         # This ensures all models are loaded into Ollama memory before analysis
         if self._use_competitive_consensus():
@@ -436,16 +429,8 @@ class MainCastExtractor:
         if pattern_section:
             prompt = prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
-        logger.info(f"[DIAG] Single-pass: summaries_text_length={len(summaries_text)}, plot_section_length={len(plot_section)}")
-
         # Query LLM
         result, response = self.llm.query_json(prompt)
-
-        logger.info(
-            f"[DIAG] Single-pass LLM response: success={response.success}, "
-            f"content_preview={repr(response.content[:400]) if response.content else 'None'}, "
-            f"error={response.error}"
-        )
 
         if not response.success:
             logger.error(f"LLM query failed: {response.error}")
@@ -457,7 +442,6 @@ class MainCastExtractor:
 
         # Parse the result into profiles
         profiles = self._parse_profiles(result)
-        logger.info(f"[DIAG] Single-pass parsed: {len(profiles)} profiles from result type={type(result).__name__}")
         return profiles
 
     def _extract_two_pass(self, summaries_text: str, plot_section: str, pattern_hints: Optional[dict] = None) -> list[MainCastProfile]:
@@ -481,15 +465,7 @@ class MainCastExtractor:
         if pattern_section:
             pass1_prompt = pass1_prompt.replace("CHAPTER SUMMARIES:", pattern_section + "\nCHAPTER SUMMARIES:")
 
-        logger.info(f"[DIAG] Two-pass Pass 1: summaries_text_length={len(summaries_text)}, plot_section_length={len(plot_section)}")
-
         result, response = self.llm.query_json(pass1_prompt)
-
-        logger.info(
-            f"[DIAG] Two-pass Pass 1 LLM response: success={response.success}, "
-            f"content_preview={repr(response.content[:400]) if response.content else 'None'}, "
-            f"error={response.error}"
-        )
 
         if not response.success:
             logger.error(f"Pass 1 LLM query failed: {response.error}")
@@ -501,7 +477,6 @@ class MainCastExtractor:
 
         # Parse Pass 1 results
         initial_characters = self._parse_pass1_results(result)
-        logger.info(f"[DIAG] Pass 1 parsed: {len(initial_characters)} characters from result type={type(result).__name__}, result_preview={repr(str(result)[:200])}")
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
         # Pass 2: Alias Resolution for each character
@@ -884,7 +859,7 @@ class MainCastExtractor:
 
                 # RULE 2: Co-occurrence check
                 # The alias should appear in summaries that also mention the canonical name
-                # Exception: If alias is a substring of canonical (e.g., "Gatsby" in "Jay Gatsby"),
+                # Exception: If alias is a substring of canonical (e.g., last name in full name),
                 # skip co-occurrence check as it's inherently valid
                 if alias_lower in canonical_lower or canonical_lower in alias_lower:
                     # Substring relationship - inherently valid
@@ -950,8 +925,8 @@ class MainCastExtractor:
                         canonical_parts = profile.canonical_name.lower().split()
                         alias_parts = alias.lower().split()
 
-                        # If they share ANY name part (e.g., "Gatsby"), allow the merge
-                        # This handles birth names like "James Gatz" → "Jay Gatsby" (both have "Gat*")
+                        # If they share ANY name part, allow the merge
+                        # This handles birth/married name variants with shared components
                         shared_parts = set(canonical_parts) & set(alias_parts)
 
                         # Also check for partial matches (e.g., "Gatz" vs "Gatsby")
@@ -1366,10 +1341,14 @@ class MainCastExtractor:
 
         logger.info("Running competitive alias verification")
 
-        # Create a summary context for the LLM
-        all_summaries = "\n".join(chapter_summaries[:5])  # First 5 chapters for context
-        if len(all_summaries) > 3000:
-            all_summaries = all_summaries[:3000] + "..."
+        # Create a summary context for the LLM.
+        # Use ALL chapter summaries (not just the first 5) so characters introduced
+        # in later chapters have context for accurate alias voting. Sampling only the
+        # first few chapters causes false rejections for characters appearing mid-book
+        # and false acceptances when the LLM lacks enough context to distinguish them.
+        all_summaries = "\n".join(chapter_summaries)
+        if len(all_summaries) > 10000:
+            all_summaries = all_summaries[:10000] + "..."
 
         verified_profiles = []
 
@@ -1513,8 +1492,8 @@ Return JSON:
         - "Mr. Sloane" + "Mr. McKee" → True (different surnames with same title = different people)
         - "Mr. Smith" + "Mrs. Smith" → True (different titles = different people)
         - "Catherine" + "Mrs. McKee" → True (one has title + different surname = different people)
-        - "Jay Gatsby" + "Gatsby" → False (no title conflict)
-        - "Mr. Gatsby" + "Gatsby" → False (same person with/without title)
+        - "Jay Smith" + "Smith" → False (no title conflict)
+        - "Mr. Smith" + "Smith" → False (same person with/without title)
         - "Mr. White" + "father" → False (generic descriptor = valid alias)
         - "Mrs. White" + "the old woman" → False (generic descriptor = valid alias)
 
@@ -1591,15 +1570,13 @@ Return JSON:
 
         # Case 2: One has title, other doesn't
         # If the titled surname doesn't match the untitled name at all, different people
-        # "Catherine" (single name) + "Mrs. McKee" → different people
-        # "Gatsby" + "Mr. Gatsby" → same person
         elif match1 and not match2:
             # name1 has title, name2 doesn't
             surname1 = match1.group(2).strip().lower()
             name2_lower = name2.lower()
 
             # If the untitled name is NOT contained in the surname, different people
-            # Exception: substring relationships are OK ("Gatsby" in "Mr. Gatsby")
+            # Exception: substring relationships are OK (e.g., "Smith" in "Mr. Smith")
             if name2_lower not in surname1 and surname1 not in name2_lower:
                 return True
 
