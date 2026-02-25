@@ -74,8 +74,9 @@
     {
       "name": "gatsby",
       "file": "Test_Texts/gatsby.txt",
-      "complete": false,
-      "attempts": 8
+      "complete": true,
+      "attempts": 9,
+      "final_score": 8.88
     },
     {
       "name": "frankenstein",
