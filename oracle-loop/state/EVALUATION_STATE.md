@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 9)
+- Completed in 79m 33s, 239 LLM calls, 381,643 tokens
+- 9 chapters detected, 20 characters extracted (+1 from attempt 8), 129 pronunciation entries
+- No F3 error this time (Fix X — moral valence list guard resolved)
+- Fix Y (evidence-to-relationship): impact TBD — awaiting evaluation
+- Fix Z (best-context physical description): impact TBD — awaiting evaluation
+- 20th character: likely a new minor character now crossing threshold
 
 ## Pipeline Notes (Attempt 8)
 - Completed in 77m 47s, 227 LLM calls, 357,689 tokens
