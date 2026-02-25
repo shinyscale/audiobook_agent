@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -114,6 +114,7 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.20 | - | Baseline. Creature/Turkish merchant merge is primary blocker. |
+| 2 | TBD | TBD | Fix 1+2 applied: expanded competitive context to all chapters, added occupation titles to semantic split. |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
@@ -139,9 +140,19 @@
 - Profiling data: All timing/retry fields are null — not useful for diagnosis
 - No obvious config issues contributing to the character merge problem
 
+## Pipeline Notes (Attempt 2)
+- Runtime: 136m 53s | 424 LLM calls | 805,453 tokens
+- 21 characters found (6 added via reconciliation)
+- The creature: standalone ✓ (aliases: "the monster", "the fiend" — 103 mentions)
+- Semantic conflict detection fired: "old man (De Lacey)" correctly NOT aliased to "The creature" ✓
+- Robert Walton: epistolary narrator detected ✓
+- Alphonse's relational aliases ("Victor's father", "the narrator's father") BLOCKED by co-occurrence check — needs evaluation
+- Structure: 27 boundaries found vs 31 expected (TOC mismatch — ongoing issue)
+- LLM marker proposer returned non-list (dict) for all 30 structure proposers — recurring issue
+
+## Output Files (Attempt 2)
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
 ## Next Action
-Re-run analysis to verify fix. Expected improvements:
-1. **CRITICAL #1:** the Creature should now be a standalone character with proper aliases (daemon, monster, etc.)
-2. **CRITICAL #2:** Alphonse Frankenstein should now appear (aliases "Father"/"Victor's father" should pass competitive voting with full context)
-3. **CRITICAL #4:** Turkish merchant should no longer be flagged as narrator
-4. Remaining issues (relationships, physical descriptions, structure Letter 1) to be addressed in subsequent fix rounds.
+Evaluate attempt 2 output.
