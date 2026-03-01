@@ -3,14 +3,14 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_053706/
+- Dated dir: ../output/Frankenstein_ebook_20260301_081841/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -351,5 +351,17 @@ Add a post-correction that validates relationships against chapter co-occurrence
 - character_llm_chunk_chars: 5000 — relatively small but 0 retries suggests it's working
 - No configuration changes recommended — the primary issue is profile generation quality, not config parameters
 
+## Pipeline Notes (Attempt 8)
+- Completed in 127m 49s (358 LLM calls, 663,384 tokens)
+- 19 characters found across 28 chapters
+- Key BLOCKED aliases observed:
+  - "the monster", "the fiend", "the demon" blocked from "the creature" (claimed by another character — likely "the fiend" phantom entry)
+  - "the daemon" blocked (not found in summaries)
+  - Several creature aliases blocked as hallucinated (not in summaries)
+- Bidirectional "child" label removed: Victor↔William
+- Bidirectional "cousin" label removed: Elizabeth↔William
+- Beaufort: no passages provided, returned UNCERTAIN
+- Fixes 1-4 from attempt 8 all ran
+
 ## Next Action
-Run PROMPT_fix.md to address profile relationship gaps (Critical #1, #2) and presentation issues (Medium #6, #7).
+Run PROMPT_evaluate.md to evaluate the output.
