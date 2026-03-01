@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -335,5 +335,19 @@ Add a post-correction rule: if a character has 3+ relationships ALL with the sam
 - 0 retries across all stages ✓
 - No configuration changes recommended — profile post-corrections are the primary issue, not model config
 
+## Attempt 9 Fixes Applied
+
+### Fix 1: Move `fix_bidirectional_parent_labels` to after text verification
+- **Root cause:** `verify_relationships_from_text` (line 723) ran AFTER `fix_bidirectional_parent_labels` (line 720) and overrode "sibling" back to "father". The source text contains "father" near co-mentioned siblings (e.g., De Lacey is their father, so "father" appears near Felix and Agatha) — the regex matched the wrong "father".
+- **Fix:** Move `fix_bidirectional_parent_labels` call to after BOTH `verify_relationships_from_text` AND `reject_unfounded_familial_labels`.
+- **Modified:** `src/pipeline/character_profiling/post_corrections.py` — `run_all()` order
+- **Expected impact:** Felix↔Agatha and Victor↔William bidirectional "father" → "sibling" (+0.5 Profiles)
+
+### Fix 2: Remove `enrich_zero_relationships_from_summaries` from `run_all`
+- **Root cause:** The enrichment used regex to find family terms near character co-occurrences in summaries, but the regex matched "father" that referred to a THIRD character (Alphonse near Victor+William, De Lacey near Safie+Felix). Additionally, `reject_unfounded_familial_labels` correctly removed Safie's wrong "father" labels, but the enrichment ran LAST and re-added them since Safie became zero-relationship.
+- **Fix:** Remove `enrich_zero_relationships_from_summaries` from `run_all`. The 2 correct relationships it added (Walton↔Margaret "sister") don't outweigh the ~6 wrong ones it introduced. The method code is preserved in case it's needed later.
+- **Modified:** `src/pipeline/character_profiling/post_corrections.py` — `run_all()` order
+- **Expected impact:** Removes Walton→Beaufort:"father", Beaufort→Walton:"son", Elizabeth→Beaufort:"associated", Justine→Beaufort:"associated", and prevents Safie's all-"father" labels from being re-added after `reject_unfounded_familial_labels` removes them (+0.5 Profiles)
+
 ## Next Action
-Run PROMPT_fix.md to debug Fix 2 (bidirectional parent), fix/remove enrichment, and address De Lacey/Safie labels.
+Re-run analysis to verify fix.

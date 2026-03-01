@@ -717,17 +717,17 @@ class OutputCharacterCorrector:
         self.clean_plot_summary_personality(characters, source_text)
         self.propagate_physical_description(characters, source_text)
         self.extract_relationships_from_evidence(characters)
-        self.fix_bidirectional_parent_labels(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
+        # fix_bidirectional_parent_labels must run AFTER verify_relationships_from_text,
+        # which overrides relationships based on text evidence and can re-introduce
+        # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
+        # refers to their shared parent, not their relationship to each other).
+        self.fix_bidirectional_parent_labels(characters)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
-        # Summary enrichment runs LAST so inferred relationships are not removed by
-        # reject_unfounded_familial_labels (which checks source text only, not summaries).
-        # Chapter summaries are a reliable, explicit source for family/social relationships.
-        self.enrich_zero_relationships_from_summaries(characters, chapter_summaries or [])
 
     def extract_relationships_from_evidence(self, characters) -> None:
         """Mine evidence statements to populate missing relationships.
