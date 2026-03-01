@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_081841/
+- Dated dir: ../output/Frankenstein_ebook_20260301_104013/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -350,4 +350,16 @@ Add a post-correction rule: if a character has 3+ relationships ALL with the sam
 - **Expected impact:** Removes Walton→Beaufort:"father", Beaufort→Walton:"son", Elizabeth→Beaufort:"associated", Justine→Beaufort:"associated", and prevents Safie's all-"father" labels from being re-added after `reject_unfounded_familial_labels` removes them (+0.5 Profiles)
 
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate attempt 9 output.
+
+## Attempt 9 Pipeline Notes
+- Analysis completed in 126m 40s
+- 28 chapters detected (28 expected per TOC)
+- 20 characters with profiles (started at 25, after F6 added 5 from summaries, then 20 eligible got profiles)
+- Narrator detected: Robert Walton (epistolary)
+- KEY OBSERVATION: "the monster" is STILL blocked as already claimed by another cast member — investigate who claims it
+- "the fiend", "the demon", "the devil" also blocked for "the creature" as claimed by other
+- "Removing contradictory relationship: 'Victor Frankenstein'→'the creature'='creator'" — this was expected and good
+- "Removing contradictory relationship: 'Victor Frankenstein'→'William Frankenstein'='child'" — should now be siblings after fix
+- LLM validation errors for pronunciation are expected (model refuses non-English words)
+- Competitive consensus: ENABLED (3 LLMs, 2/3 supermajority), stages: characters, structure, summaries
