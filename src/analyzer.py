@@ -1373,6 +1373,10 @@ class AudiobookAnalyzer:
                     """Extract base descriptor from 'the X' pattern."""
                     name_lower = name.lower().strip()
 
+                    # Normalize Unicode ligatures to ASCII for synonym matching
+                    # (e.g., 'dæmon' → 'daemon', 'œuvre' → 'oeuvre')
+                    name_lower = name_lower.replace("æ", "ae").replace("œ", "oe")
+
                     # Strip "the ", "a ", "an " prefixes
                     for prefix in ["the ", "a ", "an "]:
                         if name_lower.startswith(prefix):

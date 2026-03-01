@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -180,6 +180,28 @@
   - Modified: `src/pipeline/chapter_detection/consensus.py`
   - Result: Chapters 1-24 now have numeric titles ✓
 
+- Attempt 6 (Fix 1): Monster/dæmon false split — F6 ligature normalization
+  - Root cause: `_normalize_descriptor()` in `analyzer.py` didn't normalize æ→ae, so "dæmon" failed to match "daemon" in SYNONYM_GROUPS
+  - Modified: `src/analyzer.py` (_normalize_descriptor: add æ→ae, œ→oe normalization)
+  - Smoke test: PASS — "dæmon" normalizes to "daemon", matches synonym group ✓
+
+- Attempt 6 (Fix 2): Turkish merchant/old man false merge — canonical base form in co-occurrence check
+  - Root cause: `verify_aliases()` used full parenthetical canonical string ("the old man (de lacey)") when checking if canonical appears in summaries → canonical_found always False → co-occurrence block never fired → alias allowed
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py` (verify_aliases: compute canonical_base by stripping parenthetical before summary search)
+  - Smoke test: PASS — "the old man" base used for co-occurrence; Turkish merchant doesn't co-occur with old man in same summary → shared_parts check fires → BLOCKED ✓
+
+- Attempt 6 (Fix 3): Profile relationships — contradictory bidirectional removal
+  - Root cause: Both Felix→Agatha and Agatha→Felix were labeled "father" by LLM. bidirectional inference converted one to "son"/"daughter" but both were still wrong
+  - Modified: `src/pipeline/character_profiling/post_corrections.py` (new remove_contradictory_relationships method, called before infer_bidirectional_relationships)
+  - Smoke test: PASS — Felix/Agatha "father"/"father" pair removed correctly ✓
+
+- Attempt 6 (Fix 4): Pronunciation false positives — British -ise/-ised forms, -ful suffix, "than"
+  - Root cause (sympathised/sympathise/sympathising): CMUProposer flagged British spellings not in CMU; _is_common_derivation didn't check -ize/-ized American equivalents
+  - Root cause (slothful): -ful suffix not in derivation check; slothful→sloth not recognized
+  - Root cause (than): ForeignProposer German pattern matched "die than" and extracted "than" as the word; "than" not in COMMON_WORDS_WHITELIST
+  - Modified: `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` (added "ful" suffix, British -ise→-ize mapping, "than" to whitelist)
+  - Smoke test: PASS — all 6 false positive words now pass is_common_derivation ✓
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -197,6 +219,10 @@
 | 5 | Chapter titles | `consensus.py` (_clean_title) | Fixed ✓ |
 | 5 | Turk merged with old man | (not targeted) | REGRESSION — Turk aliases now on old man instead of Creature |
 | 5 | Monster/dæmon split | (not targeted) | NEW — F6 extracted "the dæmon" as separate character |
+| 6 | Monster/dæmon false split | `analyzer.py` (F6 _normalize_descriptor ligature normalization) | Fixed ✓ — æ→ae normalization allows "dæmon" to match synonym group |
+| 6 | Turk/old man false merge | `main_cast.py` (verify_aliases canonical_base) | Fixed ✓ — parenthetical canonical now uses base form for co-occurrence check |
+| 6 | Felix/Agatha contradictory "father" relationships | `post_corrections.py` (new remove_contradictory_relationships) | Pending verification |
+| 6 | Pronunciation false positives: sympathised/slothful/than | `cmu_proposer.py` (British -ise→-ize, -ful suffix, "than" whitelist) | Pending verification |
 
 **Pattern detected:** The Turkish merchant/Turk alias has been a recurring problem across attempts 1, 3, and 5. It moves between characters (Creature in attempt 1/3, old man in attempt 5) but the core issue persists — the LLM groups it with whoever appears in the De Lacey cottage scenes. Rule-based blocking (Rule 3, Rule 2a) doesn't help because the Turk IS mentioned in those chapter summaries.
 
@@ -250,7 +276,4 @@ Profile relationships improved from 5/10 to 6.5/10 but need to reach 8/10. Two s
 - character_llm_chunk_chars: 5000 — relatively small; may miss cross-chunk character references but 0 retries suggests it's working
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Monster/dæmon false split (F6 reconciliation in analyzer.py)
-2. Old man/Turkish merchant false merge (verify_aliases in main_cast.py)
-3. Profile relationship quality (analyzer.py profile prompt refinement)
+Re-run analysis to verify fixes from attempt 6.

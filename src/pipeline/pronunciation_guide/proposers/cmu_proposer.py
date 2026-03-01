@@ -55,6 +55,7 @@ COMMON_WORDS_WHITELIST = {
     "so",
     "yet",
     "if",
+    "than",
     "though",
     "although",
     "because",
@@ -784,6 +785,7 @@ class CMUProposer(BasePronunciationProposer):
             "er",     # faster, taller
             "y",      # filmy, cloudy
             "less",   # thriftless (thrift), useless (use), harmless (harm), hopeless (hope)
+            "ful",    # slothful (sloth), truthful (truth), hopeful (hope)
             # Noun suffixes
             "ness",   # happiness, sadness
             "ment",   # enjoyment, improvement
@@ -824,6 +826,21 @@ class CMUProposer(BasePronunciationProposer):
             if word_lower.startswith(prefix) and len(word_lower) > len(prefix) + 3:
                 remainder = word_lower[len(prefix):]
                 if _check_suffix_on(remainder):
+                    return True
+                # Also try British-to-American spelling on the remainder
+                for brit, amer in [("ising", "izing"), ("ised", "ized"), ("ise", "ize")]:
+                    if remainder.endswith(brit):
+                        american_remainder = remainder[:-len(brit)] + amer
+                        if american_remainder in self.known_words or _check_suffix_on(american_remainder):
+                            return True
+
+        # British -ise/-ised/-ising spellings: check if the American -ize/-ized/-izing
+        # form is in CMU. These are standard British English variants, not foreign words.
+        # e.g., "sympathise" → "sympathize", "sympathised" → "sympathized"
+        for brit_suffix, amer_suffix in [("ising", "izing"), ("ised", "ized"), ("ise", "ize")]:
+            if word_lower.endswith(brit_suffix):
+                american_form = word_lower[:-len(brit_suffix)] + amer_suffix
+                if american_form in self.known_words:
                     return True
 
         return False

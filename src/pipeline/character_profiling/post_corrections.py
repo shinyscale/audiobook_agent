@@ -286,6 +286,7 @@ class PipelineCharacterCorrector:
     def run_all(self, characters, source_text: str) -> None:
         """Run all Phase A corrections in order. Mutates characters in place."""
         self.inject_narrator_appearance(characters, source_text)
+        self.remove_contradictory_relationships(characters)
         self.infer_bidirectional_relationships(characters)
         self.fix_same_name_contamination(characters)
         self.remove_unsupported_death_claims(characters)
@@ -335,6 +336,57 @@ class PipelineCharacterCorrector:
                         f"Post-profile narrator injection skipped: sparse description "
                         f"for '{char.canonical_name}': {cleaned[:60]!r}"
                     )
+
+    def remove_contradictory_relationships(self, characters) -> None:
+        """Remove relationships where both A→B and B→A carry the same
+        non-symmetric label (e.g., both "father"), which is logically impossible.
+
+        This runs BEFORE bidirectional inference so that the inference step
+        does not propagate wrong labels. For example, if the LLM erroneously
+        labels Felix→Agatha='father' AND Agatha→Felix='father' (they are
+        actually siblings), both are removed rather than one being silently
+        flipped to 'son'/'daughter'.
+        """
+        char_by_name = {c.canonical_name: c for c in characters}
+        to_remove: list[tuple[object, str]] = []  # (char_object, other_name) pairs to remove
+
+        seen_pairs: set[frozenset] = set()
+        for char_a in characters:
+            rels_a = getattr(char_a, "relationships", None) or {}
+            for other_name, rel_a in list(rels_a.items()):
+                if not isinstance(rel_a, str):
+                    continue
+                rel_a_lower = rel_a.strip().lower()
+                if rel_a_lower in _SYMMETRIC_RELATIONSHIPS:
+                    continue  # symmetric labels are valid both ways
+
+                pair = frozenset({char_a.canonical_name, other_name})
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+
+                char_b = char_by_name.get(other_name)
+                if not char_b:
+                    continue
+                rels_b = getattr(char_b, "relationships", None) or {}
+                rel_b = rels_b.get(char_a.canonical_name, "")
+                if not isinstance(rel_b, str):
+                    continue
+                rel_b_lower = rel_b.strip().lower()
+
+                # Both sides carry the same asymmetric label → impossible
+                if rel_a_lower == rel_b_lower and rel_a_lower not in _SYMMETRIC_RELATIONSHIPS:
+                    logger.warning(
+                        f"Removing contradictory relationship: "
+                        f"'{char_a.canonical_name}'→'{other_name}'='{rel_a}' AND "
+                        f"'{other_name}'→'{char_a.canonical_name}'='{rel_b}' "
+                        f"(identical non-symmetric label is logically impossible)"
+                    )
+                    to_remove.append((rels_a, other_name))
+                    to_remove.append((rels_b, char_a.canonical_name))
+
+        for rel_dict, key in to_remove:
+            rel_dict.pop(key, None)
 
     def infer_bidirectional_relationships(self, characters) -> None:
         """Infer reverse relationships.

@@ -918,12 +918,20 @@ class MainCastExtractor:
                     continue
 
                 # Check co-occurrence in summaries
+                # Use base canonical form (strip parenthetical) for searching, since the full
+                # string "the old man (De Lacey)" never appears literally in summaries but
+                # "the old man" does. Without this, canonical_found is always False for
+                # parenthetical canonical names, bypassing the co-occurrence block entirely.
+                canonical_base = canonical_lower
+                if " (" in canonical_base:
+                    canonical_base = canonical_base.split(" (")[0].strip()
+
                 canonical_found = False
                 alias_found = False
 
                 for summary in chapter_summaries:
                     summary_lower = summary.lower()
-                    if canonical_lower in summary_lower:
+                    if canonical_base in summary_lower:
                         canonical_found = True
                     if alias_lower in summary_lower:
                         alias_found = True
@@ -941,11 +949,11 @@ class MainCastExtractor:
 
                 # Block only when both appear but NEVER in the same summary AND share no name parts.
                 if canonical_found and alias_found:
-                    # Check if they ever co-occur in the same summary
+                    # Check if they ever co-occur in the same summary (use base canonical form)
                     cooccur = False
                     for summary in chapter_summaries:
                         summary_lower = summary.lower()
-                        if canonical_lower in summary_lower and alias_lower in summary_lower:
+                        if canonical_base in summary_lower and alias_lower in summary_lower:
                             cooccur = True
                             break
 
