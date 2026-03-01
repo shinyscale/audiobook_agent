@@ -2,17 +2,20 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_130625/
+- Dated dir: ../output/Frankenstein_ebook_20260301_144611/
 
 ## Latest Scores
+(Awaiting evaluation — attempt 11 just completed)
+
+**Previous (Attempt 10):**
 - Structure Detection: 8.5/10 ✓
 - Character Extraction: 8.5/10 ✓
   - Completeness: 8/10
@@ -22,10 +25,40 @@
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.23/10** (reference only)
+- **Overall: 8.23/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** AWAITING EVALUATION
+
+## Pipeline Notes — Attempt 11
+
+### Run Statistics
+- Runtime: 82m 53s
+- Chapters: 28 (up from 27)
+- Characters: 18
+- Pronunciation flags: 196
+
+### Critical Issue: Ollama Connection Failures During Profiles
+**Only 4/19 character profiles were generated.** Ollama dropped connections mid-run during the profile generation phase (starting from Justine Moritz). Error: `[Errno 111] Connection refused`. Possible causes: model unloaded from VRAM between stages, memory pressure, or Ollama crash.
+
+The 4 successful profiles used 12 LLM calls (3 per character). All remaining 15 characters failed all 3 retry attempts.
+
+LLM failures also hit:
+- ALL pronunciation enrichment calls
+- Plot summary generation
+- First-appearance queries
+
+**Impact on scores:** Character Profiles will score very poorly (most profiles empty/skeleton). This will likely be a FAIL for this run.
+
+### Character Alias Concerns
+The alias blocking logs show "the creature" and "the dæmon" are still separate entries competing for synonyms. The creature synonym recovery from attempt 10 Fix 1 may not have merged them this time (non-deterministic LLM behavior). Evaluator should check if creature/dæmon appear as one or two characters in the JSON.
+
+### What was Fixed (Attempt 11)
+- Fix 1: Co-occurrence enrichment bug (temp dict write issue) — smoke tested PASS
+- Fix 2: Romantic label validation (De Lacey↔monster) — smoke tested PASS
+Both fixes should apply if profiles were generated. With mostly empty profiles, the fixes had no material data to work on.
+
+---
 
 ## What Changed from Attempt 9
 
