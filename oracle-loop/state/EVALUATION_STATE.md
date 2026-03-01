@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_003644/
+- Dated dir: ../output/Frankenstein_ebook_20260301_031042/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -275,5 +275,26 @@ Profile relationships improved from 5/10 to 6.5/10 but need to reach 8/10. Two s
 - Chapter Summaries: 0 LLM calls (cached from previous run)
 - character_llm_chunk_chars: 5000 — relatively small; may miss cross-chunk character references but 0 retries suggests it's working
 
+## Pipeline Notes (Attempt 6)
+- Analysis completed in 128m 39s (exit code 0)
+- 21 characters found (25 raw → 21 after merges)
+- 8 characters added via F6 reconciliation
+- Chapter summaries: 0 LLM calls (cached from previous run)
+- the creature aliases: "the monster, the wretch" — NO dæmon false split ✓ (Fix 1 worked)
+- the old man: "the old man (De Lacey)" — Turk aliases NOT visible in summary ✓ (Fix 2 worked)
+- Chapter structure: 28 chapters found
+
+**CRITICAL REGRESSION OBSERVED in pipeline output:**
+`remove_contradictory_relationships` (Fix 3) is over-firing — it removes ALL cases where A→B and B→A have the same label. This incorrectly removes valid SYMMETRIC relationships:
+- Victor→Elizabeth="romantic interest" AND Elizabeth→Victor="romantic interest" → BOTH REMOVED (wrong!)
+- Robert Walton→Margaret="sibling" AND Margaret→Robert Walton="sibling" → BOTH REMOVED (wrong!)
+- Felix→Agatha="sibling" AND Agatha→Felix="sibling" → BOTH REMOVED (wrong!)
+- M. Waldman→M. Krempe="colleague" AND M. Krempe→M. Waldman="colleague" → BOTH REMOVED (wrong!)
+- Victor→creature="creator" AND creature→Victor="creator" → BOTH REMOVED (the second one was wrong, but both removed means no relationship at all)
+
+The fix targeted Felix/Agatha "father"/"father" but is too broad. Needs to be narrowed to only non-symmetric labels (parent, creator, mentor, etc.) not symmetric ones (sibling, romantic interest, colleague).
+
+This likely caused Character Profiles to WORSEN from attempt 5. Needs fix in attempt 7.
+
 ## Next Action
-Re-run analysis to verify fixes from attempt 6.
+Evaluate attempt 6 output. Expect Fix 1 (dæmon) and Fix 2 (Turk/old man) to show improvement, but Fix 3 (contradictory relationships) likely caused regression in profiles.
