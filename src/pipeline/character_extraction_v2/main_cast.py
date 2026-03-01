@@ -650,11 +650,38 @@ class MainCastExtractor:
             f"{[(p.canonical_name, p.aliases) for p in profiles]}"
         )
 
+        # Pre-build a snapshot of all names/aliases per profile BEFORE any modification.
+        # Used by Rule 3 (cross-character conflict) to block aliases that belong to a
+        # different character in the same cast.
+        profile_names: dict[int, set[str]] = {}
+        for p in profiles:
+            names = {p.canonical_name.lower()}
+            for a in p.aliases:
+                names.add(a.lower())
+            profile_names[id(p)] = names
+
+        # Kinship terms: aliases using these words are used INSTEAD of proper names
+        # in first-person narration and may not appear verbatim in summaries.
+        _KINSHIP_TERMS = {
+            "father", "mother", "brother", "sister",
+            "son", "daughter", "uncle", "aunt",
+            "nephew", "niece", "cousin", "grandfather",
+            "grandmother", "grandson", "granddaughter",
+            "husband", "wife", "spouse", "partner",
+            "parent", "child", "guardian", "ward",
+        }
+
         verified_profiles = []
 
         for profile in profiles:
             canonical_lower = profile.canonical_name.lower()
             verified_aliases = []
+
+            # Build the union of all other characters' names/aliases for conflict detection
+            other_aliases: set[str] = set()
+            for p_id, names in profile_names.items():
+                if p_id != id(profile):
+                    other_aliases.update(names)
 
             for alias in profile.aliases:
                 alias_lower = alias.lower()
@@ -857,6 +884,18 @@ class MainCastExtractor:
                             f"(_are_different_titled_people returned False)"
                         )
 
+                # RULE 3: Cross-character conflict check
+                # If an alias already belongs to another character in this cast, it's
+                # theirs — not this character's (catches narrator-subject confusion).
+                # Skip when alias is a substring of this canonical name (own components ok).
+                if alias_lower in other_aliases and alias_lower not in canonical_lower:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is already claimed as a name or alias "
+                        f"by another character in this cast — cannot be an alias for "
+                        f"'{profile.canonical_name}'"
+                    )
+                    continue
+
                 # RULE 2: Co-occurrence check
                 # The alias should appear in summaries that also mention the canonical name
                 # Exception: If alias is a substring of canonical (e.g., last name in full name),
@@ -877,6 +916,21 @@ class MainCastExtractor:
                         canonical_found = True
                     if alias_lower in summary_lower:
                         alias_found = True
+
+                # RULE 2a: Block aliases absent from all summaries
+                # The two-pass extraction resolves aliases FROM summaries.  If an alias
+                # is not found in any summary verbatim, the LLM invented it from background
+                # knowledge rather than from the provided text — block it.
+                # Exception: kinship terms ("my father", "his mother") are often paraphrased
+                # in third-person summaries and won't appear verbatim, so allow them.
+                if not alias_found:
+                    alias_tokens = set(alias.lower().split())
+                    if not (alias_tokens & _KINSHIP_TERMS) and alias_lower not in canonical_lower:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' for '{profile.canonical_name}' "
+                            f"not found in any chapter summary (likely hallucinated)"
+                        )
+                        continue
 
                 # If alias appears but canonical doesn't, they might not be the same person
                 # However, this is a weak signal (summaries might use one name more than the other)
@@ -919,15 +973,12 @@ class MainCastExtractor:
                     # endregion
 
                     if not cooccur:
-                        # Before blocking, check if they share a surname
-                        # Birth names / former identities often don't co-occur (flashback vs present)
-                        # but should still be merged if they share part of the name
-                        canonical_parts = profile.canonical_name.lower().split()
-                        alias_parts = alias.lower().split()
-
-                        # If they share ANY name part, allow the merge
-                        # This handles birth/married name variants with shared components
-                        shared_parts = set(canonical_parts) & set(alias_parts)
+                        # Check if they share a meaningful name part (excluding stop words
+                        # so "the creature" and "the Turk" don't share "the" as a name part).
+                        _SW = {"the","a","an","of","and","or","in","on","at","for","with","by","to","from"}
+                        canonical_parts = {p for p in profile.canonical_name.lower().split() if p not in _SW}
+                        alias_parts = {p for p in alias.lower().split() if p not in _SW}
+                        shared_parts = canonical_parts & alias_parts
 
                         # Also check for partial matches (e.g., "Gatz" vs "Gatsby")
                         has_similar_part = False
@@ -943,14 +994,6 @@ class MainCastExtractor:
                         # "old Frankenstein" use kinship terms that are naturally
                         # used INSTEAD of proper names, so co-occurrence will
                         # always fail. Allow them unconditionally.
-                        _KINSHIP_TERMS = {
-                            "father", "mother", "brother", "sister",
-                            "son", "daughter", "uncle", "aunt",
-                            "nephew", "niece", "cousin", "grandfather",
-                            "grandmother", "grandson", "granddaughter",
-                            "husband", "wife", "spouse", "partner",
-                            "parent", "child", "guardian", "ward",
-                        }
                         alias_tokens = set(alias.lower().split())
                         is_kinship = bool(alias_tokens & _KINSHIP_TERMS)
 

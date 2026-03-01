@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -219,4 +219,19 @@ This is a profile-stage issue, likely in `src/pipeline/character_extraction_v2/`
 ### Do NOT attempt to fix summaries (8.5/10) — they pass threshold.
 
 ## Next Action
-Run PROMPT_fix.md to address Critical #1 (Creature false aliases — regression) and Critical #2 (Alphonse — escalation).
+Re-run analysis to verify fixes.
+
+---
+
+## Fix History (continued)
+
+- Attempt 4 (Fix 1): Three algorithmic fixes to `verify_aliases()` in `main_cast.py`:
+  - **Fix A (shared_parts stop-words)**: Filter stop words ("the", "a", "an", etc.) from `shared_parts` calculation in the non-co-occurrence escape hatch. Root cause: "the creature" and "the Turk" shared "the" as a name part → alias was ALLOWED despite no co-occurrence. After fix: canonical_parts={"creature"}, alias_parts={"turk"} → shared_parts={} → BLOCKED.
+  - **Fix B (cross-character conflict)**: New Rule 3 — if an alias is already the name or alias of a DIFFERENT character in the cast, block it. Root cause: "De Lacey" co-occurs with "the creature" in summaries (creature narrates about De Laceys) and passes co-occurrence check. After fix: "De Lacey" is Felix De Lacey's alias → blocked for creature.
+  - **Fix C (alias absent from summaries)**: New Rule 2a — if alias_found=False (alias not in any summary verbatim), block it as hallucinated. Root cause: "the Turk (Safie's father)" with parentheses doesn't appear in any summary → old code allowed it through because it skipped the `if canonical_found and alias_found:` block entirely.
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+  - Smoke test: All 44 V2 tests PASS
+
+- Attempt 4 (Fix 2): Upstream summarizer fix for Alphonse missing — changed the "use relationship terms only" rule to "use proper names when stated in the text". Root cause: Alphonse appears only once in source text (as letter signature "Alphonse Frankenstein"), summaries used "his father" instead of the proper name, so F6 reconciliation never found him. New prompt: "Use characters' proper names when stated in the text (e.g., if text names 'his father John', write 'John' not 'his father')." Will cause summaries to include "Alphonse Frankenstein" in the chapter with his letter signature, enabling F6 to extract him.
+  - Modified: `src/pipeline/chapter_summary/summarizer.py` (all 3 prompts: CHUNK_SUMMARY_PROMPT, CONSOLIDATE_PROMPT, SINGLE_CHAPTER_PROMPT)
+  - Universality: ✓ Universal — helps any book where characters are named once but referred to by relationship terms throughout
