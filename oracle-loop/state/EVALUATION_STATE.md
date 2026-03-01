@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -214,5 +214,17 @@ Focus on #1 and #2. If those are fixed, Character Extraction could jump from 5/1
 - This is a universal reference lexicon (kinship terms exist in all cultures/genres)
 - Reverted: incorrect `post_corrections.merge_narrator_fragments` approach and corresponding `analyzer.py` changes
 
+## Pipeline Notes (Attempt 3)
+- Runtime: 140m 32s | 458 LLM calls | 874,774 tokens
+- 23 characters found + 4 from reconciliation = 19 after deduplication/filtering
+- Victor Frankenstein: MERGED as single character with aliases "Victor, Frankenstein" (55 mentions) ✓ — FIX A/B/C verified
+- The creature: 112 mentions, aliases "the monster, the fiend" (NO "De Lacey" alias) ✓ — FIX E verified
+- "the old man" has alias "the old man (De Lacey)" — correct (he is a De Lacey)
+- Semantic conflict split fired: 2 pairs split ("the old man (De Lacey)" and "the old man" correctly NOT aliased to "the creature") ✓
+- Book title still "Contents" (pre-existing issue #11)
+- Stage timings: Structure 9m13s, Summaries 43m54s, Characters 29m42s, Profiles 32m59s, Pronunciation 18m55s
+- Structure: 28 chapters found (vs 27 in attempt 2 — slight improvement)
+- Alphonse: Not visible in preview; need evaluation to confirm if present
+
 ## Next Action
-Re-run analysis to verify fixes (set phase to awaiting_analysis).
+Evaluate attempt 3 output.
