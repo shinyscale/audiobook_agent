@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -18,152 +18,162 @@
   - Completeness: 7/10
   - Identity Resolution: 8.5/10
   - Alias Grouping: 7/10
-- Character Profiles: 6.5/10 ✗ ← primary blocker
+- Character Profiles: 6/10 ✗ ← primary blocker (REGRESSION from 6.5)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 7.5/10 ✗
-- **Overall: 7.80/10** (reference only)
+- HTML Presentation: 8.5/10 ✓ (improved from 7.5)
+- **Overall: 7.83/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (2 categories below threshold)
 
-## What Improved from Attempt 6
+## What Changed from Attempt 7
 
-- **Fix 2 (De Lacey alias on creature) WORKED:** "De Lacey" no longer appears in the creature's aliases. The creature is now "the monster" with alias "the creature" only. ✓
-- **Fix 3 (Professor Krempe alias on Waldman) WORKED:** M. Krempe (supporting_4) is a separate character. M. Waldman (supporting_3) has no false aliases. ✓
-- **Fix 4 ("I" as character) WORKED:** The pronoun "I" is no longer in the character list. ✓
-- **Fix 1 (symmetric relationships) PARTIALLY WORKED:** Victor→creature is now "creation" (no longer "romantic interest" hallucination). However, key symmetric relationships (Victor↔Elizabeth, Walton↔Margaret, Felix↔Agatha "sibling") are still absent — the LLM simply didn't generate them this run, so the symmetric fix had nothing to preserve.
-- **Overall score improved:** 7.40 → 7.80 (+0.40)
-- **Profiles improved:** 5.5 → 6.5 (romantic interest hallucination gone)
-- **Characters improved:** 6.5 → 7.5 (De Lacey, Krempe, "I" all fixed)
+### Fixes that WORKED
+- **Fix 3 (Book title "Contents" → "Frankenstein ebook") WORKED:** HTML title now reads "Frankenstein ebook" derived from filename. ✓
+- **Fix 4 (Letter 1 prologue classification) WORKED:** Letter 1 (null title) now appears as "Prologue 1" in Prologue Materials section. All 4 letters grouped as prologue. ✓
+- Presentation improved: 7.5 → 8.5 (+1.0)
+
+### Fixes that PARTIALLY WORKED
+- **Fix 1 (summary-based relationship enrichment) PARTIALLY WORKED:** Added relationships for 5 previously-empty characters (Walton, Elizabeth, William, Margaret, Safie — Ernest still empty). However, many added relationships have WRONG labels:
+  - Walton→Margaret: "sister" ✓ (correct)
+  - Margaret→Walton: "sister" ✓ (correct)
+  - Walton→Beaufort: "father" ✗ (WRONG — no family connection)
+  - Victor→William: "father" ✗ (WRONG — they are BROTHERS)
+  - William→Victor: "father" ✗ (WRONG — brothers)
+  - Elizabeth→Beaufort: "associated" ✗ (WRONG — no direct relationship)
+  - Justine→Beaufort: "associated" ✗ (persistent from attempt 7)
+  - Beaufort→Walton: "son" ✗ (WRONG — reverse of wrong Walton→Beaufort)
+  - Net effect: more relationships exist but many are WRONG → slight profiles regression
+
+### Fixes that DID NOT WORK
+- **Fix 2 (bidirectional parent → sibling) DID NOT WORK:** Felix↔Agatha still has bidirectional "father" (should be "sibling"). Victor↔William also has bidirectional "father" (should be "brother/sibling"). The fix either didn't execute, didn't match the conditions, or ran before the LLM profiler regenerated these labels. This is the most critical fix failure.
+
+### New Regressions
+- **Creature canonical name changed:** "the monster" (attempt 7) → "the fiend" (attempt 8, id: `split_the_fiend`). "the monster" is now COMPLETELY ABSENT from both canonical name and aliases. This is the most widely-recognized term for the creature.
+- **Safie's relationships all "father":** Safie→Felix: "father", Safie→Agatha: "father", Safie→De Lacey: "father", Safie→the fiend: "father". All four are wrong. This appears to be a systematic LLM profiler failure.
+- **Wrong De Lacey family labels persist:** Felix→Safie: "son", Agatha→Safie: "son", De Lacey→Safie: "son" — all wrong. Felix→Agatha: "father" — wrong (siblings).
+- **Profiles REGRESSED:** 6.5 → 6.0. Wrong relationships are worse than missing relationships for narrator preparation. A narrator relying on these profiles would be misinformed about character relationships.
 
 ## What's Still Failing
 
-### Profiles (6.5/10) — Primary Blocker
+### Profiles (6/10) — Primary Blocker
 
-**Missing relationships for major characters:**
-- Robert Walton (narrator, 9 mentions): ZERO relationships. Should have: Victor (confidant), Margaret (sister).
-- Elizabeth Lavenza (92 mentions): ZERO relationships. Should have: Victor (fiancée/wife), William (family), Justine (friend/household member).
-- the old man De Lacey (63 mentions): ZERO relationships. Should have: Felix (son), Agatha (daughter), the monster (brief encounter).
-- William (25 mentions): ZERO relationships. Should have: Victor (brother), Elizabeth (family).
-- Ernest (13 mentions): ZERO relationships. Should have: Victor (brother).
-- Margaret (10 mentions): ZERO relationships. Should have: Walton (brother).
+**Relationship label accuracy is severely broken.** Of ~37 total relationship entries, ~17 are correct/acceptable and ~20 are WRONG. Key problems:
 
-**Wrong relationship labels:**
-- Felix→Agatha: "father" — WRONG. They are siblings. Their father is the old man De Lacey. PERSISTENT across attempts 5-7.
-- Agatha→Felix: "father" — WRONG. Same error in both directions.
-- Henry Clerval→M. Krempe: "colleague" — WRONG. Henry is Victor's best friend, not Krempe's colleague.
-- Justine Moritz→Beaufort: "associated" — WRONG. No direct connection between them.
-- Cornelius Agrippa→M. Waldman: "associated" — WRONG/QUESTIONABLE. Historical figure, not narratively connected.
+1. **Bidirectional "father" unfixed (Fix 2 failure):**
+   - Felix↔Agatha: both "father" (should be "sibling")
+   - Victor↔William: both "father" (should be "brother/sibling")
 
-**Missing critical relationships:**
-- Victor↔Elizabeth romantic/family (the central love relationship)
-- Victor↔Henry friendship (Victor's closest friend)
-- Victor↔Walton frame narrator relationship
-- Monster→Victor creator relationship (only Victor→monster "creation" exists, not reverse)
-- Felix↔Safie romantic interest
-- De Lacey↔Felix/Agatha parent-child
+2. **Safie has all "father" labels (LLM bug):**
+   - Safie→Felix: "father" (should be "romantic interest")
+   - Safie→Agatha: "father" (should be "friend/housemate")
+   - Safie→De Lacey: "father" (should be "host/father figure")
+   - Safie→the fiend: "father" (should be absent or "observer")
 
-**Physical descriptions:** 8/19 — decent for major characters. No speech patterns at all (0/19).
+3. **Enrichment-generated wrong relationships:**
+   - Walton→Beaufort: "father" — WRONG. The enrichment likely found "father" in summary text near both names but the "father" referred to Victor's father (Alphonse), not a Walton-Beaufort relationship.
+   - Victor→William: "father" — WRONG. Same pattern — "father" found near both names in summary refers to their shared father Alphonse.
+   - Elizabeth→Beaufort: "associated" — WRONG. No meaningful direct connection.
+
+4. **Missing critical relationships:**
+   - Victor↔Elizabeth: romantic/fiancée/wife — THE central romance. STILL ABSENT.
+   - Victor↔Henry: friendship — Victor's closest friend. STILL ABSENT.
+   - De Lacey→Felix/Agatha: father-son/father-daughter — MISLABELED as other things.
+   - Felix→Safie: romantic interest — LABELED "son" instead.
+
+5. **Physical descriptions: 7/19, Speech patterns: 0/19**
 
 ### Characters (7.5/10) — Close to Passing
 
-**Alphonse Frankenstein STILL MISSING** (regression from attempts 4-5). Victor's father appears by name in chapter summaries ("his father Alphonse" in Ch. 7 summary) but F6 reconciliation didn't create an entry. This is the 3rd consecutive attempt where Alphonse was missing after appearing in attempts 4-5.
+1. **Alphonse Frankenstein STILL MISSING** — 4th consecutive attempt without him. Victor's father is referenced by name in chapter summaries. This has been inconsistent (appeared in attempts 4-5 but not since).
 
-**Creature aliases still sparse:** "the monster" has only alias "the creature". Missing: "the wretch", "the being", "the fiend", "the daemon"/"the dæmon". The analysis log noted "the dæmon BLOCKED from creature aliases — already claimed by another character" — suggesting a regression where Rule 3 is over-blocking.
+2. **"the monster" completely absent** — was the canonical name in attempt 7, now neither canonical nor alias. The creature is `split_the_fiend` with aliases "the wretch", "the creature". Missing: "the monster" (most common reference), "the daemon/dæmon".
 
-**Caroline Beaufort/Frankenstein still missing** — persistent across all 7 attempts.
-
-### Presentation (7.5/10) — Close to Passing
-
-- Book title displays as "Contents" instead of "Frankenstein"
-- Letter 1 missing from Prologue Materials (null title filtered out)
+3. **Caroline Beaufort/Frankenstein still missing** — persistent across all 8 attempts.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Major characters have ZERO relationships** [Profiles]
-   - Problem: 6 of 19 characters have no relationships at all, including Elizabeth Lavenza (92 mentions — second-most mentioned character), Robert Walton (frame narrator), and the old man De Lacey (63 mentions). The LLM profile generator is failing to produce relationships for these characters.
-   - Evidence: Victor→Elizabeth is absent despite Elizabeth being Victor's fiancée and later wife, the emotional center of the novel. Walton→Margaret is absent despite every letter being addressed to her.
-   - Location: `src/analyzer.py` — `_generate_character_profile()` or `src/pipeline/character_profiling/`
-   - Root cause hypothesis: The profile generation prompt may not be providing sufficient context about these characters' co-occurrences, or the LLM is only producing relationships for characters that appear together in explicit textual passages provided as evidence.
-   - Fix approach:
-     A) Check if the co-occurrence/evidence passages being fed to the profiler include enough context for these characters. If Elizabeth appears in 92 mentions across many chapters but the profiler only gets a small excerpt, it may miss her relationships.
-     B) Add a post-processing enrichment step: if character A mentions character B by name in their profile text but has no relationship entry for B, add a default "associated" relationship.
-     C) Consider adding a "must include" hint for characters with high mention counts that share chapters.
-   - Impact: Fixing this alone could raise Profiles from 6.5 to ~8.0.
+1. **Fix 2 (bidirectional parent → sibling) DID NOT EXECUTE** [Profiles]
+   - Problem: Felix↔Agatha and Victor↔William still have bidirectional "father" labels. The `fix_bidirectional_parent_labels` method from attempt 8 either didn't run, didn't match conditions, or was overwritten by later pipeline steps.
+   - Evidence: 4 character pairs have A→B: "father" AND B→A: "father", which is logically impossible.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `fix_bidirectional_parent_labels()`
+   - Debug approach: Add logging to confirm the method executes and matches the expected patterns. Check if it runs AFTER the LLM profiler and AFTER the enrichment (which may be re-introducing "father" labels). Check method signature — is it being called in `run_all()`?
+   - Impact: Fixing this alone could convert ~4 wrong "father" pairs to correct "sibling" labels (+0.5 on Profiles).
 
-2. **Felix→Agatha labeled "father" (should be "sibling")** [Profiles]
-   - Problem: Felix De Lacey→Agatha De Lacey: "father" and Agatha→Felix: "father". They are SIBLINGS. The old man De Lacey is their father.
-   - Evidence: Persistent across 3 attempts. The LLM consistently mislabels this relationship.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` or profile generation prompt
-   - Fix approach: Add a post-correction rule: if two characters share a surname AND a third character with that surname is labeled as "old man"/"father"/"parent", then the shared-surname pair are likely siblings, not parent-child. OR: if A→B is "father" and B→A is also "father" (bidirectional "father"), convert both to "sibling" (two people cannot each be each other's father).
-   - Impact: +0.25 on Profiles
+2. **Summary enrichment assigns wrong relationship labels** [Profiles]
+   - Problem: `enrich_zero_relationships_from_summaries` uses `_rel_phrase_re` to find family terms near character name co-occurrences. But when summary text says "his father Alphonse" near mentions of Victor and William, the regex matches "father" and assigns it to Victor→William — which is WRONG (they're brothers; "father" refers to their shared parent Alphonse).
+   - Evidence: Walton→Beaufort: "father", Victor→William: "father", Elizabeth→Beaufort: "associated" — all wrong enrichment outputs.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `enrich_zero_relationships_from_summaries()`
+   - Fix approaches:
+     A) **Remove or disable enrichment** — it's causing more harm than good. The 2 correct additions (Walton↔Margaret) don't outweigh ~6 wrong ones.
+     B) **Fix label extraction** — instead of regex-matching the first family term found between two names, require the family term to syntactically refer to one of the two characters (e.g., "his sister Margaret" → the "sister" refers to Margaret relative to Walton).
+     C) **Restrict to high-confidence patterns only** — only enrich when the summary explicitly states "X's [label] Y" or "X, Y's [label]" patterns.
+   - Impact: Removing wrong enrichment could raise Profiles from 6.0 to ~6.5-7.0.
 
 ### HIGH
 
-3. **Alphonse Frankenstein missing — 3rd consecutive absence** [Completeness]
-   - Problem: Victor's father appears by name in summaries ("his father Alphonse" in Ch. 7) but is not in the character list. F6 reconciliation found him in attempts 4-5 but not since.
-   - Evidence: Summaries reference "Alphonse" explicitly. The character has significant narrative presence (multiple chapters).
-   - Location: `src/analyzer.py` — F6 reconciliation loop
-   - Root cause: F6 may be matching "Alphonse" to an existing character (e.g., Victor Frankenstein as "Frankenstein") and merging rather than creating a new entry. OR: the matching threshold changed.
-   - Fix: Debug F6 reconciliation for "Alphonse" — add logging to see if it's being matched/merged. If threshold is the issue, adjust matching logic to treat given names as distinct from surnames.
+3. **Victor↔Elizabeth relationship STILL missing** [Profiles]
+   - Problem: The central romantic relationship of the novel is absent. Elizabeth has 92 mentions. The enrichment was supposed to catch this but assigned her a wrong Beaufort relationship instead.
+   - Evidence: Elizabeth is Victor's fiancée/adopted sister/wife. They appear together in many chapters.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` or `src/analyzer.py`
+   - Fix: If enrichment is fixed to use better patterns, "Victor" and "Elizabeth" co-occurring with marriage/bride/wife language should produce the correct relationship.
+   - Impact: +0.25 on Profiles.
 
-4. **Creature missing key aliases: "the wretch", "the fiend", "the daemon"** [Alias Grouping]
-   - Problem: "the monster" has only alias "the creature". The text extensively uses "the wretch", "the being", "the fiend", "the daemon"/"the dæmon". Analysis log shows "the dæmon BLOCKED — already claimed by another character."
-   - Evidence: These descriptors are used throughout the novel for the same entity.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — alias detection, or `src/analyzer.py` — F6 reconciliation
-   - Root cause: Rule 3 may be over-blocking. The dæmon→daemon normalization (Fix 1 from attempt 6) prevented a false split, but the alias was then claimed by another entry, causing Rule 3 to block it from the creature.
-   - Fix: Investigate which character "claimed" the dæmon alias. If it's a phantom entry that got filtered, the alias should be freed. Consider a priority system: if an alias is claimed by a character with <5 mentions but the candidate has >20 mentions, prefer the higher-mention character.
+4. **Safie has all "father" labels — LLM systematic failure** [Profiles]
+   - Problem: The LLM profiler assigned "father" to all 4 of Safie's relationships. Felix→Safie is "son", Agatha→Safie is "son", De Lacey→Safie is "son" — all wrong.
+   - Evidence: Safie is Felix's romantic interest who comes to the De Lacey cottage. She is NOT their child.
+   - Root cause: The LLM is confusing the De Lacey family structure. Since De Lacey IS the father of Felix and Agatha, the profiler may be generalizing "father" to all relationships in that household.
+   - Location: LLM profiler prompt or post-corrections
+   - Fix: Post-correction validation — if a character has 4+ relationships ALL with the same label, and that label is asymmetric ("father", "son"), flag as suspicious and remove or replace with "associated".
+   - Impact: +0.25 on Profiles.
 
-5. **Wrong relationships: Henry→Krempe "colleague", Justine→Beaufort "associated"** [Profiles]
-   - Problem: Henry Clerval has no relationship to Krempe; Justine has no connection to Beaufort. These are LLM hallucinations.
-   - Location: `src/pipeline/character_profiling/post_corrections.py`
-   - Fix: Add validation — if a relationship label seems implausible (e.g., "colleague" between characters that never share a scene), filter it. OR: cross-reference with co-occurrence data — if characters never appear in the same chapter, their relationship should be flagged as suspect.
+5. **"the monster" completely absent from creature entry** [Alias Grouping]
+   - Problem: The creature's canonical name changed from "the monster" (attempt 7) to "the fiend" (attempt 8). "the monster" is not even an alias. This is the most widely-recognized reference.
+   - Evidence: The novel uses "monster" extensively — Victor calls his creation "the monster" repeatedly.
+   - Location: Creature entry is `split_the_fiend` — came from semantic split pipeline. The split key determined the canonical name.
+   - Fix: Ensure "the monster" appears at minimum as an alias on the creature entry. The semantic split may need to include commonly-used descriptors that were blocked or consumed during main cast extraction.
 
 ### MEDIUM
 
-6. **Book title "Contents" instead of "Frankenstein"** [Presentation]
-   - Problem: HTML header shows "Contents" — extracted from table-of-contents page.
-   - Location: `src/ingestion/` or title extraction logic
-   - Fix: Skip pages whose text is primarily "Contents" / table-of-contents structure when extracting title. Or use filename as fallback.
+6. **Henry Clerval→M. Krempe: "associated" — persistent wrong relationship** [Profiles]
+   - Henry and Krempe have no direct narrative connection. Henry is Victor's friend; Krempe is Victor's professor.
+   - Location: LLM profiler or post-corrections
+   - Fix: Add co-occurrence validation — if two characters never appear in the same chapter summary, remove their relationship.
 
-7. **Letter 1 missing from Prologue Materials** [Presentation]
-   - Problem: Letter 1 (null title) excluded from prologue section in HTML.
-   - Location: HTML template — prologue section likely filters elements with null titles.
-   - Fix: Assign a default title like "Letter 1" when the structure element has a null title and is the first element.
+7. **Alphonse Frankenstein missing — 4th consecutive attempt** [Completeness]
+   - Victor's father, referenced by name in summaries. F6 reconciliation found him in attempts 4-5 but not since.
+   - Location: `src/analyzer.py` — F6 reconciliation
+   - This issue has been attempted 3 times across different files without lasting fix. May need escalation.
 
 8. **Supporting characters lack full canonical names** [Alias Grouping]
-   - "William" → should be "William Frankenstein"
-   - "Ernest" → should be "Ernest Frankenstein"
-   - "Margaret" → should be "Margaret Saville"
-   - Location: `src/pipeline/character_extraction_v2/supporting.py`
+   - Ernest → should be "Ernest Frankenstein"
+   - Margaret → should be "Margaret Saville"
 
-9. **Cornelius Agrippa and Werter as character entries** [Completeness]
-   - These are a historical figure and a literary character (from a book the creature reads), not narrative characters. Their inclusion is not harmful but not ideal.
-   - LOW priority — does not significantly impact scoring.
-
-10. **Caroline Beaufort/Frankenstein still missing** [Completeness]
-    - Victor's mother, mentioned by name in text and summaries. Persistent across all 7 attempts.
-    - May require upstream summarizer changes or lowered F6 threshold.
+9. **Wrong De Lacey family labels: Felix→Safie "son", Agatha→Safie "son"** [Profiles]
+   - These are wrong — Safie is not their child. Felix is her romantic interest.
+   - Partially overlaps with issue #4 (Safie's "father" labels are the reverse of these "son" labels).
 
 ### LOW
 
-11. **"the old man (De Lacey)" canonical name is vague** — Should be "De Lacey" or "Old De Lacey"
-12. **Physical descriptions sparse: 8/19** — Many major characters (Victor, Henry, Walton) lack physical descriptions, though this partly reflects the source text.
-13. **Zero speech patterns detected** — 0/19 characters have speech_pattern field populated.
+10. **Physical descriptions: 7/19** — many major characters (Victor, Henry, Walton) lack physical descriptions, though this partly reflects the source text.
+11. **Speech patterns: 0/19** — no speech_pattern fields populated.
+12. **Caroline Beaufort/Frankenstein still missing** — persistent 8 attempts.
+13. **Cornelius Agrippa and Werter as character entries** — historical/literary figures, not harmful.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.20 | - | Baseline. Creature/Turkish merchant merge is primary blocker. |
-| 2 | 6.40 | +0.20 | Creature/Turk split FIXED. Victor/Frankenstein protagonist split now exposed as primary blocker. |
-| 3 | 6.83 | +0.63 | Victor unified ✓. BUT Turk REGRESSED into Creature aliases. Alphonse still missing (3rd attempt). |
-| 4 | 7.15 | +0.95 | Alphonse found ✓. Turk re-separated ✓. Profiles (5/10) now primary blocker. |
-| 5 | 7.38 | +1.18 | Profiles improved 5→6.5. Chapter titles fixed. Creature aliases cleaned. BUT Turk REGRESSED again into old man. Monster/dæmon false split. |
-| 6 | 7.40 | +1.20 | Turk separated ✓. Dæmon merged ✓. Pronunciation fixed ✓. BUT Profiles REGRESSED 6.5→5.5 due to over-firing contradictory relationship removal. |
-| 7 | 7.80 | +1.60 | De Lacey alias fixed ✓. Krempe separated ✓. "I" removed ✓. Romantic interest gone ✓. BUT profiles still failing (6.5) — major chars have ZERO relationships. |
+| 2 | 6.40 | +0.20 | Creature/Turk split FIXED. Victor/Frankenstein protagonist split now exposed. |
+| 3 | 6.83 | +0.63 | Victor unified ✓. BUT Turk REGRESSED. |
+| 4 | 7.15 | +0.95 | Alphonse found ✓. Turk separated ✓. Profiles (5/10) now primary blocker. |
+| 5 | 7.38 | +1.18 | Profiles improved 5→6.5. BUT Turk REGRESSED again. Monster/dæmon false split. |
+| 6 | 7.40 | +1.20 | Turk separated ✓. Dæmon merged ✓. BUT Profiles REGRESSED 6.5→5.5. |
+| 7 | 7.80 | +1.60 | De Lacey alias ✓. Krempe separated ✓. "I" removed ✓. Profiles 5.5→6.5. |
+| 8 | 7.83 | +1.63 | Title ✓. Letter 1 ✓. Presentation 7.5→8.5. BUT Profiles REGRESSED 6.5→6.0 (wrong enrichment labels). |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
@@ -222,7 +232,7 @@
 
 - Attempt 7 (Fix 1): Symmetric relationship labels — added missing labels to _SYMMETRIC_RELATIONSHIPS
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
-  - PARTIAL — prevented removal but LLM didn't regenerate the key relationships
+  - PARTIAL — fix correct but LLM didn't regenerate the key relationships
 
 - Attempt 7 (Fix 2): Alias surname fragments — rewrote profile_names to include fragments from BOTH canonical names and aliases
   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
@@ -238,29 +248,21 @@
 
 - Attempt 8 (Fix 1): Summary-based relationship enrichment for zero-relationship characters
   - New method `enrich_zero_relationships_from_summaries` in `OutputCharacterCorrector`
-  - Scans chapter summaries for character name co-mentions with `_rel_phrase_re` family terms
-  - Runs LAST in Phase B (after `reject_unfounded_familial_labels`) to preserve inferred relationships
-  - Propagates bidirectional reverses via RELATIONSHIP_REVERSES
-  - Also passes chapter summaries from analyzer.py to OutputCharacterCorrector.run_all
   - Modified: `src/pipeline/character_profiling/post_corrections.py`, `src/analyzer.py`
-  - Root cause: LLM profiler failed to generate relationships for 6 major characters
+  - PARTIALLY WORKED — added Walton↔Margaret "sister" ✓ but also added ~6 wrong relationships (Walton→Beaufort "father", Victor→William "father", etc.) ✗
 
 - Attempt 8 (Fix 2): Bidirectional parent label → sibling conversion
   - New method `fix_bidirectional_parent_labels` in `OutputCharacterCorrector`
-  - Converts A→B: "father" AND B→A: "father" → both become "sibling"
-  - Universal invariant: two people cannot each be the other's parent
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
-  - Root cause: Phase A `remove_contradictory_relationships` removes both labels; Phase B needed to convert instead
+  - DID NOT WORK — Felix↔Agatha and Victor↔William still bidirectional "father"
 
 - Attempt 8 (Fix 3): Book title "Contents" fallback to filename
-  - In `_detect_title()`, skip lines matching known TOC markers (CONTENTS, TABLE OF CONTENTS, INDEX)
   - Modified: `src/ingestion/txt.py`
-  - Root cause: First all-caps line "CONTENTS" was incorrectly extracted as book title
+  - WORKED ✓
 
 - Attempt 8 (Fix 4): Letter 1 null title → prologue classification
-  - Pre-compute classifications for all chapters, then promote null-titled "main" chapters to "prologue" when the immediately following chapter is prologue
   - Modified: `src/export/html_report.py`
-  - Root cause: `_classify_chapter(None)` returned "main", so Letter 1 (null title) appeared in main chapters instead of Prologue Materials
+  - WORKED ✓
 
 ## Modification History
 
@@ -268,100 +270,70 @@
 |---------|-------|----------------|--------|
 | 2 | Creature/Turkish merchant merge | `main_cast.py`, `characters.py` | Fixed ✓ |
 | 3 | Victor/Frankenstein split | `config.py`, `cli.py`, `characters.py` | Fixed ✓ |
-| 3 | Alphonse missing | `characters.py` (grounding threshold) | No change — grounding wasn't root cause |
-| 3 | Creature De Lacey alias | `characters.py` (_merge_surname) | No change — aliases enter via different path |
-| 3 | (Side effect) Turk regression | Unknown | Regression |
-| 4 | Creature Turk aliases | `main_cast.py` (verify_aliases rules) | Fixed ✓ — Turk variants blocked |
-| 4 | Creature De Lacey/shepherd aliases | `main_cast.py` (verify_aliases rules) | Partial — "De Lacey" still present (Rule 3 timing issue) |
-| 4 | Alphonse missing | `summarizer.py` (upstream prompt fix) | Fixed ✓ — escalation to upstream succeeded |
-| 5 | Profile relationships | `analyzer.py` (profile prompt) | Partial — many correct, ~10 still wrong, ~5 missing |
-| 5 | Creature De Lacey/shepherd aliases | `main_cast.py` (surname fragments + Rule 3b) | Fixed ✓ — target aliases blocked |
+| 3 | Alphonse missing | `characters.py` (grounding threshold) | No change |
+| 3 | Creature De Lacey alias | `characters.py` (_merge_surname) | No change |
+| 4 | Creature Turk aliases | `main_cast.py` (verify_aliases rules) | Fixed ✓ |
+| 4 | Alphonse missing | `summarizer.py` (upstream prompt fix) | Fixed ✓ (but regressed later) |
+| 5 | Profile relationships | `analyzer.py` (profile prompt) | Partial |
+| 5 | Creature De Lacey/shepherd aliases | `main_cast.py` (surname fragments + Rule 3b) | Fixed ✓ |
 | 5 | Chapter titles | `consensus.py` (_clean_title) | Fixed ✓ |
-| 5 | Turk merged with old man | (not targeted) | REGRESSION — Turk aliases now on old man instead of Creature |
-| 5 | Monster/dæmon split | (not targeted) | NEW — F6 extracted "the dæmon" as separate character |
 | 6 | Monster/dæmon false split | `analyzer.py` (F6 _normalize_descriptor) | Fixed ✓ |
 | 6 | Turk/old man false merge | `main_cast.py` (verify_aliases canonical_base) | Fixed ✓ |
-| 6 | Contradictory relationships | `post_corrections.py` (remove_contradictory_relationships) | OVER-FIRED → regression |
+| 6 | Contradictory relationships | `post_corrections.py` | OVER-FIRED → regression |
 | 6 | Pronunciation false positives | `cmu_proposer.py` | Fixed ✓ |
-| 7 | Symmetric relationship labels | `post_corrections.py` | Partial — fix correct but LLM didn't regenerate the relationships |
-| 7 | De Lacey alias on creature | `main_cast.py` (profile_names from aliases) | Fixed ✓ |
-| 7 | Professor Krempe alias on Waldman | `main_cast.py` (_are_different_titled_people) | Fixed ✓ |
+| 7 | Symmetric relationship labels | `post_corrections.py` | Partial |
+| 7 | De Lacey alias on creature | `main_cast.py` | Fixed ✓ |
+| 7 | Professor Krempe alias on Waldman | `main_cast.py` | Fixed ✓ |
 | 7 | "I" pronoun as character | `analyzer.py` (F6 pronoun filter) | Fixed ✓ |
+| 8 | Summary relationship enrichment | `post_corrections.py`, `analyzer.py` | Partial — added correct + wrong |
+| 8 | Bidirectional parent→sibling | `post_corrections.py` | DID NOT WORK |
+| 8 | Book title "Contents" | `txt.py` | Fixed ✓ |
+| 8 | Letter 1 prologue classification | `html_report.py` | Fixed ✓ |
 
 **Recurring patterns:**
-- `post_corrections.py` (attempts 6-7): Relationship corrections have been fragile. The symmetric fix worked but the underlying LLM isn't producing relationships for 6 major characters.
-- `analyzer.py` F6 reconciliation: Alphonse appeared in attempts 4-5 but has been missing for attempts 6-7. Inconsistent behavior.
-- Profile generation is now the primary blocker — the LLM simply isn't generating relationships for many major characters.
+- `post_corrections.py` (attempts 6-8): Relationship corrections have been fragile. Three consecutive attempts at fixing relationship labels: contradictory removal over-fired (attempt 6), symmetric labels partial (attempt 7), enrichment added wrong labels + bidirectional fix didn't work (attempt 8). **This file needs careful debugging, not new methods.**
+- Profile generation is the persistent primary blocker since attempt 4. The LLM consistently fails to generate correct relationship labels for the De Lacey family and for characters like Safie.
 
-## Priority Fix Guidance for Attempt 8
+## Priority Fix Guidance for Attempt 9
 
-### Fix Priority 1: Relationship enrichment for characters with ZERO relationships (CRITICAL #1) — Profiles +1.5 expected
+### Fix Priority 1: Debug and fix `fix_bidirectional_parent_labels` (CRITICAL #1) — Profiles +0.5 expected
 
-This is the highest-impact fix. 6 major characters (Elizabeth, Walton, De Lacey, William, Ernest, Margaret) have NO relationships at all. The LLM profiler isn't generating them.
+This is the highest-ROI fix because the method was already written but didn't execute properly. Steps:
+1. Read the method in `post_corrections.py` — verify the logic
+2. Check if it's called in `run_all()` — verify execution order
+3. Add a print/log statement to confirm it runs during analysis
+4. Verify it runs AFTER both the LLM profiler AND the enrichment (otherwise the enrichment may re-introduce "father" labels after the fix runs)
+5. Check if the method matches on the relationship dict structure correctly (key names vs character objects)
 
-**Approach A (Recommended): Post-processing relationship enrichment based on summary co-occurrence**
-- After profiles are generated, check for characters with zero relationships.
-- For each, scan chapter summaries for co-occurring character names.
-- If character A and character B appear in the same chapter summary and A has a relationship to B but B doesn't have one to A, add a reciprocal.
-- If neither has one, check the text for relationship indicators (family terms near both names).
+If the method runs but doesn't match: fix the matching logic.
+If the method doesn't run: wire it into `run_all()`.
 
-**Approach B: Improve profile prompt to explicitly handle high-mention characters**
-- The current prompt may not provide enough co-occurrence evidence for characters like Elizabeth (92 mentions).
-- Ensure the profiler receives evidence passages where Elizabeth and Victor appear together.
+### Fix Priority 2: Fix or remove `enrich_zero_relationships_from_summaries` (CRITICAL #2) — Profiles +0.5 expected
 
-**Location:** `src/pipeline/character_profiling/post_corrections.py` (Approach A) or `src/analyzer.py` `_generate_character_profile()` (Approach B)
+The enrichment is causing more harm than good. Options:
+A) **REMOVE IT** — simplest. The 2 correct relationships (Walton↔Margaret) aren't worth the ~6 wrong ones.
+B) **Fix the label extraction** — the regex is matching family terms that refer to a THIRD character (e.g., "his father Alphonse" near Victor and William → assigns "father" to Victor→William). Fix by requiring the family term to syntactically describe one of the two characters, not a third.
+C) **Restrict to symmetric-only enrichment** — only add "sibling"/"associated" labels (never asymmetric ones like "father"/"son") since these are lower risk.
 
-### Fix Priority 2: Felix↔Agatha "father" → "sibling" (CRITICAL #2) — Profiles +0.25 expected
+Recommendation: Option A (remove). The enrichment approach is fundamentally flawed — regex-based label extraction from summaries cannot reliably determine WHICH character the family term describes. The LLM profiler should be the source of relationship labels, and post-corrections should only clean/validate them, not invent new ones.
 
-Bidirectional "father" between same-surname characters is logically impossible. Add post-correction:
-- If A→B is "father" AND B→A is "father", convert both to "sibling" (or "family").
-- More generally: "father" is asymmetric. If the reverse should be "child"/"son"/"daughter" but instead is also "father", both labels are wrong.
+### Fix Priority 3: Fix wrong De Lacey/Safie relationship labels (HIGH #4) — Profiles +0.25 expected
 
-**Location:** `src/pipeline/character_profiling/post_corrections.py`
+Add a post-correction rule: if a character has 3+ relationships ALL with the same asymmetric label (e.g., all "father" or all "son"), replace with "associated" since the labels are clearly wrong. No real character has the same relationship type with 3+ other characters.
 
-### Fix Priority 3: Fix wrong relationships (Henry→Krempe, Justine→Beaufort) (HIGH #5) — Profiles +0.25 expected
-
-Add a post-correction that validates relationships against chapter co-occurrence:
-- If character A and character B never appear in the same chapter summary, flag their relationship as suspect.
-- Remove or downgrade relationships with no textual co-occurrence evidence.
-
-**Location:** `src/pipeline/character_profiling/post_corrections.py`
-
-### Fix Priority 4: Book title "Contents" (MEDIUM #6) — Presentation +0.25 expected
-
-**Location:** `src/ingestion/` — title extraction. Use filename as fallback when extracted title matches common TOC patterns.
-
-### Fix Priority 5: Letter 1 null title (MEDIUM #7) — Presentation +0.25 expected
-
-**Location:** HTML template or structure post-processing — assign "Letter 1" when first element has null title.
-
-### Do NOT attempt to fix in attempt 8:
-- Alphonse missing — F6 reconciliation is inconsistent; may self-resolve. 3 files already modified for this issue without lasting fix.
-- Caroline missing — persistent 7 attempts; low relative impact.
-- Creature aliases sparse — lower priority than profiles; risk of over-blocking regression.
-- Supporting character full names — minor; won't cross threshold.
-- Cornelius Agrippa/Werter as characters — cosmetic.
+### Do NOT attempt in attempt 9:
+- Alphonse missing — 4 attempts without lasting fix. Low ROI.
+- "the monster" missing from creature — varies across runs. Low ROI vs profile fixes.
+- Caroline missing — persistent 8 attempts. Accept as limitation.
+- Victor↔Elizabeth — focus on fixing existing wrong relationships first. If enrichment is removed, this stays missing but won't be WRONG.
+- Henry→Krempe "associated" — low impact compared to profile fixes.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
 - Temperature: 0.7 across all agents (reasonable)
 - Context length: 32768 (sufficient)
 - 0 retries across all stages ✓
-- Chapter Summaries: cached from previous run
-- character_llm_chunk_chars: 5000 — relatively small but 0 retries suggests it's working
-- No configuration changes recommended — the primary issue is profile generation quality, not config parameters
-
-## Pipeline Notes (Attempt 8)
-- Completed in 127m 49s (358 LLM calls, 663,384 tokens)
-- 19 characters found across 28 chapters
-- Key BLOCKED aliases observed:
-  - "the monster", "the fiend", "the demon" blocked from "the creature" (claimed by another character — likely "the fiend" phantom entry)
-  - "the daemon" blocked (not found in summaries)
-  - Several creature aliases blocked as hallucinated (not in summaries)
-- Bidirectional "child" label removed: Victor↔William
-- Bidirectional "cousin" label removed: Elizabeth↔William
-- Beaufort: no passages provided, returned UNCERTAIN
-- Fixes 1-4 from attempt 8 all ran
+- No configuration changes recommended — profile post-corrections are the primary issue, not model config
 
 ## Next Action
-Run PROMPT_evaluate.md to evaluate the output.
+Run PROMPT_fix.md to debug Fix 2 (bidirectional parent), fix/remove enrichment, and address De Lacey/Safie labels.
