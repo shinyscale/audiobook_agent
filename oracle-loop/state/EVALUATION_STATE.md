@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -12,140 +12,117 @@
 - JSON: ../output/frankenstein/analysis.json
 - Dated dir: ../output/Frankenstein_ebook_20260301_003644/
 
-## What Improved from Attempt 3
-- **Alphonse Frankenstein is NOW PRESENT** (main_cast_5, 10 mentions, alias "his father") — Fix 2 (summarizer prompt) WORKED! Summaries now use proper names, enabling F6 reconciliation to find Alphonse. This is a 3-attempt escalation that finally succeeded via upstream fix.
-- **The Turk is a SEPARATE character again** (0a5ef5ac589f, 9 mentions) — Fix 1 (cross-character conflict rule + absent-alias blocking) WORKED for the Turk variants. "the Turk" and "the Turk (Safie's father)" are no longer false Creature aliases.
-- **21 characters total** (up from 19 in attempt 3)
-- Alphonse has CORRECT relationships: parent→William ✓, parent→Ernest ✓, employee→Justine ✓, close friend→Beaufort ✓
-
-## What Still Fails
-- **Creature STILL has 3 false aliases**: "the blind father (De Lacey)", "De Lacey", "shepherd" — Fix 1 blocked the Turk variants but these three enter through different paths
-- **Fabricated relationships remain** for many characters — this is the lowest-scoring category (5/10)
-- **Structure titles all null** for chapters (only Letters 2-4 detected)
-- **Caroline Beaufort/Frankenstein** still missing
-
 ## Latest Scores
-- Structure Detection: 7.5/10 ✗
-- Character Extraction: 7/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 7/10
+- Structure Detection: 8.5/10 ✓
+- Character Extraction: 6/10 ✗
+  - Completeness: 7.5/10
+  - Identity Resolution: 5/10
   - Alias Grouping: 6/10
-- Character Profiles: 5/10 ✗
+- Character Profiles: 6.5/10 ✗
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 7.5/10 ✗
-- HTML Presentation: 7/10 ✗
-- **Overall: 7.15/10** (reference only)
+- HTML Presentation: 7.5/10 ✗
+- **Overall: 7.38/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (5 categories below threshold)
+**Status:** FAIL (4 categories below threshold)
+
+## What Improved from Attempt 4
+- **Fix 1 (Profile relationships) PARTIALLY WORKED**: Victor→monster "creation" relationship now present ✓, Alphonse relationships correct ✓, Mr. Kirwin→Victor "magistrate and protector" correct ✓, dæmon→Victor "creator" ✓, dæmon→William/Clerval "murderer" ✓. But still ~10 wrong relationships and ~5 key ones missing.
+- **Fix 2 (Creature false aliases) WORKED for target aliases**: "De Lacey" and "the blind father (De Lacey)" are no longer Creature aliases ✓. "shepherd" no longer present ✓.
+- **Fix 3 (Chapter titles) WORKED**: Chapters 1-24 now have numeric titles ("1", "2", etc.) ✓.
+- **Physical descriptions: 8/21** (up from 7/21 in attempt 4)
+
+## What Regressed or Failed
+- **REGRESSION: The Turkish merchant / the Turk falsely merged with old man De Lacey** (main_cast_9). In attempt 4, the Turk was a separate character (0a5ef5ac589f). Now "the Turkish merchant" and "the Turk" appear as aliases of "the old man (De Lacey)". The blind father and Safie's father are completely different people.
+- **NEW ISSUE: "the dæmon" is a separate entry (cab8aefa3380, 15 mentions)** — false split from "the monster" (split_the_monster, 25 mentions). These are the same Creature. F6 reconciliation extracted "the dæmon" from summaries but didn't merge it with the existing monster entry.
+- **Relationships still wrong**: Felix→Agatha "father" (WRONG: siblings), Elizabeth→Alphonse "acquaintance" (WRONG: adopted daughter), Safie→Beaufort "parent" (WRONG: no relation), Agrippa↔Waldman "associated" (WRONG: centuries apart), Krempe→Clerval "colleague" (WRONG: professor vs student)
+- **Key relationships still missing**: Victor→Elizabeth, Victor→Henry Clerval, Victor→Alphonse, Victor→Robert Walton
+- **Caroline Beaufort/Frankenstein still missing**
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Fabricated relationships throughout profiles — PRIMARY BLOCKER (score 5/10)** [Profiles]
-   - Problem: Many relationships are fabricated from co-occurrence rather than explicit textual markers. This is the single biggest score drag.
-   - Specific fabrications:
-     - Victor → William: "father" (WRONG — Victor is William's BROTHER, Alphonse is their father)
-     - Victor → Safie: "acquaintance" (WRONG — they never meet)
-     - Victor → Mr. Kirwin: "protégé" (WRONG direction — Kirwin is the magistrate who handles Victor's case)
-     - Creature → Elizabeth: "brother" (WRONG — no familial relationship)
-     - Felix → Agatha: "father" (WRONG — Felix is Agatha's BROTHER, old man De Lacey is their father)
-     - Safie → Victor: "acquaintance" (WRONG — never meet)
-     - Safie → Creature: "associated" (WRONG)
-     - Safie → Robert Walton: "associated" (WRONG)
-     - Robert Walton → Safie: "associated" (WRONG)
-     - Mr. Kirwin → Victor: "mentor" (WRONG — Kirwin is a magistrate)
-     - Cornelius Agrippa → M. Krempe: "rival" (WRONG — centuries apart)
-     - Cornelius Agrippa → M. Waldman: "rival" (WRONG — centuries apart)
-     - William → Victor: "father" (WRONG — brother relationship)
-   - Missing crucial relationships:
-     - Creature → Victor Frankenstein: "creation" / "creator" (THE central relationship of the book)
-     - Victor → Elizabeth: "fiancée" / "wife"
-     - Victor → Henry Clerval: "best friend"
-     - Victor → Robert Walton: "friend" / "confidant"
-   - Root cause: The relationship extraction uses chapter-level co-occurrence rather than explicit textual relationship markers. Characters appearing in the same chapter are treated as "related." Direction/type is guessed incorrectly.
-   - Location: `src/pipeline/character_extraction_v2/` — profile extraction stage. The relationship extraction prompt needs to require EXPLICIT textual evidence (words like "father", "brother", "creator", "friend", "wife") rather than inferring from proximity.
-   - Fix approach: Modify the relationship extraction prompt to:
-     (a) ONLY assign relationships when explicit relationship words appear in the text connecting the two characters
-     (b) Use directional relationship terminology (if A is B's father, then B is A's child — not the reverse)
-     (c) Never assign "acquaintance"/"associated" unless characters directly interact
+1. **FALSE SPLIT: "the monster" and "the dæmon" are the same character** [Identity Resolution]
+   - Problem: `split_the_monster` (25 mentions, aliases: "the creature") and `cab8aefa3380` (15 mentions, no aliases) are listed as two separate characters. The Creature is referred to as "the monster", "the creature", "the dæmon/daemon", "the fiend", "the wretch" throughout the text — all one being.
+   - Evidence: "the dæmon" has relationships {Victor: "creator", William: "murderer", Clerval: "murderer"} — exactly the Creature's actions. Meanwhile "the monster" has {William: "victim of vengeance", Walton: "narrated to"}.
+   - Root cause: `cab8aefa3380` is an F6 reconciliation hash ID, meaning "the dæmon" was extracted from summaries and not matched to the existing `split_the_monster` entry. F6's matching logic doesn't recognize "the dæmon" as equivalent to "the monster"/"the creature".
+   - Location: `src/analyzer.py` (F6 reconciliation logic, ~line 1220-1240) — the matching function needs to recognize variant descriptors of the same entity.
+   - Fix approach: In F6 reconciliation, before adding a summary-only character as new, check if it's a known descriptor/alias variant of an existing character. "the dæmon" should match "the monster"/"the creature" via semantic similarity or a descriptors list.
+
+2. **FALSE MERGE: "the old man (De Lacey)" incorrectly has "the Turkish merchant" and "the Turk" as aliases — REGRESSION** [Identity Resolution, Alias Grouping]
+   - Problem: main_cast_9 has aliases ["the old man", "De Lacey", "the Turkish merchant", "the Turk"]. The old man De Lacey is the BLIND FATHER of Felix and Agatha. The Turkish merchant / the Turk is SAFIE'S FATHER — a completely different person imprisoned by the French government.
+   - Evidence: In attempt 4, the Turk was correctly a separate character (0a5ef5ac589f, 9 mentions). This is a regression.
+   - Root cause: The LLM proposed "the Turkish merchant" and "the Turk" as aliases of "the old man" because both appear in the same chapters (the Creature's narrative about the De Lacey cottage). `verify_aliases()` didn't block them because: (a) no other character claims these aliases (Rule 3 doesn't fire), and (b) the terms appear in summaries (Rule 2a doesn't fire since the Turkish merchant IS mentioned in De Lacey chapters).
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — `verify_aliases()`
+   - Fix approach: Rule 2a (alias must appear in summaries) passes because "the Turkish merchant" appears in De Lacey chapter summaries. Need a new rule or refinement: if an alias refers to a specific person described differently from the canonical character (blind old man ≠ merchant), block it. Alternatively, detect when an alias is a distinct character descriptor (contains "merchant", "soldier", "priest" etc.) that doesn't match the canonical character's descriptor ("old man").
 
 ### HIGH
 
-2. **Creature still has 3 false aliases: "the blind father (De Lacey)", "De Lacey", "shepherd"** [Identity Resolution, Alias Grouping]
-   - Problem: main_cast_2 ("the creature") still has these false aliases despite Fix 1 blocking the Turk variants. These enter through different paths than the Turk aliases.
-   - Analysis of why Fix 1 didn't catch them:
-     - **"De Lacey"**: Felix De Lacey (main_cast_8) has "De Lacey" as an alias, so Rule 3 (cross-character conflict) SHOULD block it. But the creature is main_cast_2 and Felix is main_cast_8 — if `verify_aliases` processes characters sequentially, Felix's aliases may not be available when the Creature is processed. The fix needs to check BIDIRECTIONALLY against ALL cast members, not just those processed so far.
-     - **"the blind father (De Lacey)"**: Not claimed by another character, so Rule 3 doesn't apply. Not a verbatim match in summaries, so Rule 2a should block it — but the parenthetical "(De Lacey)" may be stripped or the check may do partial matching. Need to verify the alias-found logic handles parenthetical variants.
-     - **"shepherd"**: A shepherd appears briefly in Ch 11 when the Creature enters his hut. The word "shepherd" co-occurs with the Creature in summaries. This is a false alias because the shepherd is a separate (unnamed) person.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — `verify_aliases()`
-   - Fix approach:
-     - For "De Lacey": Make Rule 3 check against ALL cast members' canonical names AND aliases (not just those already processed). Pre-compute the full cast alias set before verification begins.
-     - For "the blind father (De Lacey)": Verify Rule 2a is checking the exact alias string including parentheticals. If it's doing substring matching, it might match "De Lacey" in summaries and pass.
-     - For "shepherd": Rule 2a should block this if "shepherd" isn't used as a name/alias in summaries. Verify the alias-found logic.
+3. **Wrong relationships persist despite Fix 1 — Felix/Agatha sibling relationship incorrect** [Profiles]
+   - Problem: Felix→Agatha: "father" and Agatha→Felix: "father" — BOTH WRONG. Felix and Agatha are SIBLINGS. Their father is "the old man (De Lacey)".
+   - Additional wrong relationships:
+     - Elizabeth→Alphonse: "acquaintance" (she's his adopted daughter/ward)
+     - Alphonse→Elizabeth: "acquaintance" (he's her adoptive father)
+     - Safie→Beaufort: "parent" (no relationship — Beaufort is Caroline's father, not Safie's)
+     - Beaufort→Safie: "child" (fabricated)
+     - Cornelius Agrippa↔M. Waldman: "associated" (centuries apart)
+     - M. Krempe→Henry Clerval: "colleague" (professor vs student)
+   - Root cause: Fix 1 improved the prompt to require "explicit textual evidence" and removed "acquaintance" as fallback — but "acquaintance" still appears (Elizabeth↔Alphonse), and the Felix/Agatha "father" error suggests the LLM is still confused by co-occurrence in the cottage scenes. The prompt fix was partially effective but needs stronger constraints on relationship type accuracy.
+   - Location: `src/analyzer.py` — `_generate_character_profile()` relationship extraction
+   - Fix: The remaining errors are LLM judgment errors, not systematic prompt failures. May need to add post-processing validation that catches impossible relationships (e.g., if A→B is "father" and B→A is also "father", that's contradictory and both should be removed).
 
-3. **Physical descriptions missing for 14/21 characters (67%)** [Profiles]
-   - Problem: Only 7/21 characters have physical descriptions. Missing for all major protagonists: Victor, Robert Walton, Henry Clerval, Alphonse.
-   - Characters WITH descriptions (correct): the creature ✓, the old man ✓, Elizabeth Lavenza (minimal: "Fair-haired; beautiful") ✓, Justine ✓, William ✓, M. Waldman ✓, M. Krempe ✓
-   - Evidence from text:
-     - Victor is described as haggard, emaciated, feverish after his creation work
-     - Henry Clerval has an expressive face full of benevolence
-     - Robert Walton's appearance is less explicitly described but some traits are mentioned
-   - Location: `src/pipeline/character_extraction_v2/` — profile extraction stage
-   - Fix: Profile extraction prompt may need to search harder for physical descriptions of first-person narrators and characters described through others' observations.
+4. **Key relationships MISSING for Victor** [Profiles]
+   - Problem: Victor has only 3 relationships {monster: "creation", Krempe: "mentor", Waldman: "mentor"} but is missing the central relationships of the novel:
+     - Victor→Elizabeth: fiancée/wife (THE romantic relationship)
+     - Victor→Henry Clerval: best friend
+     - Victor→Alphonse: father
+     - Victor→Robert Walton: friend/confidant (the framing narrative)
+   - Henry Clerval has ZERO relationships listed
+   - Robert Walton has ZERO relationships listed
+   - Root cause: Fix 1 removed the "MUST list all characters" obligation from the prompt, which correctly stopped fabricated relationships. But it over-corrected — now the LLM is too conservative and omits real relationships even when textual evidence exists.
+   - Location: `src/analyzer.py` — `_generate_character_profile()`
+   - Fix: The prompt may need a middle ground: "Include relationships where the text explicitly describes the nature of the connection (e.g., 'his friend', 'my father', 'his betrothed'). Omit relationships where characters merely appear in the same scene."
 
-4. **Caroline Beaufort/Frankenstein (Victor's mother) still missing** [Completeness]
-   - Problem: Victor's mother appears in Chapters 1-3 and is mentioned in the summary: "The narrator's mother, Caroline Beaufort, endured extreme hardship caring for her dying father..." She saves Elizabeth, raises the children, and dies of scarlet fever.
-   - Despite the summary now mentioning "Caroline Beaufort" by name (Fix 2 worked for summaries), F6 reconciliation still didn't pick her up.
-   - Root cause: F6 may require a minimum number of summary mentions, and Caroline may appear in only 1-2 chapter summaries. Or F6 may not be matching "Caroline Beaufort" because it's referred to as "the narrator's mother" in most contexts.
-   - Location: `src/analyzer.py` (F6 reconciliation logic, ~line 1220-1240)
-   - Fix: Check F6 thresholds for summary-extracted characters. Caroline appears by name in at least 1 summary.
+5. **Caroline Beaufort/Frankenstein (Victor's mother) still missing** [Completeness]
+   - Problem: Victor's mother appears prominently in Chapters 1-3, is mentioned by name "Caroline Beaufort" in summaries, and her death from scarlet fever is a key plot point. Still absent from character list.
+   - Location: `src/analyzer.py` (F6 reconciliation) or `src/pipeline/character_extraction_v2/supporting.py`
+   - Fix: F6 reconciliation thresholds may require multiple summary mentions. Caroline may appear by name in only 1-2 summaries. Check and lower threshold, or pre-seed her as a candidate.
 
 ### MEDIUM
 
-5. **Structure: Chapter titles null for all 24 chapters** [Structure]
-   - Problem: Frankenstein's chapters are headed "Chapter I", "Chapter II" etc. These are not detected as titles. Only Letters 2, 3, 4 have titles. Letter 1 also has null title.
-   - Evidence: 24/28 structure elements have `title: null`
-   - Location: `src/pipeline/chapter_detection/` — title extraction logic
-   - Fix: The title detector should recognize "Chapter I", "Chapter II" etc. as chapter titles. Also detect "Letter 1" as the first element's title.
-
 6. **Pronunciation false positives** [Pronunciation]
-   - Problem: Common English words flagged: "than", "hero" have zero pronunciation ambiguity. "sympathised", "sympathise", "sympathising", "unsympathised" are standard British English spellings. "slothful" is straightforward.
-   - Evidence: ~8 unnecessary entries out of 206
-   - Location: `src/pipeline/pronunciation/` — word filtering logic
-   - Fix: Add common words to exclusion list. Filter standard -ise/-ised variants.
+   - Problem: ~5-6 false positives: "sympathised", "sympathise", "sympathising", "unsympathised" (standard British spellings), "slothful" (straightforward English), "than" (flagged as "foreign" — it's common English)
+   - 11 entries lack IPA (homographs like "desert", "lead" are acceptable without IPA since pronunciation is context-dependent)
+   - Location: `src/pipeline/pronunciation/` — word filtering
+   - Fix: Add British -ise/-ised variants to exclusion list. Remove "slothful" and "than" from flagged words.
 
-7. **All 206 pronunciation entries have null type and context** [Pronunciation]
-   - Problem: Type (proper_noun, foreign, homograph) and context fields are all null, losing categorization information for the narrator.
-   - Location: `src/pipeline/pronunciation/` — field population
-   - Note: The `category` field IS populated and duplicates what `type` should contain. This may be a field mapping issue.
-
-8. **Book title displayed as "Contents"** [Presentation]
-   - Problem: HTML header says "Contents" instead of "Frankenstein". Title extracted from table-of-contents page.
+7. **Book title displays as "Contents"** [Presentation]
+   - Problem: HTML header shows "Contents" instead of "Frankenstein". Title extracted from table-of-contents page.
    - Location: `src/ingestion/` or title extraction logic
 
-9. **Letter 1 missing from Prologue Materials** [Presentation]
-   - Problem: HTML shows "Prologue 1: Letter 2" as first prologue item. Letter 1 (null title) is excluded.
-   - Location: HTML template — prologue section filters out elements with null titles
+8. **Letter 1 missing from Prologue Materials** [Presentation]
+   - Problem: Prologue section starts at "Prologue 1: Letter 2". Letter 1 (null title) is excluded, and chapter count shows "25 Chapters" instead of 24.
+   - Location: HTML template — prologue section filters elements with null titles
+
+9. **Supporting characters lack full canonical names** [Alias Grouping]
+   - "William" → should be "William Frankenstein"
+   - "Ernest" → should be "Ernest Frankenstein"
+   - "Margaret" → should be "Margaret Saville"
+   - Location: `src/pipeline/character_extraction_v2/supporting.py`
 
 ### LOW
 
 10. **Creature missing key aliases: "the fiend", "the wretch", "the daemon"** [Alias Grouping]
-    - Problem: These are frequently used descriptors for the Creature in the text. The Creature currently only has "the being" and "the monster" as valid descriptors (plus 3 false aliases and "the murderer").
-    - Root cause: Rule 2a (absent-alias blocking) may be over-blocking. If cached summaries don't contain "the fiend" verbatim, valid aliases get blocked.
-    - Fix: If summaries were regenerated with the new prompt, these terms should appear. May need to verify whether the summaries were actually regenerated or cached.
+    - "the monster" entry only has "the creature" as alias. Missing major descriptors used throughout.
+    - May be over-blocked by Rule 2a if cached summaries don't contain these terms verbatim.
 
-11. **Supporting characters lack full canonical names** [Alias Grouping]
-    - Problem: "William" should be "William Frankenstein", "Ernest" should be "Ernest Frankenstein", "Margaret" should be "Margaret Saville"
-    - Location: `src/pipeline/character_extraction_v2/supporting.py`
+11. **"the old man" canonical name is vague** [Identity Resolution]
+    - "the old man (De Lacey)" could refer to anyone. Should ideally be "De Lacey (father)" or "Old De Lacey".
 
-12. **"the old man" canonical name is vague** [Identity Resolution]
-    - Problem: split_the_old_man (29 mentions) is the blind father De Lacey, but the canonical name "the old man" could refer to anyone. Should ideally be "De Lacey (father)" or "Old De Lacey".
-    - Also: alias "the old man (shepherd)" conflates two different "old man" references — the De Lacey father and the shepherd in Ch 11.
-
-13. **Cornelius Agrippa and Werter as character entries** [Completeness]
-    - Low priority — historical/literary references, not characters in the narrative. Minor noise.
+12. **Cornelius Agrippa and Werter as character entries** [Completeness]
+    - Historical/literary references, not narrative characters. Minor noise.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -154,6 +131,7 @@
 | 2 | 6.40 | +0.20 | Creature/Turk split FIXED. Victor/Frankenstein protagonist split now exposed as primary blocker. |
 | 3 | 6.83 | +0.63 | Victor unified ✓. BUT Turk REGRESSED into Creature aliases. Alphonse still missing (3rd attempt). |
 | 4 | 7.15 | +0.95 | Alphonse found ✓. Turk re-separated ✓. Profiles (5/10) now primary blocker. |
+| 5 | 7.38 | +1.18 | Profiles improved 5→6.5. Chapter titles fixed. Creature aliases cleaned. BUT Turk REGRESSED again into old man. Monster/dæmon false split. |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
@@ -188,6 +166,20 @@
   - Modified: `src/pipeline/chapter_summary/summarizer.py`
   - Result: Alphonse now appears in summaries by name → F6 picked him up ✓
 
+- Attempt 5 (Fix 1): Profile relationships — changed prompt to require EXPLICIT textual evidence for relationships; removed "acquaintance"/"unknown" fallback labels; removed "MUST use these exact names" obligation from character_names_text; updated summary evidence instructions.
+  - Modified: `src/analyzer.py` (lines ~2764-2868)
+  - Result: PARTIAL — many relationships now correct (Victor→monster, Alphonse family, Kirwin, dæmon entries). But ~10 wrong relationships remain and ~5 key ones missing. Over-corrected: some characters now have zero relationships.
+
+- Attempt 5 (Fix 2): Creature false aliases "De Lacey" and "the blind father (De Lacey)"
+  - Fix A: Extend `profile_names` to include surname-only fragments
+  - Fix B: New Rule 3b — block aliases whose parenthetical content references another character
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+  - Result: Target aliases blocked ✓. But Turk aliases now appear on old man entry (different issue).
+
+- Attempt 5 (Fix 3): Chapter titles null for Arabic-numbered chapters
+  - Modified: `src/pipeline/chapter_detection/consensus.py`
+  - Result: Chapters 1-24 now have numeric titles ✓
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -200,78 +192,65 @@
 | 4 | Creature Turk aliases | `main_cast.py` (verify_aliases rules) | Fixed ✓ — Turk variants blocked |
 | 4 | Creature De Lacey/shepherd aliases | `main_cast.py` (verify_aliases rules) | Partial — "De Lacey" still present (Rule 3 timing issue) |
 | 4 | Alphonse missing | `summarizer.py` (upstream prompt fix) | Fixed ✓ — escalation to upstream succeeded |
+| 5 | Profile relationships | `analyzer.py` (profile prompt) | Partial — many correct, ~10 still wrong, ~5 missing |
+| 5 | Creature De Lacey/shepherd aliases | `main_cast.py` (surname fragments + Rule 3b) | Fixed ✓ — target aliases blocked |
+| 5 | Chapter titles | `consensus.py` (_clean_title) | Fixed ✓ |
+| 5 | Turk merged with old man | (not targeted) | REGRESSION — Turk aliases now on old man instead of Creature |
+| 5 | Monster/dæmon split | (not targeted) | NEW — F6 extracted "the dæmon" as separate character |
 
-**Pattern detected:** `main_cast.py` verify_aliases has been modified 2 times for Creature alias issues. Rule 3 (cross-character conflict) has a timing issue — it checks against cast members processed so far, not all cast members. Fix needs to pre-compute full cast alias set.
+**Pattern detected:** The Turkish merchant/Turk alias has been a recurring problem across attempts 1, 3, and 5. It moves between characters (Creature in attempt 1/3, old man in attempt 5) but the core issue persists — the LLM groups it with whoever appears in the De Lacey cottage scenes. Rule-based blocking (Rule 3, Rule 2a) doesn't help because the Turk IS mentioned in those chapter summaries.
+
+**Suggested approach for attempt 6:** Rather than more alias-verification rules, consider a **semantic conflict rule** specifically for aliases that describe a distinct person with a different role/occupation than the canonical character. "the old man (De Lacey)" is described as blind/father; "the Turkish merchant" is a merchant — these are semantically different roles that suggest different people. This is similar to the existing `_split_semantic_conflicts` logic in `characters.py` but applied at the alias-verification stage.
+
+## Priority Fix Guidance for Attempt 6
+
+### Fix Priority 1: Monster/dæmon false split (CRITICAL #1)
+
+The most impactful fix — merges two entries that are clearly the same character, immediately improving Identity Resolution and Alias Grouping.
+
+**Investigation steps:**
+1. Look at F6 reconciliation in `src/analyzer.py` (~line 1220-1240)
+2. Find the matching logic that decides whether a summary-extracted character matches an existing character
+3. "the dæmon" should match "the monster" / "the creature" — they're all descriptors for the same being
+4. Add matching logic that recognizes common creature/monster/dæmon/fiend/wretch descriptors as equivalent
+
+**This fix alone could raise Character Extraction by ~0.5-1 point.**
+
+### Fix Priority 2: Old man / Turkish merchant false merge (CRITICAL #2 — REGRESSION)
+
+This has regressed 3 times across attempts. Rule-based alias blocking hasn't permanently solved it because the LLM keeps proposing these aliases and the blocking rules don't fire (terms appear in summaries + no other character claims them).
+
+**Investigation steps:**
+1. Look at `verify_aliases()` in `main_cast.py`
+2. Consider adding a rule that blocks aliases describing a semantically different person-type than the canonical character:
+   - Canonical: "the old man (De Lacey)" — descriptors: old, blind, father
+   - Proposed alias: "the Turkish merchant" — descriptor: merchant (different person-type)
+   - Proposed alias: "the Turk" — descriptor: ethnic/national designation (different from "old man")
+3. This is a variant of semantic conflict detection but at the alias level
+4. Alternative: Add "merchant" to the list of occupation titles that trigger a split or alias rejection when the canonical character doesn't share that occupation
+
+**This fix could raise Character Extraction by ~0.5 points and stops the recurring regression.**
+
+### Fix Priority 3: Profile relationship quality (HIGH #3, #4)
+
+Profile relationships improved from 5/10 to 6.5/10 but need to reach 8/10. Two sub-problems:
+- **Wrong relationships** (~10): LLM still makes errors like Felix "father" of Agatha
+- **Missing key relationships** (~5): Over-correction from Fix 1 — Victor, Henry, Robert Walton all have sparse/empty relationship lists
+
+**Suggested approach:** Add a post-processing validation step that catches impossible relationships (e.g., bidirectional "father" means both are wrong and should be removed). For missing relationships, adjust the prompt to encourage including relationships with explicit textual markers ("his friend", "my father", "his bride") rather than just co-occurrence.
+
+### Do NOT attempt to fix: Chapter Summaries (8.5/10), Structure Detection (8.5/10) — already passing.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
 - Temperature: 0.7 across all agents (reasonable)
 - Context length: 32768 (sufficient)
 - 0 retries across all stages ✓
-- Profiling stage names are null (minor logging issue)
-- Summaries stage shows 0 LLM calls — may still be cached from prior run
-
-## Priority Fix Guidance for Attempt 5
-
-### Fix Priority 1: Profile Relationships (CRITICAL #1 — score 5/10, needs 8/10)
-
-This is the single biggest blocker. The relationship extraction is producing fabricated relationships based on co-occurrence rather than explicit textual evidence. Over 40% of relationships are wrong.
-
-**Investigation steps:**
-1. Find the profile/relationship extraction prompt in `src/pipeline/character_extraction_v2/`
-2. Examine how relationships are inferred — is it purely co-occurrence, or does it look for explicit relationship words?
-3. Modify the prompt to REQUIRE explicit textual evidence for each relationship
-4. Key relationship types to handle correctly:
-   - Family: "father", "mother", "brother", "sister", "son", "daughter", "cousin", "wife", "husband"
-   - Professional: "mentor", "professor", "student", "employer", "servant"
-   - Social: "friend", "companion", "creator", "creature"
-5. Direction must be correct: if text says "A is B's father", then A→B is "child" and B→A is "parent"
-
-**This fix alone could raise the overall score by ~0.45 points.**
-
-### Fix Priority 2: Creature False Aliases (HIGH #2)
-
-"De Lacey" should be blocked by Rule 3 (cross-character conflict with Felix De Lacey) but isn't due to processing order. Fix the timing issue in `verify_aliases()`:
-- Pre-compute ALL cast members' aliases before running verification
-- Pass the full alias map to the verification function
-- Check bidirectionally against all cast aliases, not just those processed so far
-
-"the blind father (De Lacey)" and "shepherd" should be blocked by Rule 2a (not in summaries). Verify the alias-found matching logic handles parenthetical variants correctly.
-
-### Fix Priority 3: Structure Titles (MEDIUM #5)
-
-Detect "Chapter I", "Chapter II" etc. as chapter titles. This is likely a simple pattern matching fix in `src/pipeline/chapter_detection/`.
-
-### Do NOT attempt to fix: Chapter Summaries (8.5/10) — already passing.
-
-## Fix History (Attempt 5)
-
-- Attempt 5 (Fix 1): Profile relationships — changed prompt to require EXPLICIT textual evidence for relationships; removed "acquaintance"/"unknown" fallback labels; removed "MUST use these exact names" obligation from character_names_text; updated summary evidence instructions.
-  - Root cause: `analyzer.py:_generate_character_profile()` — character_names_text instructed LLM to list ALL characters in relationships dict; fallback "acquaintance" label created co-occurrence-based fabrications
-  - Modified: `src/analyzer.py` (lines ~2764-2868)
-  - Smoke test: N/A (LLM-based fix, verified test suite passes)
-
-- Attempt 5 (Fix 2): Creature false aliases "De Lacey" and "the blind father (De Lacey)"
-  - Fix A: Extend `profile_names` to include surname-only fragments (trailing word groups from compound canonical names). "Felix De Lacey" now contributes "de lacey" to other_aliases, enabling Rule 3 to block "De Lacey" as Creature alias.
-  - Fix B: New Rule 3b — block aliases whose parenthetical content references another character. "the blind father (De Lacey)" blocked because "(De Lacey)" references Felix De Lacey.
-  - Root cause: `main_cast.py:verify_aliases()` — profile_names only stored full canonical strings, not surname substrings; kinship exemption bypassed Rule 2a for "the blind father (De Lacey)"
-  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
-  - Smoke test: PASS — "De Lacey" and "the blind father (De Lacey)" both blocked; "shepherd" still passes (low priority)
-
-- Attempt 5 (Fix 3): Chapter titles null for Arabic-numbered chapters
-  - Root cause: `consensus.py:_clean_title()` returned None for "Chapter N" (Arabic numeral) patterns to avoid redundancy, but evaluator reads title from JSON and scores null as missing
-  - Fix: Return the number as a string title (e.g., "Chapter 1" → "1") analogous to Roman numeral handling ("Chapter I" → "I")
-  - Modified: `src/pipeline/chapter_detection/consensus.py`
-  - Smoke test: PASS — "Chapter 1"→"1", "Chapter 24"→"24", no regressions in test suite
-
-## Pipeline Notes (Attempt 5)
-- Completed in 126m 35s (exit code 0)
-- 21 characters, 28 chapters detected
 - Chapter Summaries: 0 LLM calls (cached from previous run)
-- "De Lacey" and "the blind father (De Lacey)" not proposed as Creature aliases this run (Fix 2 may have helped, or LLM variation)
-- Creature aliases blocked by Rule 2a (not in summaries): "the fiend", "the daemon", "the being", "the thing", "the spectre", etc. — valid aliases may be over-blocked if summaries are cached from before they were generated with correct terms
-- "the wretch" and "the dæmon" blocked as "already claimed by another character" — investigate which character
-- Profile relationships fix (Fix 1) will be verified at evaluation time
+- character_llm_chunk_chars: 5000 — relatively small; may miss cross-chunk character references but 0 retries suggests it's working
 
 ## Next Action
-Evaluate attempt 5 output.
+Run PROMPT_fix.md to address:
+1. Monster/dæmon false split (F6 reconciliation in analyzer.py)
+2. Old man/Turkish merchant false merge (verify_aliases in main_cast.py)
+3. Profile relationship quality (analyzer.py profile prompt refinement)
