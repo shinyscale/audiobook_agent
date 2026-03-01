@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -12,219 +12,211 @@
 - JSON: ../output/frankenstein/analysis.json
 
 ## Latest Scores
-- Structure Detection: 7/10 ✗
-- Character Extraction: 5/10 ✗
-  - Completeness: 6/10
-  - Identity Resolution: 3/10
+- Structure Detection: 7.5/10 ✗
+  - 28 elements detected (correct: 4 letters + 24 chapters)
+  - Letter 1 title null → excluded from prologue display
+  - Chapter titles all null (they're numbered "Chapter I" etc. in text — title detection misses these)
+- Character Extraction: 6/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 6/10
   - Alias Grouping: 5/10
-- Character Profiles: 4/10 ✗
+- Character Profiles: 4.5/10 ✗
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 7.5/10 ✗
 - HTML Presentation: 7/10 ✗
-- **Overall: 6.40/10** (reference only)
+- **Overall: 6.83/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (5 categories below threshold)
 
-## What Improved from Attempt 1
-- The Creature is now correctly extracted as a standalone character (main_cast_1, 103 mentions) ✓
-- The Creature is correctly marked as narrator (chapters 11-16) ✓
-- The Turkish merchant is correctly separated as "the Turk" (0a5ef5ac589f) ✓
-- Creature aliases include "the monster", "the fiend", "the wretch", "the being", "the thing" ✓
+## What Improved from Attempt 2
+- Victor Frankenstein is now a SINGLE entry (main_cast_1, 55 mentions) with aliases "Victor", "Frankenstein" ✓ — Fixes A/B/C worked
+- Victor correctly marked as narrator ✓
+- Three narrators correctly identified: Robert Walton, Victor Frankenstein, the creature ✓
+- Beaufort no longer falsely merged with Caroline Beaufort ✓
+
+## What REGRESSED from Attempt 2
+- **The Turk was correctly a separate character in attempt 2** (0a5ef5ac589f, "the Turk") but is now GONE as a separate entry and instead appears as a FALSE ALIAS of the Creature ("the Turk", "the Turk (Safie's father)"). This is a regression.
+- The Creature's alias list is WORSE: attempt 2 had correct aliases only ("the monster", "the fiend", "the wretch", "the being", "the thing"); attempt 3 added 3 false aliases ("De Lacey", "the Turk (Safie's father)", "the Turk") plus "the giant"
+- **Fix E (De Lacey false alias) did NOT work** — Pipeline notes claimed "NO 'De Lacey' alias" but the actual JSON output shows it is still present. The smoke test during the fix phase did not catch this because the full pipeline produces different results than the partial test.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Victor Frankenstein — protagonist is FALSE SPLIT into two entries** [Identity Resolution]
-   - Problem: "Victor" (supporting_1, 28 mentions) and "Frankenstein" (supporting_3, 27 mentions) are listed as separate characters with NO aliases. These are the SAME PERSON — Victor Frankenstein, the novel's protagonist. Combined mentions would be 55+.
-   - Evidence: The text uses "Victor" and "Frankenstein" interchangeably for the same person throughout. He is the narrator of chapters 1-24 (within Walton's frame). No other character is called "Frankenstein" by first name or surname alone in this novel.
-   - ID pattern: Both are `supporting_*` → they came from the supporting cast pipeline, not main cast. This is doubly wrong — the protagonist should be in main cast.
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` produced both as separate entries; `src/pipeline/character_extraction_v2/main_cast.py` failed to detect Victor at all (he's not in main_cast)
-   - Fix approach: Victor Frankenstein should be a single entry in main_cast with aliases: "Victor", "Frankenstein", "Victor Frankenstein". The supporting cast entries should merge or the main_cast pipeline needs to extract him. This is likely a name-frequency issue — the text usually uses just "I" (first person) so both "Victor" and "Frankenstein" have low individual mention counts, causing both to fall into supporting cast and not be merged.
+1. **The Creature has 3 FALSE aliases: "De Lacey", "the Turk (Safie's father)", "the Turk"** [Identity Resolution, Alias Grouping — REGRESSION]
+   - Problem: main_cast_2 ("the creature") has these 3 completely wrong aliases in addition to its correct ones. The Creature is NOT a De Lacey, NOT the Turk. The Turk is Safie's father — a separate person. In attempt 2, "the Turk" was correctly a separate character (0a5ef5ac589f). Now it's been absorbed as a Creature alias.
+   - Evidence: The De Lacey family (Felix, Agatha, old man) are observed by the Creature through a wall. The Turk (Safie's father) is a Turkish merchant who appears in the De Lacey backstory. Neither is the Creature.
+   - ID pattern: `main_cast_2` → main cast pipeline
+   - Root cause analysis: Fix E in attempt 3 targeted `_merge_surname_into_family_descriptive` but the false aliases may be injected at a DIFFERENT stage. Possible causes:
+     - The main_cast LLM extraction itself may be returning these as aliases (LLM confusion from narrative proximity — the Creature narrates chapters 11-16 about the De Laceys and the Turk)
+     - The competitive alias vote may be accepting them because the Creature co-occurs with these terms in its own narration
+     - F6 reconciliation may be merging a separate "the Turk" character into the Creature
+   - Fix approach: Need to trace WHERE these aliases enter the pipeline. Check: (a) raw LLM extraction output for the Creature, (b) competitive alias voting logs, (c) post-merge steps. The fix must happen at the correct stage.
+   - **IMPORTANT**: Fix E's `_merge_surname_into_family_descriptive` change may still be correct but insufficient — the false aliases may enter through a different code path.
 
-2. **Alphonse Frankenstein is STILL completely missing** [Completeness]
-   - Problem: Victor's father does not appear in the character list at all. He is a significant character throughout the novel — sends letters, travels to care for Victor, takes Victor home from prison, dies of grief after Elizabeth's murder.
-   - Evidence: Referred to as "my father", "his father", "Alphonse Frankenstein", "M. Frankenstein" (when referring to the elder). He appears in letters, chapters 1, 6, 7, 19, 21-23.
-   - ID pattern: Absent from both main_cast and supporting
-   - Location: The pipeline fails to extract him because he's primarily referred to as "my father" rather than by name, and the first-person narration makes relational references hard to resolve.
-   - Fix: This is a recurring issue — pipeline notes from this run say "Alphonse's relational aliases ('Victor's father', 'the narrator's father') BLOCKED by co-occurrence check". The co-occurrence validation is too strict and rejecting valid character references.
+2. **Alphonse Frankenstein is STILL completely missing — 3rd consecutive attempt** [Completeness]
+   - Problem: Victor's father does not appear in the 19-character list. This is the third attempt where he's absent despite Fix D lowering `min_grounding_mentions` from 3 to 1.
+   - Evidence: Alphonse is a major character — sends letters, travels to care for Victor, takes him home from prison, dies of grief after Elizabeth's murder. He appears throughout.
+   - Root cause: Fix D addressed grounding, but the issue may be UPSTREAM — the LLM may not extract "Alphonse Frankenstein" at all because:
+     - He's referred to as "my father" throughout (first-person narration)
+     - The name "Alphonse" appears rarely in the text
+     - Supporting cast extraction may not look for relational references
+   - Fix approach: This has been attempted 3 times. The same-layer fixes aren't working. **Escalation needed**: either (a) add a post-processing step that explicitly checks for family members referenced by relationship terms in first-person narratives, or (b) add Alphonse-style "relational character" detection to the prompt/extraction logic itself so the LLM specifically looks for characters referred to by relationship terms.
+   - Files modified previously: `src/agents/characters.py` (grounding threshold) — didn't solve it
+   - **Escalation flag**: Same issue, 3 attempts, same layer. Must try a fundamentally different approach.
 
 ### HIGH
 
-3. **The Creature has "De Lacey" as a FALSE alias** [Alias Grouping, Identity Resolution]
-   - Problem: main_cast_1 ("The creature") has "De Lacey" in its alias list. The Creature is NOT a De Lacey. The De Lacey family (Felix, Agatha, the old man) is a separate family the Creature observes. Felix De Lacey (main_cast_7) also has "De Lacey" as alias — creating a collision.
-   - Evidence: The Creature watches the De Lacey family through a chink in the wall. He is never called "De Lacey" by anyone.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — alias resolution incorrectly linked "De Lacey" to the Creature, possibly because the Creature's narrative heavily discusses the De Laceys.
-   - Fix: Remove "De Lacey" from the Creature's aliases. This is a false association from narrative proximity.
+3. **Fabricated relationships for major characters** [Profiles]
+   - Problem: Multiple characters have relationships with people they never interact with. This is co-occurrence contamination.
+   - Specific fabrications:
+     - Victor → "the creature: employee" (should be "creation" or "creature", not employee)
+     - Victor → "Felix De Lacey: acquaintance", "Agatha De Lacey: acquaintance", "Safie: acquaintance" — Victor NEVER meets the De Lacey family
+     - Robert Walton → "Ernest: acquaintance" — they barely interact
+     - Felix → "Agatha De Lacey: father" (WRONG — Felix is Agatha's BROTHER, the old man is their father)
+     - Agatha → "Felix De Lacey: father" (WRONG — same error reversed)
+     - Safie → "Beaufort: acquaintance", "Victor Frankenstein: acquaintance" — neither is true
+     - Mr. Kirwin → "Victor Frankenstein: mentor" (wrong direction — Kirwin is the magistrate)
+     - The Creature has NO relationships (should have: Victor Frankenstein as creator)
+   - Location: `src/pipeline/character_extraction_v2/` — relationship extraction uses co-occurrence rather than explicit textual markers
+   - Fix: Relationship extraction needs to prioritize explicit relationship words ("father", "brother", "creator", "friend") over mere co-occurrence in the same chapter.
 
-4. **Beaufort and Caroline Beaufort are falsely merged** [Identity Resolution]
-   - Problem: "Beaufort" (main_cast_10) has "Caroline Beaufort" as an alias. Beaufort is a merchant who dies in poverty. Caroline Beaufort is his DAUGHTER who later marries Alphonse Frankenstein and becomes Victor's mother. They are two different people.
-   - Evidence: Chapter 1: "Beaufort...sunk into poverty...died in Caroline's arms." Caroline subsequently marries Alphonse. Beaufort is male, Caroline is female.
-   - ID pattern: `main_cast_10` → main cast pipeline
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — surname-matching alias logic merged father and daughter because both are "Beaufort"
-   - Fix: Same-surname characters need disambiguation when they have different first names AND different genders or generational context.
-
-5. **Relationships are deeply fabricated for major characters** [Profiles]
-   - Problem: Multiple characters have relationships with people they never interact with. This appears to be co-occurrence contamination rather than actual relationship extraction.
-   - Evidence of fabricated relationships:
-     - Victor → "the old man: acquaintance", "Felix De Lacey: acquaintance", "Agatha De Lacey: acquaintance" — Victor never meets the De Lacey family
-     - Robert Walton → "Cornelius Agrippa: acquaintance", "the Turk: acquaintance" — Walton never interacts with either
-     - Frankenstein → "Ernest: parent" — wrong direction (Ernest is Victor's younger brother, not his child)
-     - Henry Clerval → only "M. Krempe: acquaintance" — his primary relationship is Victor (best friend)
-     - Elizabeth → NO relationships at all (should have: Victor as fiancé/husband, Alphonse as adoptive father)
-   - Location: `src/pipeline/character_extraction_v2/` — relationship extraction appears to use chapter co-occurrence rather than actual described relationships
-   - Fix: Relationship extraction should look for explicit relationship markers (family terms, role descriptions) not just co-occurrence in the same chapter.
-
-6. **Physical descriptions missing for most characters** [Profiles]
-   - Problem: Only 7/21 characters (33%) have physical descriptions. Neither Victor nor Henry Clerval — the two male leads — have any description.
-   - Evidence: Victor is described as haggard, feverish, and emaciated after his creation work. The Creature has vivid descriptions (yellow skin, watery eyes, shrivelled complexion, black lips). Safie has dark eyes and satin skin.
+4. **Physical descriptions missing for protagonists** [Profiles]
+   - Problem: Only 6/19 characters (32%) have physical descriptions. Missing for all four leads: Victor Frankenstein, Elizabeth Lavenza, Henry Clerval, Robert Walton.
+   - Evidence:
+     - Victor is described as haggard, feverish, emaciated after his creation work; his eyes are dull and sunken
+     - Elizabeth is described as having a celestial beauty, fair hair, blue eyes (in Shelley's 1831 edition)
+     - Henry Clerval is described as having an expressive face full of benevolence
+   - Characters WITH descriptions (correct): the creature ✓, the old man ✓, William ✓, M. Waldman ✓, M. Krempe ✓, Safie ✓
    - Location: `src/pipeline/character_extraction_v2/` — profile extraction stage
+   - Fix: Profile extraction prompts may need to search harder for physical descriptions of first-person narrators (Victor, Walton) who describe themselves less explicitly.
+
+5. **Caroline Beaufort / Caroline Frankenstein (Victor's mother) missing** [Completeness]
+   - Problem: Victor's mother is a significant character in Chapters 1-3 but doesn't appear in the character list. She saves Elizabeth, raises the Frankenstein children, and dies of scarlet fever caught from nursing Elizabeth — her death is a pivotal plot point.
+   - Evidence: Referred to as "my mother", "Caroline Beaufort", "Caroline Frankenstein" in the text.
+   - Location: Same issue as Alphonse — relational references in first-person narration are not being extracted.
+   - Fix: Part of the same "relational character detection" issue as Alphonse (#2).
 
 ### MEDIUM
 
-7. **Structure: Letter 1 title not detected, chapter numbers shifted** [Structure]
-   - Problem: The first structure element has `title: null`, causing it to display as "Chapter 1" instead of "Letter 1". Only 3 of 4 letters are detected as Prologue Materials. All subsequent chapter numbers are shifted — "Chapter 5" in the output = Chapter 1 in the book, "Chapter 28" = Chapter 24.
-   - Evidence: HTML shows "3 Prologue Materials" instead of 4. Pronunciation section confirms: "Chapter 1" (Letter 1), "Letter 2", "Letter 3", "Letter 4", "Chapter 5"..."Chapter 28".
-   - Location: `src/pipeline/chapter_detection/` — regex/LLM missed "Letter 1" heading
-   - Fix: Ensure the first structural marker ("Letter 1") is detected.
+6. **Structure: Letter 1 title not detected** [Structure]
+   - Problem: First structure element has `title: null`. Should be "Letter 1". Only 3/4 letters classified as Prologue Materials.
+   - Evidence: HTML shows "Prologue Materials" starting with "Prologue 1: Letter 2" — Letter 1 is missing from this section.
+   - Location: `src/pipeline/chapter_detection/` — first structural marker not detected
+   - Fix: Ensure the first boundary detects "Letter 1" heading.
 
-8. **Supporting characters lack full canonical names** [Alias Grouping]
-   - Problem: "William" should be "William Frankenstein", "Ernest" should be "Ernest Frankenstein", "Margaret" should be "Margaret Saville", "Kirwin" should be "Mr. Kirwin". These characters are identified by surname/full name at least once in the text but their canonical names are incomplete.
-   - Location: `src/pipeline/character_extraction_v2/supporting.py` — canonical name resolution for supporting cast
-   - Fix: Supporting characters need full name lookup during extraction.
+7. **Supporting characters lack full canonical names** [Alias Grouping]
+   - Problem: "William" should be "William Frankenstein" (supporting_0), "Ernest" should be "Ernest Frankenstein" (supporting_2). The text identifies them with surnames at least once.
+   - Location: `src/pipeline/character_extraction_v2/supporting.py`
 
-9. **"De Lacey" alias conflict between two entries** [Alias Grouping]
-   - Problem: "De Lacey" appears as alias for both The creature (main_cast_1, WRONG) and Felix De Lacey (main_cast_7). Additionally, "the old man" (split_the_old_man) represents the father, whose canonical name should probably be "De Lacey" or "Old De Lacey" rather than "the old man".
-   - Location: Alias deduplication in main_cast.py
-   - Fix: Remove "De Lacey" from Creature's aliases (issue #3), keep for Felix or the old man only.
+8. **Pronunciation false positives** [Pronunciation]
+   - Problem: Common English words flagged: "does", "than", "hero", "sympathised", "sympathise", "produce". "than" and "hero" have zero pronunciation ambiguity.
+   - Evidence: 206 entries, ~6+ are unnecessary false positives.
+   - Location: `src/pipeline/pronunciation/` — filtering logic
 
-10. **Pronunciation false positives** [Pronunciation]
-    - Problem: Common English words flagged: "does", "than", "hero", "sympathised", "sympathise", "desert", "produce". While some are legitimate homographs, "than" and "hero" have no pronunciation ambiguity.
-    - Evidence: 206 entries, ~15-20 are unnecessary false positives.
-    - Location: `src/pipeline/pronunciation/` — filtering logic
-    - Fix: Add common unambiguous words to exclusion list.
+9. **All pronunciation type/context fields null** [Pronunciation]
+   - Problem: All 206 entries have `type: null` and `context: null`, losing categorization information.
+   - Location: `src/pipeline/pronunciation/`
 
-11. **Book title displayed as "Contents"** [Presentation]
-    - Problem: The HTML report header says "Contents" instead of "Frankenstein". The title was likely extracted from a table-of-contents page rather than the book's actual title.
-    - Location: `src/ingestion/` or title extraction in the ingestion pipeline.
+10. **Book title displayed as "Contents"** [Presentation]
+    - Problem: HTML header says "Contents" instead of "Frankenstein". Title extracted from table-of-contents page.
+    - Location: `src/ingestion/` or title extraction
+
+11. **"De Lacey" alias collision** [Alias Grouping]
+    - Problem: "De Lacey" appears as alias for both the Creature (WRONG, see #1) and Felix De Lacey (correct).
+    - Fix: Resolves when #1 is fixed.
 
 ### LOW
 
-12. **Pronunciation type/context fields all null**
-    - Problem: All 206 pronunciation entries have `type: null` and `context: null`, losing categorization info.
-    - Location: `src/pipeline/pronunciation/`
+12. **Creature missing "the daemon" alias** [Alias Grouping]
+    - Problem: "the daemon" is a frequently used descriptor for the Creature in the text but is not in its alias list.
 
-13. **Cornelius Agrippa and Werter as character entries**
-    - Problem: Historical/literary references extracted as characters. Agrippa is an alchemist Victor reads about; Werter is from a book the Creature reads. Neither appears as an actual character.
-    - Low priority — doesn't significantly affect narrator preparation.
-
-14. **Creature missing "the daemon" alias**
-    - Problem: The Creature's aliases include "the monster", "the fiend", "the wretch", "the being", "the thing" but NOT "the daemon" — a frequently used descriptor in the text.
-    - Location: `src/pipeline/character_extraction_v2/main_cast.py`
+13. **Cornelius Agrippa and Werter as character entries** [Completeness]
+    - Problem: Historical/literary references (Agrippa is an alchemist Victor reads about; Werter is from a book the Creature reads) extracted as characters.
+    - Low priority — doesn't significantly hurt narrator preparation.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.20 | - | Baseline. Creature/Turkish merchant merge is primary blocker. |
 | 2 | 6.40 | +0.20 | Creature/Turk split FIXED. Victor/Frankenstein protagonist split now exposed as primary blocker. |
+| 3 | 6.83 | +0.63 | Victor unified ✓. BUT Turk REGRESSED into Creature aliases. Alphonse still missing (3rd attempt). |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
-  - Root cause: `main_cast.py:competitive_verify_aliases:1344-1347` used only first 5 chapters as context, which for Frankenstein (28 chapters) only covered Walton's letters. The Creature doesn't appear until chapter 5+, so all Creature aliases ("daemon", "monster") were rejected, and the false "the Creature → Turkish merchant" alias was accepted because neither character appeared in the limited context.
-  - Smoke test: PASS — verified competitive context now uses all chapters; confirmed Turkish merchant/Creature conflict correctly split
   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
 
-- Attempt 2 (Fix 2): Added occupation titles (merchant, magistrate, officer, soldier) to `human_descriptors` in `_split_semantic_conflicts` as safety net
-  - These are universally human occupation titles; prevents creature terms from being accepted as aliases of human-titled characters even if competitive voting fails
-  - Smoke test: PASS — "the Turkish merchant" + "the Creature" conflict now detected and split
+- Attempt 2 (Fix 2): Added occupation titles (merchant, magistrate, officer, soldier) to `human_descriptors` in `_split_semantic_conflicts`
+  - Modified: `src/agents/characters.py`
+
+- Attempt 3 (Fix A): Changed `consensus_merge_threshold` from 0.67 to `2/3` to allow 2/3 supermajority votes to pass
+  - Modified: `src/agents/config.py`, `src/cli.py`
+
+- Attempt 3 (Fix B): Narrator placeholder preservation — `_filter_narrator_variants` now keeps main_cast narrators with proper-name aliases
+  - Modified: `src/agents/characters.py`
+
+- Attempt 3 (Fix C): Narrator placeholder canonical name upgrade — "The narrator" with alias "Victor Frankenstein" gets canonical name upgraded
+  - Modified: `src/agents/characters.py`
+
+- Attempt 3 (Fix D): Lowered `min_grounding_mentions` from 3 to 1 — DID NOT SOLVE Alphonse issue
+  - Modified: `src/agents/characters.py`
+
+- Attempt 3 (Fix E): `_merge_surname_into_family_descriptive` — mark surname consumed when "the X" already has it as alias — DID NOT FULLY WORK for De Lacey
   - Modified: `src/agents/characters.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | CRITICAL #1: Creature/Turkish merchant merge | `src/pipeline/character_extraction_v2/main_cast.py`, `src/agents/characters.py` | Fixed — Creature now standalone with 103 mentions |
-| 2 | CRITICAL #2: Alphonse missing | (not addressed by fix) | No change |
-| 3 | CRITICAL #1: Victor/Frankenstein protagonist split | `src/agents/config.py`, `src/cli.py`, `src/agents/characters.py` | Pending verification |
-| 3 | CRITICAL #2: Alphonse missing | `src/agents/characters.py` | Pending verification |
-| 3 | HIGH #3: Creature "De Lacey" false alias | `src/agents/characters.py` | Pending verification |
+| 2 | Creature/Turkish merchant merge | `main_cast.py`, `characters.py` | Fixed ✓ |
+| 2 | Alphonse missing | (not addressed) | No change |
+| 3 | Victor/Frankenstein split | `config.py`, `cli.py`, `characters.py` | Fixed ✓ |
+| 3 | Alphonse missing | `characters.py` (grounding threshold) | No change — grounding wasn't root cause |
+| 3 | Creature De Lacey alias | `characters.py` (_merge_surname) | No change — aliases still present, possibly enter via different code path |
+| 3 | (Side effect) Turk regression | Unknown — was separate in attempt 2, now merged as Creature alias | Regression |
+
+**Escalation needed:** Alphonse has been attempted 3 times via same-layer fixes (`characters.py`). Must try upstream approach.
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
 - Temperature: 0.7 across all agents (reasonable)
 - Context length: 32768 (sufficient for chapter sizes)
 - No retries recorded (all stages: 0 retries)
-- Stage timings: Structure 547s, Characters 2586s, Summaries (profiles?) 1338s, Summaries 2304s, Pronunciation 1104s
-- No obvious config issues — the character extraction issues are algorithmic, not config-related
-
-## Pipeline Notes (Attempt 2)
-- Runtime: 136m 53s | 424 LLM calls | 805,453 tokens
-- 21 characters found (6 added via reconciliation)
-- The creature: standalone ✓ (aliases: "the monster", "the fiend" — 103 mentions)
-- Semantic conflict detection fired: "old man (De Lacey)" correctly NOT aliased to "The creature" ✓
-- Robert Walton: epistolary narrator detected ✓
-- Alphonse's relational aliases ("Victor's father", "the narrator's father") BLOCKED by co-occurrence check — needs evaluation
-- Structure: 27 boundaries found vs 31 expected (TOC mismatch — ongoing issue)
-- LLM marker proposer returned non-list (dict) for all 30 structure proposers — recurring issue
-
-## Priority Fix Guidance for Attempt 3
-
-The **primary blockers** preventing score improvement are:
-
-1. **Victor/Frankenstein split** (CRITICAL #1) — This is the highest-impact fix. The protagonist being split into two supporting cast entries with no aliases is the single biggest scoring drag across Characters, Profiles, and Identity Resolution. Both entries are in `supporting_*` IDs, meaning main_cast pipeline completely missed Victor Frankenstein.
-
-2. **Alphonse missing** (CRITICAL #2) — Second attempt, still missing. Pipeline notes say co-occurrence check blocks his relational aliases. The co-occurrence validation may need a carve-out for characters primarily referenced via family terms in first-person narratives.
-
-3. **Creature "De Lacey" false alias** (HIGH #3) — Quick alias cleanup that would boost both Identity Resolution and Alias Grouping scores.
-
-Focus on #1 and #2. If those are fixed, Character Extraction could jump from 5/10 to 7-8/10, which cascades into Profile improvements as well.
-
-## Fix History (Attempt 3)
-
-### Fix A: Alias Vote Threshold (Critical #1 enabler)
-- **Root cause**: `consensus_merge_threshold = 0.67` caused 2/3 votes (ratio 0.6667) to fail by a tiny margin — effectively requiring unanimity (3/3) for 3 voters. The intended "2/3 supermajority" threshold was 0.6667 but the approximation 0.67 was used.
-- **Fix**: Changed to `2/3` (Python expression = 0.6667...) in `src/agents/config.py` and `src/cli.py`
-- **Impact**: "Victor Frankenstein" (2/3 YES votes) and "Victor" (2/3 YES votes) now pass as aliases for "The narrator" character extracted from summaries
-- **Smoke test**: Verified threshold is now 0.666667 and 2/3 votes pass correctly
-- **Files**: `src/agents/config.py`, `src/cli.py`
-
-### Fix B: Narrator Placeholder Preservation (Critical #1)
-- **Root cause**: Step 5.2 `_filter_narrator_variants` unconditionally removed any main cast character with "narrator" in canonical name, including "The narrator" (Victor) which was extracted by the LLM and had proper-name aliases
-- **Fix**: Added `is_main_cast=True` parameter; when True, narrator placeholders with proper-name aliases (capitalized, non-placeholder) are KEPT instead of filtered
-- **Files**: `src/agents/characters.py`
-
-### Fix C: Narrator Placeholder Canonical Name Upgrade (Critical #1)
-- **Root cause**: Even if "The narrator" was kept in main cast with alias "Victor Frankenstein", `_merge_lastname_aliases` (Step 5.5) would compare the CANONICAL NAME "The narrator" against supporting cast "Victor" and "Frankenstein" — finding no match. The canonical name needed to be the proper name for fragment merging to work.
-- **Fix**: Added Step 5.2b: after filter, if a narrator placeholder has proper-name aliases, upgrade canonical_name to fullest alias. "The narrator" (alias "Victor Frankenstein") → canonical becomes "Victor Frankenstein". Then Step 5.5 merges supporting "Victor" (firstname) and "Frankenstein" (lastname) into this character.
-- **Files**: `src/agents/characters.py`
-
-### Fix D: Grounding Threshold (Critical #2 — Alphonse)
-- **Root cause**: "Alphonse Frankenstein" appears only once in the raw text (he's called "my father" throughout). With `min_grounding_mentions=3`, his single mention was below threshold → filtered as hallucination.
-- **Fix**: Lowered `min_grounding_mentions` default from 3 to 1 in `CharacterAgent.__init__`. Purpose of grounding is to catch 0-mention hallucinations; 1 mention confirms existence.
-- **Files**: `src/agents/characters.py`
-
-### Fix E: De Lacey False Alias (High #3)
-- **Root cause**: `_merge_surname_into_family_descriptive` was looking for a descriptive "the X" character to host the bare surname "De Lacey". It skipped "the old man" (already had "De Lacey" as alias) but continued iterating and found "The creature" whose description mentions "Felix", "father" etc. (because the Creature narrates about the De Lacey family). The `break` only fired on SUCCESSFUL merge, not on skip.
-- **Fix**: When a "the X" character ALREADY has the surname as alias, mark the supporting surname char as consumed (`chars_to_remove.add(supp_idx)`) and `break` — preventing it from being merged into any other character.
-- **Files**: `src/agents/characters.py`
-
-### Also Kept: Kinship Term Carve-out (Pre-existing uncommitted change)
-- In `main_cast.py`: kinship terms ("father", "mother", etc.) bypass co-occurrence check so they can reach the competitive vote
-- This is a universal reference lexicon (kinship terms exist in all cultures/genres)
-- Reverted: incorrect `post_corrections.merge_narrator_fragments` approach and corresponding `analyzer.py` changes
-
-## Pipeline Notes (Attempt 3)
-- Runtime: 140m 32s | 458 LLM calls | 874,774 tokens
-- 23 characters found + 4 from reconciliation = 19 after deduplication/filtering
-- Victor Frankenstein: MERGED as single character with aliases "Victor, Frankenstein" (55 mentions) ✓ — FIX A/B/C verified
-- The creature: 112 mentions, aliases "the monster, the fiend" (NO "De Lacey" alias) ✓ — FIX E verified
-- "the old man" has alias "the old man (De Lacey)" — correct (he is a De Lacey)
-- Semantic conflict split fired: 2 pairs split ("the old man (De Lacey)" and "the old man" correctly NOT aliased to "the creature") ✓
-- Book title still "Contents" (pre-existing issue #11)
 - Stage timings: Structure 9m13s, Summaries 43m54s, Characters 29m42s, Profiles 32m59s, Pronunciation 18m55s
-- Structure: 28 chapters found (vs 27 in attempt 2 — slight improvement)
-- Alphonse: Not visible in preview; need evaluation to confirm if present
+- Total: 140m 32s, 458 LLM calls, 874,774 tokens
+
+## Priority Fix Guidance for Attempt 4
+
+### Fix Priority 1: Creature False Aliases (CRITICAL #1 — regression fix)
+
+The Creature's false aliases ("De Lacey", "the Turk", "the Turk (Safie's father)") are the highest-impact issue. They affect Identity Resolution AND Alias Grouping AND are a regression from attempt 2 where "the Turk" was correctly separate.
+
+**Investigation steps:**
+1. Trace where these aliases enter the pipeline. Check the raw LLM output from main_cast extraction for the Creature's initial alias list
+2. Check whether "the Turk" is being extracted as a separate character and then merged into the Creature during post-processing
+3. Check competitive alias voting logs — are these aliases being voted on and accepted?
+4. If the LLM itself is proposing these aliases, the fix is in the main_cast extraction prompt (add guidance about narrator vs. subject confusion)
+5. If post-processing is merging them, fix the specific merge step
+
+**Key insight:** The Creature NARRATES about the De Laceys and the Turk in chapters 11-16. A naive extraction that associates frequently-mentioned names with the narrator/speaker will incorrectly alias them.
+
+### Fix Priority 2: Alphonse Missing (CRITICAL #2 — escalation required)
+
+Three attempts have failed. The grounding threshold fix didn't work because the issue is upstream — the LLM never extracts Alphonse in the first place. He's referred to as "my father" throughout the first-person narration.
+
+**Escalation approaches:**
+- Add explicit guidance in the character extraction prompt to look for characters referenced primarily by relationship terms ("my father", "his mother", "my cousin")
+- Add a post-extraction pass that scans for proper names co-occurring with relationship terms and creates character entries
+- Check if the summary agent mentions Alphonse — if so, F6 reconciliation should pick him up
+
+### Fix Priority 3: Profile Fabrication (HIGH #3)
+
+The relationship extraction is clearly using co-occurrence rather than explicit textual markers. Victor is listed as "acquaintance" of the De Lacey family (never meets them). Felix is listed as Agatha's "father" (he's her brother). The Creature has zero relationships (should have Victor as creator).
+
+This is a profile-stage issue, likely in `src/pipeline/character_extraction_v2/` profile extraction prompts.
+
+### Do NOT attempt to fix summaries (8.5/10) — they pass threshold.
 
 ## Next Action
-Evaluate attempt 3 output.
+Run PROMPT_fix.md to address Critical #1 (Creature false aliases — regression) and Critical #2 (Alphonse — escalation).
