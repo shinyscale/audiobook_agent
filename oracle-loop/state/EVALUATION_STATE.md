@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260228_220746/
+- Dated dir: ../output/Frankenstein_ebook_20260301_003644/
 
 ## What Improved from Attempt 3
 - **Alphonse Frankenstein is NOW PRESENT** (main_cast_5, 10 mentions, alias "his father") — Fix 2 (summarizer prompt) WORKED! Summaries now use proper names, enabling F6 reconciliation to find Alphonse. This is a 3-attempt escalation that finally succeeded via upstream fix.
@@ -264,5 +264,14 @@ Detect "Chapter I", "Chapter II" etc. as chapter titles. This is likely a simple
   - Modified: `src/pipeline/chapter_detection/consensus.py`
   - Smoke test: PASS — "Chapter 1"→"1", "Chapter 24"→"24", no regressions in test suite
 
+## Pipeline Notes (Attempt 5)
+- Completed in 126m 35s (exit code 0)
+- 21 characters, 28 chapters detected
+- Chapter Summaries: 0 LLM calls (cached from previous run)
+- "De Lacey" and "the blind father (De Lacey)" not proposed as Creature aliases this run (Fix 2 may have helped, or LLM variation)
+- Creature aliases blocked by Rule 2a (not in summaries): "the fiend", "the daemon", "the being", "the thing", "the spectre", etc. — valid aliases may be over-blocked if summaries are cached from before they were generated with correct terms
+- "the wretch" and "the dæmon" blocked as "already claimed by another character" — investigate which character
+- Profile relationships fix (Fix 1) will be verified at evaluation time
+
 ## Next Action
-Set phase to awaiting_analysis — run analysis to verify fixes.
+Evaluate attempt 5 output.
