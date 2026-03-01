@@ -55,9 +55,15 @@ RELATIONSHIP_REVERSES = {
 }
 
 # Relationships that are symmetric: A→B implies B→A with the same label.
+# These are VALID when bidirectional — both sides having the same label is correct.
+# Only asymmetric labels (father, creator, mentor, etc.) are contradictory when bidirectional.
 _SYMMETRIC_RELATIONSHIPS = frozenset({
-    "acquaintance", "associate", "business partner", "close friend",
-    "friend", "ally", "neighbor", "rival", "enemy",
+    "acquaintance", "associate", "associated", "business partner",
+    "close friend", "colleague", "friend",
+    "ally", "neighbor", "rival", "enemy",
+    "romantic interest", "love interest",
+    "sibling", "twin",
+    "co-conspirator", "conspirator", "partner",
 })
 
 FAMILY_TERMS = (

@@ -1564,9 +1564,28 @@ class AudiobookAnalyzer:
 
                     return False
 
+                # Common English pronouns and single-character strings that should never
+                # be treated as character names.  A first-person narrator uses "I" heavily,
+                # and the summariser may include it in active_characters by mistake.
+                _F6_PRONOUN_FILTER = {
+                    "i", "he", "she", "they", "we", "it",
+                    "him", "her", "them", "us",
+                    "his", "hers", "theirs", "its", "ours",
+                }
+
                 missing_names = []
                 f6_seen_normalized = set()  # Track normalized names already added in this F6 pass
                 for name in summary_character_names:
+                    # Skip single-character strings (pronouns like "I", OCR noise, etc.)
+                    if len(name.strip()) <= 1:
+                        logger.debug(f"F6: Skipping '{name}' (single character — not a valid name)")
+                        continue
+
+                    # Skip common pronouns that are never character names
+                    if name.strip().lower() in _F6_PRONOUN_FILTER:
+                        logger.debug(f"F6: Skipping '{name}' (common pronoun — not a character name)")
+                        continue
+
                     # Skip generic descriptors - these are likely aliases of existing characters
                     if _is_generic_descriptor(name):
                         logger.debug(

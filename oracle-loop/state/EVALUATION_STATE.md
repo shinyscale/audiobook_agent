@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -267,5 +267,31 @@ Add a filter: reject F6 candidates with single-character names or common pronoun
 - Chapter Summaries: 0 LLM calls (cached from previous run)
 - character_llm_chunk_chars: 5000 — relatively small but 0 retries suggests it's working
 
+## Attempt 7 Fixes Applied
+
+### Fix 1 (CRITICAL — Profiles regression): Symmetric relationships restored
+- **Root cause:** `_SYMMETRIC_RELATIONSHIPS` was missing "sibling", "romantic interest", "colleague", "associated", "partner", "twin", etc. — so bidirectional pairs with these valid labels were being deleted.
+- **Fix:** Added the missing labels to `_SYMMETRIC_RELATIONSHIPS`.
+- **Location:** `src/pipeline/character_profiling/post_corrections.py`
+- **Expected impact:** Profiles +1.5 (restores removed valid relationships like Victor↔Elizabeth, Walton↔Margaret, Felix↔Agatha)
+
+### Fix 2 (HIGH — De Lacey alias on creature): Alias surname fragments in profile_names
+- **Root cause:** `profile_names` only extracted suffix fragments from *canonical names*, not from *aliases*. If Felix's canonical was just "Felix" (single word) with alias "Felix De Lacey", then "de lacey" would NOT be in `other_aliases`, so Rule 3 never fired.
+- **Fix:** Rewrote profile_names building to extract suffix fragments from BOTH canonical names AND aliases, iterating over `[canonical] + aliases` uniformly.
+- **Location:** `src/pipeline/character_extraction_v2/main_cast.py` — `verify_aliases()`
+- **Expected impact:** Characters Alias Grouping +0.5 (blocks De Lacey from creature)
+
+### Fix 3 (HIGH — Professor Krempe alias on Waldman): Extended title pattern
+- **Root cause:** `_are_different_titled_people` used regex `^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+(.+)$` — "Professor" was not recognized as a title, so "Professor Krempe" vs "M. Waldman" didn't trigger the different-surname check.
+- **Fix:** Added "Professor", "Prof.", "Captain", "Sergeant", "Colonel", "General", "Lord", "Lady", "Baron", "Count", "Countess", "Sir" to the title pattern.
+- **Location:** `src/pipeline/character_extraction_v2/main_cast.py` — `_are_different_titled_people()`
+- **Expected impact:** Characters Alias Grouping +0.25 (blocks Professor Krempe from Waldman)
+
+### Fix 4 (MEDIUM — "I" as a character): F6 pronoun filter
+- **Root cause:** F6 reconciliation had no filter for single-letter names or common pronouns. A first-person narrator's "I" appears in `active_characters` of summaries and creates a spurious character.
+- **Fix:** Added filter at top of F6 loop: skip names with len ≤ 1 or names in a common-pronoun set {i, he, she, they, we, it, him, her, them, us, his, hers, theirs, its, ours}.
+- **Location:** `src/analyzer.py` — F6 reconciliation loop
+- **Expected impact:** Characters Completeness +0.25 (removes "I" character with 3157 fake mentions)
+
 ## Next Action
-Run PROMPT_fix.md to address: (1) narrow contradictory relationship removal to asymmetric labels only, (2) pre-build profile_names for Rule 3 alias blocking, (3) filter pronoun "I" from F6.
+Run PROMPT_analyze.md to re-run the pipeline and verify fixes.

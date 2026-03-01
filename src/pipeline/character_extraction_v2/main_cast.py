@@ -650,19 +650,19 @@ class MainCastExtractor:
             f"{[(p.canonical_name, p.aliases) for p in profiles]}"
         )
 
-        # Pre-build a snapshot of all names/aliases per profile BEFORE any modification.
-        # Used by Rule 3 (cross-character conflict). Also includes surname fragments from
-        # compound canonical names so "De Lacey" from "Felix De Lacey" is considered taken.
+        # Pre-build all name forms per profile (canonical, aliases, surname fragments).
+        # Fragments ensure e.g. "De Lacey" from alias "Felix De Lacey" is marked as taken.
         profile_names: dict[int, set[str]] = {}
         for p in profiles:
-            names = {p.canonical_name.lower()}
-            words = p.canonical_name.lower().split()
-            for i in range(1, len(words)):
-                suffix = " ".join(words[i:])
-                if len(suffix) >= 3:
-                    names.add(suffix)
-            for a in p.aliases:
-                names.add(a.lower())
+            names: set[str] = set()
+            for phrase in [p.canonical_name] + list(p.aliases):
+                phrase_l = phrase.lower()
+                names.add(phrase_l)
+                words = phrase_l.split()
+                names.update(
+                    " ".join(words[i:]) for i in range(1, len(words))
+                    if len(" ".join(words[i:])) >= 3
+                )
             profile_names[id(p)] = names
 
         # Kinship terms: aliases using these words are used INSTEAD of proper names
@@ -1610,7 +1610,8 @@ Return JSON:
 
         # Extract titles and surnames
         # M. = Monsieur (French equivalent of Mr.)
-        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.)\s+(.+)$"
+        # Professor/Prof./Captain/Sergeant/Lord/Lady are universal academic/military/noble titles
+        title_pattern = r"^(Mr\.|Mrs\.|Miss|Ms\.|Dr\.|M\.|Professor|Prof\.|Captain|Sergeant|Colonel|General|Lord|Lady|Baron|Count|Countess|Sir)\s+(.+)$"
 
         match1 = re.match(title_pattern, name1, flags=re.IGNORECASE)
         match2 = re.match(title_pattern, name2, flags=re.IGNORECASE)
