@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -273,6 +273,18 @@ Present relationships (20 total across 12 characters):
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
   - **DID NOT WORK** — Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret all still missing. Method may not be in `run_all()` call chain, or name matching against summaries has a bug.
 
+- Attempt 11 (Fix 1): Co-occurrence enrichment bug — `add_cooccurrence_relationships()` wrote to temp dict
+  - Root cause: `rels_b = getattr(...) or {}` creates a new temp empty dict when `char_b.relationships` is `{}` (falsy). Writes to temp dict; `char_b.relationships` remains empty. Non-empty dicts were unaffected (one direction worked, other didn't).
+  - Fix: Separate read-only check (keeps `or {}`) from write path (writes directly to `char.relationships`)
+  - Smoke test: PASS — Victor+Elizabeth both get "associated" bidirectionally
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 11 (Fix 2): Romantic label validation — new `reject_unfounded_romantic_labels()` method
+  - Root cause: LLM profiler generated "romantic interest" for De Lacey↔monster. No post-correction validated romantic labels against text evidence.
+  - Fix: New method checks for strong romantic evidence (love, kiss, marry, wed, betrothed, romance, fiancée) in co-mention windows. Downgrades to "associated" if no evidence found.
+  - Smoke test: PASS — De Lacey↔monster "romantic interest" → "associated"; Felix↔Safie preserved
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -346,4 +358,4 @@ The method needs to match character canonical names and aliases against chapter 
 - No configuration changes recommended
 
 ## Next Action
-Run PROMPT_fix.md to debug co-occurrence enrichment and remove "romantic interest" hallucination.
+Run PROMPT_analyze.md to re-run analysis with attempt 11 fixes applied.

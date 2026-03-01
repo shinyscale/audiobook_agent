@@ -727,6 +727,7 @@ class OutputCharacterCorrector:
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
+        self.reject_unfounded_romantic_labels(characters, source_text)
         # fix_bidirectional_parent_labels must run AFTER verify_relationships_from_text,
         # which overrides relationships based on text evidence and can re-introduce
         # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
@@ -889,10 +890,12 @@ class OutputCharacterCorrector:
                 if j <= i:
                     continue
 
-                # Skip if relationship already exists in either direction
-                rels_a = getattr(char_a, 'relationships', None) or {}
-                rels_b = getattr(char_b, 'relationships', None) or {}
-                if char_b.canonical_name in rels_a or char_a.canonical_name in rels_b:
+                # Skip if relationship already exists in either direction.
+                # Use 'or {}' only for the read-only existence check — an empty dict
+                # is semantically equivalent to "no relationships" for skip purposes.
+                rels_a_check = getattr(char_a, 'relationships', None) or {}
+                rels_b_check = getattr(char_b, 'relationships', None) or {}
+                if char_b.canonical_name in rels_a_check or char_a.canonical_name in rels_b_check:
                     continue
 
                 # Count shared summaries
@@ -901,16 +904,15 @@ class OutputCharacterCorrector:
                 if len(shared) < min_shared:
                     continue
 
-                # Add "associated" bidirectionally
-                if not isinstance(rels_a, dict):
-                    rels_a = {}
-                    char_a.relationships = rels_a
-                if not isinstance(rels_b, dict):
-                    rels_b = {}
-                    char_b.relationships = rels_b
-
-                rels_a[char_b.canonical_name] = "associated"
-                rels_b[char_a.canonical_name] = "associated"
+                # Add "associated" bidirectionally.
+                # Write directly to char.relationships (not a temp 'or {}' copy) so that
+                # characters with an empty relationships dict are correctly updated.
+                if not isinstance(getattr(char_a, 'relationships', None), dict):
+                    char_a.relationships = {}
+                if not isinstance(getattr(char_b, 'relationships', None), dict):
+                    char_b.relationships = {}
+                char_a.relationships[char_b.canonical_name] = "associated"
+                char_b.relationships[char_a.canonical_name] = "associated"
                 logger.info(
                     f"Co-occurrence relationship: '{char_a.canonical_name}' ↔ "
                     f"'{char_b.canonical_name}': 'associated' ({len(shared)} shared summaries)"
@@ -1797,6 +1799,80 @@ class OutputCharacterCorrector:
                     f"Removed unfounded familial label: "
                     f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                 )
+
+    def reject_unfounded_romantic_labels(self, characters, source_text: str) -> None:
+        """Downgrade 'romantic interest'/'love interest' labels unsupported by text evidence.
+
+        Universal invariant: a romantic relationship label is hallucinated if the
+        source text contains no explicit romantic language (love, kiss, marry, wed,
+        betrothed, romance, courtship, fiancée) in any window where both characters
+        co-appear.  Weak emotional words (longing, affection, dear) are deliberately
+        excluded because they appear in non-romantic contexts in most narratives.
+
+        When no strong evidence is found, the label is downgraded to "associated"
+        rather than deleted — this preserves the co-occurrence signal while removing
+        the misleading romantic claim.  Runs after reject_unfounded_familial_labels.
+        """
+        if not source_text:
+            return
+
+        _STRONG_ROMANTIC = frozenset({
+            "love", "loves", "loved", "beloved",
+            "kiss", "kisses", "kissed",
+            "marry", "married", "marriage",
+            "wed", "wedding", "wedded",
+            "betrothed", "betrothal",
+            "romance", "romantic",
+            "courtship", "courting",
+            "fiancée", "fiancé", "fiance",
+        })
+        romantic_labels = {"romantic interest", "love interest"}
+        co_window = 500
+        name_patterns = _build_name_patterns(characters)
+
+        for char in characters:
+            if not char.relationships:
+                continue
+            pat_a = name_patterns.get(char.canonical_name)
+            if pat_a is None:
+                continue
+
+            for other_key in list(char.relationships.keys()):
+                rel = char.relationships.get(other_key) or ""
+                if rel.strip().lower() not in romantic_labels:
+                    continue
+
+                other_char = next(
+                    (c for c in characters if c.canonical_name == other_key
+                     or other_key in (c.aliases or [])),
+                    None,
+                )
+                if other_char is None:
+                    continue
+                pat_b = name_patterns.get(other_char.canonical_name)
+                if pat_b is None:
+                    continue
+
+                # Search for strong romantic evidence in co-mention windows.
+                has_evidence = False
+                for ma in pat_a.finditer(source_text):
+                    ws = max(0, ma.start() - co_window)
+                    we = min(len(source_text), ma.end() + co_window)
+                    win = source_text[ws:we]
+                    if not pat_b.search(win):
+                        continue
+                    win_lower = win.lower()
+                    if any(w in win_lower for w in _STRONG_ROMANTIC):
+                        has_evidence = True
+                        break
+
+                if not has_evidence:
+                    char.relationships[other_key] = "associated"
+                    logger.info(
+                        f"Downgraded unfounded romantic label: "
+                        f"'{char.canonical_name}' → '{other_key}': "
+                        f"'{rel}' → 'associated' (no romantic text evidence)"
+                    )
 
     def clean_unknown_relationships(self, characters) -> None:
         """Remove relationship entries labeled 'unknown' - they provide no information.
