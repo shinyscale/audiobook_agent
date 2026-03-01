@@ -2,14 +2,24 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
+- Dated dir: ../output/Frankenstein_ebook_20260228_220746/
+
+## Pipeline Notes (Attempt 4)
+- Total time: 127m 15s | 374 LLM calls | 685,688 tokens
+- Characters: 21 found (was 19; F6 added 8 from summaries)
+- **⚠️ Chapter Summaries: 0 LLM calls recorded** — summaries were likely CACHED from a prior run. This means Fix 2 (summarizer prompt change for proper names) may NOT have taken effect. Alphonse fix via summarizer may need to be verified separately.
+- Fix 1 WORKING: Many Creature aliases correctly BLOCKED (De Lacey false alias not seen in summary; stop-word filter, cross-character conflict, absent-alias rules all firing)
+- **⚠️ Over-blocking concern**: Valid Creature aliases also blocked — "the fiend", "the wretch", "the daemon", "the devil", "the thing" all blocked as "not found in any summary". If summaries were cached from pre-fix-2 run, they may not use these descriptors. Creature now only has "the being" and "the monster" as shown aliases.
+- "the Turk": `No passages provided for the Turk, returning UNCERTAIN` — fate unclear, check JSON
+- Competitive-all active: characters, structure, summaries all using 3-temperature consensus
 
 ## Latest Scores
 - Structure Detection: 7.5/10 ✗
