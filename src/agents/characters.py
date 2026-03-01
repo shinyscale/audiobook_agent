@@ -76,7 +76,7 @@ class CharacterAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
-        min_grounding_mentions: int = 3,
+        min_grounding_mentions: int = 1,
         competitive_config: Optional[CompetitiveConfig] = None,
     ):
         self.llm = llm_client
@@ -517,13 +517,52 @@ class CharacterAgent(Agent):
         )
 
         # STEP 5.2: Also filter narrator variants from main cast (defensive)
-        # In case the LLM extracted "Narrator" as a main character
+        # In case the LLM extracted "Narrator" as a main character.
+        # NOTE: Narrator placeholders that have been properly identified via
+        # proper-name aliases (e.g., "The narrator" → alias "Victor Frankenstein")
+        # are kept and their canonical name is upgraded below.
         original_main_count = len(main_cast)
-        main_cast = self._filter_narrator_variants(main_cast, narrator_info.narrator_name)
+        main_cast = self._filter_narrator_variants(
+            main_cast, narrator_info.narrator_name, is_main_cast=True
+        )
         if len(main_cast) < original_main_count:
             logger.info(
                 f"V2 Step 5.2: Filtered {original_main_count - len(main_cast)} narrator "
                 f"variant(s) from main cast"
+            )
+
+        # STEP 5.2b: Upgrade narrator placeholder canonical names to their fullest
+        # proper-name alias. E.g., "The narrator" (alias: "Victor Frankenstein")
+        # → canonical_name becomes "Victor Frankenstein" so that last-name merging
+        # in Step 5.5 can correctly merge supporting cast fragments like "Victor"
+        # and "Frankenstein" into this character.
+        _narrator_placeholder_terms = [
+            "the protagonist", "the narrator", "narrator", "protagonist",
+            "main character", "the main character",
+        ]
+        for char in main_cast:
+            if not any(p in char.canonical_name.lower() for p in _narrator_placeholder_terms):
+                continue
+            # Find proper-name aliases (capitalized, not a placeholder)
+            proper_aliases = [
+                a for a in char.aliases
+                if any(t[0].isupper() for t in a.split() if len(t) >= 2)
+                and not any(p in a.lower() for p in _narrator_placeholder_terms)
+            ]
+            if not proper_aliases:
+                continue
+            # Choose the fullest (most tokens) proper-name alias as new canonical
+            new_canonical = max(proper_aliases, key=lambda a: len(a.split()))
+            old_canonical = char.canonical_name
+            # Move old canonical to aliases, set new canonical
+            char.aliases = [a for a in char.aliases if a != new_canonical]
+            if old_canonical not in char.aliases:
+                char.aliases.append(old_canonical)
+            char.canonical_name = new_canonical
+            logger.info(
+                f"V2 Step 5.2b: Upgraded narrator placeholder "
+                f"'{old_canonical}' → '{new_canonical}' "
+                f"(aliases: {char.aliases})"
             )
 
         # STEP 5.3: Merge narrator placeholders with their actual named character
@@ -673,7 +712,9 @@ class CharacterAgent(Agent):
         # STEP 5.7: Final defensive narrator filter (after all merges)
         # This catches any narrator entries that might have been introduced during merging
         logger.info("V2 Step 5.7: Final narrator filter pass")
-        main_cast = self._filter_narrator_variants(main_cast, narrator_info.narrator_name)
+        main_cast = self._filter_narrator_variants(
+            main_cast, narrator_info.narrator_name, is_main_cast=True
+        )
         supporting_cast = self._filter_narrator_variants(
             supporting_cast, narrator_info.narrator_name
         )
@@ -1133,9 +1174,10 @@ class CharacterAgent(Agent):
         self,
         supporting_cast: list[Character],
         narrator_name: str | None,
+        is_main_cast: bool = False,
     ) -> list[Character]:
         """
-        Filter out narrator-related entries from supporting cast.
+        Filter out narrator-related entries from cast.
 
         Removes entries like:
         - "Narrator"
@@ -1146,14 +1188,24 @@ class CharacterAgent(Agent):
         These are descriptive references that should not be separate characters.
 
         Args:
-            supporting_cast: List of supporting characters
+            supporting_cast: List of characters to filter
             narrator_name: The identified narrator's name (if any)
+            is_main_cast: If True, keep narrator placeholders that have been
+                          properly identified via proper-name aliases (e.g.,
+                          "The narrator" with alias "Victor Frankenstein" is
+                          a real character, not a generic placeholder).
 
         Returns:
             Filtered list with narrator variants removed
         """
         if not supporting_cast:
             return supporting_cast
+
+        # Placeholder patterns used for narrator identification in summaries
+        placeholder_patterns = [
+            "the protagonist", "the narrator", "narrator", "protagonist",
+            "main character", "the main character",
+        ]
 
         filtered = []
         removed_count = 0
@@ -1163,9 +1215,31 @@ class CharacterAgent(Agent):
 
             # Check if canonical name contains "narrator" (case-insensitive)
             if "narrator" in canonical_lower:
+                # For main cast: keep if the placeholder has been identified by a
+                # proper-name alias (e.g., "The narrator" with alias "Victor Frankenstein").
+                # A proper-name alias is one that: has at least one capitalized word,
+                # is not itself a placeholder pattern, and is not a generic "the X" descriptor.
+                if is_main_cast:
+                    has_proper_name_alias = any(
+                        any(
+                            token[0].isupper()
+                            for token in alias.split()
+                            if len(token) >= 2
+                        )
+                        and not any(p in alias.lower() for p in placeholder_patterns)
+                        for alias in char.aliases
+                    )
+                    if has_proper_name_alias:
+                        logger.info(
+                            f"Keeping narrator placeholder '{char.canonical_name}' "
+                            f"— has proper-name alias(es): {char.aliases}"
+                        )
+                        filtered.append(char)
+                        continue
+
                 logger.info(
                     f"Filtering narrator variant '{char.canonical_name}' "
-                    f"({char.mention_count} mentions) from supporting cast"
+                    f"({char.mention_count} mentions)"
                 )
                 removed_count += 1
                 continue
@@ -1173,7 +1247,7 @@ class CharacterAgent(Agent):
             filtered.append(char)
 
         if removed_count > 0:
-            logger.info(f"Removed {removed_count} narrator variant(s) from supporting cast")
+            logger.info(f"Removed {removed_count} narrator variant(s)")
 
         return filtered
 
@@ -3258,12 +3332,17 @@ class CharacterAgent(Agent):
                 if not main_name.startswith("the "):
                     continue
 
-                # Skip if already has this surname as alias
+                # Skip if already has this surname as alias.
+                # Also mark the supporting char as consumed so it isn't
+                # merged into any OTHER descriptive character — the surname
+                # is already represented by this family's existing alias.
                 if any(supp_lower in alias.lower() for alias in main_char.aliases):
                     logger.debug(
-                        f"Skipping '{main_char.canonical_name}' - already has '{supp_name}' as alias"
+                        f"Skipping '{main_char.canonical_name}' - already has '{supp_name}' as alias; "
+                        f"marking '{supp_name}' as consumed"
                     )
-                    continue
+                    chars_to_remove.add(supp_idx)
+                    break  # Surname already accounted for — don't merge into another character
 
                 # Check for family relationship indicators in description
                 description = (main_char.description or "").lower()

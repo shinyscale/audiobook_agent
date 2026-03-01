@@ -132,8 +132,8 @@ class CompetitiveConfig:
     # Voting thresholds
     proposer_pool_strategy: str = "weighted"  # "union", "intersection", "weighted"
     validation_vote_threshold: float = 0.5  # Majority for validation
-    consensus_merge_threshold: float = 0.67  # Supermajority (2/3) for character merges
-    structure_vote_threshold: float = 0.67  # Supermajority (2/3) for boundary decisions
+    consensus_merge_threshold: float = 2 / 3  # Supermajority (exactly 2/3) for character merges
+    structure_vote_threshold: float = 2 / 3  # Supermajority (exactly 2/3) for boundary decisions
     summary_consensus_strategy: str = "union"  # "union", "intersection", "best" for summaries
 
     # Minimum text length to enable competitive mode (skip for small texts)

@@ -939,6 +939,29 @@ class MainCastExtractor:
                                         has_similar_part = True
                                         break
 
+                        # Kinship carve-out: aliases like "father", "my father",
+                        # "old Frankenstein" use kinship terms that are naturally
+                        # used INSTEAD of proper names, so co-occurrence will
+                        # always fail. Allow them unconditionally.
+                        _KINSHIP_TERMS = {
+                            "father", "mother", "brother", "sister",
+                            "son", "daughter", "uncle", "aunt",
+                            "nephew", "niece", "cousin", "grandfather",
+                            "grandmother", "grandson", "granddaughter",
+                            "husband", "wife", "spouse", "partner",
+                            "parent", "child", "guardian", "ward",
+                        }
+                        alias_tokens = set(alias.lower().split())
+                        is_kinship = bool(alias_tokens & _KINSHIP_TERMS)
+
+                        if is_kinship:
+                            logger.info(
+                                f"ALLOWED kinship alias despite no co-occurrence: "
+                                f"'{alias}' → '{profile.canonical_name}'"
+                            )
+                            verified_aliases.append(alias)
+                            continue
+
                         if not shared_parts and not has_similar_part:
                             logger.warning(
                                 f"BLOCKED alias: '{alias}' and '{profile.canonical_name}' appear in summaries "

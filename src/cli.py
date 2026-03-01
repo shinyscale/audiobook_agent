@@ -371,8 +371,8 @@ def run_analyze(args):
             competitive_consensus=enable_consensus,
             competitive_structure=enable_structure,
             competitive_summaries=enable_summaries,
-            consensus_merge_threshold=0.67,  # 2/3 supermajority
-            structure_vote_threshold=0.67,  # 2/3 supermajority
+            consensus_merge_threshold=2 / 3,  # exactly 2/3 supermajority
+            structure_vote_threshold=2 / 3,  # exactly 2/3 supermajority
             competitor_models=competitor_configs,
         )
 
