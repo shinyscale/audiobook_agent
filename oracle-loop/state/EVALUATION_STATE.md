@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_031042/
+- Dated dir: ../output/Frankenstein_ebook_20260301_053706/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -25,7 +25,7 @@
 - **Overall: 7.40/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold: Characters 6.5, Profiles 5.5, Presentation 7.5)
+**Status:** Awaiting evaluation (attempt 7)
 
 ## What Improved from Attempt 5
 
@@ -293,5 +293,16 @@ Add a filter: reject F6 candidates with single-character names or common pronoun
 - **Location:** `src/analyzer.py` — F6 reconciliation loop
 - **Expected impact:** Characters Completeness +0.25 (removes "I" character with 3157 fake mentions)
 
+## Attempt 7 Pipeline Notes
+- 28 chapters detected (up from 27 in attempt 6) ✓
+- 25 characters from extraction + 4 from F6 = 29 total before filtering
+- 19 profiles generated for 19 eligible characters
+- 196 pronunciation words flagged
+- Chapter summaries: 0 LLM calls (all cached from previous run)
+- "I" pronoun NOT in character list (Fix 4 worked ✓)
+- NOTE: 'the dæmon' BLOCKED from creature aliases — "already claimed by another character" — possible dæmon split regression
+- "No passages provided for Beaufort, returning UNCERTAIN" — Caroline still missing
+- Ran in 122m 58s
+
 ## Next Action
-Run PROMPT_analyze.md to re-run the pipeline and verify fixes.
+Run PROMPT_evaluate.md to evaluate the output.
