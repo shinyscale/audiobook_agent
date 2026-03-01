@@ -1771,9 +1771,15 @@ class OutputCharacterCorrector:
                 sibling_terms = {"sister", "brother"}
                 is_sibling = any(t in rel_lower for t in sibling_terms)
                 if not is_sibling:
-                    del char.relationships[other_key]
+                    # Downgrade to "associated" rather than deleting entirely.
+                    # Spouses and parent-child pairs frequently have different surnames
+                    # (e.g., betrothed couples, adopted children) so shared-surname is
+                    # not a reliable universal proxy for family relationships.
+                    # "associated" is a factually safe fallback that preserves the
+                    # information that these characters share narrative space.
+                    char.relationships[other_key] = "associated"
                     logger.info(
-                        f"Removed non-sibling familial label (no shared surname): "
+                        f"Downgraded non-sibling familial label (no shared surname) to 'associated': "
                         f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                     )
                     continue
@@ -1793,10 +1799,10 @@ class OutputCharacterCorrector:
                 if has_evidence:
                     continue
 
-                # No sibling evidence: remove the label.
-                del char.relationships[other_key]
+                # No sibling evidence: downgrade rather than delete.
+                char.relationships[other_key] = "associated"
                 logger.info(
-                    f"Removed unfounded familial label: "
+                    f"Downgraded unfounded familial label to 'associated': "
                     f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                 )
 

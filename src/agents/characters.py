@@ -3318,12 +3318,28 @@ class CharacterAgent(Agent):
 
         chars_with_new_aliases: set[str] = set()
 
-        # Collect every name/alias currently claimed across ALL characters
+        # Collect every name/alias currently claimed across ALL characters,
+        # building both a set of claimed lower-case phrases and a mapping from
+        # phrase → claiming character (for transfer logic below).
         all_claimed_lower: set[str] = set()
+        alias_to_claimer: dict[str, "Character"] = {}  # phrase_lower → char
         for char in main_cast:
-            all_claimed_lower.add(char.canonical_name.lower())
+            cn_lower = char.canonical_name.lower()
+            all_claimed_lower.add(cn_lower)
+            alias_to_claimer[cn_lower] = char
             for alias in char.aliases:
-                all_claimed_lower.add(alias.lower())
+                al = alias.lower()
+                all_claimed_lower.add(al)
+                alias_to_claimer[al] = char
+
+        def _is_creature_char(c: "Character") -> bool:
+            cl = c.canonical_name.lower().strip()
+            if not cl.startswith("the "):
+                return False
+            d = cl[4:]
+            if " (" in d:
+                d = d.split(" (")[0]
+            return d.strip().replace("æ", "ae").replace("œ", "oe") in creature_synonyms
 
         for char in main_cast:
             canonical_lower = char.canonical_name.lower().strip()
@@ -3366,14 +3382,31 @@ class CharacterAgent(Agent):
                 found_phrase: str | None = None
                 for phrase in phrases_to_check:
                     phrase_lower = phrase.lower()
-                    # Skip if already claimed by another character
-                    if phrase_lower in all_claimed_lower:
-                        continue
-                    # Check normalized form too (e.g., "the daemon" claimed when text has "the dæmon")
                     phrase_norm = phrase_lower.replace("æ", "ae").replace("œ", "oe")
-                    if phrase_norm in all_claimed_lower:
-                        continue
-                    # Verify the phrase actually appears in the source text
+
+                    # If claimed, only allow transfer FROM a non-creature character.
+                    # Universal invariant: a creature synonym should belong to the
+                    # creature entity, not to a person/location character that the
+                    # LLM happened to merge it with during extraction.
+                    claimer = alias_to_claimer.get(phrase_lower) or alias_to_claimer.get(phrase_norm)
+                    if claimer is not None:
+                        if claimer is char:
+                            break  # this creature already owns it
+                        if _is_creature_char(claimer):
+                            break  # another creature-type char owns it; skip
+                        # Transfer from non-creature character to this creature character.
+                        for rm_phrase in list(claimer.aliases):
+                            if rm_phrase.lower() == phrase_lower or rm_phrase.lower().replace("æ", "ae") == phrase_norm:
+                                claimer.aliases.remove(rm_phrase)
+                                logger.info(
+                                    f"V2 Step 5.6.5b: Transferred alias '{rm_phrase}' "
+                                    f"from '{claimer.canonical_name}' to '{char.canonical_name}'"
+                                )
+                                break
+                        found_phrase = phrase
+                        break
+
+                    # Not claimed — verify it appears in the source text.
                     pattern = re.compile(
                         rf"(?<![A-Za-z]){re.escape(phrase)}(?![A-Za-z])",
                         re.IGNORECASE,
@@ -3387,6 +3420,7 @@ class CharacterAgent(Agent):
 
                 char.aliases.append(found_phrase)
                 all_claimed_lower.add(found_phrase.lower())
+                alias_to_claimer[found_phrase.lower()] = char
                 chars_with_new_aliases.add(char.id)
                 logger.info(
                     f"V2 Step 5.6.5b: Recovered alias '{found_phrase}' → '{char.canonical_name}'"

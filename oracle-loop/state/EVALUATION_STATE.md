@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -314,9 +314,22 @@ In `_recover_creature_synonym_aliases()` in `characters.py`, after identifying t
 - 0 retries across all stages ✓
 - **NEW CONCERN:** Ollama connection stability. Consider reducing parallel load or adding retry-with-reload logic for the profile generation stage.
 
+## Attempt 12 Fixes Applied
+
+### Fix 1: Co-occurrence enrichment pipeline chain (CRITICAL #2)
+- **Root cause:** `add_cooccurrence_relationships()` adds "associated" → `verify_relationships_from_text()` upgrades it to family term (e.g., "wife") → `reject_unfounded_familial_labels()` unconditionally DELETES non-sibling family labels without shared surname → relationship disappears
+- **Fix:** Changed `reject_unfounded_familial_labels()` to downgrade to "associated" instead of deleting for non-sibling family labels without shared surname. Spouses with different surnames (common in older novels) now retain "associated" instead of having the relationship deleted.
+- **Universality:** Affects any book where spouses/parent-child pairs have different surnames
+- **Smoke test:** PASS — Victor/Elizabeth "wife" downgraded to "associated" correctly
+- **Modified:** `src/pipeline/character_profiling/post_corrections.py` (lines 1773-1801)
+
+### Fix 2: "the dæmon" alias transfer from De Lacey to creature (HIGH #3)
+- **Root cause:** `_recover_creature_synonym_aliases()` skipped adding "the dæmon" to the creature because it was already claimed by De Lacey's aliases. The check only prevented double-claiming, not correction of misassignment.
+- **Fix:** When a creature synonym phrase is claimed by a NON-creature character, transfer it to the creature character (remove from claimer's aliases, add to creature). Non-deterministic LLM can misassign creature synonyms; this enforces the universal invariant that creature synonyms belong to the creature entity.
+- **Universality:** Applies to any book with a creature/monster whose synonyms (monster, fiend, wretch, daemon, being) get misassigned during LLM extraction
+- **Smoke test:** PASS — "the dæmon" removed from De Lacey, added to "the monster"
+- **Modified:** `src/agents/characters.py` (`_recover_creature_synonym_aliases` lines 3319-3430)
+
 ## Next Action
-Run PROMPT_fix.md to:
-1. Ensure Ollama stability (prerequisite)
-2. Debug co-occurrence enrichment object lifecycle
-3. Fix dæmon alias transfer
-4. Re-run analysis
+**Phase:** awaiting_analysis
+Re-run analysis to verify fixes. Ollama must be running before re-run.
