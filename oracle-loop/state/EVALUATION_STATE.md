@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_104013/
+- Dated dir: ../output/Frankenstein_ebook_20260301_130625/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -333,5 +333,12 @@ Two birds with one stone: remove wrong Henry↔Krempe AND add missing Victor↔E
 - **Note:** Henry↔Krempe "colleague" remains (they do co-occur in 2 summaries; no clean removal approach without book-specific logic).
 - **Modified:** `src/pipeline/character_profiling/post_corrections.py`
 
+## Attempt 10 Analysis Notes
+- Pipeline completed in 125m 57s (exit code 0)
+- 20 characters found
+- CRITICAL OBSERVATION: Both "the creature" AND "the monster" remain as separate entries in the output. The `_recover_creature_synonym_aliases()` fix did not work because creature synonyms ("the monster", "the fiend", "the wretch", "the dæmon") are claimed by the OPPOSITE entry — each blocks the other. The root issue is that the two-entry split persists into the final output.
+- Co-occurrence enrichment fix for profiles (Fix 2) was applied — results awaiting evaluation.
+- Victor↔William and Victor↔M. Waldman contradictory relationships still appearing and being removed by post-corrections (same as before).
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate attempt 10 output.
