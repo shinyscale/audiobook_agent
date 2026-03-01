@@ -717,6 +717,12 @@ class OutputCharacterCorrector:
         self.clean_plot_summary_personality(characters, source_text)
         self.propagate_physical_description(characters, source_text)
         self.extract_relationships_from_evidence(characters)
+        # Add "associated" for high-co-occurrence pairs that still lack any relationship.
+        # Runs after evidence mining so only genuinely missing pairs are filled.
+        # Runs before verify_relationships_from_text so text evidence can upgrade
+        # "associated" to a more specific family term when available.
+        if chapter_summaries:
+            self.add_cooccurrence_relationships(characters, chapter_summaries)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
@@ -842,6 +848,73 @@ class OutputCharacterCorrector:
                         f"Symmetric inference: '{char_b.canonical_name}' → "
                         f"'{char_a.canonical_name}' ({label!r})"
                     )
+
+    def add_cooccurrence_relationships(
+        self, characters, chapter_summaries: list, min_shared: int = 3
+    ) -> None:
+        """Add 'associated' for character pairs that co-appear in many chapter summaries
+        but currently have no relationship entry in either direction.
+
+        Universal invariant: if A and B appear together in 3+ chapter summaries they
+        genuinely share narrative space and at minimum "associated" is a factually safe
+        label.  Only adds — never changes existing relationships.  verify_relationships_from_text
+        (which runs after this) can upgrade "associated" to a more specific family term
+        when the source text provides explicit evidence.
+
+        Args:
+            min_shared: Minimum number of shared chapter summaries to trigger enrichment.
+        """
+        if not chapter_summaries:
+            return
+
+        # Build name patterns for all characters
+        name_patterns = _build_name_patterns(characters)
+
+        # For each character, collect the set of summary indices where they appear
+        char_summary_presence: dict[str, set[int]] = {}
+        for char in characters:
+            pat = name_patterns.get(char.canonical_name)
+            if pat is None:
+                char_summary_presence[char.canonical_name] = set()
+                continue
+            presence: set[int] = set()
+            for idx, summary in enumerate(chapter_summaries):
+                if summary and pat.search(summary):
+                    presence.add(idx)
+            char_summary_presence[char.canonical_name] = presence
+
+        # Check all pairs
+        for i, char_a in enumerate(characters):
+            for j, char_b in enumerate(characters):
+                if j <= i:
+                    continue
+
+                # Skip if relationship already exists in either direction
+                rels_a = getattr(char_a, 'relationships', None) or {}
+                rels_b = getattr(char_b, 'relationships', None) or {}
+                if char_b.canonical_name in rels_a or char_a.canonical_name in rels_b:
+                    continue
+
+                # Count shared summaries
+                shared = char_summary_presence.get(char_a.canonical_name, set()) & \
+                         char_summary_presence.get(char_b.canonical_name, set())
+                if len(shared) < min_shared:
+                    continue
+
+                # Add "associated" bidirectionally
+                if not isinstance(rels_a, dict):
+                    rels_a = {}
+                    char_a.relationships = rels_a
+                if not isinstance(rels_b, dict):
+                    rels_b = {}
+                    char_b.relationships = rels_b
+
+                rels_a[char_b.canonical_name] = "associated"
+                rels_b[char_a.canonical_name] = "associated"
+                logger.info(
+                    f"Co-occurrence relationship: '{char_a.canonical_name}' ↔ "
+                    f"'{char_b.canonical_name}': 'associated' ({len(shared)} shared summaries)"
+                )
 
     def enrich_zero_relationships_from_summaries(self, characters, chapter_summaries: list) -> None:
         """Mine chapter summaries to populate relationships for zero-relationship characters.

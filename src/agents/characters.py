@@ -681,6 +681,31 @@ class CharacterAgent(Agent):
             f"after cross-cast synonym merge"
         )
 
+        # STEP 5.6.5b: Recover creature synonym aliases blocked during pass-2 extraction.
+        # When semantic split (Step 3.8) creates a split_* creature character, aliases like
+        # "the monster", "the fiend", "the wretch" may have been blocked during pass-2 as
+        # "already claimed" by the pre-split entry that was later consumed.  This step scans
+        # the raw text for creature synonyms not yet assigned to any character and adds them
+        # to the creature character.
+        logger.info("V2 Step 5.6.5b: Recovering blocked creature synonym aliases")
+        main_cast, creature_aliases_added = self._recover_creature_synonym_aliases(
+            main_cast, context.text
+        )
+        if creature_aliases_added:
+            logger.info(
+                f"V2 Step 5.6.5b: Recovered aliases for {len(creature_aliases_added)} creature character(s)"
+            )
+            for char_id in creature_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    char.mentions = result.mentions
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
         # STEP 5.6.6: Merge bare surnames into family descriptive handles
         # Handles "De Lacey" (supporting) + "the old man" (main, father of Felix/Agatha De Lacey)
         logger.info("V2 Step 5.6.6: Merging bare surnames into family descriptive handles")
@@ -3259,6 +3284,115 @@ class CharacterAgent(Agent):
         ]
 
         return updated_supporting, chars_with_new_aliases
+
+    def _recover_creature_synonym_aliases(
+        self,
+        main_cast: list[Character],
+        source_text: str,
+    ) -> tuple[list[Character], set[str]]:
+        """
+        Recover creature synonym aliases that were blocked during pass-2 extraction.
+
+        When the LLM merges creature descriptors ("the monster", "the fiend") into a
+        non-creature character during extraction, and that entry is later split by
+        _split_semantic_conflicts, the resulting split_* creature character has no
+        aliases because the synonyms were already marked "claimed" by the pre-split
+        entry (which no longer exists).
+
+        This step runs AFTER all cross-cast merges so the final character list is
+        settled.  It finds characters whose canonical name is a creature-type
+        descriptor, collects creature synonyms not yet assigned to ANY character,
+        and adds those that genuinely appear in the source text as aliases.
+
+        Universal: uses the same synonym group already defined in
+        _split_semantic_conflicts and _merge_descriptive_synonyms_across_casts.
+        """
+        import re
+
+        # Synonyms to recover (same group as semantic-split checks)
+        creature_synonyms = ["monster", "fiend", "wretch", "daemon", "being", "creature"]
+        # Text variants to check per synonym (handles ligature spellings in older texts)
+        text_variants: dict[str, list[str]] = {
+            "daemon": ["the daemon", "the dæmon"],
+        }
+
+        chars_with_new_aliases: set[str] = set()
+
+        # Collect every name/alias currently claimed across ALL characters
+        all_claimed_lower: set[str] = set()
+        for char in main_cast:
+            all_claimed_lower.add(char.canonical_name.lower())
+            for alias in char.aliases:
+                all_claimed_lower.add(alias.lower())
+
+        for char in main_cast:
+            canonical_lower = char.canonical_name.lower().strip()
+
+            # Only process "the X" descriptive names
+            if not canonical_lower.startswith("the "):
+                continue
+
+            # Strip parentheticals: "the old man (De Lacey)" → "old man"
+            descriptor = canonical_lower[4:]
+            if " (" in descriptor:
+                descriptor = descriptor.split(" (")[0]
+            descriptor = descriptor.strip()
+            # Normalize ligatures for synonym matching
+            descriptor_norm = descriptor.replace("æ", "ae").replace("œ", "oe")
+
+            # Only process creature-type characters
+            if descriptor_norm not in creature_synonyms:
+                continue
+
+            # Collect which creature synonyms this character already has
+            existing_synonyms: set[str] = set()
+            for name in [char.canonical_name] + list(char.aliases):
+                nl = name.lower().strip()
+                if nl.startswith("the "):
+                    desc = nl[4:]
+                    if " (" in desc:
+                        desc = desc.split(" (")[0]
+                    desc = desc.strip().replace("æ", "ae").replace("œ", "oe")
+                    if desc in creature_synonyms:
+                        existing_synonyms.add(desc)
+
+            # Attempt to recover each missing synonym
+            for synonym in creature_synonyms:
+                if synonym in existing_synonyms:
+                    continue  # already have it
+
+                phrases_to_check = text_variants.get(synonym, [f"the {synonym}"])
+
+                found_phrase: str | None = None
+                for phrase in phrases_to_check:
+                    phrase_lower = phrase.lower()
+                    # Skip if already claimed by another character
+                    if phrase_lower in all_claimed_lower:
+                        continue
+                    # Check normalized form too (e.g., "the daemon" claimed when text has "the dæmon")
+                    phrase_norm = phrase_lower.replace("æ", "ae").replace("œ", "oe")
+                    if phrase_norm in all_claimed_lower:
+                        continue
+                    # Verify the phrase actually appears in the source text
+                    pattern = re.compile(
+                        rf"(?<![A-Za-z]){re.escape(phrase)}(?![A-Za-z])",
+                        re.IGNORECASE,
+                    )
+                    if pattern.search(source_text):
+                        found_phrase = phrase
+                        break
+
+                if found_phrase is None:
+                    continue
+
+                char.aliases.append(found_phrase)
+                all_claimed_lower.add(found_phrase.lower())
+                chars_with_new_aliases.add(char.id)
+                logger.info(
+                    f"V2 Step 5.6.5b: Recovered alias '{found_phrase}' → '{char.canonical_name}'"
+                )
+
+        return main_cast, chars_with_new_aliases
 
     def _merge_surname_into_family_descriptive(
         self,

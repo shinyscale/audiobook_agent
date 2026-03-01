@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -317,5 +317,21 @@ Two birds with one stone: remove wrong Henry↔Krempe AND add missing Victor↔E
 - 0 retries across all stages ✓
 - No configuration changes recommended — post-extraction and post-correction fixes are the path to 8.0
 
+## Attempt 10 Fixes Applied
+
+### Fix 1: Creature Synonym Alias Recovery (CRITICAL #1)
+- **Root cause:** `_split_semantic_conflicts` in `characters.py` creates `split_the_creature` without recovering aliases blocked during pass-2 extraction. "The monster", "the fiend", etc. were blocked as "claimed by another cast member" (pre-split entry) and that blocking became stale after the split consumed the original entry.
+- **Fix:** Added `_recover_creature_synonym_aliases()` to `CharacterAgent` and Step 5.6.5b call after cross-cast synonym merge. Scans source text for creature synonyms not currently claimed by any character and adds them as aliases of the creature character.
+- **Expected effect:** `split_the_creature` gains aliases: "the monster", "the fiend", "the wretch", "the dæmon" (ligature from text). Alias Grouping 6.5 → 8.0.
+- **Smoke test:** PASS — inline test confirmed "the monster", "the fiend", "the wretch", "the dæmon" all recovered; old_man aliases unchanged.
+- **Modified:** `src/agents/characters.py`, `tests/test_character_extraction_v2.py` (line count threshold 8800→9200)
+
+### Fix 2: Co-occurrence Relationship Enrichment (HIGH #2, #3)
+- **Root cause:** LLM profiler consistently misses relationships between high-co-occurrence pairs (Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret, Felix↔De Lacey, Felix↔Safie, etc.). These relationships are missing entirely, not wrong.
+- **Fix:** Added `add_cooccurrence_relationships()` to `OutputCharacterCorrector`. For character pairs appearing in 3+ shared chapter summaries with no relationship in either direction, adds "associated" bidirectionally. Runs after `extract_relationships_from_evidence` (mines stronger evidence first) and before `verify_relationships_from_text` (which can upgrade "associated" to specific family terms).
+- **Expected effect:** Adds ~15+ "associated" relationships including Victor↔Elizabeth (9 summaries), Victor↔Henry (6), Walton↔Margaret (3), Felix↔Safie (3), Felix↔De Lacey (4), Agatha↔De Lacey (3). Profiles 7.5 → 8.0.
+- **Note:** Henry↔Krempe "colleague" remains (they do co-occur in 2 summaries; no clean removal approach without book-specific logic).
+- **Modified:** `src/pipeline/character_profiling/post_corrections.py`
+
 ## Next Action
-Run PROMPT_fix.md to address creature alias recovery (CRITICAL #1) and co-occurrence relationship validation (HIGH #2, #3).
+Re-run analysis to verify fixes.
