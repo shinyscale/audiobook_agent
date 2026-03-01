@@ -99,7 +99,12 @@ class TXTIngester(DocumentIngester):
                 continue
 
             # Title is often all caps or the first substantial line
+            # Skip known navigation/TOC headers — these are never the book title
+            _TOC_MARKERS = {"CONTENTS", "TABLE OF CONTENTS", "INDEX",
+                            "TABLE OF CONTENT", "FOREWORD", "DEDICATION"}
             if line.isupper() and len(line) > 3 and len(line) < 100:
+                if line.strip() in _TOC_MARKERS:
+                    continue
                 return line.title()  # Convert to title case
 
             # Or it might be prefixed with "Title:"

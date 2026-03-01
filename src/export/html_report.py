@@ -1608,9 +1608,16 @@ def export_html_report(
     prologue_idx = 1
     main_idx = 1
 
-    for elem in chapter_elements:
-        classification = _classify_chapter(elem.title)
+    # Pre-classify all elements so we can do look-ahead for null-titled ones.
+    _classifications = [_classify_chapter(e.title) for e in chapter_elements]
+    # A null-titled element directly before a prologue element is itself prologue
+    # (e.g., Letter 1 with a null title appearing before Letter 2, Letter 3, …).
+    for _i in range(len(_classifications)):
+        if chapter_elements[_i].title is None and _classifications[_i] == "main":
+            if _i + 1 < len(_classifications) and _classifications[_i + 1] == "prologue":
+                _classifications[_i] = "prologue"
 
+    for elem, classification in zip(chapter_elements, _classifications):
         # Skip title pages entirely
         if classification == "title_page":
             continue

@@ -709,7 +709,7 @@ class OutputCharacterCorrector:
     def __init__(self, llm_client=None):
         self._llm = llm_client
 
-    def run_all(self, characters, source_text: str) -> None:
+    def run_all(self, characters, source_text: str, chapter_summaries: list = None) -> None:
         """Run all Phase B corrections in order. Mutates characters in place."""
         self.inject_narrator_appearance_final(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
@@ -717,12 +717,17 @@ class OutputCharacterCorrector:
         self.clean_plot_summary_personality(characters, source_text)
         self.propagate_physical_description(characters, source_text)
         self.extract_relationships_from_evidence(characters)
+        self.fix_bidirectional_parent_labels(characters)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
+        # Summary enrichment runs LAST so inferred relationships are not removed by
+        # reject_unfounded_familial_labels (which checks source text only, not summaries).
+        # Chapter summaries are a reliable, explicit source for family/social relationships.
+        self.enrich_zero_relationships_from_summaries(characters, chapter_summaries or [])
 
     def extract_relationships_from_evidence(self, characters) -> None:
         """Mine evidence statements to populate missing relationships.
@@ -836,6 +841,143 @@ class OutputCharacterCorrector:
                     logger.info(
                         f"Symmetric inference: '{char_b.canonical_name}' → "
                         f"'{char_a.canonical_name}' ({label!r})"
+                    )
+
+    def enrich_zero_relationships_from_summaries(self, characters, chapter_summaries: list) -> None:
+        """Mine chapter summaries to populate relationships for zero-relationship characters.
+
+        The LLM profile generator sometimes fails to produce relationship entries for
+        characters even when those relationships are explicit in chapter summaries.
+        This method scans summaries for character name co-mentions near family/social
+        relationship terms and infers the relationship.
+
+        Universal invariant: if character A and B co-appear in a chapter summary near
+        a possessive relationship phrase ("his wife X", "her brother Y"), that
+        relationship is real and should be recorded.
+        """
+        if not chapter_summaries:
+            return
+
+        zero_rel_chars = [c for c in characters if not getattr(c, 'relationships', None)]
+        if not zero_rel_chars:
+            return
+
+        summary_text = "\n\n".join(s for s in chapter_summaries if s)
+        if not summary_text:
+            return
+
+        name_patterns = _build_name_patterns(characters)
+        char_by_name = {c.canonical_name: c for c in characters}
+        co_window = 300
+
+        for char in zero_rel_chars:
+            pat_a = name_patterns.get(char.canonical_name)
+            if pat_a is None:
+                continue
+
+            found: dict = {}  # other_canonical_name → {rel_term: count}
+
+            for ma in pat_a.finditer(summary_text):
+                ws = max(0, ma.start() - co_window)
+                we = min(len(summary_text), ma.end() + co_window)
+                win = summary_text[ws:we]
+
+                for other in characters:
+                    if other is char:
+                        continue
+                    pat_b = name_patterns.get(other.canonical_name)
+                    if pat_b is None or not pat_b.search(win):
+                        continue
+
+                    for rm in _rel_phrase_re.finditer(win):
+                        term = rm.group(1).lower()
+                        key = other.canonical_name
+                        if key not in found:
+                            found[key] = {}
+                        found[key][term] = found[key].get(term, 0) + 1
+
+            if found:
+                rels = {}
+                for other_name, term_counts in found.items():
+                    best_term = max(term_counts, key=term_counts.get)
+                    rels[other_name] = best_term
+                    logger.info(
+                        f"Summary-inferred relationship: "
+                        f"'{char.canonical_name}' → '{other_name}': '{best_term}'"
+                    )
+                char.relationships = rels
+
+        # Propagate reverse relationships from newly enriched characters to others
+        for char_a in zero_rel_chars:
+            rels_a = getattr(char_a, 'relationships', None) or {}
+            if not rels_a:
+                continue
+            for other_name, rel_label in list(rels_a.items()):
+                rel_lower = (rel_label or "").lower()
+                reverse_rel = RELATIONSHIP_REVERSES.get(rel_lower)
+                if not reverse_rel and rel_lower in _SYMMETRIC_RELATIONSHIPS:
+                    reverse_rel = rel_lower
+                if not reverse_rel:
+                    continue
+                char_b = char_by_name.get(other_name)
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, 'relationships', None)
+                if rels_b is None:
+                    rels_b = {}
+                    char_b.relationships = rels_b
+                if isinstance(rels_b, dict) and char_a.canonical_name not in rels_b:
+                    rels_b[char_a.canonical_name] = reverse_rel
+                    logger.info(
+                        f"Bidirectional inference from summary enrichment: "
+                        f"'{other_name}' → '{char_a.canonical_name}' = '{reverse_rel}'"
+                    )
+
+    def fix_bidirectional_parent_labels(self, characters) -> None:
+        """Convert bidirectional same-parent labels to 'sibling'.
+
+        If A→B = 'father' AND B→A = 'father' (or any identical parent term),
+        they cannot both be each other's parent. The logically correct label is
+        'sibling' — they share a common parent, making them siblings.
+
+        Universal invariant: bidirectional identical parent labels are logically
+        impossible and indicate a LLM error. Rather than removing both (which loses
+        information), convert both to 'sibling'.
+        """
+        _PARENT_LABELS = frozenset({"father", "mother", "parent"})
+        char_by_name = {c.canonical_name: c for c in characters}
+
+        seen_pairs: set = set()
+        for char_a in characters:
+            rels_a = getattr(char_a, 'relationships', None)
+            if not rels_a:
+                continue
+            for other_name, rel_a in list(rels_a.items()):
+                rel_a_lower = (rel_a or "").strip().lower()
+                if rel_a_lower not in _PARENT_LABELS:
+                    continue
+
+                pair = frozenset({char_a.canonical_name, other_name})
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+
+                char_b = char_by_name.get(other_name)
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, 'relationships', None)
+                if not rels_b:
+                    continue
+                rel_b = rels_b.get(char_a.canonical_name, "")
+                rel_b_lower = (rel_b or "").strip().lower()
+
+                if rel_b_lower in _PARENT_LABELS:
+                    rels_a[other_name] = "sibling"
+                    rels_b[char_a.canonical_name] = "sibling"
+                    logger.info(
+                        f"Bidirectional parent label corrected to sibling: "
+                        f"'{char_a.canonical_name}' ↔ '{other_name}' "
+                        f"(was '{rel_a}'/'{rel_b}')"
                     )
 
     def propagate_physical_description(self, characters, source_text: str = "") -> None:

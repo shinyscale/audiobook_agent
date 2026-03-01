@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Attempt:** 8
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -235,6 +235,32 @@
 - Attempt 7 (Fix 4): F6 pronoun filter — reject single-letter names and common pronouns
   - Modified: `src/analyzer.py`
   - WORKED ✓ — "I" no longer extracted
+
+- Attempt 8 (Fix 1): Summary-based relationship enrichment for zero-relationship characters
+  - New method `enrich_zero_relationships_from_summaries` in `OutputCharacterCorrector`
+  - Scans chapter summaries for character name co-mentions with `_rel_phrase_re` family terms
+  - Runs LAST in Phase B (after `reject_unfounded_familial_labels`) to preserve inferred relationships
+  - Propagates bidirectional reverses via RELATIONSHIP_REVERSES
+  - Also passes chapter summaries from analyzer.py to OutputCharacterCorrector.run_all
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `src/analyzer.py`
+  - Root cause: LLM profiler failed to generate relationships for 6 major characters
+
+- Attempt 8 (Fix 2): Bidirectional parent label → sibling conversion
+  - New method `fix_bidirectional_parent_labels` in `OutputCharacterCorrector`
+  - Converts A→B: "father" AND B→A: "father" → both become "sibling"
+  - Universal invariant: two people cannot each be the other's parent
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - Root cause: Phase A `remove_contradictory_relationships` removes both labels; Phase B needed to convert instead
+
+- Attempt 8 (Fix 3): Book title "Contents" fallback to filename
+  - In `_detect_title()`, skip lines matching known TOC markers (CONTENTS, TABLE OF CONTENTS, INDEX)
+  - Modified: `src/ingestion/txt.py`
+  - Root cause: First all-caps line "CONTENTS" was incorrectly extracted as book title
+
+- Attempt 8 (Fix 4): Letter 1 null title → prologue classification
+  - Pre-compute classifications for all chapters, then promote null-titled "main" chapters to "prologue" when the immediately following chapter is prologue
+  - Modified: `src/export/html_report.py`
+  - Root cause: `_classify_chapter(None)` returned "main", so Letter 1 (null title) appeared in main chapters instead of Prologue Materials
 
 ## Modification History
 

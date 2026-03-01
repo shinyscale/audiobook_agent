@@ -2166,7 +2166,13 @@ class AudiobookAnalyzer:
         # Runs AFTER safety net so all characters (including safety-net additions) are corrected.
         from .pipeline.character_profiling.post_corrections import OutputCharacterCorrector
         profile_llm = self._get_agent_llm_client("characters") or llm
-        OutputCharacterCorrector(llm_client=profile_llm).run_all(characters, doc.text)
+        _phase_b_summaries = (
+            [s.summary for s in summary_map.summaries if s and s.summary]
+            if summary_map else []
+        )
+        OutputCharacterCorrector(llm_client=profile_llm).run_all(
+            characters, doc.text, chapter_summaries=_phase_b_summaries
+        )
 
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)
