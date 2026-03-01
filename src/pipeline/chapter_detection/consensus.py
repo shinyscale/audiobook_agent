@@ -1262,13 +1262,24 @@ class ConsensusBuilder:
         if match:
             return match.group(1).strip()
 
-        # If title is JUST "Chapter N" (Arabic numeral or word) with no subtitle, return None (we'll use our index)
-        if re.match(
-            r"^(?:Chapter|CHAPTER)\s+(?:\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$",
+        # If title is JUST "Chapter N" (Arabic numeral), return the number as a string title.
+        # This preserves the chapter heading information (parallel to Roman numeral handling above).
+        match = re.match(
+            r"^(?:Chapter|CHAPTER)\s+(\d+)\s*$",
             title,
             re.IGNORECASE,
-        ):
-            return None
+        )
+        if match:
+            return match.group(1)
+
+        # If title is "Chapter" followed by a spelled-out word number, return the word
+        match = re.match(
+            r"^(?:Chapter|CHAPTER)\s+(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)\s*$",
+            title,
+            re.IGNORECASE,
+        )
+        if match:
+            return match.group(1).title()
 
         # Preserve any other title as-is (including standalone Roman numerals)
         if re.match(r"^[IVXLC]+$", title.strip()):

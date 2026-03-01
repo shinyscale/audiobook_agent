@@ -651,11 +651,16 @@ class MainCastExtractor:
         )
 
         # Pre-build a snapshot of all names/aliases per profile BEFORE any modification.
-        # Used by Rule 3 (cross-character conflict) to block aliases that belong to a
-        # different character in the same cast.
+        # Used by Rule 3 (cross-character conflict). Also includes surname fragments from
+        # compound canonical names so "De Lacey" from "Felix De Lacey" is considered taken.
         profile_names: dict[int, set[str]] = {}
         for p in profiles:
             names = {p.canonical_name.lower()}
+            words = p.canonical_name.lower().split()
+            for i in range(1, len(words)):
+                suffix = " ".join(words[i:])
+                if len(suffix) >= 3:
+                    names.add(suffix)
             for a in p.aliases:
                 names.add(a.lower())
             profile_names[id(p)] = names
@@ -896,17 +901,23 @@ class MainCastExtractor:
                     )
                     continue
 
-                # RULE 2: Co-occurrence check
-                # The alias should appear in summaries that also mention the canonical name
-                # Exception: If alias is a substring of canonical (e.g., last name in full name),
-                # skip co-occurrence check as it's inherently valid
+                # RULE 3b: Block aliases whose parenthetical content references another character.
+                # e.g., "the blind father (De Lacey)" — "(De Lacey)" belongs to another cast member.
+                import re as _re_p
+                _pm = _re_p.search(r'\(([^)]+)\)', alias_lower)
+                if _pm:
+                    _pc = _pm.group(1).strip()
+                    if any(_pc in on or on in _pc for pid, ns in profile_names.items()
+                           if pid != id(profile) for on in ns if len(on) >= 3):
+                        logger.warning(f"BLOCKED alias: '{alias}' parenthetical references another character")
+                        continue
+
+                # RULE 2: Skip co-occurrence check if alias is a substring of canonical name.
                 if alias_lower in canonical_lower or canonical_lower in alias_lower:
-                    # Substring relationship - inherently valid
                     verified_aliases.append(alias)
                     continue
 
-                # Check if both appear in the same summaries
-                # Split summaries and check chapter-by-chapter
+                # Check co-occurrence in summaries
                 canonical_found = False
                 alias_found = False
 
@@ -917,12 +928,8 @@ class MainCastExtractor:
                     if alias_lower in summary_lower:
                         alias_found = True
 
-                # RULE 2a: Block aliases absent from all summaries
-                # The two-pass extraction resolves aliases FROM summaries.  If an alias
-                # is not found in any summary verbatim, the LLM invented it from background
-                # knowledge rather than from the provided text — block it.
-                # Exception: kinship terms ("my father", "his mother") are often paraphrased
-                # in third-person summaries and won't appear verbatim, so allow them.
+                # RULE 2a: Block aliases absent from summaries (LLM hallucination).
+                # Exception: kinship terms may be paraphrased and won't appear verbatim.
                 if not alias_found:
                     alias_tokens = set(alias.lower().split())
                     if not (alias_tokens & _KINSHIP_TERMS) and alias_lower not in canonical_lower:
@@ -932,10 +939,7 @@ class MainCastExtractor:
                         )
                         continue
 
-                # If alias appears but canonical doesn't, they might not be the same person
-                # However, this is a weak signal (summaries might use one name more than the other)
-                # So we only block if BOTH appear but NEVER in the same summary
-                # AND they have completely different surnames (suggesting different people)
+                # Block only when both appear but NEVER in the same summary AND share no name parts.
                 if canonical_found and alias_found:
                     # Check if they ever co-occur in the same summary
                     cooccur = False

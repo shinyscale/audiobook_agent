@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -244,5 +244,25 @@ Detect "Chapter I", "Chapter II" etc. as chapter titles. This is likely a simple
 
 ### Do NOT attempt to fix: Chapter Summaries (8.5/10) — already passing.
 
+## Fix History (Attempt 5)
+
+- Attempt 5 (Fix 1): Profile relationships — changed prompt to require EXPLICIT textual evidence for relationships; removed "acquaintance"/"unknown" fallback labels; removed "MUST use these exact names" obligation from character_names_text; updated summary evidence instructions.
+  - Root cause: `analyzer.py:_generate_character_profile()` — character_names_text instructed LLM to list ALL characters in relationships dict; fallback "acquaintance" label created co-occurrence-based fabrications
+  - Modified: `src/analyzer.py` (lines ~2764-2868)
+  - Smoke test: N/A (LLM-based fix, verified test suite passes)
+
+- Attempt 5 (Fix 2): Creature false aliases "De Lacey" and "the blind father (De Lacey)"
+  - Fix A: Extend `profile_names` to include surname-only fragments (trailing word groups from compound canonical names). "Felix De Lacey" now contributes "de lacey" to other_aliases, enabling Rule 3 to block "De Lacey" as Creature alias.
+  - Fix B: New Rule 3b — block aliases whose parenthetical content references another character. "the blind father (De Lacey)" blocked because "(De Lacey)" references Felix De Lacey.
+  - Root cause: `main_cast.py:verify_aliases()` — profile_names only stored full canonical strings, not surname substrings; kinship exemption bypassed Rule 2a for "the blind father (De Lacey)"
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+  - Smoke test: PASS — "De Lacey" and "the blind father (De Lacey)" both blocked; "shepherd" still passes (low priority)
+
+- Attempt 5 (Fix 3): Chapter titles null for Arabic-numbered chapters
+  - Root cause: `consensus.py:_clean_title()` returned None for "Chapter N" (Arabic numeral) patterns to avoid redundancy, but evaluator reads title from JSON and scores null as missing
+  - Fix: Return the number as a string title (e.g., "Chapter 1" → "1") analogous to Roman numeral handling ("Chapter I" → "I")
+  - Modified: `src/pipeline/chapter_detection/consensus.py`
+  - Smoke test: PASS — "Chapter 1"→"1", "Chapter 24"→"24", no regressions in test suite
+
 ## Next Action
-Run PROMPT_fix.md to address profile relationships (Critical #1) and creature false aliases (High #2).
+Set phase to awaiting_analysis — run analysis to verify fixes.

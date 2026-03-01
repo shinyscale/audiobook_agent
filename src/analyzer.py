@@ -2766,8 +2766,7 @@ IMPORTANT: If the available evidence is ambiguous, report only what is clearly s
 
 CHARACTERS IN THIS STORY:
 The following characters appear in this story: {names_list}
-When extracting relationships, you MUST use these exact character names as keys in the relationships dict.
-If the text or summary evidence mentions a relationship with any of these characters, include it in your response."""
+If you identify a relationship with any of these characters, use these exact names as keys in the relationships dict."""
 
         # F2: Build summary evidence section if available
         summary_evidence_text = ""
@@ -2783,7 +2782,7 @@ The following information about this character was extracted from chapter summar
 {chr(10).join(evidence_lines)}
 
 Use this summary evidence to enrich your profile, but prioritize direct text quotes as primary evidence.
-IMPORTANT: Pay special attention to relationships mentioned in the summary evidence - these often describe family, romantic, or social connections that may not appear in the short text snippets."""
+When the summary evidence explicitly states a relationship (e.g., "X is Y's father", "X and Y are friends"), include it in relationships."""
 
         # F3: Build moral valence constraint if available
         moral_valence_constraint = ""
@@ -2838,8 +2837,7 @@ Return a JSON response matching this example format exactly:
     "example_quotes": ["quote1", "quote2"]
   }},
   "relationships": {{
-    "character_name_1": "relationship label (e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'acquaintance', 'employer', 'business partner')",
-    "character_name_2": "relationship label"
+    "character_name_1": "relationship label (e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'employer', 'parent', 'child', 'sibling', 'spouse')"
   }},
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
@@ -2860,12 +2858,12 @@ CRITICAL INSTRUCTIONS:
 - For voice_guidance: Base on actual dialogue if present; otherwise use {{"suggested_tone": "unknown", "dialect_notes": "unknown", "verbal_tics": [], "formality_level": "moderate", "example_quotes": []}}
 - Return ONLY valid JSON matching the above structure. No other text.
 
-RELATIONSHIPS EXTRACTION (IMPORTANT):
-Check BOTH the text snippets AND the summary evidence above for any relationships this character has.
-Use the EXACT character names from "CHARACTERS IN THIS STORY" as keys in the relationships dict.
-Use specific labels: "romantic interest", "rival", "business partner", "mentor", "close friend", "acquaintance", "enemy", "employer", "employee", "neighbor".
-Use familial labels (parent, child, sibling, spouse) ONLY when the text EXPLICITLY states a family relationship.
-If the relationship is unclear from the text, use "acquaintance" or "unknown"."""
+RELATIONSHIPS EXTRACTION:
+Include ONLY relationships where the provided text or summary evidence EXPLICITLY describes how these characters interact or relate to each other.
+Use familial labels (parent, child, sibling, spouse, brother, sister) only when the text explicitly uses these words.
+Use other labels ("close friend", "rival", "mentor", "employer", "enemy", "creator", "creation") only with direct textual support.
+If two characters merely appear in the same context without explicit relationship words, OMIT them from the relationships dict entirely.
+Do NOT use "acquaintance", "associated", or "unknown" — omit instead."""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):
