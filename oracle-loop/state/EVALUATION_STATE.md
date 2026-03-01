@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -13,179 +13,93 @@
 - Dated dir: ../output/Frankenstein_ebook_20260301_144611/
 
 ## Latest Scores
-(Awaiting evaluation — attempt 11 just completed)
-
-**Previous (Attempt 10):**
 - Structure Detection: 8.5/10 ✓
-- Character Extraction: 8.5/10 ✓
+- Character Extraction: 8/10 ✓
   - Completeness: 8/10
-  - Identity Resolution: 9.5/10
-  - Alias Grouping: 8/10
-- Character Profiles: 7/10 ✗
+  - Identity Resolution: 9/10
+  - Alias Grouping: 7/10
+- Character Profiles: 3/10 ✗ (CATASTROPHIC — Ollama crash)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.23/10**
+- **Overall: 7.50/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** AWAITING EVALUATION
+**Status:** FAIL (Character Profiles catastrophically below threshold)
 
-## Pipeline Notes — Attempt 11
+## Root Cause: Ollama Infrastructure Failure
 
-### Run Statistics
-- Runtime: 82m 53s
-- Chapters: 28 (up from 27)
-- Characters: 18
-- Pronunciation flags: 196
+**Only 4/19 character profiles were generated.** Ollama dropped connections mid-run during profile generation (starting from Justine Moritz). Error: `[Errno 111] Connection refused`. This caused:
+- 15/19 characters to have NO profile data (no physical description, personality, relationships)
+- ALL pronunciation LLM enrichment to fail (0 LLM calls)
+- Plot summary generation to fail
+- First-appearance queries to fail
 
-### Critical Issue: Ollama Connection Failures During Profiles
-**Only 4/19 character profiles were generated.** Ollama dropped connections mid-run during the profile generation phase (starting from Justine Moritz). Error: `[Errno 111] Connection refused`. Possible causes: model unloaded from VRAM between stages, memory pressure, or Ollama crash.
+The 4 successful profiles (Victor, William, Felix, Agatha) produced correct relationships. But 14 characters have completely empty profiles.
 
-The 4 successful profiles used 12 LLM calls (3 per character). All remaining 15 characters failed all 3 retry attempts.
+## Co-Occurrence Enrichment: STILL NOT WORKING
 
-LLM failures also hit:
-- ALL pronunciation enrichment calls
-- Plot summary generation
-- First-appearance queries
+Despite the attempt 11 Fix 1 (temp dict write bug), co-occurrence relationships are NOT appearing in the final output:
+- Victor↔Elizabeth share 7 chapter summaries → no relationship in output
+- Victor↔Henry share 7 chapter summaries → no relationship in output
+- Walton↔Margaret share 3 chapter summaries → no relationship in output
 
-**Impact on scores:** Character Profiles will score very poorly (most profiles empty/skeleton). This will likely be a FAIL for this run.
+Manual testing confirms: the name patterns match correctly, the summaries contain both names, the threshold (3) is met. The `add_cooccurrence_relationships()` method is in `run_all()` at line 725 and `chapter_summaries` is passed from the analyzer at line 2174.
 
-### Character Alias Concerns
-The alias blocking logs show "the creature" and "the dæmon" are still separate entries competing for synonyms. The creature synonym recovery from attempt 10 Fix 1 may not have merged them this time (non-deterministic LLM behavior). Evaluator should check if creature/dæmon appear as one or two characters in the JSON.
+**Hypothesis:** The post-corrections modify one set of character objects, but the final serialized output uses different objects. OR a later post-correction step is removing/overwriting the enrichment. This needs deeper debugging — trace the exact object lifecycle from `OutputCharacterCorrector.run_all()` through to JSON serialization.
 
-### What was Fixed (Attempt 11)
-- Fix 1: Co-occurrence enrichment bug (temp dict write issue) — smoke tested PASS
-- Fix 2: Romantic label validation (De Lacey↔monster) — smoke tested PASS
-Both fixes should apply if profiles were generated. With mostly empty profiles, the fixes had no material data to work on.
+## New Regression: "the dæmon" Alias Misassigned
 
----
-
-## What Changed from Attempt 9
-
-### Fix 1 (Creature Alias Recovery) — WORKED ✓
-
-The analysis phase notes claimed "Both 'the creature' AND 'the monster' remain as separate entries" — **this is WRONG**. The actual JSON output has a SINGLE entry:
-
-- `split_the_monster` with canonical name "the monster" and aliases: ["the creature", "the fiend", "the wretch", "the dæmon", "the being"]
-
-This is exactly what was intended. All major creature descriptors are now unified under one character. **Alias Grouping jumps from 6.5 to 8.0.** Character Extraction overall moves from 7.5 to 8.5 — NOW PASSING.
-
-### Fix 2 (Co-occurrence Enrichment) — DID NOT WORK
-
-The `add_cooccurrence_relationships()` method was added to `OutputCharacterCorrector` but appears to have NOT added the expected relationships:
-
-- Victor↔Elizabeth: STILL MISSING (expected from 9+ shared chapter summaries)
-- Victor↔Henry: STILL MISSING (expected from 6+ shared summaries)
-- Walton↔Margaret: STILL MISSING (expected from 3+ shared summaries)
-- Felix↔Safie: STILL MISSING
-- De Lacey↔Felix/Agatha: STILL MISSING
-
-Elizabeth has 0 relationships. Victor has no relationship to Elizabeth in either direction. The co-occurrence enrichment should have triggered for this pair but didn't.
-
-**Possible causes:** The method was added but may not have been called in `run_all()`, or there's a bug in the character name matching against chapter summaries.
-
-### New Regression: De Lacey↔monster "romantic interest"
-
-A NEW wrong relationship appeared that wasn't in attempt 9: the old man (De Lacey) ↔ the monster is labeled "romantic interest" bidirectionally. This is COMPLETELY WRONG — the monster seeks acceptance/friendship from the blind De Lacey, not romance. This is an LLM profiler hallucination that the post-corrections failed to catch.
-
-### Caroline Beaufort — REGRESSED
-
-Caroline Beaufort appeared as a new character in attempt 9 but is absent in attempt 10. The entry "Beaufort" (id: `0e0a948fd562`) refers to Caroline's father, not Caroline herself. This is a minor regression (non-deterministic F6 extraction).
-
-## What's Now Passing (vs Attempt 9)
-
-| Category | Attempt 9 | Attempt 10 | Delta |
-|----------|-----------|------------|-------|
-| Structure | 8.5 ✓ | 8.5 ✓ | — |
-| Characters | 7.5 ✗ | 8.5 ✓ | +1.0 ✓ |
-| Profiles | 7.5 ✗ | 7.0 ✗ | -0.5 |
-| Summaries | 8.5 ✓ | 8.5 ✓ | — |
-| Pronunciation | 8.0 ✓ | 8.0 ✓ | — |
-| Presentation | 8.5 ✓ | 8.5 ✓ | — |
-
-Characters now PASSES thanks to creature alias recovery. But Profiles REGRESSED due to De Lacey↔monster "romantic interest" and co-occurrence enrichment not firing.
-
-## What's Still Failing
-
-### Profiles (7.0/10) — the ONLY remaining blocker
-
-**Relationship accuracy: 17/20 correct, 2 grossly wrong, 1 borderline**
-
-Present relationships (20 total across 12 characters):
-- ✓ Victor→Krempe: "mentor"
-- ✓ Victor→monster: "associated"
-- ✓ Victor→William: "sibling"
-- ✓ Victor→Waldman: "associated"
-- ✗✗ Henry→Krempe: "acquaintance" — borderline (they meet but barely interact)
-- ✓ William→Victor: "sibling"
-- ✓ Felix→Agatha: "sibling"
-- ✓ Agatha→Felix: "sibling"
-- ✗✗✗ De Lacey→monster: "romantic interest" — COMPLETELY WRONG
-- ✓ monster→Walton: "interlocutor"
-- ✗✗✗ monster→De Lacey: "romantic interest" — COMPLETELY WRONG
-- ✓ Kirwin→Victor: "magistrate and benefactor"
-- ✓ Waldman→Krempe: "colleague"
-- ✓ Waldman→Victor: "associated"
-- ✓ Krempe→Victor: "protégé"
-- ✓ Krempe→Waldman: "colleague"
-- ✗ Krempe→Henry: "acquaintance (mentioned in context of shared conversation)" — weak
-- ✓ Agrippa→Krempe: "subject of dismissal by"
-- ✓ Agrippa→Waldman: "subject of respectful acknowledgment by"
-- ✓ Werter→monster: "literary influence"
-
-**Missing critical relationships:**
-- Victor↔Elizabeth: fiancée/wife — THE central romance (92 mentions, 9+ shared chapters)
-- Victor↔Henry: best friend (82 mentions, 6+ shared chapters)
-- Walton↔Margaret: siblings (10 mentions each)
-- De Lacey→Felix/Agatha: father
-- Felix→Safie: romantic interest
-
-**Physical descriptions:** 6/20 with high accuracy (William, De Lacey, monster, Safie, Waldman, Krempe). Acceptable given Shelley's sparse character descriptions.
+"the dæmon" is now an alias of "the old man (De Lacey)" (main_cast_10) instead of "the creature" (split_the_creature). In attempt 10, "the dæmon" was correctly an alias of the monster. This is a non-deterministic LLM extraction regression — the main_cast pipeline assigned it to De Lacey this run.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **De Lacey↔monster "romantic interest" — NEW hallucination** [Profiles]
-   - Problem: The old man (De Lacey) and the monster have bidirectional "romantic interest" labels. This is a completely wrong LLM hallucination. The monster seeks acceptance/friendship from the blind De Lacey.
-   - Evidence: The novel's De Lacey scene (Ch 15) shows the monster pleading for compassion: "I am a wretched outcast... I beg you to listen." There is zero romantic content.
-   - Location: LLM profiler generates this. `verify_relationships_from_text` in `post_corrections.py` doesn't catch it.
-   - Fix approach: Add a validation rule in post-corrections: if a relationship label is "romantic interest" but neither character has any romantic language in shared chapter summaries (love, beloved, marry, wedding, kiss, etc.), downgrade to "associated". This is a generic rule — don't mention specific characters.
-   - Alternative: Add "romantic interest" to the set of labels that `reject_unfounded_familial_labels` validates against text evidence. Currently that method only checks familial labels.
-   - Impact: Removes 2 wrong relationships → Profiles +0.5
+1. **Ollama connection failure during profile generation** [Profiles]
+   - Problem: Ollama dropped connections after 4/19 profiles, leaving 15 characters with completely empty profiles (no description, personality, or relationships)
+   - Evidence: Profiling shows Character Profiles stage: 12 LLM calls, 4 high confidence, 15 LOW confidence. Physical descriptions: 1/18. Relationships: 4/18.
+   - Location: Infrastructure issue — not a code bug. Ollama process crashed or unloaded model mid-run.
+   - Fix: **Ensure Ollama is stable before re-running.** Check `ollama ps` before and during analysis. Consider adding a health check / retry with model reload in the analyzer.
+   - Impact: Profiles 3/10 → likely 7+ if profiles generate. THIS IS THE ONLY BLOCKER.
+
+2. **Co-occurrence enrichment still produces no output** [Profiles]
+   - Problem: `add_cooccurrence_relationships()` fix from attempt 11 (temp dict write bug) was applied, but Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret still have no relationships.
+   - Evidence: Manual pattern matching confirms 7 shared summaries for Victor+Elizabeth. Method is in `run_all()` at line 725. `chapter_summaries` is passed from analyzer at line 2174.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` line 853-915 + `src/analyzer.py` lines 2167-2175
+   - Fix approach: **DEEP DEBUG REQUIRED.**
+     1. Add temporary logging at the START of `add_cooccurrence_relationships()` to confirm it is being called and receiving summaries
+     2. Log the number of character pairs found and their shared counts
+     3. After `run_all()` completes, log the relationships of Victor and Elizabeth to confirm they were added
+     4. Check if the character objects passed to `OutputCharacterCorrector.run_all()` are the SAME objects that get serialized to JSON. If not, the post-corrections are modifying copies that are discarded.
+     5. Check if `clean_orphaned_relationships` (line 726) or `verify_relationships_from_text` (line 728) is removing the "associated" labels
+   - Impact: If fixed, adds 3+ correct "associated" relationships → Profiles +1.0 minimum
 
 ### HIGH
 
-2. **Co-occurrence enrichment not firing — Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret all still missing** [Profiles]
-   - Problem: `add_cooccurrence_relationships()` was added in attempt 10 Fix 2 but appears to have NOT actually run. Zero "associated" relationships were added for major co-occurring pairs.
-   - Evidence: Elizabeth has 0 relationships total. Victor has no entry for Elizabeth. These characters share 9+ chapter summaries.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `add_cooccurrence_relationships()` method. Also check `run_all()` to verify the method is actually called.
-   - Fix approach: **DEBUG FIRST.** Read `run_all()` to verify `add_cooccurrence_relationships` is in the call chain. If it is, the bug is likely in the name-matching logic (canonical names vs summary text). Try: print/log which pairs are detected and how many shared summaries they have. If the method isn't called, add it to `run_all()`.
-   - Impact: Adding Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret as "associated" → Profiles +0.75
-   - **Combined with #1:** Profiles 7.0 → 8.0+
+3. **"the dæmon" alias on De Lacey instead of creature** [Alias Grouping]
+   - Problem: "the dæmon" is an alias of "the old man (De Lacey)" (main_cast_10) — WRONG. "The dæmon" is what Walton/Victor call the creature.
+   - Evidence: In the novel, Walton's Letter 4 says "a creature he calls a 'dæmon' across the ice" — referring to the creature/monster, not De Lacey. The JSON shows: old man aliases = ["the old man", "De Lacey", "the dæmon"], creature aliases = ["the monster", "the fiend", "the wretch", "the being"] (missing "the dæmon").
+   - Location: Non-deterministic LLM extraction. The `_recover_creature_synonym_aliases()` method in `characters.py` should catch this but apparently didn't because "the dæmon" was assigned to De Lacey in the main_cast pipeline first.
+   - Fix: In `_recover_creature_synonym_aliases()`, add logic to TRANSFER "the dæmon"/"the daemon" from any non-creature character to the creature entry, since these terms universally refer to the creature in Frankenstein context. BUT — this would be novel-specific. GENERIC fix: in `verify_aliases` or post-alias-recovery, if a creature-synonym term (matched by the creature recovery logic) is found on a DIFFERENT character, remove it from that character.
+   - Impact: Alias Grouping 7/10 → 8/10. Character Extraction overall 8/10 → 8.5/10.
 
 ### MEDIUM
 
-3. **Henry↔Krempe "acquaintance" — borderline wrong** [Profiles]
-   - Henry visits Ingolstadt and meets Victor's professors, so there IS a textual basis. But the label overstates their connection.
-   - Low priority — removing this wouldn't significantly change the score.
-
-4. **Alphonse Frankenstein missing — 6th consecutive attempt** [Completeness]
+4. **Alphonse Frankenstein missing — 7th consecutive attempt** [Completeness]
    - Accept as limitation. Do NOT attempt to fix.
 
-5. **Caroline Beaufort regressed from attempt 9** [Completeness]
-   - Non-deterministic F6 extraction. Low ROI to chase.
+5. **"De Lacey" shared alias between Felix and old man** [Alias Grouping]
+   - Persistent issue, low ROI. Accept.
 
-6. **Shared "De Lacey" alias between Felix and old man** [Alias Grouping]
-   - Same issue as before. Low priority.
+6. **Creature listed as "supporting" role instead of "main"** [Completeness]
+   - The creature is a protagonist/narrator. Should be "main" role. Minor impact on presentation.
 
 ### LOW
 
-7. Ernest and Margaret lack full canonical names.
-8. Physical descriptions: 6/20 — acceptable given source text.
-9. Victor→monster: "associated" — weak label but not wrong.
-10. Missing De Lacey→Felix/Agatha "father" relationships.
-11. Missing Felix→Safie "romantic interest" relationship.
+7. Ernest and Margaret lack full canonical names (Ernest Frankenstein, Margaret Walton Saville).
+8. Letter 1 title null in JSON (displayed correctly as "Prologue 1" in HTML).
+9. Caroline Beaufort regressed from attempt 9 — non-deterministic F6.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -200,6 +114,7 @@ Present relationships (20 total across 12 characters):
 | 8 | 7.83 | +1.63 | Title ✓. Letter 1 ✓. Presentation 7.5→8.5. BUT Profiles REGRESSED 6.5→6.0 (wrong enrichment labels). |
 | 9 | 8.05 | +1.85 | Bidirectional sibling FIX ✓. Enrichment removed ✓. Caroline found! Profiles 6.0→7.5 (+1.5). Characters still 7.5 (creature zero aliases). |
 | 10 | 8.23 | +2.03 | Creature aliases FIXED ✓ (Characters 7.5→8.5). BUT co-occurrence enrichment DID NOT FIRE. New De Lacey↔monster "romantic interest" hallucination. Profiles 7.5→7.0. |
+| 11 | 7.50 | +1.30 | **REGRESSION: Ollama crashed during profiles.** Only 4/19 profiles generated. Co-occurrence enrichment still not producing output despite bug fix. New dæmon alias regression. Profiles 7.0→3.0. |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
@@ -304,19 +219,21 @@ Present relationships (20 total across 12 characters):
 
 - Attempt 10 (Fix 2): Co-occurrence relationship enrichment — `add_cooccurrence_relationships()` in OutputCharacterCorrector
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
-  - **DID NOT WORK** — Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret all still missing. Method may not be in `run_all()` call chain, or name matching against summaries has a bug.
+  - **DID NOT WORK** — Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret all still missing.
 
 - Attempt 11 (Fix 1): Co-occurrence enrichment bug — `add_cooccurrence_relationships()` wrote to temp dict
   - Root cause: `rels_b = getattr(...) or {}` creates a new temp empty dict when `char_b.relationships` is `{}` (falsy). Writes to temp dict; `char_b.relationships` remains empty. Non-empty dicts were unaffected (one direction worked, other didn't).
   - Fix: Separate read-only check (keeps `or {}`) from write path (writes directly to `char.relationships`)
   - Smoke test: PASS — Victor+Elizabeth both get "associated" bidirectionally
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - **STILL NOT PRODUCING OUTPUT** — despite smoke test passing, relationships not in final JSON. Deeper lifecycle issue suspected.
 
 - Attempt 11 (Fix 2): Romantic label validation — new `reject_unfounded_romantic_labels()` method
   - Root cause: LLM profiler generated "romantic interest" for De Lacey↔monster. No post-correction validated romantic labels against text evidence.
   - Fix: New method checks for strong romantic evidence (love, kiss, marry, wed, betrothed, romance, fiancée) in co-mention windows. Downgrades to "associated" if no evidence found.
   - Smoke test: PASS — De Lacey↔monster "romantic interest" → "associated"; Felix↔Safie preserved
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - **UNTESTABLE** — De Lacey and monster both had empty profiles due to Ollama crash, so the romantic label never appeared.
 
 ## Modification History
 
@@ -347,48 +264,59 @@ Present relationships (20 total across 12 characters):
 | 9 | Remove enrichment from run_all | `post_corrections.py` (run_all order) | Fixed ✓ |
 | 10 | Creature alias recovery | `characters.py` | Fixed ✓ |
 | 10 | Co-occurrence enrichment | `post_corrections.py` | DID NOT WORK |
+| 11 | Co-occurrence temp dict bug | `post_corrections.py` | Smoke pass, but still no output |
+| 11 | Romantic label validation | `post_corrections.py` | Untestable (Ollama crash) |
 
 **Recurring patterns:**
-- `post_corrections.py` (attempts 6-10): Five consecutive attempts. Enrichment has been added, removed, and re-added with different implementations. The current `add_cooccurrence_relationships()` method appears to not be executing.
-- Profiles are the LAST remaining blocker. All other categories pass. One focused fix (debug enrichment + remove "romantic interest") can close this.
+- `post_corrections.py` (attempts 6-11): SIX consecutive attempts modifying this file. Co-occurrence enrichment has been added (attempt 10), bug-fixed (attempt 11), smoke-tested (PASS), but STILL does not produce results in the final output. The issue is likely NOT in the method logic itself, but in the object lifecycle — the corrector may be modifying objects that aren't the same as those serialized to JSON.
+- Ollama infrastructure failures are now a recurring concern. Attempt 11 lost 15/19 profiles to connection drops.
 
-## Priority Fix Guidance for Attempt 11
+## Priority Fix Guidance for Attempt 12
 
-### Fix Priority 1: Debug and fix `add_cooccurrence_relationships()` (CRITICAL #1 + HIGH #2 combined)
+### PREREQUISITE: Ensure Ollama Stability
 
-This is the highest-ROI fix. If the enrichment actually fires, it adds Victor↔Elizabeth, Victor↔Henry, Walton↔Margaret as "associated" — massive profile improvement.
+Before making ANY code changes, verify:
+```bash
+ollama ps  # Check model is loaded
+curl http://localhost:11434/api/tags  # Verify Ollama is responsive
+```
 
-**Step 1: Verify the method is called in `run_all()`.**
-Read `src/pipeline/character_profiling/post_corrections.py` and check if `add_cooccurrence_relationships()` is in the `run_all()` method. If not, add it (after `extract_relationships_from_evidence`, before `verify_relationships_from_text`).
+Consider adding a model health check before the profile generation stage. If the model has been unloaded, reload it. This is the MOST IMPORTANT fix — without stable Ollama, no amount of code changes can produce good profiles.
 
-**Step 2: If it IS in `run_all()`, debug the name matching.**
-The method needs to match character canonical names and aliases against chapter summary text. Possible bugs:
-- Case sensitivity (summaries might say "elizabeth" or "Elizabeth")
-- Matching against `canonical_name` vs aliases (summaries may use "Elizabeth" not "Elizabeth Lavenza")
-- The 3-summary threshold might be too high if the matching is strict
+### Fix Priority 1: Debug co-occurrence enrichment object lifecycle (CRITICAL #2)
 
-**Step 3: Add temporary logging** to see which pairs are detected and their shared summary count. Remove logging after debugging.
+The method logic is correct (confirmed by manual testing and smoke tests). The issue is that enrichment results don't appear in the final JSON output. This has now persisted across 2 attempts despite targeted fixes.
 
-### Fix Priority 2: Remove De Lacey↔monster "romantic interest" (CRITICAL #1)
+**Required investigation:**
+1. Add `print()` statements (not just logging) at the START and END of `add_cooccurrence_relationships()` to confirm it runs
+2. After the method adds relationships, print the relationships of Victor and Elizabeth WITHIN the method
+3. After `OutputCharacterCorrector.run_all()` returns (in `analyzer.py` line 2175), print Victor's and Elizabeth's relationships to see if they persisted
+4. Check if `characters` in `analyzer.py` line 2173 are the same Python objects that get serialized to the AnalysisResult — if the analyzer converts to a different representation after post-corrections, the enrichment is lost
 
-**Approach:** In `post_corrections.py`, expand `reject_unfounded_familial_labels` (or add a new method) to also validate "romantic interest" labels. Check if the chapter summaries for shared chapters between the pair contain any romantic language (love, beloved, marry, kiss, wedding, courtship, etc.). If not, downgrade to "associated" or remove.
+**If the objects are different:** The fix is to either (a) run post-corrections on the final objects, or (b) pass the enrichment results back to the serialized objects.
 
-**IMPORTANT:** This validation must be GENERIC — no character-specific logic. Just check for romantic keywords in shared text.
+### Fix Priority 2: Transfer dæmon alias from De Lacey to creature (HIGH #3)
 
-**Expected combined impact:** Fix #1 adds ~3 correct "associated" relationships. Fix #2 removes 2 wrong "romantic interest" labels. Net: Profiles 7.0 → 8.0+.
+In `_recover_creature_synonym_aliases()` in `characters.py`, after identifying the creature entry, scan ALL other characters and REMOVE any creature-synonym aliases that were incorrectly assigned to them. Specifically:
+- If a non-creature character has an alias matching a creature synonym (the dæmon, the daemon, the fiend, the wretch, etc.), remove it from that character and ensure it's on the creature entry.
+- This is a generic fix (works for any creature-synonym list) not a novel-specific hardcode.
 
-### Do NOT attempt in attempt 11:
-- Alphonse missing — 6th consecutive absence. Accept as limitation.
-- Caroline Beaufort regressed — non-deterministic extraction. Accept.
-- Henry↔Krempe "acquaintance" — borderline, text basis exists.
-- Ernest/Margaret full names — low priority.
+### Do NOT attempt in attempt 12:
+- Alphonse missing — accepted limitation (7th consecutive absence)
+- De Lacey shared alias — accepted
+- Caroline Beaufort — non-deterministic
+- Ernest/Margaret full names — low priority
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
 - Temperature: 0.7 across all agents (reasonable)
 - Context length: 32768 (sufficient)
 - 0 retries across all stages ✓
-- No configuration changes recommended
+- **NEW CONCERN:** Ollama connection stability. Consider reducing parallel load or adding retry-with-reload logic for the profile generation stage.
 
 ## Next Action
-Run PROMPT_analyze.md to re-run analysis with attempt 11 fixes applied.
+Run PROMPT_fix.md to:
+1. Ensure Ollama stability (prerequisite)
+2. Debug co-occurrence enrichment object lifecycle
+3. Fix dæmon alias transfer
+4. Re-run analysis
