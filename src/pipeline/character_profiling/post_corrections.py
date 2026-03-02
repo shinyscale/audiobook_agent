@@ -739,12 +739,14 @@ class OutputCharacterCorrector:
         # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
         # refers to their shared parent, not their relationship to each other).
         self.fix_bidirectional_parent_labels(characters)
-        # After all relationship modifications, propagate missing reverse labels
-        # (e.g., Margaret→Walton 'sister' should produce Walton→Margaret 'sister').
-        # Runs last so it reflects the final verified state of all relationships.
-        self._propagate_missing_reverses(characters)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
+        # _propagate_missing_reverses must be LAST — it adds reverse labels derived
+        # from confirmed relationships (e.g., Margaret→Walton 'sister' → Walton→Margaret
+        # 'sister'). Running before enforce_gender_consistency causes the propagated
+        # labels to be incorrectly flagged (e.g., male Walton can't be 'sister')
+        # and removed by clean_unknown_relationships.
+        self._propagate_missing_reverses(characters)
 
     def extract_relationships_from_evidence(self, characters) -> None:
         """Mine evidence statements to populate missing relationships.
@@ -1019,25 +1021,33 @@ class OutputCharacterCorrector:
                     )
 
     def fix_bidirectional_parent_labels(self, characters) -> None:
-        """Downgrade bidirectional same-parent labels to 'associated'.
+        """Correct bidirectional same-parent labels using a surname heuristic.
 
         If A→B = 'parent' AND B→A = 'parent' (or any identical parent term),
-        they cannot both be each other's parent. The direction is unknown, so
-        both labels are downgraded to 'associated' — a neutral, factually safe
-        fallback that preserves the co-occurrence signal without asserting a
-        wrong relationship.
-
-        Note: 'sibling' was previously used as the correction but is equally
-        wrong when the LLM has confused parent/child direction.
+        they cannot both be each other's parent. The correction depends on
+        whether they share a surname:
+        - Shared surname → 'sibling' (same generation, same family)
+        - No shared surname → 'associated' (direction unknown, neutral fallback)
 
         Universal invariant: bidirectional identical parent labels are logically
-        impossible and indicate a LLM error. Downgrading to 'associated' is
-        always safe — text-evidence methods (verify_relationships_from_text)
-        run before this and should already have upgraded correct directional
-        labels (e.g., 'parent' → 'father' via "his father" phrase detection).
+        impossible and indicate a LLM error. Text-evidence methods
+        (verify_relationships_from_text) run before this and should already have
+        upgraded correct directional labels where evidence exists.
         """
         _PARENT_LABELS = frozenset({"father", "mother", "parent"})
+        _skip_titles = {"jr.", "sr.", "jr", "sr", "ii", "iii", "iv",
+                        "md", "phd", "dr", "mr", "mrs", "ms", "miss"}
         char_by_name = {c.canonical_name: c for c in characters}
+
+        def _surnames(name: str) -> set:
+            parts = name.split()
+            if len(parts) <= 1:
+                return set()
+            return {
+                p.lower().rstrip(".,")
+                for p in parts[1:]
+                if len(p) > 2 and p.lower().rstrip(".,") not in _skip_titles
+            }
 
         seen_pairs: set = set()
         for char_a in characters:
@@ -1064,10 +1074,17 @@ class OutputCharacterCorrector:
                 rel_b_lower = (rel_b or "").strip().lower()
 
                 if rel_b_lower in _PARENT_LABELS:
-                    rels_a[other_name] = "associated"
-                    rels_b[char_a.canonical_name] = "associated"
+                    # Determine correction: shared surname → siblings; otherwise → associated
+                    surnames_a = _surnames(char_a.canonical_name)
+                    surnames_b = _surnames(other_name)
+                    if surnames_a and surnames_b and (surnames_a & surnames_b):
+                        correction = "sibling"
+                    else:
+                        correction = "associated"
+                    rels_a[other_name] = correction
+                    rels_b[char_a.canonical_name] = correction
                     logger.info(
-                        f"Bidirectional parent label downgraded to associated: "
+                        f"Bidirectional parent label corrected to '{correction}': "
                         f"'{char_a.canonical_name}' ↔ '{other_name}' "
                         f"(was '{rel_a}'/'{rel_b}')"
                     )

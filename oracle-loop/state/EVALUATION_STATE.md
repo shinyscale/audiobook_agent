@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -48,21 +48,11 @@
 
 ### CRITICAL
 
-1. **`fix_bidirectional_parent_labels` too blunt — converts real siblings to "associated"** [Profiles - Relationships]
-   - Problem: When both characters claim "parent" of each other (common LLM error), the method now converts both to "associated". This is correct for actual parent/child pairs (where one direction is wrong) but incorrect for siblings (where both "parent" claims should map to "sibling").
-   - Evidence: Felix↔Agatha were "sibling" in attempt 12, now "associated". They share surname "De Lacey" and are siblings in the text.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `fix_bidirectional_parent_labels()`
-   - Fix: Add surname-sharing heuristic. If both characters share a surname fragment, convert bidirectional "parent" to "sibling" (more likely siblings than both being parents of each other). If they don't share a surname, convert to "associated" (can't determine direction). This restores Felix↔Agatha while keeping Safie↔unrelated-character cases neutral.
-   - Impact: Profiles 7.5 → 8.0 (restores sibling labels for surname-sharing pairs: Felix↔Agatha, and would also correctly label Victor↔William, Victor↔Ernest if LLM generates "parent" for them)
+*(none — all critical issues addressed in attempt 14)*
 
 ### HIGH
 
-2. **`_propagate_missing_reverses` not firing for Margaret→Walton "sister"** [Profiles - Relationships]
-   - Problem: Margaret→Walton has "sister" but Walton→Margaret has no entry. The new `_propagate_missing_reverses` method was added but didn't produce results in the actual pipeline run.
-   - Evidence: Walton's relationships: `{"Victor Frankenstein": "associated", "the creature": "associated"}` — Margaret not present.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `_propagate_missing_reverses()`
-   - Fix: Debug the method. Check: (a) Is "sister" in `RELATIONSHIP_REVERSES`? (b) Does the method correctly iterate through all characters? (c) Is it actually being called in `run_all()`? The smoke test passed, so it may be a data-shape issue in real pipeline output vs test fixture.
-   - Impact: Profiles +0.25
+*(none — propagate_missing_reverses ordering fix addresses High #2)*
 
 ### MEDIUM
 
@@ -245,6 +235,18 @@
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
   - **DID NOT WORK** — Walton→Margaret still missing despite smoke test passing
 
+- Attempt 14 (Fix 1): Surname-aware `fix_bidirectional_parent_labels`
+  - Root cause: Method always converted bidirectional parent labels to "associated", even for siblings sharing a surname.
+  - Fix: Add `_surnames()` helper. If both characters share a surname component → "sibling"; otherwise → "associated".
+  - Smoke test: PASS — Felix↔Agatha → "sibling", Safie↔Beaufort → "associated"
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 14 (Fix 2): Move `_propagate_missing_reverses` to be absolute last step in `run_all()`
+  - Root cause: `_propagate_missing_reverses` ran BEFORE `enforce_gender_consistency`. When it added "sister" to Walton (male), `enforce_gender_consistency` changed it to "unknown", then `clean_unknown_relationships` deleted it.
+  - Fix: Swap order — `enforce_gender_consistency` + `clean_unknown_relationships` first, then `_propagate_missing_reverses` last.
+  - Smoke test: PASS — Walton→Margaret "sister" now propagated correctly
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -281,6 +283,8 @@
 | 13 | Bidirectional parent → "associated" | `post_corrections.py` | Partial — regressed siblings |
 | 13 | parent/child in FAMILY_TERMS | `post_corrections.py` | Fixed ✓ |
 | 13 | _propagate_missing_reverses | `post_corrections.py` | DID NOT WORK |
+| 14 | Bidirectional parent → surname-aware sibling/associated | `post_corrections.py` | Pending |
+| 14 | _propagate_missing_reverses ordering (run truly last) | `post_corrections.py` | Pending |
 
 **Recurring patterns:**
 - `post_corrections.py` (attempts 6-13): EIGHT consecutive attempts. The relationship post-correction chain continues to be the core challenge.
@@ -328,4 +332,4 @@ The method was added but didn't produce results. Steps to debug:
 - 125m14s total runtime
 
 ## Next Action
-Run PROMPT_fix.md to address surname-aware bidirectional parent resolution (Critical #1) and debug _propagate_missing_reverses (High #2)
+Run analysis (PROMPT_analyze.md) to verify fixes for attempt 14
