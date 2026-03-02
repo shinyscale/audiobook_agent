@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.10
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/cask_of_amontillado/report.html
 - JSON: ../output/cask_of_amontillado/analysis.json
+
+## Pipeline Notes (Attempt 2)
+- Montresor successfully extracted (3 mentions, alias "the Montresors") — vocative fix worked
+- Narrator correctly detected as Montresor (first-person) — issue #2 resolved
+- 2 profiles generated separately (Montresor + Fortunato) — issue #3 likely resolved
+- Only 2 characters extracted (Luchresi still missing — issue #4 unresolved)
+- 17 pronunciation flags total
+- Runtime: 19m 5s
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
