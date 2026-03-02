@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -13,66 +13,77 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6.5/10 ✗ (FAILING)
-  - Completeness: 7/10
-  - Identity Resolution: 5/10 ← phantom "the old man" is primary blocker
-  - Alias Grouping: 6/10
-- Character Profiles: 6/10 ✗ (FAILING)
+- Character Extraction: 7.5/10 ✗ (FAILING)
+  - Completeness: 8/10
+  - Identity Resolution: 7.5/10
+  - Alias Grouping: 6.5/10 ← missing aliases for Mr./Mrs. White, false aliases on paw
+- Character Profiles: 7/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 9/10 ✓
+- Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.9/10** (reference only)
+- **Overall: 8.2/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
 
-## Correction to Attempt 4 Analyze Notes
+## What Fixed E and F Accomplished
 
-The analyze phase noted "the old man" aliases were "less contaminated (no 'old woman', 'son', 'paw' this time)." This is **INCORRECT**. Actual aliases on "the old man" are: `['the visitor', 'stranger', "the monkey's paw", "monkey's paw", 'the paw', 'the old woman']` — contamination with "the old woman", "the monkey's paw", and "the paw" is still fully present. Only "the son" was removed vs. attempt 3.
+**Fix E (descriptor merge) — SUCCESS:** The phantom "the old man" character with 45 mentions is GONE. No more duplicate character entry. The Monkey's Paw is now properly extracted as its own symbolic entity (18 mentions). This was the critical blocker from attempts 1-4.
+
+**Fix F (cross-tier guard) — PARTIAL SUCCESS:** Parent-child labels are no longer universally replaced by spousal labels. Mrs. White → Herbert is now "mother" ✓. Herbert → Mr. White and Herbert → Mrs. White are both "son" ✓. However, Mr. White → Herbert is "son" instead of "father" — the `enforce_inverse_consistency` logic is not correcting this direction.
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **Phantom character: "the old man" with 45 mentions steals Mr. White's identity** [Identity Resolution]
-   - Problem: The LLM extracts "the old man" as a separate canonical character in Pass 1 because Part III refers to Mr. White exclusively as "the old man." This creates a 45-mention phantom while Mr. White drops to only 10 mentions. Furthermore, "the old man" accumulates garbage aliases: "the visitor" (Maw & Meggins rep), "stranger", "the monkey's paw", "monkey's paw", "the paw", "the old woman" (Mrs. White).
-   - Evidence: `main_cast_7` = "the old man" with 45 mentions vs `main_cast_0` = "Mr. White" with 10 mentions. In the story, "the old man" IS Mr. White — the narrator uses this descriptive phrase as a pronoun-like reference throughout Part III.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Pass 1 extraction (LLM generates "the old man" as canonical), Pass 2 alias resolution (fails to merge with Mr. White), Rule 3 (blocks cross-character merging)
-   - **ESCALATION NOTE:** main_cast.py has been modified 3 times (Fix A, Fix C, Fix C revert) for variants of this issue without success. LLM-prompt and heuristic approaches both failed. The fix phase MUST try a different layer:
-     - **Option A (recommended):** Add a post-extraction merge step in `main_cast.py` AFTER Pass 2 completes. If a character has NO proper nouns in its canonical name (only common nouns/articles like "the old man") AND a proper-name character exists with matching gender/context, merge the common-noun character INTO the proper-name character as an alias. This bypasses Rule 3 since it happens after verification.
-     - **Option B:** Modify the Pass 1 prompt to explicitly instruct: "Common-noun descriptive phrases that refer to a named character (e.g., 'the old man' referring to Mr. White) should be listed as ALIASES of that named character, NOT as separate characters."
-     - **Option C:** Add a confidence-weighted merge: if a common-noun character has 3x+ the mentions of a proper-name character of the same gender/role, flag for automatic merge.
-
-2. **All parent-child relationship labels are wrong — labeled as spousal** [Profiles]
-   - Problem: Every parent-child relationship is labeled with a spousal term. This is a post-corrections bug, likely in `enforce_gender_consistency` applying gendered spousal labels too broadly.
-   - Evidence:
-     - Mr. White → Herbert White: "husband" (should be "father")
-     - Mrs. White → Herbert White: "wife" (should be "mother")
-     - Herbert White → Mr. White: "wife" (should be "son")
-     - Herbert White → Mrs. White: "husband" (should be "son")
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `enforce_gender_consistency()` and/or `enforce_inverse_consistency()`
-   - Root cause hypothesis: `enforce_gender_consistency` appears to be treating ALL relationships as spousal — detecting character gender from titles (Mr./Mrs.) and then assigning "husband"/"wife" regardless of whether the relationship is actually parent-child, sibling, etc. It should ONLY apply spousal labels when the original relationship type is already spousal (e.g., "spouse", "married to", "husband", "wife").
-   - Fix: `enforce_gender_consistency` must check the ORIGINAL relationship type before replacing. If the original label is "father", "mother", "parent", "son", "daughter", "child", "sibling", "brother", "sister", etc., it should NOT be overwritten with a spousal label. Only labels like "spouse", "partner", "married" should be gender-corrected to "husband"/"wife".
-
 ### HIGH
-3. **Monkey's paw absent as a character/symbolic entity** [Completeness]
-   - Problem: The monkey's paw (the title object and central antagonistic force) is not extracted as its own character. It's listed as an alias of "the old man" — completely nonsensical.
-   - Evidence: The paw is the driving force of the entire plot, granting wishes with horrific consequences. A narrator prep tool should identify it.
-   - Location: This is downstream of Issue #1 — if "the old man" phantom is resolved, the paw should be re-extracted naturally (as it was in attempt 1 before Fix C).
-   - Fix: Resolving Issue #1 (merging phantom into Mr. White) should free the paw's mentions. The LLM should then extract it as its own symbolic entity.
+1. **Mr. White → Herbert relationship labeled "son" instead of "father"** [Profiles]
+   - Problem: Mr. White's relationship to Herbert White is labeled "son" — but Mr. White is Herbert's FATHER. The inverse direction (Herbert → Mr. White = "son") is correct. The `enforce_inverse_consistency()` function should detect: if B→A = "son", then A→B must be "father" (not "son").
+   - Evidence: JSON shows `Mr. White → Herbert White: "son"`. Herbert → Mr. White: "son" is correct. Mrs. White → Herbert: "mother" is correct. Only Mr. White's direction is wrong.
+   - Pipeline Notes show: `'Mr. White'→'Herbert White'='child' AND 'Herbert White'→'Mr. White'='child' (removed as contradictory)` — so both were labeled "child" (contradictory), they were REMOVED, and then re-populated later — but the re-population set Mr. White's label to "son" instead of "father".
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `enforce_inverse_consistency()`. The function needs to infer the inverse: if Herbert is "son" to Mr. White, then Mr. White is "father" to Herbert. Currently it appears to detect same-label contradictions but not correct the inverse direction.
+   - Fix: In `enforce_inverse_consistency()`, add inverse mapping: when both A→B and B→A are "child"/"son"/"daughter", detect the parent via title/gender (Mr. = male parent = father) and set A→B = "father" instead of removing both. Alternatively, ensure the inverse-label mapping (`son` ↔ `father`, `daughter` ↔ `mother`, `child` ↔ `parent`) is applied correctly.
 
-4. **Morris ↔ Mr. White relationship labeled "associated" instead of "friend"** [Profiles]
-   - Problem: Morris visits as an old friend — they served together, share drinks and war stories. "associated" is too vague.
-   - Evidence: Text explicitly shows Morris as an old army friend visiting the Whites.
-   - Location: LLM profile generation output. Lower priority — may improve on re-analysis after character extraction fixes.
+2. **Mrs. White has no physical description or personality traits** [Profiles]
+   - Problem: Mrs. White's profile has `physical_description: null` and `personality_traits: null`. She's a main character who should have profile data.
+   - Evidence: The text describes her as "the old woman" and "white-haired old lady". She shows distinct behavior: initial skepticism about the paw, desperate grief after Herbert's death, frenzied insistence on the second wish, struggling toward the door in the dark.
+   - Location: LLM profile generation — the profile prompt may not be extracting enough for Mrs. White because she's described more through actions than explicit descriptors.
+   - Fix: This may improve naturally if Mr./Mrs. White aliases are resolved (Issue #3), giving the profiler more text to work with. If not, the profile prompt in `src/pipeline/character_profiling/` may need to look for action-based characterization, not just explicit descriptors.
+
+3. **Mr. and Mrs. White have zero aliases despite extensive descriptor usage** [Alias Grouping]
+   - Problem: Mr. White has zero aliases. "the old man" (used ~45 times in Part III) should be his alias. Mrs. White also has zero aliases — "the old woman"/"the old lady" should be hers.
+   - Evidence: Fix E's `_merge_descriptor_into_proper_name()` at `characters.py:1597` adds the descriptor canonical name as an alias (`target.aliases.append(desc_char.canonical_name)`). The pipeline log confirms the merge fired. But the final output shows zero aliases for Mr. White. Something downstream is stripping the alias after the merge.
+   - Root cause hypothesis: After the descriptor merge at Step 3.6b, the pipeline runs Steps 3.7-3.9 (alias dedup, split titled, split semantic, post-split repair). One of these steps — likely `verify_aliases` — may be stripping "the old man" because Rule 2a blocks aliases not found in any summary, or Rule 3 detects a co-occurrence conflict. The merge happens BEFORE verification, so the alias gets added then removed.
+   - Location: `src/agents/characters.py` Step 3.6b (merge works) → Steps 3.7+ (alias gets stripped)
+   - Fix: Either (a) move the descriptor merge AFTER verify_aliases so it's the final alias step, or (b) whitelist descriptor-merged aliases so verify_aliases doesn't strip them, or (c) investigate which specific verification rule is removing the alias and add an exemption for descriptor-merged aliases.
+   - Note: "the old woman" was never a separate character (it was a garbage alias of the phantom), so it wouldn't be covered by Fix E. Mrs. White getting "the old woman" as an alias requires a separate mechanism (e.g., Pass 2 alias resolution or a similar descriptor-matching step for non-extracted descriptors).
+
+4. **The Monkey's Paw has 3 false aliases: "The Visitor", "The Old Fakir", "an old fakir"** [Identity Resolution / Alias Grouping]
+   - Problem: The paw's alias list includes three entities that are NOT the paw:
+     - "The Visitor" = the Maw & Meggins representative who delivers news of Herbert's death (Part II). A human, not the paw.
+     - "The Old Fakir" / "an old fakir" = the Indian holy man who placed the spell on the paw (mentioned by Morris in Part I). The spell's creator, not the paw itself.
+   - Evidence: JSON shows `aliases: ["monkey's paw", "the paw", "The Visitor", "The Old Fakir", "an old fakir"]`. Only the first two are correct.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Pass 2 alias resolution. The LLM is over-associating entities mentioned in proximity to the paw (the fakir created it, the visitor's arrival fulfills its wish) as aliases OF the paw.
+   - Fix: This is a Pass 2 prompt issue. Entities that INTERACT with a symbolic object are not aliases of it. The prompt should clarify: "An alias must be another NAME for the same entity. A person who created, used, or is affected by an object is NOT an alias of that object."
 
 ### MEDIUM
-5. **Mr. White and Mrs. White have zero aliases** [Alias Grouping]
-   - Problem: "the old man" and "the old woman"/"the old lady" are used extensively throughout the text but not listed as aliases.
-   - Note: This is expected to self-resolve if Issue #1 is fixed (merging "the old man" into Mr. White would effectively create the alias).
+5. **Morris ↔ Mr. White labeled "associated" instead of "friend"** [Profiles]
+   - Problem: Text clearly establishes Morris as an old army friend of Mr. White's — they served together, share drinks and war stories. "associated" is too generic.
+   - Location: LLM profile generation output.
+   - Fix: May improve if character context is richer after alias fixes. Low priority.
 
-6. **"the old man" profile duplicates Mr. White's profile** [Profiles]
-   - Problem: "the old man" has its own full profile (appearance, personality, voice guidance, quotes) that duplicates Mr. White's. This is confusing for a narrator — which profile should they use?
-   - Fix: Self-resolves if Issue #1 is fixed.
+6. **Morris → The Monkey's Paw labeled "friend"** [Profiles]
+   - Problem: Morris is wary of the paw and tries to burn it. "friend" is the wrong relationship. Should be "associated" or "possessor".
+   - Location: LLM profile generation output. Minor issue.
+
+7. **Chapter 3 character list shows "the old man" and "the old woman" instead of canonical names** [Presentation]
+   - Problem: Chapter 3's character tags display unresolved descriptors instead of "Mr. White" and "Mrs. White".
+   - Evidence: HTML report chapter 3 section shows `<span class="tag">the old man</span>` and `<span class="tag">the old woman</span>`.
+   - Location: Chapter-character linking in the summary pipeline. If aliases were properly resolved (Issue #3), the linker should map these descriptors to canonical characters.
+   - Fix: Self-resolves if Issue #3 is fixed (aliases enable the linker to match descriptors to characters).
+
+### LOW
+8. **The Maw & Meggins representative missing as a character** [Completeness]
+   - Very minor character who appears briefly in Part II. Currently his mention "the visitor" is incorrectly absorbed as a paw alias (Issue #4). Resolving Issue #4 would free "the visitor" but he still may not meet the mention threshold for extraction.
+   - Not blocking — a narrator would understand who "the visitor" is from the summary.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -81,6 +92,7 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
 | 2 | 8.15 | +0.07 | Fix A partially worked (2 of 3 bad aliases removed). Fix B landed for Herbert physical desc. |
 | 3 | 7.0 | **-1.08** | **REGRESSION.** Fix C over-fires — "the old man" becomes garbage 43-mention entry, paw disappears |
 | 4 | 7.9 | -0.18 | Fix C reverted. Phantom "the old man" persists (45 mentions, garbage aliases). All family relationship labels wrong (spousal instead of parent-child). Monkey's paw absent. |
+| 5 | 8.2 | +0.12 | Fix E eliminated phantom ✓. Fix F partially fixed relationships ✓. Paw re-extracted ✓. Remaining: alias gaps, one wrong relationship direction, Mrs. White profile sparse. |
 
 ## Fix History
 - Attempt 1 (Fix A): Clarified `is_symbolic: true` in CHARACTER_IDENTIFICATION_PROMPT for non-person entities
@@ -103,6 +115,14 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
   - Result: Reduced contamination slightly (no "the son" alias) but "the old man" phantom persists with 45 mentions. Garbage aliases still present.
   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`, `tests/test_post_corrections.py`
 
+- Attempt 4 (Fix E): Added `_merge_descriptor_into_proper_name()` post-extraction merge step (Step 3.6b)
+  - Result: **SUCCESS** — phantom "the old man" eliminated. But "the old man" alias not retained in final output (stripped by downstream verification).
+  - Modified: `src/agents/characters.py`
+
+- Attempt 4 (Fix F): Added cross-tier guard in `verify_relationships_from_text`
+  - Result: **PARTIAL** — parent/child no longer overridden by spousal ✓. But Mr. White → Herbert labeled "son" instead of "father" — the inverse-direction correction logic is incomplete.
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `tests/test_post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -112,27 +132,29 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
 | 2 (Fix C) | False aliases: "visitor"/"stranger" on monkey's paw [Critical #1] | main_cast.py (is_common_noun_phrase heuristic) | **REGRESSION** — over-fires on person-descriptors, creates garbage "the old man" entry |
 | 2 (Fix D) | Mrs. White→Herbert = "husband" instead of "mother" [High #2] | post_corrections.py (enforce_inverse_consistency), test_post_corrections.py | Partial — "parent" ✓ but contradictions removed some valid relationships |
 | 3 (Fix C REVERT) | Revert catastrophic regression [Critical #1] | main_cast.py, test_post_corrections.py | Alias contamination slightly reduced but phantom persists |
-| 4 (Fix E) | Phantom "the old man" [Critical #1] | characters.py (_merge_descriptor_into_proper_name, Step 3.6b) | NEW APPROACH: post-extraction merge step merges common-noun characters into proper-name characters using universal signals (gender+role+mention asymmetry). Verified: "the old man" (protagonist, 45 mentions, male) merges into "Mr. White" (protagonist, 10 mentions, male), NOT Mrs. White (female). Garbage aliases not inherited. |
-| 4 (Fix F) | Parent/child labels overridden by spousal [Critical #2] | post_corrections.py (verify_relationships_from_text cross-tier guard) | Root cause confirmed: verify_relationships_from_text finds "his wife" in 500-char co-mention windows of parent+child and overrides "son"/"father" with "wife"/"husband". Fix: universal invariant — parent/child label is never replaced by spousal from co-mention window evidence. Verified: "son" not replaced by "wife" in smoke test. |
+| 4 (Fix E) | Phantom "the old man" [Critical #1] | characters.py (_merge_descriptor_into_proper_name, Step 3.6b) | **SUCCESS** — phantom eliminated. But alias not retained in final output. |
+| 4 (Fix F) | Parent/child labels overridden by spousal [Critical #2] | post_corrections.py (verify_relationships_from_text cross-tier guard) | **PARTIAL** — spousal override blocked ✓. But Mr. White→Herbert = "son" instead of "father" (wrong direction, not corrected). |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (characters, summaries) — appropriate sizing
 - Context: 32768 for all agents — sufficient for a short story
 - Temperature: 0.7 for all — reasonable
 - Zero LLM retries across all stages — good
-- 5 pipeline stages, 39 LLM calls, 84,932 tokens in 26m 30s
+- 5 pipeline stages, 38 LLM calls, 80,563 tokens in 24m 40s
 
-## Pipeline Notes (Attempt 5)
-- Duration: 24m 40s, 38 LLM calls, 80,563 tokens
-- **Fix E working:** No phantom "the old man" character — descriptor merge step merged it into Mr. White
-- **Fix F partial:** Contradictory relationship warnings still appear:
-  - 'Mr. White'→'Mrs. White'='spouse' AND 'Mrs. White'→'Mr. White'='spouse' (removed as contradictory)
-  - 'Mr. White'→'Herbert White'='child' AND 'Herbert White'→'Mr. White'='child' (removed as contradictory)
-  - 'Mrs. White'→'Herbert White'='child' AND 'Herbert White'→'Mrs. White'='child' (removed as contradictory)
-  - Both-sides-same-label contradictions are removed (not corrected); final profiles may lack family rels
-- **Monkey's Paw extracted:** "The Monkey's Paw (aka monkey's paw, the paw) - 18 mentions" ✓
-- **Alias blocks:** "the old man" and "the old woman" co-occurrence blocks logged (expected — Rule 2a fires before Fix E's post-merge step)
-- **Characters found:** Mr. White (10), Mrs. White (10), Herbert White (19), Sergeant-Major Morris (5), The Monkey's Paw (18)
+## Priority Fix Path for Attempt 6
+
+To cross the 8.0 threshold in BOTH failing categories:
+
+**Characters (7.5 → 8.0+):**
+- Fix Issue #3 (alias stripping): Investigate why "the old man" alias is stripped after descriptor merge. Move merge step AFTER verify_aliases, or whitelist descriptor-merged aliases. Expected improvement: +0.5 to Alias Grouping → Characters ~8.0.
+- Fix Issue #4 (paw false aliases): Tighten Pass 2 prompt for symbolic entities — "persons who interact with a symbolic entity are NOT aliases of it." Expected improvement: +0.5 to Identity Resolution.
+
+**Profiles (7.0 → 8.0+):**
+- Fix Issue #1 (Mr. White → Herbert = "son"): Add proper inverse-label correction in `enforce_inverse_consistency()`. If both directions have the same child-label, detect the parent by title/gender and set the correct inverse. Expected improvement: +0.5.
+- Fix Issue #2 (Mrs. White profile): May self-resolve if aliases are fixed (more text context for profiler). If not, investigate profile extraction prompt. Expected improvement: +0.5.
+
+**Focus on Issues #1 and #3 first** — they are most likely to have clean code fixes.
 
 ## Next Action
-Run PROMPT_evaluate.md to evaluate attempt 5 output.
+Run PROMPT_fix.md to address Issues #1-4.
