@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -14,104 +14,79 @@
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
-- Character Extraction: 8.5/10 ✓
-  - Completeness: 9/10
+- Character Extraction: 8/10 ✓
+  - Completeness: 8/10
   - Identity Resolution: 9/10
   - Alias Grouping: 8/10
-- Character Profiles: 7/10 ✗ (FAILING — relationship label errors)
+- Character Profiles: 7.5/10 ✗ (FAILING — relationships too generic, sibling regression)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.33/10** (reference only)
+- **Overall: 8.28/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold: Profiles)
 
-## What Improved from Attempt 11
+## What Changed from Attempt 12
 
-Massive improvements:
-- **Ollama stable:** 20/20 profiles generated (19 high, 1 low) vs 4/19 in attempt 11
-- **Co-occurrence enrichment WORKING:** 20/20 characters have relationships (vs 4/19)
-- **Dæmon alias FIX CONFIRMED:** "the dæmon" correctly on creature, removed from De Lacey
-- **Alphonse Frankenstein FOUND:** Back after 7 consecutive absences (10 mentions)
-- **Personality + voice guidance:** All 20 characters have personality data + voice guidance (excellent quality)
-- **All zero-retry pipeline run:** 349 LLM calls, 0 retries, 0 JSON parse failures
+### Fixes Verified
+- **Fix 1 (bidirectional parent → "associated"):** WORKED but caused side-effect. Victor↔Alphonse "sibling" issue is now moot (Alphonse absent). But Felix↔Agatha REGRESSED from "sibling" to "associated" — the old "sibling" was correct for them.
+- **Fix 2 (parent/child in FAMILY_TERMS):** WORKED ✓. Safie↔Beaufort hallucinated "parent"/"child" is GONE. They no longer share a relationship entry.
+- **Fix 3 (_propagate_missing_reverses):** DID NOT WORK. Walton→Margaret still missing despite Margaret→Walton having "sister". The smoke test passed but the real pipeline didn't propagate. Likely cause: "sister" not in RELATIONSHIP_REVERSES, or method execution error.
 
-## What Still Needs Fixing (Profiles Only)
+### Regressions
+- **Alphonse Frankenstein missing** — Was present in attempt 12 (10 mentions), now absent. No character extraction code was changed; this is LLM run-to-run variability. Characters drops from 8.5 to 8.0 (still passing).
+- **Felix↔Agatha "sibling" → "associated"** — Direct side-effect of Fix 1. When the LLM labels both as "parent" of each other, the old code converted to "sibling" (correct for siblings), new code converts to "associated" (neutral but less useful).
 
-The ONLY failing category is Profiles (7/10). The profile generation itself is excellent — personality, voice guidance, speech patterns are all high quality. The issue is **relationship label accuracy**.
-
-### Relationship Errors Found
-
-1. **Victor↔Alphonse: "sibling"** — WRONG. Alphonse is Victor's FATHER.
-   - Victor→Alphonse: "sibling" (should be "child")
-   - Alphonse→Victor: "sibling" (should be "parent")
-   - Root cause: `fix_bidirectional_parent_labels` converts bidirectional "parent" claims to "sibling". The LLM incorrectly said both are parents of each other → post-correction converted to "sibling" → `reject_unfounded_familial_labels` preserved it because they share surname "Frankenstein".
-
-2. **Safie↔Beaufort: "parent"/"child"** — WRONG. Beaufort is Caroline Beaufort's father (Victor's maternal grandfather), NOT Safie's parent. Safie's father is the Turkish merchant.
-   - Safie→Beaufort: "parent"
-   - Beaufort→Safie: "child"
-   - Root cause: LLM profiler hallucinated this relationship. `reject_unfounded_familial_labels` (with attempt 12 fix) should have downgraded to "associated" since they don't share a surname, but didn't. Possible bug in the downgrade logic.
-
-3. **Walton→Margaret: missing** — Walton's relationships only contain `{"Victor Frankenstein": "associated"}`. Margaret→Walton correctly has "sister", but Walton doesn't have the reciprocal.
-   - Root cause: Co-occurrence enrichment added Victor (from shared letter chapters) but missed Margaret. Or: the LLM profiler only generated one relationship for Walton and co-occurrence didn't add Margaret because Walton's letters are addressed TO Margaret (she's not mentioned BY NAME in summaries?).
-
-4. **Victor's example_quotes: 2/3 misattributed**
-   - "You wish to eat me and tear me to pieces. You are an ogre." — This is William Frankenstein's line (child speaking to creature in Ch. 16)
-   - "Farewell, Frankenstein! If thou wert yet alive..." — This is the creature's final soliloquy
-   - Only "I, not in deed, but in effect, was the true murderer." is actually Victor's
-   - Root cause: LLM profiler misattributed quotes from narrated speech to the narrator
-
-5. **De Lacey family "associated"** — Felix→De Lacey, Agatha→De Lacey, De Lacey→Felix, De Lacey→Agatha are all "associated" instead of parent/child. Only Felix↔Agatha correctly shows "sibling".
+### Net Effect on Profiles
+- Removed: Safie↔Beaufort hallucinated "parent" ✓ (+0.25)
+- Regressed: Felix↔Agatha "sibling" → "associated" (−0.25)
+- Unchanged: Walton→Margaret still missing, Victor's quotes still misattributed
+- Net: Profiles 7/10 → 7.5/10 (+0.5, from removing worst errors)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **`fix_bidirectional_parent_labels` converts parent/child to "sibling" incorrectly** [Profiles - Relationships]
-   - Problem: When LLM labels both directions as "parent" (which is wrong), the fix converts both to "sibling". For Victor↔Alphonse, this creates a factually wrong "sibling" label. The LLM was wrong to say both are parents, but the correction is ALSO wrong.
-   - Evidence: Victor→Alphonse: "sibling", Alphonse→Victor: "sibling". Should be parent/child.
+1. **`fix_bidirectional_parent_labels` too blunt — converts real siblings to "associated"** [Profiles - Relationships]
+   - Problem: When both characters claim "parent" of each other (common LLM error), the method now converts both to "associated". This is correct for actual parent/child pairs (where one direction is wrong) but incorrect for siblings (where both "parent" claims should map to "sibling").
+   - Evidence: Felix↔Agatha were "sibling" in attempt 12, now "associated". They share surname "De Lacey" and are siblings in the text.
    - Location: `src/pipeline/character_profiling/post_corrections.py` — `fix_bidirectional_parent_labels()`
-   - Fix: Change the method to downgrade bidirectional "parent" claims to "associated" instead of "sibling". This prevents the wrong label. The narrator sees "associated" (neutral) rather than "sibling" (wrong). Alternatively: when converting, check summaries for "father"/"mother"/"son"/"daughter" keywords near both names to determine the correct direction.
-   - Impact: Profiles 7/10 → 7.5/10 (removes most egregious error)
+   - Fix: Add surname-sharing heuristic. If both characters share a surname fragment, convert bidirectional "parent" to "sibling" (more likely siblings than both being parents of each other). If they don't share a surname, convert to "associated" (can't determine direction). This restores Felix↔Agatha while keeping Safie↔unrelated-character cases neutral.
+   - Impact: Profiles 7.5 → 8.0 (restores sibling labels for surname-sharing pairs: Felix↔Agatha, and would also correctly label Victor↔William, Victor↔Ernest if LLM generates "parent" for them)
 
 ### HIGH
 
-2. **`reject_unfounded_familial_labels` not catching Safie↔Beaufort "parent"** [Profiles - Relationships]
-   - Problem: Safie and Beaufort don't share a surname. The attempt 12 fix should downgrade non-sibling familial labels without shared surname to "associated". But "parent"/"child" between Safie and Beaufort survived.
-   - Evidence: Safie→Beaufort: "parent", Beaufort→Safie: "child". Should be no relationship or "associated".
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `reject_unfounded_familial_labels()`
-   - Fix: Debug why the method didn't catch "parent"/"child" labels between Safie and Beaufort. The downgrade logic may only handle specific labels (e.g., "wife"/"husband") and not "parent"/"child". Ensure ALL familial labels are covered.
-   - Impact: Profiles +0.25 (removes hallucinated relationship)
-
-3. **Walton missing Margaret relationship** [Profiles - Relationships]
-   - Problem: Walton has only `{"Victor Frankenstein": "associated"}`. Margaret→Walton is "sister" but the reciprocal doesn't exist.
-   - Evidence: Robert Walton writes ALL letters to Margaret, she's his sister. This should be the most prominent relationship.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — likely a gap in the bidirectional relationship enforcement
-   - Fix: The `fix_bidirectional_parent_labels` or a new method should ensure that if A→B has a familial label, B→A also gets the reciprocal. Margaret→Walton "sister" should create Walton→Margaret "sibling".
+2. **`_propagate_missing_reverses` not firing for Margaret→Walton "sister"** [Profiles - Relationships]
+   - Problem: Margaret→Walton has "sister" but Walton→Margaret has no entry. The new `_propagate_missing_reverses` method was added but didn't produce results in the actual pipeline run.
+   - Evidence: Walton's relationships: `{"Victor Frankenstein": "associated", "the creature": "associated"}` — Margaret not present.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `_propagate_missing_reverses()`
+   - Fix: Debug the method. Check: (a) Is "sister" in `RELATIONSHIP_REVERSES`? (b) Does the method correctly iterate through all characters? (c) Is it actually being called in `run_all()`? The smoke test passed, so it may be a data-shape issue in real pipeline output vs test fixture.
    - Impact: Profiles +0.25
 
 ### MEDIUM
 
-4. **Victor's misattributed example quotes (2/3 wrong)** [Profiles - Voice Guidance]
-   - Problem: LLM profiler attributed William's and creature's quotes to Victor. Hard to fix generically.
-   - Accept as LLM limitation. Do NOT attempt to fix in attempt 13.
+3. **Alphonse Frankenstein absent (LLM variability regression)** [Character Extraction - Completeness]
+   - Problem: Alphonse (Victor's father) was present in attempt 12 with 10 mentions, now absent. No code changes to character extraction were made.
+   - Evidence: 20 characters extracted, Alphonse not among them. He appears in chapters 1, 2, 6, 7, 22, and his death is a plot point.
+   - Location: LLM variability in `src/pipeline/character_extraction_v2/` — not a code bug.
+   - Impact: Characters 8.5 → 8.0 (still passing). Do NOT attempt a code fix — this is LLM non-determinism. Will likely resolve on re-run.
 
-5. **De Lacey family all "associated" instead of parent/children** [Profiles - Relationships]
-   - Problem: Felix, Agatha, and De Lacey senior are all "associated" with each other (except Felix↔Agatha "sibling"). The parent/child relationships are missing.
-   - Root cause: Co-occurrence added "associated", LLM didn't provide specific labels for this family.
-   - Accept for now — "associated" is not wrong, just generic. Fixing CRITICAL #1 is more impactful.
+4. **Victor's misattributed example quotes (2-3/4 wrong)** [Profiles - Voice Guidance]
+   - Problem: Victor's voice_guidance.example_quotes include Walton's "I have no friend, Margaret" and the creature's "I am thy creature, and I will be even mild and docile..."
+   - Accept as LLM limitation. Do NOT attempt to fix in attempt 14.
 
-6. **Creature role "supporting" instead of "main"** [Character Extraction]
-   - Recurring issue. The creature is a narrator and protagonist. Role should be "main".
-   - Low impact on overall score. Accept.
+5. **De Lacey family mostly "associated"** [Profiles - Relationships]
+   - Problem: Felix→De Lacey (the old man) and Agatha→De Lacey (the old man) are "associated" instead of "child"/"parent".
+   - The surname-sharing heuristic in CRITICAL #1 will help for sibling pairs but not for parent/child direction between De Lacey members.
+   - Accept for now — "associated" is not wrong, just generic.
 
 ### LOW
 
-7. Ernest and Margaret lack full canonical names (Ernest Frankenstein, Margaret Walton Saville).
-8. Letter 1 title null in JSON (displayed correctly as "Prologue 1" in HTML).
-9. Elizabeth's voice guidance has incomplete quote: `"I wish,"` — truncated.
-10. Elizabeth Lavenza profile flagged as low confidence ("lacks evidence").
+6. Ernest and Margaret lack full canonical names (Ernest Frankenstein, Margaret Walton Saville).
+7. Letter 1 title null in JSON (displayed correctly as "Prologue 1" in HTML).
+8. Creature role "antagonist" — debatable; is also narrator and protagonist of own embedded narrative.
+9. Victor's verbal_tics includes empty string "".
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -128,6 +103,7 @@ The ONLY failing category is Profiles (7/10). The profile generation itself is e
 | 10 | 8.23 | +2.03 | Creature aliases FIXED ✓ (Characters 7.5→8.5). BUT co-occurrence enrichment DID NOT FIRE. New De Lacey↔monster "romantic interest" hallucination. Profiles 7.5→7.0. |
 | 11 | 7.50 | +1.30 | **REGRESSION: Ollama crashed during profiles.** Only 4/19 profiles generated. Co-occurrence enrichment still not producing output despite bug fix. New dæmon alias regression. Profiles 7.0→3.0. |
 | 12 | 8.33 | +2.13 | **BEST SCORE.** Ollama stable (20/20 profiles). Co-occurrence enrichment WORKING (20/20 relationships). Dæmon fix ✓. Alphonse back ✓. But Profiles 7/10 — relationship label errors (Victor-Alphonse "sibling", Safie-Beaufort "parent"). |
+| 13 | 8.28 | +2.08 | Fix 2 (Safie-Beaufort) WORKED ✓. Fix 1 (bidir parent) caused Felix-Agatha regression. Fix 3 (propagate reverses) did NOT fire. Profiles 7→7.5 (net +0.5). Alphonse missing (LLM variability). |
 
 ## Fix History
 - Attempt 2 (Fix 1): Expanded competitive alias verification context from first-5-chapters (3000 chars) to ALL chapters (10000 chars)
@@ -257,6 +233,18 @@ The ONLY failing category is Profiles (7/10). The profile generation itself is e
   - Modified: `src/agents/characters.py`
   - **WORKED ✓** — "the dæmon" on creature, removed from De Lacey
 
+- Attempt 13 (Fix 1): `fix_bidirectional_parent_labels` downgrade to "associated" instead of "sibling"
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - **PARTIALLY WORKED** — Removed wrong "sibling" labels but also regressed correct sibling labels (Felix↔Agatha)
+
+- Attempt 13 (Fix 2): Added "parent" and "child" to `FAMILY_TERMS`
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - **WORKED ✓** — Safie↔Beaufort "parent"/"child" now correctly handled
+
+- Attempt 13 (Fix 3): Added `_propagate_missing_reverses` to `OutputCharacterCorrector.run_all()`
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - **DID NOT WORK** — Walton→Margaret still missing despite smoke test passing
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -290,76 +278,54 @@ The ONLY failing category is Profiles (7/10). The profile generation itself is e
 | 11 | Romantic label validation | `post_corrections.py` | Working (untestable in att 11) |
 | 12 | Co-occurrence chain (downgrade familial) | `post_corrections.py` | Partial (parent not downgraded) |
 | 12 | Dæmon alias transfer | `characters.py` | Fixed ✓ |
+| 13 | Bidirectional parent → "associated" | `post_corrections.py` | Partial — regressed siblings |
+| 13 | parent/child in FAMILY_TERMS | `post_corrections.py` | Fixed ✓ |
+| 13 | _propagate_missing_reverses | `post_corrections.py` | DID NOT WORK |
 
 **Recurring patterns:**
-- `post_corrections.py` (attempts 6-12): SEVEN consecutive attempts. The method ordering and interaction effects are the core challenge.
-- The relationship post-correction chain has complex interactions: co-occurrence → verify → reject → bidirectional fix. Each fix in one step can be undone by another step.
+- `post_corrections.py` (attempts 6-13): EIGHT consecutive attempts. The relationship post-correction chain continues to be the core challenge.
+- The bidirectional parent fix has gone through 3 iterations: "sibling" (att 9) → "associated" (att 13) → needs surname heuristic (att 14).
 
-## Priority Fix Guidance for Attempt 13
+## Priority Fix Guidance for Attempt 14
 
-### Fix Priority 1: Change `fix_bidirectional_parent_labels` to downgrade to "associated" (CRITICAL #1)
+### Fix Priority 1: Surname-aware bidirectional parent resolution (CRITICAL #1)
 
-Instead of converting bidirectional "parent" claims to "sibling", downgrade to "associated". This prevents the Victor↔Alphonse error. "Associated" is neutral and correct; "sibling" is wrong.
+In `fix_bidirectional_parent_labels()`, instead of always converting bidirectional "parent" to "associated":
+- Extract surname fragments from both characters' canonical names
+- If they share a surname → convert to "sibling" (correct for same-generation family members like Felix↔Agatha)
+- If they don't share a surname → convert to "associated" (neutral fallback)
+
+Surname extraction: take the last word of canonical name (e.g., "Felix De Lacey" → "De Lacey" or "Lacey", "Victor Frankenstein" → "Frankenstein"). For multi-word surnames like "De Lacey", consider the last 2+ words.
 
 **Location:** `src/pipeline/character_profiling/post_corrections.py` — `fix_bidirectional_parent_labels()`
 
-### Fix Priority 2: Debug `reject_unfounded_familial_labels` for "parent"/"child" (HIGH #2)
+**Expected outcome:** Felix↔Agatha → "sibling" (share "De Lacey"), Agatha↔De Lacey (the old man) → "sibling" if both labeled "parent", unrelated pairs → "associated"
 
-Verify the method handles ALL familial labels including "parent" and "child", not just "wife"/"husband" or "sibling". If the label list is incomplete, add "parent" and "child" to the checks. Safie↔Beaufort "parent"/"child" should be downgraded to "associated" (no shared surname).
+### Fix Priority 2: Debug `_propagate_missing_reverses` (HIGH #2)
 
-**Location:** `src/pipeline/character_profiling/post_corrections.py` — `reject_unfounded_familial_labels()`
+The method was added but didn't produce results. Steps to debug:
+1. Check if "sister" is in `RELATIONSHIP_REVERSES` dict
+2. Check if the method is actually called in `run_all()` (log or print statement)
+3. Check if it correctly iterates `self.characters` and accesses `char.relationships`
+4. The smoke test passed, so the issue may be in how the real pipeline data is structured vs the test fixture
 
-### Fix Priority 3: Ensure bidirectional familial labels (HIGH #3)
+**Location:** `src/pipeline/character_profiling/post_corrections.py` — `_propagate_missing_reverses()` and `RELATIONSHIP_REVERSES`
 
-If Margaret→Walton has "sister", ensure Walton→Margaret gets "sibling" reciprocal. This might already be handled by `fix_bidirectional_parent_labels` or another method, but the current output shows it's not working for this pair.
-
-**Location:** `src/pipeline/character_profiling/post_corrections.py`
-
-### Do NOT attempt in attempt 13:
-- Victor's misattributed quotes — LLM profiler limitation, hard to fix generically
-- De Lacey family "associated" labels — "associated" is not wrong, just generic
-- Creature "supporting" role — low impact
-- Ernest/Margaret full names — low priority
+### Do NOT attempt in attempt 14:
+- Alphonse missing — LLM variability, not a code issue
+- Victor's misattributed quotes — LLM limitation
+- De Lacey parent/child direction — "associated" is acceptable
+- Creature role "antagonist" — low impact
 
 ## Configuration Audit
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (same for all agents)
 - Temperature: 0.7 across all agents (reasonable)
 - Context length: 32768 (sufficient)
-- 0 retries across all stages ✓
+- 0 retries across all 5 stages ✓
 - 0 JSON parse failures ✓
-- Ollama stable throughout entire run (197m54s)
-- Bottleneck: Chapter Summaries (34% of time — cached from previous run)
-- 1 quality concern: Elizabeth Lavenza low-confidence profile
-
-## Fix History (Attempt 13)
-
-- Attempt 13 (Fix 1): `fix_bidirectional_parent_labels` downgrade to "associated" instead of "sibling"
-  - Root cause: `post_corrections.py:fix_bidirectional_parent_labels():1063-1064` — converted bidirectional "parent" to "sibling" (both wrong)
-  - Fix: Changed both assignments from "sibling" to "associated" — neutral fallback
-  - Smoke test: PASS — Victor↔Alphonse both show "associated" after correction
-  - Modified: `src/pipeline/character_profiling/post_corrections.py`
-
-- Attempt 13 (Fix 2): Added "parent" and "child" to `FAMILY_TERMS`
-  - Root cause: `post_corrections.py:FAMILY_TERMS:69-73` — "parent"/"child" not in the constant, so `reject_unfounded_familial_labels` and `verify_relationships_from_text` never processed these labels
-  - Fix: Added "parent" and "child" to FAMILY_TERMS tuple
-  - Effect: (a) verify_relationships_from_text can now upgrade "parent"→"father"/"son" via text evidence (e.g., "his father" phrase); (b) reject_unfounded_familial_labels now catches Safie↔Beaufort "parent"/"child" and downgrades to "associated"
-  - Smoke test: PASS — Safie→Beaufort "parent" downgraded to "associated"
-  - Modified: `src/pipeline/character_profiling/post_corrections.py`
-
-- Attempt 13 (Fix 3): Added `_propagate_missing_reverses` to `OutputCharacterCorrector.run_all()`
-  - Root cause: Phase B `run_all()` had no final bidirectional propagation pass. After `verify_relationships_from_text` adds one-directional labels (e.g., Margaret→Walton "sister"), the reverse (Walton→Margaret) was never added.
-  - Fix: New method `_propagate_missing_reverses` uses `RELATIONSHIP_REVERSES` to add missing reverse labels (only when the reverse direction is absent — never overwrites). Called last in `run_all()` after all verify/reject/fix passes.
-  - Smoke test: PASS — Walton→Margaret "sister" correctly propagated
-  - Modified: `src/pipeline/character_profiling/post_corrections.py`
-
-## Pipeline Notes (Attempt 13)
-- 28 chapters detected, 20 characters found, 20 profiles generated
-- 358 LLM calls, 0 JSON parse failures; summaries served from cache (0 LLM calls, 44m21s)
+- Ollama stable throughout entire run
+- 358 LLM calls total, summaries served from cache
 - 125m14s total runtime
-- Creature aliases shown: "the wretch whom I had created", "the monster" (synonyms may have been recovered separately)
-- Contradictory "creator" relationship removed: Victor↔creature both labeled "creator" → removed
-- Pronunciation guide: 196 words flagged (some json_mode validation errors, handled gracefully)
-- Key fix tests: bidirectional "parent"→"associated", "parent"/"child" added to FAMILY_TERMS, _propagate_missing_reverses added
 
 ## Next Action
-Run PROMPT_evaluate.md to evaluate attempt 13 results
+Run PROMPT_fix.md to address surname-aware bidirectional parent resolution (Critical #1) and debug _propagate_missing_reverses (High #2)
