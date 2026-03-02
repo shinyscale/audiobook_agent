@@ -128,6 +128,43 @@ _rel_phrase_re = re.compile(
     re.IGNORECASE,
 )
 
+# Non-family relationship terms for extended relationship detection.
+# These are universal words that appear in any novel to describe relationships.
+# Used by verify_relationships_from_text() to upgrade "associated" labels.
+_NONFAMILY_REL_TERMS = (
+    "friend",
+    "companion",
+    "confidant",
+    "betrothed",
+    "fiancée",
+    "fiancee",
+    "fiancé",
+    "beloved",
+    "lover",
+    "rival",
+    "enemy",
+    "foe",
+    "mentor",
+    "protégé",
+    "employer",
+    "servant",
+    "guardian",
+    "ward",
+    "colleague",
+    "creator",
+    "creation",
+)
+
+# Combined family + non-family terms for verify_relationships_from_text.
+# Extended prefix handles "my best friend", "my old friend", "my dearest friend", etc.
+_all_rel_terms = list(FAMILY_TERMS) + list(_NONFAMILY_REL_TERMS)
+_all_rel_phrase_re = re.compile(
+    r'\b(?:a|an|(?:his|her|my|our|their|your)\s+'
+    r'(?:late\s+|dear\s+|dearest\s+|best\s+|close\s+|old\s+|trusted\s+)?)\s*('
+    + '|'.join(sorted(_all_rel_terms, key=len, reverse=True)) + r')\b',
+    re.IGNORECASE,
+)
+
 # Death phrase pattern
 _death_phrase_re = re.compile(r'\s+in\s+death(?=[.,;!?]|$)', re.IGNORECASE)
 
@@ -1044,9 +1081,9 @@ class OutputCharacterCorrector:
             if len(parts) <= 1:
                 return set()
             return {
-                p.lower().rstrip(".,")
+                p.lower().strip("().,")
                 for p in parts[1:]
-                if len(p) > 2 and p.lower().rstrip(".,") not in _skip_titles
+                if len(p.strip("().,")) > 2 and p.lower().strip("().,") not in _skip_titles
             }
 
         seen_pairs: set = set()
@@ -1604,24 +1641,52 @@ class OutputCharacterCorrector:
                     if not pat_b.search(win):
                         continue
                     comention_count += 1
-                    for rm in _rel_phrase_re.finditer(win):
+                    for rm in _all_rel_phrase_re.finditer(win):
                         term = rm.group(1).lower()
                         found[term] = found.get(term, 0) + 1
 
+                _generic_labels = {"associated", "acquaintance", "associate"}
                 if found:
                     best = max(found, key=found.get)
+                    is_best_family = any(t in best for t in family_set)
                     if best not in cur_lower:
-                        logger.info(
-                            f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
-                            f"'{cur}' → '{best}' (evidence: {found})"
-                        )
-                        char.relationships[other_key] = best
+                        if is_best_family or cur_lower in _generic_labels:
+                            # Family evidence: override any label (e.g., "brother" → "cousin"
+                            # when text confirms "cousin"). Generic labels: upgrade to any term.
+                            logger.info(
+                                f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
+                                f"'{cur}' → '{best}' (evidence: {found})"
+                            )
+                            char.relationships[other_key] = best
+                        elif (
+                            cur_lower not in _generic_labels
+                            and not is_family
+                            and found.get(cur_lower, 0) == 0
+                            and comention_count <= 1
+                        ):
+                            # Specific non-family label with no corroborating text evidence AND
+                            # very low co-occurrence: likely hallucinated.
+                            # Universal invariant: if the specific label never appears in any
+                            # co-mention window AND the characters barely share the text, the
+                            # relationship was not established in this book.
+                            logger.info(
+                                f"Hallucinated specific rel downgraded (no evidence, co-occ={comention_count}): "
+                                f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'associated'"
+                            )
+                            char.relationships[other_key] = "associated"
                 elif is_family and comention_count == 0:
                     logger.info(
                         f"Hallucinated family rel downgraded: "
                         f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'acquaintance'"
                     )
                     char.relationships[other_key] = "acquaintance"
+                elif not is_family and comention_count == 0 and cur_lower not in _generic_labels:
+                    # Specific non-family label between characters with zero raw-text co-occurrence.
+                    logger.info(
+                        f"Hallucinated specific rel downgraded (zero co-occurrence): "
+                        f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'associated'"
+                    )
+                    char.relationships[other_key] = "associated"
 
     def clean_plot_summary_personality(self, characters, source_text: str = "") -> None:
         """Replace personality.summary that narrates other characters' actions.
@@ -1803,9 +1868,9 @@ class OutputCharacterCorrector:
             if len(parts) <= 1:
                 return set()
             return {
-                p.lower().rstrip(".,")
+                p.lower().strip("().,")
                 for p in parts[1:]
-                if len(p) > 2 and p.lower().rstrip(".,") not in _skip_titles
+                if len(p.strip("().,")) > 2 and p.lower().strip("().,") not in _skip_titles
             }
 
         # Build lookup: lower name/alias → Character

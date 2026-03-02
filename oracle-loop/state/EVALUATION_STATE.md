@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -376,5 +376,34 @@ Fix: Add a co-occurrence check in post-corrections. If two characters never appe
 - Output directory: output/Frankenstein_ebook_20260302_024636/
 - 0 Ollama crashes ✓
 
+## Fix History (Attempt 15 additions)
+
+- Attempt 15 (Fix 1): Extended `verify_relationships_from_text()` to detect non-family relationship terms
+  - Root cause: `_rel_phrase_re` only matched FAMILY_TERMS; "friend", "betrothed", "rival", "mentor", etc. were invisible to the method.
+  - Fix: Added `_all_rel_phrase_re` combining FAMILY_TERMS + non-family terms ("friend", "companion", "betrothed", "beloved", "rival", "enemy", "mentor", "creator", etc.) with extended prefix pattern ("my best friend", "my old friend", "my dearest friend")
+  - Upgrade logic: family evidence → override any label (preserves "brother"→"cousin" override); generic labels ("associated") → upgrade to any detected term; specific non-family labels → NOT overridden by non-family evidence (prevents spurious "creation"→"friend")
+  - Smoke test: PASS — Victor→Henry detects "friend" (9 occurrences dominate); old man→Felix detects "father" (10 occurrences); Victor→monster "creation" preserved; Felix→Victor "creator" downgraded
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 15 (Fix 2): Fixed `_surnames()` parenthesis handling in two locations
+  - Root cause: `_surnames("the old man (De Lacey)")` returned `{"old", "man", "(de", "lacey)"}` — the closing parenthesis on "lacey)" caused no match with Felix De Lacey's "lacey". So old man↔Felix/Agatha failed the shared-surname check in `reject_unfounded_familial_labels()` and family labels were downgraded.
+  - Fix: Changed `rstrip(".,")` to `strip("().,")` and used `len(p.strip("().,")) > 2` in both `_surnames()` functions (in `fix_bidirectional_parent_labels()` and `reject_unfounded_familial_labels()`).
+  - Smoke test: PASS — "the old man (De Lacey)" now shares "lacey" surname with "Felix De Lacey" and "Agatha De Lacey"
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 15 (Fix 3): Added hallucinated specific-label downgrade for non-co-occurring characters
+  - Root cause: LLM profile generated "creator" for Felix→Victor (hallucination). Existing code had no mechanism to remove non-family specific labels for characters who barely share the text.
+  - Fix: In `verify_relationships_from_text()`, added check: if specific non-family label AND detected evidence doesn't corroborate the label (`found.get(cur_lower, 0) == 0`) AND very low co-occurrence (`comention_count <= 1`) → downgrade to "associated". Also added zero co-occurrence downgrade for the empty-evidence case.
+  - Smoke test: PASS — Felix→Victor "creator" correctly downgraded to "associated" (1 co-mention, "creator" never appears in that window; corroborating label count = 0). Victor→monster "creation" preserved (creator: 2 in windows).
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+### Expected outcomes of attempt 15 fixes:
+- Victor→Henry Clerval / Henry→Victor: "associated" → "friend" ✓
+- Old man (De Lacey) → Felix/Agatha: "associated" → "father" ✓ (preserved by shared "lacey" surname)
+- Felix/Agatha → old man (De Lacey): "associated" → "son"/"daughter" (from reverse text evidence)
+- Felix→Victor "creator": "creator" → "associated" ✓ (hallucination removed)
+- Victor→Elizabeth: likely still "associated" (window contamination from "my father Alphonse" in co-mention scenes)
+- Walton→Margaret: likely still "associated" (first-person letter narration prevents direct name co-mention near "sister")
+
 ## Next Action
-Run PROMPT_fix.md to address the "associated" label epidemic (HIGH #1) and Felix→Victor hallucination (HIGH #2)
+Set phase to awaiting_analysis

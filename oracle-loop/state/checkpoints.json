@@ -74,15 +74,15 @@
       }
     },
     "frankenstein": {
-      "commit": "424cf6fb4e6f62bd9e15e601037ca82d7ac44966",
-      "score": 8.10,
+      "commit": "1865d2a3eee83719f0bea9df32fc20378f20e468",
+      "score": 8.33,
       "category_scores": {
-        "structure": 8.0,
-        "characters": 8.0,
-        "profiles": 7.0,
-        "summaries": 8.0,
-        "pronunciation": 8.0,
-        "presentation": 9.0
+        "structure": 8.5,
+        "characters": 8.5,
+        "profiles": 7,
+        "summaries": 9,
+        "pronunciation": 8,
+        "presentation": 8.5
       }
     },
     "gift_of_the_magi": {
