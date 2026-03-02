@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -122,5 +122,17 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
 - Zero LLM retries across all stages — good
 - 5 pipeline stages, 39 LLM calls, 84,932 tokens in 26m 30s
 
+## Pipeline Notes (Attempt 5)
+- Duration: 24m 40s, 38 LLM calls, 80,563 tokens
+- **Fix E working:** No phantom "the old man" character — descriptor merge step merged it into Mr. White
+- **Fix F partial:** Contradictory relationship warnings still appear:
+  - 'Mr. White'→'Mrs. White'='spouse' AND 'Mrs. White'→'Mr. White'='spouse' (removed as contradictory)
+  - 'Mr. White'→'Herbert White'='child' AND 'Herbert White'→'Mr. White'='child' (removed as contradictory)
+  - 'Mrs. White'→'Herbert White'='child' AND 'Herbert White'→'Mrs. White'='child' (removed as contradictory)
+  - Both-sides-same-label contradictions are removed (not corrected); final profiles may lack family rels
+- **Monkey's Paw extracted:** "The Monkey's Paw (aka monkey's paw, the paw) - 18 mentions" ✓
+- **Alias blocks:** "the old man" and "the old woman" co-occurrence blocks logged (expected — Rule 2a fires before Fix E's post-merge step)
+- **Characters found:** Mr. White (10), Mrs. White (10), Herbert White (19), Sergeant-Major Morris (5), The Monkey's Paw (18)
+
 ## Next Action
-Run PROMPT_analyze.md to re-analyze monkeys_paw with fixes applied.
+Run PROMPT_evaluate.md to evaluate attempt 5 output.
