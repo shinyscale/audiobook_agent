@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Attempt:** 15
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260302_024636/
+- Dated dir: ../output/Frankenstein_ebook_20260302_051901/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -368,12 +368,16 @@ Fix: Add a co-occurrence check in post-corrections. If two characters never appe
 - 128m 33s total runtime
 - Summaries served from cache ✓
 
-## Pipeline Notes (Attempt 14)
+## Pipeline Notes (Attempt 15)
 - 28 chapters detected ✓
-- 20 character profiles generated for 20 eligible characters ✓
-- NOTABLE: Many creature aliases BLOCKED — "the fiend", "the wretch", "the demon", "the daemon", "the being", etc. blocked as not found in summaries
-- NOTABLE: Elizabeth Lavenza has alias "more than sister" (odd, likely hallucination)
-- Output directory: output/Frankenstein_ebook_20260302_024636/
+- 19 character profiles generated for 19 eligible characters ✓
+- 340 LLM calls, 610K tokens; 120m 53s total runtime ✓
+- Summaries served from cache (0 new LLM calls for summaries) ✓
+- 24 characters found initially; reconciliation from summaries added 7 more
+- NOTABLE: Many creature aliases BLOCKED — expected behavior from alias verification rules
+- NOTABLE: Narrator detected as Robert Walton (epistolary) ✓
+- NOTABLE: Victor→William "child" and Victor→Creature "creator" contradictory relationships removed ✓
+- Output directory: output/Frankenstein_ebook_20260302_051901/
 - 0 Ollama crashes ✓
 
 ## Fix History (Attempt 15 additions)
