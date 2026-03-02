@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -97,13 +97,15 @@
 - Zero LLM retries across all stages — good
 - All 5 characters high confidence — no profiling red flags
 
-## Pipeline Notes (Attempt 2 Re-analysis)
-- "the old fakir" / "an old fakir" successfully removed from paw aliases (Fix A partial success)
-- "the visitor" persists as paw alias, "stranger" is new
-- is_symbolic still false — LLM ignores prompt instruction
-- Herbert White physical description no longer misattributed (Fix B success)
-- Mrs. White→Herbert label changed from "father" to "husband" (LLM generated different wrong label)
-- Pass 2 still failed for Mr. White and Sergeant-Major Morris (kept without aliases)
+## Pipeline Notes (Attempt 3 Re-analysis)
+- Fix C REGRESSION: Rule 0.5 heuristic over-fires on person-characters with common-noun canonical names ("the old man", "the son")
+  - "the old man" became a separate character (43 mentions) instead of merging with Mr. White (10 mentions)
+  - "the son" became a separate character instead of merging with Herbert White
+  - "the monkey's paw" disappeared entirely from the character list
+  - "the visitor" (Maw and Meggins rep) ended up as alias of "the old man" — still wrong
+- Fix D triggered but contradictions detected: "Mrs. White→Herbert White='child' AND Herbert White→Mrs. White='child'" (both sides = child is logically impossible — removed). Also "Mr. White→Mrs. White='spouse' AND Mrs. White→Mr. White='spouse'" — same problem removed spouse relation too.
+- BLOCKED messages confirm Rule 0.5 over-fires: "Mr. White (core noun: white) semantically unrelated to the old man (core noun: man)" — treating "the old man" as symbolic breaks person merging.
+- Characters shown: Mr. White (10), Mrs. White (10), Herbert White (18), Sergeant-Major Morris (5), the old man (43) [WRONG — should be 5 characters with paw, not "the old man"]
 
 ## Modification History (updated)
 
@@ -115,4 +117,4 @@
 | 2 (Fix D) | Mrs. White→Herbert = "husband" instead of "mother" [High #2] | post_corrections.py (enforce_inverse_consistency), test_post_corrections.py | Added method that uses child-perspective "son"/"daughter" labels as authoritative; overwrites non-parent B→A labels with gender-appropriate parent label |
 
 ## Next Action
-Re-run analysis to verify fixes
+Evaluate attempt 3 output. Expect regression on Character Extraction due to Fix C over-firing.
