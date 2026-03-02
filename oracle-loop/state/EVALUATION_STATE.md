@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Attempt:** 14
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260302_002421/
+- Dated dir: ../output/Frankenstein_ebook_20260302_024636/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -331,5 +331,15 @@ The method was added but didn't produce results. Steps to debug:
 - 358 LLM calls total, summaries served from cache
 - 125m14s total runtime
 
+## Pipeline Notes (Attempt 14)
+- 28 chapters detected ✓
+- 20 character profiles generated for 20 eligible characters ✓
+- 128m 33s total runtime (364 LLM calls, 682K tokens)
+- Summaries served from cache (44m 25s, 0 LLM calls) ✓
+- NOTABLE: Many creature aliases BLOCKED — "the fiend", "the wretch", "the demon", "the daemon", "the being", etc. blocked as not found in summaries
+- NOTABLE: Elizabeth Lavenza has alias "more than sister" (odd, likely hallucination)
+- Output directory: output/Frankenstein_ebook_20260302_024636/
+- 0 Ollama crashes ✓
+
 ## Next Action
-Run analysis (PROMPT_analyze.md) to verify fixes for attempt 14
+Run evaluation (PROMPT_evaluate.md) to score attempt 14
