@@ -7,8 +7,9 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 7,
+      "final_score": 8.45
     },
     {
       "name": "cask_of_amontillado",
