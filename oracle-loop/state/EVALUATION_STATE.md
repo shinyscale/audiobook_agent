@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -199,7 +199,16 @@ This alone provides +0.3. Combined with any partial improvement on personality t
   - All 332 tests pass (56 in test_post_corrections.py, 276 others)
   - Modified: `src/pipeline/character_profiling/post_corrections.py` (`enforce_gender_consistency()`)
 
-## Next Action
-Re-run analysis to verify Fix K resolves Profiles 7.5 → 8.0+
+## Attempt 7 Pipeline Notes
+- Run time: 19m 22s, 36 LLM calls, 75,424 tokens
+- **Mr. White gained "the old man" alias** — Pass 2 now succeeds for Mr. White
+- **Herbert White gained "his son" alias** — new alias not present in attempt 6
+- **Mrs. White has NO aliases** — BLOCKED messages show "the old woman" alias blocked ("already claimed by another character")
+- **Monkey's paw NOT extracted** — only 4 characters found (vs 5 in attempt 6); paw is missing entirely
+- **Spouse contradiction removed** — "Removing contradictory relationship: Mr. White→Mrs. White='spouse' AND Mrs. White→Mr. White='spouse'" — potential regression (attempt 6 had husband/wife preserved)
+- Fix K (neutral kinship → gender-specific) is the key change this attempt; needs evaluation to confirm Profiles improvement
 
-**Phase:** awaiting_analysis
+## Next Action
+Evaluate attempt 7 output: verify Fix K improved Profiles (parent→mother, child→son), check for spouse regression, note paw absence.
+
+**Phase:** awaiting_evaluation
