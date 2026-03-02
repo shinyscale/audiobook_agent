@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_220344/
+- Dated dir: ../output/Frankenstein_ebook_20260302_002421/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -352,5 +352,14 @@ If Margaret→Walton has "sister", ensure Walton→Margaret gets "sibling" recip
   - Smoke test: PASS — Walton→Margaret "sister" correctly propagated
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
 
+## Pipeline Notes (Attempt 13)
+- 28 chapters detected, 20 characters found, 20 profiles generated
+- 358 LLM calls, 0 JSON parse failures; summaries served from cache (0 LLM calls, 44m21s)
+- 125m14s total runtime
+- Creature aliases shown: "the wretch whom I had created", "the monster" (synonyms may have been recovered separately)
+- Contradictory "creator" relationship removed: Victor↔creature both labeled "creator" → removed
+- Pronunciation guide: 196 words flagged (some json_mode validation errors, handled gracefully)
+- Key fix tests: bidirectional "parent"→"associated", "parent"/"child" added to FAMILY_TERMS, _propagate_missing_reverses added
+
 ## Next Action
-Run PROMPT_analyze.md to re-run pipeline and verify fixes
+Run PROMPT_evaluate.md to evaluate attempt 13 results
