@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -100,6 +100,13 @@ Fix D (inverse-relationship consistency) partially worked: Mrs. White→Herbert 
   - Result: Mrs. White→Herbert changed to "parent" ✓ (partial success). But had contradictions ("both sides = child") that caused some relationships to be removed. Mrs. White→Mr. White still "husband" (not caught).
   - Modified: `src/pipeline/character_profiling/post_corrections.py`, `tests/test_post_corrections.py`
 
+- Attempt 3 (Fix C REVERT): Removed `is_common_noun_phrase()` heuristic from `is_symbolic_or_personified` condition
+  - Root cause: Fix C treated all-lowercase names (after article strip) as symbolic objects, firing on person-descriptors like "the old man"/"the old woman" — these are pronoun-like references to Mr./Mrs. White, not objects
+  - Fix: Remove `is_common_noun_phrase()` function entirely; `is_symbolic_or_personified` now only uses `is_symbolic=True` (from LLM) and `is_personified_concept()` (abstract concepts like death/plague)
+  - Also added 2 tests: `test_mrs_title_female_cannot_be_husband` and `test_mr_title_male_cannot_be_wife` to verify `enforce_gender_consistency` handles title-based gender detection
+  - Smoke test: 332 tests passed, 10 skipped
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`, `tests/test_post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -120,7 +127,4 @@ Fix D (inverse-relationship consistency) partially worked: Mrs. White→Herbert 
 - Zero LLM retries across all stages — good
 
 ## Next Action
-1. **Revert Fix C** (the `is_common_noun_phrase` heuristic in main_cast.py) — this caused the regression
-2. Keep Fix D (inverse relationship consistency) — it partially worked
-3. Try a more targeted approach for the paw's false aliases (see Critical #1 for options)
-4. Re-run analysis
+Re-run analysis to verify Fix C revert restores character extraction.

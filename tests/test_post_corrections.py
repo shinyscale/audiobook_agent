@@ -517,6 +517,26 @@ class TestEnforceGenderConsistency:
         corrector.enforce_gender_consistency([char])
         assert char.relationships["Alice"] == "mother"
 
+    def test_mrs_title_female_cannot_be_husband(self):
+        """Character with 'Mrs.' canonical name is female: 'husband' → 'wife'."""
+        char = MockOutputCharacter(
+            canonical_name="Mrs. White",
+            relationships={"Mr. White": "husband"},
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_gender_consistency([char])
+        assert char.relationships["Mr. White"] == "wife"
+
+    def test_mr_title_male_cannot_be_wife(self):
+        """Character with 'Mr.' canonical name is male: 'wife' → 'husband'."""
+        char = MockOutputCharacter(
+            canonical_name="Mr. White",
+            relationships={"Mrs. White": "wife"},
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_gender_consistency([char])
+        assert char.relationships["Mrs. White"] == "husband"
+
 
 class TestEnforceInverseConsistency:
     """Tests for OutputCharacterCorrector.enforce_inverse_consistency."""

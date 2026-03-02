@@ -825,38 +825,9 @@ class MainCastExtractor:
                     name_words = set(name_lower.split())
                     return bool(name_words & personified_keywords)
 
-                def is_common_noun_phrase(name: str) -> bool:
-                    """Check if name is a common-noun phrase (object, not a person/creature).
-
-                    Heuristic: after stripping leading articles, the name is entirely
-                    lowercase (no proper-noun capitals) AND contains no creature/being
-                    keywords.  Catches object-names like 'the monkey\\'s paw' without
-                    relying on the LLM's is_symbolic flag.  Creature words are excluded
-                    so 'the creature' / 'the monster' are NOT treated as objects.
-                    """
-                    # Strip leading article from the original (case-sensitive) name
-                    orig = name.strip()
-                    for article in ("The ", "the ", "A ", "a ", "An ", "an "):
-                        if orig.startswith(article):
-                            orig = orig[len(article):].strip()
-                            break
-                    # If anything is capitalised, it's a proper noun — not an object
-                    if orig != orig.lower():
-                        return False
-                    # Exclude creature/being keywords so Frankenstein-style characters
-                    # (whose canonical name IS all-lowercase after article removal)
-                    # don't trigger this path.
-                    creature_keywords = {
-                        "creature", "monster", "beast", "daemon", "fiend",
-                        "spirit", "ghost", "being", "thing",
-                    }
-                    name_words = set(orig.lower().split())
-                    return not bool(name_words & creature_keywords)
-
                 is_symbolic_or_personified = (
                     getattr(profile, "is_symbolic", False)
                     or is_personified_concept(profile.canonical_name)
-                    or is_common_noun_phrase(profile.canonical_name)
                 )
 
                 if is_symbolic_or_personified:
