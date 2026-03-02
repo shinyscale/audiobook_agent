@@ -593,6 +593,17 @@ COMMON_WORDS_WHITELIST = {
     "whippersnapper", # common informal: compound (obvious pronunciation)
     "johnny",         # standard English nickname (same as "john" — always whitelisted)
     "johnnie",        # alternate spelling of the same nickname
+    # Standard English words not in CMU but well-known to professional narrators
+    "leer",           # common English verb/noun (to look sideways, a sly glance)
+    "leered",         # past tense
+    "leering",        # present participle
+    "flagon",         # moderately archaic English: a large bottle or flask
+    "flagons",        # plural
+    "gesticulation",  # standard English noun (the act of gesticulating)
+    "gesticulations", # plural
+    "gesticulate",    # verb form
+    "gesticulating",  # present participle
+    "gesticulated",   # past tense
 }
 
 # Contraction fragments that result from tokenization

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.10
 - **Competitive Mode:** none
 
@@ -97,11 +97,32 @@
 - **Result:** All three FIXED. Montresor now extracted as protagonist/narrator. Fortunato no longer flagged as narrator. Profiles have correct personality traits per character.
 - **Files modified:** `src/agents/characters.py`, `tests/test_character_extraction_v2.py`
 
+### Attempt 2 Fix — 3-part fix
+**1. Luchresi extraction (Character Extraction Completeness)**
+- **Root cause:** F6 reconciliation only reads `active_characters` (on-stage). Luchresi is referenced in dialogue only → summarizer puts it in `mentioned_characters` → F6 misses it. NER also misclassifies "Luchresi" as ORG in dialogue context.
+- **Fix:** Added F6b — after F6 active_characters pass, scan `mentioned_characters` with adaptive text-mention threshold (2 for short texts, 3 for long). Luchresi has 6 text mentions ≥ threshold=2.
+- **Universality:** Any character referenced in dialogue but not physically present benefits from this fix.
+- **Smoke test:** PASS — F6b identifies Luchresi with 5 text mentions, threshold=2, would_add=True. Lady Fortunato (0 text mentions) correctly filtered.
+- **File:** `src/analyzer.py` — F6b block after `if missing_names:` in F6 section
+
+**2. Physical description misattribution (Character Profiles)**
+- **Root cause:** `_generate_character_profile()` has a "narrator note" when profiling the narrator but no corresponding note for non-narrators. LLM sees "I put on a mask of black silk" and assigns it to Fortunato (the character being profiled).
+- **Fix:** Added `narrator_name` parameter. When profiling a non-narrator in a first-person narrative, adds a prompt note: "All 'I' descriptions belong to {narrator_name}, NOT to {character_name}."
+- **Universality:** Universal — "I" always refers to the narrator in 1st-person narratives.
+- **File:** `src/analyzer.py` — `_generate_character_profile()` narrator_note section + both call sites
+
+**3. Pronunciation false positives (Pronunciation Guide)**
+- **Root cause:** "leer", "flagon", "gesticulation" are NOT in the CMU Pronouncing Dictionary, so the CMU proposer flags them. But professional narrators know these common English words.
+- **Fix:** Added all three (plus common inflected forms) to `COMMON_WORDS_WHITELIST`.
+- **Universality:** These are universally known English words. Any book using them would get false positives.
+- **File:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` — COMMON_WORDS_WHITELIST
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Montresor missing + narrator misattrib + profile conflation | `src/agents/characters.py`, `tests/test_character_extraction_v2.py` | Fixed (all 3 resolved) |
+| 2 | Luchresi missing + profile misattribution + pronunciation false positives | `src/analyzer.py`, `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` | Pending re-analysis |
 
 ## Configuration Notes
 - Model: qwen3.5:122b-a10b for characters and summaries (good)
@@ -110,9 +131,4 @@
 - No obvious config issues; remaining problems are pipeline logic and prompt quality
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Priority 1:** Luchresi extraction (Characters 7.5 → 8.0) — either lower mention threshold for short texts or improve dialogue-only character detection
-2. **Priority 2:** Physical description attribution in profiles (Profiles 7 → 8.0) — fix first-person narrator physical description misattribution in profile generation prompt
-3. **Priority 3:** Pronunciation gaps (Pronunciation 7 → 8.0) — add missing foreign terms, reduce false positives
-
-All three categories need +1.0 point improvement. Issues #1-3 are the primary blockers.
+Re-run analysis to verify fixes.

@@ -1631,8 +1631,40 @@ class AudiobookAnalyzer:
 
                     # Create minimal character entries for missing names
                     # We'll give them medium confidence since they come from LLM summaries
+                    import hashlib
+                    import re as _re_f6
+
+                    def _f6_add_character(name: str, chapters_present: list, confidence: float = 0.75) -> bool:
+                        """Add a character from F6 reconciliation. Returns True if added."""
+                        char_id = hashlib.md5(name.encode()).hexdigest()[:12]
+                        new_character = Character(
+                            id=char_id,
+                            canonical_name=name,
+                            aliases=[],
+                            mentions=[],
+                            first_appearance_chapter=(
+                                min(chapters_present) if chapters_present else 0
+                            ),
+                            mention_count=len(chapters_present),
+                            chapters_present=chapters_present,
+                            confidence=confidence,
+                            supporting_strategies=["chapter_summary_reconciliation"],
+                            description="",
+                            character_type=CharacterType.STORY,
+                        )
+                        # Count actual text mentions via regex
+                        name_pattern = rf"\b{_re_f6.escape(name)}(?:'?s)?\b"
+                        actual_mentions = len(_re_f6.findall(name_pattern, doc.text, _re_f6.IGNORECASE))
+                        if actual_mentions > 0:
+                            new_character.mention_count = actual_mentions
+                            logger.info(
+                                f"F6: '{name}' actual text mentions: {actual_mentions} "
+                                f"(was {len(chapters_present)} from chapter count)"
+                            )
+                        pipeline_char_map.characters.append(new_character)
+                        return True
+
                     for name in missing_names:
-                        # Find which chapters this character appears in (from summaries)
                         chapters_present = []
                         for summary in summary_map.summaries:
                             active_chars = (
@@ -1642,47 +1674,103 @@ class AudiobookAnalyzer:
                             )
                             if name in active_chars:
                                 chapters_present.append(summary.chapter_index)
-
-                        # Create a minimal Character entry
-                        # Use hash of name for ID
-                        import hashlib
-
-                        char_id = hashlib.md5(name.encode()).hexdigest()[:12]
-
-                        new_character = Character(
-                            id=char_id,
-                            canonical_name=name,
-                            aliases=[],
-                            mentions=[],  # Empty since we don't have mention positions from summaries
-                            first_appearance_chapter=(
-                                min(chapters_present) if chapters_present else 0
-                            ),
-                            mention_count=len(chapters_present),  # Use chapter count as proxy
-                            chapters_present=chapters_present,
-                            confidence=0.75,  # Medium-high confidence from summary evidence
-                            supporting_strategies=["chapter_summary_reconciliation"],
-                            description="",  # Will be filled in by profile generation
-                            character_type=CharacterType.STORY,  # Assume story character
-                        )
-
-                        # Count actual text mentions via regex instead of chapter-count proxy
-                        import re as _re_f6
-                        # Match name with optional possessive suffix (e.g., "Montresor" and "Montresors" / "Montresor's")
-                        name_pattern = rf"\b{_re_f6.escape(name)}(?:'?s)?\b"
-                        actual_mentions = len(_re_f6.findall(name_pattern, doc.text, _re_f6.IGNORECASE))
-                        if actual_mentions > 0:
-                            new_character.mention_count = actual_mentions
-                            logger.info(
-                                f"F6: '{name}' actual text mentions: {actual_mentions} "
-                                f"(was {len(chapters_present)} from chapter count)"
-                            )
-
-                        pipeline_char_map.characters.append(new_character)
+                        _f6_add_character(name, chapters_present, confidence=0.75)
 
                     print(f"   Added {len(missing_names)} character(s) from chapter summaries")
                     logger.info(f"F6: Added characters: {', '.join(missing_names)}")
                 else:
                     logger.info("F6: All characters from summaries already in character list")
+
+                # F6b: Also scan mentioned_characters (referenced but not physically present).
+                # Characters only referenced in dialogue often land in mentioned_characters but
+                # are still important (e.g., a figure invoked as a manipulation tool, a suspect
+                # discussed by witnesses). We include them when they have ≥ N actual text mentions
+                # (adaptive threshold to prevent guest-list explosion in long books).
+                #
+                # Threshold: short texts (< 10K words) → 2 mentions; long texts → 3 mentions.
+                # This filters incidental name-drops (Gatsby's party guests: 1–2 mentions each)
+                # while capturing recurring referenced characters (≥ 2–3 mentions = plot-relevant).
+                try:
+                    import re as _re_f6b
+                    import hashlib as _hashlib_f6b
+
+                    _f6b_word_count = len(doc.text.split()) if doc.text else 0
+                    _f6b_mention_threshold = 2 if _f6b_word_count < 10_000 else 3
+
+                    # Collect mentioned_characters across all summaries
+                    mentioned_names: set[str] = set()
+                    for summary in summary_map.summaries:
+                        mentioned = getattr(summary, "mentioned_characters", None) or []
+                        for name in mentioned:
+                            stripped = name.strip()
+                            if stripped:
+                                mentioned_names.add(stripped)
+
+                    # Only consider names NOT already covered by active_characters pass (F6)
+                    mentioned_only = mentioned_names - summary_character_names
+
+                    f6b_added = []
+                    for name in mentioned_only:
+                        # Apply the same skip filters as F6 active_characters
+                        if len(name.strip()) <= 1:
+                            continue
+                        if name.strip().lower() in _F6_PRONOUN_FILTER:
+                            continue
+                        if _is_generic_descriptor(name):
+                            continue
+                        if (
+                            name.lower() in existing_names
+                            or _normalize_name_for_matching(name) in existing_names
+                        ):
+                            continue
+                        if _is_synonym_of_existing(name):
+                            continue
+                        if _is_likely_alias_of_existing(name):
+                            continue
+
+                        # Require actual text mentions above threshold
+                        name_pattern = rf"\b{_re_f6b.escape(name)}(?:'?s)?\b"
+                        actual_mentions = len(_re_f6b.findall(name_pattern, doc.text, _re_f6b.IGNORECASE))
+                        if actual_mentions < _f6b_mention_threshold:
+                            continue
+
+                        # Add to character list
+                        chapters_present = []
+                        for summary in summary_map.summaries:
+                            mentioned = getattr(summary, "mentioned_characters", None) or []
+                            if name in mentioned:
+                                chapters_present.append(summary.chapter_index)
+
+                        char_id = _hashlib_f6b.md5(name.encode()).hexdigest()[:12]
+                        new_character = Character(
+                            id=char_id,
+                            canonical_name=name,
+                            aliases=[],
+                            mentions=[],
+                            first_appearance_chapter=(
+                                min(chapters_present) if chapters_present else 0
+                            ),
+                            mention_count=actual_mentions,
+                            chapters_present=chapters_present,
+                            confidence=0.6,  # Lower confidence — referenced but not physically present
+                            supporting_strategies=["mentioned_character_reconciliation"],
+                            description="",
+                            character_type=CharacterType.STORY,
+                        )
+                        pipeline_char_map.characters.append(new_character)
+
+                        # Update existing_names so later iterations don't double-add
+                        existing_names.add(name.lower())
+                        existing_names.add(_normalize_name_for_matching(name))
+                        f6b_added.append(name)
+
+                    if f6b_added:
+                        print(f"   Added {len(f6b_added)} referenced character(s) from summaries: {f6b_added}")
+                        logger.info(f"F6b: Added mentioned-only characters: {', '.join(f6b_added)}")
+                    else:
+                        logger.info("F6b: No additional mentioned-only characters to add")
+                except Exception as e:
+                    logger.warning(f"F6b mentioned_characters reconciliation failed: {e}")
             except Exception as e:
                 logger.warning(f"F6 character reconciliation failed: {e}")
 
@@ -1890,6 +1978,7 @@ class AudiobookAnalyzer:
                             moral_valence=moral_valence,
                             all_character_names=all_character_names,
                             character_descriptions=character_descriptions_map,
+                            narrator_name=narrator_detected if not getattr(char, "is_narrator", False) else None,
                         )
                     )
 
@@ -2141,6 +2230,7 @@ class AudiobookAnalyzer:
                             self._generate_character_profile(
                                 profile_llm, new_char, doc.text,
                                 all_character_names=all_char_names,
+                                narrator_name=narrator_detected if not getattr(new_char, "is_narrator", False) else None,
                             )
                         )
                         if personality:
@@ -2417,6 +2507,7 @@ class AudiobookAnalyzer:
         moral_valence: Optional["MoralValenceResult"] = None,
         all_character_names: Optional[list[str]] = None,
         character_descriptions: Optional[dict[str, str]] = None,
+        narrator_name: Optional[str] = None,
     ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
@@ -2739,8 +2830,19 @@ class AudiobookAnalyzer:
 
         # Check if this character is the narrator
         narrator_note = ""
-        if hasattr(character, "is_narrator") and character.is_narrator:
+        is_narrator_char = hasattr(character, "is_narrator") and character.is_narrator
+        if is_narrator_char:
             narrator_note = f"\n\nNOTE: This character is the NARRATOR of the story ({character.narrative_role or 'First-person narrator'}). IMPORTANT: Any first-person descriptions in the text (\"I am...\", \"I was...\", \"I look...\", \"I have...\") describe THIS character's appearance and traits. Look for self-descriptions where the narrator characterizes themselves physically or emotionally."
+        elif narrator_name:
+            # Non-narrator character in a first-person narrative.
+            # The narrator uses "I" throughout — those descriptions belong to the narrator, not here.
+            narrator_note = (
+                f"\n\nNOTE: This is a first-person narrative. The narrator is \"{narrator_name}\"."
+                f" All \"I\" descriptions in the text (\"I put on...\", \"I was wearing...\", \"I went...\")"
+                f" belong to {narrator_name}, NOT to {character.canonical_name}."
+                f" For {character.canonical_name}, only extract details explicitly attributed to them"
+                f" using their name or third-person pronouns (\"He...\", \"She...\", \"{character.canonical_name}...\")."
+            )
 
         # Build character disambiguation context for same-name characters
         # This helps when multiple characters share name components (e.g., "John" and "John Donaldson")
