@@ -777,6 +777,9 @@ class OutputCharacterCorrector:
         # refers to their shared parent, not their relationship to each other).
         self.fix_bidirectional_parent_labels(characters)
         self.enforce_gender_consistency(characters)
+        # enforce_inverse_consistency runs after enforce_gender_consistency so that
+        # gender corrections are applied before cross-pair validation.
+        self.enforce_inverse_consistency(characters)
         self.clean_unknown_relationships(characters)
         # _propagate_missing_reverses must be LAST — it adds reverse labels derived
         # from confirmed relationships (e.g., Margaret→Walton 'sister' → Walton→Margaret
@@ -1864,6 +1867,101 @@ class OutputCharacterCorrector:
                         f"'{rel_val}' to '{other_key}' — correcting to '{corrected}'"
                     )
                     char.relationships[other_key] = corrected
+
+    def enforce_inverse_consistency(self, characters) -> None:
+        """Correct relationship labels that contradict their known inverse.
+
+        Uses child-perspective labels ("son", "daughter") as the authoritative source
+        since children reliably identify their parents.  When B→A exists but contradicts
+        the inverse implied by A→B = "son"/"daughter", overwrite B→A with the correct
+        gender-appropriate parent label.
+
+        Corrections are collected in a single pass then applied in batch to avoid
+        cascading from already-incorrect labels in the same iteration.
+
+        Example: Herbert→Mrs. White = "son" implies Mrs. White→Herbert must be
+        "mother" (she is female).  If B→A is "husband" or "wife", it gets corrected.
+        """
+        # Only child-perspective labels are reliable enough to drive corrections.
+        _CHILD_LABELS = {"son", "daughter"}
+        # Valid parent labels — if B→A is already a parent label, accept it as-is
+        # (enforce_gender_consistency handles any remaining gendering errors).
+        _PARENT_LABELS = {"father", "mother", "parent"}
+
+        # Gender detection (mirrors enforce_gender_consistency logic)
+        def _gender(char) -> str:
+            desc_text = " ".join(
+                d.text.lower() for d in (getattr(char, "descriptions", None) or []) if d.text
+            )
+            is_male = any(ind in f" {desc_text} " for ind in MALE_INDICATORS)
+            is_female = any(ind in f" {desc_text} " for ind in FEMALE_INDICATORS)
+            name_lower = getattr(char, "canonical_name", "").lower()
+            if not is_male and "mr." in name_lower and "mrs." not in name_lower:
+                is_male = True
+            if not is_female and any(t in name_lower for t in ("mrs.", "ms.", "miss ")):
+                is_female = True
+            if is_female and not is_male:
+                return "female"
+            if is_male and not is_female:
+                return "male"
+            return "unknown"
+
+        char_by_name = {c.canonical_name: c for c in characters}
+        gender_cache = {c.canonical_name: _gender(c) for c in characters}
+
+        # Phase 1: collect corrections without modifying relationships yet
+        pending: dict = {}  # (parent_name, child_name) → required_parent_label
+
+        for char_a in characters:
+            rels_a = getattr(char_a, "relationships", None) or {}
+            for other_name, rel_label in list(rels_a.items()):
+                if not isinstance(rel_label, str):
+                    continue
+                rel_lower = rel_label.strip().lower()
+                if rel_lower not in _CHILD_LABELS:
+                    continue  # only trust child-perspective labels
+
+                char_b = char_by_name.get(other_name)
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, "relationships", None) or {}
+                current_b_to_a = rels_b.get(char_a.canonical_name)
+                if not current_b_to_a:
+                    continue  # missing reverse handled by _propagate_missing_reverses
+
+                current_lower = current_b_to_a.strip().lower()
+                if current_lower in _PARENT_LABELS:
+                    continue  # already a parent label — gender consistency handles it
+                if current_lower in _CHILD_LABELS:
+                    continue  # both sides claim to be the child — bidirectional case handled
+                    # by fix_bidirectional_parent_labels, not here
+
+                # B→A is not a parent label; determine what it should be from B's gender
+                b_gender = gender_cache.get(other_name, "unknown")
+                if b_gender == "female":
+                    required = "mother"
+                elif b_gender == "male":
+                    required = "father"
+                else:
+                    required = "parent"
+
+                key = (other_name, char_a.canonical_name)  # (B_name, A_name)
+                pending[key] = required
+
+        # Phase 2: apply all collected corrections
+        for (parent_name, child_name), new_label in pending.items():
+            char_b = char_by_name.get(parent_name)
+            if char_b is None:
+                continue
+            rels_b = getattr(char_b, "relationships", None) or {}
+            current = rels_b.get(child_name, "").strip().lower()
+            if current != new_label:
+                logger.info(
+                    f"Inverse consistency: '{parent_name}'→'{child_name}' "
+                    f"was '{current}' but should be '{new_label}' "
+                    f"('{child_name}' claims to be '{parent_name}'\\'s child)"
+                )
+                char_b.relationships[child_name] = new_label
 
     def reject_unfounded_familial_labels(self, characters, source_text: str) -> None:
         """Remove familial relationship labels unsupported by shared surname or text evidence.

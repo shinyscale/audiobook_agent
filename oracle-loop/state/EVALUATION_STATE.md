@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -105,7 +105,14 @@
 - Mrs. White→Herbert label changed from "father" to "husband" (LLM generated different wrong label)
 - Pass 2 still failed for Mr. White and Sergeant-Major Morris (kept without aliases)
 
+## Modification History (updated)
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 (Fix A) | False aliases on monkey's paw [Critical #1] | main_cast.py (CHARACTER_IDENTIFICATION_PROMPT) | Partial — 2 of 3 removed, 1 new appeared |
+| 1 (Fix B) | Mrs. White "father"→"mother" [High #3→#2] | post_corrections.py, test_post_corrections.py | Herbert desc fixed ✓, relationship label changed form (father→husband) but still wrong |
+| 2 (Fix C) | False aliases: "visitor"/"stranger" on monkey's paw [Critical #1] | main_cast.py (is_common_noun_phrase heuristic) | Rule 0.5 now fires for all-lowercase non-creature canonical names; blocks semantically-unrelated aliases |
+| 2 (Fix D) | Mrs. White→Herbert = "husband" instead of "mother" [High #2] | post_corrections.py (enforce_inverse_consistency), test_post_corrections.py | Added method that uses child-perspective "son"/"daughter" labels as authoritative; overwrites non-parent B→A labels with gender-appropriate parent label |
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Critical #1**: Add common-noun-phrase heuristic to Rule 0.5 activation in main_cast.py (line ~828) — don't rely on LLM setting is_symbolic
-2. **High #2**: Add inverse-relationship cross-validation in post_corrections.py — if A→B="son" and B is female, B→A must be "mother"
+Re-run analysis to verify fixes

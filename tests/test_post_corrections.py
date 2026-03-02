@@ -518,6 +518,83 @@ class TestEnforceGenderConsistency:
         assert char.relationships["Alice"] == "mother"
 
 
+class TestEnforceInverseConsistency:
+    """Tests for OutputCharacterCorrector.enforce_inverse_consistency."""
+
+    def test_son_implies_mother_for_female_parent(self):
+        """If child→parent = 'son' and parent is female, parent→child must be 'mother'."""
+        child = MockOutputCharacter(
+            canonical_name="Herbert White",
+            relationships={"Mrs. White": "son"},
+        )
+        parent = MockOutputCharacter(
+            canonical_name="Mrs. White",
+            relationships={"Herbert White": "husband"},  # wrong label
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_inverse_consistency([child, parent])
+        assert parent.relationships["Herbert White"] == "mother"
+
+    def test_son_implies_father_for_male_parent(self):
+        """If child→parent = 'son' and parent is male, parent→child must be 'father'."""
+        child = MockOutputCharacter(
+            canonical_name="Henry",
+            relationships={"Mr. Smith": "son"},
+        )
+        parent = MockOutputCharacter(
+            canonical_name="Mr. Smith",
+            relationships={"Henry": "associated"},  # wrong label
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_inverse_consistency([child, parent])
+        assert parent.relationships["Henry"] == "father"
+
+    def test_already_parent_label_unchanged(self):
+        """If B→A is already a parent label, don't change it."""
+        child = MockOutputCharacter(
+            canonical_name="Herbert",
+            relationships={"Mr. White": "son"},
+        )
+        parent = MockOutputCharacter(
+            canonical_name="Mr. White",
+            relationships={"Herbert": "father"},  # already correct
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_inverse_consistency([child, parent])
+        assert parent.relationships["Herbert"] == "father"
+
+    def test_bidirectional_child_labels_skipped(self):
+        """When both sides claim 'son', skip (handled by fix_bidirectional_parent_labels)."""
+        char_a = MockOutputCharacter(
+            canonical_name="Mr. White",
+            relationships={"Herbert": "son"},  # wrong — Mr. White is the father
+        )
+        char_b = MockOutputCharacter(
+            canonical_name="Herbert",
+            relationships={"Mr. White": "son"},  # correct
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_inverse_consistency([char_a, char_b])
+        # Neither label should be changed — it's a bidirectional case
+        assert char_b.relationships["Mr. White"] == "son"
+        assert char_a.relationships["Herbert"] == "son"
+
+    def test_non_child_labels_not_propagated(self):
+        """Non-child labels (husband, friend, etc.) don't drive inverse corrections."""
+        char_a = MockOutputCharacter(
+            canonical_name="Alice",
+            relationships={"Bob": "husband"},
+        )
+        char_b = MockOutputCharacter(
+            canonical_name="Bob",
+            relationships={"Alice": "associated"},
+        )
+        corrector = OutputCharacterCorrector()
+        corrector.enforce_inverse_consistency([char_a, char_b])
+        # "husband" is not a child label, so no correction should occur
+        assert char_b.relationships["Alice"] == "associated"
+
+
 # ===========================================================================
 # Shared helper tests
 # ===========================================================================
