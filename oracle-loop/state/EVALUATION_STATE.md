@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
@@ -331,5 +331,26 @@ If Margaret→Walton has "sister", ensure Walton→Margaret gets "sibling" recip
 - Bottleneck: Chapter Summaries (34% of time — cached from previous run)
 - 1 quality concern: Elizabeth Lavenza low-confidence profile
 
+## Fix History (Attempt 13)
+
+- Attempt 13 (Fix 1): `fix_bidirectional_parent_labels` downgrade to "associated" instead of "sibling"
+  - Root cause: `post_corrections.py:fix_bidirectional_parent_labels():1063-1064` — converted bidirectional "parent" to "sibling" (both wrong)
+  - Fix: Changed both assignments from "sibling" to "associated" — neutral fallback
+  - Smoke test: PASS — Victor↔Alphonse both show "associated" after correction
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 13 (Fix 2): Added "parent" and "child" to `FAMILY_TERMS`
+  - Root cause: `post_corrections.py:FAMILY_TERMS:69-73` — "parent"/"child" not in the constant, so `reject_unfounded_familial_labels` and `verify_relationships_from_text` never processed these labels
+  - Fix: Added "parent" and "child" to FAMILY_TERMS tuple
+  - Effect: (a) verify_relationships_from_text can now upgrade "parent"→"father"/"son" via text evidence (e.g., "his father" phrase); (b) reject_unfounded_familial_labels now catches Safie↔Beaufort "parent"/"child" and downgrades to "associated"
+  - Smoke test: PASS — Safie→Beaufort "parent" downgraded to "associated"
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
+- Attempt 13 (Fix 3): Added `_propagate_missing_reverses` to `OutputCharacterCorrector.run_all()`
+  - Root cause: Phase B `run_all()` had no final bidirectional propagation pass. After `verify_relationships_from_text` adds one-directional labels (e.g., Margaret→Walton "sister"), the reverse (Walton→Margaret) was never added.
+  - Fix: New method `_propagate_missing_reverses` uses `RELATIONSHIP_REVERSES` to add missing reverse labels (only when the reverse direction is absent — never overwrites). Called last in `run_all()` after all verify/reject/fix passes.
+  - Smoke test: PASS — Walton→Margaret "sister" correctly propagated
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
 ## Next Action
-Run PROMPT_fix.md to address relationship label errors in post_corrections.py (Fixes 1-3)
+Run PROMPT_analyze.md to re-run pipeline and verify fixes

@@ -70,6 +70,12 @@ FAMILY_TERMS = (
     "cousin", "brother", "sister", "uncle", "aunt", "nephew", "niece",
     "father", "mother", "son", "daughter", "husband", "wife",
     "grandfather", "grandmother", "grandson", "granddaughter",
+    # Generic forms — LLMs use "parent"/"child" when direction is uncertain.
+    # Including them here enables verify_relationships_from_text to upgrade
+    # them to directional labels (e.g., "father"/"son") when text evidence
+    # is available, and reject_unfounded_familial_labels to downgrade them
+    # when no shared surname or text evidence supports the claim.
+    "parent", "child",
 )
 
 PHYS_DESCRIPTOR_WORDS = {
@@ -733,6 +739,10 @@ class OutputCharacterCorrector:
         # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
         # refers to their shared parent, not their relationship to each other).
         self.fix_bidirectional_parent_labels(characters)
+        # After all relationship modifications, propagate missing reverse labels
+        # (e.g., Margaret→Walton 'sister' should produce Walton→Margaret 'sister').
+        # Runs last so it reflects the final verified state of all relationships.
+        self._propagate_missing_reverses(characters)
         self.enforce_gender_consistency(characters)
         self.clean_unknown_relationships(characters)
 
@@ -1009,15 +1019,22 @@ class OutputCharacterCorrector:
                     )
 
     def fix_bidirectional_parent_labels(self, characters) -> None:
-        """Convert bidirectional same-parent labels to 'sibling'.
+        """Downgrade bidirectional same-parent labels to 'associated'.
 
-        If A→B = 'father' AND B→A = 'father' (or any identical parent term),
-        they cannot both be each other's parent. The logically correct label is
-        'sibling' — they share a common parent, making them siblings.
+        If A→B = 'parent' AND B→A = 'parent' (or any identical parent term),
+        they cannot both be each other's parent. The direction is unknown, so
+        both labels are downgraded to 'associated' — a neutral, factually safe
+        fallback that preserves the co-occurrence signal without asserting a
+        wrong relationship.
+
+        Note: 'sibling' was previously used as the correction but is equally
+        wrong when the LLM has confused parent/child direction.
 
         Universal invariant: bidirectional identical parent labels are logically
-        impossible and indicate a LLM error. Rather than removing both (which loses
-        information), convert both to 'sibling'.
+        impossible and indicate a LLM error. Downgrading to 'associated' is
+        always safe — text-evidence methods (verify_relationships_from_text)
+        run before this and should already have upgraded correct directional
+        labels (e.g., 'parent' → 'father' via "his father" phrase detection).
         """
         _PARENT_LABELS = frozenset({"father", "mother", "parent"})
         char_by_name = {c.canonical_name: c for c in characters}
@@ -1047,12 +1064,51 @@ class OutputCharacterCorrector:
                 rel_b_lower = (rel_b or "").strip().lower()
 
                 if rel_b_lower in _PARENT_LABELS:
-                    rels_a[other_name] = "sibling"
-                    rels_b[char_a.canonical_name] = "sibling"
+                    rels_a[other_name] = "associated"
+                    rels_b[char_a.canonical_name] = "associated"
                     logger.info(
-                        f"Bidirectional parent label corrected to sibling: "
+                        f"Bidirectional parent label downgraded to associated: "
                         f"'{char_a.canonical_name}' ↔ '{other_name}' "
                         f"(was '{rel_a}'/'{rel_b}')"
+                    )
+
+    def _propagate_missing_reverses(self, characters) -> None:
+        """Propagate missing reverse relationships using RELATIONSHIP_REVERSES.
+
+        After all verify/reject/fix passes, some relationships are one-directional
+        (e.g., Margaret→Walton 'sister' but Walton→Margaret missing). This method
+        adds the reverse label when:
+        - A→B has a known label
+        - RELATIONSHIP_REVERSES defines the reverse (or the label is symmetric)
+        - B→A does not yet exist
+
+        Universal invariant: if A's profile explicitly records a relationship to B,
+        B's profile should record the reciprocal. Only adds — never overwrites.
+        """
+        char_by_name = {c.canonical_name: c for c in characters}
+        for char_a in characters:
+            rels_a = getattr(char_a, 'relationships', None) or {}
+            for other_name, rel_label in list(rels_a.items()):
+                if not isinstance(rel_label, str):
+                    continue
+                rel_lower = rel_label.strip().lower()
+                reverse_rel = RELATIONSHIP_REVERSES.get(rel_lower)
+                if not reverse_rel and rel_lower in _SYMMETRIC_RELATIONSHIPS:
+                    reverse_rel = rel_lower
+                if not reverse_rel:
+                    continue
+                char_b = char_by_name.get(other_name)
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, 'relationships', None)
+                if rels_b is None:
+                    rels_b = {}
+                    char_b.relationships = rels_b
+                if isinstance(rels_b, dict) and char_a.canonical_name not in rels_b:
+                    rels_b[char_a.canonical_name] = reverse_rel
+                    logger.info(
+                        f"Propagated missing reverse: "
+                        f"'{other_name}' → '{char_a.canonical_name}' = '{reverse_rel}'"
                     )
 
     def propagate_physical_description(self, characters, source_text: str = "") -> None:
