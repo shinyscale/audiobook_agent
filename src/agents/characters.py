@@ -281,6 +281,32 @@ class CharacterAgent(Agent):
 
         logger.info(f"V2 Step 3.5 complete: {len(main_cast)} main cast after within-cast merge")
 
+        # STEP 3.6b: Merge common-noun descriptor characters into proper-name characters.
+        # Handles cases where different chapters use a descriptive phrase ("the old man")
+        # instead of the character's proper name ("Mr. White"), causing the LLM to extract
+        # them as separate characters. This is a universal invariant: a common-noun phrase
+        # with no proper nouns, substantially more mentions than the corresponding proper-name
+        # character, and matching gender/role, is almost certainly a narrative alias.
+        logger.info("V2 Step 3.6b: Merging descriptor characters into proper-name characters")
+        main_cast, descriptor_merged = self._merge_descriptor_into_proper_name(main_cast)
+        if descriptor_merged:
+            logger.info(
+                f"V2 Step 3.6b: Merged {len(descriptor_merged)} descriptor(s) "
+                f"into proper-name character(s): {descriptor_merged}"
+            )
+            # Re-search mentions for characters that gained aliases from descriptor merge
+            for char in main_cast:
+                if char.canonical_name in descriptor_merged or any(
+                    a in descriptor_merged for a in (char.aliases or [])
+                ):
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    char.mentions = result.mentions
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
         # STEP 3.7: Defensive split for wrongly-merged titled characters
         # Handles LLM hallucinations where "M. Waldman" gets "M. Krempe" as an alias
         # despite explicit prompt instructions
@@ -1463,6 +1489,128 @@ class CharacterAgent(Agent):
 
         # Return the ID of the merged character so mention search can be re-run
         return main_cast, supporting_cast, narrator_info, {merge_target.id}
+
+    def _merge_descriptor_into_proper_name(
+        self, characters: list[Character]
+    ) -> tuple[list[Character], list[str]]:
+        """Merge common-noun descriptor characters into their proper-name counterparts.
+
+        Some narratives use descriptive phrases ("the old man", "the young woman") in
+        certain chapters instead of the character's proper name. The LLM extracts both
+        as separate characters. This step detects and merges them.
+
+        Universal signals used (no book-specific vocabulary):
+        - Canonical name has no proper nouns (all-lowercase words)
+        - Mention count asymmetry: descriptor has >= 2x mentions of the proper-name target
+        - Gender match: inferred from universal title/keyword conventions (Mr./Mrs., man/woman)
+        - Role match: both must share the same narrative role
+        - Uniqueness: exactly ONE proper-name candidate in the same role+gender category
+
+        Returns (updated_characters, list_of_merged_descriptor_canonical_names).
+        NOTE: Aliases from the descriptor are NOT inherited — they may be garbage from
+        LLM hallucinations. Only the descriptor's canonical_name is added as an alias.
+        """
+
+        def _has_proper_noun(name: str) -> bool:
+            """True if name contains at least one capitalized word that is not an article."""
+            _articles = {"the", "a", "an", "of", "in", "from", "to", "at", "by"}
+            for word in name.split():
+                clean = word.strip(".,;:'\"()[]")
+                if clean and clean[0].isupper() and clean.lower() not in _articles:
+                    return True
+            return False
+
+        def _infer_gender(name: str) -> str:
+            """Infer gender from universal title prefixes and common-noun keywords."""
+            nl = name.lower()
+            if "mr." in nl and "mrs." not in nl:
+                return "male"
+            if any(t in nl for t in ("mrs.", "ms.", "miss ")):
+                return "female"
+            # Universal gender-marker words in the canonical name itself
+            _male_words = {
+                "man", "boy", "father", "son", "brother", "husband",
+                "gentleman", "sir", "lord", "king", "prince",
+            }
+            _female_words = {
+                "woman", "girl", "mother", "daughter", "sister", "wife",
+                "lady", "queen", "princess", "madam", "dame",
+            }
+            words = set(nl.split())
+            if words & _male_words:
+                return "male"
+            if words & _female_words:
+                return "female"
+            return "unknown"
+
+        descriptor_chars = []
+        proper_name_chars = []
+
+        for c in characters:
+            if getattr(c, "is_symbolic", False):
+                continue  # symbolic entities (e.g., monkey's paw) are intentional
+            if _has_proper_noun(c.canonical_name):
+                proper_name_chars.append(c)
+            else:
+                descriptor_chars.append(c)
+
+        if not descriptor_chars:
+            return characters, []
+
+        merged_names: list[str] = []
+        to_remove: list[Character] = []
+
+        for desc_char in descriptor_chars:
+            desc_gender = _infer_gender(desc_char.canonical_name)
+            desc_role = desc_char.role or "supporting"
+            desc_mentions = getattr(desc_char, "mention_count", 0) or 0
+
+            # Require meaningful mention count to avoid merging minor descriptors
+            if desc_mentions < 5:
+                continue
+
+            # Find proper-name candidates with matching role + gender + fewer mentions
+            candidates = [
+                p for p in proper_name_chars
+                if p.role == desc_role
+                and (
+                    desc_gender == "unknown"
+                    or _infer_gender(p.canonical_name) in (desc_gender, "unknown")
+                )
+                and (getattr(p, "mention_count", 0) or 0) < desc_mentions
+            ]
+
+            # Only merge if there is exactly ONE candidate (conservative: avoid ambiguity)
+            if len(candidates) != 1:
+                continue
+
+            target = candidates[0]
+            target_mentions = getattr(target, "mention_count", 0) or 0
+
+            # Require strong mention asymmetry (descriptor has at least 2x target's mentions)
+            if desc_mentions < target_mentions * 2:
+                continue
+
+            # Add descriptor's canonical name as alias of target (but NOT its other aliases)
+            if target.aliases is None:
+                target.aliases = []
+            if desc_char.canonical_name not in target.aliases:
+                target.aliases.append(desc_char.canonical_name)
+
+            to_remove.append(desc_char)
+            merged_names.append(desc_char.canonical_name)
+            logger.info(
+                f"Descriptor merge: '{desc_char.canonical_name}' "
+                f"(mentions={desc_mentions}, role={desc_role}, gender={desc_gender}) "
+                f"→ '{target.canonical_name}' (mentions={target_mentions}). "
+                f"Added as alias."
+            )
+
+        if not to_remove:
+            return characters, merged_names
+
+        result = [c for c in characters if c not in to_remove]
+        return result, merged_names
 
     def _merge_title_variants(self, characters: list[Character]) -> list[Character]:
         """

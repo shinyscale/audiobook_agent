@@ -1649,18 +1649,36 @@ class OutputCharacterCorrector:
                         found[term] = found.get(term, 0) + 1
 
                 _generic_labels = {"associated", "acquaintance", "associate"}
+                # Tier sets for cross-tier override guard (universal invariant).
+                _PARENT_CHILD_TIER = {"parent", "child", "father", "mother", "son", "daughter"}
+                _SPOUSAL_TIER = {"spouse", "husband", "wife"}
                 if found:
                     best = max(found, key=found.get)
                     is_best_family = any(t in best for t in family_set)
                     if best not in cur_lower:
                         if is_best_family or cur_lower in _generic_labels:
-                            # Family evidence: override any label (e.g., "brother" → "cousin"
-                            # when text confirms "cousin"). Generic labels: upgrade to any term.
-                            logger.info(
-                                f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
-                                f"'{cur}' → '{best}' (evidence: {found})"
-                            )
-                            char.relationships[other_key] = best
+                            # Universal invariant: never override a parent/child label with a
+                            # spousal label based on co-mention window evidence. A "his wife"
+                            # phrase in a parent-child co-mention window refers to the parent's
+                            # marriage, not the parent-child relationship itself.
+                            cur_is_pc = any(t in cur_lower for t in _PARENT_CHILD_TIER)
+                            best_is_spousal = any(t in best for t in _SPOUSAL_TIER)
+                            if cur_is_pc and best_is_spousal:
+                                logger.debug(
+                                    f"Cross-tier override blocked: "
+                                    f"'{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' (parent/child) not replaced by "
+                                    f"'{best}' (spousal) — co-mention window "
+                                    f"evidence belongs to a different pair"
+                                )
+                            else:
+                                # Family evidence: override any label (e.g., "brother" → "cousin"
+                                # when text confirms "cousin"). Generic labels: upgrade to any term.
+                                logger.info(
+                                    f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' → '{best}' (evidence: {found})"
+                                )
+                                char.relationships[other_key] = best
                         elif (
                             cur_lower not in _generic_labels
                             and not is_family

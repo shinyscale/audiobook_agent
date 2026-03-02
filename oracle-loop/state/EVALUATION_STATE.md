@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -112,10 +112,8 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
 | 2 (Fix C) | False aliases: "visitor"/"stranger" on monkey's paw [Critical #1] | main_cast.py (is_common_noun_phrase heuristic) | **REGRESSION** — over-fires on person-descriptors, creates garbage "the old man" entry |
 | 2 (Fix D) | Mrs. White→Herbert = "husband" instead of "mother" [High #2] | post_corrections.py (enforce_inverse_consistency), test_post_corrections.py | Partial — "parent" ✓ but contradictions removed some valid relationships |
 | 3 (Fix C REVERT) | Revert catastrophic regression [Critical #1] | main_cast.py, test_post_corrections.py | Alias contamination slightly reduced but phantom persists |
-
-**ESCALATION REQUIRED:**
-- main_cast.py has been modified 3 times for the phantom "the old man" issue without success → Fix phase MUST use a different approach (post-extraction merge, not Pass 1/Rule tweaks)
-- post_corrections.py has been modified 3 times for relationship labels without success → Fix phase must examine `enforce_gender_consistency` logic carefully to understand WHY it overwrites non-spousal labels
+| 4 (Fix E) | Phantom "the old man" [Critical #1] | characters.py (_merge_descriptor_into_proper_name, Step 3.6b) | NEW APPROACH: post-extraction merge step merges common-noun characters into proper-name characters using universal signals (gender+role+mention asymmetry). Verified: "the old man" (protagonist, 45 mentions, male) merges into "Mr. White" (protagonist, 10 mentions, male), NOT Mrs. White (female). Garbage aliases not inherited. |
+| 4 (Fix F) | Parent/child labels overridden by spousal [Critical #2] | post_corrections.py (verify_relationships_from_text cross-tier guard) | Root cause confirmed: verify_relationships_from_text finds "his wife" in 500-char co-mention windows of parent+child and overrides "son"/"father" with "wife"/"husband". Fix: universal invariant — parent/child label is never replaced by spousal from co-mention window evidence. Verified: "son" not replaced by "wife" in smoke test. |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (characters, summaries) — appropriate sizing
@@ -125,6 +123,4 @@ The analyze phase noted "the old man" aliases were "less contaminated (no 'old w
 - 5 pipeline stages, 39 LLM calls, 84,932 tokens in 26m 30s
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Critical #1:** Add post-extraction merge step for common-noun phantom characters (new approach — stop modifying Pass 1 prompts or Rule conditions)
-2. **Critical #2:** Fix `enforce_gender_consistency` to not overwrite parent-child labels with spousal labels
+Run PROMPT_analyze.md to re-analyze monkeys_paw with fixes applied.
