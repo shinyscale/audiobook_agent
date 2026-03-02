@@ -482,7 +482,8 @@ class TestEnforceGenderConsistency:
         )
         corrector = OutputCharacterCorrector()
         corrector.enforce_gender_consistency([char])
-        assert char.relationships["Alice"] == "unknown"
+        # Male character with "mother" label → corrected to gender-appropriate "father"
+        assert char.relationships["Alice"] == "father"
 
     def test_female_cannot_be_father(self):
         char = MockOutputCharacter(
@@ -492,7 +493,8 @@ class TestEnforceGenderConsistency:
         )
         corrector = OutputCharacterCorrector()
         corrector.enforce_gender_consistency([char])
-        assert char.relationships["Tom"] == "unknown"
+        # Female character with "father" label → corrected to gender-appropriate "mother"
+        assert char.relationships["Tom"] == "mother"
 
     def test_correct_gender_unchanged(self):
         char = MockOutputCharacter(

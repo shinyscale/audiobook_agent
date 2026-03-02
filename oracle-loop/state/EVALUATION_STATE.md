@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** single
 
@@ -73,13 +73,24 @@
 | 1 | 8.08 | 0 | Baseline. Characters 7/10, Profiles 6.5/10 failing |
 
 ## Fix History
-(none yet)
+- Attempt 1 (Fix A): Clarified `is_symbolic: true` in CHARACTER_IDENTIFICATION_PROMPT for non-person entities
+  - Root cause: `src/pipeline/character_extraction_v2/main_cast.py:CHARACTER_IDENTIFICATION_PROMPT` rule 1 — LLM not instructed to set is_symbolic=true for objects, so semantic coherence check (Rule 0.5) never activated, allowing "the visitor" and "the old fakir" to pass as aliases of the paw
+  - Smoke test: PASS — prompt clarification is minimal (one sentence appended to rule 1), tests all pass
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+- Attempt 1 (Fix B): Extended `enforce_gender_consistency` to detect gender from canonical name titles (Mr./Mrs./Ms./Miss)
+  - Root cause: `src/pipeline/character_profiling/post_corrections.py:enforce_gender_consistency` — read gender only from `char.descriptions` text excerpts; "Mrs. White" has no female pronouns in description text, so is_female=False, "father" label not corrected
+  - Fix: also check canonical_name for "mrs."/"ms."/"miss " → is_female, "mr." (not "mrs.") → is_male
+  - Additionally improved: changed "unknown" correction to gender-appropriate reverse label ("father"→"mother", etc.)
+  - Smoke test: PASS — 325 tests pass including updated TestEnforceGenderConsistency tests
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `tests/test_post_corrections.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 (Fix A) | False aliases on monkey's paw [Critical #1] | main_cast.py (CHARACTER_IDENTIFICATION_PROMPT) | Awaiting re-analysis |
+| 1 (Fix B) | Mrs. White "father" → "mother" [High #3] | post_corrections.py, test_post_corrections.py | Awaiting re-analysis |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (characters, summaries) — appropriate sizing
@@ -89,7 +100,7 @@
 - No profiling red flags
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. False alias assignment on "the monkey's paw" (Critical #1) → target Characters 7→8
-2. Herbert's wrong physical description (High #2) → target Profiles 6.5→8
-3. Mrs. White's wrong relationship label (High #3) → target Profiles 6.5→8
+Re-run analysis on monkeys_paw to verify:
+- Fix A: monkey's paw gets is_symbolic=true → "the visitor" and "the old fakir" blocked by Rule 0.5 → Identity Resolution + Alias Grouping improve
+- Fix B: Mrs. White relationship to Herbert corrected from "father" to "mother" → Profiles improve
+- Still open: Herbert's wrong physical description (#2), Morris labels (#4, #5)

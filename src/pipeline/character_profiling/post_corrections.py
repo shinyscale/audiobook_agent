@@ -1811,15 +1811,38 @@ class OutputCharacterCorrector:
     def enforce_gender_consistency(self, characters) -> None:
         """Correct gender-inconsistent relationship labels.
 
-        If a character is clearly male (from descriptions), they cannot be
+        If a character is clearly male (from descriptions or title), they cannot be
         "mother", "sister", etc. Similarly for female characters.
         """
+        # Gender-swap mapping: if a character has a gendered label that contradicts
+        # their detected gender, convert to the gender-appropriate equivalent.
+        # These mappings are universal in English literature.
+        _MALE_TO_FEMALE = {
+            "father": "mother",
+            "son": "daughter",
+            "husband": "wife",
+            "brother": "sister",
+            "grandfather": "grandmother",
+            "grandson": "granddaughter",
+            "uncle": "aunt",
+            "nephew": "niece",
+        }
+        _FEMALE_TO_MALE = {v: k for k, v in _MALE_TO_FEMALE.items()}
+
         for char in characters:
             desc_text = " ".join(
                 d.text.lower() for d in (getattr(char, 'descriptions', None) or []) if d.text
             )
             is_male = any(ind in f" {desc_text} " for ind in MALE_INDICATORS)
             is_female = any(ind in f" {desc_text} " for ind in FEMALE_INDICATORS)
+
+            # Also check canonical name for title-based gender (universal convention):
+            # "Mr." → male, "Mrs." / "Ms." / "Miss " → female
+            name_lower = getattr(char, 'canonical_name', '').lower()
+            if not is_male and "mr." in name_lower and "mrs." not in name_lower:
+                is_male = True
+            if not is_female and any(t in name_lower for t in ("mrs.", "ms.", "miss ")):
+                is_female = True
 
             if not char.relationships:
                 continue
@@ -1828,17 +1851,19 @@ class OutputCharacterCorrector:
                     continue
                 rel_lower = rel_val.strip().lower()
                 if is_male and not is_female and rel_lower in FEMALE_ONLY_RELS:
+                    corrected = _FEMALE_TO_MALE.get(rel_lower, "unknown")
                     logger.info(
                         f"Gender consistency: '{char.canonical_name}' (male) cannot be "
-                        f"'{rel_val}' to '{other_key}' — correcting to 'unknown'"
+                        f"'{rel_val}' to '{other_key}' — correcting to '{corrected}'"
                     )
-                    char.relationships[other_key] = "unknown"
+                    char.relationships[other_key] = corrected
                 elif is_female and not is_male and rel_lower in MALE_ONLY_RELS:
+                    corrected = _MALE_TO_FEMALE.get(rel_lower, "unknown")
                     logger.info(
                         f"Gender consistency: '{char.canonical_name}' (female) cannot be "
-                        f"'{rel_val}' to '{other_key}' — correcting to 'unknown'"
+                        f"'{rel_val}' to '{other_key}' — correcting to '{corrected}'"
                     )
-                    char.relationships[other_key] = "unknown"
+                    char.relationships[other_key] = corrected
 
     def reject_unfounded_familial_labels(self, characters, source_text: str) -> None:
         """Remove familial relationship labels unsupported by shared surname or text evidence.
