@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -182,5 +182,15 @@ To cross the 8.0 threshold in BOTH failing categories:
   - Smoke test: "The Monkey's Paw" matches pattern; "Mr. White's father" does not.
   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
 
+## Pipeline Notes (Attempt 6)
+- Analysis completed in 39m 36s, 38 LLM calls, 81,021 tokens
+- **Characters extracted (5):** Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, the monkey's paw
+- **Fixes observed:**
+  - Fix I PARTIAL: Mrs. White now has "the old woman" alias ✓ BUT "Pass 2 failed for Mr. White, keeping without aliases" — Mr. White still has zero aliases
+  - Fix H PARTIAL: Old Fakir aliases gone ✓ BUT "the visitor" still appears as alias of monkey's paw
+  - Fix G NOT WORKING: "Mr. White→Herbert White=child AND Herbert→Mr. White=child (identical non-symmetric)" still being REMOVED, not corrected to father/son. The bidirectional resolution is not firing.
+  - NEW REGRESSION: "Mr. White→Mrs. White=spouse AND Mrs. White→Mr. White=spouse" being removed as "contradictory" — spouse IS symmetric, should NOT be removed
+  - Fix J: Unknown effect — the monkey's paw still has "the visitor" as an alias
+
 ## Next Action
-Re-run analysis to verify fixes.
+Awaiting evaluation.
