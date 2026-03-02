@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -156,5 +156,31 @@ To cross the 8.0 threshold in BOTH failing categories:
 
 **Focus on Issues #1 and #3 first** — they are most likely to have clean code fixes.
 
+## Fix History (Attempt 6)
+
+- **Fix G**: `enforce_inverse_consistency()` — bidirectional child label resolution using formal title.
+  - Root cause: Both `enforce_inverse_consistency` (skipped via `continue`) and `fix_bidirectional_parent_labels` (only handles parent labels) ignored the "both sides = son" case.
+  - Fix: When both A→B and B→A are child labels, detect parent via formal title (Mr./Mrs./Dr.) and set parent direction.
+  - Smoke test: PASS — `test_bidirectional_child_labels_resolved_by_title` confirms "Mr. White → Herbert = father".
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `tests/test_post_corrections.py`
+
+- **Fix H**: `ALIAS_RESOLUTION_PROMPT` — clarified descriptor aliases and interacting-party exclusion.
+  - Root cause: Rule 2 didn't mention descriptive references ("the old man"); Rule 5 didn't clearly exclude persons associated with an entity.
+  - Fix: Rule 2 now mentions descriptive references; new Rule 3 explicitly excludes creators/recipients/interactors.
+  - Net: 5 rules → 4 rules (shorter prompt).
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+- **Fix I**: `verify_aliases()` — descriptor alias exemption in co-occurrence block.
+  - Root cause: Even if Pass 2 proposes "the old man" for Mr. White, co-occurrence check blocks it (they never appear in the same chapter).
+  - Fix: Pure common-noun descriptors (no capitalized content words) found in summaries are allowed without co-occurrence — characters may be referenced differently across chapters.
+  - Smoke test: "the old man" → is_pure_descriptor=True; "The Visitor" → False (correctly excluded from exemption).
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
+- **Fix J**: Programmatic `is_symbolic` detection for possessive-pattern names.
+  - Root cause: LLM sets `is_symbolic=False` for The Monkey's Paw despite prompt instruction.
+  - Fix: After Pass 1 parsing, canonical names matching `the X's Y` pattern are forced to `is_symbolic=True`, enabling Rule 0.5 semantic coherence check to block "The Visitor"/"The Old Fakir" aliases.
+  - Smoke test: "The Monkey's Paw" matches pattern; "Mr. White's father" does not.
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
 ## Next Action
-Run PROMPT_fix.md to address Issues #1-4.
+Re-run analysis to verify fixes.

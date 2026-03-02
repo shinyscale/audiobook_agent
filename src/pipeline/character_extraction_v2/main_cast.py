@@ -129,11 +129,10 @@ Description: {description}
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
-1. Only include an alias if it refers to the SAME entity as {character_name}
-2. Include nicknames/titles/shortened forms and obvious spelling variants
-3. For unnamed characters or symbolic entities, include all descriptive handles that refer to the same thing
+1. An alias is another name or reference for the EXACT SAME entity as {character_name} — not a different person or object.
+2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman") used in any chapter — a character may be called by description instead of name in some chapters.
+3. Do NOT include persons who created, gave, received, or interacted with this entity — they are separate characters, not aliases.
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
-5. Do NOT include names of other characters/entities
 
 CHAPTER SUMMARIES:
 {summaries}
@@ -478,6 +477,19 @@ class MainCastExtractor:
         # Parse Pass 1 results
         initial_characters = self._parse_pass1_results(result)
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
+
+        # Programmatic is_symbolic correction: the LLM sometimes misses is_symbolic=True
+        # for artifact/object names.  Universal invariant: a canonical name matching the
+        # pattern "the X's Y" (possessive object form) is an artifact, not a person.
+        import re as _re_sym
+        _possessive_pattern = _re_sym.compile(r"^the\s+\w+[''\u2019]s\s+\w", _re_sym.IGNORECASE)
+        for _char in initial_characters:
+            if not _char.is_symbolic and _possessive_pattern.match(_char.canonical_name.strip()):
+                logger.info(
+                    f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
+                    f"matches possessive-object pattern; marking is_symbolic=True"
+                )
+                _char.is_symbolic = True
 
         # Pass 2: Alias Resolution for each character
         profiles = []
@@ -1016,6 +1028,27 @@ class MainCastExtractor:
                             logger.info(
                                 f"ALLOWED kinship alias despite no co-occurrence: "
                                 f"'{alias}' → '{profile.canonical_name}'"
+                            )
+                            verified_aliases.append(alias)
+                            continue
+
+                        # Descriptor alias exemption: common-noun descriptors (no proper nouns)
+                        # are often used in place of a character's name in certain chapters.
+                        # E.g., "the old man" for a character known as "Mr. White" in other chapters.
+                        # Allow if alias has NO capitalized non-article words (pure descriptor).
+                        _articles_sw = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                        alias_content_words = [
+                            w.strip(".,;:'\"()") for w in alias.split()
+                            if w.strip(".,;:'\"()").lower() not in _articles_sw
+                        ]
+                        is_pure_descriptor = alias_content_words and all(
+                            not w[0].isupper() for w in alias_content_words if w
+                        )
+                        if is_pure_descriptor:
+                            logger.info(
+                                f"ALLOWED descriptor alias despite no co-occurrence: "
+                                f"'{alias}' → '{profile.canonical_name}' "
+                                f"(common-noun descriptor; character may be referenced differently in some chapters)"
                             )
                             verified_aliases.append(alias)
                             continue

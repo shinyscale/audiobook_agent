@@ -583,8 +583,8 @@ class TestEnforceInverseConsistency:
         corrector.enforce_inverse_consistency([child, parent])
         assert parent.relationships["Herbert"] == "father"
 
-    def test_bidirectional_child_labels_skipped(self):
-        """When both sides claim 'son', skip (handled by fix_bidirectional_parent_labels)."""
+    def test_bidirectional_child_labels_resolved_by_title(self):
+        """When both sides claim 'son', use formal title to determine parent direction."""
         char_a = MockOutputCharacter(
             canonical_name="Mr. White",
             relationships={"Herbert": "son"},  # wrong — Mr. White is the father
@@ -595,9 +595,9 @@ class TestEnforceInverseConsistency:
         )
         corrector = OutputCharacterCorrector()
         corrector.enforce_inverse_consistency([char_a, char_b])
-        # Neither label should be changed — it's a bidirectional case
+        # Mr. White has "Mr." title → parental generation → should be corrected to "father"
         assert char_b.relationships["Mr. White"] == "son"
-        assert char_a.relationships["Herbert"] == "son"
+        assert char_a.relationships["Herbert"] == "father"
 
     def test_non_child_labels_not_propagated(self):
         """Non-child labels (husband, friend, etc.) don't drive inverse corrections."""

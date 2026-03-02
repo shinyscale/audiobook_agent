@@ -1951,8 +1951,25 @@ class OutputCharacterCorrector:
                 if current_lower in _PARENT_LABELS:
                     continue  # already a parent label — gender consistency handles it
                 if current_lower in _CHILD_LABELS:
-                    continue  # both sides claim to be the child — bidirectional case handled
-                    # by fix_bidirectional_parent_labels, not here
+                    # Both sides claim to be the child (e.g., A→B = "son", B→A = "son").
+                    # fix_bidirectional_parent_labels only handles parent labels, not child labels,
+                    # so we resolve direction here using formal title as a universal parent signal.
+                    # A character with a formal adult title (Mr./Mrs.) is the parental generation.
+                    _parent_titles = ("mr.", "mrs.", "ms.", "miss ", "dr.", "prof.")
+                    a_has_title = any(t in char_a.canonical_name.lower() for t in _parent_titles)
+                    b_has_title = any(t in other_name.lower() for t in _parent_titles)
+                    if a_has_title and not b_has_title:
+                        # char_a is the parent; their label toward char_b should be "father"/"mother"
+                        a_gender = gender_cache.get(char_a.canonical_name, "unknown")
+                        required_a = "mother" if a_gender == "female" else "father" if a_gender == "male" else "parent"
+                        pending[(char_a.canonical_name, other_name)] = required_a
+                    elif b_has_title and not a_has_title:
+                        # char_b is the parent; their label toward char_a should be "father"/"mother"
+                        b_gender = gender_cache.get(other_name, "unknown")
+                        required_b = "mother" if b_gender == "female" else "father" if b_gender == "male" else "parent"
+                        pending[(other_name, char_a.canonical_name)] = required_b
+                    # If both or neither have titles, direction is ambiguous; leave unchanged.
+                    continue
 
                 # B→A is not a parent label; determine what it should be from B's gender
                 b_gender = gender_cache.get(other_name, "unknown")
