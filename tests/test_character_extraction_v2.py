@@ -1177,8 +1177,9 @@ class TestV2Integration:
         # exact canonical name deduplication (84 lines), first-name merge, diminutive merge,
         # narrative style heuristic detection from chapter POV data,
         # supporting-cast narrator fragment merge helper (_find_narrator_in_supporting),
-        # and post-split creature synonym alias recovery (_recover_creature_synonym_aliases)
-        assert total_lines < 9200, f"V2 code is {total_lines} lines (should be <9200)"
+        # post-split creature synonym alias recovery (_recover_creature_synonym_aliases),
+        # and vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c)
+        assert total_lines < 9400, f"V2 code is {total_lines} lines (should be <9400)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""

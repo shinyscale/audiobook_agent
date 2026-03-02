@@ -514,6 +514,46 @@ class CharacterAgent(Agent):
             f"narrator={narrator_info.narrator_name}"
         )
 
+        # STEP 4.5: Resolve narrator name from raw text vocative patterns
+        # For first-person narratives where the narrator is a placeholder ("the narrator"),
+        # the LLM may generate summaries that never name the narrator explicitly. Search
+        # the raw text for direct address patterns (e.g., "For the love of God, Montresor!")
+        # that reveal the narrator's actual name, and add it as an alias so that Step 5.2b
+        # can upgrade the placeholder canonical name to the proper name.
+        _narrator_placeholder_terms_45 = [
+            "the protagonist", "the narrator", "narrator", "protagonist",
+            "main character", "the main character",
+        ]
+        if narrator_info.pov == "first-person":
+            for char in main_cast:
+                if not any(p in char.canonical_name.lower() for p in _narrator_placeholder_terms_45):
+                    continue
+                # Skip if narrator already has a proper-name alias (no upgrade needed)
+                has_proper_alias = any(
+                    any(t[0].isupper() for t in a.split() if len(t) >= 2)
+                    and not any(p in a.lower() for p in _narrator_placeholder_terms_45)
+                    for a in char.aliases
+                )
+                if has_proper_alias:
+                    break
+                # Search raw text for vocative patterns to find narrator's name
+                narrator_real_name = self._find_narrator_name_from_vocative(context.text)
+                if narrator_real_name:
+                    logger.info(
+                        f"V2 Step 4.5: Found narrator name '{narrator_real_name}' "
+                        f"from vocative pattern in raw text; adding as alias to "
+                        f"'{char.canonical_name}'"
+                    )
+                    if narrator_real_name not in char.aliases:
+                        char.aliases.append(narrator_real_name)
+                else:
+                    logger.info(
+                        f"V2 Step 4.5: No vocative narrator name found in raw text "
+                        f"for placeholder '{char.canonical_name}'"
+                    )
+                break  # Only process first narrator placeholder
+        logger.info("V2 Step 4.5 complete: narrator vocative name check done")
+
         # STEP 5: Extract supporting cast (F3)
         logger.info("V2 Step 5: Extracting supporting cast via NER")
         main_cast_names = self._collect_all_names(main_cast)
@@ -590,6 +630,40 @@ class CharacterAgent(Agent):
                 f"'{old_canonical}' → '{new_canonical}' "
                 f"(aliases: {char.aliases})"
             )
+
+        # STEP 5.2c: Re-search mentions for narrator-placeholder-upgraded characters.
+        # Step 5.2b may have changed a placeholder's canonical_name (e.g., "the narrator"
+        # → "Montresor"). The initial mention search used the placeholder name and found
+        # 0 text matches. Re-search using the new proper canonical name.
+        _upgraded_narrator_ids: set[str] = set()
+        for char in main_cast:
+            # Detect upgrade: aliases contain a placeholder term (proof Step 5.2b ran)
+            # and mention_count is 0 (placeholder name had no raw-text matches).
+            if char.mention_count == 0 and any(
+                p in a.lower()
+                for a in char.aliases
+                for p in _narrator_placeholder_terms
+            ):
+                _upgraded_narrator_ids.add(char.id)
+        if _upgraded_narrator_ids:
+            logger.info(
+                f"V2 Step 5.2c: Re-searching mentions for {len(_upgraded_narrator_ids)} "
+                f"narrator-placeholder-upgraded character(s)"
+            )
+            for char_id in _upgraded_narrator_ids:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    char.mentions = result.mentions
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters_found = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters_found[0]
+                    logger.info(
+                        f"V2 Step 5.2c: '{char.canonical_name}' now has "
+                        f"{char.mention_count} mention(s) after re-search"
+                    )
 
         # STEP 5.3: Merge narrator placeholders with their actual named character
         # If the narrator is "the protagonist", "the narrator", etc., find their real name
@@ -3964,3 +4038,57 @@ class CharacterAgent(Agent):
 
         # The narrator has the lowest mention count (uses "I" not their name)
         return min(candidates, key=lambda c: c.mention_count, default=None)
+
+    def _find_narrator_name_from_vocative(self, text: str) -> Optional[str]:
+        """Search raw text for direct address patterns to identify the narrator's actual name.
+
+        In first-person narratives, the narrator's name is sometimes revealed when another
+        character directly addresses them by name (e.g., "For the love of God, Montresor!").
+        The narrator rarely names themselves (they write "I"), so their proper name has
+        anomalously few text mentions compared to other characters.
+
+        This is a universal pattern: look for proper names in vocative (direct address)
+        contexts (e.g., ", Name!" or ", Name?"), then prefer the name with the fewest
+        total text mentions — the narrator's name appears rarely while other characters'
+        names appear throughout the narrative.
+
+        Returns the most likely narrator name, or None if not found.
+        """
+        import re
+
+        # Vocative pattern: proper name appearing after "," or "!" followed by "!" or "?"
+        # Covers: "For the love of God, Montresor!" / "Come, Watson!" / "Help me, John?"
+        vocative_pattern = re.compile(
+            r"[,!]\s+([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]{2,})?)\s*[!?]",
+            re.MULTILINE,
+        )
+
+        name_vocative_counts: dict[str, int] = {}
+        for match in vocative_pattern.finditer(text):
+            name = match.group(1).strip()
+            name_vocative_counts[name] = name_vocative_counts.get(name, 0) + 1
+
+        if not name_vocative_counts:
+            return None
+
+        def total_name_mentions(name: str) -> int:
+            pat = re.compile(
+                rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])",
+                re.IGNORECASE,
+            )
+            return len(pat.findall(text))
+
+        # Among names found in vocative contexts, prefer the one with FEWER total text
+        # mentions. Rationale: in first-person narration the narrator's proper name appears
+        # rarely (they write "I"), but is occasionally called out by other characters.
+        # Frequently-mentioned names are more likely characters whom the narrator addresses,
+        # not the narrator themselves.
+        best_name = min(
+            name_vocative_counts,
+            key=lambda n: (-name_vocative_counts[n], total_name_mentions(n)),
+        )
+        logger.debug(
+            f"_find_narrator_name_from_vocative: vocative counts={name_vocative_counts}, "
+            f"selected='{best_name}' (total mentions={total_name_mentions(best_name)})"
+        )
+        return best_name
