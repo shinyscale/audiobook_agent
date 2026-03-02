@@ -1867,6 +1867,15 @@ class OutputCharacterCorrector:
 
             if not char.relationships:
                 continue
+            # Neutral kinship labels → gender-specific equivalents (male_form, female_form)
+            _NEUTRAL_TO_GENDERED = {
+                "parent": ("father", "mother"),
+                "child": ("son", "daughter"),
+                "sibling": ("brother", "sister"),
+                "grandparent": ("grandfather", "grandmother"),
+                "grandchild": ("grandson", "granddaughter"),
+                "spouse": ("husband", "wife"),
+            }
             for other_key, rel_val in list(char.relationships.items()):
                 if not rel_val:
                     continue
@@ -1885,6 +1894,35 @@ class OutputCharacterCorrector:
                         f"'{rel_val}' to '{other_key}' — correcting to '{corrected}'"
                     )
                     char.relationships[other_key] = corrected
+                elif rel_lower in _NEUTRAL_TO_GENDERED:
+                    male_form, female_form = _NEUTRAL_TO_GENDERED[rel_lower]
+                    eff_male, eff_female = is_male, is_female
+                    # Tiebreaker for ambiguous gender: check character's own gendered
+                    # relationship labels (e.g., "son" → subject is male). This handles
+                    # cases where descriptions mention other characters' titles that
+                    # create false gender signals.
+                    if eff_male and eff_female:
+                        own_vals = [
+                            v.strip().lower()
+                            for v in char.relationships.values()
+                            if v and v.strip().lower() != rel_lower
+                        ]
+                        if any(r in MALE_ONLY_RELS for r in own_vals):
+                            eff_female = False
+                        elif any(r in FEMALE_ONLY_RELS for r in own_vals):
+                            eff_male = False
+                    if eff_male and not eff_female:
+                        logger.info(
+                            f"Gender specialization: '{char.canonical_name}' (male) "
+                            f"'{rel_val}' → '{male_form}'"
+                        )
+                        char.relationships[other_key] = male_form
+                    elif eff_female and not eff_male:
+                        logger.info(
+                            f"Gender specialization: '{char.canonical_name}' (female) "
+                            f"'{rel_val}' → '{female_form}'"
+                        )
+                        char.relationships[other_key] = female_form
 
     def enforce_inverse_consistency(self, characters) -> None:
         """Correct relationship labels that contradict their known inverse.

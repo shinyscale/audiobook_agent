@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -188,5 +188,18 @@ This alone provides +0.3. Combined with any partial improvement on personality t
 - Zero LLM retries across all stages — good
 - 5 pipeline stages, 38 LLM calls, 81,021 tokens in 39m 36s
 
+## Fix History (continued)
+
+- Attempt 6 (Fix K): Neutral kinship label specialization in `enforce_gender_consistency`
+  - Root cause: `enforce_gender_consistency` only corrected gender-WRONG labels (e.g., male can't be "mother"), but never specialized gender-NEUTRAL labels ("parent"→"mother/father", "child"→"son/daughter")
+  - Fix: Added a third branch in the relationship iteration loop that maps neutral kinship labels to gender-specific equivalents when character gender is known from title (Mr./Mrs.) or description pronouns
+  - Tiebreaker: When gender is ambiguous from description (e.g., Herbert's description mentions "Mrs. White" creating false female signal), use character's own other gendered relationship labels to resolve (Herbert already had "son" → Mr. White, so male)
+  - Expected fixes: Mrs. White→Herbert "parent"→"mother", Herbert→Mrs. White "child"→"son"
+  - Smoke test: PASS — confirmed both corrections fire in isolation test
+  - All 332 tests pass (56 in test_post_corrections.py, 276 others)
+  - Modified: `src/pipeline/character_profiling/post_corrections.py` (`enforce_gender_consistency()`)
+
 ## Next Action
-Run PROMPT_fix.md to address Profiles (7.5 → 8.0). Focus on Issue #1 (gender detection → specific relationship labels). Issue #2 (personality traits) as secondary target.
+Re-run analysis to verify Fix K resolves Profiles 7.5 → 8.0+
+
+**Phase:** awaiting_analysis
