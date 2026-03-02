@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
 - **Competitive Mode:** none
 
@@ -12,19 +12,10 @@
 - JSON: ../output/monkeys_paw/analysis.json
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 3.5/10 ✗ (CRITICAL REGRESSION)
-  - Completeness: 5/10
-  - Identity Resolution: 2/10
-  - Alias Grouping: 3/10
-- Character Profiles: 5/10 ✗ (REGRESSION)
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 8.5/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 7.0/10** (reference only)
+(Awaiting evaluation — attempt 4 analysis just completed)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL — REGRESSION (overall 7.0 vs baseline 8.08, delta -1.08)
+**Status:** Pending
 
 ## Regression Analysis
 
@@ -81,6 +72,7 @@ Fix D (inverse-relationship consistency) partially worked: Mrs. White→Herbert 
 | 1 | 8.08 | 0 | Baseline. Characters 7/10, Profiles 6.5/10 failing |
 | 2 | 8.15 | +0.07 | Fix A partially worked (2 of 3 bad aliases removed). Fix B landed for Herbert physical desc. |
 | 3 | 7.0 | **-1.08** | **REGRESSION.** Fix C over-fires — "the old man" becomes garbage 43-mention entry, paw disappears |
+| 4 | TBD | TBD | Fix C reverted. "the old man" still 45-mention phantom (less alias contamination). Monkey's paw absent. Awaiting evaluation. |
 
 ## Fix History
 - Attempt 1 (Fix A): Clarified `is_symbolic: true` in CHARACTER_IDENTIFICATION_PROMPT for non-person entities
@@ -126,5 +118,18 @@ Fix D (inverse-relationship consistency) partially worked: Mrs. White→Herbert 
 - Temperature: 0.7 for all — reasonable
 - Zero LLM retries across all stages — good
 
+## Pipeline Notes (Attempt 4)
+- Duration: 26m 30s, 39 LLM calls, 84,932 tokens
+- Characters found: 5
+  - Mr. White — 10 mentions
+  - Mrs. White — 10 mentions
+  - Herbert White (aka Herbert, the son) — 15 mentions
+  - Sergeant-Major Morris (aka Morris) — 5 mentions
+  - **"the old man" (aka the visitor, stranger) — 45 mentions** ← STILL WRONG
+- **Monkey's paw: ABSENT** from character list (not extracted as a character)
+- Partial improvement vs Attempt 3: "the old man" aliases are less contaminated (no "old woman", "son", "paw" this time)
+- Core problem persists: LLM extracts "the old man" as a separate canonical character in Pass 1; Rule 3 then blocks it from being merged as alias for Mr. White
+- Fix C revert reduced alias contamination but did not eliminate the phantom "old man" entity
+
 ## Next Action
-Re-run analysis to verify Fix C revert restores character extraction.
+Evaluate attempt 4 results.
