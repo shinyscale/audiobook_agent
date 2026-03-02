@@ -3,9 +3,9 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.08
-- **Competitive Mode:** single
+- **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
@@ -99,8 +99,12 @@
 - Zero LLM retries across all stages — good
 - No profiling red flags
 
+## Pipeline Notes (Attempt 1 Re-analysis)
+- Run completed in 26m 58s with 5 characters found
+- "the visitor" still aliased to monkey's paw — Fix A only partially worked ("the old fakir" / "an old fakir" removed but "the visitor" persists)
+- New issue: spouse relationship removed as contradictory (Mr. White↔Mrs. White both labeled "spouse", logged as logically impossible symmetric pair)
+- Pass 2 failed for Mr. White and Sergeant-Major Morris (kept without aliases)
+- "the talisman" and "it" blocked as monkey's paw aliases — these worked correctly
+
 ## Next Action
-Re-run analysis on monkeys_paw to verify:
-- Fix A: monkey's paw gets is_symbolic=true → "the visitor" and "the old fakir" blocked by Rule 0.5 → Identity Resolution + Alias Grouping improve
-- Fix B: Mrs. White relationship to Herbert corrected from "father" to "mother" → Profiles improve
-- Still open: Herbert's wrong physical description (#2), Morris labels (#4, #5)
+Evaluate attempt 1 re-analysis output.
