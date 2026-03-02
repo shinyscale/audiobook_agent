@@ -2,15 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.20
 - **Competitive Mode:** single
 
 ## Output Files
 - HTML: ../output/frankenstein/report.html
 - JSON: ../output/frankenstein/analysis.json
-- Dated dir: ../output/Frankenstein_ebook_20260301_144611/
+- Dated dir: ../output/Frankenstein_ebook_20260301_220344/
 
 ## Latest Scores
 - Structure Detection: 8.5/10 ✓
@@ -330,6 +330,17 @@ In `_recover_creature_synonym_aliases()` in `characters.py`, after identifying t
 - **Smoke test:** PASS — "the dæmon" removed from De Lacey, added to "the monster"
 - **Modified:** `src/agents/characters.py` (`_recover_creature_synonym_aliases` lines 3319-3430)
 
+## Pipeline Notes (Attempt 12)
+- First run failed with exit code 144 (SIGSTKFLT) at cross-cast merge step — transient OS kill
+- Second run completed successfully: 197m54s total
+- 28 chapters detected
+- 20 characters extracted (up from 23 pre-reconciliation, 6 added by F6 summary-driven)
+- **20/20 profiles generated** (19 high confidence, 1 low — Elizabeth Lavenza "lacks evidence")
+- This is a MASSIVE improvement from attempt 11 (4/19 due to Ollama crash)
+- Competitive consensus: `All competitive models failed, falling back to single model` for structure stage
+- `the dæmon` alias: "already claimed" blocked from 'the creature' — needs evaluation to determine if daemon transfer fix worked
+- 1 quality warning: low-confidence profile for Elizabeth Lavenza
+
 ## Next Action
-**Phase:** awaiting_analysis
-Re-run analysis to verify fixes. Ollama must be running before re-run.
+**Phase:** awaiting_evaluation
+Run PROMPT_evaluate.md to score the output.
