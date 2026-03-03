@@ -3,8 +3,8 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
+- **Phase:** awaiting_fix
+- **baseline_score:** 8.68
 - **Competitive Mode:** none
 
 ## Output Files
@@ -12,41 +12,58 @@
 - JSON: ../output/berenice/analysis.json
 
 ## Latest Scores
-(Awaiting evaluation)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 9/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 10/10
+  - Alias Grouping: 9/10
+- Character Profiles: 7.5/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 9/10 ✓
+- **Overall: 8.68/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (1 category below threshold: Character Profiles)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
-| (none yet) | - | - | - |
+| 1       | 8.68  | —                   | Profiles fail: "cousin" relationship blocked → "associated" |
 
-## Attempt 1 Pipeline Output (Run Notes)
+## Current Issues (Priority Order)
 
-### Characters Found (3 final)
-```
-Egaeus - 1 mention  [protagonist/narrator - first-person]
-Berenice - 14 mentions  [title character]
-Ebn Zaiat - 2 mentions  [minor]
-(4 extracted, 3 in final output)
-```
+### CRITICAL
+(none)
 
-### Pipeline Notes
-- 1 chapter (no chapter boundaries — treated as single chapter short story)
-- 3 profiles generated for 3 eligible characters
-- 44 pronunciation flags (26 unknown, 13 proper_noun, 5 foreign)
-- 3,240 words, 18m 30s total
+### HIGH
+1. **Egaeus↔Berenice relationship labeled "associated" instead of "cousin" / "betrothed"** [Profiles]
+   - Problem: The LLM correctly generated "cousin" for both Egaeus→Berenice and Berenice→Egaeus, but `remove_contradictory_relationships()` in post_corrections.py deleted both labels because "cousin" is NOT in `_SYMMETRIC_RELATIONSHIPS`. The fallback label "associated" is uninformative.
+   - Evidence: Pipeline log says "Relationship 'cousin' blocked: both Egaeus→Berenice and Berenice→Egaeus labeled 'cousin' — removed as logically impossible symmetric non-symmetric label." But cousins IS a symmetric relationship — if A is B's cousin, B is A's cousin.
+   - Location: `src/pipeline/character_profiling/post_corrections.py`, line ~60 — `_SYMMETRIC_RELATIONSHIPS` frozenset
+   - Fix: Add `"cousin"` to `_SYMMETRIC_RELATIONSHIPS`. Also consider adding other missing symmetric family terms: `"classmate"`, `"roommate"`, `"playmate"`, `"betrothed"`, `"fiancé"`, `"fiancée"`, `"lover"`, `"spouse"`, `"husband and wife"` — but at minimum `"cousin"` is required to unblock this text.
+   - Note: `RELATIONSHIP_REVERSES` dict already has `"cousin": "cousin"` (line ~24), confirming it's symmetric. The symmetric set just wasn't updated to match.
 
-### Warnings / Anomalies
-- Narrator detection inconsistency: "Egaeus has only 1 mention — too few to be a narrator; skipping narrator assignment" BUT later pipeline stage says "Detected narrator: Egaeus (first-person)" AND "No definitive narrator identified from plot summary"
-  - Final output: No narrator marked (narrator detection failed at end)
-  - Berenice is 1st-person story told by Egaeus — this is a known issue
-- Relationship "cousin" blocked: both Egaeus→Berenice and Berenice→Egaeus labeled "cousin" — removed as logically impossible symmetric non-symmetric label
-  - (They ARE cousins — the label is correct, just the inverse-consistency logic rejects it)
-- BLOCKED alias: 'the first-person narrator' for 'Egaeus' — hallucinated
-- BLOCKED alias: 'the visionary' for 'Egaeus' — hallucinated
-- BLOCKED alias: 'her grave' for 'Berenice' — hallucinated
+### MEDIUM
+2. **Some common English words flagged as pronunciations** [Pronunciation]
+   - Problem: Words like "shrubberies", "light-heartedness", "sentient", "refracted" are standard English — false positives for a narrator.
+   - Evidence: 26 of 44 entries categorized as "Other/unknown" — some are genuinely unusual (simoom, phantasma, pertinaciously) but others are common vocabulary.
+   - Location: `src/pipeline/pronunciation/cmu_proposer.py` — COMMON_WORDS_WHITELIST
+   - Fix: Add "shrubberies", "light-heartedness", "sentient", "refracted" to the whitelist. Low priority — score is 8/10 already.
 
-### Models Used
-- structure: qwen3.5:35b-a3b
-- characters: qwen3.5:122b-a10b
-- summaries: qwen3.5:122b-a10b
-- pronunciation: qwen3.5:35b-a3b
+### LOW
+3. **Null chapter title for single-section text** [Structure]
+   - Problem: The single structure element has `title: null`. While acceptable, labeling it with the story title ("Berenice") would be more informative.
+   - Not blocking — score is 9/10.
+
+## Fix History
+(first attempt — no prior fixes)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| (none yet) | — | — | — |
+
+## Next Action
+Run PROMPT_fix.md to add "cousin" to `_SYMMETRIC_RELATIONSHIPS` in post_corrections.py (HIGH #1). This single fix should bring Profiles from 7.5 → 8.0+ by restoring the correct "cousin" label for the Egaeus↔Berenice relationship.
