@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 15
-- **Phase:** fix
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -11,20 +11,71 @@
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
 
-## Latest Scores
+## Latest Scores (Attempt 15)
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 4/10
-  - Alias Grouping: 6/10
-- Character Profiles: 6/10 ✗
+- Character Extraction: ? (awaiting evaluation)
+- Character Profiles: ? (awaiting evaluation)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.95/10** (reference only)
+- **Overall: ?/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL — Character Extraction 7/10, Character Profiles 6/10
+**Status:** AWAITING EVALUATION
+
+## Attempt 15 Pipeline Output (Run Notes)
+
+### Characters Found (7 after merge)
+```
+Prince Prospero (aka Prospero, the prince)  [protagonist]
+the Red Death (aka the masked figure)  [antagonist]  is_symbolic=True  ← MERGED ✓
+the narrator  [supporting]  ← NEW FALSE POSITIVE
+the thousand friends  [supporting]  is_symbolic=True
+the courtiers  [supporting]
+the musicians  [minor]
+the waltzers  [minor]
+MISSING: the giant ebony clock  ← REGRESSION vs attempt 14
+```
+
+### Fix Verification
+- **Fix 1 (identity reveal merge)**: ✓ WORKED — "the masked figure" merged INTO "the Red Death" (correct direction)
+- **Fix 2 (profiling injection)**: ✓ WORKED — Red Death now has a profile (was missing in attempt 14)
+
+### Profiling (2 profiles generated)
+1. **Prince Prospero** — "bold and robust man", personality: cruel/calculating/hedonistic, voice: authoritative→hysterical rage, 3 relationships ✓
+2. **the Red Death** — "tall gaunt figure dressed in habiliments of grave, mask resembling stiffened corpse", personality: unstoppable malevolent force, voice: silent presence, 2 relationships ✓  ← MAJOR IMPROVEMENT vs attempt 14
+
+### Model/Config Notes
+- Same as attempt 14 — qwen3.5:122b-a10b with think=False for all stages
+
+## Issues (Priority Order for Attempt 16 if needed)
+
+### CRITICAL (if attempt 15 fails)
+1. **Giant Ebony Clock missing** [Completeness]
+   - key_events DID mention "a giant ebony clock" in attempt 15, but LLM Pass 1 didn't extract it (non-determinism)
+   - In attempt 14, Clock WAS extracted; in attempt 15 it was NOT — same key_events injection
+   - Fix approach: More reliable Clock detection — e.g., parse key_events for named entities and add them as "candidate characters" to summary active_characters (forcing them into Pass 1's view)
+
+### HIGH
+2. **"the narrator" false positive** [Completeness/Precision]
+   - "the narrator" was extracted by LLM Pass 1 in attempt 15, not in attempt 14 (non-determinism)
+   - Masque of Red Death is 3rd person — no named narrator
+   - Fix: Filter narrator characters from main_cast in twostage_experiment.py post-extraction
+
+## Attempt 14 vs Attempt 15 Comparison
+
+| Metric | Attempt 14 | Attempt 15 | Change |
+|--------|-----------|-----------|--------|
+| Total characters | 8 | 7 | -1 (masked figure merged) |
+| Ebony Clock present | Yes ✓ | No ✗ | REGRESSION |
+| Clock alias "the clock" | Yes ✓ | N/A | REGRESSION |
+| Red Death standalone | Yes | Yes | Same |
+| "masked figure" separate | Yes ✗ | No ✓ (now alias) | IMPROVED |
+| Profiles count | 2 | 2 | Same |
+| Profile 1 character | Prospero ✓ | Prospero ✓ | Same |
+| Profile 2 character | masked figure ✗ | Red Death ✓ | IMPROVED |
+| Red Death profile | Missing | Present ✓ | IMPROVED |
+| Narrator FP | No | Yes ✗ | REGRESSION |
 
 ## Attempt 14 Pipeline Output (Run Notes)
 
@@ -56,30 +107,24 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 - key_events include "giant ebony clock" references → Clock extracted in Pass 1 ✓
 - Profiling: think=False — 2 profiles from profiling pipeline's own character identification (independent of Stage 4)
 
-## Issues (Priority Order for Attempt 15)
+## Issues (Priority Order — Attempt 15 resolved, carry-forward issues)
 
-### CRITICAL
-1. **"the masked figure" is a separate character from "the Red Death"** [Identity Resolution]
-   - Problem: LLM Pass 1 extracted both as separate entities. Rule 0.5 prevents "figure" as alias for "death".
-   - In the story, the masked figure IS the Red Death personified (revealed at the end).
-   - In attempt 13 (score 7.98), only 2 chars extracted (Red Death standalone, no masked figure separate).
-   - Fix approach: The within-main merge step (characters.py Step 3.5) or a post-extraction merge should detect that "the masked figure" and "the Red Death" are the same story entity.
-   - Note: Previous attempt 9 tried "symbolic reveal merge" → REGRESSION (Red Death merged INTO masked figure, losing Red Death). The merge direction matters: masked figure must be MERGED INTO Red Death, not vice versa.
-   - Impact: Identity Resolution +1-2 points
+### [RESOLVED in attempt 15]
+- ~~"the masked figure" is a separate character from "the Red Death"~~ — FIXED: post-extraction merge
+- ~~No profile for the Red Death~~ — FIXED: profiling injection
 
-2. **No profile for the Red Death or the Ebony Clock** [Character Profiles]
-   - Problem: Profiling pipeline runs independent character identification (from summaries). The summary's active_characters lists "the masked figure" not "the Red Death" or "the Ebony Clock", so only Prospero + masked figure are profiled.
-   - Fix: Profiling pipeline should receive the Stage 4 character list (8 chars) as input, not re-identify independently. OR the summary_map should include Clock and Red Death in active_characters.
-   - Impact: +1 on Profiles (adds Clock profile), +0.5-1 on character quality
+### CRITICAL (if attempt 15 fails evaluation)
+1. **Giant Ebony Clock missing** [Completeness]
+   - key_events DID mention "a giant ebony clock" but LLM Pass 1 didn't extract it in attempt 15
+   - Non-deterministic: was extracted in attempt 14 (same key_events approach)
+   - Fix: Parse key_events for noun-phrase "objects" and add as candidate chars to active_characters
 
-### HIGH
-3. **Red Death lacks valid text-based aliases** [Alias Grouping]
-   - Problem: "the figure", "the intruder", "the stranger", "the mummer", "the masked figure" are all blocked by Rule 0.5 (core noun 'figure'/'intruder'/'stranger' ≠ 'death').
-   - Current alias is "the figure resembling the Red Death" (LLM paraphrase, not direct text quote).
-   - Impact: +1 on Alias Grouping if valid aliases can be preserved.
+2. **"the narrator" false positive** [Precision]
+   - "the narrator" extracted in attempt 15 but not attempt 14 — non-deterministic
+   - Post-extraction filter: remove characters named "narrator" or "the narrator" from main_cast
 
 ### MEDIUM
-4. **Group character noise** [Completeness/Precision]
+3. **Group character noise** [Completeness/Precision]
    - "the courtiers", "the thousand friends", "the musicians", "the waltzers" are valid text entities but shouldn't be main cast.
    - The existing Rule 0.6 blocks these as ALIASES, but they're canonical names here.
    - These are extracted by Pass 1 because key_events mentions them explicitly.
@@ -104,6 +149,14 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 | Profile quality (Red Death) | Excellent | Missing (masked fig used) | REGRESSION |
 
 ## Fix History
+
+### Attempt 15 (Score: awaiting evaluation)
+1. **Post-extraction identity reveal merge** in twostage_experiment.py:
+   - Result: ✓ WORKED — "the masked figure" merged INTO "the Red Death" (correct direction)
+2. **Profiling injection (inject_characters_for_profiling)** in twostage_experiment.py:
+   - Result: ✓ WORKED — Red Death now profiled with excellent quality
+- Side effect: ✗ Ebony Clock not extracted this run (LLM non-determinism)
+- Side effect: ✗ "the narrator" extracted as false positive (LLM non-determinism)
 
 ### Attempt 14 (Score: 7.95/10 — FAIL)
 1. **Short-form alias for is_symbolic** in main_cast.py:
@@ -161,6 +214,7 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 - Attempt 12: 7.0/10 (+0.05)
 - Attempt 13: 7.98/10 (+0.98) ← Red Death unmerged, but Clock missing
 - Attempt 14: 7.95/10 (-0.03) ← Clock present, but masked figure identity split hurt Identity Resolution
+- Attempt 15: ?/10 (awaiting evaluation — masked figure merged into Red Death, Red Death profiled)
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b with think=False for characters/summaries/profiling, qwen3.5:35b-a3b with think=False for structure/pronunciation
@@ -174,8 +228,8 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 15 | Post-extraction identity reveal merge (masked figure → Red Death) | twostage_experiment.py | pending |
-| 15 | Inject Stage 4 characters into summary active_characters for profiling | twostage_experiment.py | pending |
+| 15 | Post-extraction identity reveal merge (masked figure → Red Death) | twostage_experiment.py | ✓ WORKED |
+| 15 | Inject Stage 4 characters into summary active_characters for profiling | twostage_experiment.py | ✓ WORKED — Red Death profiled |
 | 14 | Short-form alias for is_symbolic objects | main_cast.py | ✓ Clock extracted with "the clock" |
 | 14 | Collective noun block (Rule 0.6b) | main_cast.py | ✓ No "the crowd" false alias |
 | 14 | AmbiguousName not iterable bug | summary_evidence.py | ✓ Profiling no longer crashes |
@@ -206,15 +260,12 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 ## Next Action
-Fix attempt 15. Two root causes to address:
-1. **[CRITICAL] Merge "the masked figure" INTO "the Red Death"** (Identity Resolution 4/10 → 8/10)
-   - The two entities are the same: masked figure IS the Red Death personified.
-   - Merge direction: masked figure → absorbed as alias of Red Death.
-   - DO NOT repeat attempt 9's mistake (merged Red Death INTO masked figure, losing Red Death).
-   - Approach: Post-extraction programmatic merge in characters.py or twostage_experiment.py.
-   - Key signal: both are is_symbolic=True, both are antagonist role, "death" is core noun of Red Death.
-2. **[CRITICAL] Fix profiling to use Stage 4 character list** (Character Profiles 6/10 → 8/10)
-   - Profiling pipeline re-identifies chars from summaries, missing Red Death and Clock.
-   - Fix: Pass the Stage 4 character list (from extraction) into the profiling pipeline as "required_characters".
-   - This gives profiles for: Prospero, Red Death, Ebony Clock (all 3 main entities).
-   - Expected impact: Character Profiles 6/10 → 8-9/10
+Evaluate attempt 15. Expected improvements vs attempt 14:
+1. **Identity Resolution**: 4/10 → 9/10 (masked figure correctly merged as alias of Red Death)
+2. **Character Profiles**: 6/10 → 8/10 (Red Death now profiled with excellent quality)
+3. **Completeness**: 8/10 → 7-8/10 (Clock missing this run — non-deterministic LLM)
+4. **Expected overall**: ~8.3-8.5/10 → borderline PASS
+
+If attempt 15 FAILS (Clock absence drops character extraction to 7.5/10):
+- Fix A: Filter narrator FP in twostage_experiment.py (quick win, +0.25)
+- Fix B: More reliable Clock detection — inject important noun-phrase entities from key_events into candidate characters
