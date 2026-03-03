@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -100,6 +100,15 @@ The analyze phase logs revealed the ACTUAL blocking mechanism:
 
 ## Fix History
 
+### Attempt 8
+1. **ALIAS_RESOLUTION_PROMPT Rule 2 clarification** in `main_cast.py`:
+   - Added "the figure" as an example of a valid descriptive reference
+   - Added clarifying sentence: "A descriptive reference is a substitute name for this single individual entity, NOT a label for a group of people who gather around, encounter, or are affected by {character_name}."
+   - Rule 3: Changed "persons" → "persons or groups", "interact with" → "interact with or are affected by", simplified phrasing
+   - Root cause: LLM in Pass 2 proposes group nouns ("the revellers", "the assembly", "the musicians") as aliases of "the Red Death" because the prompt's definition of "descriptive references" was too broad, not explicitly excluding groups associated with the entity
+   - Fix classification: prompt clarification — universal (any book can have group nouns confusably near individual entities)
+   - Smoke test: Not run (requires full LLM call); fix addresses the conceptual gap in Rule 2
+
 ### Attempt 7 (Score: 8.35/10 — NO CHANGE from attempt 6)
 1. **Rule 0.7 in verify_aliases**: Changed which group aliases appear, but did not prevent them. Partial effect only.
 2. **Rule 3 exception in ALIAS_RESOLUTION_PROMPT**: Inert — the symbolic alias rule (not Rule 3) was the actual blocker for correct aliases.
@@ -129,6 +138,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 8 | Group nouns as aliases: Rule 2 clarification in ALIAS_RESOLUTION_PROMPT | main_cast.py | Awaiting analysis |
 | 7 | Wrong group aliases: Rule 0.7 in verify_aliases | main_cast.py | Partial — changed which aliases, didn't fix |
 | 7 | Missing correct aliases: Rule 3 exception | main_cast.py | No change — wrong rule targeted (symbolic alias rule is blocker) |
 | 6 | Revert characters.py regression | characters.py (reverted) | Fixed ✓ — Red Death back as own character |

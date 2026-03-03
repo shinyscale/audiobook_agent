@@ -130,8 +130,8 @@ TASK: Find ALL the different ways this character is referred to in the chapter s
 
 IMPORTANT RULES:
 1. An alias is another name or reference for the EXACT SAME entity as {character_name} — not a different person or object.
-2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman") used in any chapter — a character may be called by description instead of name in some chapters.
-3. Do NOT include persons who interacted with this entity — they are separate characters. Exception: if the summary explicitly reveals a figure IS {character_name} (e.g., "revealed to be", "proving to be", "it was"), include the descriptors used before that reveal as aliases.
+2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman", "the figure") used in any chapter — a character may be called by description instead of name. A descriptive reference is a substitute name for this single individual entity, NOT a label for a group of people who gather around, encounter, or are affected by {character_name}.
+3. Do NOT include persons or groups that interact with or are affected by {character_name} — they are separate characters. Exception: if the text reveals a figure IS {character_name} (e.g., "revealed to be", "proved to be", "it was"), include the descriptors used for that figure as aliases.
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 
 CHAPTER SUMMARIES:
