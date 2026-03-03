@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -149,8 +149,18 @@
 - Herbert White aliases: "Herbert", "his son", "the son"
 - Relationships NOW CORRECT: father/son/mother chain ✓
 
+## Pipeline Notes (Attempt 4)
+- Duration: 20m 43s, 38 LLM calls, 83,243 tokens
+- 5 characters found: Mr. White (25), Mrs. White (21), Herbert White (15), Sergeant-Major Morris (5), the monkey's paw (17)
+- **FIXED: Phantom "The Old Man" is GONE** ✓ — merged into Mr. White
+- **FIXED: Mr. White has "the old man" alias** ✓
+- **FIXED: Mrs. White has "the old woman" alias** ✓
+- **Morris present** as "Sergeant-Major Morris (aka Morris)" ✓
+- **REGRESSION: Family relationships removed** — LLM proposed "child" for BOTH Mr. White→Herbert AND Herbert→Mr. White (bidirectional), triggering "identical non-symmetric label is logically impossible" removal. Family relationships (father/son/mother) lost entirely.
+- Monkey's paw alias "the visitor" — debatable correctness (visitor in text is Morris/Maw&Meggins rep, not the paw itself)
+- Pass 2 failed for Sergeant-Major Morris (keeping without aliases from Pass 2)
+- Herbert White aliases: "Herbert", "the son" (from title-stripped or summary)
+- Moral valence classification failed for Sergeant-Major Morris
+
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify the three fixes from attempt 3:
-1. Phantom "The Old Man" should merge into Mr. White (Identity Resolution fix)
-2. Mrs. White should get "the old woman" alias via garbage alias reassignment
-3. Herbert White should get gender=male from relationship label "son"
+Evaluate analysis (PROMPT_evaluate.md).

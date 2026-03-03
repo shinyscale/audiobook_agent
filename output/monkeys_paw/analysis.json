@@ -2,7 +2,7 @@
   "metadata": {
     "title": "The Monkey's Paw",
     "author": "W. W. Jacobs",
-    "source_file": "../Test_Texts/The_Monkey's_Paw.txt",
+    "source_file": "Test_Texts/The_Monkey's_Paw.txt",
     "source_format": "txt",
     "total_word_count": 3954,
     "total_character_count": 21968,
@@ -26,7 +26,7 @@
         "Mrs. White",
         "Sergeant-Major Morris"
       ],
-      "summary": "On a cold, wet night at Laburnam Villa, Mr. White, his son Herbert, and Mrs. White play chess until they are visited by Sergeant-Major Morris, a traveler who recounts tales of India and reveals a dried monkey's paw that grants three wishes to three men, warning that fate rules lives and interference brings sorrow. Although Morris attempts to destroy the talisman by throwing it into the fire, Mr. White rescues it and, after being urged by his son to wish for two hundred pounds to clear the house's debt, makes the wish aloud. The paw twists in Mr. White's hand like a snake, causing him to cry out in shock, while Herbert and Mrs. White dismiss the movement as fancy or a trick, though Herbert later sees a horrible, simian face in the dying fire before retiring to bed."
+      "summary": "On a cold, wet night at Laburnam Villa, Mr. White, his son Herbert, and Mrs. White play chess when Sergeant-Major Morris arrives by foot through the stormy weather, bringing tales of India and a dried monkey's paw cursed by a holy fakir to grant three wishes to three men. Despite Morris's grave warnings that the paw causes sorrow and his attempt to burn it, Mr. White insists on keeping the talisman, eventually making a wish for two hundred pounds after Herbert jokingly suggests it. The paw twists violently in Mr. White's hand like a snake, causing a shock that unsettles the family, though no money immediately appears. Later, Herbert jokes about the money arriving in a bag while a horrible simian face appears in the dying fire, causing him to shiver as he goes to bed."
     },
     {
       "type": "chapter",
@@ -44,7 +44,7 @@
         "Herbert",
         "the visitor"
       ],
-      "summary": "The chapter opens on a bright wintry morning at the White family's breakfast table, where Mr. White, Mrs. White, and their son Herbert laugh off the previous night's discussion of the magical monkey's paw and the possibility of receiving two hundred pounds. The lighthearted atmosphere shatters when a well-dressed stranger from the firm 'Maw and Meggins' arrives on foot to deliver news that Herbert has been caught in machinery and is dead, though not in pain. As the realization of their son's death sinks in, the visitor informs the grieving parents that the firm disclaims all liability but offers a compensation sum of exactly two hundred pounds. Upon hearing the specific amount that matches their earlier wish, Mrs. White lets out a shriek while Mr. White, overwhelmed by horror, collapses into a senseless heap on the floor."
+      "summary": "The chapter opens on a bright wintry morning at the White household, where Mr. and Mrs. White and their son Herbert dismiss the supernatural powers of the monkey's paw as nonsense before Herbert departs on foot for work. A well-dressed stranger from the firm 'Maw and Meggins' arrives at the gate, hesitating before entering the room to deliver news that Herbert has been badly hurt in a machinery accident. Upon realizing the stranger implies Herbert is dead, Mrs. White is momentarily relieved he feels no pain before the horrific truth dawns on her, leaving her breathless and white-faced while Mr. White stares blankly out the window. The visitor explains the firm disclaims all liability but offers two hundred pounds as compensation for Herbert's services, a sum that causes Mr. White to smile faintly and collapse senseless to the floor while Mrs. White shrieks."
     },
     {
       "type": "chapter",
@@ -60,128 +60,129 @@
         "the old man",
         "the old woman"
       ],
-      "summary": "In a shadowy house two miles from a new cemetery, an old man and woman, having resigned themselves to their son's death, are awakened by the woman's desperate realization that they can use the remaining two wishes on the monkey's paw to bring their son, Herbert, back to life. Despite the old man's horror and his revelation that the son's body was too mutilated to recognize, he retrieves the talisman and, under his wife's frantic urging, wishes for Herbert's resurrection, only to feel immediate relief when the candle extinguishes and nothing happens. Later, a quiet, stealthy knock at the front door prompts the woman to believe Herbert has returned, but the old man, terrified of what might enter, frantically searches for the paw while his wife struggles to unbolt the door. As the knocking intensifies and the door opens to a cold wind, the old man finds the talisman and breathes his third and final wish, causing the noise to cease instantly before the woman lets out a wail of disappointment as they discover the street outside is quiet and deserted."
+      "summary": "In a house steeped in shadow two miles from the new cemetery, an old couple transitions from expectation to resignation after burying their son, until the wife wakes in the night demanding the monkey's paw to wish him alive again. The terrified old man descends into the dark parlour to retrieve the talisman, and despite his warnings about his son's mutilated state, he reluctantly makes the second wish while his wife waits with unnatural intensity. As the candle expires and silence returns, a quiet, stealthy knock at the front door convinces the wife that their son Herbert has returned, prompting her to struggle toward the door while her husband frantically searches the floor for the paw. In a panic, the husband locates the talisman and breathes his third and final wish just as the door opens, causing the knocking to cease instantly and leaving only a cold wind and a long wail of disappointment from his wife."
     }
   ],
   "characters": [
     {
       "id": "main_cast_0",
       "canonical_name": "Mr. White",
-      "aliases": [],
+      "aliases": [
+        "the old man"
+      ],
       "role": "protagonist",
-      "physical_description": "An old man with a thin grey beard and white hair.",
+      "physical_description": "Described as an old man with a thin grey beard, appearing hospitable and later unsteady with age.",
       "appearance": {
-        "summary": "An old man with a thin grey beard and white hair.",
+        "summary": "Described as an old man with a thin grey beard, appearing hospitable and later unsteady with age.",
         "age_indication": "elderly",
         "distinguishing_features": [
           "thin grey beard",
-          "white hair"
+          "old man"
         ]
       },
       "personality": {
-        "summary": "Mr. White is portrayed as playful and slightly reckless in social settings, often making poor decisions in games but covering them with good humor. He is hospitable to guests but becomes deeply credulous regarding the supernatural, eventually succumbing to profound grief and shock.",
+        "summary": "Initially open-minded and hospitable, he becomes deeply anxious and protective, showing a conflict between his desire to help his wife and his fear of the supernatural consequences.",
         "traits": [
-          "playful",
-          "reckless",
           "hospitable",
-          "credulous",
-          "grieving"
+          "superstitious",
+          "anxious",
+          "protective",
+          "cautious"
         ],
         "temperament": "volatile",
-        "emotional_range": "Shifts from amiably desirous and laughing to violent outbursts about his surroundings, and finally to a dazed, senseless state of horror.",
+        "emotional_range": "Shifts from cheerful hospitality to deep grief and terror; shows physical signs of distress like trembling and unsteadiness.",
         "speech_patterns": [
-          "uses expletives like 'beastly' and 'slushy' when frustrated",
-          "speaks in a 'dazed fashion' after trauma"
+          "stammering when fearful",
+          "whispering hoarsely in crisis"
         ]
       },
       "voice_guidance": {
-        "suggested_tone": "warm and conversational initially, shifting to agitated and then hollow/dazed",
-        "dialect_notes": "Uses colloquialisms like 'beastly', 'slushy', and 'bog'; appears to speak with a standard English dialect but with emotional volatility.",
+        "suggested_tone": "shifting from warm and conversational to trembling and desperate",
+        "dialect_notes": "Standard English with no specific regional markers noted in the text",
         "verbal_tics": [
-          "bawled",
-          "slowly",
-          "dazed fashion"
+          "stammering",
+          "whispering"
         ],
-        "formality_level": "informal",
+        "formality_level": "moderate",
         "example_quotes": [
-          "That's the worst of living so far out",
-          "I don't know what to wish for, and that's a fact",
-          "Caught in the machinery"
+          "Better let it burn",
+          "For God's sake don't let it in",
+          "He has been dead ten days"
         ]
       },
       "descriptions": [
         {
-          "text": "Mr. White is an elderly father and husband who initially displays a playful, somewhat reckless demeanor, particularly during a chess game where he makes 'fatal mistakes' yet remains 'amiably desirous' of hiding them from his son. His character arc shifts dramatically from a man who casually wishes for money to clear a debt to a grieving, 'dazed' father who collapses upon learning his son has died, only to receive the exact sum he wished for as compensation.",
-          "source_position": 508,
+          "text": "Mr. White is an elderly man who transitions from a hospitable, slightly superstitious figure to a terrified protector of his family. Initially eager to hear tales of magic, he later becomes the voice of caution, desperately trying to prevent his wife from using the monkey's paw to resurrect their dead son, fearing the horrific result of such an act.",
+          "source_position": 1590,
           "chapter_index": null,
           "confidence": "llm_refined"
         }
       ],
       "relationships": {
         "Mrs. White": "husband",
-        "Herbert White": "father",
         "Sergeant-Major Morris": "associated",
-        "The Old Man": "associated"
+        "the monkey's paw": "associated",
+        "Herbert White": "father"
       },
       "evidence": [
         {
-          "statement": "Mr. White is the father of Herbert White.",
-          "quote": "Father and son were at chess, the former...",
-          "position": 508,
+          "statement": "Mr. White is hospitable and greets guests warmly",
+          "quote": "The old man rose with hospitable haste, and opening the door, was heard condoling with the new arrival.",
+          "position": 1590,
           "confidence": "high"
         },
         {
-          "statement": "Mr. White is the husband of Mrs. White.",
-          "quote": "Never mind, dear, said his wife",
-          "position": 914,
+          "statement": "Mr. White has a thin grey beard",
+          "quote": "he hid a guilty grin in his thin grey beard.",
+          "position": 1590,
           "confidence": "high"
         },
         {
-          "statement": "Mr. White has a thin grey beard.",
-          "quote": "he hid a guilty grin in his thin grey beard",
-          "position": 1304,
+          "statement": "Mr. White is curious about the monkey's paw",
+          "quote": "What was that you started telling me the other day about a monkey's paw or something, Morris?",
+          "position": 2934,
           "confidence": "high"
         },
         {
-          "statement": "Mr. White is described as an old man.",
-          "quote": "The old man rose with hospitable haste",
-          "position": 1304,
+          "statement": "Mr. White saves the paw from the fire",
+          "quote": "White, with a slight cry, stooped down and snatched it off.",
+          "position": 5348,
           "confidence": "high"
         },
         {
-          "statement": "Mr. White makes a reckless move in chess.",
-          "quote": "putting his king into such sharp and unnecessary perils",
-          "position": 508,
-          "confidence": "high"
-        },
-        {
-          "statement": "Mr. White expresses sudden anger about his location.",
-          "quote": "bawled Mr. White, with sudden and unlooked-for violence",
-          "position": 914,
-          "confidence": "high"
-        },
-        {
-          "statement": "Mr. White is credulous about the monkey's paw moving.",
-          "quote": "for all that, the thing moved in my hand; that I'll swear to",
-          "position": 11123,
-          "confidence": "high"
-        },
-        {
-          "statement": "Mr. White is in a state of shock and grief after his son's death.",
-          "quote": "repeated Mr. White, in a dazed fashion",
+          "statement": "Mr. White is grieving and holds his wife's hand",
+          "quote": "taking his wife's hand between his own, pressed it as he had been wont to do in their old courting-days nearly forty years before.",
           "position": 13571,
           "confidence": "high"
         },
         {
-          "statement": "Mr. White collapses upon hearing the compensation amount.",
-          "quote": "Unconscious of his wife's shriek, the old man smiled faintly... and dropped, a senseless heap, to the floor",
-          "position": 14570,
+          "statement": "Mr. White warns against the second wish due to the son's condition",
+          "quote": "He has been dead ten days, and besides he—I would not tell you else, but—I could only recognize him by his clothing.",
+          "position": 17338,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mr. White is terrified of what the resurrected son might be",
+          "quote": "For God's sake don't let it in",
+          "position": 20585,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mr. White is described as unsteady and trembling",
+          "quote": "he said, unsteadily",
+          "position": 17338,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mr. White is relieved the wish failed",
+          "quote": "The old man, with an unspeakable sense of relief at the failure of the talisman, crept back to his bed",
+          "position": 19020,
           "confidence": "high"
         }
       ],
       "voice_notes": null,
       "first_appearance_chapter": 1,
-      "mention_count": 10,
+      "mention_count": 25,
       "mentions": [],
       "confidence": "high",
       "gender": "male",
@@ -192,97 +193,124 @@
     {
       "id": "main_cast_1",
       "canonical_name": "Mrs. White",
-      "aliases": [],
+      "aliases": [
+        "the old woman"
+      ],
       "role": "protagonist",
-      "physical_description": "Physical description is not provided in the text, though she is referred to as 'old lady' and 'mother' in later contexts.",
+      "physical_description": "Described as an 'old woman' with 'trembling old hand' and a face that turns 'white' upon hearing bad news.",
       "appearance": {
-        "summary": "Physical description is not provided in the text, though she is referred to as 'old lady' and 'mother' in later contexts.",
-        "age_indication": null,
-        "distinguishing_features": []
+        "summary": "Described as an 'old woman' with 'trembling old hand' and a face that turns 'white' upon hearing bad news.",
+        "age_indication": "elderly",
+        "distinguishing_features": [
+          "trembling old hand",
+          "white face when shocked"
+        ]
       },
       "personality": {
-        "summary": "She displays a mix of hospitality, skepticism, and playfulness, often engaging in lighthearted teasing with her family. Later, she shows practical concern and anxiety when dealing with unexpected visitors.",
+        "summary": "Begins as polite and skeptical, but becomes wildly emotional, desperate, and obsessively determined after her son's death, ignoring logical warnings to pursue her desire to bring him back.",
         "traits": [
+          "polite",
           "skeptical",
-          "playful",
-          "hospitable",
-          "practical",
-          "anxious"
+          "wildly emotional",
+          "desperate",
+          "determined",
+          "obsessive"
         ],
-        "temperament": "moderate",
-        "emotional_range": "Shifts from cheerful banter to nervous anticipation and apology.",
+        "temperament": "volatile",
+        "emotional_range": "Shifts rapidly from polite conversation to 'sudden wild cry' and 'subdued weeping', culminating in 'quivering with excitement' and screaming.",
         "speech_patterns": [
-          "Uses 'Tut, tut!' to interrupt or express mild disapproval",
-          "Makes sarcastic or humorous remarks about wishes"
+          "exclamatory demands",
+          "wild questioning"
         ]
       },
       "voice_guidance": {
-        "suggested_tone": "warm but shifting to tense",
-        "dialect_notes": "Standard English with no specific regional markers indicated in the text",
+        "suggested_tone": "polite initially, then hysterical and commanding",
+        "dialect_notes": "unknown",
         "verbal_tics": [
-          "Tut, tut!"
+          "repetitive questioning ('Where? Where is it?')",
+          "shouting names ('The paw!', 'It's Herbert!')"
         ],
-        "formality_level": "informal",
+        "formality_level": "moderate",
         "example_quotes": [
           "\"Tut, tut!\"",
-          "\"I suppose all old soldiers are the same... How could wishes be granted in these days?\"",
-          "\"Don't you think you might wish for four pairs of hands for me?\""
+          "\"It is colder for my son\"",
+          "\"The monkey's paw!\"",
+          "\"Bring him back\"",
+          "\"It's Herbert!\""
         ]
       },
       "descriptions": [
         {
-          "text": "Mrs. White is a middle-aged woman who engages in domestic activities and social banter with her husband and son before the arrival of a visitor. She transitions from a playful, skeptical demeanor regarding supernatural claims to a state of anxious preparation when a stranger arrives, suggesting a protective role within the household.",
-          "source_position": 1746,
+          "text": "Mrs. White is a grieving mother whose initial skepticism regarding the supernatural transforms into desperate, obsessive determination to resurrect her son. She exhibits a volatile emotional range, shifting from polite hospitality to wild hysteria, and ultimately displays a terrifying resolve that overrides her husband's warnings about the consequences of their wishes.",
+          "source_position": 13105,
           "chapter_index": null,
           "confidence": "llm_refined"
         }
       ],
       "relationships": {
-        "Mr. White": "husband",
-        "Herbert White": "mother",
-        "The Old Man": "associated"
+        "Mr. White": "wife",
+        "the monkey's paw": "associated",
+        "Herbert White": "mother"
       },
       "evidence": [
         {
-          "statement": "Mrs. White is the mother of Herbert White and wife of Mr. White",
-          "quote": "intercept a knowing glance between mother and son",
-          "position": 1746,
+          "statement": "Mrs. White is polite and skeptical of the supernatural initially.",
+          "quote": "\"He don't look to have taken much harm,\" said Mrs. White, politely.",
+          "position": 0,
           "confidence": "high"
         },
         {
-          "statement": "She engages in playful banter with her family",
-          "quote": "pursued by the maligned Mrs. White armed with an antimacassar",
-          "position": 7458,
+          "statement": "Mrs. White makes a joke about the magic paw.",
+          "quote": "\"Don't you think you might wish for four pairs of hands for me?\"",
+          "position": 0,
           "confidence": "high"
         },
         {
-          "statement": "She is skeptical of the monkey's paw story",
-          "quote": "I suppose all old soldiers are the same... The idea of our listening to such nonsense!",
-          "position": 10030,
+          "statement": "Mrs. White reacts with immediate panic and wild questioning upon hearing of her son's injury.",
+          "quote": "\"Is he hurt?\" demanded the mother, wildly.",
+          "position": 0,
           "confidence": "high"
         },
         {
-          "statement": "She performs domestic duties and prepares for guests",
-          "quote": "Mrs. White said, 'Tut, tut!' and coughed gently as her husband entered the room",
-          "position": 1746,
+          "statement": "Mrs. White initially expresses gratitude that her son is not in pain, then realizes the gravity of his death.",
+          "quote": "\"Oh, thank God!\" said the old woman, clasping her hands. ... She broke off suddenly as the sinister meaning of the assurance dawned upon her",
+          "position": 0,
           "confidence": "high"
         },
         {
-          "statement": "She shows anxiety and practical preparation when a stranger arrives",
-          "quote": "Mrs. White at the same moment placed her hands behind her, and hurriedly unfastening the strings of her apron, put that useful article of apparel beneath the cushion of her chair",
-          "position": 11889,
+          "statement": "Mrs. White is grieving and weeping over her son's death.",
+          "quote": "\"It is colder for my son,\" said the old woman, and wept afresh.",
+          "position": 0,
           "confidence": "high"
         },
         {
-          "statement": "She refers to herself or is referred to as an 'old lady'",
-          "quote": "apologized for the appearance of the room, and her husband's coat, a... as the old lady apologized",
-          "position": 11889,
+          "statement": "Mrs. White demands the paw to wish her son back to life.",
+          "quote": "\"The paw!\" she cried wildly. ... \"I want...\"",
+          "position": 0,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mrs. White is excited and demanding, overriding her husband's fears.",
+          "quote": "\"Go and get it and wish,\" cried his wife, quivering with excitement.",
+          "position": 0,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mrs. White insists she does not fear her son's mutilated state.",
+          "quote": "\"Do you think I fear the child I have nursed?\"",
+          "position": 0,
+          "confidence": "high"
+        },
+        {
+          "statement": "Mrs. White identifies a knock at the door as her son and tries to rush to him.",
+          "quote": "\"It's Herbert!\" she screamed. \"It's Herbert!\" She ran to the door",
+          "position": 0,
           "confidence": "high"
         }
       ],
       "voice_notes": null,
       "first_appearance_chapter": 1,
-      "mention_count": 10,
+      "mention_count": 21,
       "mentions": [],
       "confidence": "high",
       "gender": "female",
@@ -295,109 +323,112 @@
       "canonical_name": "Herbert White",
       "aliases": [
         "Herbert",
-        "his son",
         "the son"
       ],
       "role": "supporting",
-      "physical_description": null,
+      "physical_description": "Described as a 'tall, burly man' with a 'rubicund' (red-faced) complexion, though this description in the text is technically applied to the Sergeant-Major; Herbert is referred to as 'youth' and 'son' but lacks specific physical descriptors in the provided snippets.",
       "appearance": {
-        "summary": null,
+        "summary": "Described as a 'tall, burly man' with a 'rubicund' (red-faced) complexion, though this description in the text is technically applied to the Sergeant-Major; Herbert is referred to as 'youth' and 'son' but lacks specific physical descriptors in the provided snippets.",
         "age_indication": null,
         "distinguishing_features": []
       },
       "personality": {
-        "summary": "Initially playful, skeptical, and good-humored, later becoming a source of horror and grief.",
+        "summary": "Herbert is portrayed as lighthearted, witty, and skeptical of the supernatural, often using humor to deflect tension. He is affectionate towards his parents but dismissive of their fears, though his skepticism turns to fear in his final moments.",
         "traits": [
-          "playful",
+          "teasing",
           "skeptical",
-          "good-humored",
-          "skeptical of supernatural claims"
+          "witty",
+          "frivolous",
+          "affectionate"
         ],
-        "temperament": "cheerful initially, then tragic",
-        "emotional_range": "Displays amusement and teasing early on; later associated with fear and grief.",
+        "temperament": "cheerful",
+        "emotional_range": "Shifts from playful amusement to sudden fear and horror.",
         "speech_patterns": [
-          "uses irony and sarcasm",
-          "makes jokes about serious situations"
+          "uses irony",
+          "makes jokes about serious topics",
+          "teasing tone"
         ]
       },
       "voice_guidance": {
-        "suggested_tone": "light and teasing initially, then silent or associated with terror",
-        "dialect_notes": "standard speech, no specific accent noted",
-        "verbal_tics": [],
+        "suggested_tone": "playful and mocking in early scenes; terrified and desperate in the final scene (if speaking as a ghost/knocker)",
+        "dialect_notes": "standard English, no specific dialect markers noted in text",
+        "verbal_tics": [
+          "cleverly",
+          "pretended horror"
+        ],
         "formality_level": "informal",
         "example_quotes": [
-          "Check.",
-          "Mate.",
-          "Likely, we're going to be rich, and famous and happy.",
-          "I expect you'll find the cash tied up in a big bag in the middle of your bed"
+          "Well, why don't you have three, sir?",
+          "I expect you'll find the cash tied up in a big bag in the middle of your bed",
+          "It's Herbert!"
         ]
       },
       "descriptions": [
         {
-          "text": "Herbert White is the son of Mr. and Mrs. White, characterized by a playful and skeptical demeanor in the early chapters who engages in chess and jokes about his father's superstitious fears. His role shifts dramatically as the narrative progresses from a lighthearted family member to a victim of a factory accident, and finally to a source of terrifying supernatural dread as his mother attempts to summon him.",
+          "text": "Herbert White is the son of Mr. and Mrs. White, characterized initially by his playful, skeptical, and teasing nature regarding his parents' superstitious beliefs. He serves as a catalyst for the central conflict by jokingly suggesting the wish for money, which leads to his tragic death and subsequent return as a terrifying entity, making him a primary victim of the talisman's curse.",
           "source_position": 1503,
           "chapter_index": null,
           "confidence": "llm_refined"
         }
       ],
       "relationships": {
-        "Mr. White": "son",
-        "The Old Man": "associated",
-        "Mrs. White": "son"
+        "Mrs. White": "son",
+        "the monkey's paw": "associated",
+        "Mr. White": "son"
       },
       "evidence": [
         {
-          "statement": "Herbert is the son of Mr. White",
-          "quote": "Mr. White, who, having seen a fatal mistake after it was too late, was amiably desirous of preventing his son from seeing it.",
-          "position": 856,
+          "statement": "Herbert is the son of Mr. and Mrs. White",
+          "quote": "There he is, said Herbert White, as the gate banged to loudly",
+          "position": 1503,
           "confidence": "high"
         },
         {
-          "statement": "Herbert is the son of Mrs. White",
-          "quote": "The old lady started. 'Is anything the matter?' she asked, breathlessly. 'Has anything happened to Herbert? What is it? What is it?'",
-          "position": 12693,
+          "statement": "Herbert is characterized as a 'youth' compared to middle age",
+          "quote": "The soldier regarded him in the way that middle age is wont to regard presumptuous youth",
+          "position": 4255,
           "confidence": "high"
         },
         {
-          "statement": "Herbert plays chess with his father",
-          "quote": "I'm listening,' said the latter, grimly surveying the board as he stretched out his hand. 'Check.' 'Mate,' replied the son.",
-          "position": 856,
+          "statement": "Herbert is described as 'frivolous' regarding the paw",
+          "quote": "Might drop on his head from the sky, said the frivolous Herbert",
+          "position": 10256,
           "confidence": "high"
         },
         {
-          "statement": "Herbert is skeptical of the monkey's paw",
-          "quote": "If the tale about the monkey's paw is not more truthful than those he has been telling us,' said Herbert, as the door closed behind their guest, just in time for him to catch the last train, 'we sha'nt make much out of it.'",
-          "position": 6877,
+          "statement": "Herbert jokingly suggests the wish for money",
+          "quote": "Well, wish for two hundred pounds, then; that 'll just do it",
+          "position": 7742,
           "confidence": "high"
         },
         {
-          "statement": "Herbert jokes about the wish",
-          "quote": "Likely,' said Herbert, with pretended horror. 'Why, we're going to be rich, and famous and happy. Wish to be an emperor, father, to begin with; then you can't be henpecked.'",
-          "position": 7246,
-          "confidence": "high"
-        },
-        {
-          "statement": "Herbert sees a simian face in the fire",
-          "quote": "He sat alone in the darkness, gazing at the dying fire, and seeing faces in it. The last face was so horrible and so simian that he gazed at it in amazement.",
+          "statement": "Herbert makes a dark joke about the money arriving in a bag",
+          "quote": "I expect you'll find the cash tied up in a big bag in the middle of your bed",
           "position": 9083,
           "confidence": "high"
         },
         {
-          "statement": "Herbert is badly hurt in an accident",
-          "quote": "The visitor bowed in assent. 'Badly hurt,' he said, quietly, 'but he is not in any pain.'",
-          "position": 12693,
+          "statement": "Herbert sees a horrible simian face in the fire before retiring",
+          "quote": "The last face was so horrible and so simian that he gazed at it in amazement",
+          "position": 9083,
           "confidence": "high"
         },
         {
-          "statement": "Herbert's mother believes he is knocking at the door after death",
-          "quote": "'It's Herbert!' she screamed. 'It's Herbert!'",
+          "statement": "Herbert is dead and his mother believes he is at the door",
+          "quote": "It's Herbert! she screamed. It's Herbert!",
           "position": 20405,
+          "confidence": "high"
+        },
+        {
+          "statement": "Herbert is a victim of the wish's consequences",
+          "quote": "For God's sake don't let it in, cried the old man, trembling",
+          "position": 20690,
           "confidence": "high"
         }
       ],
       "voice_notes": null,
       "first_appearance_chapter": 1,
-      "mention_count": 19,
+      "mention_count": 15,
       "mentions": [],
       "confidence": "high",
       "gender": null,
@@ -412,55 +443,52 @@
         "Morris"
       ],
       "role": "supporting",
-      "physical_description": "A tall, burly man with a beady eye and a red (rubicund) face.",
+      "physical_description": "A tall, burly man with beady eyes and a ruddy (rubicund) face.",
       "appearance": {
-        "summary": "A tall, burly man with a beady eye and a red (rubicund) face.",
+        "summary": "A tall, burly man with beady eyes and a ruddy (rubicund) face.",
         "age_indication": null,
         "distinguishing_features": [
           "tall",
           "burly",
           "beady of eye",
-          "rubicund of visage",
-          "strong teeth"
+          "rubicund of visage"
         ]
       },
       "personality": {
-        "summary": "Morris is a hospitable guest who becomes grave and solemn when discussing the monkey's paw, showing a mix of casual storytelling and serious warning. He is dogged in his refusal to reclaim the paw yet attempts to destroy it, indicating a complex relationship with the object's history.",
+        "summary": "Morris is initially hospitable and talkative when drinking, but becomes solemn, grave, and dogged when discussing the monkey's paw. He attempts to prevent the paw's use through warnings and physical destruction, showing a serious and cautious nature regarding the object.",
         "traits": [
           "hospitable",
           "grave",
-          "solemn",
-          "dogged",
           "cautious",
-          "hasty"
+          "dogged",
+          "solemn"
         ],
-        "temperament": "calm",
-        "emotional_range": "Shifts from contented storytelling to grave seriousness and hasty dismissal when the topic turns to the paw.",
+        "temperament": "calm but grave when discussing the paw",
+        "emotional_range": "Shifts from contented and eager to talk when drinking, to grave and solemn when discussing the paw's history.",
         "speech_patterns": [
-          "uses 'Leastways'",
-          "speaks offhandedly about magic",
+          "uses 'sighing softly' before speaking",
+          "speaks offhandedly about magic initially",
           "speaks doggedly when refusing to take the paw back"
         ]
       },
       "voice_guidance": {
-        "suggested_tone": "authoritative yet weary",
-        "dialect_notes": "Uses 'Leastways' and refers to himself as 'the soldier' or 'sergeant-major'; speech suggests a military background.",
+        "suggested_tone": "authoritative yet weary and solemn",
+        "dialect_notes": "referred to as a 'soldier' and 'old soldier', suggests military background; no specific accent markers in text",
         "verbal_tics": [
           "shaking his head",
           "sighing softly"
         ],
-        "formality_level": "moderate",
+        "formality_level": "informal",
         "example_quotes": [
           "Better where you are",
-          "Leastways nothing worth hearing",
+          "I don't know",
           "Better let it burn",
-          "I won't",
           "Pitch it on the fire again like a sensible man"
         ]
       },
       "descriptions": [
         {
-          "text": "Sergeant-Major Morris is a burly, traveling soldier who visits the White family, sharing tales of India and a cursed monkey's paw that grants wishes with tragic consequences. He exhibits a morally ambiguous nature, simultaneously warning the family of the paw's danger while attempting to destroy it, yet ultimately refusing to take it back, leaving it with Mr. White despite his grave warnings.",
+          "text": "Sergeant-Major Morris is a tall, burly visitor from India who arrives during a storm to share tales of a cursed monkey's paw. He exhibits a grave demeanor regarding the paw's history, warning the White family of its dangers and attempting to destroy it, yet he ultimately leaves it in their possession after being thwarted.",
           "source_position": 1897,
           "chapter_index": null,
           "confidence": "llm_refined"
@@ -468,49 +496,55 @@
       ],
       "relationships": {
         "Mr. White": "associated",
-        "The Old Man": "associated"
+        "the monkey's paw": "friend"
       },
       "evidence": [
         {
-          "statement": "Morris is described as a tall, burly man with a beady eye and red face.",
-          "quote": "followed by a tall, burly man, beady of eye and rubicund of visage",
+          "statement": "Arrives during a storm and is introduced as Sergeant-Major Morris",
+          "quote": "Sergeant-Major Morris, he said, introducing him.",
           "position": 1897,
           "confidence": "high"
         },
         {
-          "statement": "Morris is identified as a visitor from distant parts and a soldier.",
-          "quote": "this visitor from distant parts... said the soldier",
+          "statement": "Described physically as tall, burly, with beady eyes and ruddy face",
+          "quote": "followed by a tall, burly man, beady of eye and rubicund of visage.",
           "position": 1897,
           "confidence": "high"
         },
         {
-          "statement": "Morris warns that the paw brings sorrow and that fate rules lives.",
-          "quote": "warning that fate rules lives and interference brings sorrow",
+          "statement": "Talks about India and the monkey's paw after drinking",
+          "quote": "At the third glass his eyes got brighter, and he began to talk... as he...",
+          "position": 1897,
+          "confidence": "high"
+        },
+        {
+          "statement": "Refers to the paw as magic and warns of its consequences",
+          "quote": "Well, it's just a bit of what you might call magic, perhaps",
           "position": 3034,
           "confidence": "high"
         },
         {
-          "statement": "Morris attempts to destroy the paw by throwing it in the fire.",
-          "quote": "suddenly threw it upon the fire",
-          "position": 5688,
-          "confidence": "high"
-        },
-        {
-          "statement": "Morris refuses to take the paw back, stating he threw it on the fire.",
-          "quote": "I threw it on the fire. If you keep it, don't blame me for what happens.",
-          "position": 5688,
-          "confidence": "high"
-        },
-        {
-          "statement": "Mr. White refers to Morris as his friend.",
-          "quote": "I won't, said his friend, doggedly",
-          "position": 5688,
-          "confidence": "high"
-        },
-        {
-          "statement": "Morris reveals the paw's history of granting three wishes, with the third being for death.",
-          "quote": "The first man had his three wishes... the third was for death. That's how I got the paw",
+          "statement": "Explains the paw's history involving a death wish",
+          "quote": "the third was for death. That's how I got the paw.",
           "position": 4917,
+          "confidence": "high"
+        },
+        {
+          "statement": "Attempts to burn the paw to prevent its use",
+          "quote": "suddenly threw it upon the fire.",
+          "position": 5688,
+          "confidence": "high"
+        },
+        {
+          "statement": "Refuses to take the paw back, calling Mr. White a friend",
+          "quote": "I won't, said his friend, doggedly.",
+          "position": 5688,
+          "confidence": "high"
+        },
+        {
+          "statement": "Warns Mr. White not to blame him for what happens if he keeps the paw",
+          "quote": "If you keep it, don't blame me for what happens.",
+          "position": 5688,
           "confidence": "high"
         }
       ],
@@ -525,57 +559,47 @@
       "is_symbolic": false
     },
     {
-      "id": "main_cast_6",
-      "canonical_name": "The Old Man",
+      "id": "main_cast_5",
+      "canonical_name": "the monkey's paw",
       "aliases": [
-        "The Monkey's Paw",
         "the paw",
-        "The Visitor",
-        "The Old Woman"
+        "the visitor",
+        "the stranger"
       ],
-      "role": "protagonist",
-      "physical_description": "Described as having a thin grey beard, he is referred to as 'the old man' and 'the old couple' alongside his wife. He is physically capable of rising with haste, stooping down, and moving quickly to hold his wife back, though he also collapses into a 'senseless heap' upon hearing news of his son's death.",
+      "role": "antagonist",
+      "physical_description": "A dirty, shrivelled little paw that is squatting on top of a wardrobe or placed on a sideboard. It is described as having a simian (monkey-like) face when seen in the fire, which is deemed horrible.",
       "appearance": {
-        "summary": "Described as having a thin grey beard, he is referred to as 'the old man' and 'the old couple' alongside his wife. He is physically capable of rising with haste, stooping down, and moving quickly to hold his wife back, though he also collapses into a 'senseless heap' upon hearing news of his son's death.",
-        "age_indication": "elderly",
+        "summary": "A dirty, shrivelled little paw that is squatting on top of a wardrobe or placed on a sideboard. It is described as having a simian (monkey-like) face when seen in the fire, which is deemed horrible.",
+        "age_indication": null,
         "distinguishing_features": [
-          "thin grey beard",
-          "referred to as 'the old man'"
+          "dirty, shrivelled",
+          "squatting up on top of the wardrobe",
+          "horrible and simian face seen in the fire"
         ]
       },
       "personality": {
-        "summary": "He begins as a hospitable and somewhat credulous man who jokes with his family, but becomes deeply fearful, hesitant, and protective after the consequences of the monkey's paw manifest. He oscillates between shock, guilt, and a desperate, trembling resolve to undo his actions.",
+        "summary": "The paw functions as a sentient, malevolent entity that grants wishes in a way that causes harm, death, and misery. It is associated with 'ill-gotten gains' and drives its owners to madness and terror.",
         "traits": [
-          "hospitable",
-          "credulous",
-          "fearful",
-          "protective",
-          "hesitant",
-          "guilt-ridden"
+          "malevolent",
+          "deceptive",
+          "harmful",
+          "supernatural"
         ],
-        "temperament": "volatile",
-        "emotional_range": "Shifts from cheerful and joking to horrified, shaking, and desperate; experiences deep grief and terror.",
-        "speech_patterns": [
-          "speaks distinctly when making the wish",
-          "voice shakes when terrified",
-          "whispers hoarsely in fear"
-        ]
+        "temperament": "malicious",
+        "emotional_range": "Induces extreme fear, horror, and misery in others; described as causing a 'long loud wail of disappointment and misery'.",
+        "speech_patterns": []
       },
       "voice_guidance": {
-        "suggested_tone": "shifting from warm and conversational to trembling and desperate",
-        "dialect_notes": "Standard English with no specific regional markers noted in the text",
+        "suggested_tale": "ominous, unsettling, silent but felt",
+        "dialect_notes": "None (non-human object)",
         "verbal_tics": [],
-        "formality_level": "informal",
-        "example_quotes": [
-          "I wish for two hundred pounds",
-          "For God's sake don't let it in",
-          "He has been dead ten days, and besides he—I would not tell you else, but—I could only recognize him by his clothing"
-        ]
+        "formality_level": "unknown",
+        "example_quotes": []
       },
       "descriptions": [
         {
-          "text": "The Old Man is a hospitable, credulous, and initially cheerful figure who transforms into a terrified and morally conflicted protector after his wish for money results in his son's death. He demonstrates significant harm by making the fateful wish and subsequently beneficial actions by desperately trying to prevent the return of his mangled son, ultimately choosing to wish him back to death to spare his wife and himself further horror.",
-          "source_position": 1590,
+          "text": "The monkey's paw is a shrivelled, dirty talisman that serves as a malevolent force, granting wishes with catastrophic consequences. It is described as having a simian appearance that evokes horror and is associated with causing 'mischief' and death. The object acts as an antagonist by manipulating the desires of the Whites, leading to their husband's death and a terrifying final encounter.",
+          "source_position": 76,
           "chapter_index": null,
           "confidence": "llm_refined"
         }
@@ -583,62 +607,50 @@
       "relationships": {
         "Mr. White": "associated",
         "Herbert White": "associated",
-        "Mrs. White": "associated",
-        "Sergeant-Major Morris": "associated"
+        "Sergeant-Major Morris": "associated",
+        "Mrs. White": "associated"
       },
       "evidence": [
         {
-          "statement": "He is hospitable and greets guests with haste",
-          "quote": "The old man rose with hospitable haste, and opening the door, was heard condoling with the new arrival.",
-          "position": 1590,
+          "statement": "The paw is described as dirty and shrivelled.",
+          "quote": "the dirty, shrivelled little paw was pitched on the sideboard",
+          "position": 9534,
           "confidence": "high"
         },
         {
-          "statement": "He is credulous and jokes with his family about the paw",
-          "quote": "His father, smiling shamefacedly at his own credulity, held up the talisman, as his son, with a solemn face, somewhat marred by a wink at his mother, sat down at the piano...",
-          "position": 8203,
+          "statement": "The paw causes mischief and is linked to death.",
+          "quote": "It has caused enough mischief already",
+          "position": 5461,
           "confidence": "high"
         },
         {
-          "statement": "He makes the wish for money",
-          "quote": "I wish for two hundred pounds, said the old man distinctly.",
-          "position": 8203,
+          "statement": "The paw is associated with ill-gotten gains.",
+          "quote": "watching you as you pocket your ill-gotten gains",
+          "position": 9534,
           "confidence": "high"
         },
         {
-          "statement": "He is horrified by the result of his wish",
-          "quote": "A fine crash from the piano greeted the words, interrupted by a shuddering cry from the old man.",
-          "position": 8203,
+          "statement": "The paw appears simian and horrible in the fire.",
+          "quote": "The last face was so horrible and so simian that he gazed at it in amazement",
+          "position": 9534,
           "confidence": "high"
         },
         {
-          "statement": "He collapses upon hearing of his son's death",
-          "quote": "Unconscious of his wife's shriek, the old man smiled faintly, put out his hands like a sightless man, and dropped, a senseless heap, to the floor.",
-          "position": 14790,
+          "statement": "The paw grants wishes that result in death.",
+          "quote": "the third was for death. That's how I got the paw",
+          "position": 4783,
           "confidence": "high"
         },
         {
-          "statement": "He attempts to dissuade his wife from wishing his son back, citing the terrible condition of the body",
-          "quote": "He has been dead ten days, and besides he—I would not tell you else, but—I could only recognize him by his clothing. If he was too terrible for you to see then, how now?",
-          "position": 17254,
-          "confidence": "high"
-        },
-        {
-          "statement": "He actively prevents his wife from opening the door to the returning Herbert",
-          "quote": "She ran to the door, but her husband was before her, and catching her by the arm, held her tightly.",
-          "position": 20042,
-          "confidence": "high"
-        },
-        {
-          "statement": "He pleads for the door not to be opened, showing fear of the returned son",
-          "quote": "For God's sake don't let it in, cried the old man, trembling.",
-          "position": 20585,
+          "statement": "The paw's presence causes a wail of misery.",
+          "quote": "a long loud wail of disappointment and misery from his wife",
+          "position": 21521,
           "confidence": "high"
         }
       ],
       "voice_notes": null,
       "first_appearance_chapter": 1,
-      "mention_count": 41,
+      "mention_count": 17,
       "mentions": [],
       "confidence": "high",
       "gender": "male",
@@ -663,11 +675,11 @@
         "...myself,” said the old man, “just to look round a bit, you know.” “Better where you are,” said the sergeant-major, shaking his head. He put down the empty glass, and sighing softly, shook it again. “I should like..."
       ],
       "confidence": "high",
-      "ipa": "/ˈsɜːrdʒənt məˈdʒɔːr/",
-      "phonetic_spelling": "SUR-jent ma-JOR",
+      "ipa": "/ˈsɜːrdʒənt ˈmeɪdʒər/",
+      "phonetic_spelling": "SUR-jent MAY-jer",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on 'SUR' in Sergeant and 'JOR' in Major. 'Sergeant' is pronounced with a long 'u' sound (like 'her' or 'sir') and a 'j' sound for the 'g'. The 'a' in Major is a long 'o' sound."
+      "notes": "Two words with separate stresses. 'Sergeant' has stress on the first syllable, pronounced like 'sur-jent' (rhymes with 'urgent'). 'Major' has stress on the first syllable."
     },
     {
       "word": "Meggins",
@@ -684,10 +696,10 @@
       ],
       "confidence": "medium",
       "ipa": "/ˈmɛɡɪnz/",
-      "phonetic_spelling": "MEG-ins",
+      "phonetic_spelling": "MEG-inz",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. The 'g' is hard as in 'get'. The 's' at the end is voiced 'z' because it follows a vowel sound."
+      "notes": "Stress on the first syllable. The 'e' is a short 'eh' sound. The 's' is voiced as 'z'."
     },
     {
       "word": "unlooked-for",
@@ -702,11 +714,11 @@
         "...Mate,” replied the son. “That’s the worst of living so far out,” bawled Mr. White, with sudden and unlooked-for violence; “of all the beastly, slushy, out-of-the-way places to live in, this is the worst. Pathway..."
       ],
       "confidence": "medium",
-      "ipa": "/ˌʌnˈlʊkt fɔːr/",
+      "ipa": "/ˌʌnˈlʊkt.fɔːr/",
       "phonetic_spelling": "un-LOOKT-for",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Primary stress on 'LOOKT'. The 'for' is pronounced with a short 'o' sound, rhyming with 'door' in non-rhotic accents or 'fore' in rhotic accents."
+      "notes": "Primary stress on 'LOOKT'. The 'u' in 'un' is a short 'uh' sound. The 'for' at the end is pronounced with a standard 'or' sound."
     },
     {
       "word": "condoled",
@@ -725,7 +737,7 @@
       "phonetic_spelling": "kun-DOHLD",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the second syllable. The 'o' is a long 'o' sound as in 'go'. The 'd' at the end is voiced."
+      "notes": "Stress on the second syllable. The 'o' is a long 'oh' sound. The 'd' at the end is fully pronounced."
     },
     {
       "word": "rubicund",
@@ -740,11 +752,11 @@
         "...and coughed gently as her husband entered the room, followed by a tall, burly man, beady of eye and rubicund of visage. “Sergeant-Major Morris,” he said, introducing him. The sergeant-major shook hands, and..."
       ],
       "confidence": "medium",
-      "ipa": "/ˈruːbɪkʌnd/",
-      "phonetic_spelling": "ROO-bik-und",
+      "ipa": "/ˈruːbɪkənd/",
+      "phonetic_spelling": "ROO-bik-and",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. The 'u' is a long 'oo' sound. The 'c' is hard like 'k'."
+      "notes": "Stress on the first syllable. The 'u' is a long 'oo' sound as in 'ruler'. The 'i' is a short 'ih' sound."
     },
     {
       "word": "fakirs",
@@ -763,7 +775,7 @@
       "phonetic_spelling": "FAHK-irz",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. The 'a' is a broad 'ah' sound. The 's' at the end is voiced 'z' because it follows a voiced sound."
+      "notes": "Stress on the first syllable. The 'a' is a long 'ah' sound. The 's' is voiced as 'z' because it follows a vowel sound."
     },
     {
       "word": "fakir",
@@ -782,7 +794,7 @@
       "phonetic_spelling": "FAHK-ir",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. The 'a' is a broad 'ah' sound. The 'r' at the end is pronounced in rhotic accents."
+      "notes": "Stress on the first syllable. The 'a' is a long 'ah' sound. The 'r' is clearly pronounced at the end."
     },
     {
       "word": "antimacassar",
@@ -798,10 +810,10 @@
       ],
       "confidence": "medium",
       "ipa": "/ˌæntiˈmækəsɑːr/",
-      "phonetic_spelling": "an-ti-MAC-uh-sar",
+      "phonetic_spelling": "an-ti-MACK-uh-sar",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Primary stress on 'MAC', secondary stress on 'an'. The 'a' in 'ant' is short 'a' as in 'cat'. The final 'ar' sounds like 'ar' in 'car'."
+      "notes": "Stress on the third syllable 'MACK'. The first syllable is a short 'a' as in 'cat'. The 'a' in the final syllable is a long 'ah' sound."
     },
     {
       "word": "shamefacedly",
@@ -817,10 +829,10 @@
       ],
       "confidence": "medium",
       "ipa": "/ˈʃeɪmfeɪstli/",
-      "phonetic_spelling": "SHAYM-fayst-lee",
+      "phonetic_spelling": "SHAYM-FAYST-lee",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. 'Shame' rhymes with 'name'. 'Faced' is pronounced with a long 'a' sound. 'Ly' is a short 'ee' sound."
+      "notes": "Stress on the first syllable. 'Shame' and 'faced' are pronounced distinctly. The 'ly' ending is a quick 'lee' sound."
     },
     {
       "word": "avaricious",
@@ -839,7 +851,7 @@
       "phonetic_spelling": "av-uh-RISH-us",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the third syllable. The 'v' is voiced. The 'c' is soft, sounding like 'sh'. The final 's' is unvoiced 's'."
+      "notes": "Stress on the third syllable 'RISH'. The first 'a' is short 'a' as in 'cat'. The 'i' is a short 'ih' sound."
     },
     {
       "word": "bibulous",
@@ -858,7 +870,7 @@
       "phonetic_spelling": "BIB-yuh-lus",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress on the first syllable. The 'i' is short 'i' as in 'bit'. The 'u' in the second syllable is a schwa sound (uh)."
+      "notes": "Stress on the first syllable. The 'i' is a short 'ih' sound. The 'u' is a schwa sound (uh)."
     },
     {
       "word": "live",
@@ -928,12 +940,11 @@
       "description": "This book contains 3 chapters. Chapters have descriptive titles."
     },
     "plot_summary": {
-      "plot_summary": "On a cold, wet night at Laburnam Villa, Mr. White, his son Herbert, and Mrs. White play chess until they are visited by Sergeant-Major Morris, a traveler who reveals a dried monkey's paw capable of granting three wishes. Morris warns that fate rules lives and interference brings sorrow, and although he attempts to destroy the talisman, Mr. White rescues it from the fire. Pressed by Herbert to wish for two hundred pounds to clear the house's debt, Mr. White makes the wish aloud as the paw twists like a snake, causing him to cry out while Herbert dismisses the movement as fancy despite seeing a simian face in the dying fire.\n\nThe lighthearted atmosphere of the next morning shatters when a stranger from the firm Maw and Meggins arrives to deliver news that Herbert has been caught in machinery and is dead. The visitor informs the grieving parents that the firm disclaims all liability but offers a compensation sum of exactly two hundred pounds, matching the earlier wish. Upon hearing the specific amount, Mrs. White lets out a shriek while Mr. White collapses into a senseless heap on the floor, overwhelmed by the horror of their son's death and the supernatural connection to the compensation.\n\nIn a shadowy house, the grieving parents are awakened by Mrs. White's desperate realization that they can use the remaining two wishes to bring Herbert back to life. Despite Mr. White's horror that the son's body was too mutilated to recognize, he retrieves the talisman and, under his wife's frantic urging, wishes for Herbert's resurrection, feeling immediate relief when the candle extinguishes. A quiet knock at the front door prompts the woman to believe Herbert has returned, but the old man, terrified of what might enter, frantically searches for the paw while his wife struggles to unbolt the door. As the knocking intensifies, the old man finds the talisman and breathes his third wish, causing the noise to cease instantly before the woman discovers the street outside is quiet and deserted.",
+      "plot_summary": "On a stormy night at Laburnam Villa, Mr. and Mrs. White and their son Herbert are visited by Sergeant-Major Morris, who brings a cursed monkey's paw capable of granting three wishes but bringing sorrow. Despite Morris's desperate warnings and attempt to destroy it, Mr. White insists on keeping the talisman. When Herbert jokingly suggests wishing for two hundred pounds, Mr. White makes the wish, causing the paw to twist violently in his hand like a snake while a horrible simian face appears in the dying fire.\n\nThe following morning, the family dismisses the supernatural events until a stranger from Herbert's firm arrives to deliver tragic news. Herbert has been killed in a machinery accident, and the firm offers two hundred pounds as compensation for his services. As the horrific truth dawns on Mrs. White, Mr. White smiles faintly at the precise sum before collapsing senseless, leaving his wife shrieking in grief.\n\nAfter burying their son, the grieving wife demands the paw to bring Herbert back to life, forcing a terrified Mr. White to retrieve the talisman and make the second wish despite warnings of his son's mutilated state. A stealthy knock at the door convinces the wife that Herbert has returned, prompting her to struggle toward the entrance while her husband frantically searches for the paw to make a final wish. He breathes the third wish just as the door opens, causing the knocking to cease instantly and leaving only a cold wind and his wife's long wail of disappointment.",
       "themes": [
         "fate",
-        "consequences",
         "grief",
-        "greed"
+        "consequences"
       ],
       "narrative_style": "third-person omniscient"
     },
@@ -961,31 +972,31 @@
     },
     "timing": {
       "Chapter Detection": {
-        "duration_seconds": 34.53,
-        "duration_formatted": "34.5s"
+        "duration_seconds": 31.84,
+        "duration_formatted": "31.8s"
       },
       "Chapter Summaries": {
-        "duration_seconds": 98.15,
-        "duration_formatted": "1m 38s"
+        "duration_seconds": 95.92,
+        "duration_formatted": "1m 36s"
       },
       "Character Extraction": {
-        "duration_seconds": 1367.73,
-        "duration_formatted": "22m 48s"
+        "duration_seconds": 210.05,
+        "duration_formatted": "3m 30s"
       },
       "Character Profiles": {
-        "duration_seconds": 604.87,
-        "duration_formatted": "10m 5s"
+        "duration_seconds": 591.23,
+        "duration_formatted": "9m 51s"
       },
       "Pronunciation Guide": {
-        "duration_seconds": 29.81,
-        "duration_formatted": "29.8s"
+        "duration_seconds": 28.65,
+        "duration_formatted": "28.6s"
       },
       "total": {
-        "duration_seconds": 2289.47,
-        "duration_formatted": "38m 9s"
+        "duration_seconds": 1112.07,
+        "duration_formatted": "18m 32s"
       },
-      "started_at": "2026-03-03 15:47:12",
-      "ended_at": "2026-03-03 16:25:21"
+      "started_at": "2026-03-03 16:38:05",
+      "ended_at": "2026-03-03 16:56:37"
     }
   },
   "consensus_log": null,
@@ -998,23 +1009,23 @@
   ],
   "low_confidence_items": [],
   "_analysis_metadata": {
-    "analyzed_at": "2026-03-03T16:27:13.661361",
+    "analyzed_at": "2026-03-03T16:58:48.955511",
     "analyzer_version": "0.2.0",
     "pipeline": "multi-agent",
     "llm_model": "none",
     "llm_provider": "ollama",
-    "analysis_duration_seconds": 2401.4
+    "analysis_duration_seconds": 1243.6
   },
   "_profiling": {
     "stages": [
       {
         "name": "Chapter Detection",
-        "duration_seconds": 34.53,
+        "duration_seconds": 31.84,
         "llm_calls": 8,
         "tokens_prompt": 12418,
-        "tokens_completion": 1212,
-        "tokens_total": 13630,
-        "avg_latency_ms": 4314.55,
+        "tokens_completion": 1087,
+        "tokens_total": 13505,
+        "avg_latency_ms": 3978.34,
         "items_processed": 3,
         "high_confidence": 3,
         "medium_confidence": 0,
@@ -1026,12 +1037,12 @@
       },
       {
         "name": "Chapter Summaries",
-        "duration_seconds": 98.15,
+        "duration_seconds": 95.92,
         "llm_calls": 3,
         "tokens_prompt": 8261,
-        "tokens_completion": 1375,
-        "tokens_total": 9636,
-        "avg_latency_ms": 32713.49,
+        "tokens_completion": 1334,
+        "tokens_total": 9595,
+        "avg_latency_ms": 31970.38,
         "items_processed": 3,
         "high_confidence": 3,
         "medium_confidence": 0,
@@ -1043,12 +1054,12 @@
       },
       {
         "name": "Character Extraction",
-        "duration_seconds": 1367.73,
-        "llm_calls": 11,
-        "tokens_prompt": 12641,
-        "tokens_completion": 2898,
-        "tokens_total": 15539,
-        "avg_latency_ms": 15119.39,
+        "duration_seconds": 210.05,
+        "llm_calls": 10,
+        "tokens_prompt": 11271,
+        "tokens_completion": 3830,
+        "tokens_total": 15101,
+        "avg_latency_ms": 20860.0,
         "items_processed": 5,
         "high_confidence": 5,
         "medium_confidence": 0,
@@ -1056,16 +1067,16 @@
         "model_used": "qwen3.5:122b-a10b",
         "provider_used": "ollama",
         "llm_retries": 0,
-        "json_parse_failures": 0
+        "json_parse_failures": 1
       },
       {
         "name": "Character Profiles",
-        "duration_seconds": 604.87,
-        "llm_calls": 15,
-        "tokens_prompt": 32210,
-        "tokens_completion": 11068,
-        "tokens_total": 43278,
-        "avg_latency_ms": 40323.27,
+        "duration_seconds": 591.23,
+        "llm_calls": 16,
+        "tokens_prompt": 32537,
+        "tokens_completion": 10771,
+        "tokens_total": 43308,
+        "avg_latency_ms": 36951.14,
         "items_processed": 5,
         "high_confidence": 5,
         "medium_confidence": 0,
@@ -1073,16 +1084,16 @@
         "model_used": "qwen3.5:122b-a10b",
         "provider_used": "ollama",
         "llm_retries": 0,
-        "json_parse_failures": 0
+        "json_parse_failures": 1
       },
       {
         "name": "Pronunciation Guide",
-        "duration_seconds": 29.81,
+        "duration_seconds": 28.65,
         "llm_calls": 1,
         "tokens_prompt": 604,
-        "tokens_completion": 1172,
-        "tokens_total": 1776,
-        "avg_latency_ms": 29301.69,
+        "tokens_completion": 1130,
+        "tokens_total": 1734,
+        "avg_latency_ms": 28121.79,
         "items_processed": 14,
         "high_confidence": 4,
         "medium_confidence": 10,
@@ -1094,18 +1105,18 @@
       }
     ],
     "totals": {
-      "duration_seconds": 2401.42,
+      "duration_seconds": 1243.59,
       "llm_calls": 38,
-      "tokens": 83859
+      "tokens": 83243
     },
     "bottleneck": [
-      "Character Extraction",
-      56.95485884562183
+      "Character Profiles",
+      47.54256946958455
     ],
     "quality_concerns": [],
     "timestamps": {
-      "started": "2026-03-03 15:47:12",
-      "ended": "2026-03-03 16:27:13"
+      "started": "2026-03-03 16:38:05",
+      "ended": "2026-03-03 16:58:48"
     }
   },
   "_config": {
