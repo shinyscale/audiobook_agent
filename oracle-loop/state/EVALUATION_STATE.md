@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -21,7 +21,7 @@
 - Chapter Summaries: 9.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 8.43/10** (reference only)
+- **Overall: 8.45/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (1 category below threshold: Character Profiles)
@@ -30,7 +30,8 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1       | 8.68  | —                   | Profiles fail: "cousin" relationship becomes "associated" in output |
-| 2       | 8.43  | -0.25               | Profiles fail: attempt 2 fix (narrator co-mention guard) applied; relationship STILL "associated" — fix may have prevented "acquaintance" path but another path or LLM output produces "associated" |
+| 2       | 8.43  | -0.25               | Profiles fail: narrator co-mention guard applied; relationship STILL "associated" |
+| 3       | 8.45  | -0.23               | Profiles fail: extract_relationships_from_evidence() upgraded but fix misses because evidence statement with "cousin" doesn't name Berenice |
 
 ## Current Issues (Priority Order)
 
@@ -39,38 +40,42 @@
 
 ### HIGH
 1. **Egaeus↔Berenice relationship is "associated" instead of "cousin"** [Profiles]
-   - **ATTEMPT 3 FIX APPLIED** — awaiting re-analysis to verify
-   - Root cause (confirmed): LLM profiler generates `{"Berenice": "associated"}` as relationship type. `extract_relationships_from_evidence()` then SKIPS Berenice because it was already in rels (even with a generic label). The evidence statement "Egaeus describes his relationship with Berenice as cousins growing up together" was never processed. `verify_relationships_from_text()` can't help because Egaeus (narrator) is barely mentioned by name in raw text.
-   - Fix: Two targeted changes to `extract_relationships_from_evidence()`:
-     1. Changed skip condition from `if other_name in rels: continue` to only skip when the existing label is non-generic (specific labels like "cousin", "friend" are kept; generic labels like "associated", "acquaintance" are re-processed)
-     2. Added FAMILY_TERMS detection in `_infer_rel()` before the "associated" fallback — now returns the specific kinship term when found in evidence text (plural-aware: matches "cousins" → returns "cousin")
-   - Smoke test: PASS — "Egaeus describes his relationship with Berenice as cousins growing up together" now returns "cousin"; "He attended a concert with songs and music" returns "associated" (no false positive for "son"+"g")
-   - Modified: `src/pipeline/character_profiling/post_corrections.py`
+   - **WHY ATTEMPT 3 FIX FAILED:** `extract_relationships_from_evidence()` scans each `evidence` statement for co-mentions of other characters + relationship keywords. But the evidence statement containing "cousin" is:
+     > "Egaeus describes himself as reclusive and meditative, contrasting with **his cousin**."
+     This does NOT name "Berenice" — it just says "his cousin." So the regex `\bBerenice\b` never matches this statement.
+   - The evidence statements that DO mention "Berenice" are:
+     > "Egaeus becomes obsessed with Berenice's teeth..." → no family term → "associated"
+     > "Egaeus is informed of Berenice's death by a servant." → no family term → "associated"
+   - **WHERE THE DATA ACTUALLY IS:** The `descriptions` field for Egaeus contains:
+     > "He contrasts his gloomy, meditative existence with the vibrant life of **his cousin Berenice**"
+     This has BOTH "cousin" AND "Berenice" in the same text. But `extract_relationships_from_evidence()` only scans `char.evidence`, NOT `char.descriptions`.
+   - **FIX:** Extend `extract_relationships_from_evidence()` to ALSO scan the `descriptions` field. Each description is a dict with a `text` key. Process them the same way as evidence statements — check for other character names and infer relationship type.
+   - Location: `src/pipeline/character_profiling/post_corrections.py:extract_relationships_from_evidence()` line ~836
+   - The description scanning loop should be added after the evidence scanning loop (lines 845-874), processing `getattr(char, 'descriptions', None) or []` and using `desc.get('text', '')` as the statement text.
 
 ### MEDIUM
-2. **"The Servant Maiden" falsely merged as alias of "The Teeth"** [Characters — Identity Resolution]
-   - Problem: "The Servant Maiden" and "a servant maiden" are listed as aliases of "The Teeth" (the symbolic obsession object). These are completely different — the servant maiden is a person who announces Berenice's death; the teeth are physical objects of obsession.
-   - Evidence: In the text, the servant maiden appears "all in tears" to announce the death; "The Teeth" refers to Berenice's teeth that Egaeus obsessively fixates on and ultimately extracts.
+2. **"The Disfigured Body" falsely merged as alias of "The Teeth"** [Characters — Identity Resolution]
+   - Problem: "The Disfigured Body" and "a disfigured body" are listed as aliases of "The Teeth". In the story, the disfigured body is Berenice herself (found alive in the violated grave), NOT the teeth. The teeth are the 32 white objects found in the box.
+   - Evidence: Summary says "a violated grave containing a disfigured body that is still breathing and alive" — this is Berenice, not the teeth.
    - Location: `src/pipeline/character_extraction_v2/` — alias grouping during extraction
    - Fix: Low priority — doesn't block the 8.0 threshold on profiles.
 
 3. **Some common English words flagged as pronunciations** [Pronunciation]
-   - Problem: "light-heartedness", "shrubberies", "refracted", "sentient" are standard English vocabulary — false positives.
-   - Evidence: These words are commonly known and wouldn't trip up a narrator.
+   - Problem: "light-heartedness", "shrubberies", "refracted", "sentient", "emaciation", "unloveliness" are standard English vocabulary — false positives.
    - Location: `src/pipeline/pronunciation/cmu_proposer.py` — COMMON_WORDS_WHITELIST
    - Fix: Add these words to the whitelist. Low priority — score is 8/10 already.
 
 ### LOW
 4. **Ebn Zaiat has "associated" relationship with The Teeth** [Profiles]
-   - Problem: Ebn Zaiat is a poet quoted in the epigraph. He has no in-story connection to The Teeth or any other character.
-   - Not blocking — dominated by the main Egaeus↔Berenice issue.
+   - Problem: Ebn Zaiat is a poet quoted in the epigraph. He has no in-story connection to The Teeth.
+   - Not blocking.
 
-5. **Null chapter title for single-section text** [Structure]
-   - Problem: The single structure element has `title: null`. Labeling it "Berenice" would be more informative.
+5. **Null chapter titles for single-section text** [Structure]
+   - Problem: Both structure elements have `title: null`. Labeling them would be more informative.
    - Not blocking — score is 9/10.
 
 6. **Egaeus has no physical_description** [Profiles]
-   - Problem: As first-person narrator, Egaeus doesn't describe his own appearance much. The text does mention he's sickly, melancholic, and lives in gloom — but `physical_description` is null.
+   - Problem: As first-person narrator, sparse self-description. Text does mention he's sickly and melancholic.
    - Partially excusable for 1st-person narration. Not blocking on its own.
 
 ## Fix History
@@ -84,8 +89,7 @@
   - Modified: src/pipeline/character_profiling/post_corrections.py
 - Attempt 3: Fix `extract_relationships_from_evidence()` to process generic labels AND detect family terms
   - Root cause: `post_corrections.py:extract_relationships_from_evidence():line 848` — skip condition `if other_name in rels: continue` prevented upgrade from "associated" to "cousin"; `_infer_rel()` had no FAMILY_TERMS detection so returned "associated" even when evidence contained kinship words
-  - Result: pending re-analysis
-  - Smoke test: PASS
+  - Result: **DID NOT FIX** — the FAMILY_TERMS detection logic is correct, but the evidence statement containing "cousin" does NOT name "Berenice" (it says "his cousin" without the name). The statements that DO name Berenice don't contain "cousin". The `descriptions` field has "his cousin Berenice" but isn't scanned.
   - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
@@ -94,16 +98,23 @@
 |---------|-------|----------------|--------|
 | 1 | Profiles: cousin blocked by _SYMMETRIC_RELATIONSHIPS | post_corrections.py | Fixed but insufficient — different downgrade path active |
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Changed "acquaintance" to "associated" — NOT fixed, different label but still wrong |
-| 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | Pending re-analysis |
+| 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | NOT fixed — evidence stmt with "cousin" lacks "Berenice"; descriptions field (which has both) not scanned |
 
 ## Pipeline Notes (Attempt 3 — current output)
-- Analysis completed in 19m 4s
-- 4 characters found: Egaeus (1 mention), Berenice (14 mentions), The Teeth (aka The Disfigured Body, a disfigured body) (7 mentions), Ebn Zaiat (2 mentions)
-- 44 pronunciation flags (26 unknown, 13 proper noun, 5 foreign)
-- Narrator detection: "Egaeus has only 1 mention(s) — too few to be a narrator; skipping narrator assignment" — narrator NOT confirmed this run (regression?)
-- Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries=qwen3.5:122b-a10b
-- Servant Maiden issue partially changed: now separate from The Teeth (blocked aliases); "The Disfigured Body" still appears as alias for The Teeth
-- Fix applied: extract_relationships_from_evidence() upgraded to re-process generic labels and detect FAMILY_TERMS — awaiting evaluation to see if "cousin" now appears
+- Analysis completed in ~10m
+- 4 characters found: Egaeus (1 mention), Berenice (14 mentions), The Teeth (7 mentions), Ebn Zaiat (2 mentions)
+- 44 pronunciation flags (all with IPA)
+- Narrator detection: Egaeus marked is_narrator=True
+- Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries/profiles=qwen3.5:122b-a10b
+- "The Disfigured Body" still appears as alias for The Teeth (incorrect but not blocking)
+- `extract_relationships_from_evidence()` correctly upgraded to re-process generic labels and detect FAMILY_TERMS — but the data mismatch prevents it from working (cousin mentioned without Berenice's name in same statement)
+
+## Configuration Audit
+- Models: Appropriate (larger 122b for character/profile, smaller 35b for structure/pronunciation)
+- Context lengths: 32768 — sufficient for short story
+- Temperature: 0.7 across the board — reasonable
+- No LLM retries or parse failures
+- All confidence=high for characters and profiles
 
 ## Next Action
-Evaluate attempt 3 output — verify if "cousin" relationship now appears for Egaeus↔Berenice
+Run PROMPT_fix.md — extend `extract_relationships_from_evidence()` to also scan the `descriptions` field where "his cousin Berenice" appears with both the family term and the character name in the same text.
