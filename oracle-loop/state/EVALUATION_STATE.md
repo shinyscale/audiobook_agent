@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -12,19 +12,18 @@
 - JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 4/10 ✗
-  - Completeness: 5/10
-  - Identity Resolution: 3/10 ← catastrophic false merge persists
-  - Alias Grouping: 3/10
-- Character Profiles: 5.5/10 ✗
-- Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 8.5/10 ✓
-- **Overall: 7.0/10** (reference only)
+(Awaiting evaluation for attempt 13)
 
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (Character Extraction 4/10, Character Profiles 5.5/10)
+## Pipeline Notes (Attempt 13)
+- Analysis completed in 16m 45s (24 LLM calls, 39,135 tokens)
+- 4 characters found during extraction; 2 in final output
+- Final 2 characters: Prince Prospero (aka Prospero, 6 mentions), the Red Death (aka "the crowd", 10 mentions)
+- **The Ebony Clock is MISSING** from the output — the artifact `is_symbolic` fix may have caused the Clock to be merged or filtered
+- **The Red Death is now a STANDALONE character** (not merged into Clock) — fix partially worked
+- "the Red Death" has wrong alias "the crowd" — needs investigation
+- BLOCKED aliases show "the masked figure" trying to claim aliases already owned by another character
+- BLOCKED alias: "the masked figure" (core noun 'figure') is semantically unrelated to symbolic 'the Red Death' (core noun 'death')
+- LLM identity detection failed: None
 
 ## Pipeline Notes (Attempt 12)
 - Analysis completed in 18m 0s (28 LLM calls, 44,921 tokens)
