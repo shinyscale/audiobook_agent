@@ -64,6 +64,53 @@ STANDARD_DIMINUTIVES: dict[str, str] = {
     "freddy": "frederick",
 }
 
+# Common English nicknames mapped to their standard formal first names.
+# Used to recognize when a supporting character with a multi-word formal name
+# (e.g., "James Dillingham Young") is the same person as a main cast character
+# identified only by nickname (e.g., "Jim").
+# Only clear, widely-used nickname↔formal pairings are included.
+# This is a RECOGNITION lexicon, not a rejection list.
+NICKNAME_TO_FORMAL: dict[str, str] = {
+    "jim": "james",
+    "jimmy": "james",
+    "bill": "william",
+    "billy": "william",
+    "bob": "robert",
+    "dick": "richard",
+    "rick": "richard",
+    "rich": "richard",
+    "tom": "thomas",
+    "tommy": "thomas",
+    "jack": "john",
+    "harry": "henry",
+    "ned": "edward",
+    "ted": "edward",
+    "betty": "elizabeth",
+    "bess": "elizabeth",
+    "liz": "elizabeth",
+    "kate": "catherine",
+    "kit": "christopher",
+    "molly": "mary",
+    "meg": "margaret",
+    "peggy": "margaret",
+    "sue": "susan",
+    "joe": "joseph",
+    "joey": "joseph",
+    "mike": "michael",
+    "andy": "andrew",
+    "nick": "nicholas",
+    "chris": "christopher",
+    "sal": "sarah",
+    "bart": "bartholomew",
+    "gus": "augustus",
+}
+
+# Reverse mapping: formal first name → list of known nicknames.
+# Computed once from NICKNAME_TO_FORMAL for efficient lookup.
+_FORMAL_TO_NICKNAMES: dict[str, list[str]] = {}
+for _nick, _formal in NICKNAME_TO_FORMAL.items():
+    _FORMAL_TO_NICKNAMES.setdefault(_formal, []).append(_nick)
+
 
 class CharacterAgent(Agent):
     """
@@ -697,6 +744,36 @@ class CharacterAgent(Agent):
                         f"Narrator-merged character '{char.canonical_name}' now has "
                         f"{char.mention_count} total mentions (including placeholder)"
                     )
+
+        # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.
+        # Example: main "Jim" (26 mentions) + supporting "James Dillingham Young" (3 mentions)
+        # → "James" is the formal name of nickname "Jim" → merge as alias.
+        logger.info("V2 Step 5.5a: Merging formal-name supporting characters into main cast nicknames")
+        main_cast, supporting_cast, formal_aliases_added = self._merge_formal_name_aliases(
+            main_cast, supporting_cast
+        )
+
+        # Re-search mentions for characters that gained aliases via formal-name merge
+        if formal_aliases_added:
+            logger.info(
+                f"V2 Step 5.5a: Re-searching mentions for {len(formal_aliases_added)} "
+                f"character(s) with new formal-name aliases"
+            )
+            for char_id in formal_aliases_added:
+                char = next((c for c in main_cast if c.id == char_id), None)
+                if char:
+                    result = searcher.search_character(char)
+                    char.mention_count = result.total_mentions
+                    char.mentions = result.mentions
+                    mention_results[char.id] = result
+                    if result.chapter_distribution:
+                        chapters = sorted(result.chapter_distribution.keys())
+                        char.first_appearance_chapter = chapters[0]
+
+        logger.info(
+            f"V2 Step 5.5a complete: {len(main_cast)} main cast, "
+            f"{len(supporting_cast)} supporting after formal-name merge"
+        )
 
         # STEP 5.5: Merge last-name-only supporting characters as aliases
         main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
@@ -2885,6 +2962,91 @@ class CharacterAgent(Agent):
 
         return final_main_cast, chars_with_new_aliases
 
+    def _merge_formal_name_aliases(
+        self,
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], list[Character], set[str]]:
+        """
+        Merge multi-word supporting formal names into single-word main cast nicknames.
+
+        Pattern: main cast "Jim" (single-word, many mentions) +
+                 supporting "James Dillingham Young" (multi-word, few mentions)
+                 → "James" is the formal first name of "Jim" via NICKNAME_TO_FORMAL
+                 → merge "James Dillingham Young" as alias of "Jim"
+
+        Safeguards:
+        - Main cast character must be a single-word canonical (the nickname form)
+        - Supporting must be multi-word (the formal name form)
+        - First name of supporting must be the formal version of main cast name
+        - Main cast must have ≥ 4x more mentions (the supporting ref is a rare formal citation)
+        - Exactly one main cast character must match (no ambiguity)
+
+        Returns:
+            Tuple of (updated_main_cast, updated_supporting_cast, char_ids_with_new_aliases)
+        """
+        supporting_to_remove: set[int] = set()
+        chars_with_new_aliases: set[str] = set()
+
+        for supp_idx, supp_char in enumerate(supporting_cast):
+            supp_name = supp_char.canonical_name.strip()
+
+            # Only handle multi-word supporting names
+            if not supp_name or " " not in supp_name:
+                continue
+
+            supp_parts = supp_name.split()
+            supp_first = supp_parts[0].lower().strip(".,;:")
+
+            # Only proceed if the first name is a known formal name in our table
+            if supp_first not in _FORMAL_TO_NICKNAMES:
+                continue
+
+            matching_nicknames = _FORMAL_TO_NICKNAMES[supp_first]
+
+            # Find main cast characters whose single-word canonical is a nickname for supp_first
+            matches: list[int] = []
+            for main_idx, main_char in enumerate(main_cast):
+                main_parts = main_char.canonical_name.strip().split()
+                if len(main_parts) != 1:
+                    continue  # Only single-word main cast canonicals (the nickname form)
+                main_name = main_parts[0].lower().strip(".,;:")
+                if main_name in matching_nicknames:
+                    matches.append(main_idx)
+
+            # Require exactly one match to avoid ambiguity
+            if len(matches) != 1:
+                continue
+
+            main_idx = matches[0]
+            main_char = main_cast[main_idx]
+
+            # Safeguard: main must have significantly more mentions.
+            # The supporting character is a rare formal reference, not a distinct person.
+            # Allow merge if supporting has 0 mentions (grounding corner case) or
+            # main has ≥ 4x more mentions than supporting.
+            if supp_char.mention_count > 0 and main_char.mention_count < 4 * supp_char.mention_count:
+                continue
+
+            # Merge: add supporting formal name as alias of main
+            if supp_name not in main_char.aliases:
+                logger.info(
+                    f"V2 Step 5.5a: Merging formal-name supporting '{supp_name}' "
+                    f"({supp_char.mention_count} mentions) → "
+                    f"'{main_char.canonical_name}' ({main_char.mention_count} mentions) "
+                    f"as alias (nickname→formal: '{main_char.canonical_name}' → '{supp_first}')"
+                )
+                main_char.aliases.append(supp_name)
+                chars_with_new_aliases.add(main_char.id)
+
+            supporting_to_remove.add(supp_idx)
+
+        updated_supporting = [
+            char for idx, char in enumerate(supporting_cast) if idx not in supporting_to_remove
+        ]
+
+        return main_cast, updated_supporting, chars_with_new_aliases
+
     def _merge_lastname_aliases(
         self,
         main_cast: list[Character],
@@ -3053,6 +3215,17 @@ class CharacterAgent(Agent):
                     main_firstname = main_name_parts[0].strip(".,;:")
                     if supp_name.lower() == main_firstname.lower():
                         matches.append((main_idx, "exact_firstname"))
+                        continue
+
+                # Check alias component match: supp_name is a word inside a confirmed alias.
+                # Example: "Dillingham" is a middle-name component of alias "James Dillingham Young".
+                # This only works after _merge_formal_name_aliases has added the formal name as
+                # an alias (Step 5.5a), so the alias is available here.
+                for alias in main_char.aliases:
+                    alias_words = [w.strip(".,;:") for w in alias.lower().split()]
+                    if supp_name.lower() in alias_words:
+                        matches.append((main_idx, "alias_component"))
+                        break
 
             # Handle merging based on match count
             if len(matches) == 1:

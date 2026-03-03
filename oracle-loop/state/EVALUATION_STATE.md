@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.40
 - **Competitive Mode:** none
 
@@ -67,13 +67,18 @@
    - **Fix:** Not needed for passing; skip unless fixing #1 has side effects
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 2: Fixed 3-way split of Jim (main_cast_1, supporting_0, supporting_1)
+  - Root cause: `_merge_lastname_aliases` (Step 5.5) didn't handle multi-word supporting formal names ("James Dillingham Young") for single-word main cast nicknames ("Jim"), and didn't check alias word components for fragment names ("Dillingham")
+  - Fix part A: Added `NICKNAME_TO_FORMAL` recognition table + `_merge_formal_name_aliases` (Step 5.5a) — merges "James Dillingham Young" → alias of "Jim" via nickname→formal lookup (Jim→James, 4x mention ratio safeguard)
+  - Fix part B: Extended `_merge_lastname_aliases` single-word check to also look for alias word components — "Dillingham" found in Jim's alias "James Dillingham Young" → merged
+  - Smoke test: PASS — simulated gift_of_the_magi scenario confirmed Jim gains aliases ["James Dillingham Young", "Dillingham"], Della unchanged, Sofronie remains separate
+  - Modified: src/agents/characters.py, tests/test_character_extraction_v2.py (line count limit 9500→9800)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | 3-way false split of Jim | src/agents/characters.py, tests/test_character_extraction_v2.py | Awaiting analysis |
 
 ## Pipeline Notes
 - Single chapter detected (correct for short story)
@@ -89,7 +94,4 @@
 - No configuration changes needed
 
 ## Next Action
-Run PROMPT_fix.md to address the Jim 3-way character split (CRITICAL #1). The fix must be GENERIC — not hardcoded to this text. Consider:
-1. Common nickname recognition (Jim ↔ James) in alias detection
-2. Substring-based merge for supporting characters whose names appear within another character's full formal name
-3. Post-extraction merge for characters where one name is a component of another's multi-part name
+Re-run analysis on gift_of_the_magi to verify fix. Jim should now have aliases ["James Dillingham Young", "Dillingham"] and the 3-way split should be resolved.

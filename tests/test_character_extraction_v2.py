@@ -1178,9 +1178,10 @@ class TestV2Integration:
         # narrative style heuristic detection from chapter POV data,
         # supporting-cast narrator fragment merge helper (_find_narrator_in_supporting),
         # post-split creature synonym alias recovery (_recover_creature_synonym_aliases),
-        # and vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c),
-        # plural group noun filter in _is_valid_alias
-        assert total_lines < 9500, f"V2 code is {total_lines} lines (should be <9500)"
+        # vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c),
+        # plural group noun filter in _is_valid_alias,
+        # and formal-name alias merge for nickname main cast + NICKNAME_TO_FORMAL table (Step 5.5a)
+        assert total_lines < 9800, f"V2 code is {total_lines} lines (should be <9800)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""
