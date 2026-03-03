@@ -123,7 +123,7 @@ class CharacterAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
-        min_grounding_mentions: int = 1,
+        min_grounding_mentions: int = 3,
         competitive_config: Optional[CompetitiveConfig] = None,
     ):
         self.llm = llm_client

@@ -1616,14 +1616,27 @@ class MainCastExtractor:
 
         logger.info("Running competitive alias verification")
 
-        # Create a summary context for the LLM.
-        # Use ALL chapter summaries (not just the first 5) so characters introduced
-        # in later chapters have context for accurate alias voting. Sampling only the
-        # first few chapters causes false rejections for characters appearing mid-book
-        # and false acceptances when the LLM lacks enough context to distinguish them.
-        all_summaries = "\n".join(chapter_summaries)
-        if len(all_summaries) > 10000:
-            all_summaries = all_summaries[:10000] + "..."
+        # Create a summary context for the LLM - adaptive to text length.
+        # Short texts (<=5 chapters): use all summaries for complete context.
+        # Long texts: sample first 3 + last 2 + evenly-spaced middle chapters
+        # to capture both early introductions and late-appearing aliases (e.g.,
+        # Frankenstein Creature aliases) without overwhelming short stories.
+        n_chapters = len(chapter_summaries)
+        if n_chapters <= 5:
+            selected = chapter_summaries
+        else:
+            # First 3 + last 2 + evenly-spaced middle chapters
+            middle_indices = list(range(3, n_chapters - 2))
+            # Pick up to 3 evenly-spaced middle chapters
+            if len(middle_indices) <= 3:
+                mid_selected = [chapter_summaries[i] for i in middle_indices]
+            else:
+                step = len(middle_indices) / 3
+                mid_selected = [chapter_summaries[middle_indices[int(i * step)]] for i in range(3)]
+            selected = chapter_summaries[:3] + mid_selected + chapter_summaries[-2:]
+        all_summaries = "\n".join(selected)
+        if len(all_summaries) > 6000:
+            all_summaries = all_summaries[:6000] + "..."
 
         verified_profiles = []
 
