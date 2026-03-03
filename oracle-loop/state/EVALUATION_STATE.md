@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gift_of_the_magi
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.40
 - **Competitive Mode:** none
 
@@ -80,12 +80,15 @@
 |---------|-------|----------------|--------|
 | 2 | 3-way false split of Jim | src/agents/characters.py, tests/test_character_extraction_v2.py | Awaiting analysis |
 
-## Pipeline Notes
+## Pipeline Notes (Attempt 2)
 - Single chapter detected (correct for short story)
 - No narrator detected (correct for third-person narration)
 - No LLM retries or parse errors
-- 9 pronunciation entries, all with IPA
-- Profiling ran cleanly (5 stages, 0 retries)
+- 9 pronunciation entries
+- Profiling ran cleanly (4 profiles for 4 eligible characters)
+- Fix verified: Jim now has aliases ["James Dillingham Young", "Dillingham"] — 3-way split resolved
+- Characters: Della Young (20 mentions), Jim (32 mentions), Sofronie (2 mentions), The magi (4 mentions)
+- "The magi" added via F6 reconciliation from chapter summaries
 
 ## Configuration Audit
 - Model config fields are null in `_config` — defaults were used
