@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -91,6 +91,10 @@
   - Root cause: `post_corrections.py:extract_relationships_from_evidence():line 848` — skip condition `if other_name in rels: continue` prevented upgrade from "associated" to "cousin"; `_infer_rel()` had no FAMILY_TERMS detection so returned "associated" even when evidence contained kinship words
   - Result: **DID NOT FIX** — the FAMILY_TERMS detection logic is correct, but the evidence statement containing "cousin" does NOT name "Berenice" (it says "his cousin" without the name). The statements that DO name Berenice don't contain "cousin". The `descriptions` field has "his cousin Berenice" but isn't scanned.
   - Modified: src/pipeline/character_profiling/post_corrections.py
+- Attempt 4: Extend `extract_relationships_from_evidence()` to ALSO scan `char.descriptions` field
+  - Root cause: `post_corrections.py:extract_relationships_from_evidence():lines 845-877` — only scanned `char.evidence`, not `char.descriptions`. Egaeus's description contains "his cousin Berenice" which has both the family term AND the name. The fix merges evidence + description texts into a single `text_sources` list and processes both.
+  - Smoke test: Confirmed `descriptions[0].text` = "...his cousin Berenice..." in analysis.json; tests: 332 passed, 0 failures
+  - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
 
@@ -99,6 +103,7 @@
 | 1 | Profiles: cousin blocked by _SYMMETRIC_RELATIONSHIPS | post_corrections.py | Fixed but insufficient — different downgrade path active |
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Changed "acquaintance" to "associated" — NOT fixed, different label but still wrong |
 | 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | NOT fixed — evidence stmt with "cousin" lacks "Berenice"; descriptions field (which has both) not scanned |
+| 4 | Profiles: descriptions field not scanned by extract_relationships_from_evidence() | post_corrections.py | Applied — now scans both evidence + descriptions; awaiting analysis |
 
 ## Pipeline Notes (Attempt 3 — current output)
 - Analysis completed in ~10m
@@ -117,4 +122,4 @@
 - All confidence=high for characters and profiles
 
 ## Next Action
-Run PROMPT_fix.md — extend `extract_relationships_from_evidence()` to also scan the `descriptions` field where "his cousin Berenice" appears with both the family term and the character name in the same text.
+Re-run analysis to verify fix — `extract_relationships_from_evidence()` now scans both `evidence` and `descriptions` fields.

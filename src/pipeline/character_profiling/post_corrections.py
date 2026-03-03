@@ -842,13 +842,21 @@ class OutputCharacterCorrector:
                 continue
 
             changed = False
-            for ev in evidence:
-                if not isinstance(ev, dict):
-                    continue
-                stmt = ev.get('statement', '') or ''
-                if not isinstance(stmt, str) or not stmt:
-                    continue
 
+            # Build all text sources: evidence statements + description texts
+            text_sources: list[str] = []
+            for ev in evidence:
+                if isinstance(ev, dict):
+                    stmt = ev.get('statement', '') or ''
+                    if isinstance(stmt, str) and stmt:
+                        text_sources.append(stmt)
+            for desc in (getattr(char, 'descriptions', None) or []):
+                if isinstance(desc, dict):
+                    txt = desc.get('text', '') or ''
+                    if isinstance(txt, str) and txt:
+                        text_sources.append(txt)
+
+            for stmt in text_sources:
                 for other in characters:
                     if other is char:
                         continue
