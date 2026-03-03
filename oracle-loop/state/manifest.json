@@ -22,7 +22,7 @@
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
       "complete": false,
-      "attempts": 1
+      "attempts": 6
     },
     {
       "name": "berenice",
@@ -101,7 +101,7 @@
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
       "complete": false,
       "attempts": 0,
-      "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
     }
   ]
 }
