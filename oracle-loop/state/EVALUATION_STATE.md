@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 15
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -263,10 +263,7 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 ## Next Action
-Attempt 15 PASSED (8.50/10). Advance to next text or continue improving if needed.
+Attempt 15 PASSED (8.50/10). masque_of_red_death is COMPLETE.
 
-If advancing to next text, reset EVALUATION_STATE.md with new text name and baseline.
-
-Remaining improvement opportunities (for future work):
-- More reliable Ebony Clock detection (currently non-deterministic)
-- Filter narrator FP from twostage_experiment.py output
+Next text in manifest: **berenice** (Test_Texts/Berenice - Poe.txt)
+The loop should restart with PROMPT_analyze.md for berenice.
