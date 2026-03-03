@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -96,15 +96,14 @@
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Changed "acquaintance" to "associated" — NOT fixed, different label but still wrong |
 | 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | Pending re-analysis |
 
-## Pipeline Notes (Attempt 2 — current output)
-- Analysis completed in 15m 17s
-- 4 characters found: Egaeus (narrator), Berenice, The Teeth (aka The Servant Maiden), Ebn Zaiat
-- 44 pronunciation flags (26 unknown, 13 proper noun, 5 foreign), all with IPA
-- Low confidence profile for Ebn Zaiat (0.15) — sparse character
-- Narrator detection: Egaeus confirmed as narrator via summaries despite only 1 raw text mention
+## Pipeline Notes (Attempt 3 — current output)
+- Analysis completed in 19m 4s
+- 4 characters found: Egaeus (1 mention), Berenice (14 mentions), The Teeth (aka The Disfigured Body, a disfigured body) (7 mentions), Ebn Zaiat (2 mentions)
+- 44 pronunciation flags (26 unknown, 13 proper noun, 5 foreign)
+- Narrator detection: "Egaeus has only 1 mention(s) — too few to be a narrator; skipping narrator assignment" — narrator NOT confirmed this run (regression?)
 - Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries=qwen3.5:122b-a10b
-- Profile evidence correctly captures "cousins growing up together" but relationship field says "associated"
-- ALL 5 relationship entries across all characters show "associated" — no specific labels at all
+- Servant Maiden issue partially changed: now separate from The Teeth (blocked aliases); "The Disfigured Body" still appears as alias for The Teeth
+- Fix applied: extract_relationships_from_evidence() upgraded to re-process generic labels and detect FAMILY_TERMS — awaiting evaluation to see if "cousin" now appears
 
 ## Next Action
-Re-run analysis to verify fix
+Evaluate attempt 3 output — verify if "cousin" relationship now appears for Egaeus↔Berenice
