@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -182,5 +182,23 @@ Character Extraction is at 7/10 (only failing category). To reach 8/10:
 - No chunking issues
 - **Root cause is NOT model/config** — the remaining issue is pure code-path: smoke-tested alias fixes don't apply to the actual pipeline execution path
 
+## Attempt 5 Pipeline Notes (Run: 2026-03-02)
+
+**Characters found (4 total):**
+- Prince Prospero (aka the Prince, Prospero) ← Prospero alias NOW WORKING ✓
+- the gigantic ebony clock (aka the clock, the Red Death) ← MAJOR REGRESSION: Red Death merged INTO clock ✗
+- the courtiers ← no longer an alias (good), but still a separate character entry ✗
+- the musicians ← no longer an alias (good), but still a separate character entry ✗
+
+**BLOCKED aliases observed (stderr):**
+- "the masked figure" blocked from Red Death — is_symbolic semantic mismatch (core noun 'figure' vs 'death')
+- "the figure" blocked from Red Death — same reason
+- "the intruder" blocked from Red Death — same reason
+- "the masked figure" alias "the Red Death" blocked as already claimed by another character
+
+**Root cause hypothesis:** The `_is_valid_alias()` Rule 0.6 changes in characters.py may have prevented The Red Death from ever being extracted as its own character. Instead it got merged as an alias into the clock. The is_symbolic Rule 0.5 semantic check blocks "the masked figure" etc. from being aliases of any symbolic entity where core nouns don't match. The Red Death's entity got absorbed into the clock rather than surviving as its own character.
+
+**Additional:** "Failed to generate plot summary via LLM" — narrator detection may be affected.
+
 ## Next Action
-Run PROMPT_fix.md to fix alias grouping issues. **Key directive for fix phase:** Don't just patch verify_aliases — TRACE the actual code path that produces the final alias list. The aliases "The Courtiers", "The Musicians", "The Waltzers" and the absence of "Prospero" indicate the final alias list is set by code AFTER verify_aliases runs. Find that code and fix it there.
+Run PROMPT_fix.md. **Key directive for fix phase:** Attempt 5 introduced a REGRESSION — The Red Death is no longer its own character, and is now merged as alias of the ebony clock. Root cause: investigate characters.py `_is_valid_alias()` changes and the merge pipeline to understand why Red Death's entity was not preserved. The `_add_title_stripped_aliases()` / grounding fix for "Prospero" DID work. Do NOT revert grounding.py fix. Only investigate characters.py and how The Red Death entity is being merged/absorbed into the clock.
