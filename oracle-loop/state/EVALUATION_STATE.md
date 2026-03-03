@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -95,9 +95,9 @@
 | 1 | Morris missing (Completeness) | `main_cast.py`, `analyzer.py` | Fixed ✓ |
 | 1 | Mrs. White gender (Profiles) | `post_corrections.py` | Fixed ✓ (Mrs. White→Herbert now "mother") |
 | 1 | Pronunciation false positives | `cmu_proposer.py` | Fixed ✓ |
-| 2 | Mr. White→Herbert "husband" (Profiles) | (pending) | — |
-| 2 | All genders null | (pending) | — |
-| 2 | "the visitor" aliased to paw | (pending) | — |
+| 2 | Mr. White→Herbert "husband" (Profiles) | `post_corrections.py`, `models.py` | Implemented `fix_family_spousal_triangle` + `infer_gender_from_title` |
+| 2 | All genders null | `post_corrections.py`, `models.py` | Added `gender` field to Character model + title-based inference |
+| 2 | "the visitor" aliased to paw | (deferred - Alias Grouping 7/10 but Character Extraction overall 8/10 ✓) | — |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (chars, summaries, profiles) — appropriate
@@ -120,8 +120,22 @@
 - No JSON parse failures this run (5H/0M/0L profiles)
 - Pronunciation false positives: ✓ bedclothes/instalment/betokened removed
 
+## Fix Applied (Attempt 2)
+
+### Fix Classification
+- **Fix type:** algorithmic / universal invariant enforcement
+- **Universality check:** Yes — "a child of parent B is also the child of B's spouse" is a universal family structure rule, not book-specific
+- **Root-cause location:** `src/pipeline/character_profiling/post_corrections.py:OutputCharacterCorrector.run_all()` — Phase B post-corrections lacked a family triangle consistency check
+
+### Changes Made
+1. **`src/pipeline/character_profiling/post_corrections.py`**:
+   - Added `infer_gender_from_title()`: sets `char.gender` from "Mr."/"Mrs." title or pronoun indicators in descriptions. Called first in Phase B `run_all`.
+   - Added `fix_family_spousal_triangle()`: if A→B = "son"/"daughter" AND B→C = "wife"/"husband", set A→C = same child label. Called after `enforce_gender_consistency`, before `enforce_inverse_consistency`.
+2. **`src/models.py`**: Added `gender: Optional[str] = None` field to Character model.
+
+### Smoke Test: PASS
+- Ran isolated simulation: Herbert→Mrs. White="son" + Mrs. White→Mr. White="wife" → fix_family_spousal_triangle sets Herbert→Mr. White="son" → enforce_inverse_consistency sets Mr. White→Herbert="father" ✓
+- All 332 tests pass, 0 regressions
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Primary blocker**: Mr. White ↔ Herbert "husband" relationship (Critical #1) — needs relationship type validation in post_corrections.py
-2. **Root cause**: Gender null for all characters (High #2) — title-based gender heuristic needed
-3. **Persistent**: "the visitor" alias on paw (High #3) — prevent objects from claiming human-descriptor aliases
+Run PROMPT_analyze.md to re-run analysis and verify fix.

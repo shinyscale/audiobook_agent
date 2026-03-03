@@ -754,6 +754,8 @@ class OutputCharacterCorrector:
 
     def run_all(self, characters, source_text: str, chapter_summaries: list = None) -> None:
         """Run all Phase B corrections in order. Mutates characters in place."""
+        # Infer gender early so downstream passes can use it for relationship corrections.
+        self.infer_gender_from_title(characters)
         self.inject_narrator_appearance_final(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
         self.clean_unknown_appearance(characters)
@@ -777,8 +779,12 @@ class OutputCharacterCorrector:
         # refers to their shared parent, not their relationship to each other).
         self.fix_bidirectional_parent_labels(characters)
         self.enforce_gender_consistency(characters)
-        # enforce_inverse_consistency runs after enforce_gender_consistency so that
-        # gender corrections are applied before cross-pair validation.
+        # fix_family_spousal_triangle runs after enforce_gender_consistency so that
+        # spousal labels are already gender-corrected before the child-of-spouse
+        # inference propagates the correct child label to both parents.
+        self.fix_family_spousal_triangle(characters)
+        # enforce_inverse_consistency runs after fix_family_spousal_triangle so that
+        # newly-established child→parent labels can drive parent→child corrections.
         self.enforce_inverse_consistency(characters)
         self.clean_unknown_relationships(characters)
         # _propagate_missing_reverses must be LAST — it adds reverse labels derived
@@ -1860,6 +1866,111 @@ class OutputCharacterCorrector:
                     f"summary mentioned {other_names_found} other characters and no "
                     f"subject sentences found in source text"
                 )
+
+    def infer_gender_from_title(self, characters) -> None:
+        """Set gender on Character objects from title, pronouns, and appearance.
+
+        Universal heuristics (work for any book in English):
+        - "Mr." in canonical name → male
+        - "Mrs." / "Ms." / "Miss " in canonical name → female
+        - Pronoun / indicator words in descriptions → male/female
+
+        Only sets gender when it is currently null — never overwrites an existing value.
+        """
+        for char in characters:
+            if getattr(char, "gender", None):
+                continue  # already set
+
+            name_lower = getattr(char, "canonical_name", "").lower()
+            gender: Optional[str] = None
+
+            # Title-based detection (universal English convention)
+            if "mr." in name_lower and "mrs." not in name_lower:
+                gender = "male"
+            elif any(t in name_lower for t in ("mrs.", "ms.", "miss ")):
+                gender = "female"
+
+            if gender is None:
+                # Pronoun / indicator detection from appearance descriptions
+                desc_text = " ".join(
+                    d.text.lower()
+                    for d in (getattr(char, "descriptions", None) or [])
+                    if d.text
+                )
+                app = getattr(char, "appearance", None) or {}
+                desc_text += " " + (app.get("summary", "") or "").lower()
+                is_male = any(ind in f" {desc_text} " for ind in MALE_INDICATORS)
+                is_female = any(ind in f" {desc_text} " for ind in FEMALE_INDICATORS)
+                if is_male and not is_female:
+                    gender = "male"
+                elif is_female and not is_male:
+                    gender = "female"
+
+            if gender:
+                char.gender = gender
+                logger.info(f"Gender inferred: '{char.canonical_name}' → '{gender}'")
+
+    def fix_family_spousal_triangle(self, characters) -> None:
+        """Enforce parent-child consistency across spousal pairs.
+
+        Universal invariant: if A→B is 'son'/'daughter' and B is married to C
+        (B→C = 'wife'/'husband'), then A→C must also be a child label.
+
+        This corrects cases where the LLM hallucinates a spousal label for a
+        parent-child relationship (e.g., Mr. White→Herbert = 'husband' when
+        Herbert is the son of Mr. White and Mrs. White).
+        """
+        char_by_name = {c.canonical_name: c for c in characters}
+        _child_labels = frozenset({"son", "daughter"})
+        _spousal_labels = frozenset({"husband", "wife", "spouse"})
+
+        pending: dict = {}  # (child_name, other_parent_name) → child_label
+
+        for char_a in characters:
+            rels_a = getattr(char_a, "relationships", None) or {}
+            for parent_b_name, label_ab in list(rels_a.items()):
+                if not isinstance(label_ab, str):
+                    continue
+                label_lower = label_ab.strip().lower()
+                if label_lower not in _child_labels:
+                    continue
+                child_label = label_lower  # "son" or "daughter"
+
+                # A is a child of B. Find B's spouse C.
+                char_b = char_by_name.get(parent_b_name)
+                if char_b is None:
+                    continue
+                rels_b = getattr(char_b, "relationships", None) or {}
+                for other_c_name, label_bc in list(rels_b.items()):
+                    if not isinstance(label_bc, str):
+                        continue
+                    if label_bc.strip().lower() not in _spousal_labels:
+                        continue
+                    if other_c_name == char_a.canonical_name:
+                        continue  # C is A itself — skip
+
+                    # A→C should be the same child label
+                    cur_ac = (rels_a or {}).get(other_c_name, "").strip().lower()
+                    if cur_ac in _child_labels:
+                        continue  # already a child label — leave as-is
+
+                    pending[(char_a.canonical_name, other_c_name)] = child_label
+
+        for (child_name, parent_name), new_label in pending.items():
+            char_a = char_by_name.get(child_name)
+            if char_a is None:
+                continue
+            rels = getattr(char_a, "relationships", None)
+            if not isinstance(rels, dict):
+                char_a.relationships = {}
+                rels = char_a.relationships
+            old = rels.get(parent_name, "none")
+            if old.strip().lower() != new_label:
+                logger.info(
+                    f"Family triangle: '{child_name}'→'{parent_name}' was '{old}' "
+                    f"→ '{new_label}' (child of that parent's spouse)"
+                )
+                rels[parent_name] = new_label
 
     def enforce_gender_consistency(self, characters) -> None:
         """Correct gender-inconsistent relationship labels.

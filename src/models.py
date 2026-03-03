@@ -109,6 +109,9 @@ class Character(BaseModel):
     )  # Actual mention objects for profile generation
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
+    # Gender (inferred from title, descriptions, or pronouns)
+    gender: Optional[str] = None  # "male", "female", or None if unknown
+
     # Narrator role detection
     is_narrator: bool = False
     narrative_role: Optional[str] = None  # e.g., "First-person narrator", "POV character"
