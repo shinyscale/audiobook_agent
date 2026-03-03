@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 12
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -12,143 +12,131 @@
 - JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
-(Awaiting evaluation — attempt 12 analysis just completed)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 4/10 ✗
+  - Completeness: 5/10
+  - Identity Resolution: 3/10 ← catastrophic false merge persists
+  - Alias Grouping: 3/10
+- Character Profiles: 5.5/10 ✗
+- Chapter Summaries: 8.5/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 7.0/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** Awaiting evaluation
+**Status:** FAIL (Character Extraction 4/10, Character Profiles 5.5/10)
 
 ## Pipeline Notes (Attempt 12)
 - Analysis completed in 18m 0s (28 LLM calls, 44,921 tokens)
-- 4 characters found during extraction, 2 in final output
-- Final 2 characters: Prince Prospero (6 mentions), The Ebony Clock (25 mentions, aliases: "the clock", "The Masked Figure")
-- **CONCERN:** The Masked Figure appears as alias of Ebony Clock — false merge
-- **CONCERN:** The Red Death missing from final output — filtering issue persists
-- Narrator detection: "None" identified — POV guard appears to be working
-- "Narrator detection failed: None" logged during initial detection, then "No definitive narrator identified" in final step
-- BLOCKED aliases logged for The Red Death (core noun mismatch) and group nouns (waltzers, courtiers, etc.)
-- The Red Death had alias candidates blocked: "masked figure", "the intruder", "figure" (core noun: 'figure' ≠ 'death')
-- "The Masked Figure" extracted as separate character, then merged into Ebony Clock (per alias log)
+- 4 characters found during extraction, 2 in final output (IDs main_cast_0, main_cast_3 survived; IDs 1, 2 filtered/merged)
+- Final 2 characters: Prince Prospero (6 mentions), The Ebony Clock (25 mentions)
+- The Ebony Clock aliases: "the clock", "The Masked Figure", "masked figure", "the figure", "The Red Death" — **4 of 5 are WRONG**
+- **The Red Death STILL falsely merged into Ebony Clock** despite reverting min_grounding_mentions
+- POV guard fix WORKED: Prospero `is_narrator: false` ✓
+- BLOCKED aliases logged for Red Death's own aliases (core noun mismatch)
+- "casements" IPA now correct (/ˈkeɪs.mənts/) ✓
 
-## Comparison to Previous Attempts
+## Root Cause Analysis (Attempt 12)
 
-| Attempt | Overall | Char Extract | Char Profiles | Key Diff |
-|---------|---------|-------------|---------------|----------|
-| 6-8 (best)| 8.35  | ~7.5        | ~8.5          | Had both Clock and Red Death as separate characters |
-| 9       | 7.35    | 5           | 6             | Red Death MISSING (regression) |
-| 10      | 7.68    | 6           | 6.5           | Red Death restored but Darkness hallucinated, group nouns |
-| **11**  | **6.95**| **4**       | **5**         | **Red Death merged INTO Ebony Clock — CATASTROPHIC** |
+The `min_grounding_mentions` revert from 2→1 did NOT fix the core problem. The Red Death is still being merged into the Ebony Clock. This means the previous root cause analysis (attempt 11) was **wrong** — the grounding threshold was NOT the primary cause.
 
-## Root Cause Analysis (Attempt 11)
+**Revised root cause:** The LLM-driven within-main merge step (characters.py Step 3.5) is merging The Red Death and The Masked Figure into The Ebony Clock. Even with min_grounding_mentions=1:
+1. 4 characters extracted: Prince Prospero (main_cast_0), ??? (main_cast_1), ??? (main_cast_2), The Ebony Clock (main_cast_3)
+2. main_cast_1 and main_cast_2 were The Red Death and The Masked Figure
+3. During within-main merge / Pass 2 alias resolution, the LLM proposes merging them into the Clock
+4. Rule 0.5 ("alias can't be another character's canonical") should block this, but either:
+   - (a) The merge happens in a step BEFORE verify_aliases runs, or
+   - (b) The merges happen sequentially — one entity is merged first, removing it from the canonical list, then the second merge isn't blocked because the first entity's canonical no longer exists, or
+   - (c) Rule 0.5 string matching doesn't exactly match (case, articles, etc.)
+5. All three wrong aliases end up on the Clock
 
-The four fixes from attempt 11 produced mixed results:
+**The POV guard fix is confirmed working.** Prospero is no longer marked as narrator in this 3rd-person narrative.
 
-| Fix | Intended Effect | Actual Result |
-|-----|----------------|---------------|
-| F6 plural group noun filter | Block courtiers/musicians as F6 characters | ✓ WORKED — 0 F6 characters |
-| min_grounding_mentions = 2 | Filter "Darkness" (1 mention) | ✓ Darkness filtered BUT ✗ **also filtered The Red Death** |
-| Narrator min-mention guard | Prevent 1-mention characters from being narrator | ✓ Works but doesn't fix Prospero (12 mentions) being wrongly tagged |
-| "stra" suffix for collective nouns | Block "the orchestra" as alias | ✓ No orchestra alias BUT ✗ LLM proposed "The Red Death" as Clock alias instead |
-
-**The critical regression chain:**
-1. The LLM extracted The Red Death as a main_cast character (confirmed: "BLOCKED aliases for Red Death" in pipeline notes means alias validation processed it)
-2. `min_grounding_mentions=2` filtered The Red Death from the final character list (it may have had only 1-2 exact text mentions as "The Red Death" — the text uses many variant forms like "the pestilence", etc.)
-3. During Pass 2 alias resolution, the LLM proposed "The Red Death" as an alias of "The Ebony Clock"
-4. Since The Red Death was no longer a standalone character, Rule 0.5 (alias can't be another character's canonical) did NOT block it
-5. The alias was accepted → **catastrophic false merge**: The Red Death (personified plague, title antagonist) merged into The Ebony Clock (a timepiece)
-
-**Why this is worse than attempt 10:** In attempt 10 (min_grounding_mentions=1), The Red Death was its own character with 12 mentions. The "Darkness" issue (-1 point) was far less severe than losing The Red Death entirely (-3 points).
+**Key insight for fix phase:** This is attempt 12 and the same core issue (Red Death merged into Clock) has persisted across attempts 9-12 despite different fix approaches. The fix phase MUST investigate the actual merge mechanism — not just change thresholds. Debug logging should show EXACTLY where and why The Red Death stops being a standalone character.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **The Red Death falsely merged into The Ebony Clock as alias** [Identity Resolution, Completeness]
-   - Problem: "The Red Death" (personified plague, title antagonist) is listed as an ALIAS of "The Ebony Clock" (a timepiece). These are completely unrelated entities. The Red Death is a masked figure that kills everyone; the Ebony Clock is a clock that chimes hourly. This is the worst possible false merge.
-   - Evidence: `jq '.characters[1].aliases'` → `["the clock", "The Red Death"]`. The Ebony Clock has mention_count: 24 (inflated by Red Death mentions counted through alias). Only 2 characters in the entire output.
-   - Root cause: `min_grounding_mentions=2` (set in attempt 11 fix #2) filtered The Red Death as a standalone character. Without it as a separate character, Rule 0.5 couldn't block the alias proposal. The LLM then merged it into the Clock.
-   - Location: `src/agents/characters.py` line 79 — `self.min_grounding_mentions` default changed from 1 to 2
-   - Fix: **Revert `min_grounding_mentions` from 2 back to 1.** The grounding threshold was too aggressive for this text. The Red Death may appear by exact name only 1-2 times while being referenced via descriptors ("the masked figure", "the intruder") dozens of times. A blanket threshold of 2 is unsafe.
-   - Impact: Restoring The Red Death as standalone character would improve Character Extraction from 4/10 to ~6-7/10 and Profiles from 5/10 to ~7/10.
-
-2. **Safety net: Block alias proposals where alias has more text mentions than canonical** [Identity Resolution]
-   - Problem: Even if fix #1 works, we need a safety check to prevent this class of false merge from ever happening again. "The Red Death" is mentioned more frequently than "The Ebony Clock" — a more-mentioned entity should NEVER be demoted to an alias of a less-mentioned one.
-   - Evidence: Universal invariant — aliases are alternative (usually less common) ways to refer to a character. If entity A has more text mentions than entity B, A should not be an alias of B.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — `verify_aliases()` function
-   - Fix: Add a new rule (e.g., Rule 0.8): Before accepting an alias, check if the proposed alias text appears MORE times in the source text than the canonical character's name. If so, BLOCK the alias. This requires passing text mention counts to verify_aliases.
-   - Impact: Prevents this entire class of catastrophic merge. Future-proofs against similar LLM errors.
+1. **The Red Death falsely merged into The Ebony Clock** [Identity Resolution, Completeness]
+   - Problem: "The Red Death" (personified plague, title antagonist), "The Masked Figure", "masked figure", and "the figure" are ALL listed as aliases of "The Ebony Clock" (a timepiece). Only 2 characters remain when there should be at least 3.
+   - Evidence: `jq '.characters[1].aliases'` → `["the clock", "The Masked Figure", "masked figure", "the figure", "The Red Death"]`
+   - Root cause: The within-main merge step merges The Red Death and The Masked Figure into the Clock. The `min_grounding_mentions` revert did NOT fix this — the merge happens regardless of grounding threshold.
+   - Location: `src/agents/characters.py` — within-main merge step (Step 3.5) or `src/pipeline/character_extraction_v2/main_cast.py` — `_process_consolidated_pass2()` or `verify_aliases()`
+   - Fix approach: **The fix phase MUST add debug logging to trace exactly where the merge happens**, then apply a targeted block. Three potential generic fixes (try in order):
+     - **(A) Rule 0.5 investigation:** Verify Rule 0.5 is actually running and matching. Add temporary debug logging to `verify_aliases()` to see if "The Red Death" alias proposal reaches Rule 0.5 and why it passes. Fix any string matching issues (case sensitivity, article handling).
+     - **(B) Mention-count guard (new Rule 0.8):** Add a rule in `verify_aliases()` that blocks an alias if the alias text has a HIGHER mention count than the canonical character's name. "The Red Death" appears more often than "The Ebony Clock" in the source text. This is a universal invariant — aliases are typically less-frequent references.
+     - **(C) Within-main merge guard:** If the merge happens in a bulk merge step rather than verify_aliases, add a check there: do not merge two characters that were both extracted as SEPARATE main_cast entries (they were split for a reason).
+   - Impact: +3 points on Character Extraction, +2 on Profiles
 
 ### HIGH
-3. **Prince Prospero incorrectly marked as narrator** [Profiles, Presentation]
-   - Problem: `is_narrator: true` for Prince Prospero. The story uses 3rd-person omniscient narration — "The 'Red Death' had long devastated the country." No character narrates.
-   - Evidence: HTML shows "📖 First-Person Narrator" tag on Prospero. The story never uses first person.
-   - Location: `src/pipeline/character_extraction_v2/narrator.py` — the narrator detection LLM wrongly identifies Prospero
-   - Fix: The narrator guard from attempt 11 only checks mention count (≤1). For 3rd-person omniscient stories, the narrator detector should recognize the absence of first-person narration and set is_narrator=False for all characters. However, this is a lower-priority fix — it affects Profiles (-0.5) and Presentation (-0.25) but isn't the main blocker.
-   - Impact: ~0.5 point improvement on Profiles.
+2. **Missing valid Red Death aliases** [Alias Grouping]
+   - Problem: When The Red Death IS a standalone character (attempts 4-8), it has NO aliases. "the masked figure", "the intruder", "the stranger" are all blocked by core noun mismatch ("figure"/"intruder"/"stranger" ≠ "death").
+   - Evidence: Pipeline notes across multiple attempts show BLOCKED aliases for Red Death
+   - Location: `verify_aliases()` in main_cast.py — core noun comparison
+   - Fix: For `is_symbolic=True` characters, relax core noun matching. The text explicitly states the masked figure IS the Red Death — these are narrative synonyms, not regular aliases.
+   - Impact: ~1 point on Alias Grouping (can wait until after CRITICAL #1 is fixed)
+   - Note: Attempted in attempts 7-8 without success. May need a different approach — e.g., co-reference resolution based on summary text context.
 
-4. **Missing valid Red Death aliases** [Alias Grouping]
-   - Problem: Even when The Red Death is its own character (as in attempt 10), it has no valid aliases. "the masked figure", "the intruder", "the stranger", "the mummer" — all are blocked by core noun mismatch ("figure" ≠ "death").
-   - Evidence: Pipeline notes: "BLOCKED aliases for Red Death: masked figure, stranger, intruder, figure (core noun mismatch still blocking)"
-   - Location: `verify_aliases()` in main_cast.py — core noun comparison too strict for symbolic entities
-   - Fix: For `is_symbolic=True` characters, relax core noun matching. Or add a rule that if the summary text explicitly identifies two names as the same entity ("a figure dressed as the Red Death"), allow the alias.
-   - Impact: ~1 point improvement on Alias Grouping.
-   - Note: This has been attempted in attempts 7-8 without success. May require a different approach.
+3. **Prospero's physical description incomplete** [Profiles]
+   - Problem: "bold and robust" — text also says "happy and dauntless and sagacious"
+   - Location: Profile generation in analyzer.py
+   - Impact: ~0.25 points. Fix naturally after character list is corrected.
 
 ### MEDIUM
-5. **Duplicate alias "the Prince" in Prospero's alias list** [Alias Grouping]
-   - Problem: `aliases: ["the Prince", "Prospero", "the Prince"]` — "the Prince" appears twice
-   - Location: Deduplication in alias processing
-   - Fix: Add dedup step before finalizing aliases
-   - Deferred — minor impact (~0.25 points)
-
-6. **Prospero's physical description is minimal** [Profiles]
-   - Problem: "Described as a bold and robust man." — The text says more: "happy and dauntless and sagacious"
-   - Location: Profile generation in analyzer.py
-   - Deferred — will improve when character list is corrected
-
-7. **2 pronunciation entries missing IPA** [Pronunciation]
+4. **2 pronunciation entries missing IPA** [Pronunciation]
    - "produce" and "deliberate" (homographs) have null IPA
-   - Deferred — Pronunciation is at 8/10, above threshold
+   - Impact: minor. Pronunciation at 8/10, above threshold.
 
-8. **"casements" IPA may be incorrect** [Pronunciation]
-   - Listed as /ˈseɪmɛnts/ — should be /ˈkeɪsmənts/ (starts with /k/ not /s/)
-   - Deferred — minor issue
+5. **Prince Prospero's relationship listed as "The Ebony Clock: antagonist"** [Profiles]
+   - Problem: The Red Death is the antagonist, not the Clock. This will self-correct when character list is fixed.
 
-## Fix Guidance for Attempt 12
+## Fix Guidance for Attempt 13
 
-### Priority 1: REVERT min_grounding_mentions to 1 (CRITICAL #1)
-In `src/agents/characters.py`, change `self.min_grounding_mentions` default back from 2 to 1.
+### MANDATORY: Debug the merge mechanism (CRITICAL #1)
 
-This is the single most impactful fix. The attempt 11 change to 2 was too aggressive — it correctly filtered "Darkness" (1 mention) but also filtered The Red Death, triggering the catastrophic false merge.
+The fix phase has been trying different approaches for 4 attempts (9-12) without resolving this. **Before applying ANY fix, the fix phase MUST:**
 
-**Side effect:** "Darkness" may reappear as a 1-mention character. This is a minor issue (~-0.5 points) compared to losing The Red Death entirely (~-3 points).
+1. **Add temporary debug logging** to trace the merge path:
+   ```python
+   # In characters.py within-main merge (Step 3.5) — log merge proposals
+   # In main_cast.py verify_aliases() — log Rule 0.5 checks
+   # In main_cast.py _process_consolidated_pass2() — log merge decisions
+   ```
 
-### Priority 2: Add alias mention-count safety check (CRITICAL #2)
-In `verify_aliases()` in `src/pipeline/character_extraction_v2/main_cast.py`, add a rule that blocks an alias proposal if the proposed alias text appears more frequently in the source text than the canonical character's name.
+2. **Run the analysis with logging** (or read existing logs if available) to answer:
+   - At what step does The Red Death stop being a standalone character?
+   - Does Rule 0.5 see the "The Red Death" → "The Ebony Clock" alias proposal?
+   - If yes, why doesn't it block it?
+   - If no, which step merges them BEFORE verify_aliases?
 
-This prevents the class of error where a more-prominent entity gets demoted to an alias of a less-prominent one. It would have prevented "The Red Death" (many mentions) from being aliased to "The Ebony Clock" (fewer direct mentions).
+3. **Only then apply a targeted fix** based on what the debug reveals.
 
-**Implementation:** This requires access to text mention counts in verify_aliases. The function may need a new parameter for mention counts or access to the summary/source text to count occurrences.
+### Probable fix: Mention-count guard (Rule 0.8)
 
-### Priority 3: Skip if time permits — address narrator detection (HIGH #3)
-For 3rd-person omniscient stories, no character should be marked as narrator. The narrator detector should check for first-person pronoun usage in the text and only assign narrator status when first-person narration is confirmed.
+Regardless of root cause, adding a mention-count guard in `verify_aliases()` is a **safe, generic fix** that would prevent this class of error:
+
+```python
+# Rule 0.8: Block alias if it has more text mentions than the canonical
+# Universal invariant: aliases are alternative (usually less common) references
+if alias_mention_count > canonical_mention_count:
+    return False  # Block — more-prominent entity should not be an alias
+```
+
+This requires passing mention counts to `verify_aliases()`. Check if `mention_count` data is available in the context passed to this function.
 
 ### Constraints
 - Do NOT modify prompts in ways that are novel-specific
 - Changes must be generic (work for any text)
-- Keep changes minimal — Priority 1 is a one-line revert
 - Test with `pytest --ignore=tests/test_semantic_conflicts.py --ignore=tests/test_pdf_ingestion.py --ignore=tests/test_refine.py`
+- **INVESTIGATE before fixing** — 4 attempts at blind fixes have failed
 
 ## Fix History
 
-### Attempt 12 (Score: TBD — awaiting analysis)
+### Attempt 12 (Score: 7.0/10 — marginal improvement from 6.95)
 1. **REVERT min_grounding_mentions to 1** in `src/agents/characters.py`:
-   - Root cause: `characters.py:__init__:79` — threshold of 2 was too aggressive, filtered The Red Death (1-2 exact text mentions), triggering catastrophic false merge into Ebony Clock
-   - Smoke test: All 332 tests pass
-   - Expected effect: Red Death restored as standalone character; Rule 3 will block "The Red Death" as alias of Ebony Clock
+   - Result: ✗ DID NOT FIX — The Red Death still merged into Clock. Grounding threshold was NOT the root cause.
 2. **POV guard for narrator assignment** in `src/pipeline/character_extraction_v2/narrator.py`:
-   - Root cause: `narrator.py:_parse_result:182` — `narrator_character_id` was assigned even for third-person/omniscient POV; Prospero incorrectly marked `is_narrator=True`
-   - Fix: Only assign narrator_character_id when pov is "first-person" or "epistolary" (universal invariant)
-   - Smoke test: All 332 tests pass
-   - Expected effect: Prospero no longer marked as narrator in 3rd-person narrative (~+0.5 on Profiles)
+   - Result: ✓ WORKED — Prospero no longer marked as narrator (+0.5 on Profiles)
 
 ### Attempt 11 (Score: 6.95/10 — REGRESSION from 7.68)
 1. **F6 plural group noun filter** in `src/analyzer.py`: ✓ WORKED — no F6 group characters
@@ -196,8 +184,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | TBD |
-| 12 | POV guard: narrator only set for first-person/epistolary | narrator.py | TBD |
+| 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | ✗ DID NOT FIX — merge persists |
+| 12 | POV guard: narrator only set for first-person/epistolary | narrator.py | ✓ WORKED — Prospero no longer narrator |
 | 11 | F6 plural group noun filter | analyzer.py | ✓ Worked — no F6 group characters |
 | 11 | min_grounding_mentions = 2 | characters.py | ✗ OVER-FILTERED — Red Death removed, merged into Clock |
 | 11 | Narrator min-mention guard | narrator.py | ✓ Works for 1-mention, doesn't fix 12-mention Prospero |
@@ -222,10 +210,12 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 **Pattern analysis:**
-- `characters.py` min_grounding_mentions change caused regression — REVERT immediately
-- The grounding threshold approach is too blunt for filtering noise characters — need a more targeted mechanism
-- The best scores (8.23, 8.35) all used min_grounding_mentions=1 (the original default)
-- Priority 2 (alias mention-count safety check) would prevent this entire class of error generically
+- **main_cast.py and characters.py have been modified 15+ times** across attempts without resolving the Red Death merge
+- The best scores (8.23, 8.35) were achieved in attempts 4-8 — the merge problem is **intermittent and LLM-dependent**
+- Attempts 9-12 consistently show the merge, suggesting a code change between attempt 8 and 9 destabilized the pipeline
+- The fix phase MUST investigate what changed between attempt 8 (8.35, working) and attempt 9 (7.35, broken)
+- Specifically: attempt 9 added two changes — plural filter (kept, works) and symbolic reveal merge (reverted). But even after reverting the reveal merge, the problem persists in attempts 10-12.
+- **Hypothesis:** LLM non-determinism is a major factor. The same code can produce different character merges on different runs. A robust fix needs to be a HARD BLOCK (like Rule 0.5 or a mention-count guard) rather than relying on the LLM to make the right merge decision.
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
@@ -239,6 +229,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Attempt 9: 7.35/10 (-1.00) ← REGRESSION
 - Attempt 10: 7.68/10 (+0.33)
 - Attempt 11: 6.95/10 (-0.73) ← REGRESSION
+- Attempt 12: 7.0/10 (+0.05) ← POV fix helped, merge persists
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
@@ -246,7 +237,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Temperature 0.7 standard
 - 0 LLM retries across all stages
 - No chunking issues
-- **Root cause is NOT model/config** — the regression is caused by min_grounding_mentions=2 filtering The Red Death
+- **Root cause is NOT model/config** — the problem is in the alias merge logic failing to block cross-entity merges
 
 ## Next Action
-Evaluate attempt 12 output
+Run PROMPT_fix.md to address the Red Death merge (CRITICAL #1). **Fix phase MUST debug the merge mechanism before applying fixes.**
