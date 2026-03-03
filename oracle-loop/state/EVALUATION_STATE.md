@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -38,20 +38,14 @@
 (none)
 
 ### HIGH
-1. **Egaeus↔Berenice relationship is "associated" instead of "cousin" — fix did NOT resolve** [Profiles]
-   - Problem: ALL character relationships in the output are "associated" — a completely uninformative generic label. The defining relationship of the story (Egaeus and Berenice are cousins) is not captured in the structured relationship field.
-   - Evidence:
-     - The **summary** correctly says "his energetic cousin Berenice" ✓
-     - The **profile source evidence** correctly says "Egaeus describes his relationship with Berenice as cousins growing up together" ✓
-     - The **relationship field** says "associated" ✗
-   - What happened: The attempt 2 fix added a narrator guard to `verify_relationships_from_text()` to prevent family labels being downgraded to "acquaintance". The relationship changed from "acquaintance" (attempt 1) to "associated" (attempt 2) — suggesting either (a) the LLM generated "associated" directly this run instead of "cousin", or (b) another code path in post_corrections.py is overwriting the label to "associated".
-   - **Fix approach — the fix phase MUST investigate which code path produces "associated":**
-     1. Add temporary DEBUG logging in `post_corrections.py` at the START and END of each correction step (`verify_relationships_from_text`, `remove_contradictory_relationships`, `enforce_gender_consistency`, `enforce_inverse_consistency`) to print the Egaeus↔Berenice relationship label at each stage
-     2. Run the analysis to see where "cousin" (if the LLM generates it) gets overwritten to "associated", OR confirm that the LLM itself generates "associated"
-     3. If the LLM generates "associated": Add a post-correction step that reads summary text for kinship terms (cousin, brother, sister, wife, husband, etc.) and upgrades generic labels ("associated", "acquaintance", "unknown") when textual evidence supports a specific term. This is robust against LLM non-determinism.
-     4. If a code path overwrites it: Fix that specific code path with the same narrator guard pattern used in attempt 2
-   - **IMPORTANT:** post_corrections.py has been modified 2 attempts in a row without fixing the root issue. The fix phase should consider whether the profiling LLM prompt itself needs adjustment, or whether a summary-text-based relationship upgrade is more reliable than defending against every downgrade path.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` (investigate full pipeline) and possibly `src/pipeline/character_profiling/` prompt code
+1. **Egaeus↔Berenice relationship is "associated" instead of "cousin"** [Profiles]
+   - **ATTEMPT 3 FIX APPLIED** — awaiting re-analysis to verify
+   - Root cause (confirmed): LLM profiler generates `{"Berenice": "associated"}` as relationship type. `extract_relationships_from_evidence()` then SKIPS Berenice because it was already in rels (even with a generic label). The evidence statement "Egaeus describes his relationship with Berenice as cousins growing up together" was never processed. `verify_relationships_from_text()` can't help because Egaeus (narrator) is barely mentioned by name in raw text.
+   - Fix: Two targeted changes to `extract_relationships_from_evidence()`:
+     1. Changed skip condition from `if other_name in rels: continue` to only skip when the existing label is non-generic (specific labels like "cousin", "friend" are kept; generic labels like "associated", "acquaintance" are re-processed)
+     2. Added FAMILY_TERMS detection in `_infer_rel()` before the "associated" fallback — now returns the specific kinship term when found in evidence text (plural-aware: matches "cousins" → returns "cousin")
+   - Smoke test: PASS — "Egaeus describes his relationship with Berenice as cousins growing up together" now returns "cousin"; "He attended a concert with songs and music" returns "associated" (no false positive for "son"+"g")
+   - Modified: `src/pipeline/character_profiling/post_corrections.py`
 
 ### MEDIUM
 2. **"The Servant Maiden" falsely merged as alias of "The Teeth"** [Characters — Identity Resolution]
@@ -88,6 +82,11 @@
   - Root cause: `post_corrections.py:verify_relationships_from_text():line 1698` — narrator names rarely appear in raw text
   - Result: Relationship changed from "acquaintance" to "associated" — suggests fix addressed one path but another path or LLM non-determinism still produces wrong label
   - Modified: src/pipeline/character_profiling/post_corrections.py
+- Attempt 3: Fix `extract_relationships_from_evidence()` to process generic labels AND detect family terms
+  - Root cause: `post_corrections.py:extract_relationships_from_evidence():line 848` — skip condition `if other_name in rels: continue` prevented upgrade from "associated" to "cousin"; `_infer_rel()` had no FAMILY_TERMS detection so returned "associated" even when evidence contained kinship words
+  - Result: pending re-analysis
+  - Smoke test: PASS
+  - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
 
@@ -95,8 +94,7 @@
 |---------|-------|----------------|--------|
 | 1 | Profiles: cousin blocked by _SYMMETRIC_RELATIONSHIPS | post_corrections.py | Fixed but insufficient — different downgrade path active |
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Changed "acquaintance" to "associated" — NOT fixed, different label but still wrong |
-
-**WARNING: post_corrections.py modified 2x without success. Fix phase MUST investigate the full pipeline (including LLM output and all post-correction steps) before making another blind fix to the same file.**
+| 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | Pending re-analysis |
 
 ## Pipeline Notes (Attempt 2 — current output)
 - Analysis completed in 15m 17s
@@ -109,7 +107,4 @@
 - ALL 5 relationship entries across all characters show "associated" — no specific labels at all
 
 ## Next Action
-Run PROMPT_fix.md. Fix phase MUST:
-1. First INVESTIGATE where "associated" comes from (debug logging through post_corrections pipeline)
-2. Then apply a targeted fix based on findings
-3. If the LLM is generating "associated" directly, implement a summary-text-based relationship upgrade as a post-correction
+Re-run analysis to verify fix

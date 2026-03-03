@@ -823,7 +823,15 @@ class OutputCharacterCorrector:
                 return "enemy"
             if any(w in sl for w in _NEIGHBOR_WORDS):
                 return "neighbor"
+            # Check kinship/family terms (longest first to avoid "son" matching inside "grandson").
+            # Allow optional -s/-es suffix to catch plural forms ("cousins", "brothers", etc.)
+            for term in sorted(FAMILY_TERMS, key=len, reverse=True):
+                if re.search(r'\b' + re.escape(term) + r'(?:s|es)?\b', sl):
+                    return term
             return "associated"
+
+        # Generic labels that evidence mining may upgrade to something more specific.
+        _generic_rels = frozenset({"associated", "acquaintance", "associate", "unknown", ""})
 
         for char in characters:
             evidence = getattr(char, 'evidence', None) or []
@@ -845,8 +853,10 @@ class OutputCharacterCorrector:
                     if other is char:
                         continue
                     other_name = other.canonical_name
-                    if other_name in rels:
-                        continue  # relationship already known
+                    # Skip only if a specific (non-generic) relationship is already known.
+                    cur_rel = (rels.get(other_name) or "").lower().strip()
+                    if other_name in rels and cur_rel not in _generic_rels:
+                        continue
                     # Check canonical name and aliases in the statement text
                     all_names = [other_name] + list(getattr(other, 'aliases', None) or [])
                     for n in all_names:
