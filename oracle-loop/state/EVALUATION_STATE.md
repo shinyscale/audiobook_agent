@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -124,7 +124,9 @@
 | 1 | Pronunciation false positives | `cmu_proposer.py` | Fixed ✓ |
 | 2 | Mr. White→Herbert "husband" (Profiles) | `post_corrections.py`, `models.py` | Fixed ✓ |
 | 2 | All genders null | `post_corrections.py`, `models.py` | Fixed ✓ |
-| 3 | Phantom "The Old Man" (Identity Resolution) | TBD — `characters.py` `_merge_descriptor_into_proper_name()` | Pending |
+| 3 | Phantom "The Old Man" (Identity Resolution) | `characters.py` `_merge_descriptor_into_proper_name()` | Applied — awaiting analysis |
+| 3 | Mrs. White missing alias (Alias Grouping) | `characters.py` (garbage alias reassignment) | Applied — awaiting analysis |
+| 3 | Herbert gender null (Profiles) | `post_corrections.py` `infer_gender_from_title()` | Applied — awaiting analysis |
 
 **Pattern note:** The phantom character problem has appeared before (see MEMORY.md "Phantom Character Pattern"). The existing `_merge_descriptor_into_proper_name()` was designed for this but only matches all-lowercase names. Extending to title-case should be a targeted, safe change.
 
@@ -148,4 +150,7 @@
 - Relationships NOW CORRECT: father/son/mother chain ✓
 
 ## Next Action
-Run PROMPT_fix.md to extend `_merge_descriptor_into_proper_name()` to handle title-cased common-noun descriptors like "The Old Man" → merge into Mr. White.
+Re-run analysis (PROMPT_analyze.md) to verify the three fixes from attempt 3:
+1. Phantom "The Old Man" should merge into Mr. White (Identity Resolution fix)
+2. Mrs. White should get "the old woman" alias via garbage alias reassignment
+3. Herbert White should get gender=male from relationship label "son"

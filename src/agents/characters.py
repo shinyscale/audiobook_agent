@@ -1611,12 +1611,29 @@ class CharacterAgent(Agent):
         """
 
         def _has_proper_noun(name: str) -> bool:
-            """True if name contains at least one capitalized word that is not an article."""
-            _articles = {"the", "a", "an", "of", "in", "from", "to", "at", "by"}
+            """True if name contains at least one proper noun (not a common descriptor word).
+
+            Handles title-cased descriptor phrases like "The Old Man" where every
+            content word is a common English word rather than an actual proper name.
+            """
+            _articles = {"the", "a", "an", "of", "in", "from", "to", "at", "by", "on"}
+            # Universal common English words used as person descriptors — NOT proper nouns
+            # even when title-cased by the LLM (e.g., "The Old Man", "The Young Woman")
+            _common_descriptor_words = {
+                "old", "young", "new", "great", "small", "big", "tall", "short",
+                "fat", "thin", "poor", "rich", "blind", "deaf", "dark", "fair",
+                "pale", "ancient", "aged", "middle", "little", "large", "kind",
+                "mad", "wild", "strange", "mysterious", "silent", "lonely",
+                "man", "woman", "boy", "girl", "person", "child",
+                "stranger", "visitor", "figure", "creature", "ghost",
+                "spirit", "shadow", "voice", "soul", "being",
+            }
             for word in name.split():
                 clean = word.strip(".,;:'\"()[]")
-                if clean and clean[0].isupper() and clean.lower() not in _articles:
-                    return True
+                if clean and clean[0].isupper():
+                    word_lower = clean.lower()
+                    if word_lower not in _articles and word_lower not in _common_descriptor_words:
+                        return True
             return False
 
         def _infer_gender(name: str) -> str:
@@ -1695,6 +1712,35 @@ class CharacterAgent(Agent):
                 target.aliases = []
             if desc_char.canonical_name not in target.aliases:
                 target.aliases.append(desc_char.canonical_name)
+
+            # Attempt to reassign descriptor's other aliases to matching proper-name chars.
+            # These "garbage aliases" may legitimately belong to other characters
+            # (e.g., "The Old Woman" assigned to "The Old Man" should go to Mrs. White).
+            for garbage_alias in (desc_char.aliases or []):
+                if _has_proper_noun(garbage_alias):
+                    continue  # Only reassign descriptor-style aliases
+                alias_gender = _infer_gender(garbage_alias)
+                # Find a proper-name candidate that matches by gender (not the merge target)
+                alias_candidates = [
+                    p for p in proper_name_chars
+                    if p is not target
+                    and (
+                        alias_gender == "unknown"
+                        or _infer_gender(p.canonical_name) in (alias_gender, "unknown")
+                    )
+                ]
+                if len(alias_candidates) == 1:
+                    alias_target = alias_candidates[0]
+                    if alias_target.aliases is None:
+                        alias_target.aliases = []
+                    alias_lower = garbage_alias.lower()
+                    existing_lower = [a.lower() for a in alias_target.aliases]
+                    if alias_lower not in existing_lower:
+                        alias_target.aliases.append(garbage_alias)
+                        logger.info(
+                            f"Descriptor merge: reassigning garbage alias '{garbage_alias}' "
+                            f"from '{desc_char.canonical_name}' → '{alias_target.canonical_name}'"
+                        )
 
             to_remove.append(desc_char)
             merged_names.append(desc_char.canonical_name)

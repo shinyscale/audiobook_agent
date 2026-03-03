@@ -1906,6 +1906,25 @@ class OutputCharacterCorrector:
                 elif is_female and not is_male:
                     gender = "female"
 
+            # Relationship-label based gender inference (universal English kinship terms)
+            if gender is None:
+                _male_rel_labels = frozenset({
+                    "son", "father", "brother", "husband", "uncle",
+                    "nephew", "grandfather", "grandson",
+                })
+                _female_rel_labels = frozenset({
+                    "daughter", "mother", "sister", "wife", "aunt",
+                    "niece", "grandmother", "granddaughter",
+                })
+                char_rels = getattr(char, "relationships", {}) or {}
+                rel_labels = {v.lower() for v in char_rels.values() if v}
+                has_male_rel = bool(rel_labels & _male_rel_labels)
+                has_female_rel = bool(rel_labels & _female_rel_labels)
+                if has_male_rel and not has_female_rel:
+                    gender = "male"
+                elif has_female_rel and not has_male_rel:
+                    gender = "female"
+
             if gender:
                 char.gender = gender
                 logger.info(f"Gender inferred: '{char.canonical_name}' → '{gender}'")
