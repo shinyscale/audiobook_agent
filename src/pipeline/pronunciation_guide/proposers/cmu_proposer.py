@@ -795,9 +795,10 @@ class CMUProposer(BasePronunciationProposer):
             "edly",   # reportedly, allegedly
             "ily",    # happily, unsteadily (special: remove -ily, add -y)
             "ly",     # familiarly, insufferably
-            # Verb suffixes
+            # Verb/noun suffixes
             "ing",    # jingling, recoiling
             "ed",     # jingled, recoiled
+            "es",     # churches, wildernesses (strip -es: wilderness→wilderness, box→boxes)
             "s",      # jingles, recoils
             # Adjective suffixes
             "iest",   # happiest, funniest
@@ -882,14 +883,22 @@ class CMUProposer(BasePronunciationProposer):
         for split in range(3, len(word_lower) - 2):
             left = word_lower[:split]
             right = word_lower[split:]
-            if len(left) < 3 or len(right) < 3:
+            # Require both components to be at least 4 chars to avoid spurious matches.
+            # Short 3-letter CMU entries (abbreviations, foreign articles like "der")
+            # cause false positives for words like "gunwhale" (gun+whale misleads) and
+            # "bowlders" (bowl+der+s misleads). Raising the minimum is a conservative
+            # approach: fewer compounds detected, but unusual words are not suppressed.
+            if len(left) < 4 or len(right) < 4:
                 continue
             if left not in self.known_words:
                 continue
             # Right part: try direct match, or strip common plural 's'
             if right in self.known_words:
                 return True
-            if right.endswith("s") and len(right) > 3 and right[:-1] in self.known_words:
+            # For plural stripping, require the base (after stripping 's') to be at
+            # least 4 chars. This prevents spurious matches where a 3-letter CMU word
+            # (like "der") is the base of a right-part like "ders".
+            if right.endswith("s") and len(right[:-1]) >= 4 and right[:-1] in self.known_words:
                 return True
         return False
 

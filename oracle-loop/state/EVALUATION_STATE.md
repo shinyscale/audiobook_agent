@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
@@ -116,6 +116,9 @@
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1→2 (external) | Grounding threshold, alias context | characters.py, main_cast.py | Partial fix: narrator and boat-keeper fixed, Milt split persists |
+| 2→3 | Milt/Milton false split (Identity Resolution) | characters.py | Added "milt"→"milton" to NICKNAME_TO_FORMAL + nickname-firstname merge step |
+| 2→3 | Missing pronunciation entries (gunwhale, bowlders) | cmu_proposer.py | Raised compound detector min component length 3→4; require base-after-strip-s ≥ 4 chars |
+| 2→3 | wildernesses false positive | cmu_proposer.py | Added "es" to _is_common_derivation suffix list |
 
 ## External Changes Applied
 Commit `3cb3fb5` was applied outside the oracle loop after attempt 1 evaluation:
@@ -134,6 +137,25 @@ Commit `3cb3fb5` was applied outside the oracle loop after attempt 1 evaluation:
 - All profiling stages: high confidence dominant ✓
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Add "milt"→"milton" to NICKNAME_TO_FORMAL in characters.py
-2. HIGH #2: Investigate why pronunciation pipeline missed bowlders/popple/luff/gunwhale
+Re-run analysis to verify fixes
+
+## Fix History (Attempt 2 → 3)
+### CRITICAL #1: Milt/Milton false split
+- **Root cause:** `characters.py:_merge_lastname_aliases()` only checked exact first-name matches, not nickname→formal-name matches. "Milt" (supporting, 2 mentions) couldn't be merged into "Milton Jennings" (main cast, 32 mentions).
+- **Fix:**
+  1. Added `"milt": "milton"` to `NICKNAME_TO_FORMAL` dict in `characters.py:72`
+  2. Added nickname-firstname check in `_merge_lastname_aliases` (after exact_firstname block): when a single-word supporting char's name is a NICKNAME and the formal name matches the FIRST WORD of a multi-word main cast char, it's merged.
+  3. Added mention count guard: merge only fires when main has ≥ 4x more mentions than supporting (mirrors Step 5.5a safeguard).
+- **Smoke test PASS:** "Milt" correctly merged as alias of "Milton Jennings" with [Milton, Jennings, Milt] aliases. Supporting cast "Milt" removed. Mention count guard prevents wrong merges when ratio < 4x.
+- **Modified:** `src/agents/characters.py`
+
+### HIGH #2: Missing pronunciation entries (bowlders, gunwhale)
+- **Root cause:** `cmu_proposer.py:_is_closed_compound()` was too aggressive:
+  - "gunwhale" → falsely detected as "gun"(3) + "whale"(5) compound (min component was 3 chars)
+  - "bowlders" → falsely detected as "bowl"(4) + "ders" where "ders"[:-1]="der"(3-char CMU word) passes the plural-strip check
+- **Fix 1:** Raised minimum component length from 3 → 4 chars. Short CMU entries (abbreviations, foreign articles like "der") can no longer anchor compound splits. Fixes "gunwhale" (gun=3 < 4 → skipped).
+- **Fix 2:** Added requirement that base-after-strip-s must be ≥ 4 chars. Fixes "bowlders" where "ders"→"der"(3 chars) is blocked.
+- **Fix 3:** Added "es" to suffix list in `_is_common_derivation`. "wildernesses"→"wilderness" (in CMU) is now correctly identified as a standard English derivation, removing the false positive.
+- **Smoke test PASS:** bowlders=FLAGGED=True, gunwhale=FLAGGED=True, wildernesses=FLAGGED=False(derivation), firelight=compound=True(correctly not flagged).
+- **Modified:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+- **Note:** "luff" and "popple" are IN the CMU dictionary, so they won't be caught by CMU proposer. They'd need an LLM proposer. Not addressed in this attempt.

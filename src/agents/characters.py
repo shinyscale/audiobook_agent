@@ -102,6 +102,7 @@ NICKNAME_TO_FORMAL: dict[str, str] = {
     "sal": "sarah",
     "bart": "bartholomew",
     "gus": "augustus",
+    "milt": "milton",
 }
 
 # Reverse mapping: formal first name → list of known nicknames.
@@ -2943,6 +2944,14 @@ class CharacterAgent(Agent):
                         matches.append((main_idx, "exact_firstname"))
                         continue
 
+                # Check nickname → formal first name (e.g., "Milt" supporting → "Milton Jennings" main cast)
+                if len(main_name_parts) >= 2:
+                    main_firstname_lower = main_name_parts[0].strip(".,;:").lower()
+                    supp_lower = supp_name.lower()
+                    if supp_lower in NICKNAME_TO_FORMAL and NICKNAME_TO_FORMAL[supp_lower] == main_firstname_lower:
+                        matches.append((main_idx, "nickname_firstname"))
+                        continue
+
                 # Check alias component match: supp_name is a word inside a confirmed alias.
                 # Example: "Dillingham" is a middle-name component of alias "James Dillingham Young".
                 # This only works after _merge_formal_name_aliases has added the formal name as
@@ -2958,6 +2967,12 @@ class CharacterAgent(Agent):
                 # Exactly one match - straightforward merge
                 main_idx, match_type = matches[0]
                 main_char = main_cast[main_idx]
+
+                # For nickname matches, require strong mention asymmetry to avoid wrong merges.
+                # The supporting char is a rare nickname reference for the main cast's formal name.
+                if match_type == "nickname_firstname" and supp_char.mention_count > 0:
+                    if main_char.mention_count < 4 * supp_char.mention_count:
+                        continue
 
                 # Check if already an alias
                 if supp_name not in main_char.aliases:
