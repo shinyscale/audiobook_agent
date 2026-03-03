@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -105,14 +105,14 @@
 | 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | NOT fixed — evidence stmt with "cousin" lacks "Berenice"; descriptions field (which has both) not scanned |
 | 4 | Profiles: descriptions field not scanned by extract_relationships_from_evidence() | post_corrections.py | Applied — now scans both evidence + descriptions; awaiting analysis |
 
-## Pipeline Notes (Attempt 3 — current output)
-- Analysis completed in ~10m
-- 4 characters found: Egaeus (1 mention), Berenice (14 mentions), The Teeth (7 mentions), Ebn Zaiat (2 mentions)
-- 44 pronunciation flags (all with IPA)
-- Narrator detection: Egaeus marked is_narrator=True
+## Pipeline Notes (Attempt 4 — current output)
+- Analysis completed in 15m 4s
+- **3 characters found** (down from 4): Egaeus (1 mention), Berenice (14 mentions), Ebn Zaiat (2 mentions)
+- **"The Teeth" NOT extracted this run** — LLM non-determinism; may hurt character extraction score
+- 46 pronunciation flags
+- Narrator detection: Egaeus (first-person)
 - Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries/profiles=qwen3.5:122b-a10b
-- "The Disfigured Body" still appears as alias for The Teeth (incorrect but not blocking)
-- `extract_relationships_from_evidence()` correctly upgraded to re-process generic labels and detect FAMILY_TERMS — but the data mismatch prevents it from working (cousin mentioned without Berenice's name in same statement)
+- `extract_relationships_from_evidence()` now scans both `evidence` AND `descriptions` fields — awaiting evaluation to confirm cousin fix worked
 
 ## Configuration Audit
 - Models: Appropriate (larger 122b for character/profile, smaller 35b for structure/pronunciation)
@@ -122,4 +122,4 @@
 - All confidence=high for characters and profiles
 
 ## Next Action
-Re-run analysis to verify fix — `extract_relationships_from_evidence()` now scans both `evidence` and `descriptions` fields.
+Evaluate attempt 4 output — check if Egaeus↔Berenice relationship is now "cousin"; also check if missing "The Teeth" character hurts character extraction score.
