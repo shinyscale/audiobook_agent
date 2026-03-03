@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -13,179 +13,168 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 2/10 ✗ (CATASTROPHIC REGRESSION)
-  - Completeness: 3/10
-  - Identity Resolution: 1/10
-  - Alias Grouping: 1/10
-- Character Profiles: 4/10 ✗
+- Character Extraction: 7/10 ✗
+  - Completeness: 9/10
+  - Identity Resolution: 10/10
+  - Alias Grouping: 5/10
+- Character Profiles: 8.5/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 6/10 ✗
-- **Overall: 6.10/10** (reference only)
+- HTML Presentation: 8/10 ✓
+- **Overall: 8.23/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold — REGRESSION from attempt 2's 7.98)
+**Status:** FAIL (1 category below threshold — Character Extraction at 7/10)
 
-**⚠️ REGRESSION ALERT:** Score 6.10 < baseline 6.85 - 0.3 = 6.55. The attempt 3 fix made things WORSE. The fix phase should auto-revert the last commit before applying new fixes.
+**IMPROVEMENT from attempt 3:** Score recovered from 6.10 → 8.23 (+2.13). The regression recovery succeeded: The Red Death is now its own character, clock removed via is_symbolic, narrator detection correct. Only remaining blocker is alias quality.
 
 ## Evaluation Details
 
 ### Structure Detection: 9/10 ✓
-"The Masque of the Red Death" is a continuous short story with no chapter divisions. The pipeline correctly identifies it as a single section. No false splits. Null title is acceptable for a continuous text. Minor: "1 chapters" grammar in HTML.
+"The Masque of the Red Death" is a continuous short story with no chapter divisions. The pipeline correctly identifies it as a single section with no false splits. Minor: "1 chapters" grammar in HTML.
 
-### Character Extraction: 2/10 ✗ (CATASTROPHIC REGRESSION)
+### Character Extraction: 7/10 ✗
 
-**This is dramatically worse than attempt 2 (6/10) and even attempt 1 (3/10).**
+**Major improvement from attempt 3 (2/10 → 7/10).** Key wins:
+- The Red Death exists as its own character entry with its own profile
+- The clock correctly removed via is_symbolic detection
+- No false merges between distinct entities
+- Both significant characters present with accurate descriptions
 
-**Completeness: 3/10** — The story has exactly two named characters: Prince Prospero and The Red Death. Only Prince Prospero exists as a standalone character. The Red Death — the story's TITULAR ANTAGONIST — is not its own character. It has been absorbed as an alias of "the giant ebony clock", an inanimate object. The clock itself should have been marked `is_symbolic=True` and removed (this was working in attempt 2 but regressed).
+**Completeness: 9/10** — Both significant characters present: Prince Prospero and The Red Death. No hallucinated characters. No missing named characters (the story has only two).
 
-**Identity Resolution: 1/10** — The Red Death (a personified plague/supernatural entity that kills everyone) is falsely merged with the ebony clock (a timepiece that chimes hourly). These are entirely different entities with different narrative roles. The clock marks time; the Red Death kills. This is the worst possible merge error.
+**Identity Resolution: 10/10** — Perfect. Prince Prospero and The Red Death correctly separated. The ebony clock correctly removed as symbolic object. No false merges, no false splits.
 
-**Alias Grouping: 1/10** — The clock's alias list is: "the clock", "the Red Death", "the courtiers", "the musicians", "the waltzers". Every single alias except "the clock" is WRONG:
-- "the Red Death" is the titular antagonist, not the clock
-- "the courtiers" are Prospero's party guests
-- "the musicians" play music at the masquerade
-- "the waltzers" are dancing guests
-Additionally, "Prospero" (without "Prince") is missing as an alias for Prince Prospero despite the title-stripping fix being applied in attempt 3.
+**Alias Grouping: 5/10** — Three wrong aliases and one missing alias:
+- WRONG: "The Courtiers" is an alias of The Red Death — these are Prospero's party guests, a distinct group
+- WRONG: "The Musicians" is an alias of The Red Death — these are musicians playing at the masquerade
+- WRONG: "The Waltzers" is an alias of The Red Death — these are dancing guests
+- CORRECT: "The Masked Figure" and "the figure" are valid aliases for The Red Death
+- CORRECT: "the Prince" is a valid alias for Prince Prospero
+- MISSING: "Prospero" (without "Prince") should be an alias — Poe uses both forms interchangeably
 
-### Character Profiles: 4/10 ✗
-- Prince Prospero: Profile content is accurate ("bold and robust", personality evolution, speech patterns). However, he is WRONGLY labeled as "First-Person Narrator" — the story is told in THIRD person by an unnamed omniscient narrator. This was fixed in attempt 2 (narrator.py) but has regressed.
-- The Red Death: Has NO profile because it doesn't exist as a character. This is a catastrophic gap — the story's main antagonist has no entry.
-- The clock: Has an accurate-but-useless profile describing it as an inanimate object. This entity shouldn't be in the character list at all.
+### Character Profiles: 8.5/10 ✓
+- **Prince Prospero:** Accurate physical description ("bold and robust"), personality traits well-captured (happy/dauntless/sagacious → enraged), voice guidance with actual quotes ("Who dares?"), correct relationship to The Red Death. NOT marked as narrator (fixed from attempt 3).
+- **The Red Death:** Excellent physical description drawn from the text (tall, gaunt, grave habiliments, stiffened corpse mask, vesture dabbled in blood). Personality appropriate (solemn, stealthy, domineering). Voice guidance correctly shows "unknown" since The Red Death doesn't speak.
+- No invented information. Profiles are genuinely useful for narrator preparation.
 
 ### Chapter Summaries: 9/10 ✓
-Excellent summary capturing all key events: Prospero's retreat, the castellated abbey, seven color-coded rooms, the masked figure's appearance, Prospero's confrontation and death, the empty costume reveal, and "Darkness, Decay, and the Red Death" holding dominion. Accurate and useful for narrator preparation.
+Comprehensive single summary capturing all key events: Prospero's retreat, castellated abbey, color-coded rooms, ebony clock's effect on guests, midnight appearance of masked figure, Prospero's confrontation and death, empty costume reveal, "Darkness, Decay, and the Red Death" holding dominion. Accurate. No hallucinations. Appropriate length.
 
 ### Pronunciation Guide: 8/10 ✓
-Good coverage: Prospero, improvisatori, castellated, habiliments, cerements, out-Heroded, piquancy, Hernani, blood-bedewed. 15/17 entries have IPA. 2 homograph entries (produce, deliberate) still have null IPA — minor. No false positives.
+17 entries, 15 with IPA. Good coverage: Prospero, sagacious, castellated, improvisatori, casements, masqueraders, piquancy, Hernani, out-Heroded, habiliments, impetuosity, cerements, blood-bedewed. Homographs flagged: live, close. 2 homographs (produce, deliberate) have null IPA — minor. No false positives.
 
-### HTML Presentation: 6/10 ✗
-- Navigation functional, tabs work, pronunciation guide well-formatted
-- Character section is deeply misleading: "the giant ebony clock — Also known as: the clock, the Red Death, the courtiers, the musicians, the waltzers" is nonsensical for narrator preparation
-- Wrong narrator badge: "📖 First-Person Narrator" on Prince Prospero in a third-person story
-- "1 chapters" grammar error
+### HTML Presentation: 8/10 ✓
+- Navigation functional, tabs work, character profiles well-formatted with evidence citations
+- Pronunciation guide well-organized
+- "1 chapters" grammar error (minor)
+- Alias display for The Red Death is misleading ("Also known as: The Masked Figure, the figure, The Courtiers, The Musicians, The Waltzers") — but this is a data quality issue scored under Character Extraction, not an HTML template problem
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **The Red Death absorbed as alias of clock — not its own character** [Identity Resolution, Completeness]
-   - Problem: "the Red Death" appears as an alias of "the giant ebony clock" instead of being its own character entity. The titular antagonist of the story doesn't exist as a character.
-   - Evidence: JSON shows `main_cast_5: "the giant ebony clock"` with aliases including "the Red Death". There is no separate Red Death character entry.
-   - Root cause: The `is_symbolic` detection that worked in attempt 2 (marking the clock as symbolic and removing it) has REGRESSED. The clock has `is_symbolic: false`. Since the clock survived as a character, the LLM's Pass 2 merged The Red Death into it as an alias. This is likely because:
-     (a) The attempt 3 code changes to `main_cast.py` may have inadvertently broken the is_symbolic detection logic, OR
-     (b) The LLM produced a different extraction this run where the clock wasn't flagged as symbolic
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — is_symbolic detection + Pass 1 extraction
-   - Fix approach: **REVERT attempt 3 commit first** (score regressed below baseline - 0.3). Then investigate why is_symbolic broke. The is_symbolic detection must reliably mark "the giant ebony clock" as symbolic, which removes it from the character list, which prevents the Red Death from being merged into it.
-
-2. **Wrong aliases on the clock: "the courtiers", "the musicians", "the waltzers"** [Alias Grouping]
-   - Problem: Plural group nouns describing party guests are aliases of the clock. Rule 0.6 (added in attempt 3) was supposed to block these, but either the rule didn't fire because the canonical is "the giant ebony clock" (not a singular person), or the code changes didn't apply correctly.
-   - Evidence: JSON shows these as aliases of main_cast_5
-   - Root cause: Same regression as issue #1 — if the clock were properly removed, these aliases wouldn't exist
-   - Fix: Resolves automatically if issue #1 is fixed (clock removed as symbolic entity)
-
-3. **Narrator detection regressed — Prince Prospero marked as first-person narrator** [Profiles]
-   - Problem: `is_narrator: True` for Prince Prospero. The story is told in THIRD person ("the 'Red Death' had long devastated the country", "But the Prince Prospero was happy and dauntless and sagacious"). Prospero is never the narrator.
-   - Evidence: Attempt 2 fixed this ("Third-person narration correctly identified, narrator=None"). Now it's back.
-   - Root cause: The narrator detection code was in `narrator.py` (attempt 2), but attempt 3 only changed `main_cast.py`. Possible LLM non-determinism — the narrator detection LLM may have produced a different answer this run. Or the narrator detection prompt/logic was affected by the main_cast.py changes.
-   - Location: `src/pipeline/character_extraction_v2/narrator.py`
-   - Fix: After reverting attempt 3, verify if the narrator detection still works. If not, investigate further.
+1. **Wrong aliases on The Red Death: "The Courtiers", "The Musicians", "The Waltzers"** [Alias Grouping]
+   - Problem: Three plural group nouns naming GROUPS OF PARTY GUESTS are listed as aliases of The Red Death. These are entirely distinct entities — the courtiers are Prospero's friends, the musicians play music, the waltzers are dancing guests. None of these are alternate names for The Red Death.
+   - Evidence: JSON shows `main_cast_2: "The Red Death"` with aliases `["The Masked Figure", "the figure", "The Courtiers", "The Musicians", "The Waltzers"]`
+   - **Diagnostic — smoke test vs reality mismatch:** Attempt 4 added Rule 0.6 to block plural group noun aliases. The smoke test passed (7/7 cases). BUT these aliases still appeared in the final output. This means one of:
+     (a) Rule 0.6 is in `verify_aliases()` but these aliases are being added by a DIFFERENT code path that doesn't go through verify_aliases (e.g., Pass 2 `_process_consolidated_pass2`, F6 reconciliation, or summary-based active_characters matching)
+     (b) Rule 0.6 fires but its condition doesn't match the capitalized forms ("The Courtiers" vs "the courtiers")
+     (c) The aliases are added AFTER verify_aliases runs
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — investigate which code path adds these aliases. Check whether `_process_consolidated_pass2()` bypasses `verify_aliases()`. Check whether active_characters from summaries get matched as aliases.
+   - Fix: Find the actual code path that adds these aliases and apply Rule 0.6 blocking there. If they come from Pass 2, add the check to `_process_consolidated_pass2()`. If from summary reconciliation, add to that stage.
 
 ### HIGH
-4. **Missing alias: "Prospero" for Prince Prospero** [Alias Grouping]
-   - Problem: "Prospero" (without the title "Prince") is not listed as an alias despite the title-stripping code added in attempt 3
-   - Evidence: Only alias is "the Prince". Poe uses "Prospero" (without "Prince") throughout the text.
-   - Root cause: The title-stripping code may have produced "the Prince" instead of "Prospero", or "Prospero" was produced but blocked by a rule
-   - Fix: After revert, re-examine the title-stripping approach
-
-5. **Missing "the masked figure" / "the stranger" as aliases for The Red Death** [Alias Grouping]
-   - Problem: The Red Death's physical manifestation at the masquerade is described as "a masked figure" and "the stranger". These should be aliases.
-   - Evidence: Poe reveals the masked figure IS the Red Death: "And now was acknowledged the presence of the Red Death."
-   - Fix: Deferred until The Red Death exists as its own character (depends on fix #1)
+2. **Missing alias: "Prospero" for Prince Prospero** [Alias Grouping]
+   - Problem: "Prospero" (without the title "Prince") is not listed as an alias. Poe uses "Prospero" alone frequently (e.g., "But the Prince Prospero was happy" vs later references to just "Prospero").
+   - Evidence: Only alias is "the Prince". The pronunciation guide even has "Prospero" as a standalone entry, confirming the name appears without "Prince" in the text.
+   - **Diagnostic — same smoke test vs reality pattern:** Attempt 4 re-added `_add_title_stripped_aliases()` which should produce "Prospero" from "Prince Prospero". Smoke test passed (5/5 cases). But the alias doesn't appear in output. Same root cause as issue #1 — the title-stripped alias is either:
+     (a) Being overwritten by a later stage that sets the final alias list
+     (b) Not being called in the actual pipeline execution path
+     (c) Being filtered out by a rule (though Rule 3 has a substring exemption)
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — `_add_title_stripped_aliases()` and the pipeline execution flow
+   - Fix: Trace the actual execution path. Add logging or debug output to confirm `_add_title_stripped_aliases()` runs and produces "Prospero". Then verify it survives through the rest of the pipeline.
 
 ### MEDIUM
-6. **Two pronunciation entries missing IPA** [Pronunciation]
+3. **Two pronunciation entries missing IPA** [Pronunciation]
    - Problem: "produce" and "deliberate" have null IPA values
+   - These are homographs correctly flagged but missing their IPA entries
    - Location: Pronunciation pipeline IPA generation
-   - Fix: Ensure homograph entries always get IPA populated
+   - Fix: Ensure homograph entries always get IPA populated for both pronunciations
 
-## Priority Fix Order
-1. **REVERT** attempt 3 commit (regression auto-revert) — restores attempt 2 state
-2. Re-apply ONLY the fixes that were working: Rule 0.6 (group noun blocking) and title-stripping
-3. Investigate why is_symbolic detection is non-deterministic across runs
-4. Address narrator detection stability
-5. Address masked figure aliases (if time permits)
+4. **"1 chapters" grammar error in HTML** [Presentation]
+   - Problem: HTML says "This book contains 1 chapters" instead of "1 chapter" or "1 section"
+   - Location: HTML report template
+   - Fix: Add singular/plural handling for chapter count
+
+### LOW
+5. **Missing "the stranger" / "the mummer" as additional aliases for The Red Death** [Alias Grouping]
+   - Problem: Poe also describes the masked figure as "the mummer" and refers to "the stranger" — these could be additional useful aliases
+   - Fix: Deferred — fixing issues #1 and #2 alone should bring Alias Grouping to 8+
+
+## What's Needed to Pass
+
+Character Extraction is at 7/10 (only failing category). To reach 8/10:
+- Fix issue #1 (remove 3 wrong aliases) → Alias Grouping jumps from 5 to ~8
+- Fix issue #2 (add "Prospero" alias) → Alias Grouping reaches ~9
+- With Alias Grouping at 8-9, Completeness at 9, and Identity Resolution at 10, overall Character Extraction reaches 9/10
+
+**Key investigation for fix phase:** The critical diagnostic is that BOTH Rule 0.6 and title-stripping passed smoke tests but didn't work in the actual pipeline run. The fix phase MUST trace the actual execution path to find where aliases are being added/overwritten. Don't just add more unit tests — the unit tests already pass. The problem is integration-level.
 
 ## Fix History
-### Attempt 3 (REGRESSION — score dropped from 7.98 to 6.10)
-1. **RULE 0.6: Block plural group noun aliases** — Added to verify_aliases() but the clock survived as a character (is_symbolic regression), so the group nouns ended up as clock aliases where Rule 0.6 may not have applied correctly
-2. **Title-stripped aliases** — Added _add_title_stripped_aliases() but alias produced was "the Prince" not "Prospero"
-3. **Pass 2 prompt changes** — May have contributed to LLM extracting differently
 
-### Attempt 2 (Previous Best: 7.98/10)
-1. **Rule 0.5 scoped to is_symbolic=True only** → Fixed: The Red Death no longer blocked by personified concept check
-2. **Programmatic is_symbolic for multi-word descriptors** → Fixed: Clock correctly marked is_symbolic=True and removed
-3. **Narrator detection prompt** → Fixed: Third-person narration correctly identified (narrator=None)
-4. **Pronunciation whitelist** → Fixed: 4 common words no longer false positives
+### Attempt 4 (Score: 8.23/10 — UP from 6.10)
+1. **Reverted attempt 3 main_cast.py** — restored to attempt 2 state
+2. **Improved is_symbolic detection** — lowered threshold, added all_lowercase check → Clock correctly removed ✓
+3. **Re-added Rule 0.6** — plural group noun blocking → Smoke tests pass but aliases still appear in output ✗
+4. **Re-added _add_title_stripped_aliases()** → Smoke tests pass but "Prospero" not in output ✗
+5. **Kept original ALIAS_RESOLUTION_PROMPT** — avoided the attempt 3 regression
+
+### Attempt 3 (REGRESSION — 6.10/10)
+1. Rule 0.6, title-stripping, and prompt changes caused regression
+2. Auto-reverted in attempt 4
+
+### Attempt 2 (Previous Best before attempt 4: 7.98/10)
+1. Rule 0.5 scoped to is_symbolic=True only ✓
+2. Programmatic is_symbolic for multi-word descriptors ✓
+3. Narrator detection prompt → Third-person correctly identified ✓
+4. Pronunciation whitelist → 4 common words removed ✓
 
 ### Attempt 1 (Baseline: 6.85/10)
-- Character Extraction: 3/10 (catastrophic — clock as character, Red Death missing aliases, wrong narrator)
+- Character Extraction: 3/10
 - Profiles: 5/10
 - Pronunciation: 7.5/10
-- Overall: 6.85/10
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 3 | Wrong group aliases on Red Death | main_cast.py | REGRESSION — clock survived, aliases on clock instead |
-| 3 | Missing "Prospero" alias for Prince Prospero | main_cast.py | Partial — got "the Prince" but not "Prospero" |
-| 3 | Pass 2 prompt: improve alias proposals | main_cast.py | REGRESSION — may have caused LLM to produce worse extraction |
-| 2 | Rule 0.5 over-blocking personified concepts | main_cast.py | Fixed ✓ |
-| 2 | Clock not marked is_symbolic | main_cast.py | Fixed in attempt 2, REGRESSED in attempt 3 |
-| 2 | Wrong narrator detection | narrator.py | Fixed in attempt 2, REGRESSED in attempt 3 |
-| 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ (stable) |
+| 4 | Revert attempt 3 regression | main_cast.py | Fixed ✓ (clock removed, Red Death as own character) |
+| 4 | is_symbolic detection improvement | main_cast.py | Fixed ✓ |
+| 4 | Rule 0.6 re-added | main_cast.py | Smoke test pass, but aliases still in output ✗ |
+| 4 | Title-stripping re-added | main_cast.py | Smoke test pass, but "Prospero" not in output ✗ |
+| 3 | Wrong group aliases on Red Death | main_cast.py | REGRESSION |
+| 3 | Missing "Prospero" alias | main_cast.py | Partial |
+| 3 | Pass 2 prompt changes | main_cast.py | REGRESSION |
+| 2 | Rule 0.5 over-blocking | main_cast.py | Fixed ✓ |
+| 2 | Clock not marked is_symbolic | main_cast.py | Fixed ✓ |
+| 2 | Wrong narrator detection | narrator.py | Fixed ✓ |
+| 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
+
+**Pattern detected:** main_cast.py has been modified in all 4 attempts. Rule 0.6 and title-stripping both pass unit/smoke tests but fail integration. The fix phase must investigate the actual pipeline execution path, not just add more unit-level patches.
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
 - Attempt 2: 7.98/10 (+1.13)
-- Attempt 3: 6.10/10 (-1.88) ← REGRESSION, below baseline
+- Attempt 3: 6.10/10 (-1.88) ← REGRESSION, auto-reverted
+- Attempt 4: 8.23/10 (+2.13 from attempt 3, +0.25 from attempt 2) ← NEW BEST
 
 ## Configuration Audit
-- Models: qwen3.5:122b-a10b for characters, qwen3.5:35b-a3b for structure/pronunciation
+- Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
 - Context length 32768 sufficient for 2,449-word short story
 - Temperature 0.7 standard
+- 0 LLM retries across all stages
 - No chunking issues
-- **Root cause is NOT model/config** — the is_symbolic detection logic regressed due to code changes in attempt 3
-
-## Pipeline Notes (Attempt 3)
-- Analysis completed successfully in 21m 54s (exit code 0)
-- 2 characters found: "Prince Prospero" and "the giant ebony clock"
-- WARNING: "the Red Death" appears as an alias for "the giant ebony clock" — Red Death not extracted as its own character
-- WARNING: "the masked figure" alias proposals blocked by Rule 3 (claiming aliases already on the clock)
-- Multiple BLOCKED alias messages from verify_aliases
-- Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
+- **Root cause is NOT model/config** — the remaining issue is pure code-path: smoke-tested alias fixes don't apply to the actual pipeline execution path
 
 ## Next Action
-Evaluate attempt 4 output
-
-## Pipeline Notes (Attempt 4)
-- Analysis completed successfully in 17m 55s (exit code 0)
-- 2 characters found: "Prince Prospero" (aka the Prince) and "The Red Death" (aka The Masked Figure, the figure)
-- The giant ebony clock is NOT in the character list — is_symbolic detection worked correctly
-- No narrator falsely detected (narrator=None)
-- 17 pronunciation flags
-- Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
-- Notable BLOCKED alias messages: cross-symbolic-object aliases blocked (the Red Death ↔ The Masked Figure in wrong directions)
-- Final aliases: Prince Prospero → (the Prince); The Red Death → (The Masked Figure, the figure)
-- Missing: "Prospero" (without "Prince") is not an alias for Prince Prospero
-
-## Fix History (Attempt 4)
-1. **Reverted attempt 3 main_cast.py** — restored to attempt 2 state via `git checkout dac1bca`
-2. **Improved is_symbolic detection** — lowered threshold from 4→3 words AND added all_lowercase check (non-article words must start lowercase to distinguish objects from proper names like "the Red Death"). Catches "the ebony clock" (3 words), rejects "the Red Death" (has uppercase).
-3. **Re-added Rule 0.6** — plural group noun blocking from attempt 3, without prompt changes. Universal invariant: "the courtiers/musicians/waltzers" → blocked as aliases for singular characters.
-4. **Re-added _add_title_stripped_aliases()** — "Prince Prospero" → adds "Prospero". Called before verify_aliases. Rule 3 has existing substring exemption so "Prospero" (substring of "Prince Prospero") is not blocked by cross-character conflict check.
-5. **Kept original ALIAS_RESOLUTION_PROMPT** — did NOT re-apply the attempt 3 prompt changes (Rules 1/2/3 rewrite) that caused regression by allowing "the Red Death" to bypass alias filters.
-- Root cause: attempt 3 prompt change to Rule 3 ("persons, groups, or organizations") allowed the LLM to propose "the Red Death" (a supernatural force, not a person/group/org) as alias of the clock; combined with is_symbolic failure, this caused the catastrophic merge
-- Smoke test: PASS — all 3 fixes verified (is_symbolic: 8/8 cases, Rule 0.6: 7/7 cases, title-stripping: 5/5 cases)
-- Tests: 332 passed, 10 skipped, 0 failures
-- Modified: src/pipeline/character_extraction_v2/main_cast.py
+Run PROMPT_fix.md to fix alias grouping issues. **Key directive for fix phase:** Don't just patch verify_aliases — TRACE the actual code path that produces the final alias list. The aliases "The Courtiers", "The Musicians", "The Waltzers" and the absence of "Prospero" indicate the final alias list is set by code AFTER verify_aliases runs. Find that code and fix it there.
