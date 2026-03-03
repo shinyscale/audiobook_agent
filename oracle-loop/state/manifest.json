@@ -7,43 +7,38 @@
     {
       "name": "monkeys_paw",
       "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": true,
-      "attempts": 7,
-      "final_score": 8.45
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": true,
-      "attempts": 3,
-      "final_score": 8.65
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "masque_of_red_death",
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": true,
-      "attempts": 15,
-      "final_score": 8.5
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": true,
-      "attempts": 5,
-      "final_score": 8.8
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "gift_of_the_magi",
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-      "complete": true,
-      "attempts": 2,
-      "final_score": 8.7
+      "complete": false,
+      "attempts": 0
     },
     {
       "name": "a_camping_trip",
       "file": "Test_Texts/A Camping Trip.txt",
       "complete": false,
-      "attempts": 1
+      "attempts": 0
     },
     {
       "name": "american_sir",
@@ -104,7 +99,37 @@
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
       "complete": false,
       "attempts": 0,
-      "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+    },
+    {
+      "name": "hound_of_the_baskervilles",
+      "file": "Test_Texts/The Hound of the Baskervilles - Doyle.txt",
+      "complete": false,
+      "attempts": 0
+    },
+    {
+      "name": "picture_of_dorian_gray",
+      "file": "Test_Texts/The Picture of Dorian Gray - Wilde.txt",
+      "complete": false,
+      "attempts": 0
+    },
+    {
+      "name": "pride_and_prejudice",
+      "file": "Test_Texts/Pride and Prejudice - Austen.txt",
+      "complete": false,
+      "attempts": 0
+    },
+    {
+      "name": "moby_dick",
+      "file": "Test_Texts/Moby-Dick - Melville.txt",
+      "complete": false,
+      "attempts": 0
+    },
+    {
+      "name": "war_and_peace",
+      "file": "Test_Texts/War and Peace - Tolstoy.txt",
+      "complete": false,
+      "attempts": 0
     }
   ]
 }
