@@ -62,8 +62,8 @@ _SYMMETRIC_RELATIONSHIPS = frozenset({
     "close friend", "colleague", "friend",
     "ally", "neighbor", "rival", "enemy",
     "romantic interest", "love interest",
-    "sibling", "twin",
-    "co-conspirator", "conspirator", "partner",
+    "sibling", "twin", "brother", "sister", "cousin",
+    "co-conspirator", "conspirator", "partner", "spouse",
 })
 
 FAMILY_TERMS = (

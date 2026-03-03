@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -57,13 +57,17 @@
    - Not blocking — score is 9/10.
 
 ## Fix History
-(first attempt — no prior fixes)
+- Attempt 1: Added `"cousin"`, `"brother"`, `"sister"`, `"spouse"` to `_SYMMETRIC_RELATIONSHIPS` in post_corrections.py
+  - Root cause: `post_corrections.py:_SYMMETRIC_RELATIONSHIPS:line 60` was missing "cousin"; LLM correctly labeled both Egaeus→Berenice AND Berenice→Egaeus as "cousin", but `remove_contradictory_relationships()` deleted both because "cousin" wasn't in the symmetric set, replacing with fallback "associated"
+  - Also added "brother", "sister", "spouse" — all listed as self-reversing in RELATIONSHIP_REVERSES but missing from _SYMMETRIC_RELATIONSHIPS (same inconsistency, different terms)
+  - Smoke test: N/A (trivial data-only fix to a frozenset)
+  - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | — | — | — |
+| 1 | Profiles: cousin blocked as contradictory | post_corrections.py | Awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to add "cousin" to `_SYMMETRIC_RELATIONSHIPS` in post_corrections.py (HIGH #1). This single fix should bring Profiles from 7.5 → 8.0+ by restoring the correct "cousin" label for the Egaeus↔Berenice relationship.
+Re-run analysis to verify fix — Character Profiles score should improve from 7.5 → 8.0+.
