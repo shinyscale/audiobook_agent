@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -152,5 +152,13 @@ Navigation functional, information organized. Minor grammar ("1 chapters"). Char
 - 0 LLM retries, high confidence on both characters
 - The LLM confidently produced wrong alias assignments — this is a verification gap, not a model issue
 
+## Pipeline Notes (Attempt 3)
+- Analysis completed successfully in 21m 54s (exit code 0)
+- 2 characters found: "Prince Prospero" and "the giant ebony clock"
+- WARNING: "the Red Death" appears as an alias for "the giant ebony clock" — Red Death not extracted as its own character
+- WARNING: "the masked figure" alias proposals blocked by Rule 3 (claiming aliases already on the clock)
+- Multiple BLOCKED alias messages from verify_aliases — see full evaluation for details
+- Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
+
 ## Next Action
-Re-run analysis to verify fixes
+Run evaluation phase
