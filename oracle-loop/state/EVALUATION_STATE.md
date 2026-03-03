@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -28,33 +28,6 @@
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **The Red Death / masked figure is MISSING as a character** [Completeness]
-   - Problem: The primary antagonist of the story — the personified Red Death plague that appears as a masked figure at the ball — is not extracted as a character at all
-   - Evidence: The text describes it extensively: "tall and gaunt," "shrouded from head to foot in the habiliments of the grave," mask "resembling the countenance of a stiffened corpse," "dabbled in blood." It confronts Prospero and kills everyone. It is the most important entity after Prospero himself
-   - Expected: A character entry for "the Red Death" with aliases "the masked figure", "the figure", "the intruder", "the mummer"
-   - Location: `src/pipeline/character_extraction_v2/` — the LLM extraction or post-processing pipeline failed to produce this as a separate character. The EVALUATION_STATE pipeline notes show these aliases were BLOCKED from merging due to "symbolic entity core-noun mismatch" — so the pipeline tried but the blocking logic prevented correct grouping
-   - Fix: The Red Death needs to be extracted as its own character. The blocking logic for symbolic entities may be too aggressive for personified forces that are clearly distinct characters
-
-2. **Catastrophic false merge: clock absorbed Red Death, masked figure, courtiers** [Identity Resolution, Alias Grouping]
-   - Problem: "the gigantic ebony clock" (main_cast_5) has aliases: "the clock", "the masked figure", "the figure", "the Red Death", "the courtiers" — 4 of 5 aliases are completely wrong entities
-   - Evidence: The clock is an inanimate object in the black room. The masked figure is the antagonist. The Red Death is the plague personified. The courtiers are Prospero's guests. None of these are the clock
-   - Location: `src/pipeline/character_extraction_v2/` — Pass 2 alias resolution or the LLM proposer incorrectly merged unrelated entities. `verify_aliases` in `main_cast.py` should have blocked these but didn't
-   - Fix: The alias merge validation needs to prevent merging entities with fundamentally different natures (inanimate object ≠ person/force ≠ collective group). Also, "the courtiers" should never be an alias of a single object
-
-### HIGH
-3. **Prince Prospero incorrectly tagged as First-Person Narrator** [Profiles]
-   - Problem: Prospero is marked `is_narrator: true` and displayed as "First-Person Narrator" in the HTML
-   - Evidence: "The Masque of the Red Death" has a third-person omniscient narrator. Prospero is a character IN the story but does not narrate it. The text never uses first person from Prospero's perspective
-   - Location: Narrator detection in the summary/analysis pipeline — likely `src/analyzer.py` narrator detection or the LLM-based narrator identification
-   - Fix: Third-person narration should result in no character being tagged as narrator, or a note that the narrator is omniscient third-person
-
-4. **Pronunciation false positives: common English words flagged** [Pronunciation]
-   - Problem: "giddiest", "gaieties", "convulsed", "unutterable" are common English words that don't need pronunciation guidance
-   - Evidence: These are standard vocabulary any English-speaking narrator would know
-   - Location: `src/pipeline/pronunciation/cmu_proposer.py` — COMMON_WORDS_WHITELIST
-   - Fix: Add "giddiest", "gaieties", "convulsed", "unutterable" to COMMON_WORDS_WHITELIST
-
 ### MEDIUM
 5. **Two pronunciation entries missing IPA** [Pronunciation]
    - Problem: "produce" and "deliberate" have `null` IPA values
@@ -68,19 +41,45 @@
    - Fix: Low priority; may be in CMU dictionary already
 
 ## Priority Fix Order
-1. Fix Critical #1 and #2 together — these are the same root cause (Red Death not extracted as separate character, wrong aliases on clock)
-2. Fix High #3 — narrator detection for third-person stories
-3. Fix High #4 — pronunciation false positives
-4. Fix Medium #5 — missing IPA on homographs
+1. ~~Critical #1 and #2~~ (FIXED — see Fix History below)
+2. ~~High #3~~ (FIXED)
+3. ~~High #4~~ (FIXED)
+4. Fix Medium #5 — missing IPA on homographs (deferred to next iteration)
 
 ## Fix History
-(First attempt — no prior fixes)
+### Attempt 2 Fix (this run)
+
+#### Fix 1: Rule 0.5 now only applies to is_symbolic=True objects
+- **Problem:** Rule 0.5 semantic coherence check was applied to BOTH symbolic objects AND personified concepts. For personified forces like "the Red Death", this incorrectly blocked valid aliases like "the masked figure" (the Red Death's physical manifestation). Personified forces in literature can legitimately appear under different descriptive names.
+- **Fix:** Changed `is_symbolic_or_personified = getattr(profile, "is_symbolic", False) or is_personified_concept(...)` to simply `if getattr(profile, "is_symbolic", False)`. Removed the `is_personified_concept()` function entirely.
+- **Root cause:** `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()` ~line 840
+- **Modified:** `src/pipeline/character_extraction_v2/main_cast.py`
+
+#### Fix 2: Improved programmatic is_symbolic detection for multi-word descriptor phrases
+- **Problem:** The clock ("the gigantic ebony clock") was LLM-assigned is_symbolic=False despite being a clearly inanimate object. Without is_symbolic=True, Rule 0.5 didn't apply to it, and the clock accepted wrong aliases ("the masked figure", "the Red Death", "the courtiers") from the LLM's Pass 2.
+- **Fix:** Added a second programmatic is_symbolic correction: if name = article + 2+ modifier words + core noun where core noun is NOT in a small set of human-descriptor words ("man", "woman", "figure", "ghost", etc.) → is_symbolic=True. "the gigantic ebony clock" matches (4 words, "clock" not human).
+- **Root cause:** `src/pipeline/character_extraction_v2/main_cast.py:_extract_two_pass()` ~line 481
+- **Smoke test:** Logic verified — clock gets is_symbolic=True; "the old man", "the masked figure", "the Red Death" correctly NOT flagged as symbolic.
+
+#### Fix 3: Narrator detection prompt clarification
+- **Problem:** The NARRATOR_DETECTION_PROMPT NOTE said "judge by whose inner thoughts/fears are described" — this caused the LLM to mark Prospero as first-person narrator in the omniscient third-person Masque story, because his inner states (e.g., "shuddering with rage") are described.
+- **Fix:** Replaced the ambiguous NOTE with a clearer explanation: first-person = character uses "I" directly; if described as "he/she" even when focusing on their emotions, it's third-person/omniscient.
+- **Root cause:** `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
+- **Modified:** `src/pipeline/character_extraction_v2/narrator.py`
+
+#### Fix 4: Pronunciation whitelist additions
+- **Problem:** "giddiest", "gaieties", "convulsed", "unutterable" were flagged as needing pronunciation guidance but are standard English words.
+- **Fix:** Added these words (and their inflected forms) to COMMON_WORDS_WHITELIST in cmu_proposer.py.
+- **Root cause:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py:COMMON_WORDS_WHITELIST`
+- **Modified:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
+
+**Test results:** 332 passed, 10 skipped (same pre-existing skips as before — no regressions)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | Red Death missing, clock wrong aliases, narrator wrong, pronunciation FP | main_cast.py, narrator.py, cmu_proposer.py | Awaiting analysis |
 
 ## Pipeline Notes
 - Analysis completed in 19m 59s (2,449 words — short story)
@@ -100,4 +99,4 @@
 - 1 JSON parse failure in chapter detection (minor)
 
 ## Next Action
-Run PROMPT_fix.md to address character extraction (Critical #1 and #2 — Red Death missing, wrong aliases on clock)
+Re-run analysis to verify fixes

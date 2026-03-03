@@ -604,6 +604,16 @@ COMMON_WORDS_WHITELIST = {
     "gesticulate",    # verb form
     "gesticulating",  # present participle
     "gesticulated",   # past tense
+    # Additional common English vocabulary words
+    "giddiest",       # superlative of "giddy" (standard adjective)
+    "giddy",          # common adjective (dizzy, lighthearted)
+    "gaieties",       # plural of "gaiety" (merriment, festivities)
+    "gaiety",         # common English noun (cheerfulness)
+    "convulsed",      # past tense of "convulse" (shook violently)
+    "convulse",       # common English verb
+    "convulsing",     # present participle
+    "unutterable",    # standard English adjective (too extreme to express in words)
+    "unutterably",    # adverb form
 }
 
 # Contraction fragments that result from tokenization

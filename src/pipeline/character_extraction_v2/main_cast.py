@@ -479,17 +479,42 @@ class MainCastExtractor:
         logger.info(f"Pass 1 identified {len(initial_characters)} main characters")
 
         # Programmatic is_symbolic correction: the LLM sometimes misses is_symbolic=True
-        # for artifact/object names.  Universal invariant: a canonical name matching the
-        # pattern "the X's Y" (possessive object form) is an artifact, not a person.
+        # for artifact/object names.  Two universal invariants:
+        # 1. "the X's Y" (possessive object form) is an artifact, not a person.
+        # 2. article + 2+ modifier words + non-human core noun = multi-word object description
+        #    (e.g., "the gigantic ebony clock", "the great green light")
         import re as _re_sym
         _possessive_pattern = _re_sym.compile(r"^the\s+\w+[''\u2019]s\s+\w", _re_sym.IGNORECASE)
+        # Core nouns that describe humans/beings — exclude from object detection
+        _human_core_nouns = {
+            "man", "woman", "boy", "girl", "person", "figure", "stranger",
+            "visitor", "creature", "being", "one", "self", "fellow", "soul",
+            "narrator", "voice", "ghost", "spirit", "phantom", "specter",
+        }
         for _char in initial_characters:
-            if not _char.is_symbolic and _possessive_pattern.match(_char.canonical_name.strip()):
+            if _char.is_symbolic:
+                continue
+            name_stripped = _char.canonical_name.strip()
+            if _possessive_pattern.match(name_stripped):
                 logger.info(
                     f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
                     f"matches possessive-object pattern; marking is_symbolic=True"
                 )
                 _char.is_symbolic = True
+            else:
+                # Multi-word object descriptor: article + 2+ words + non-human core noun
+                _words = name_stripped.lower().split()
+                if (
+                    len(_words) >= 4
+                    and _words[0] in ("the", "a", "an")
+                    and _words[-1] not in _human_core_nouns
+                ):
+                    logger.info(
+                        f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
+                        f"matches multi-word object descriptor pattern (4+ words, "
+                        f"non-human core noun '{_words[-1]}'); marking is_symbolic=True"
+                    )
+                    _char.is_symbolic = True
 
         # Pass 2: Alias Resolution for each character
         profiles = []
@@ -808,41 +833,15 @@ class MainCastExtractor:
                 # CharacterAgent._is_valid_alias() which runs during merge operations.
                 # This avoids duplicate filtering and keeps alias validation in one place.
 
-                # RULE 0.5: Semantic coherence check for symbolic entities and personified concepts
-                # If the canonical name is a symbolic entity (object/force) OR a personified
-                # concept (abstract noun used as character), verify that aliases refer to
-                # THE SAME object/concept, not just any co-occurring nouns
+                # RULE 0.5: Semantic coherence check for symbolic objects
+                # If the canonical name is a symbolic entity (is_symbolic=True — an object/artifact),
+                # verify that aliases refer to THE SAME object, not just any co-occurring nouns.
+                # IMPORTANT: This rule does NOT apply to personified concepts (forces/abstractions
+                # like "the Red Death", "Death", "Fear") because they can legitimately manifest
+                # under different physical descriptions (e.g., "the Red Death" → "the masked figure").
+                # Symbolic objects, however, are fixed entities: "the monkey's paw" ≠ "the sergeant".
 
-                # Detect personified concepts: abstract nouns that function as characters
-                # (e.g., "the Red Death", "Death", "Fear", "the Plague")
-                def is_personified_concept(name: str) -> bool:
-                    """Check if name is likely a personified abstract concept."""
-                    name_lower = name.lower().strip()
-                    # Remove articles to get core phrase
-                    for article in ["the ", "a ", "an "]:
-                        if name_lower.startswith(article):
-                            name_lower = name_lower[len(article):].strip()
-                            break
-
-                    # Abstract concepts commonly personified in literature
-                    personified_keywords = {
-                        "death", "plague", "disease", "pestilence", "fever",
-                        "fear", "terror", "horror", "darkness", "shadow",
-                        "fate", "destiny", "doom", "revenge", "madness",
-                        "time", "chaos", "decay", "despair", "grief"
-                    }
-
-                    # Check if the core name is a personified concept
-                    # Allow compound forms like "red death" (splits to ["red", "death"])
-                    name_words = set(name_lower.split())
-                    return bool(name_words & personified_keywords)
-
-                is_symbolic_or_personified = (
-                    getattr(profile, "is_symbolic", False)
-                    or is_personified_concept(profile.canonical_name)
-                )
-
-                if is_symbolic_or_personified:
+                if getattr(profile, "is_symbolic", False):
                     # Extract core nouns from both canonical and alias (strip "the", articles)
                     def extract_core_noun(text: str) -> str:
                         """Extract the main noun from a phrase like 'the Amontillado'."""
@@ -873,11 +872,10 @@ class MainCastExtractor:
                     )
 
                     if not are_related:
-                        entity_type = "symbolic entity" if getattr(profile, "is_symbolic", False) else "personified concept"
                         logger.warning(
                             f"BLOCKED alias: '{alias}' (core noun: '{alias_noun}') is semantically "
-                            f"unrelated to '{profile.canonical_name}' (core noun: '{canonical_noun}'). "
-                            f"This {entity_type} must have aliases referring to the SAME object/concept."
+                            f"unrelated to symbolic object '{profile.canonical_name}' (core noun: '{canonical_noun}'). "
+                            f"Symbolic objects must have aliases referring to the SAME object."
                         )
                         continue
                     else:
