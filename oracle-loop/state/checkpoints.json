@@ -2,13 +2,13 @@
   "checkpoints": [],
   "known_good_baseline": {
     "a_camping_trip": {
-      "commit": "e0db8315529140c16f134b74a5c141574eeb3b06",
-      "score": 7.75,
+      "commit": "9caec7b164fe8bc3117e8681f0234fb4a16862cf",
+      "score": 7.8,
       "category_scores": {
-        "structure": 8,
-        "characters": 7,
-        "profiles": 8,
-        "summaries": 8,
+        "structure": 9,
+        "characters": 6.5,
+        "profiles": 7,
+        "summaries": 8.5,
         "pronunciation": 7,
         "presentation": 9
       }
