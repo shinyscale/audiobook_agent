@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -12,209 +12,165 @@
 - JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
-(Awaiting evaluation for attempt 13)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 6.5/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 8/10
+  - Alias Grouping: 5/10
+- Character Profiles: 7/10 ✗
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 9/10 ✓
+- **Overall: 7.98/10** (reference only)
 
-## Pipeline Notes (Attempt 13)
-- Analysis completed in 16m 45s (24 LLM calls, 39,135 tokens)
-- 4 characters found during extraction; 2 in final output
-- Final 2 characters: Prince Prospero (aka Prospero, 6 mentions), the Red Death (aka "the crowd", 10 mentions)
-- **The Ebony Clock is MISSING** from the output — the artifact `is_symbolic` fix may have caused the Clock to be merged or filtered
-- **The Red Death is now a STANDALONE character** (not merged into Clock) — fix partially worked
-- "the Red Death" has wrong alias "the crowd" — needs investigation
-- BLOCKED aliases show "the masked figure" trying to claim aliases already owned by another character
-- BLOCKED alias: "the masked figure" (core noun 'figure') is semantically unrelated to symbolic 'the Red Death' (core noun 'death')
-- LLM identity detection failed: None
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (2 categories below threshold: Characters 6.5, Profiles 7)
 
-## Pipeline Notes (Attempt 12)
-- Analysis completed in 18m 0s (28 LLM calls, 44,921 tokens)
-- 4 characters found during extraction, 2 in final output (IDs main_cast_0, main_cast_3 survived; IDs 1, 2 filtered/merged)
-- Final 2 characters: Prince Prospero (6 mentions), The Ebony Clock (25 mentions)
-- The Ebony Clock aliases: "the clock", "The Masked Figure", "masked figure", "the figure", "The Red Death" — **4 of 5 are WRONG**
-- **The Red Death STILL falsely merged into Ebony Clock** despite reverting min_grounding_mentions
-- POV guard fix WORKED: Prospero `is_narrator: false` ✓
-- BLOCKED aliases logged for Red Death's own aliases (core noun mismatch)
-- "casements" IPA now correct (/ˈkeɪs.mənts/) ✓
+## Evaluation Details
 
-## Root Cause Analysis (Attempt 12)
+### Structure Detection: 9/10 ✓
+Continuous short story correctly identified as single section. No artificial splits.
 
-The `min_grounding_mentions` revert from 2→1 did NOT fix the core problem. The Red Death is still being merged into the Ebony Clock. This means the previous root cause analysis (attempt 11) was **wrong** — the grounding threshold was NOT the primary cause.
+### Character Extraction: 6.5/10 ✗
 
-**Revised root cause:** The LLM-driven within-main merge step (characters.py Step 3.5) is merging The Red Death and The Masked Figure into The Ebony Clock. Even with min_grounding_mentions=1:
-1. 4 characters extracted: Prince Prospero (main_cast_0), ??? (main_cast_1), ??? (main_cast_2), The Ebony Clock (main_cast_3)
-2. main_cast_1 and main_cast_2 were The Red Death and The Masked Figure
-3. During within-main merge / Pass 2 alias resolution, the LLM proposes merging them into the Clock
-4. Rule 0.5 ("alias can't be another character's canonical") should block this, but either:
-   - (a) The merge happens in a step BEFORE verify_aliases runs, or
-   - (b) The merges happen sequentially — one entity is merged first, removing it from the canonical list, then the second merge isn't blocked because the first entity's canonical no longer exists, or
-   - (c) Rule 0.5 string matching doesn't exactly match (case, articles, etc.)
-5. All three wrong aliases end up on the Clock
+**Completeness (7/10):** Two of three expected entities present. Prince Prospero ✓, the Red Death ✓. The Ebony Clock is **MISSING** — it was present in attempt 12 (main_cast_3, 25 mentions) but has been filtered out. The Clock is a major symbolic presence that chimes each hour, stopping all revelry, and symbolizes the inevitability of death. Per rubric, significant symbolic objects ARE valid extractions.
 
-**The POV guard fix is confirmed working.** Prospero is no longer marked as narrator in this 3rd-person narrative.
+**Identity Resolution (8/10):** Major improvement — the Red Death is now a STANDALONE character (main_cast_2), no longer falsely merged into the Ebony Clock. This was the CRITICAL issue in attempts 9-12 and the attempt 13 `is_symbolic` fix partially worked. No false merges or splits among present characters.
 
-**Key insight for fix phase:** This is attempt 12 and the same core issue (Red Death merged into Clock) has persisted across attempts 9-12 despite different fix approaches. The fix phase MUST investigate the actual merge mechanism — not just change thresholds. Debug logging should show EXACTLY where and why The Red Death stops being a standalone character.
+**Alias Grouping (5/10):** Two problems:
+1. **Wrong alias "the crowd" on the Red Death** — "the crowd" refers to the courtiers/revelers at the masquerade ball, NOT the Red Death. This is a false alias.
+2. **Missing valid aliases for the Red Death** — "the masked figure", "the intruder", "the mummer", "the stranger" are all textual references to the Red Death. These are blocked by core noun mismatch rules ("figure"/"intruder" ≠ "death"), a known issue from attempts 7-8.
+
+### Character Profiles: 7/10 ✗
+- Prospero: "bold and robust" — accurate but **incomplete**. Text also says "happy and dauntless and sagacious." Relationship "the Red Death: enemy" ✓
+- The Red Death: Excellent physical description — "tall, gaunt, shrouded... habiliments of the grave... mask resembling stiffened corpse... scarlet horror... blood." Very accurate. ✓
+- The Red Death has `is_symbolic: false` — should be True (personified plague/supernatural force)
+- **Missing Ebony Clock profile entirely** — drops score since 1 of 3 significant entities has no profile
+- Profile quality for existing characters is decent but Prospero is thin
+
+### Chapter Summaries: 9/10 ✓
+Excellent summary of the complete story: captures the plague, the retreat, the seven colored rooms, the masquerade, the masked figure's appearance, Prospero's confrontation and death, the discovery that the figure is empty, and the ending with "Darkness and Decay and the Red Death." Themes correctly identified. Good length.
+
+### Pronunciation Guide: 8/10 ✓
+17 entries, 15 with IPA. Good selections: Prospero, sagacious, castellated, improvisatori, Hernani, out-Heroded, habiliments, cerements, blood-bedewed, piquancy — all genuinely unusual. Homographs (live, close) correctly flagged. Two homographs (produce, deliberate) have null IPA — minor gap.
+
+### HTML Presentation: 9/10 ✓
+Well-organized with tabbed navigation, relationship cards, performance timing table, model information. Clean layout.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **The Red Death falsely merged into The Ebony Clock** [Identity Resolution, Completeness]
-   - Problem: "The Red Death" (personified plague, title antagonist), "The Masked Figure", "masked figure", and "the figure" are ALL listed as aliases of "The Ebony Clock" (a timepiece). Only 2 characters remain when there should be at least 3.
-   - Evidence: `jq '.characters[1].aliases'` → `["the clock", "The Masked Figure", "masked figure", "the figure", "The Red Death"]`
-   - Root cause: The within-main merge step merges The Red Death and The Masked Figure into the Clock. The `min_grounding_mentions` revert did NOT fix this — the merge happens regardless of grounding threshold.
-   - Location: `src/agents/characters.py` — within-main merge step (Step 3.5) or `src/pipeline/character_extraction_v2/main_cast.py` — `_process_consolidated_pass2()` or `verify_aliases()`
-   - Fix approach: **The fix phase MUST add debug logging to trace exactly where the merge happens**, then apply a targeted block. Three potential generic fixes (try in order):
-     - **(A) Rule 0.5 investigation:** Verify Rule 0.5 is actually running and matching. Add temporary debug logging to `verify_aliases()` to see if "The Red Death" alias proposal reaches Rule 0.5 and why it passes. Fix any string matching issues (case sensitivity, article handling).
-     - **(B) Mention-count guard (new Rule 0.8):** Add a rule in `verify_aliases()` that blocks an alias if the alias text has a HIGHER mention count than the canonical character's name. "The Red Death" appears more often than "The Ebony Clock" in the source text. This is a universal invariant — aliases are typically less-frequent references.
-     - **(C) Within-main merge guard:** If the merge happens in a bulk merge step rather than verify_aliases, add a check there: do not merge two characters that were both extracted as SEPARATE main_cast entries (they were split for a reason).
-   - Impact: +3 points on Character Extraction, +2 on Profiles
+1. **Ebony Clock MISSING from output** [Completeness]
+   - Problem: The Ebony Clock was extracted (4 characters found during extraction) but filtered out of final output. Only 2 of 4 characters survive. In attempt 12, the Clock was `main_cast_3` with 25 mentions.
+   - Evidence: `jq '.characters | length'` → 2. Pipeline notes confirm "4 characters found during extraction; 2 in final output."
+   - Root cause hypothesis: The attempt 13 fix marked the Clock as `is_symbolic=True` via artifact core noun detection. Then Rule 0.5 in `verify_aliases` blocked all its wrong aliases (Red Death, masked figure, etc.). Without those inflated aliases/mentions, the Clock may have fallen below a mention or grounding threshold and been filtered out. Alternatively, the Clock was merged INTO the Red Death in the within-main merge step.
+   - Location: Investigate filtering/merge in `src/agents/characters.py` (post-extraction filtering) and `src/pipeline/character_extraction_v2/main_cast.py` (within-main merge). Check if a minimum mention threshold is removing it. Also check `src/pipeline/character_extraction_v2/grounding.py` for grounding-based filtering.
+   - Fix approach: **Debug which step removes the Clock.** Add temporary logging to trace the 4→2 character reduction. The Clock has legitimate mentions ("the clock", "the ebony clock") and should survive filtering. If a mention threshold is the issue, ensure `is_symbolic` characters get their OWN mentions counted (not alias-inflated ones).
+   - Impact: +1.5 on Characters (Completeness 7→9), +1 on Profiles (Clock profile would be generated)
 
 ### HIGH
-2. **Missing valid Red Death aliases** [Alias Grouping]
-   - Problem: When The Red Death IS a standalone character (attempts 4-8), it has NO aliases. "the masked figure", "the intruder", "the stranger" are all blocked by core noun mismatch ("figure"/"intruder"/"stranger" ≠ "death").
-   - Evidence: Pipeline notes across multiple attempts show BLOCKED aliases for Red Death
-   - Location: `verify_aliases()` in main_cast.py — core noun comparison
-   - Fix: For `is_symbolic=True` characters, relax core noun matching. The text explicitly states the masked figure IS the Red Death — these are narrative synonyms, not regular aliases.
-   - Impact: ~1 point on Alias Grouping (can wait until after CRITICAL #1 is fixed)
-   - Note: Attempted in attempts 7-8 without success. May need a different approach — e.g., co-reference resolution based on summary text context.
+2. **Wrong alias "the crowd" on the Red Death** [Alias Grouping]
+   - Problem: "the crowd" refers to the courtiers at the masquerade, NOT the Red Death. This is a completely incorrect alias assignment.
+   - Evidence: `jq '.characters[1].aliases'` → `["the crowd"]`
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — LLM Pass 2 alias resolution or `_process_consolidated_pass2()`
+   - Fix: The core noun of "the crowd" is "crowd" — this is semantically unrelated to "death". The existing core noun mismatch rules should catch this but apparently don't (perhaps "crowd" isn't checked, or the rule only applies to `is_symbolic` characters). Add "crowd" type nouns to the blocked patterns, or strengthen Rule 0.5 to catch collective nouns being assigned to individual/symbolic entities.
+   - Impact: +1 on Alias Grouping
 
-3. **Prospero's physical description incomplete** [Profiles]
-   - Problem: "bold and robust" — text also says "happy and dauntless and sagacious"
-   - Location: Profile generation in analyzer.py
-   - Impact: ~0.25 points. Fix naturally after character list is corrected.
+3. **Missing valid Red Death aliases** [Alias Grouping]
+   - Problem: "the masked figure", "the intruder", "the stranger", "the mummer" are all textual references to the Red Death but are blocked by core noun mismatch ("figure"/"intruder" ≠ "death").
+   - Evidence: Pipeline notes across attempts 7-13 show BLOCKED aliases for Red Death
+   - Location: `verify_aliases()` in main_cast.py — core noun comparison logic
+   - Fix: Known persistent issue. For `is_symbolic=True` characters, the core noun matching is too strict. These are narrative synonyms established by the text, not regular aliases. Consider: (a) relaxing core noun matching for symbolic characters when the LLM has high confidence, or (b) using co-reference resolution from summary text.
+   - Impact: +1-2 on Alias Grouping. Can be deferred if fixing #1 and #2 brings Characters to 8.0.
+   - Note: Attempted in attempts 7-8 without success. This is a hard problem.
 
 ### MEDIUM
-4. **2 pronunciation entries missing IPA** [Pronunciation]
+4. **Prospero's physical description incomplete** [Profiles]
+   - Problem: Only "bold and robust" — text also says "happy and dauntless and sagacious"
+   - Location: Profile generation in analyzer.py
+   - Impact: ~0.25 points. Will partially self-correct if character list is fixed (profile regeneration).
+
+5. **Red Death not marked `is_symbolic`** [Completeness/Data Quality]
+   - Problem: `is_symbolic: false` for a personified supernatural force
+   - Evidence: `jq '.characters[1].is_symbolic'` → false
+   - Location: `is_symbolic` detection in main_cast.py — "death" may not match artifact noun patterns
+   - Impact: Minor for scoring but affects downstream alias logic. If `is_symbolic` were True, alias rules would apply differently.
+
+6. **2 pronunciation entries missing IPA** [Pronunciation]
    - "produce" and "deliberate" (homographs) have null IPA
-   - Impact: minor. Pronunciation at 8/10, above threshold.
+   - Impact: Minor. Pronunciation is at 8/10, above threshold.
 
-5. **Prince Prospero's relationship listed as "The Ebony Clock: antagonist"** [Profiles]
-   - Problem: The Red Death is the antagonist, not the Clock. This will self-correct when character list is fixed.
+## Progress Analysis (Attempt 13 vs 12)
 
-## Fix Applied for Attempt 13
+| Metric | Attempt 12 | Attempt 13 | Change |
+|--------|-----------|-----------|--------|
+| Characters | 2 | 2 | Same count |
+| Red Death standalone | No (merged into Clock) | Yes (standalone) | ✓ IMPROVED |
+| Ebony Clock present | Yes (with wrong aliases) | No (missing) | ✗ REGRESSED |
+| Wrong aliases on Clock | 4 wrong aliases | N/A (missing) | N/A |
+| Red Death aliases | N/A (merged) | 1 wrong ("the crowd") | Mixed |
 
-### Change: Artifact core noun `is_symbolic` detection (main_cast.py)
-
-**File:** `src/pipeline/character_extraction_v2/main_cast.py`
-**Location:** `_extract_two_pass()` programmatic `is_symbolic` correction block (~line 535)
-
-**Root cause confirmed:** "The Ebony Clock" was NOT being marked `is_symbolic=True` by the existing programmatic correction because its modifiers "Ebony" and "Clock" are capitalized — the existing check required `_all_lowercase=True` for all non-article words. With `is_symbolic=False`, Rule 0.5 in `verify_aliases` never fired, allowing semantic nonsense like "The Red Death" to pass as the Clock's alias. When the LLM only extracted 2 profiles in Pass 1 (non-deterministic), Rule 3 also couldn't block it (no competing profile for Red Death), so no rule stopped the merge.
-
-**Fix:** Added an `elif` clause to the `is_symbolic` correction loop that also sets `is_symbolic=True` when the character's canonical name ends with a word in a universal set of inanimate artifact nouns (`_artifact_core_nouns`: clock, bell, ring, sword, dagger, knife, lamp, candle, lantern, mirror, portrait, painting, statue, coffin, casket, crown, chest, door). This catches "The Ebony Clock" (`_words[-1] = "clock"`) regardless of modifier capitalization.
-
-**Effect:** With `is_symbolic=True`, Rule 0.5 in `verify_aliases` will block any alias whose core noun is semantically unrelated to "clock" — specifically "death" (The Red Death), "figure" (The Masked Figure, masked figure), etc. Only "the clock" would pass Rule 0.5.
-
-**Safety:** "The Red Death" → `_words[-1] = "death"` ∉ artifact nouns → no false positive. Verified with 332 passing tests (0 regressions).
-
-## Fix Guidance for Attempt 13 (archived)
-
-### MANDATORY: Debug the merge mechanism (CRITICAL #1)
-
-The fix phase has been trying different approaches for 4 attempts (9-12) without resolving this. **Before applying ANY fix, the fix phase MUST:**
-
-1. **Add temporary debug logging** to trace the merge path:
-   ```python
-   # In characters.py within-main merge (Step 3.5) — log merge proposals
-   # In main_cast.py verify_aliases() — log Rule 0.5 checks
-   # In main_cast.py _process_consolidated_pass2() — log merge decisions
-   ```
-
-2. **Run the analysis with logging** (or read existing logs if available) to answer:
-   - At what step does The Red Death stop being a standalone character?
-   - Does Rule 0.5 see the "The Red Death" → "The Ebony Clock" alias proposal?
-   - If yes, why doesn't it block it?
-   - If no, which step merges them BEFORE verify_aliases?
-
-3. **Only then apply a targeted fix** based on what the debug reveals.
-
-### Probable fix: Mention-count guard (Rule 0.8)
-
-Regardless of root cause, adding a mention-count guard in `verify_aliases()` is a **safe, generic fix** that would prevent this class of error:
-
-```python
-# Rule 0.8: Block alias if it has more text mentions than the canonical
-# Universal invariant: aliases are alternative (usually less common) references
-if alias_mention_count > canonical_mention_count:
-    return False  # Block — more-prominent entity should not be an alias
-```
-
-This requires passing mention counts to `verify_aliases()`. Check if `mention_count` data is available in the context passed to this function.
-
-### Constraints
-- Do NOT modify prompts in ways that are novel-specific
-- Changes must be generic (work for any text)
-- Test with `pytest --ignore=tests/test_semantic_conflicts.py --ignore=tests/test_pdf_ingestion.py --ignore=tests/test_refine.py`
-- **INVESTIGATE before fixing** — 4 attempts at blind fixes have failed
+**Net assessment:** The `is_symbolic` artifact noun fix PARTIALLY worked — it correctly unmerged the Red Death from the Clock. But it had the side effect of making the Clock disappear entirely. The fix overcorrected: it blocked the Clock's inflated aliases but then something removed the Clock as a character.
 
 ## Fix History
 
+### Attempt 13 (Score: 7.98/10 — improvement from 7.0)
+1. **Artifact core noun `is_symbolic` detection** in main_cast.py:
+   - Result: ✓ PARTIALLY WORKED — Red Death now standalone (unmerged from Clock)
+   - Side effect: ✗ Ebony Clock now MISSING entirely — filtering removed it after alias cleanup
+   - New issue: Red Death has wrong alias "the crowd"
+
 ### Attempt 12 (Score: 7.0/10 — marginal improvement from 6.95)
-1. **REVERT min_grounding_mentions to 1** in `src/agents/characters.py`:
-   - Result: ✗ DID NOT FIX — The Red Death still merged into Clock. Grounding threshold was NOT the root cause.
-2. **POV guard for narrator assignment** in `src/pipeline/character_extraction_v2/narrator.py`:
-   - Result: ✓ WORKED — Prospero no longer marked as narrator (+0.5 on Profiles)
+1. **REVERT min_grounding_mentions to 1** in characters.py: ✗ DID NOT FIX
+2. **POV guard for narrator assignment** in narrator.py: ✓ WORKED
 
 ### Attempt 11 (Score: 6.95/10 — REGRESSION from 7.68)
-1. **F6 plural group noun filter** in `src/analyzer.py`: ✓ WORKED — no F6 group characters
-2. **min_grounding_mentions = 2** in `src/agents/characters.py`: ✗ OVER-FILTERED — The Red Death removed, causing catastrophic merge into Clock
-3. **Narrator min-mention guard** in `src/pipeline/character_extraction_v2/narrator.py`: ✓ Works for 1-mention case, but doesn't prevent wrong narrator for 12-mention Prospero
-4. **"stra" suffix** in `main_cast.py` and `characters.py`: ✓ WORKED — "the orchestra" alias blocked
+1. F6 plural group noun filter in analyzer.py: ✓ WORKED
+2. min_grounding_mentions = 2 in characters.py: ✗ OVER-FILTERED
+3. Narrator min-mention guard in narrator.py: ✓ Works for 1-mention case
+4. "stra" suffix in main_cast.py and characters.py: ✓ WORKED
 
-### Attempt 10 (Score: 7.68/10 — improvement from 7.35, but below best of 8.35)
-1. **REVERTED symbolic reveal merge** in main_cast.py: ✓ Red Death restored
-2. **KEPT plural suffix filter**: ✓ Still works
-3. **New issues from LLM non-determinism**: Ebony Clock missing, "Darkness" hallucinated, "the orchestra" wrong alias
+### Attempt 10 (Score: 7.68/10)
+1. REVERTED symbolic reveal merge: ✓ Red Death restored
+2. KEPT plural suffix filter: ✓
 
-### Attempt 9 (Score: 7.35/10 — REGRESSION from 8.35)
-1. Plural group noun filter in characters.py: ✓ WORKED — keep
-2. Symbolic descriptor reveal merge in main_cast.py: ✗ REGRESSION — Red Death MISSING — REVERTED
+### Attempt 9 (Score: 7.35/10 — REGRESSION)
+1. Plural group noun filter: ✓ WORKED
+2. Symbolic descriptor reveal merge: ✗ REGRESSION — REVERTED
 
-### Attempt 8 (Score: 8.35/10 — NO CHANGE from attempt 7)
-1. ALIAS_RESOLUTION_PROMPT Rule 2 clarification: No change — cosmetic only
+### Attempt 8 (Score: 8.35/10 — BEST)
+1. Rule 2 prompt clarification: No change
 
-### Attempt 7 (Score: 8.35/10 — NO CHANGE from attempt 6)
-1. Rule 0.7 in verify_aliases: Partial — changed which aliases, didn't fix
-2. Rule 3 exception in ALIAS_RESOLUTION_PROMPT: No change — wrong rule targeted
+### Attempt 7 (Score: 8.35/10)
+1. Rule 0.7 in verify_aliases: Partial
+2. Rule 3 exception: No change
 
-### Attempt 6 (Score: 8.35/10 — IMPROVEMENT from 6.60)
-1. REVERTED characters.py Rule 0.6 — Restored The Red Death
-2. KEPT grounding.py substring alias exemption
+### Attempt 6 (Score: 8.35/10 — tied BEST)
+1. REVERTED characters.py Rule 0.6: ✓
+2. KEPT grounding.py fix: ✓
 
-### Attempt 5 (Score: 6.60/10 — REGRESSION from 8.23)
-1. Rule 0.6 in characters.py caused regression
-2. grounding.py fix worked
-
-### Attempt 4 (Score: 8.23/10 — PREVIOUS BEST before attempt 6)
-1. Reverted attempt 3 regression
-2. Improved is_symbolic detection
-
-### Attempt 3 (Score: 6.10/10 — REGRESSION)
-Auto-reverted in attempt 4.
-
-### Attempt 2 (Score: 7.98/10)
-Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
-
-### Attempt 1 (Score: 6.85/10 — baseline)
+### Attempts 1-5: See previous evaluation state
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 13 | Artifact core noun `is_symbolic` detection | main_cast.py | pending analysis |
-| 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | ✗ DID NOT FIX — merge persists |
-| 12 | POV guard: narrator only set for first-person/epistolary | narrator.py | ✓ WORKED — Prospero no longer narrator |
-| 11 | F6 plural group noun filter | analyzer.py | ✓ Worked — no F6 group characters |
-| 11 | min_grounding_mentions = 2 | characters.py | ✗ OVER-FILTERED — Red Death removed, merged into Clock |
-| 11 | Narrator min-mention guard | narrator.py | ✓ Works for 1-mention, doesn't fix 12-mention Prospero |
-| 11 | "stra" suffix for collective nouns | main_cast.py, characters.py | ✓ Worked — orchestra alias blocked |
-| 10 | Revert symbolic merge (restore Red Death) | main_cast.py | ✓ Red Death restored |
-| 10 | Keep plural suffix filter | (no change) | ✓ Still works |
-| 9 | Group aliases: plural suffix filter in _is_valid_alias | characters.py | ✓ WORKED — keep |
-| 9 | Blocked aliases: symbolic reveal merge in extract() | main_cast.py | ✗ REGRESSION — REVERTED |
-| 8 | Group nouns as aliases: Rule 2 prompt clarification | main_cast.py | No change — cosmetic only |
-| 7 | Wrong group aliases: Rule 0.7 in verify_aliases | main_cast.py | Partial — changed which aliases |
-| 7 | Missing correct aliases: Rule 3 exception | main_cast.py | No change — wrong rule |
-| 6 | Revert characters.py regression | characters.py (reverted) | Fixed ✓ |
+| 13 | Artifact core noun `is_symbolic` detection | main_cast.py | ✓ Partially (Red Death unmerged) / ✗ Clock missing |
+| 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | ✗ DID NOT FIX |
+| 12 | POV guard: narrator only for 1st-person/epistolary | narrator.py | ✓ WORKED |
+| 11 | F6 plural group noun filter | analyzer.py | ✓ Worked |
+| 11 | min_grounding_mentions = 2 | characters.py | ✗ OVER-FILTERED |
+| 11 | Narrator min-mention guard | narrator.py | ✓ Works for 1-mention |
+| 11 | "stra" suffix for collective nouns | main_cast.py, characters.py | ✓ Worked |
+| 10 | Revert symbolic merge | main_cast.py | ✓ Red Death restored |
+| 9 | Group aliases: plural suffix filter | characters.py | ✓ WORKED |
+| 9 | Symbolic descriptor reveal merge | main_cast.py | ✗ REGRESSION — REVERTED |
+| 8 | Rule 2 prompt clarification | main_cast.py | No change |
+| 7 | Rule 0.7 in verify_aliases | main_cast.py | Partial |
+| 7 | Rule 3 exception | main_cast.py | No change |
+| 6 | Revert characters.py regression | characters.py | Fixed ✓ |
 | 6 | Keep grounding.py fix | (no change) | Fixed ✓ |
-| 5 | Wrong group aliases on Red Death | characters.py (_is_valid_alias) | REGRESSION |
+| 5 | Wrong group aliases on Red Death | characters.py | REGRESSION |
 | 5 | Missing "Prospero" alias | grounding.py | Fixed ✓ |
 | 4 | Revert attempt 3 regression | main_cast.py | Fixed ✓ |
 | 4 | is_symbolic detection improvement | main_cast.py | Fixed ✓ |
@@ -225,12 +181,11 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 **Pattern analysis:**
-- **main_cast.py and characters.py have been modified 15+ times** across attempts without resolving the Red Death merge
-- The best scores (8.23, 8.35) were achieved in attempts 4-8 — the merge problem is **intermittent and LLM-dependent**
-- Attempts 9-12 consistently show the merge, suggesting a code change between attempt 8 and 9 destabilized the pipeline
-- The fix phase MUST investigate what changed between attempt 8 (8.35, working) and attempt 9 (7.35, broken)
-- Specifically: attempt 9 added two changes — plural filter (kept, works) and symbolic reveal merge (reverted). But even after reverting the reveal merge, the problem persists in attempts 10-12.
-- **Hypothesis:** LLM non-determinism is a major factor. The same code can produce different character merges on different runs. A robust fix needs to be a HARD BLOCK (like Rule 0.5 or a mention-count guard) rather than relying on the LLM to make the right merge decision.
+- main_cast.py has been modified 12+ times across attempts
+- The `is_symbolic` fix in attempt 13 is the first time the Red Death has been successfully unmerged since attempt 8
+- The Clock disappearing is a NEW problem — previous attempts always had the Clock present
+- Fix phase should investigate the 4→2 character filtering, NOT re-modify alias resolution logic
+- The "the crowd" false alias is likely from LLM Pass 2 and should be catchable with core noun rules
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
@@ -244,7 +199,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Attempt 9: 7.35/10 (-1.00) ← REGRESSION
 - Attempt 10: 7.68/10 (+0.33)
 - Attempt 11: 6.95/10 (-0.73) ← REGRESSION
-- Attempt 12: 7.0/10 (+0.05) ← POV fix helped, merge persists
+- Attempt 12: 7.0/10 (+0.05)
+- Attempt 13: 7.98/10 (+0.98) ← Red Death unmerged, but Clock missing
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
@@ -252,7 +208,9 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Temperature 0.7 standard
 - 0 LLM retries across all stages
 - No chunking issues
-- **Root cause is NOT model/config** — the problem is in the alias merge logic failing to block cross-entity merges
+- **Root cause is NOT model/config** — the issues are in character filtering and alias resolution logic
 
 ## Next Action
-Run PROMPT_fix.md to address the Red Death merge (CRITICAL #1). **Fix phase MUST debug the merge mechanism before applying fixes.**
+Run PROMPT_fix.md to address:
+1. **CRITICAL: Investigate why the Ebony Clock was filtered out** — debug the 4→2 character reduction path
+2. **HIGH: Block "the crowd" as an alias for the Red Death** — core noun mismatch should catch this
