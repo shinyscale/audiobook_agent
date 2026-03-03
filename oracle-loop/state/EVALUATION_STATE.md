@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -166,7 +166,18 @@ Good coverage: Prospero, improvisatori, castellated, habiliments, cerements, out
 - Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
 
 ## Next Action
-Re-run analysis to verify fix
+Evaluate attempt 4 output
+
+## Pipeline Notes (Attempt 4)
+- Analysis completed successfully in 17m 55s (exit code 0)
+- 2 characters found: "Prince Prospero" (aka the Prince) and "The Red Death" (aka The Masked Figure, the figure)
+- The giant ebony clock is NOT in the character list — is_symbolic detection worked correctly
+- No narrator falsely detected (narrator=None)
+- 17 pronunciation flags
+- Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
+- Notable BLOCKED alias messages: cross-symbolic-object aliases blocked (the Red Death ↔ The Masked Figure in wrong directions)
+- Final aliases: Prince Prospero → (the Prince); The Red Death → (The Masked Figure, the figure)
+- Missing: "Prospero" (without "Prince") is not an alias for Prince Prospero
 
 ## Fix History (Attempt 4)
 1. **Reverted attempt 3 main_cast.py** — restored to attempt 2 state via `git checkout dac1bca`
