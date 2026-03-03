@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -90,7 +90,22 @@ The `min_grounding_mentions` revert from 2→1 did NOT fix the core problem. The
 5. **Prince Prospero's relationship listed as "The Ebony Clock: antagonist"** [Profiles]
    - Problem: The Red Death is the antagonist, not the Clock. This will self-correct when character list is fixed.
 
-## Fix Guidance for Attempt 13
+## Fix Applied for Attempt 13
+
+### Change: Artifact core noun `is_symbolic` detection (main_cast.py)
+
+**File:** `src/pipeline/character_extraction_v2/main_cast.py`
+**Location:** `_extract_two_pass()` programmatic `is_symbolic` correction block (~line 535)
+
+**Root cause confirmed:** "The Ebony Clock" was NOT being marked `is_symbolic=True` by the existing programmatic correction because its modifiers "Ebony" and "Clock" are capitalized — the existing check required `_all_lowercase=True` for all non-article words. With `is_symbolic=False`, Rule 0.5 in `verify_aliases` never fired, allowing semantic nonsense like "The Red Death" to pass as the Clock's alias. When the LLM only extracted 2 profiles in Pass 1 (non-deterministic), Rule 3 also couldn't block it (no competing profile for Red Death), so no rule stopped the merge.
+
+**Fix:** Added an `elif` clause to the `is_symbolic` correction loop that also sets `is_symbolic=True` when the character's canonical name ends with a word in a universal set of inanimate artifact nouns (`_artifact_core_nouns`: clock, bell, ring, sword, dagger, knife, lamp, candle, lantern, mirror, portrait, painting, statue, coffin, casket, crown, chest, door). This catches "The Ebony Clock" (`_words[-1] = "clock"`) regardless of modifier capitalization.
+
+**Effect:** With `is_symbolic=True`, Rule 0.5 in `verify_aliases` will block any alias whose core noun is semantically unrelated to "clock" — specifically "death" (The Red Death), "figure" (The Masked Figure, masked figure), etc. Only "the clock" would pass Rule 0.5.
+
+**Safety:** "The Red Death" → `_words[-1] = "death"` ∉ artifact nouns → no false positive. Verified with 332 passing tests (0 regressions).
+
+## Fix Guidance for Attempt 13 (archived)
 
 ### MANDATORY: Debug the merge mechanism (CRITICAL #1)
 
@@ -184,6 +199,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 13 | Artifact core noun `is_symbolic` detection | main_cast.py | pending analysis |
 | 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | ✗ DID NOT FIX — merge persists |
 | 12 | POV guard: narrator only set for first-person/epistolary | narrator.py | ✓ WORKED — Prospero no longer narrator |
 | 11 | F6 plural group noun filter | analyzer.py | ✓ Worked — no F6 group characters |

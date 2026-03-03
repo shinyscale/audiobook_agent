@@ -494,6 +494,14 @@ class MainCastExtractor:
             "visitor", "creature", "being", "one", "self", "fellow", "soul",
             "narrator", "voice", "ghost", "spirit", "phantom", "specter",
         }
+        # Core nouns that definitively identify inanimate artifacts even when the
+        # surrounding words are capitalized (e.g., "The Ebony Clock", "The Magic Mirror").
+        # Universal set — not specific to any novel.
+        _artifact_core_nouns = {
+            "clock", "bell", "ring", "sword", "dagger", "knife",
+            "lamp", "candle", "lantern", "mirror", "portrait", "painting",
+            "statue", "coffin", "casket", "crown", "chest", "door",
+        }
         for _char in initial_characters:
             if _char.is_symbolic:
                 continue
@@ -522,6 +530,20 @@ class MainCastExtractor:
                         f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
                         f"matches multi-word object descriptor pattern (3+ words, "
                         f"all-lowercase, non-human core noun '{_words[-1]}'); marking is_symbolic=True"
+                    )
+                    _char.is_symbolic = True
+                elif (
+                    len(_words) >= 2
+                    and _words[0] in ("the", "a", "an")
+                    and _words[-1] in _artifact_core_nouns
+                ):
+                    # Catches "The Ebony Clock", "The Magic Mirror" etc. where modifiers
+                    # are capitalized so _all_lowercase would be False, but the core noun
+                    # is an unambiguous physical artifact.  Rule 0.5 then blocks semantic
+                    # mismatches like "The Red Death" as an alias of "The Ebony Clock".
+                    logger.info(
+                        f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
+                        f"ends with artifact noun '{_words[-1]}'; marking is_symbolic=True"
                     )
                     _char.is_symbolic = True
 
