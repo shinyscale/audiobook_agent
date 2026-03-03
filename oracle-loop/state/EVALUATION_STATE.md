@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -69,5 +69,13 @@
 |---------|-------|----------------|--------|
 | 1 | Profiles: cousin blocked as contradictory | post_corrections.py | Awaiting analysis |
 
+## Pipeline Notes
+- Analysis completed in 23m 35s
+- 4 characters found: Egaeus, Berenice, The servant maiden, Ebn Zaiat
+- 44 pronunciation flags (26 unknown, 13 proper noun, 5 foreign)
+- Low confidence profile for Ebn Zaiat (0.15) — sparse character
+- Blocked aliases: 'the disfigured body' (hallucinated), 'a servant' (semantic mismatch), 'the maiden' (not in summaries), 'the physician' (not in summaries)
+- Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries=qwen3.5:122b-a10b
+
 ## Next Action
-Re-run analysis to verify fix — Character Profiles score should improve from 7.5 → 8.0+.
+Evaluate output — verify cousin relationship is now correctly labeled (not "associated").
