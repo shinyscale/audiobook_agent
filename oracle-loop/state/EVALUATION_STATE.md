@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -166,7 +166,15 @@ Good coverage: Prospero, improvisatori, castellated, habiliments, cerements, out
 - Models: structure=qwen3.5:35b-a3b, characters=qwen3.5:122b-a10b, summaries=qwen3.5:122b-a10b, pronunciation=qwen3.5:35b-a3b
 
 ## Next Action
-Fix phase should:
-1. Auto-revert attempt 3 commit (score 6.10 < baseline 6.85 - 0.3)
-2. From the attempt 2 codebase, carefully re-apply fixes for the remaining issues (Rule 0.6, title-stripping) WITHOUT breaking is_symbolic detection
-3. Investigate LLM non-determinism in is_symbolic and narrator detection — may need more robust heuristics
+Re-run analysis to verify fix
+
+## Fix History (Attempt 4)
+1. **Reverted attempt 3 main_cast.py** — restored to attempt 2 state via `git checkout dac1bca`
+2. **Improved is_symbolic detection** — lowered threshold from 4→3 words AND added all_lowercase check (non-article words must start lowercase to distinguish objects from proper names like "the Red Death"). Catches "the ebony clock" (3 words), rejects "the Red Death" (has uppercase).
+3. **Re-added Rule 0.6** — plural group noun blocking from attempt 3, without prompt changes. Universal invariant: "the courtiers/musicians/waltzers" → blocked as aliases for singular characters.
+4. **Re-added _add_title_stripped_aliases()** — "Prince Prospero" → adds "Prospero". Called before verify_aliases. Rule 3 has existing substring exemption so "Prospero" (substring of "Prince Prospero") is not blocked by cross-character conflict check.
+5. **Kept original ALIAS_RESOLUTION_PROMPT** — did NOT re-apply the attempt 3 prompt changes (Rules 1/2/3 rewrite) that caused regression by allowing "the Red Death" to bypass alias filters.
+- Root cause: attempt 3 prompt change to Rule 3 ("persons, groups, or organizations") allowed the LLM to propose "the Red Death" (a supernatural force, not a person/group/org) as alias of the clock; combined with is_symbolic failure, this caused the catastrophic merge
+- Smoke test: PASS — all 3 fixes verified (is_symbolic: 8/8 cases, Rule 0.6: 7/7 cases, title-stripping: 5/5 cases)
+- Tests: 332 passed, 10 skipped, 0 failures
+- Modified: src/pipeline/character_extraction_v2/main_cast.py

@@ -129,9 +129,9 @@ Description: {description}
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
-1. An alias is another name or reference for the EXACT SAME individual entity as {character_name} — not a different person, group, or object.
-2. Include shortened name forms (e.g., "Prospero" for "Prince Prospero"), nicknames, titles, spelling variants, and singular descriptive references — even if the character appears under a different description in some passages.
-3. Do NOT include persons, groups, or organizations that interacted with this entity — they are separate characters, not aliases.
+1. An alias is another name or reference for the EXACT SAME entity as {character_name} — not a different person or object.
+2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman") used in any chapter — a character may be called by description instead of name in some chapters.
+3. Do NOT include persons who created, gave, received, or interacted with this entity — they are separate characters, not aliases.
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 
 CHAPTER SUMMARIES:
@@ -505,17 +505,23 @@ class MainCastExtractor:
                 )
                 _char.is_symbolic = True
             else:
-                # Multi-word object descriptor: article + 2+ words + non-human core noun
+                # Multi-word object descriptor: article + 1+ modifier + non-human core noun
+                # All non-article words must start lowercase (proper names like "the Red Death"
+                # have uppercase words — those are entities, not objects).
                 _words = name_stripped.lower().split()
+                _name_words_orig = name_stripped.split()
+                _non_article_orig = [w for w in _name_words_orig if w.lower() not in ("the", "a", "an")]
+                _all_lowercase = all(w[0].islower() for w in _non_article_orig if w)
                 if (
-                    len(_words) >= 4
+                    len(_words) >= 3
                     and _words[0] in ("the", "a", "an")
                     and _words[-1] not in _human_core_nouns
+                    and _all_lowercase
                 ):
                     logger.info(
                         f"Programmatic is_symbolic correction: '{_char.canonical_name}' "
-                        f"matches multi-word object descriptor pattern (4+ words, "
-                        f"non-human core noun '{_words[-1]}'); marking is_symbolic=True"
+                        f"matches multi-word object descriptor pattern (3+ words, "
+                        f"all-lowercase, non-human core noun '{_words[-1]}'); marking is_symbolic=True"
                     )
                     _char.is_symbolic = True
 
