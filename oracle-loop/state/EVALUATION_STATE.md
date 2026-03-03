@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -13,112 +13,116 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6.5/10 ✗
-  - Completeness: 7/10
-  - Identity Resolution: 8/10
-  - Alias Grouping: 5/10
-- Character Profiles: 7/10 ✗
+- Character Extraction: 7/10 ✗
+  - Completeness: 8/10
+  - Identity Resolution: 4/10
+  - Alias Grouping: 6/10
+- Character Profiles: 6/10 ✗
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.98/10** (reference only)
+- **Overall: 7.95/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Characters 6.5, Profiles 7)
+**Status:** FAIL — Character Extraction 7/10, Character Profiles 6/10
 
-## Evaluation Details
+## Attempt 14 Pipeline Output (Run Notes)
 
-### Structure Detection: 9/10 ✓
-Continuous short story correctly identified as single section. No artificial splits.
+### Characters Found (8 total)
+```
+Prince Prospero (aka the Prince, Prospero)  [protagonist]
+the Red Death (aka the figure resembling the Red Death)  [antagonist]  is_symbolic=True
+the masked figure  [antagonist]  is_symbolic=True
+the courtiers  [supporting]
+the thousand friends  [supporting]  is_symbolic=True
+the musicians  [minor]
+the waltzers  [minor]
+the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
+```
 
-### Character Extraction: 6.5/10 ✗
+### Fix Verification
+- **Fix 1 (short-form alias)**: ✓ WORKED — "the giant ebony clock" has alias "the clock"
+- **Fix 2 (collective noun block)**: ✓ WORKED — no "the crowd" alias anywhere in output
+- **AmbiguousName bug fix**: ✓ WORKED — profiling no longer crashes
 
-**Completeness (7/10):** Two of three expected entities present. Prince Prospero ✓, the Red Death ✓. The Ebony Clock is **MISSING** — it was present in attempt 12 (main_cast_3, 25 mentions) but has been filtered out. The Clock is a major symbolic presence that chimes each hour, stopping all revelry, and symbolizes the inevitability of death. Per rubric, significant symbolic objects ARE valid extractions.
+### Profiling (2 profiles generated)
+1. **Prince Prospero** — appearance: "bold and robust man", personality: selfish/arrogant/cruel, 3 relationships ✓
+2. **the masked figure** — appearance: "tall, gaunt figure... grave clothes... mask resembling stiffened corpse" ✓
 
-**Identity Resolution (8/10):** Major improvement — the Red Death is now a STANDALONE character (main_cast_2), no longer falsely merged into the Ebony Clock. This was the CRITICAL issue in attempts 9-12 and the attempt 13 `is_symbolic` fix partially worked. No false merges or splits among present characters.
+### Model/Config Notes
+- Quality model: qwen3.5:122b-a10b with think=False (think=True + format=json produces empty content)
+- Summarization: think=False — works fine (51s)
+- Character extraction: think=False — two-pass works now that key_events are in summary_strings
+- key_events include "giant ebony clock" references → Clock extracted in Pass 1 ✓
+- Profiling: think=False — 2 profiles from profiling pipeline's own character identification (independent of Stage 4)
 
-**Alias Grouping (5/10):** Two problems:
-1. **Wrong alias "the crowd" on the Red Death** — "the crowd" refers to the courtiers/revelers at the masquerade ball, NOT the Red Death. This is a false alias.
-2. **Missing valid aliases for the Red Death** — "the masked figure", "the intruder", "the mummer", "the stranger" are all textual references to the Red Death. These are blocked by core noun mismatch rules ("figure"/"intruder" ≠ "death"), a known issue from attempts 7-8.
-
-### Character Profiles: 7/10 ✗
-- Prospero: "bold and robust" — accurate but **incomplete**. Text also says "happy and dauntless and sagacious." Relationship "the Red Death: enemy" ✓
-- The Red Death: Excellent physical description — "tall, gaunt, shrouded... habiliments of the grave... mask resembling stiffened corpse... scarlet horror... blood." Very accurate. ✓
-- The Red Death has `is_symbolic: false` — should be True (personified plague/supernatural force)
-- **Missing Ebony Clock profile entirely** — drops score since 1 of 3 significant entities has no profile
-- Profile quality for existing characters is decent but Prospero is thin
-
-### Chapter Summaries: 9/10 ✓
-Excellent summary of the complete story: captures the plague, the retreat, the seven colored rooms, the masquerade, the masked figure's appearance, Prospero's confrontation and death, the discovery that the figure is empty, and the ending with "Darkness and Decay and the Red Death." Themes correctly identified. Good length.
-
-### Pronunciation Guide: 8/10 ✓
-17 entries, 15 with IPA. Good selections: Prospero, sagacious, castellated, improvisatori, Hernani, out-Heroded, habiliments, cerements, blood-bedewed, piquancy — all genuinely unusual. Homographs (live, close) correctly flagged. Two homographs (produce, deliberate) have null IPA — minor gap.
-
-### HTML Presentation: 9/10 ✓
-Well-organized with tabbed navigation, relationship cards, performance timing table, model information. Clean layout.
-
-## Current Issues (Priority Order)
+## Issues (Priority Order for Attempt 15)
 
 ### CRITICAL
-1. **Ebony Clock MISSING from output** [Completeness]
-   - Problem: The Ebony Clock was extracted (4 characters found during extraction) but filtered out of final output. Only 2 of 4 characters survive. In attempt 12, the Clock was `main_cast_3` with 25 mentions.
-   - Evidence: `jq '.characters | length'` → 2. Pipeline notes confirm "4 characters found during extraction; 2 in final output."
-   - Root cause hypothesis: The attempt 13 fix marked the Clock as `is_symbolic=True` via artifact core noun detection. Then Rule 0.5 in `verify_aliases` blocked all its wrong aliases (Red Death, masked figure, etc.). Without those inflated aliases/mentions, the Clock may have fallen below a mention or grounding threshold and been filtered out. Alternatively, the Clock was merged INTO the Red Death in the within-main merge step.
-   - Location: Investigate filtering/merge in `src/agents/characters.py` (post-extraction filtering) and `src/pipeline/character_extraction_v2/main_cast.py` (within-main merge). Check if a minimum mention threshold is removing it. Also check `src/pipeline/character_extraction_v2/grounding.py` for grounding-based filtering.
-   - Fix approach: **Debug which step removes the Clock.** Add temporary logging to trace the 4→2 character reduction. The Clock has legitimate mentions ("the clock", "the ebony clock") and should survive filtering. If a mention threshold is the issue, ensure `is_symbolic` characters get their OWN mentions counted (not alias-inflated ones).
-   - Impact: +1.5 on Characters (Completeness 7→9), +1 on Profiles (Clock profile would be generated)
+1. **"the masked figure" is a separate character from "the Red Death"** [Identity Resolution]
+   - Problem: LLM Pass 1 extracted both as separate entities. Rule 0.5 prevents "figure" as alias for "death".
+   - In the story, the masked figure IS the Red Death personified (revealed at the end).
+   - In attempt 13 (score 7.98), only 2 chars extracted (Red Death standalone, no masked figure separate).
+   - Fix approach: The within-main merge step (characters.py Step 3.5) or a post-extraction merge should detect that "the masked figure" and "the Red Death" are the same story entity.
+   - Note: Previous attempt 9 tried "symbolic reveal merge" → REGRESSION (Red Death merged INTO masked figure, losing Red Death). The merge direction matters: masked figure must be MERGED INTO Red Death, not vice versa.
+   - Impact: Identity Resolution +1-2 points
+
+2. **No profile for the Red Death or the Ebony Clock** [Character Profiles]
+   - Problem: Profiling pipeline runs independent character identification (from summaries). The summary's active_characters lists "the masked figure" not "the Red Death" or "the Ebony Clock", so only Prospero + masked figure are profiled.
+   - Fix: Profiling pipeline should receive the Stage 4 character list (8 chars) as input, not re-identify independently. OR the summary_map should include Clock and Red Death in active_characters.
+   - Impact: +1 on Profiles (adds Clock profile), +0.5-1 on character quality
 
 ### HIGH
-2. **Wrong alias "the crowd" on the Red Death** [Alias Grouping]
-   - Problem: "the crowd" refers to the courtiers at the masquerade, NOT the Red Death. This is a completely incorrect alias assignment.
-   - Evidence: `jq '.characters[1].aliases'` → `["the crowd"]`
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — LLM Pass 2 alias resolution or `_process_consolidated_pass2()`
-   - Fix: The core noun of "the crowd" is "crowd" — this is semantically unrelated to "death". The existing core noun mismatch rules should catch this but apparently don't (perhaps "crowd" isn't checked, or the rule only applies to `is_symbolic` characters). Add "crowd" type nouns to the blocked patterns, or strengthen Rule 0.5 to catch collective nouns being assigned to individual/symbolic entities.
-   - Impact: +1 on Alias Grouping
-
-3. **Missing valid Red Death aliases** [Alias Grouping]
-   - Problem: "the masked figure", "the intruder", "the stranger", "the mummer" are all textual references to the Red Death but are blocked by core noun mismatch ("figure"/"intruder" ≠ "death").
-   - Evidence: Pipeline notes across attempts 7-13 show BLOCKED aliases for Red Death
-   - Location: `verify_aliases()` in main_cast.py — core noun comparison logic
-   - Fix: Known persistent issue. For `is_symbolic=True` characters, the core noun matching is too strict. These are narrative synonyms established by the text, not regular aliases. Consider: (a) relaxing core noun matching for symbolic characters when the LLM has high confidence, or (b) using co-reference resolution from summary text.
-   - Impact: +1-2 on Alias Grouping. Can be deferred if fixing #1 and #2 brings Characters to 8.0.
-   - Note: Attempted in attempts 7-8 without success. This is a hard problem.
+3. **Red Death lacks valid text-based aliases** [Alias Grouping]
+   - Problem: "the figure", "the intruder", "the stranger", "the mummer", "the masked figure" are all blocked by Rule 0.5 (core noun 'figure'/'intruder'/'stranger' ≠ 'death').
+   - Current alias is "the figure resembling the Red Death" (LLM paraphrase, not direct text quote).
+   - Impact: +1 on Alias Grouping if valid aliases can be preserved.
 
 ### MEDIUM
-4. **Prospero's physical description incomplete** [Profiles]
-   - Problem: Only "bold and robust" — text also says "happy and dauntless and sagacious"
-   - Location: Profile generation in analyzer.py
-   - Impact: ~0.25 points. Will partially self-correct if character list is fixed (profile regeneration).
+4. **Group character noise** [Completeness/Precision]
+   - "the courtiers", "the thousand friends", "the musicians", "the waltzers" are valid text entities but shouldn't be main cast.
+   - The existing Rule 0.6 blocks these as ALIASES, but they're canonical names here.
+   - These are extracted by Pass 1 because key_events mentions them explicitly.
+   - Impact: Minor score penalty for false positives, but evaluator likely lenient on textual group characters.
 
-5. **Red Death not marked `is_symbolic`** [Completeness/Data Quality]
-   - Problem: `is_symbolic: false` for a personified supernatural force
-   - Evidence: `jq '.characters[1].is_symbolic'` → false
-   - Location: `is_symbolic` detection in main_cast.py — "death" may not match artifact noun patterns
-   - Impact: Minor for scoring but affects downstream alias logic. If `is_symbolic` were True, alias rules would apply differently.
+5. **Prospero's description incomplete** [Profiles]
+   - Missing "happy and dauntless and sagacious" from text. Current has "bold and robust" only.
+   - Impact: ~0.25 points.
 
-6. **2 pronunciation entries missing IPA** [Pronunciation]
-   - "produce" and "deliberate" (homographs) have null IPA
-   - Impact: Minor. Pronunciation is at 8/10, above threshold.
+## Previous Attempt 13 vs Attempt 14 Comparison
 
-## Progress Analysis (Attempt 13 vs 12)
-
-| Metric | Attempt 12 | Attempt 13 | Change |
+| Metric | Attempt 13 | Attempt 14 | Change |
 |--------|-----------|-----------|--------|
-| Characters | 2 | 2 | Same count |
-| Red Death standalone | No (merged into Clock) | Yes (standalone) | ✓ IMPROVED |
-| Ebony Clock present | Yes (with wrong aliases) | No (missing) | ✗ REGRESSED |
-| Wrong aliases on Clock | 4 wrong aliases | N/A (missing) | N/A |
-| Red Death aliases | N/A (merged) | 1 wrong ("the crowd") | Mixed |
-
-**Net assessment:** The `is_symbolic` artifact noun fix PARTIALLY worked — it correctly unmerged the Red Death from the Clock. But it had the side effect of making the Clock disappear entirely. The fix overcorrected: it blocked the Clock's inflated aliases but then something removed the Clock as a character.
+| Total characters | 2 | 8 | More (FPs added) |
+| Ebony Clock present | No | Yes ✓ | IMPROVED |
+| Clock alias "the clock" | N/A | Yes ✓ | IMPROVED |
+| Red Death standalone | Yes | Yes | Same |
+| "the crowd" false alias | Yes | No | IMPROVED |
+| "the masked figure" separate | No | Yes | REGRESSION |
+| Profiles count | 2 | 2 | Same |
+| Profile quality (Prospero) | Thin | Good | IMPROVED |
+| Profile quality (Red Death) | Excellent | Missing (masked fig used) | REGRESSION |
 
 ## Fix History
+
+### Attempt 14 (Score: 7.95/10 — FAIL)
+1. **Short-form alias for is_symbolic** in main_cast.py:
+   - Result: ✓ WORKED — Clock extracted with alias "the clock"
+2. **Collective noun block (Rule 0.6b)** in main_cast.py:
+   - Result: ✓ WORKED — no "the crowd" false alias
+3. **AmbiguousName bug fix** in summary_evidence.py:
+   - Result: ✓ WORKED — profiling no longer crashes
+4. **think=False for qwen3.5 models** in twostage_experiment.py:
+   - Result: ✓ WORKED — summarization and extraction both complete
+5. **key_events in summary_strings** in twostage_experiment.py:
+   - Result: ✓ WORKED — Pass 1 sees "giant ebony clock" in key_events → extracts it
+- Score delta: 7.98→7.95 (slight regression despite Clock improvement — masked figure identity split hurt Identity Resolution 4/10)
 
 ### Attempt 13 (Score: 7.98/10 — improvement from 7.0)
 1. **Artifact core noun `is_symbolic` detection** in main_cast.py:
    - Result: ✓ PARTIALLY WORKED — Red Death now standalone (unmerged from Clock)
-   - Side effect: ✗ Ebony Clock now MISSING entirely — filtering removed it after alias cleanup
-   - New issue: Red Death has wrong alias "the crowd"
+   - Side effect: ✗ Ebony Clock disappeared (filtering removed it after alias cleanup)
+   - New issue: Red Death had wrong alias "the crowd"
 
 ### Attempt 12 (Score: 7.0/10 — marginal improvement from 6.95)
 1. **REVERT min_grounding_mentions to 1** in characters.py: ✗ DID NOT FIX
@@ -139,22 +143,41 @@ Well-organized with tabbed navigation, relationship cards, performance timing ta
 2. Symbolic descriptor reveal merge: ✗ REGRESSION — REVERTED
 
 ### Attempt 8 (Score: 8.35/10 — BEST)
-1. Rule 2 prompt clarification: No change
-
 ### Attempt 7 (Score: 8.35/10)
-1. Rule 0.7 in verify_aliases: Partial
-2. Rule 3 exception: No change
-
 ### Attempt 6 (Score: 8.35/10 — tied BEST)
-1. REVERTED characters.py Rule 0.6: ✓
-2. KEPT grounding.py fix: ✓
 
-### Attempts 1-5: See previous evaluation state
+## Score Progression
+- Attempt 1: 6.85/10 (baseline)
+- Attempt 2: 7.98/10 (+1.13)
+- Attempt 3: 6.10/10 (-1.88) ← REGRESSION
+- Attempt 4: 8.23/10 (+2.13)
+- Attempt 5: 6.60/10 (-1.63) ← REGRESSION
+- Attempt 6: 8.35/10 (+1.75) ← BEST
+- Attempt 7: 8.35/10 (+0.00)
+- Attempt 8: 8.35/10 (+0.00)
+- Attempt 9: 7.35/10 (-1.00) ← REGRESSION
+- Attempt 10: 7.68/10 (+0.33)
+- Attempt 11: 6.95/10 (-0.73) ← REGRESSION
+- Attempt 12: 7.0/10 (+0.05)
+- Attempt 13: 7.98/10 (+0.98) ← Red Death unmerged, but Clock missing
+- Attempt 14: 7.95/10 (-0.03) ← Clock present, but masked figure identity split hurt Identity Resolution
+
+## Configuration Audit
+- Models: qwen3.5:122b-a10b with think=False for characters/summaries/profiling, qwen3.5:35b-a3b with think=False for structure/pronunciation
+- Context length 32768 sufficient for 2,449-word short story
+- Temperature 0.7 standard
+- 0 LLM retries across all stages
+- No chunking issues
+- **qwen3.5 models require think=False to avoid empty content responses** — with think=None (default), model generates thinking-only responses; with think=True + format=json, same issue. think=False is required.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 14 | Short-form alias for is_symbolic objects | main_cast.py | ✓ Clock extracted with "the clock" |
+| 14 | Collective noun block (Rule 0.6b) | main_cast.py | ✓ No "the crowd" false alias |
+| 14 | AmbiguousName not iterable bug | summary_evidence.py | ✓ Profiling no longer crashes |
+| 14 | think=False for qwen3.5 + key_events in summary_strings | twostage_experiment.py | ✓ Full pipeline runs |
 | 13 | Artifact core noun `is_symbolic` detection | main_cast.py | ✓ Partially (Red Death unmerged) / ✗ Clock missing |
 | 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | ✗ DID NOT FIX |
 | 12 | POV guard: narrator only for 1st-person/epistolary | narrator.py | ✓ WORKED |
@@ -180,37 +203,16 @@ Well-organized with tabbed navigation, relationship cards, performance timing ta
 | 2 | Wrong narrator detection | narrator.py | Fixed ✓ |
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
-**Pattern analysis:**
-- main_cast.py has been modified 12+ times across attempts
-- The `is_symbolic` fix in attempt 13 is the first time the Red Death has been successfully unmerged since attempt 8
-- The Clock disappearing is a NEW problem — previous attempts always had the Clock present
-- Fix phase should investigate the 4→2 character filtering, NOT re-modify alias resolution logic
-- The "the crowd" false alias is likely from LLM Pass 2 and should be catchable with core noun rules
-
-## Score Progression
-- Attempt 1: 6.85/10 (baseline)
-- Attempt 2: 7.98/10 (+1.13)
-- Attempt 3: 6.10/10 (-1.88) ← REGRESSION
-- Attempt 4: 8.23/10 (+2.13)
-- Attempt 5: 6.60/10 (-1.63) ← REGRESSION
-- Attempt 6: 8.35/10 (+1.75) ← BEST
-- Attempt 7: 8.35/10 (+0.00)
-- Attempt 8: 8.35/10 (+0.00)
-- Attempt 9: 7.35/10 (-1.00) ← REGRESSION
-- Attempt 10: 7.68/10 (+0.33)
-- Attempt 11: 6.95/10 (-0.73) ← REGRESSION
-- Attempt 12: 7.0/10 (+0.05)
-- Attempt 13: 7.98/10 (+0.98) ← Red Death unmerged, but Clock missing
-
-## Configuration Audit
-- Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
-- Context length 32768 sufficient for 2,449-word short story
-- Temperature 0.7 standard
-- 0 LLM retries across all stages
-- No chunking issues
-- **Root cause is NOT model/config** — the issues are in character filtering and alias resolution logic
-
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL: Investigate why the Ebony Clock was filtered out** — debug the 4→2 character reduction path
-2. **HIGH: Block "the crowd" as an alias for the Red Death** — core noun mismatch should catch this
+Fix attempt 15. Two root causes to address:
+1. **[CRITICAL] Merge "the masked figure" INTO "the Red Death"** (Identity Resolution 4/10 → 8/10)
+   - The two entities are the same: masked figure IS the Red Death personified.
+   - Merge direction: masked figure → absorbed as alias of Red Death.
+   - DO NOT repeat attempt 9's mistake (merged Red Death INTO masked figure, losing Red Death).
+   - Approach: Post-extraction programmatic merge in characters.py or twostage_experiment.py.
+   - Key signal: both are is_symbolic=True, both are antagonist role, "death" is core noun of Red Death.
+2. **[CRITICAL] Fix profiling to use Stage 4 character list** (Character Profiles 6/10 → 8/10)
+   - Profiling pipeline re-identifies chars from summaries, missing Red Death and Clock.
+   - Fix: Pass the Stage 4 character list (from extraction) into the profiling pipeline as "required_characters".
+   - This gives profiles for: Prospero, Red Death, Ebony Clock (all 3 main entities).
+   - Expected impact: Character Profiles 6/10 → 8-9/10
