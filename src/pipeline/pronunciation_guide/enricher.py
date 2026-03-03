@@ -67,6 +67,30 @@ HOMOGRAPH_IPA_MAP: dict[str, str] = {
     "record": "/ˈrɛkərd/ (noun: a recording) or /rɪˈkɔːrd/ (verb: to record)",
     "wound": "/wuːnd/ (past tense of wind) or /wuːnd/ (an injury) — context: injury=wuːnd; wound up=waʊnd",
     "tear": "/tɪər/ (from the eye) or /tɛər/ (to rip)",
+    "lead": "/liːd/ (verb: to guide) or /lɛd/ (noun: the heavy metal)",
+    "desert": "/ˈdɛzərt/ (noun: arid region) or /dɪˈzɜːrt/ (verb: to abandon)",
+}
+
+
+# Static IPA for words with well-known but non-intuitive pronunciations.
+# These override LLM output to prevent systematic errors on common irregular spellings.
+# Universal reference lexicon: applies to any book containing these words.
+KNOWN_IRREGULAR_IPA: dict[str, PronunciationEnrichment] = {
+    # Nautical terms often misread letter-by-letter when spelled out
+    "gunwale": PronunciationEnrichment(
+        word="gunwale",
+        ipa="/ˈɡʌn.əl/",
+        phonetic_spelling="GUN-ul",
+        notes='Despite the spelling, pronounced "GUN-ul" (rhymes with "funnel"). Not "gun-wail".',
+        confidence=1.0,
+    ),
+    "gunwhale": PronunciationEnrichment(
+        word="gunwhale",
+        ipa="/ˈɡʌn.əl/",
+        phonetic_spelling="GUN-ul",
+        notes='Variant spelling of "gunwale". Pronounced "GUN-ul" (rhymes with "funnel"). Not "gun-whale".',
+        confidence=1.0,
+    ),
 }
 
 
@@ -172,6 +196,20 @@ class PronunciationEnricher:
         if not proposals:
             return {}
 
+        # Check static irregular IPA lookup first — these are known-correct and override LLM
+        enrichments: dict[str, PronunciationEnrichment] = {}
+        llm_proposals = []
+        for p in proposals:
+            static = KNOWN_IRREGULAR_IPA.get(p.word.lower())
+            if static:
+                enrichments[p.word.lower()] = static
+            else:
+                llm_proposals.append(p)
+
+        if not llm_proposals:
+            return enrichments
+        proposals = llm_proposals
+
         # Build word list
         word_list = []
         for p in proposals:
@@ -194,7 +232,7 @@ class PronunciationEnricher:
 
         result, response = self.llm.query_json(prompt, system=ENRICHER_SYSTEM_PROMPT)
 
-        enrichments = {}
+        llm_enrichments: dict[str, PronunciationEnrichment] = {}
 
         if not response.success:
             # HTTP error or connection failure
@@ -221,7 +259,7 @@ class PronunciationEnricher:
                 word = item.get("word", "")
                 if word:  # Only add if word is not empty
                     raw_ipa = item.get("ipa")
-                    enrichments[word.lower()] = PronunciationEnrichment(
+                    llm_enrichments[word.lower()] = PronunciationEnrichment(
                         word=word,
                         ipa=raw_ipa if (raw_ipa and _is_valid_ipa(raw_ipa)) else None,
                         phonetic_spelling=item.get("phonetic_spelling"),
@@ -233,7 +271,7 @@ class PronunciationEnricher:
             word = result.get("word", "")
             if word:  # Only add if word is not empty
                 raw_ipa = result.get("ipa")
-                enrichments[word.lower()] = PronunciationEnrichment(
+                llm_enrichments[word.lower()] = PronunciationEnrichment(
                     word=word,
                     ipa=raw_ipa if (raw_ipa and _is_valid_ipa(raw_ipa)) else None,
                     phonetic_spelling=result.get("phonetic_spelling"),
@@ -243,10 +281,12 @@ class PronunciationEnricher:
 
         # Fill in any missing words with single enrichment
         for p in proposals:
-            if p.word.lower() not in enrichments:
+            if p.word.lower() not in llm_enrichments:
                 logger.debug(f"Word '{p.word}' missing from batch result, enriching individually")
-                enrichments[p.word.lower()] = self.enrich_single(p)
+                llm_enrichments[p.word.lower()] = self.enrich_single(p)
 
+        # Merge: static results take precedence (they're known-correct)
+        enrichments.update(llm_enrichments)
         return enrichments
 
     def _fallback_to_single_enrichment(
@@ -280,6 +320,11 @@ class PronunciationEnricher:
         Returns:
             Enrichment data
         """
+        # Check static lookup first — overrides LLM for known irregular pronunciations
+        static = KNOWN_IRREGULAR_IPA.get(proposal.word.lower())
+        if static:
+            return static
+
         context = ""
         if proposal.mentions:
             context = proposal.mentions[0].context[:150]

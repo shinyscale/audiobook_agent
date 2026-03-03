@@ -885,9 +885,8 @@ class CMUProposer(BasePronunciationProposer):
             right = word_lower[split:]
             # Require both components to be at least 4 chars to avoid spurious matches.
             # Short 3-letter CMU entries (abbreviations, foreign articles like "der")
-            # cause false positives for words like "gunwhale" (gun+whale misleads) and
-            # "bowlders" (bowl+der+s misleads). Raising the minimum is a conservative
-            # approach: fewer compounds detected, but unusual words are not suppressed.
+            # cause false positives. Raising the minimum is conservative but prevents
+            # non-compound words from being suppressed (e.g., "bowlders", "gunwhale").
             if len(left) < 4 or len(right) < 4:
                 continue
             if left not in self.known_words:

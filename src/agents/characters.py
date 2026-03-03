@@ -579,6 +579,25 @@ class CharacterAgent(Agent):
             )
             self._refresh_mentions(narrator_merged_ids, main_cast, searcher, mention_results)
 
+        # STEP 5.4.5: Summary-crossref merge — consolidate single-word cast fragments into
+        # multi-word names listed in the summary [Characters present: ...] prefixes.
+        # Handles the case where LLM extraction produced "Milton" + "Jennings" separately
+        # instead of "Milton Jennings" as a unit. The summary provides the authoritative name.
+        logger.info("V2 Step 5.4.5: Merging cast fragments per summary character lists")
+        main_cast, supporting_cast, crossref_merged_ids = self._merge_summary_name_fragments(
+            chapter_summaries, main_cast, supporting_cast
+        )
+        if crossref_merged_ids:
+            logger.info(
+                f"V2 Step 5.4.5: Re-searching mentions for {len(crossref_merged_ids)} "
+                f"summary-merged character(s)"
+            )
+            self._refresh_mentions(crossref_merged_ids, main_cast, searcher, mention_results)
+        logger.info(
+            f"V2 Step 5.4.5 complete: {len(main_cast)} main cast, "
+            f"{len(supporting_cast)} supporting after summary-crossref merge"
+        )
+
         # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.
         # Example: main "Jim" (26 mentions) + supporting "James Dillingham Young" (3 mentions)
         # → "James" is the formal name of nickname "Jim" → merge as alias.
@@ -1226,6 +1245,146 @@ class CharacterAgent(Agent):
             logger.info(f"Removed {removed_count} narrator variant(s)")
 
         return filtered
+
+    def _merge_summary_name_fragments(
+        self,
+        chapter_summaries: list[str],
+        main_cast: list[Character],
+        supporting_cast: list[Character],
+    ) -> tuple[list[Character], list[Character], set[str]]:
+        """Merge single-word cast fragments when summaries list them under a multi-word name.
+
+        When LLM extraction fails to produce "Milton Jennings" as a unit, NER may yield
+        separate "Milton" (supporting) and "Jennings" (supporting) entries.  The summary
+        [Characters present: ...] prefix provides the authoritative full name.  This step
+        merges such single-word fragments deterministically — no prompts, no vocabulary lists.
+
+        Universally applicable: the only signal used is the summary character list vs the
+        cast's single-word canonical names.  Works for any first-name + surname pair in
+        any language/genre.
+
+        Algorithm:
+        1. Parse multi-word names from [Characters present: ...] prefixes.
+        2. For each multi-word name, find one single-word cast character per word.
+        3. If ALL words map to distinct single-word characters, merge them:
+           - dominant (most mentions) keeps its ID, adopts the full name as canonical.
+           - subordinates become aliases; removed from their cast list.
+           - merged character is placed in main_cast (summary named it explicitly).
+        """
+        import re
+        from collections import Counter
+
+        # Parse character names from [Characters present: name1, name2, ...] prefixes
+        name_counts: Counter = Counter()
+        for summary_text in chapter_summaries:
+            m = re.match(r"^\[Characters present:\s*(.+?)\]", summary_text)
+            if not m:
+                continue
+            names = [n.strip() for n in m.group(1).split(",") if n.strip()]
+            for name in names:
+                name_counts[name] += 1
+
+        # Only process multi-word names (2+ words)
+        multi_word_names = [n for n in name_counts if len(n.split()) >= 2]
+        if not multi_word_names:
+            return main_cast, supporting_cast, set()
+
+        # Build a lookup of single-word canonical names across both casts
+        # (multi-word canonical names are already properly merged — skip them)
+        all_chars = main_cast + supporting_cast
+        existing_full_names_lower = {c.canonical_name.lower() for c in all_chars}
+
+        # lowercase → Character (single-word only, first occurrence wins)
+        single_word_lookup: dict[str, Character] = {}
+        for char in all_chars:
+            if " " not in char.canonical_name:
+                key = char.canonical_name.lower()
+                if key not in single_word_lookup:
+                    single_word_lookup[key] = char
+
+        chars_to_remove: set[str] = set()  # IDs of absorbed (subordinate) characters
+        merged_ids: set[str] = set()  # IDs of dominant characters that absorbed others
+
+        # Process most-frequently-mentioned names first so earlier merges take priority
+        for full_name in sorted(multi_word_names, key=lambda n: -name_counts[n]):
+            # Skip if this full name already exists as a canonical name in the cast
+            if full_name.lower() in existing_full_names_lower:
+                continue
+
+            words = full_name.split()
+
+            # Find one matching single-word fragment per word of the full name
+            fragments: list[Character] = []
+            all_found = True
+            for word in words:
+                word_lower = word.lower()
+                char = single_word_lookup.get(word_lower)
+                if char is None or char.id in chars_to_remove:
+                    all_found = False
+                    break
+                fragments.append(char)
+
+            if not all_found:
+                continue
+
+            # All fragments must be distinct characters (sanity check)
+            if len({f.id for f in fragments}) < len(fragments):
+                continue
+
+            # Dominant fragment = the one with the most mentions
+            dominant = max(fragments, key=lambda c: c.mention_count)
+            subordinates = [f for f in fragments if f.id != dominant.id]
+
+            old_canonical = dominant.canonical_name
+            dominant.canonical_name = full_name
+            # Approximate combined mention count; _refresh_mentions will give the real count
+            dominant.mention_count = sum(f.mention_count for f in fragments)
+
+            # Absorb subordinate canonical names and aliases into dominant
+            if old_canonical not in dominant.aliases:
+                dominant.aliases.append(old_canonical)
+            for sub in subordinates:
+                if sub.canonical_name not in dominant.aliases:
+                    dominant.aliases.append(sub.canonical_name)
+                for alias in sub.aliases:
+                    if alias not in dominant.aliases and alias != dominant.canonical_name:
+                        dominant.aliases.append(alias)
+                chars_to_remove.add(sub.id)
+
+            merged_ids.add(dominant.id)
+            logger.info(
+                f"V2 Step 5.4.5: Summary-crossref merged '{full_name}' from fragments "
+                f"{[f.canonical_name for f in fragments]} "
+                f"(dominant_id={dominant.id}, approx_mentions={dominant.mention_count})"
+            )
+
+            # Keep lookup consistent: absorbed characters can no longer be matched
+            for sub in subordinates:
+                sub_key = sub.canonical_name.lower()
+                if single_word_lookup.get(sub_key) is sub:
+                    del single_word_lookup[sub_key]
+            existing_full_names_lower.add(full_name.lower())
+
+        if not chars_to_remove:
+            return main_cast, supporting_cast, set()
+
+        # Remove absorbed characters from both casts
+        new_main_cast = [c for c in main_cast if c.id not in chars_to_remove]
+        new_supporting_cast = [c for c in supporting_cast if c.id not in chars_to_remove]
+
+        # Promote merged characters from supporting to main cast.
+        # The summary explicitly named them, which is a strong signal of narrative importance.
+        for char_id in merged_ids:
+            char = next((c for c in new_supporting_cast if c.id == char_id), None)
+            if char:
+                new_supporting_cast = [c for c in new_supporting_cast if c.id != char_id]
+                new_main_cast.append(char)
+                logger.info(
+                    f"V2 Step 5.4.5: Promoted merged '{char.canonical_name}' to main cast "
+                    f"(approx {char.mention_count} mentions)"
+                )
+
+        return new_main_cast, new_supporting_cast, merged_ids
 
     def _merge_narrator_placeholder(
         self,
@@ -2969,7 +3128,7 @@ class CharacterAgent(Agent):
                 main_char = main_cast[main_idx]
 
                 # For nickname matches, require strong mention asymmetry to avoid wrong merges.
-                # The supporting char is a rare nickname reference for the main cast's formal name.
+                # The supporting char is a rare nickname reference; the main cast char is the full name.
                 if match_type == "nickname_firstname" and supp_char.mention_count > 0:
                     if main_char.mention_count < 4 * supp_char.mention_count:
                         continue

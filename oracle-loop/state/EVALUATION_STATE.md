@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
@@ -145,4 +145,19 @@ The character regression is most likely **LLM non-determinism**, not a code bug:
 - All profiling stages: high confidence dominant ✓
 
 ## Next Action
-**REVERT** commit 85a5c53 (the fix from attempt 2→3) due to regression > 0.3 below baseline. Then re-apply only the pronunciation fixes (cmu_proposer.py) and add a summary-crossref merge for character fragments. Re-run analyze phase.
+Re-run analysis (phase: awaiting_analysis).
+
+## Fix History (Attempt 3→4)
+
+### Changes Applied
+1. **Reverted commit 85a5c53 characters.py changes** — removed the nickname merge that caused regression (needed "Milton Jennings" in main cast to work, but LLM never produced it this run)
+2. **Re-applied cmu_proposer.py pronunciation fixes** (compound detector min 3→4, "es" suffix)
+3. **Added Step 5.4.5 `_merge_summary_name_fragments`** in characters.py — cross-references summary `[Characters present: ...]` lists against single-word cast fragments; merges "Milton"+"Jennings" → "Milton Jennings" and promotes to main cast
+4. **Re-added NICKNAME_TO_FORMAL "milt"→"milton"** + nickname check in `_merge_lastname_aliases` — after step 5.4.5 creates "Milton Jennings" in main cast, "Milt" merges via nickname lookup
+5. **Added "lead"/"desert" to HOMOGRAPH_IPA_MAP** — fixes null IPA for these homographs
+6. **Added KNOWN_IRREGULAR_IPA** with gunwale/gunwhale (IPA: /ˈɡʌn.əl/) — overrides LLM's incorrect "gun-whale" pronunciation
+
+### Smoke Test: PASS
+- Summary-crossref merged "Milton"+"Jennings" → "Milton Jennings" (33 mentions) in main cast
+- gunwhale IPA = /ˈɡʌn.əl/ (correct); "lead"/"desert" now have IPA in HOMOGRAPH_IPA_MAP
+- 332 tests pass
