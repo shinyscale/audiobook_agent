@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -118,6 +118,16 @@ After reverting, the state should return to attempt 8 (Red Death present with wr
 
 ## Fix History
 
+### Attempt 10 (Score: pending analysis)
+1. **REVERT symbolic reveal merge** in `src/pipeline/character_extraction_v2/main_cast.py`:
+   - Removed `_proposed_before_verify` saving logic and the `SYMBOLIC DESCRIPTOR MERGE` block
+   - Bug: The Red Death is `is_symbolic=True` itself, so merge logic consumed it as a "symbolic descriptor"
+   - Result: Expected to restore ~8.35 baseline (The Red Death returns)
+2. **KEEP plural group noun filter** in `src/agents/characters.py` (_is_valid_alias):
+   - This fix worked correctly in attempt 9 and should be preserved
+3. Test limit: 9550 → 9500 in `tests/test_character_extraction_v2.py`
+   - Smoke test: 332 tests pass
+
 ### Attempt 9 (Score: 7.35/10 — REGRESSION from 8.35)
 1. **Plural group noun filter** in `src/agents/characters.py` `_is_valid_alias()`:
    - Added suffix-based universal check: aliases ending in -ers, -ors, -ians, -ists, -ants, -ents, -iers, -ees, -smen, -ies are blocked for singular canonicals
@@ -204,7 +214,24 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level alias post-processing
 
 ## Next Action
-1. REVERT the symbolic reveal merge from attempt 9 in main_cast.py
-2. KEEP the plural group alias filter in characters.py
-3. Re-run analysis to verify Red Death is restored (should return to ~8.35 baseline)
-4. Then apply a CORRECT symbolic merge or alias rule exemption to fix Red Death aliases
+Re-run analysis to verify The Red Death is restored (should return to ~8.35 baseline from attempt 8).
+
+### Attempt 10 Fix Applied
+- **REVERTED** the symbolic reveal merge code from attempt 9 in `main_cast.py`
+  - Removed `_proposed_before_verify` saving logic
+  - Removed entire `SYMBOLIC DESCRIPTOR MERGE` block (was ~50 lines)
+  - Root cause of bug: The Red Death itself is `is_symbolic=True`, so it was being found as a
+    symbolic profile that was proposed as an alias by another character, triggering a merge that
+    consumed it and removed it from the character list
+- **KEPT** the plural group noun filter in `characters.py` (worked correctly in attempt 9)
+- Updated test line count limit: 9550 → 9500 (matches actual line count after revert: ~9420)
+- All 332 tests pass (excluding known pre-existing failures)
+
+### After Re-analysis
+If The Red Death is restored and score returns to ~8.35:
+- Still need to address: wrong group aliases (Revellers/Courtiers/Musicians) on Red Death
+- The symbolic merge approach is correct in concept but needs a safer implementation:
+  - Must NOT consume characters that are `is_symbolic=True` but are the PRIMARY entity
+  - A discriminator is needed: "descriptor/surrogate" (masked figure) vs "protagonist" (The Red Death)
+  - Option: only merge if the symbolic profile has NO grounding evidence of its OWN (i.e., it's a
+    pure descriptor that only appears as an alias, not as a standalone entity)

@@ -386,11 +386,6 @@ class MainCastExtractor:
         # AUTO-ADD title-stripped aliases (e.g., "Prospero" for "Prince Prospero")
         profiles = self._add_title_stripped_aliases(profiles)
 
-        # Save LLM-proposed aliases before verification (needed for symbolic descriptor merge below)
-        _proposed_before_verify: dict[str, list[str]] = {
-            p.canonical_name: list(p.aliases) for p in profiles
-        }
-
         # CRITICAL: Verify aliases to prevent false merges
         # This catches LLM hallucinations like "Mr. Sloane" with alias "Mr. McKee"
         profiles = self.verify_aliases(profiles, chapter_summaries)
@@ -409,52 +404,6 @@ class MainCastExtractor:
         # NOTE: Removed non-sentient entity filter - symbolic objects/forces can be valid "characters"
         # Examples: "the monkey's paw", "the eyes of Doctor T. J. Eckleburg"
         # Trust that if something appears frequently and drives plot, it's worth extracting
-
-        # SYMBOLIC DESCRIPTOR MERGE: Handle identity-reveal cases.
-        # When a symbolic profile (is_symbolic=True, e.g., "the masked figure") was proposed as an
-        # alias of a named character by the LLM in Pass 2 but blocked by Rule 3 (cross-character
-        # conflict because it was also extracted as a separate character), merge it post-verification.
-        # Condition: the symbolic profile was proposed as an alias by exactly ONE named character.
-        # This is safe because: (1) is_symbolic=True means LLM identified it as a non-person entity,
-        # (2) the LLM's alias proposal reflects its reading of identity-reveal narrative in summaries,
-        # (3) running post-verify means the merge doesn't need to pass Rule 2a (verbatim search).
-        _sym_proposed_by: dict[str, list[MainCastProfile]] = {}
-        for profile in profiles:
-            proposed_set = {a.lower() for a in _proposed_before_verify.get(profile.canonical_name, [])}
-            verified_set = {a.lower() for a in profile.aliases}
-            for removed_lower in (proposed_set - verified_set):
-                # Was the removed alias a symbolic profile's canonical name?
-                symbolic_profile = next(
-                    (p for p in profiles
-                     if p.canonical_name.lower() == removed_lower
-                     and getattr(p, "is_symbolic", False)),
-                    None,
-                )
-                if symbolic_profile:
-                    _sym_proposed_by.setdefault(symbolic_profile.canonical_name, []).append(profile)
-
-        _merged_symbolic: set[str] = set()
-        for sym_canonical, named_profiles in _sym_proposed_by.items():
-            if len(named_profiles) != 1:
-                # Ambiguous (proposed by multiple named characters) — skip to avoid wrong merge
-                logger.info(
-                    f"Symbolic descriptor '{sym_canonical}' proposed by {len(named_profiles)} characters "
-                    f"({[p.canonical_name for p in named_profiles]}) — skipping ambiguous merge"
-                )
-                continue
-            sym_profile = next(p for p in profiles if p.canonical_name == sym_canonical)
-            named_profile = named_profiles[0]
-            named_profile.aliases.append(sym_profile.canonical_name)
-            named_profile.aliases.extend(sym_profile.aliases)
-            named_profile.aliases = list(dict.fromkeys(named_profile.aliases))  # dedup
-            _merged_symbolic.add(sym_canonical)
-            logger.info(
-                f"Symbolic reveal merge: '{sym_canonical}' (is_symbolic=True) → "
-                f"'{named_profile.canonical_name}' (was proposed as alias, blocked by Rule 3)"
-            )
-
-        if _merged_symbolic:
-            profiles = [p for p in profiles if p.canonical_name not in _merged_symbolic]
 
         # Optional: Additional competitive LLM verification when enabled
         # Uses multiple LLMs to vote on each alias for extra confidence

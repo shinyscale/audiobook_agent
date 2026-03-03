@@ -1179,8 +1179,8 @@ class TestV2Integration:
         # supporting-cast narrator fragment merge helper (_find_narrator_in_supporting),
         # post-split creature synonym alias recovery (_recover_creature_synonym_aliases),
         # and vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c),
-        # plural group noun filter in _is_valid_alias, symbolic descriptor reveal merge
-        assert total_lines < 9550, f"V2 code is {total_lines} lines (should be <9550)"
+        # plural group noun filter in _is_valid_alias
+        assert total_lines < 9500, f"V2 code is {total_lines} lines (should be <9500)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""
