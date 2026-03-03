@@ -13,15 +13,18 @@
 
 ## Latest Scores (Attempt 15)
 - Structure Detection: 9/10 ✓
-- Character Extraction: ? (awaiting evaluation)
-- Character Profiles: ? (awaiting evaluation)
+- Character Extraction: 8/10 ✓
+  - Completeness: 7/10
+  - Identity Resolution: 9/10
+  - Alias Grouping: 7/10
+- Character Profiles: 8/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: ?/10** (reference only)
+- **Overall: 8.50/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** AWAITING EVALUATION
+**Status:** PASS — All categories >= 8.0
 
 ## Attempt 15 Pipeline Output (Run Notes)
 
@@ -150,7 +153,7 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 
 ## Fix History
 
-### Attempt 15 (Score: awaiting evaluation)
+### Attempt 15 (Score: 8.50/10 — PASS)
 1. **Post-extraction identity reveal merge** in twostage_experiment.py:
    - Result: ✓ WORKED — "the masked figure" merged INTO "the Red Death" (correct direction)
 2. **Profiling injection (inject_characters_for_profiling)** in twostage_experiment.py:
@@ -214,7 +217,7 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 - Attempt 12: 7.0/10 (+0.05)
 - Attempt 13: 7.98/10 (+0.98) ← Red Death unmerged, but Clock missing
 - Attempt 14: 7.95/10 (-0.03) ← Clock present, but masked figure identity split hurt Identity Resolution
-- Attempt 15: ?/10 (awaiting evaluation — masked figure merged into Red Death, Red Death profiled)
+- Attempt 15: 8.50/10 (+0.55) ← PASS — identity merged, Red Death profiled; Clock absent but both main chars handled
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b with think=False for characters/summaries/profiling, qwen3.5:35b-a3b with think=False for structure/pronunciation
@@ -260,12 +263,10 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 ## Next Action
-Evaluate attempt 15. Expected improvements vs attempt 14:
-1. **Identity Resolution**: 4/10 → 9/10 (masked figure correctly merged as alias of Red Death)
-2. **Character Profiles**: 6/10 → 8/10 (Red Death now profiled with excellent quality)
-3. **Completeness**: 8/10 → 7-8/10 (Clock missing this run — non-deterministic LLM)
-4. **Expected overall**: ~8.3-8.5/10 → borderline PASS
+Attempt 15 PASSED (8.50/10). Advance to next text or continue improving if needed.
 
-If attempt 15 FAILS (Clock absence drops character extraction to 7.5/10):
-- Fix A: Filter narrator FP in twostage_experiment.py (quick win, +0.25)
-- Fix B: More reliable Clock detection — inject important noun-phrase entities from key_events into candidate characters
+If advancing to next text, reset EVALUATION_STATE.md with new text name and baseline.
+
+Remaining improvement opportunities (for future work):
+- More reliable Ebony Clock detection (currently non-deterministic)
+- Filter narrator FP from twostage_experiment.py output
