@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** a_camping_trip
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
@@ -137,7 +137,7 @@ Commit `3cb3fb5` was applied outside the oracle loop after attempt 1 evaluation:
 - All profiling stages: high confidence dominant ✓
 
 ## Next Action
-Re-run analysis to verify fixes
+Evaluate attempt 3 output
 
 ## Fix History (Attempt 2 → 3)
 ### CRITICAL #1: Milt/Milton false split
