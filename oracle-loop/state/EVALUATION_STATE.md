@@ -2,14 +2,23 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 11)
+- Analysis completed in 14m 19s
+- Only 2 characters in final output: Prince Prospero and The Ebony Clock
+- **CRITICAL WARNING:** "The Red Death" appears as an ALIAS of "The Ebony Clock" — likely a serious regression
+- The plural group noun filter (F6) worked: "the courtiers", "the musicians" not created as F6 characters
+- min_grounding_mentions=2 may have over-filtered — The Red Death possibly filtered out as standalone character
+- BLOCKED aliases for Red Death: masked figure, stranger, intruder, figure (core noun mismatch still blocking)
+- Many other characters (Darkness, Decay, The Stranger, The Thousand Friends, Courtiers, Revellers, Waltzers) processed during alias validation but absent from final output — possibly filtered by grounding gate
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -258,4 +267,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level filtering in F6 and alias validation
 
 ## Next Action
-Run PROMPT_analyze.md to re-run the pipeline and verify fixes.
+Run PROMPT_evaluate.md to score the output and diagnose the regression.
