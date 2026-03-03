@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -11,78 +11,76 @@
 - JSON: ../output/monkeys_paw/analysis.json
 
 ## Latest Scores
-- Structure Detection: 8.5/10 ✓
-- Character Extraction: 5/10 ✗
-  - Completeness: 5/10
-  - Identity Resolution: 4/10
-  - Alias Grouping: 5/10
-- Character Profiles: 6.5/10 ✗
+- Structure Detection: 8/10 ✓
+- Character Extraction: 8/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 9/10
+  - Alias Grouping: 7/10
+- Character Profiles: 7/10 ✗ (FAILING)
 - Chapter Summaries: 9.5/10 ✓
-- Pronunciation Guide: 8/10 ✓
+- Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.4/10** (reference only)
+- **Overall: 8.25/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction, Character Profiles)
+**Status:** FAIL (1 category below threshold: Character Profiles)
+
+## Improvements from Attempt 1
+- Morris restored ✓ (was missing entirely — now main_cast_3, 5 mentions)
+- Mr. White alias "the old man" ✓ (was missing)
+- Mrs. White alias "the old woman" ✓ (was missing)
+- Mrs. White → Herbert relationship fixed: "mother" ✓ (was "father")
+- Pronunciation false positives removed: bedclothes/instalment/betokened gone ✓
+- No JSON parse failures this run (5H/0M/0L profiles)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Sergeant-Major Morris missing from character output** [Completeness]
-   - Problem: Morris was extracted (5 characters processed) but dropped from final output — only 4 remain. The profiling stage shows 1 low-confidence item (confidence 0.30). The analyze phase notes "Failed to parse JSON response for Sergeant-Major Morris (LLM JSON parse error)"
-   - Evidence: Morris is a major character in Part I who brings the monkey's paw, tells of India and the wishes, and warns the family. He's listed in Chapter 1's character tags in the HTML. The summary correctly names him. He drives the entire plot.
-   - Location: Profile confidence threshold in `src/analyzer.py` or profile generation. The JSON parse failure during profiling cascaded to low confidence → character dropped
-   - Fix: Either (a) lower the confidence threshold for character inclusion, (b) retry profile generation on JSON parse failure, or (c) keep characters that appear in summaries regardless of profile confidence. The character extraction itself succeeded — the drop happened at the profiling stage.
-
-2. **"the visitor" incorrectly aliased to "the monkey's paw"** [Identity Resolution]
-   - Problem: The alias "the visitor" is assigned to the monkey's paw entry. In the actual text, "the visitor" refers to Sergeant-Major Morris in Part I and to the man from Maw and Meggins in Part II. The monkey's paw is an object, never a "visitor."
-   - Evidence: Chapter 2's summary says "a well-dressed stranger from the firm 'Maw and Meggins' arrives" — "the visitor" is this person, not the paw. Chapter 1 characters list includes "Sergeant-Major Morris" who is also called "the visitor."
-   - Location: Alias resolution in character extraction pipeline — Pass 2 or `verify_aliases` in `src/pipeline/character_extraction_v2/main_cast.py`
-   - Fix: "the visitor" should not be assigned to a symbolic/object character. If Morris were present, "the visitor" would likely be resolved to him or remain unassigned (since it refers to two different people in different chapters).
+1. **Mr. White → Herbert relationship labeled "husband" instead of "father"** [Profiles]
+   - Problem: Mr. White's relationships show Herbert White: "husband". This is the wrong relationship TYPE — Mr. White is Herbert's father, not his husband.
+   - Evidence: The text explicitly describes "Mr. White, his son Herbert, and Mrs. White." Mr. White is Herbert's father.
+   - Root cause: The LLM generated "husband" for this relationship during profile generation. `enforce_gender_consistency` cannot fix this — it only swaps gender variants (mother↔father, wife↔husband), not incorrect relationship types (spousal vs parent-child).
+   - Also: Herbert → Mr. White is labeled "husband" (should be "son"). Same root cause.
+   - Location: `src/analyzer.py` — `_generate_character_profile()` or `src/pipeline/post_corrections.py` — relationship validation
+   - Fix approach: Add a relationship type validation rule: if character A's relationship to B is "husband"/"wife" AND B's relationship to A is also "husband"/"wife", but A is B's parent (inferred from B→A being "son"/"daughter" in another character's profile, or from summary text mentioning "his son"), then correct to "father"/"mother" ↔ "son"/"daughter". Alternatively: `enforce_inverse_consistency` should catch that if Herbert→Mrs. White is "son" then Herbert→Mr. White cannot be "husband" when they share a surname (family unit).
 
 ### HIGH
-3. **Mr. White has zero aliases** [Alias Grouping]
-   - Problem: Mr. White has no aliases despite being referred to as "the old man" and "Father" throughout the text. Chapter 3's character list shows "the old man" as a separate unlinked reference.
-   - Evidence: The profile itself says "he is referred to as an 'old man' and 'Father'" — the profiler KNOWS these are his aliases but they aren't in the alias list. Chapter 3 character tags show "the old man" unlinked to Mr. White.
-   - Location: Pass 2 alias resolution failed for Mr. White. The analyze phase notes "Pass 2 failed for Mr. White (kept without aliases)." This is in `src/pipeline/character_extraction_v2/main_cast.py` or the alias consolidation step.
-   - Fix: Debug why Pass 2 failed for Mr. White specifically. Possible LLM parse error or empty response. May need retry logic or fallback alias detection from profile text.
+2. **All character genders are null** [Profiles]
+   - Problem: Gender is null for all 5 characters despite clear Mr./Mrs. title cues.
+   - Evidence: `jq '.characters[] | {name: .canonical_name, gender: .gender}'` shows all null.
+   - Impact: Without gender, `enforce_gender_consistency` can only fix labels when the label itself implies gender. It can't proactively validate.
+   - Location: Gender detection in `src/pipeline/character_extraction_v2/` or profile generation in `src/analyzer.py`
+   - Fix approach: If gender is null but canonical name starts with "Mr." → male, "Mrs."/"Miss"/"Ms." → female. This is a trivial heuristic that could run as a post-processing step.
 
-4. **Mrs. White's relationship to Herbert labeled "father" instead of "mother"** [Profiles]
-   - Problem: Mrs. White's relationship entry for Herbert White says "father". She is Herbert's mother.
-   - Evidence: Mrs. White is explicitly "his wife" (Mr. White's wife) and Herbert's mother. The text refers to her as the mother figure throughout.
-   - Location: Profile generation in `src/analyzer.py` (`_generate_character_profile()`) or relationship label assignment. The `enforce_gender_consistency` step should have caught this — "father" is a MALE_ONLY_REL and Mrs. White is female.
-   - Fix: Check why `enforce_gender_consistency` didn't correct "father" → "mother" for Mrs. White. Either gender wasn't detected for Mrs. White, or the enforcement step didn't run on this relationship.
+3. **"the visitor" aliased to monkey's paw** [Alias Grouping]
+   - Problem: "the visitor" is assigned as an alias of "the monkey's paw". In the text, "the visitor" refers to Sergeant-Major Morris (Part I) and the Maw & Meggins representative (Part II) — both humans, never the paw.
+   - Evidence: Part II summary: "a well-dressed stranger from the firm 'Maw and Meggins' arrives" — this is "the visitor." The paw is an inanimate object that doesn't "visit."
+   - Location: Pass 2 alias resolution or `verify_aliases` in `src/pipeline/character_extraction_v2/main_cast.py`
+   - Fix approach: Since "the visitor" refers to two different people (Morris in I, Maw&Meggins man in II), it shouldn't be aliased to anyone. Objects/symbolic characters (is_symbolic or lowercase-only canonical names) should not receive human-descriptor aliases like "the visitor."
+   - Note: This is the same issue from attempt 1. It was "blocked for Morris via Rule 3 — paw claimed it first." The real fix is preventing the paw from claiming it in the first place.
 
 ### MEDIUM
-5. **Chapter titles show Arabic numerals instead of Roman** [Structure]
-   - Problem: Part I has null title, Parts II and III show as "2" and "3" instead of the original Roman numerals "II" and "III". HTML displays "Chapter 2: 2" (redundant).
-   - Evidence: The Monkey's Paw uses Roman numeral section headers (I, II, III). The `_clean_title()` function in `src/pipeline/chapter_detection/consensus.py` may be converting Roman to Arabic or stripping Part I's heading.
+4. **Morris → monkey's paw relationship labeled "friend"** [Profiles]
+   - Problem: Morris's relationship to the paw is "friend." A person is not "friends" with an object. Should be "associated" or "former owner/possessor."
+   - Location: Profile generation in `src/analyzer.py`
+   - Fix: Low priority — weird but not confusing for a narrator.
+
+5. **Chapter titles: null / "2" / "3" instead of "I" / "II" / "III"** [Structure]
+   - Problem: Part I has null title, Parts II/III show Arabic "2"/"3" instead of original Roman numerals.
    - Location: `src/pipeline/chapter_detection/consensus.py` — `_clean_title()`
-   - Fix: Preserve original Roman numeral formatting. The null title for Part I suggests the heading wasn't detected at all for the first section.
-
-6. **Chapter 3 characters show descriptors not mapped to characters** [Presentation]
-   - Problem: Chapter 3's character tags show "the old man" and "the old woman" instead of "Mr. White" and "Mrs. White". These descriptors aren't linked to their character entries.
-   - Evidence: In Part III, the text primarily uses descriptors ("the old man", "the old woman") rather than names. The summary mentions "old couple" and refers to "the wife" and "the husband". Since "the old man" isn't an alias of Mr. White, it appears as a separate unlinked tag.
-   - Location: This is downstream of Issue #3 — if Mr. White had "the old man" as an alias, the summary character reconciliation would map it correctly.
-   - Fix: Resolves with Issue #3 (alias grouping fix).
-
-7. **Pronunciation false positives** [Pronunciation]
-   - Problem: "bedclothes", "instalment", and "betokened" are relatively common English words flagged as needing pronunciation guidance. A narrator wouldn't struggle with these.
-   - Evidence: These are standard English vocabulary — "bedclothes" is a compound of two common words, "instalment" is just British spelling of installment, "betokened" is a simple past tense.
-   - Location: CMU proposer in `src/pipeline/pronunciation/cmu_proposer.py` — these words may not be in CMU dictionary. Could add to `COMMON_WORDS_WHITELIST`.
-   - Fix: Add "bedclothes", "instalment", "betokened" to COMMON_WORDS_WHITELIST in cmu_proposer.py.
+   - Fix: Already documented in attempt 1 as medium. Same issue persists.
 
 ### LOW
-8. **monkey's paw not marked as is_symbolic** [Character Metadata]
-   - Problem: "the monkey's paw" has `is_symbolic: false` but it is a supernatural object/force, not a person. Should be `is_symbolic: true`.
-   - Evidence: It's an inanimate cursed talisman. The profile correctly describes it as "an inanimate cursed object."
-   - Location: Character extraction — symbolic detection heuristic may not trigger for objects with possessive nouns.
-   - Fix: Low priority — doesn't affect narrator usability significantly.
+6. **monkey's paw not marked is_symbolic** [Character Metadata]
+   - Problem: `is_symbolic: false` for an inanimate cursed object.
+   - Location: Symbolic detection heuristic in character extraction.
+   - Impact: Minimal for narrator usability.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.4 | - | Baseline — Morris dropped, visitor alias wrong, Mr. White no aliases |
+| 2 | 8.25 | +0.85 | Morris restored, aliases fixed, but new relationship label error |
 
 ## Fix History
 - Attempt 1 (monkeys_paw):
@@ -94,29 +92,36 @@
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Morris missing (Completeness) | `main_cast.py`, `analyzer.py` | Added military ranks to title-stripped aliases; main_cast evidence-filter exemption |
-| 1 | Mrs. White gender (Profiles) | `post_corrections.py` | Second enforce_gender_consistency call at end of run_all |
-| 1 | Pronunciation false positives | `cmu_proposer.py` | Added bedclothes/instalment/betokened to whitelist |
+| 1 | Morris missing (Completeness) | `main_cast.py`, `analyzer.py` | Fixed ✓ |
+| 1 | Mrs. White gender (Profiles) | `post_corrections.py` | Fixed ✓ (Mrs. White→Herbert now "mother") |
+| 1 | Pronunciation false positives | `cmu_proposer.py` | Fixed ✓ |
+| 2 | Mr. White→Herbert "husband" (Profiles) | (pending) | — |
+| 2 | All genders null | (pending) | — |
+| 2 | "the visitor" aliased to paw | (pending) | — |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (chars, summaries, profiles) — appropriate
 - Context length: 32768 — sufficient for this short story (3,954 words)
 - Temperature: 0.7 — reasonable
 - think_mode: false — correct for qwen3.5
-- Character extraction had 1 JSON parse failure — this directly caused Morris to get a low-confidence profile and be dropped
-- No retry issues (llm_retries: 0 across all stages)
+- No JSON parse failures this run (0 retries, 0 parse failures across all stages)
+- All 5 profiles generated at HIGH confidence
+- Character Extraction: 1 medium confidence item (likely monkey's paw)
 
 ## Pipeline Notes (Attempt 2)
 - Duration: 39m 33s, 37 LLM calls, 81,513 tokens
 - 5 characters found (up from 4 — Morris now present)
-- Morris restoration: ✅ "Sergeant-Major Morris (aka Morris) - 5 mentions"
-- Mr. White aliases: ✅ "the old man" now assigned
-- Mrs. White aliases: ✅ "the old woman" now assigned
+- Morris restoration: ✓ "Sergeant-Major Morris (aka Morris) - 5 mentions"
+- Mr. White aliases: ✓ "the old man" now assigned
+- Mrs. White aliases: ✓ "the old woman" now assigned
 - "the visitor" still aliased to monkey's paw (blocked for Morris via Rule 3 — paw claimed it first)
 - BLOCKED: 'the husband'→Mr. White, 'the wife'→Mrs. White, 'the mother'→Mrs. White (different titled people rule)
 - Pass 2 failed for Herbert White (kept without aliases except "Herbert" from title-strip)
 - No JSON parse failures this run (5H/0M/0L profiles)
-- Pronunciation false positives: need evaluation to confirm bedclothes/instalment/betokened removed
+- Pronunciation false positives: ✓ bedclothes/instalment/betokened removed
 
 ## Next Action
-Awaiting evaluation.
+Run PROMPT_fix.md to address:
+1. **Primary blocker**: Mr. White ↔ Herbert "husband" relationship (Critical #1) — needs relationship type validation in post_corrections.py
+2. **Root cause**: Gender null for all characters (High #2) — title-based gender heuristic needed
+3. **Persistent**: "the visitor" alias on paw (High #3) — prevent objects from claiming human-descriptor aliases
