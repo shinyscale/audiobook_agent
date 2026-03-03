@@ -23,20 +23,21 @@
       "file": "Test_Texts/Masque of the Red Death - Poe.txt",
       "complete": true,
       "attempts": 15,
-      "final_score": 8.50
+      "final_score": 8.5
     },
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
       "complete": true,
       "attempts": 5,
-      "final_score": 8.80
+      "final_score": 8.8
     },
     {
       "name": "gift_of_the_magi",
       "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-      "complete": false,
-      "attempts": 1
+      "complete": true,
+      "attempts": 2,
+      "final_score": 8.7
     },
     {
       "name": "a_camping_trip",
@@ -103,7 +104,7 @@
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
       "complete": false,
       "attempts": 0,
-      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+      "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
     }
   ]
 }
