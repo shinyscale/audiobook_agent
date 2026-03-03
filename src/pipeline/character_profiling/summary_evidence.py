@@ -800,6 +800,9 @@ class SummaryEvidenceExtractor:
                     if hasattr(amb_map, 'ambiguous_names') and part in getattr(amb_map, 'ambiguous_names', {}):
                         ambiguous_names.append(part)
                         candidates = getattr(amb_map, 'ambiguous_names', {}).get(part, [])
+                        # ambiguous_names values are AmbiguousName objects, not lists
+                        if hasattr(candidates, 'possible_characters'):
+                            candidates = candidates.possible_characters
                         for c in candidates:
                             if c.lower() != character_name.lower():
                                 other_characters.append(c)

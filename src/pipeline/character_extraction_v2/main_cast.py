@@ -898,6 +898,22 @@ class MainCastExtractor:
                             )
                             continue
 
+                # RULE 0.6b: Block collective/group noun aliases for individual characters.
+                # Collective nouns (crowd, mob, horde, throng) describe groups of people —
+                # they cannot be aliases for individual or symbolic characters.
+                # E.g., "the crowd" refers to the gathered onlookers, NOT the entity they watch.
+                _COLLECTIVE_NOUNS_R06B = {"crowd", "mob", "horde", "throng", "mass", "multitude", "gathering", "assembly", "host", "rabble", "populace"}
+                if alias_tokens_r06:
+                    alias_core_r06b = alias_tokens_r06[-1]  # already lowercase
+                    if alias_core_r06b in _COLLECTIVE_NOUNS_R06B:
+                        canonical_core_r06b = profile.canonical_name.split()[-1].lower()
+                        if canonical_core_r06b not in _COLLECTIVE_NOUNS_R06B:
+                            logger.warning(
+                                f"BLOCKED alias: '{alias}' is a collective/group noun and cannot alias "
+                                f"individual character '{profile.canonical_name}'"
+                            )
+                            continue
+
                 # RULE 0.7: Block named singular entities as aliases for plural group-noun characters.
                 # The reverse of Rule 0.6: just as a group noun can't alias an individual,
                 # a named individual entity can't be an alias of a group-noun character.
@@ -1206,6 +1222,25 @@ class MainCastExtractor:
                     logger.info(
                         f"AUTO-ADDED title-stripped alias: '{stripped_name}' for '{profile.canonical_name}'"
                     )
+
+        # Auto-add short-form aliases for is_symbolic multi-word objects.
+        # "the Ebony Clock" → add "the Clock" so mention search finds short references.
+        # Without this, "the clock" (7 occurrences) goes uncounted and the character
+        # falls below the mention threshold and is discarded as a false positive.
+        for profile in profiles:
+            if not getattr(profile, "is_symbolic", False):
+                continue
+            words = profile.canonical_name.split()
+            if len(words) >= 3 and words[0].lower() in ("the", "a", "an"):
+                short_form = "the " + words[-1]
+                short_form_lower = short_form.lower()
+                existing_lower = {a.lower() for a in profile.aliases}
+                if short_form_lower not in existing_lower and short_form_lower != profile.canonical_name.lower():
+                    profile.aliases.append(short_form)
+                    logger.info(
+                        f"AUTO-ADDED short-form alias: '{short_form}' for symbolic '{profile.canonical_name}'"
+                    )
+
         return profiles
 
     def _detect_patterns(self, summaries_text: str, plot_summary: Optional[str] = None) -> dict[str, list[str]]:

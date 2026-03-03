@@ -160,6 +160,8 @@ def load_model(
                         "model": model,
                         "prompt": "Reply with just the word OK.",
                         "stream": False,
+                        "think": False,  # Disable thinking for qwen3.5 models — prevents empty response
+                        "options": {"num_predict": 10},  # Limit tokens so verification completes quickly
                     },
                 )
 
