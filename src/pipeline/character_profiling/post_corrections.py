@@ -2124,29 +2124,34 @@ class OutputCharacterCorrector:
                 if char_surnames & other_surnames:
                     continue
 
-                # Option B: Only allow text evidence exception for sibling (sister/brother)
-                # labels.  For all other non-surname-sharing family pairs, the label is
-                # removed unconditionally — a universal invariant because almost all books
-                # use shared surnames for spouses, parents, and children, and the 100-char
-                # co-mention check for non-sibling terms causes too many false positives
-                # (e.g., "her husband" in a scene window where two unrelated characters appear).
-                sibling_terms = {"sister", "brother"}
-                is_sibling = any(t in rel_lower for t in sibling_terms)
-                if not is_sibling:
-                    # Downgrade to "associated" rather than deleting entirely.
-                    # Spouses and parent-child pairs frequently have different surnames
-                    # (e.g., betrothed couples, adopted children) so shared-surname is
-                    # not a reliable universal proxy for family relationships.
-                    # "associated" is a factually safe fallback that preserves the
-                    # information that these characters share narrative space.
+                # Option B: Allow text evidence exception for extended family terms
+                # (siblings, cousins, aunts/uncles, nephews/nieces).  These commonly
+                # don't share surnames because they belong to different family branches
+                # (e.g., maternal vs. paternal cousins, aunt by marriage).
+                # Spouses and parent-child pairs almost always share surnames in fiction;
+                # without shared surnames, those labels are likely hallucinated.
+                extended_family_terms = {"sister", "brother", "cousin", "aunt", "uncle", "nephew", "niece"}
+                is_extended_family = any(t in rel_lower for t in extended_family_terms)
+                if not is_extended_family:
+                    # Unconditional downgrade for spouse/parent/child without shared surname.
                     char.relationships[other_key] = "associated"
                     logger.info(
-                        f"Downgraded non-sibling familial label (no shared surname) to 'associated': "
+                        f"Downgraded non-extended-family label (no shared surname) to 'associated': "
                         f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                     )
                     continue
 
-                # For sibling labels: check text co-mention evidence.
+                # For extended family labels: check text co-mention evidence.
+                # Exception: first-person narrators rarely appear by name in raw text
+                # (they use "I" instead), so the tight co-mention check almost always
+                # fails for them even when the relationship is genuine.  Trust
+                # extract_relationships_from_evidence(), which already verified that
+                # the family term and the other character's name co-appear in the
+                # character's profile text.
+                other_is_narrator = other_char and getattr(other_char, 'is_narrator', False)
+                if getattr(char, 'is_narrator', False) or other_is_narrator:
+                    continue  # Keep the extended-family label for narrator characters.
+
                 pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
                 has_evidence = False
                 if pat_a and pat_b:
@@ -2161,10 +2166,10 @@ class OutputCharacterCorrector:
                 if has_evidence:
                     continue
 
-                # No sibling evidence: downgrade rather than delete.
+                # No extended family evidence: downgrade rather than delete.
                 char.relationships[other_key] = "associated"
                 logger.info(
-                    f"Downgraded unfounded familial label to 'associated': "
+                    f"Downgraded unfounded extended-family label to 'associated': "
                     f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                 )
 

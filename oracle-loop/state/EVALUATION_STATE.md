@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -104,6 +104,12 @@
   - Root cause: `post_corrections.py:extract_relationships_from_evidence():lines 845-877` — only scanned `char.evidence`, not `char.descriptions`
   - Result: **FIX WORKS CORRECTLY** at line 762 — sets "cousin". BUT `reject_unfounded_familial_labels()` at line 772 unconditionally overwrites it to "associated" because "cousin" is not in `sibling_terms` and characters don't share a surname.
   - Modified: src/pipeline/character_profiling/post_corrections.py
+- Attempt 5: Expand `sibling_terms` → `extended_family_terms` + narrator exemption in `reject_unfounded_familial_labels()`
+  - Root cause: `post_corrections.py:reject_unfounded_familial_labels():line 2133` — "cousin" not in `sibling_terms = {"sister", "brother"}` → unconditional downgrade to "associated"
+  - Fix 1: Expanded set to `{"sister", "brother", "cousin", "aunt", "uncle", "nephew", "niece"}` — routes extended family through text-evidence check instead of unconditional downgrade
+  - Fix 2: Narrator exemption before text-evidence loop — first-person narrators rarely appear by name in raw text, so tight co-mention check always fails for them; trust `extract_relationships_from_evidence()` instead
+  - Smoke test: 332 tests pass (0 regressions)
+  - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
 
@@ -113,6 +119,7 @@
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Changed "acquaintance" to "associated" — NOT fixed, different label but still wrong |
 | 3 | Profiles: "associated" from LLM not upgraded by extract_relationships_from_evidence() | post_corrections.py | NOT fixed — evidence stmt with "cousin" lacks "Berenice"; descriptions field not scanned |
 | 4 | Profiles: descriptions field not scanned by extract_relationships_from_evidence() | post_corrections.py | FIX WORKS at extraction — but reject_unfounded_familial_labels() overwrites "cousin" → "associated" |
+| 5 | Profiles: reject_unfounded_familial_labels() unconditionally downgrades "cousin" (not in sibling_terms) | post_corrections.py | Expanded sibling_terms → extended_family_terms; added narrator exemption |
 
 ## Pipeline Notes (Attempt 4 — current output)
 - Analysis completed in 15m 4s
@@ -132,4 +139,4 @@
 - All confidence=high for characters and profiles
 
 ## Next Action
-Run PROMPT_fix.md to expand `sibling_terms` in `reject_unfounded_familial_labels()` to include extended family terms (cousin, aunt, uncle, nephew, niece) that commonly don't share surnames. This is line 2133 in `src/pipeline/character_profiling/post_corrections.py`.
+Re-run analysis to verify fix.
