@@ -2,13 +2,24 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.4
 
 ## Output Files
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Duration: 40m 1s, 38 LLM calls, 83,859 tokens
+- 5 characters found: Mr. White (10), Mrs. White (10), Herbert White (19), Sergeant-Major Morris (5), The Old Man (41)
+- Morris: ✓ present as "Sergeant-Major Morris (aka Morris)"
+- WARNING: "The Old Man" exists as a SEPARATE character (canonical "The Old Man") with "The Monkey's Paw" and "the paw" as aliases (41 mentions). This means "the old man" descriptor was NOT assigned to Mr. White — it's claimed by a different character.
+- Herbert White aliases: "Herbert, his son" only (no "the boy" etc.)
+- Mr. White aliases: NONE — "the old man" blocked because it's claimed by "The Old Man" character
+- Mrs. White aliases: NONE — "the old woman" blocked as already claimed; others blocked by titled-people rule
+- New relationship issue: "Removing contradictory relationship: 'Mrs. White'→'Herbert White'='child' AND 'Herbert White'→'Mrs. White'='child'"
+- All 5 profiles at HIGH confidence
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
