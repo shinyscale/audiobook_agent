@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -11,20 +11,12 @@
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 8)
-- Analysis completed in 10m 57s
-- Characters found: Prince Prospero (aka the Prince, Prospero), The Red Death (aka The Revellers, The Courtiers)
-- Symbolic alias rule STILL blocking correct aliases: "the masked figure", "a masked figure", "the intruder", "the specter", "the figure" all blocked because core noun "figure"/"intruder"/"specter" ≠ "death"
-- Rule 2 ALIAS_RESOLUTION_PROMPT clarification (attempt 8 fix) changed aliases from lowercase to capitalized ("The Revellers", "The Courtiers") but still didn't block them
-- The symbolic alias rule remains the primary blocker for correct aliases
-- "The Masked Figure" also extracted as a separate character (symbolic) — blocked from merging with Red Death
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
 - Character Extraction: 7.5/10 ✗
   - Completeness: 9/10
   - Identity Resolution: 10/10
-  - Alias Grouping: 4/10 ← only failing sub-dimension (NO CHANGE from attempt 6)
+  - Alias Grouping: 4/10 ← only failing sub-dimension (NO CHANGE — 3rd consecutive attempt at 8.35)
 - Character Profiles: 8.5/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
@@ -34,93 +26,127 @@
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL — 1 category below threshold (Character Extraction 7.5/10)
 
-## Evaluation Details (Attempt 7)
+## ⚠️ STUCK PATTERN — 3 CONSECUTIVE IDENTICAL SCORES
 
-### What Changed from Attempt 6
-- Red Death aliases: "The Courtiers, The Musicians, The Waltzers" → "the revellers, the assembly, the musicians" (different wrong group aliases, not fixed)
-- Correct aliases ("the masked figure", "the intruder", "the stranger", "the figure") still missing
-- Rule 0.7 changed WHICH group aliases appear but did not prevent them
-- Rule 3 exception was irrelevant — the **symbolic alias rule** (not Rule 3) is the actual blocker
+Attempts 6, 7, and 8 all scored 8.35/10 with identical alias issues. The two strategies tried have failed:
+- **Prompt engineering** (attempts 7, 8): Changed WHICH wrong aliases appear, but did not prevent wrong aliases or allow correct ones
+- **verify_aliases rules** (attempt 7): Rule 0.7 and Rule 3 modifications had no effect on the actual blockers
 
-### Root Cause Identified (Attempt 7 Analysis Logs)
-The analyze phase logs revealed the ACTUAL blocking mechanism:
+**The fix phase MUST change strategy.** Prompt tweaks and rule adjustments in verify_aliases are exhausted. The fix must be **post-processing code** that deterministically:
+1. REMOVES group-noun aliases from non-group characters
+2. ADDS correct aliases by detecting identity-reveal patterns or merging symbolic characters
 
-1. **"the masked figure" extracted as a SEPARATE character** with `is_symbolic=True`
-2. When alias resolution tried to assign "the masked figure" as an alias of The Red Death, the **symbolic alias rule** blocked it
-3. BLOCKED aliases: "the masked figure", "the intruder", "the stranger", "the figure" — ALL blocked by the symbolic alias rule, NOT by Rule 3
-4. The Rule 3 exception added in attempt 7 is therefore **inert** — it fixes a rule that was not the blocker
+## Evaluation Details (Attempt 8)
 
-**The fix target must change from Rule 3 to the symbolic alias rule.**
+### What Changed from Attempt 7
+- Red Death aliases: "the revellers, the assembly, the musicians" → "The Revellers, The Courtiers, The Musicians"
+- Only cosmetic change: capitalization flipped and "the assembly" → "The Courtiers"
+- Correct aliases ("the masked figure", "the intruder", etc.) still missing
+- The Rule 2 prompt clarification changed alias formatting but NOT the fundamental problem
+- Pipeline notes confirm: symbolic alias rule STILL blocking correct aliases
 
 ### Characters in Output
-1. **Prince Prospero** (aliases: the prince, Prospero) — CORRECT ✓
-2. **the Red Death** (aliases: the revellers, the assembly, the musicians) — Entity correct, aliases WRONG ✗
+1. **Prince Prospero** (aliases: the Prince, Prospero) — CORRECT ✓
+2. **The Red Death** (aliases: The Revellers, The Courtiers, The Musicians) — Entity correct, aliases WRONG ✗
 
 ### Expected
-1. Prince Prospero (aliases: the prince, Prospero) ✓
+1. Prince Prospero (aliases: the Prince, Prospero) ✓
 2. The Red Death (aliases: the masked figure, the figure, the intruder)
 
 ## Current Issues (Priority Order)
 
 ### HIGH
 1. **Symbolic alias rule blocks correct Red Death aliases** [Alias Grouping]
-   - Problem: "the masked figure" is extracted as a SEPARATE character with `is_symbolic=True`. When alias resolution proposes "the masked figure" as an alias of The Red Death, the symbolic alias rule blocks it.
-   - Evidence: Analyze phase logs show "BLOCKED alias messages in log: symbolic alias rule blocked 'the masked figure', 'the intruder', 'the stranger', 'the figure' from joining the Red Death"
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — look for the symbolic alias rule in `verify_aliases()` or wherever aliases are blocked for is_symbolic characters
-   - Fix approach: The symbolic alias rule needs an exception for identity-reveal scenarios. When the text reveals that a figure/descriptor IS a named entity (e.g., "the masked figure was revealed to be The Red Death"), the alias should be allowed through. Alternatively, prevent "the masked figure" from being extracted as a separate character in the first place, OR add a post-extraction merge step that merges symbolic descriptors into the entity they're revealed to be.
-   - **IMPORTANT**: The Rule 3 exception added in attempt 7 was targeting the wrong rule. The actual blocker is the symbolic alias rule.
+   - Problem: "the masked figure" is extracted as a SEPARATE character with `is_symbolic=True`. When alias resolution proposes it as an alias of The Red Death, the symbolic alias rule blocks it because core noun "figure" ≠ "death"
+   - Evidence: Pipeline notes confirm symbolic alias rule blocked "the masked figure", "the intruder", "the specter", "the figure"
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — the symbolic alias rule in `verify_aliases()`
+   - **FAILED approaches (do NOT repeat):**
+     - Rule 3 exception (attempt 7) — wrong rule, inert
+     - ALIAS_RESOLUTION_PROMPT Rule 2 clarification (attempt 8) — prompt change, LLM still proposes wrong aliases
+   - **Required approach:** CODE-LEVEL fix. Options:
+     a. Find the symbolic alias rule code and add exception: when a symbolic character's summary text describes identity revelation ("was revealed to be", "it was", "turned out to be"), allow its canonical name as an alias of the revealed entity
+     b. Add a POST-extraction merge step in `characters.py` or `main_cast.py` that merges symbolic descriptor characters into their revealed identity
+     c. Prevent "the masked figure" from being extracted as a separate character in the first place (suppress extraction of descriptive phrases that resolve to another character)
 
 2. **Wrong group aliases persist on Red Death** [Alias Grouping]
-   - Problem: "the revellers", "the assembly", "the musicians" are wrong group-noun aliases for The Red Death
-   - Evidence: These are crowd/group terms for partygoers, not aliases for the personification of pestilence
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Rule 0.7 or alias deduplication logic
-   - Fix approach: Rule 0.7 changed which group aliases appear but didn't block them. Need stronger filtering — perhaps extend Rule 0.6 to cover lowercase plural group nouns ("revellers", "assembly", "musicians") in addition to the capitalized forms it already handles. Or block aliases where the alias refers to a GROUP of people but the canonical is a SINGLE entity.
+   - Problem: "The Revellers", "The Courtiers", "The Musicians" are groups of PEOPLE at the party, not names for the Red Death
+   - Evidence: Poe's text: "the revellers" = the partygoers, "the courtiers" = Prospero's guests
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
+   - **FAILED approaches (do NOT repeat):**
+     - Rule 0.7 in verify_aliases (attempt 7) — changed which group aliases, didn't block
+     - Rule 0.6 in characters.py (attempt 5) — caused REGRESSION
+     - Rule 2 prompt clarification (attempt 8) — cosmetic change only
+   - **Required approach:** CODE-LEVEL post-processing. Add a deterministic filter AFTER verify_aliases that removes aliases where:
+     - The alias is a plural noun (ends in -s, -ers, -ors, -ians, etc.) referring to a GROUP of people
+     - The canonical character is a SINGLE entity (not itself a group)
+     - This can be a simple heuristic: check if alias tokens are in a set of collective/group suffixes AND the canonical name is singular
 
 ### MEDIUM
 3. **"1 chapters" grammar in HTML** [Presentation]
-   - Problem: "This book contains 1 chapters" should be "1 chapter"
-   - Location: HTML report template
-   - Fix: Deferred — Presentation is at 8/10, above threshold
+   - Deferred — Presentation is at 8/10, above threshold
 
 4. **2 pronunciation entries missing IPA** [Pronunciation]
-   - Problem: "produce" and "deliberate" have null IPA
-   - Fix: Deferred — Pronunciation is at 8/10, above threshold
+   - "produce" and "deliberate" have null IPA
+   - Deferred — Pronunciation is at 8/10, above threshold
 
 ### LOW
 5. **Additional Red Death aliases** [Alias Grouping]
    - "the stranger", "the mummer" could be additional aliases
-   - Fix: Deferred until core alias issues resolved
+   - Deferred until core alias issues resolved
 
-## Fix Guidance for Attempt 8
+## Fix Guidance for Attempt 9
 
-**Priority 1: Fix the symbolic alias rule** (HIGH #1)
-- Investigate what the "symbolic alias rule" actually is in main_cast.py
-- Find where `is_symbolic` blocks alias assignment
-- Add an exception: when a character's summary text reveals identity (e.g., "the figure turned out to be The Red Death" / "revealed to be" / "it was"), allow that character's canonical name to become an alias of the revealed entity, or merge the symbolic character INTO the named entity
-- This is the PRIMARY blocker — correct aliases are being proposed by the LLM but blocked by this rule
+**CRITICAL: CHANGE STRATEGY.** Three attempts of prompt/rule tweaks have produced zero improvement. The fix MUST use deterministic post-processing code.
 
-**Priority 2: Block remaining group aliases** (HIGH #2)
-- Strengthen filtering of group-noun aliases
-- "the revellers", "the assembly", "the musicians" should not validate as aliases for a named individual entity
-- Consider: if an alias is a collective noun (assembly, group, crowd, revellers) and the canonical is singular, block it
+### Priority 1: Remove wrong group aliases (HIGH #2 — easiest win)
+Add a post-processing step AFTER alias resolution (after `verify_aliases` returns) that strips group-noun aliases from non-group characters. Implementation:
 
-**Key constraint**: Changes MUST be scoped to `main_cast.py` only. Characters.py modifications are HIGH RISK (regressions in attempts 3 and 5).
+```python
+# After verify_aliases, before returning aliases:
+GROUP_NOUNS = {"revellers", "courtiers", "musicians", "waltzers", "dancers",
+               "guests", "assembly", "crowd", "masqueraders", "attendants"}
+
+def _strip_group_aliases(canonical_name, aliases):
+    """Remove aliases that refer to groups of people when canonical is singular."""
+    cleaned = []
+    for alias in aliases:
+        tokens = alias.lower().split()
+        # Check if any token is a known group noun
+        if any(t in GROUP_NOUNS or (t.endswith(('ers', 'ors', 'ians', 'ists', 'ants', 'ents')) and len(t) > 4) for t in tokens):
+            continue  # Skip group alias
+        cleaned.append(alias)
+    return cleaned
+```
+
+This is SAFE because:
+- No valid alias for a named individual would be a plural group noun
+- It's deterministic (no LLM dependency)
+- It doesn't touch character extraction or the symbolic alias rule
+
+### Priority 2: Add correct aliases via symbolic character merge (HIGH #1)
+Find where "the masked figure" character (is_symbolic=True) is extracted but blocked from becoming an alias. Two options:
+
+**Option A (preferred):** After main cast extraction, if a symbolic character's only co-references in summary text are with a specific named character, merge the symbolic character INTO the named character as an alias. This is a post-extraction merge, not a prompt change.
+
+**Option B:** Modify the symbolic alias rule to have an exception for characters whose summary text indicates identity revelation (contains phrases like "revealed to be", "turned out to be", "was in fact", "none other than").
+
+### Key Constraints
+- Changes MUST be CODE, not prompt engineering
+- main_cast.py can be modified but must be surgical
+- characters.py modifications are HIGH RISK (regressions in attempts 3 and 5) — only use if main_cast.py changes are insufficient
+- The fix MUST be deterministic (not dependent on LLM interpretation)
 
 ## Fix History
 
-### Attempt 8
+### Attempt 8 (Score: 8.35/10 — NO CHANGE from attempt 7)
 1. **ALIAS_RESOLUTION_PROMPT Rule 2 clarification** in `main_cast.py`:
-   - Added "the figure" as an example of a valid descriptive reference
-   - Added clarifying sentence: "A descriptive reference is a substitute name for this single individual entity, NOT a label for a group of people who gather around, encounter, or are affected by {character_name}."
-   - Rule 3: Changed "persons" → "persons or groups", "interact with" → "interact with or are affected by", simplified phrasing
-   - Root cause: LLM in Pass 2 proposes group nouns ("the revellers", "the assembly", "the musicians") as aliases of "the Red Death" because the prompt's definition of "descriptive references" was too broad, not explicitly excluding groups associated with the entity
-   - Fix classification: prompt clarification — universal (any book can have group nouns confusably near individual entities)
-   - Smoke test: Not run (requires full LLM call); fix addresses the conceptual gap in Rule 2
+   - Added "the figure" as example of valid descriptive reference
+   - Added clarifying sentence distinguishing individual descriptors from group labels
+   - Result: Changed capitalization of group aliases and swapped one noun. Did NOT fix the problem.
 
 ### Attempt 7 (Score: 8.35/10 — NO CHANGE from attempt 6)
-1. **Rule 0.7 in verify_aliases**: Changed which group aliases appear, but did not prevent them. Partial effect only.
-2. **Rule 3 exception in ALIAS_RESOLUTION_PROMPT**: Inert — the symbolic alias rule (not Rule 3) was the actual blocker for correct aliases.
-Files modified: `src/pipeline/character_extraction_v2/main_cast.py` ONLY.
+1. **Rule 0.7 in verify_aliases**: Changed which group aliases appear, did not prevent them.
+2. **Rule 3 exception in ALIAS_RESOLUTION_PROMPT**: Inert — symbolic alias rule was actual blocker.
 
 ### Attempt 6 (Score: 8.35/10 — IMPROVEMENT from 6.60)
 1. REVERTED characters.py Rule 0.6 — Restored The Red Death as its own character.
@@ -146,12 +172,12 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 8 | Group nouns as aliases: Rule 2 clarification in ALIAS_RESOLUTION_PROMPT | main_cast.py | Awaiting analysis |
+| 8 | Group nouns as aliases: Rule 2 prompt clarification | main_cast.py | No change — cosmetic only |
 | 7 | Wrong group aliases: Rule 0.7 in verify_aliases | main_cast.py | Partial — changed which aliases, didn't fix |
-| 7 | Missing correct aliases: Rule 3 exception | main_cast.py | No change — wrong rule targeted (symbolic alias rule is blocker) |
-| 6 | Revert characters.py regression | characters.py (reverted) | Fixed ✓ — Red Death back as own character |
-| 6 | Keep grounding.py fix | (no change) | Fixed ✓ — Prospero alias preserved |
-| 5 | Wrong group aliases on Red Death | characters.py (_is_valid_alias) | **REGRESSION** — blocked valid aliases |
+| 7 | Missing correct aliases: Rule 3 exception | main_cast.py | No change — wrong rule targeted |
+| 6 | Revert characters.py regression | characters.py (reverted) | Fixed ✓ |
+| 6 | Keep grounding.py fix | (no change) | Fixed ✓ |
+| 5 | Wrong group aliases on Red Death | characters.py (_is_valid_alias) | **REGRESSION** |
 | 5 | Missing "Prospero" alias | grounding.py | Fixed ✓ |
 | 4 | Revert attempt 3 regression | main_cast.py | Fixed ✓ |
 | 4 | is_symbolic detection improvement | main_cast.py | Fixed ✓ |
@@ -162,9 +188,10 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 **Pattern analysis:**
-- main_cast.py has been modified in attempts 2, 3, 4, 7 — need to be surgical
-- The symbolic alias rule is a NEW fix target not previously attempted
-- Rule 0.7 (attempt 7) and Rule 0.6 (attempts 3, 5) both failed to fully block group aliases
+- main_cast.py modified in attempts 2, 3, 4, 7, 8 — prompt/rule changes exhausted
+- Symbolic alias rule (code) never actually modified — only prompt workarounds attempted
+- Group alias blocking tried via rules (0.6, 0.7) and prompts — need deterministic code filter
+- characters.py modifications caused regressions TWICE (attempts 3, 5)
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
@@ -174,6 +201,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Attempt 5: 6.60/10 (-1.63) ← REGRESSION
 - Attempt 6: 8.35/10 (+1.75) ← CURRENT BEST
 - Attempt 7: 8.35/10 (+0.00) ← NO CHANGE
+- Attempt 8: 8.35/10 (+0.00) ← NO CHANGE (3rd consecutive plateau)
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
@@ -181,7 +209,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Temperature 0.7 standard
 - 0 LLM retries across all stages
 - No chunking issues
-- **Root cause is NOT model/config** — the remaining issues are alias validation logic in main_cast.py (specifically the symbolic alias rule)
+- **Root cause is NOT model/config** — remaining issues require code-level alias post-processing
 
 ## Next Action
-Run PROMPT_fix.md to address the symbolic alias rule (HIGH #1) and strengthen group alias blocking (HIGH #2).
+Run PROMPT_fix.md with CODE-LEVEL fixes only (no more prompt engineering). Priority: deterministic group-alias filter, then symbolic character merge.
