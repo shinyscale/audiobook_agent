@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Analysis completed in 20m 43s, exit code 0
+- 2 characters extracted: Prince Prospero and the Red Death
+- Prince Prospero aliases: "the prince, Prospero" — same as attempt 6 ✓
+- The Red Death aliases: "the revellers, the assembly" — still wrong group aliases ✗ (changed from attempt 6's "The Courtiers, The Musicians, The Waltzers")
+- BLOCKED alias messages in log: symbolic alias rule blocked "the masked figure", "the intruder", "the stranger", "the figure" from joining the Red Death
+- "the masked figure" appears to have been extracted as a SEPARATE character that got is_symbolic=True, its correct aliases also blocked
+- Rule 0.7 (attempt 7 fix) appears to have changed WHICH group aliases appear, but did not prevent group aliases entirely
+- Rule 3 exception (attempt 7 fix) did not result in correct aliases — symbolic alias rule is the blocking point
 
 ## Latest Scores (Attempt 6 — pre-fix)
 - Structure Detection: 9/10 ✓
