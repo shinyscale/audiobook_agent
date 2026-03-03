@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
@@ -13,119 +13,127 @@
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
-- Character Extraction: 7/10 ✗ (FAILING)
-  - Completeness: 7.5/10
-  - Identity Resolution: 6/10 ← false split is primary blocker
-  - Alias Grouping: 7/10
-- Character Profiles: 8/10 ✓
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 7/10 ✗ (FAILING)
+- Character Extraction: 6/10 ✗ (FAILING — REGRESSION from 7)
+  - Completeness: 7/10
+  - Identity Resolution: 5/10 ← 3-way split of Milton Jennings is primary blocker (regression from 6)
+  - Alias Grouping: 6/10
+- Character Profiles: 7/10 ✗ (FAILING — REGRESSION from 8)
+- Chapter Summaries: 8.5/10 ✓
+- Pronunciation Guide: 7/10 ✗ (FAILING — no net improvement)
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.75/10** (reference only)
+- **Overall: 7.45/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Characters, Pronunciation)
+**Status:** FAIL (3 categories below threshold: Characters, Profiles, Pronunciation)
+**REGRESSION ALERT:** Overall 7.45 is 0.35 below baseline 7.80 (exceeds -0.3 threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.80 | - | Baseline. 3 categories failing: Characters (6.5), Profiles (7), Pronunciation (7) |
 | 2 | 7.75 | -0.05 | 2 categories failing: Characters (7, ↑0.5), Pronunciation (7, =). Profiles fixed (7→8). Narrator flag fixed. Boat-keeper/storm alias fixed. |
+| 3 | 7.45 | -0.35 | **REGRESSION.** 3 categories failing: Characters (6, ↓1), Profiles (7, ↓1), Pronunciation (7, =). Milton Jennings now split 3 ways (was 2 in att.2). "Jennings" falsely flagged narrator (was fixed in att.2). |
 
-## Changes from Attempt 1 → 2
-- ✅ FIXED: "the boat-keeper" with bogus "the storm" alias removed entirely
-- ✅ FIXED: Lincoln Stewart no longer falsely flagged as narrator (is_narrator: false)
-- ✅ FIXED: Profiles now have excellent voice guidance with dialect notes, example quotes
-- ✅ FIXED: Fabricated boat-keeper ↔ Knapp relationship gone (boat-keeper removed)
-- ❌ STILL BROKEN: "Milt" (supporting_2) still separate from "Milton Jennings" (main_cast_1)
-- ❌ STILL BROKEN: Missing parent characters (Mr. Stewart, Mr./Mrs. Jennings)
-- ❌ STILL BROKEN: Missing archaic/nautical pronunciation entries
-- ❌ STILL BROKEN: "wildernesses" false positive
-- 🔶 NEW: Duplicate "Milton" in Milton Jennings' alias list
-- 🔶 NEW: Lincoln's relationship list includes "Milt" as separate from "Milton Jennings"
+## What Changed Attempt 2 → 3
+
+### Code Fixes Applied (commit 85a5c53)
+1. Added "milt"→"milton" to NICKNAME_TO_FORMAL in characters.py
+2. Added nickname-firstname merge check in `_merge_lastname_aliases`
+3. Raised compound detector min component length 3→4 in cmu_proposer.py
+4. Added "es" suffix to `_is_common_derivation` in cmu_proposer.py
+
+### Pronunciation Improvements (Fix WORKED)
+- ✅ "bowlders" now flagged with correct IPA /ˈboʊldərz/
+- ✅ "gunwhale" now flagged (but IPA is WRONG — see issue #3 below)
+- ✅ "wildernesses" false positive removed
+
+### Character Regression (Fix FAILED — made things WORSE)
+- ❌ **REGRESSION:** "Milton Jennings" (main_cast_1 in attempt 2) no longer exists as a character at all
+- ❌ **REGRESSION:** Now split into THREE fragments: "Milton" (supporting_0, 23 mentions) + "Jennings" (supporting_1, 10 mentions) + "Milt" (supporting_3, 2 mentions)
+- ❌ **REGRESSION:** "Jennings" falsely flagged as is_narrator=true (was fixed in attempt 2, now re-broken)
+- ❌ **REGRESSION:** All Milton-related characters demoted from main_cast to supporting
+- ❌ Lincoln's relationship list shows "Milton", "Milt", and "Jennings" as 3 separate people
+- Note: Summary correctly says "Milton Jennings" — the summarizer knows it's one person, extraction doesn't
+
+### Root Cause Analysis
+The character regression is most likely **LLM non-determinism**, not a code bug:
+- The code fix (NICKNAME_TO_FORMAL) only ADDS merge logic, cannot cause splits
+- The LLM extraction this run produced "Milton" and "Jennings" as separate entities
+- In attempt 2, the LLM had produced "Milton Jennings" as one entity
+- The nickname merge couldn't fire because its target "Milton Jennings" never existed
+- The gap in IDs (no main_cast_1) suggests a character was extracted to main_cast but then removed/demoted
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **False split: "Milt" (supporting_2) is separate from "Milton Jennings" (main_cast_1)** [Identity Resolution]
-   - Problem: "Milt" is listed as a supporting character with 2 mentions, but is clearly a nickname for Milton Jennings. The supporting character's own profile description says "Milt (Milton Jennings) is Lincoln Stewart's friend" — the LLM KNOWS they're the same person, but the pipeline didn't merge them.
-   - Text evidence: line 29 "Hello, Milt," Lincoln returned" — Lincoln addresses Milton as "Milt" in dialogue. Line 54 "if you don't mind, Milt" — same pattern.
-   - Consequence: Lincoln Stewart's relationship list includes BOTH "Milton Jennings (close friend)" and "Milt (close friend)" — listing the same person twice.
-   - ID patterns: main_cast_1 (Milton Jennings) vs supporting_2 (Milt) — cross-pipeline merge needed.
-   - Location: `src/agents/characters.py` — NICKNAME_TO_FORMAL dict or `_merge_formal_name_aliases()` (Step 5.5a). Also check `src/pipeline/character_extraction_v2/main_cast.py`.
-   - Fix: Add "milt"→"milton" to NICKNAME_TO_FORMAL dictionary. "Milt" is a standard truncation of "Milton" (first syllable only), similar to how "Jim" maps to "James". Step 5.5a should then merge supporting "Milt" into main_cast "Milton Jennings" since it's a nickname match with large mention asymmetry (32 vs 2).
+1. **3-way false split: Milton (supporting_0) + Jennings (supporting_1) + Milt (supporting_3) are ALL "Milton Jennings"** [Identity Resolution]
+   - Problem: The text's second most important character is fragmented across 3 entries totaling 35 mentions. In attempt 2 this was a 2-way split; now it's worse.
+   - Evidence: The summary itself says "Milton Jennings" as one person. Line 29 "Hello, Milt" = nickname. "Mr. Jennings" / "Mrs. Jennings" are the PARENTS (different people), but bare "Jennings" in context refers to Milton's surname.
+   - ID patterns: supporting_0, supporting_1, supporting_3 — all in supporting cast pipeline
+   - The existing `_merge_lastname_aliases` and NICKNAME_TO_FORMAL logic failed because "Milton Jennings" was never produced as a single entity by the LLM this run.
+   - **Needed fix:** A more robust post-extraction merge that can consolidate "FirstName" + "LastName" fragments when the summary references "FirstName LastName" as one character. Check summary `characters_present` for full names and merge matching first-name + last-name fragments.
+   - Location: `src/agents/characters.py` — needs a new merge step that cross-references summary character lists
+
+2. **"Jennings" falsely flagged as first-person narrator** [Identity Resolution / Profiles]
+   - Problem: "A Camping Trip" is a third-person omniscient narrative. No character is the narrator. "Jennings" (supporting_1) has `is_narrator: true` — completely wrong.
+   - Evidence: The text never uses "I" in a narrative voice attributed to any character.
+   - This was FIXED in attempt 2 (Lincoln Stewart's narrator flag was removed). Now "Jennings" has the false flag.
+   - Location: Narrator detection logic — may be attributing 3rd-person narration to a character
 
 ### HIGH
-2. **Missing pronunciation entries for archaic/nautical terms** [Pronunciation]
-   - Problem: Four words important for narrator prep are completely absent:
-     - "bowlders" (lines 234, 293) — archaic spelling of "boulders"; narrator MUST know to pronounce it as "boulders"
-     - "popple" (line 20) — dialectal/regional word for "poplar tree"
-     - "luff" (line 454) — nautical term with footnote [111-1] in text indicating it needs explanation
-     - "gunwhale" (line 409) — commonly mispronounced; correct: "GUN-ul" not "gun-whale"
-   - Location: `src/pipeline/pronunciation/` — CMU proposer + LLM proposer
-   - Fix: These words are genuinely unusual and should NOT be in the CMU dictionary. Investigate why CMU proposer missed them — possibly filtered by confidence threshold or character-level patterns. These would push Pronunciation from 7 → 8.
+3. **Gunwhale IPA is WRONG — defeats the purpose of flagging it** [Pronunciation]
+   - Problem: IPA given as /ˈɡʌn.weɪl/ (literally "gun-whale"). The correct pronunciation is /ˈɡʌn.əl/ ("gunnel"). This is the #1 reason narrators need this word flagged — to NOT read it as "gun-whale".
+   - Note says: "The 'wh' is pronounced as a 'w' sound, and 'ale' rhymes with 'pail'" — this is wrong.
+   - Location: LLM proposer generating IPA in `src/pipeline/pronunciation_guide/`
+   - Fix: Could add gunwhale/gunwale to a special-case pronunciation map, or improve the LLM prompt to note that "gunwale" is a nautical term pronounced "gunnel"
 
-3. **Missing characters: Mr. Stewart, Mr. Jennings, Mrs. Jennings** [Completeness]
-   - Problem: Three named, speaking characters entirely absent from output.
-   - Evidence:
-     - Mr. Stewart (Lincoln's father): line 69 "Mr. Stewart had consented" — named, referenced in Ch1 summary by proper name
-     - Mr. Jennings (Milton's father): lines 136-137 "said Mr. Jennings" — named, has dialogue
-     - Mrs. Jennings (Milton's mother): lines 117, 120-126, 165-168, 525-526 — named, multiple dialogue lines
-   - Note: Ch1 summary correctly lists "Mr. Stewart" in characters_present, but he doesn't appear in the character list. Mr./Mrs. Jennings aren't even in chapter summaries' characters_present.
-   - Location: Summarizer prompt (not capturing Mr./Mrs. Jennings by proper name) + F6 reconciliation thresholds
-   - Fix: These are 1-2 mention characters but have dialogue. For short texts, the extraction threshold may be too aggressive. However, these are lower priority than #1 and #2 for crossing the 8.0 threshold.
+4. **"lead" and "desert" homographs have null IPA** [Pronunciation]
+   - Problem: Both entries have `ipa: null` while all other homographs (wind, bass, read, live, close, minute) have IPA.
+   - Location: LLM proposer — inconsistent IPA generation for homographs
+   - Fix: Ensure all homograph entries get IPA generated
+
+5. **Missing parent characters: Mr. Stewart, Mr. Jennings, Mrs. Jennings** [Completeness]
+   - Same as attempt 2, still missing
+   - These are named, speaking characters but have very low mention counts
+   - Lower priority than the Milton split for crossing 8.0
 
 ### MEDIUM
-4. **Duplicate "Milton" in Milton Jennings' alias list** [Alias Grouping]
-   - Problem: `aliases: ["Milton", "Milton", "Jennings"]` — "Milton" appears twice.
-   - Location: Alias deduplication in character extraction pipeline
-   - Fix: Simple dedup of alias list. Low effort, minor quality issue.
-
-5. **"Knapp" should be "Captain Knapp"** [Alias Grouping]
-   - Problem: Character listed as "Knapp" (supporting_3) but always referred to as "Captain Knapp" in text (lines 45, 103).
-   - Location: Title-stripping logic — too aggressive for military/rank titles.
-   - Fix: Preserve "Captain" in canonical name for rank titles.
-
 6. **"Stewart" as standalone alias for Lincoln Stewart** [Alias Grouping]
-   - Problem: Lincoln is never called just "Stewart" in text. "Stewart" only appears in "Mr. Stewart" (his father) and "Lincoln Stewart" (full name).
+   - Problem: Lincoln is never called just "Stewart" — only "Lincoln Stewart" (full name) or "Lincoln". "Stewart" alone appears only in "Mr. Stewart" (his father).
    - Location: Programmatic surname-as-alias logic in V2 pipeline
-   - Fix: Surname-as-alias should check if another character uses that surname with a title.
+
+7. **"Knapp" should be "Captain Knapp"** [Alias Grouping]
+   - Same as attempt 2, still not fixed
+   - Title stripping too aggressive for military/rank titles
 
 ### LOW
-7. **"wildernesses" flagged as pronunciation entry** [Pronunciation]
-   - Problem: Standard English word, false positive.
-   - Fix: Add to COMMON_WORDS_WHITELIST in `src/pipeline/pronunciation/cmu_proposer.py`.
-
-8. **Missing IPA for "lead" and "desert"** [Pronunciation]
-   - Problem: Two homograph entries have `ipa: null` — they should have IPA like the other homographs.
-   - Fix: Ensure LLM proposer generates IPA for all homograph entries.
+8. **Milton's profile duplicated across "Milton" and "Jennings" entries** [Profiles]
+   - The "Jennings" entry's personality section literally says "Milton is depicted as..." — the profiler KNOWS they're the same person
+   - This is a downstream symptom of the CRITICAL #1 split. Fixing #1 fixes this.
 
 ## Fix Priority for Crossing 8.0
 
-**Characters (7 → 8):** Fix CRITICAL #1 (Milt/Milton merge). This alone could push Identity Resolution from 6 → 8 and overall Characters from 7 → 8. The missing parents (HIGH #3) are important but won't block the 8.0 threshold by themselves.
+**Given the regression, the FIRST action must be to revert commit 85a5c53 and re-analyze.** The pronunciation fix was correct but the LLM non-determinism produced a worse character extraction. After revert:
 
-**Pronunciation (7 → 8):** Fix HIGH #2 (add 4 missing archaic/nautical terms). Adding bowlders, popple, luff, gunwhale would push coverage from 7 → 8. Remove "wildernesses" (LOW #7) while at it.
+1. **Re-apply ONLY the pronunciation fixes** (cmu_proposer.py changes) — these demonstrably worked
+2. **Add a summary-crossref merge step** in characters.py that reconciles extraction fragments against summary `characters_present` lists. When summary says "Milton Jennings" but extraction has separate "Milton" and "Jennings", merge them.
+3. **Fix gunwhale IPA** — either hardcode or improve LLM prompt
+4. Re-analyze
 
-**Minimum fixes needed to pass: #1 and #2.**
+**The Milt→Milton NICKNAME_TO_FORMAL fix is still correct** but it needs the upstream merge to produce "Milton Jennings" first. Apply it AFTER the summary-crossref merge is in place.
 
 ## Fix History
 - Attempt 1→2: External changes (commit 3cb3fb5) restored grounding threshold=3, length-adaptive alias context. Fixed narrator flag, removed boat-keeper character, improved profiles.
+- Attempt 2→3: Added milt→milton to NICKNAME_TO_FORMAL, nickname-firstname merge in _merge_lastname_aliases, pronunciation compound detector fixes. **RESULT: Character regression (Milton Jennings split 3 ways), Pronunciation partially improved.**
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1→2 (external) | Grounding threshold, alias context | characters.py, main_cast.py | Partial fix: narrator and boat-keeper fixed, Milt split persists |
-| 2→3 | Milt/Milton false split (Identity Resolution) | characters.py | Added "milt"→"milton" to NICKNAME_TO_FORMAL + nickname-firstname merge step |
-| 2→3 | Missing pronunciation entries (gunwhale, bowlders) | cmu_proposer.py | Raised compound detector min component length 3→4; require base-after-strip-s ≥ 4 chars |
-| 2→3 | wildernesses false positive | cmu_proposer.py | Added "es" to _is_common_derivation suffix list |
-
-## External Changes Applied
-Commit `3cb3fb5` was applied outside the oracle loop after attempt 1 evaluation:
-- Restored `min_grounding_mentions: 1 → 3` (baseline value that passed 11 prior texts)
-- Made alias context length-adaptive: short texts (≤5 chapters) now use ALL summaries as context instead of a sample
-- Cap reduced from 10,000 to 6,000 chars
-- Files changed: `src/agents/characters.py`, `src/pipeline/character_extraction_v2/main_cast.py`
+| 2→3 | Milt/Milton false split | characters.py | **REGRESSION**: Milton Jennings now split 3 ways (was 2). Likely LLM non-determinism, not code bug. |
+| 2→3 | Missing pronunciation (gunwhale, bowlders) | cmu_proposer.py | **Fixed**: Both now flagged. But gunwhale IPA is wrong. |
+| 2→3 | wildernesses false positive | cmu_proposer.py | **Fixed**: No longer flagged. |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (characters, summaries, profiles) — appropriate
@@ -137,25 +145,4 @@ Commit `3cb3fb5` was applied outside the oracle loop after attempt 1 evaluation:
 - All profiling stages: high confidence dominant ✓
 
 ## Next Action
-Evaluate attempt 3 output
-
-## Fix History (Attempt 2 → 3)
-### CRITICAL #1: Milt/Milton false split
-- **Root cause:** `characters.py:_merge_lastname_aliases()` only checked exact first-name matches, not nickname→formal-name matches. "Milt" (supporting, 2 mentions) couldn't be merged into "Milton Jennings" (main cast, 32 mentions).
-- **Fix:**
-  1. Added `"milt": "milton"` to `NICKNAME_TO_FORMAL` dict in `characters.py:72`
-  2. Added nickname-firstname check in `_merge_lastname_aliases` (after exact_firstname block): when a single-word supporting char's name is a NICKNAME and the formal name matches the FIRST WORD of a multi-word main cast char, it's merged.
-  3. Added mention count guard: merge only fires when main has ≥ 4x more mentions than supporting (mirrors Step 5.5a safeguard).
-- **Smoke test PASS:** "Milt" correctly merged as alias of "Milton Jennings" with [Milton, Jennings, Milt] aliases. Supporting cast "Milt" removed. Mention count guard prevents wrong merges when ratio < 4x.
-- **Modified:** `src/agents/characters.py`
-
-### HIGH #2: Missing pronunciation entries (bowlders, gunwhale)
-- **Root cause:** `cmu_proposer.py:_is_closed_compound()` was too aggressive:
-  - "gunwhale" → falsely detected as "gun"(3) + "whale"(5) compound (min component was 3 chars)
-  - "bowlders" → falsely detected as "bowl"(4) + "ders" where "ders"[:-1]="der"(3-char CMU word) passes the plural-strip check
-- **Fix 1:** Raised minimum component length from 3 → 4 chars. Short CMU entries (abbreviations, foreign articles like "der") can no longer anchor compound splits. Fixes "gunwhale" (gun=3 < 4 → skipped).
-- **Fix 2:** Added requirement that base-after-strip-s must be ≥ 4 chars. Fixes "bowlders" where "ders"→"der"(3 chars) is blocked.
-- **Fix 3:** Added "es" to suffix list in `_is_common_derivation`. "wildernesses"→"wilderness" (in CMU) is now correctly identified as a standard English derivation, removing the false positive.
-- **Smoke test PASS:** bowlders=FLAGGED=True, gunwhale=FLAGGED=True, wildernesses=FLAGGED=False(derivation), firelight=compound=True(correctly not flagged).
-- **Modified:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py`
-- **Note:** "luff" and "popple" are IN the CMU dictionary, so they won't be caught by CMU proposer. They'd need an LLM proposer. Not addressed in this attempt.
+**REVERT** commit 85a5c53 (the fix from attempt 2→3) due to regression > 0.3 below baseline. Then re-apply only the pronunciation fixes (cmu_proposer.py) and add a summary-crossref merge for character fragments. Re-run analyze phase.
