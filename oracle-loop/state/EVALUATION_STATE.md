@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -11,176 +11,141 @@
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
 
-## Pipeline Notes (Attempt 11)
-- Analysis completed in 14m 19s
-- Only 2 characters in final output: Prince Prospero and The Ebony Clock
-- **CRITICAL WARNING:** "The Red Death" appears as an ALIAS of "The Ebony Clock" — likely a serious regression
-- The plural group noun filter (F6) worked: "the courtiers", "the musicians" not created as F6 characters
-- min_grounding_mentions=2 may have over-filtered — The Red Death possibly filtered out as standalone character
-- BLOCKED aliases for Red Death: masked figure, stranger, intruder, figure (core noun mismatch still blocking)
-- Many other characters (Darkness, Decay, The Stranger, The Thousand Friends, Courtiers, Revellers, Waltzers) processed during alias validation but absent from final output — possibly filtered by grounding gate
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6/10 ✗ (FAILING)
-  - Completeness: 6/10 ← Ebony Clock missing, hallucinated "Darkness", group nouns as characters
-  - Identity Resolution: 6/10 ← "Darkness" fabricated as narrator, group nouns inflate list
-  - Alias Grouping: 5/10 ← "the orchestra" wrong alias on Red Death, valid aliases missing
-- Character Profiles: 6.5/10 ✗ (FAILING)
+- Character Extraction: 4/10 ✗ (FAILING — REGRESSION from attempt 10's 6/10)
+  - Completeness: 5/10
+  - Identity Resolution: 2/10 ← catastrophic false merge is the primary blocker
+  - Alias Grouping: 3/10
+- Character Profiles: 5/10 ✗ (FAILING)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.68/10** (reference only)
+- **Overall: 6.95/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL — 2 categories below threshold (Character Extraction 6/10, Character Profiles 6.5/10)
+**Status:** FAIL — 2 categories below threshold (Character Extraction 4/10, Character Profiles 5/10)
 
 ## Comparison to Previous Attempts
 
 | Attempt | Overall | Char Extract | Char Profiles | Key Diff |
 |---------|---------|-------------|---------------|----------|
-| 8 (best)| 8.35    | ~7.5        | ~8.5          | Had Ebony Clock, Red Death with wrong group aliases |
+| 6-8 (best)| 8.35  | ~7.5        | ~8.5          | Had both Clock and Red Death as separate characters |
 | 9       | 7.35    | 5           | 6             | Red Death MISSING (regression) |
-| **10**  | **7.68**| **6**       | **6.5**       | Red Death restored, but Ebony Clock missing, "Darkness" hallucinated |
+| 10      | 7.68    | 6           | 6.5           | Red Death restored but Darkness hallucinated, group nouns |
+| **11**  | **6.95**| **4**       | **5**         | **Red Death merged INTO Ebony Clock — CATASTROPHIC** |
 
-The revert succeeded in restoring The Red Death, but LLM non-determinism produced a different (worse) character set than attempt 8. Key differences from attempt 8:
-- Ebony Clock not extracted (was present in attempts 4-8)
-- "Darkness" fabricated as a 1-mention narrator character
-- Group nouns (courtiers, musicians) appear as F6-reconciled characters instead of as aliases
-- "the orchestra" is the new wrong alias on Red Death (instead of revellers/courtiers/musicians)
+## Root Cause Analysis (Attempt 11)
+
+The four fixes from attempt 11 produced mixed results:
+
+| Fix | Intended Effect | Actual Result |
+|-----|----------------|---------------|
+| F6 plural group noun filter | Block courtiers/musicians as F6 characters | ✓ WORKED — 0 F6 characters |
+| min_grounding_mentions = 2 | Filter "Darkness" (1 mention) | ✓ Darkness filtered BUT ✗ **also filtered The Red Death** |
+| Narrator min-mention guard | Prevent 1-mention characters from being narrator | ✓ Works but doesn't fix Prospero (12 mentions) being wrongly tagged |
+| "stra" suffix for collective nouns | Block "the orchestra" as alias | ✓ No orchestra alias BUT ✗ LLM proposed "The Red Death" as Clock alias instead |
+
+**The critical regression chain:**
+1. The LLM extracted The Red Death as a main_cast character (confirmed: "BLOCKED aliases for Red Death" in pipeline notes means alias validation processed it)
+2. `min_grounding_mentions=2` filtered The Red Death from the final character list (it may have had only 1-2 exact text mentions as "The Red Death" — the text uses many variant forms like "the pestilence", etc.)
+3. During Pass 2 alias resolution, the LLM proposed "The Red Death" as an alias of "The Ebony Clock"
+4. Since The Red Death was no longer a standalone character, Rule 0.5 (alias can't be another character's canonical) did NOT block it
+5. The alias was accepted → **catastrophic false merge**: The Red Death (personified plague, title antagonist) merged into The Ebony Clock (a timepiece)
+
+**Why this is worse than attempt 10:** In attempt 10 (min_grounding_mentions=1), The Red Death was its own character with 12 mentions. The "Darkness" issue (-1 point) was far less severe than losing The Red Death entirely (-3 points).
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Group nouns appearing as F6 characters** [Completeness, Identity Resolution]
-   - Problem: "the courtiers" (id=2dc5504206d2) and "the musicians" (id=2c119eeb2375) are F6-reconciled characters. These are unnamed groups of people, not individual characters.
-   - Evidence: Both have hash IDs (F6 reconciliation), 2-3 mentions each, no profiles
-   - Location: F6 reconciliation in `src/analyzer.py` (~line 1197+). The `_is_valid_alias()` plural suffix filter in `characters.py` correctly blocks these as aliases, but F6 creates them as standalone characters with no equivalent filter.
-   - Fix: Add a plural-group-noun filter to F6 character creation in `analyzer.py`. Before creating an F6 character, check if the name matches the same plural suffix patterns used in `_is_valid_alias()` (e.g., ends in -iers, -ians, -ers, -ors, etc.) AND is a lowercase descriptor (no proper-noun capitalization). If so, skip creating the character.
-   - Impact: Removing 2 invalid characters improves Completeness and Identity Resolution by ~1 point each.
+1. **The Red Death falsely merged into The Ebony Clock as alias** [Identity Resolution, Completeness]
+   - Problem: "The Red Death" (personified plague, title antagonist) is listed as an ALIAS of "The Ebony Clock" (a timepiece). These are completely unrelated entities. The Red Death is a masked figure that kills everyone; the Ebony Clock is a clock that chimes hourly. This is the worst possible false merge.
+   - Evidence: `jq '.characters[1].aliases'` → `["the clock", "The Red Death"]`. The Ebony Clock has mention_count: 24 (inflated by Red Death mentions counted through alias). Only 2 characters in the entire output.
+   - Root cause: `min_grounding_mentions=2` (set in attempt 11 fix #2) filtered The Red Death as a standalone character. Without it as a separate character, Rule 0.5 couldn't block the alias proposal. The LLM then merged it into the Clock.
+   - Location: `src/agents/characters.py` line 79 — `self.min_grounding_mentions` default changed from 1 to 2
+   - Fix: **Revert `min_grounding_mentions` from 2 back to 1.** The grounding threshold was too aggressive for this text. The Red Death may appear by exact name only 1-2 times while being referenced via descriptors ("the masked figure", "the intruder") dozens of times. A blanket threshold of 2 is unsafe.
+   - Impact: Restoring The Red Death as standalone character would improve Character Extraction from 4/10 to ~6-7/10 and Profiles from 5/10 to ~7/10.
 
-2. **"Darkness" hallucinated as character and narrator** [Completeness, Identity Resolution]
-   - Problem: "Darkness" (id=main_cast_7, 1 mention, is_narrator=True) is extracted as a character and marked as narrator. "Darkness" appears exactly once in the final sentence: "And Darkness and Decay and the Red Death held illimitable dominion over all." It is a poetic personification in a single line, not a character. The story uses 3rd-person omniscient narration — no named narrator.
-   - Evidence: 1 mention, low confidence (0.15 per pipeline notes), no physical description, no relationships, no profile content
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` (extracted as main_cast) and narrator detection
-   - Fix: Two-pronged approach:
-     1. **Minimum mention threshold for main cast**: Characters with ≤ 1 mention and very low confidence should be filtered before profile generation. Check if there's already a threshold and whether it's being applied.
-     2. **Narrator validation**: A character with 1 mention cannot be the narrator. The narrator detection logic should require a minimum threshold of mentions or textual evidence (e.g., first-person pronoun usage attributed to the character).
-   - Impact: Removing 1 invalid character + fixing narrator assignment improves both sub-dimensions.
+2. **Safety net: Block alias proposals where alias has more text mentions than canonical** [Identity Resolution]
+   - Problem: Even if fix #1 works, we need a safety check to prevent this class of false merge from ever happening again. "The Red Death" is mentioned more frequently than "The Ebony Clock" — a more-mentioned entity should NEVER be demoted to an alias of a less-mentioned one.
+   - Evidence: Universal invariant — aliases are alternative (usually less common) ways to refer to a character. If entity A has more text mentions than entity B, A should not be an alias of B.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — `verify_aliases()` function
+   - Fix: Add a new rule (e.g., Rule 0.8): Before accepting an alias, check if the proposed alias text appears MORE times in the source text than the canonical character's name. If so, BLOCK the alias. This requires passing text mention counts to verify_aliases.
+   - Impact: Prevents this entire class of catastrophic merge. Future-proofs against similar LLM errors.
 
 ### HIGH
-3. **"the orchestra" as Red Death alias** [Alias Grouping]
-   - Problem: The Red Death's only alias is "the orchestra" — a group of musicians who PLAY during the ball. They are victims of the Red Death, not the Red Death itself. This alias is completely wrong.
-   - Evidence: In the text, "the orchestra" refers to the musicians who pause when the ebony clock strikes. They are separate from the masked figure who IS the Red Death.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — alias resolution pass
-   - Fix: "the orchestra" is a collective noun (like "the army", "the crew") but doesn't match the existing -ers/-ors suffix filter. Options:
-     1. Add common collective nouns to a blocklist in `_is_valid_alias()` or `verify_aliases()`
-     2. OR add a semantic check: if the alias appears in summaries as a SEPARATE entity acting independently from the canonical character, block it
-     3. The simpler approach: the alias "the orchestra" should fail Rule 2 (must co-occur in at least one summary with the canonical) because the orchestra is described independently from the Red Death. Verify whether Rule 2 is being applied correctly.
-   - Impact: Fixing this improves Alias Grouping by ~1.5 points.
+3. **Prince Prospero incorrectly marked as narrator** [Profiles, Presentation]
+   - Problem: `is_narrator: true` for Prince Prospero. The story uses 3rd-person omniscient narration — "The 'Red Death' had long devastated the country." No character narrates.
+   - Evidence: HTML shows "📖 First-Person Narrator" tag on Prospero. The story never uses first person.
+   - Location: `src/pipeline/character_extraction_v2/narrator.py` — the narrator detection LLM wrongly identifies Prospero
+   - Fix: The narrator guard from attempt 11 only checks mention count (≤1). For 3rd-person omniscient stories, the narrator detector should recognize the absence of first-person narration and set is_narrator=False for all characters. However, this is a lower-priority fix — it affects Profiles (-0.5) and Presentation (-0.25) but isn't the main blocker.
+   - Impact: ~0.5 point improvement on Profiles.
 
 4. **Missing valid Red Death aliases** [Alias Grouping]
-   - Problem: The Red Death should have aliases like "the masked figure", "the intruder", "the figure", "the mummer", "the stranger" — these all refer to the Red Death when it appears at the ball. Currently zero valid aliases.
-   - Evidence: The text uses these terms interchangeably to describe the Red Death's appearance at the masquerade. The summary correctly mentions "a masked figure dressed as the Red Death."
-   - Root cause: The alias resolution prompt/LLM isn't proposing these, OR verify_aliases is blocking them. Per pipeline notes: "the masked figure" aliases blocked as "semantically unrelated (core noun mismatch)."
-   - Location: `verify_aliases()` in `main_cast.py` — the "core noun mismatch" check is too strict for symbolic/metaphorical identities where a "figure" IS the personification of "death"
-   - Fix: The core-noun check should be relaxed for `is_symbolic=True` characters, or for cases where the summary explicitly states identity (e.g., "a masked figure dressed as the Red Death" = identity link).
-   - Impact: Adding valid aliases improves Alias Grouping by ~1 point.
-
-5. **The Ebony Clock missing** [Completeness]
-   - Problem: The Ebony Clock was present in attempts 4-8 but is absent in attempt 10. It is a significant symbolic element — its hourly chiming drives the story's tension and foreshadows doom.
-   - Evidence: The summary mentions "an ebony clock in the westernmost chamber chimes every hour, momentarily silencing the orchestra and causing the guests to grow pale and uneasy." The text references the clock multiple times.
-   - Root cause: LLM non-determinism — the extraction model didn't identify it this run. This is NOT a code regression (the code was reverted to pre-attempt-9 state, which previously extracted the clock).
-   - Location: LLM extraction in main_cast.py (Pass 1)
-   - Fix: This is harder to address deterministically. Options:
-     1. Re-run analysis (may extract it next time)
-     2. Lower the extraction threshold for symbolic/object entities
-     3. Add a post-extraction "significant object" pass that checks summaries for frequently-mentioned objects
-   - Impact: Having the Ebony Clock would improve Completeness by ~1 point.
-
-6. **Red Death and Ebony Clock not marked is_symbolic** [Identity Resolution]
-   - Problem: The Red Death (`is_symbolic: false`) is a personified pestilence — it should be `is_symbolic: true`. The Ebony Clock (when present) should also be symbolic.
-   - Evidence: Previous attempts (2-4) correctly marked these as symbolic
-   - Location: `is_symbolic` detection in main_cast.py
-   - Fix: Check if the is_symbolic detection rules were affected by the revert. The symbolic detection improvements from attempt 2/4 should still be in the codebase.
+   - Problem: Even when The Red Death is its own character (as in attempt 10), it has no valid aliases. "the masked figure", "the intruder", "the stranger", "the mummer" — all are blocked by core noun mismatch ("figure" ≠ "death").
+   - Evidence: Pipeline notes: "BLOCKED aliases for Red Death: masked figure, stranger, intruder, figure (core noun mismatch still blocking)"
+   - Location: `verify_aliases()` in main_cast.py — core noun comparison too strict for symbolic entities
+   - Fix: For `is_symbolic=True` characters, relax core noun matching. Or add a rule that if the summary text explicitly identifies two names as the same entity ("a figure dressed as the Red Death"), allow the alias.
+   - Impact: ~1 point improvement on Alias Grouping.
+   - Note: This has been attempted in attempts 7-8 without success. May require a different approach.
 
 ### MEDIUM
-7. **"1 chapters" grammar in HTML** [Presentation]
-   - Deferred — Presentation is at 8/10, above threshold
+5. **Duplicate alias "the Prince" in Prospero's alias list** [Alias Grouping]
+   - Problem: `aliases: ["the Prince", "Prospero", "the Prince"]` — "the Prince" appears twice
+   - Location: Deduplication in alias processing
+   - Fix: Add dedup step before finalizing aliases
+   - Deferred — minor impact (~0.25 points)
 
-8. **2 pronunciation entries missing IPA** [Pronunciation]
-   - "produce" and "deliberate" have null IPA (homographs)
+6. **Prospero's physical description is minimal** [Profiles]
+   - Problem: "Described as a bold and robust man." — The text says more: "happy and dauntless and sagacious"
+   - Location: Profile generation in analyzer.py
+   - Deferred — will improve when character list is corrected
+
+7. **2 pronunciation entries missing IPA** [Pronunciation]
+   - "produce" and "deliberate" (homographs) have null IPA
    - Deferred — Pronunciation is at 8/10, above threshold
 
-9. **Prospero relationships with group nouns** [Profiles]
-   - Problem: Prospero's relationships list "the courtiers: close friend" and "the musicians: associated" — these are groups, not individual characters. Missing key relationship: "the Red Death: antagonist"
-   - This will partly resolve when group nouns are removed from characters
+8. **"casements" IPA may be incorrect** [Pronunciation]
+   - Listed as /ˈseɪmɛnts/ — should be /ˈkeɪsmənts/ (starts with /k/ not /s/)
+   - Deferred — minor issue
 
-## Fix Guidance for Attempt 11
+## Fix Guidance for Attempt 12
 
-### Priority 1: Filter group nouns from F6 (CRITICAL #1)
-Add a plural-group-noun check to F6 character creation in `src/analyzer.py`. Before creating an F6 character, apply the same plural suffix filter used in `_is_valid_alias()`. This prevents group nouns like "the courtiers", "the musicians", "the revellers" from becoming standalone characters.
+### Priority 1: REVERT min_grounding_mentions to 1 (CRITICAL #1)
+In `src/agents/characters.py`, change `self.min_grounding_mentions` default back from 2 to 1.
 
-Look for the F6 reconciliation code around line 1197+ in analyzer.py. When a missing character name is about to be added, check:
-```python
-# Pseudocode
-if name_is_plural_group_noun(missing_name):
-    continue  # skip this F6 character
-```
+This is the single most impactful fix. The attempt 11 change to 2 was too aggressive — it correctly filtered "Darkness" (1 mention) but also filtered The Red Death, triggering the catastrophic false merge.
 
-Use the same suffix patterns from `_is_valid_alias()` in characters.py.
+**Side effect:** "Darkness" may reappear as a 1-mention character. This is a minor issue (~-0.5 points) compared to losing The Red Death entirely (~-3 points).
 
-### Priority 2: Filter 1-mention low-confidence characters (CRITICAL #2)
-"Darkness" has 1 mention and was extracted as a main_cast character. A main_cast character with ≤ 1 mention is almost certainly noise. Add a minimum mention threshold (e.g., ≥ 2 mentions) for main_cast extraction, or filter characters with very low confidence (< 0.2) and ≤ 1 mention.
+### Priority 2: Add alias mention-count safety check (CRITICAL #2)
+In `verify_aliases()` in `src/pipeline/character_extraction_v2/main_cast.py`, add a rule that blocks an alias proposal if the proposed alias text appears more frequently in the source text than the canonical character's name.
 
-Also fix narrator detection: a 1-mention character should never be tagged as narrator.
+This prevents the class of error where a more-prominent entity gets demoted to an alias of a less-prominent one. It would have prevented "The Red Death" (many mentions) from being aliased to "The Ebony Clock" (fewer direct mentions).
 
-### Priority 3: Fix "the orchestra" alias (HIGH #3)
-Verify whether the existing alias validation (Rule 2 co-occurrence, core noun matching) should catch "the orchestra" as an invalid alias for the Red Death. If not, add a collective-noun check. "orchestra" is not a person and shouldn't be an alias for any character.
+**Implementation:** This requires access to text mention counts in verify_aliases. The function may need a new parameter for mention counts or access to the summary/source text to count occurrences.
 
-### Priority 4: Address missing Red Death aliases (HIGH #4)
-The core-noun mismatch check blocks "the masked figure" as an alias for "the Red Death" because "figure" ≠ "death". For `is_symbolic=True` characters, this check should be relaxed — symbolic entities often have aliases with different core nouns (the personification vs. the disguise).
+### Priority 3: Skip if time permits — address narrator detection (HIGH #3)
+For 3rd-person omniscient stories, no character should be marked as narrator. The narrator detector should check for first-person pronoun usage in the text and only assign narrator status when first-person narration is confirmed.
 
 ### Constraints
 - Do NOT modify prompts in ways that are novel-specific
 - Changes must be generic (work for any text)
-- Keep changes minimal — focus on the 2-3 fixes that cross 8.0
+- Keep changes minimal — Priority 1 is a one-line revert
 - Test with `pytest --ignore=tests/test_semantic_conflicts.py --ignore=tests/test_pdf_ingestion.py --ignore=tests/test_refine.py`
 
 ## Fix History
 
-### Attempt 11 (changes applied, awaiting analysis)
-1. **F6 plural group noun filter** in `src/analyzer.py` (F6 reconciliation loop):
-   - Before creating an F6 character, check if the name is a plural group noun (ends in agent/collective suffix AND all-lowercase content words)
-   - Uses suffix list: ers, ors, ians, ists, ants, ents, iers, ees, smen, ies, stra
-   - Result: "the courtiers" and "the musicians" will no longer be created as F6 characters
-   - Root cause: F6 had no filter for plural group nouns; analyzer.py:~line 1624
-   - Smoke test: Logic verified by tracing code; _f6_head "courtiers".endswith("iers")=True, all-lowercase=True → skipped
-2. **min_grounding_mentions = 2** in `src/agents/characters.py`:
-   - Changed default from 1 to 2 in CharacterAgent.__init__
-   - Universal invariant: main cast characters must appear at least twice in the text
-   - Result: "Darkness" (1 text mention) will be filtered by the grounding gate
-   - Root cause: characters.py:line 79 default was 1, allowing 1-mention noise through
-3. **Narrator minimum mention guard** in `src/pipeline/character_extraction_v2/narrator.py`:
-   - In update_characters_with_narrator, skip is_narrator=True when 0 < mention_count <= 1
-   - Universal invariant: narrator must appear multiple times to tell the story
-   - Result: Belt-and-suspenders with fix #2; prevents 1-mention characters from being narrator
-   - Root cause: narrator.py:line 285-296 had no mention count check
-   - Tests: all 332 passing (adjusted to 0 < count <= 1 to not affect mock characters with count=0)
-4. **"stra" suffix for collective nouns** added to Rule 0.6 in `src/pipeline/character_extraction_v2/main_cast.py` and `src/agents/characters.py`:
-   - Added "stra" to _PLURAL_AGENT_SUFFIXES_R06 and _PLURAL_SUFFIXES
-   - Catches: "orchestra".endswith("stra")=True → blocked as alias for individual characters
-   - Universal pattern: collective nouns from Latin/Italian (-stra) denote groups not individuals
-   - Result: "the orchestra" will no longer be an alias for "the Red Death"
+### Attempt 11 (Score: 6.95/10 — REGRESSION from 7.68)
+1. **F6 plural group noun filter** in `src/analyzer.py`: ✓ WORKED — no F6 group characters
+2. **min_grounding_mentions = 2** in `src/agents/characters.py`: ✗ OVER-FILTERED — The Red Death removed, causing catastrophic merge into Clock
+3. **Narrator min-mention guard** in `src/pipeline/character_extraction_v2/narrator.py`: ✓ Works for 1-mention case, but doesn't prevent wrong narrator for 12-mention Prospero
+4. **"stra" suffix** in `main_cast.py` and `characters.py`: ✓ WORKED — "the orchestra" alias blocked
 
 ### Attempt 10 (Score: 7.68/10 — improvement from 7.35, but below best of 8.35)
-1. **REVERTED symbolic reveal merge** in `src/pipeline/character_extraction_v2/main_cast.py`:
-   - Removed `_proposed_before_verify` saving logic and `SYMBOLIC DESCRIPTOR MERGE` block
-   - Result: ✓ The Red Death restored to character list
-2. **KEPT plural group noun filter** in `src/agents/characters.py` (_is_valid_alias):
-   - Result: ✓ Group nouns not assigned as aliases (but still created as F6 characters)
-3. Test limit: 9550 → 9500
-4. **New issues from LLM non-determinism**: Ebony Clock missing, "Darkness" hallucinated, "the orchestra" wrong alias
+1. **REVERTED symbolic reveal merge** in main_cast.py: ✓ Red Death restored
+2. **KEPT plural suffix filter**: ✓ Still works
+3. **New issues from LLM non-determinism**: Ebony Clock missing, "Darkness" hallucinated, "the orchestra" wrong alias
 
 ### Attempt 9 (Score: 7.35/10 — REGRESSION from 8.35)
 1. Plural group noun filter in characters.py: ✓ WORKED — keep
@@ -217,10 +182,10 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 11 | F6 plural group noun filter | analyzer.py | Pending |
-| 11 | min_grounding_mentions = 2 | characters.py | Pending |
-| 11 | Narrator min-mention guard | narrator.py | Pending |
-| 11 | "stra" suffix for collective nouns | main_cast.py, characters.py | Pending |
+| 11 | F6 plural group noun filter | analyzer.py | ✓ Worked — no F6 group characters |
+| 11 | min_grounding_mentions = 2 | characters.py | ✗ OVER-FILTERED — Red Death removed, merged into Clock |
+| 11 | Narrator min-mention guard | narrator.py | ✓ Works for 1-mention, doesn't fix 12-mention Prospero |
+| 11 | "stra" suffix for collective nouns | main_cast.py, characters.py | ✓ Worked — orchestra alias blocked |
 | 10 | Revert symbolic merge (restore Red Death) | main_cast.py | ✓ Red Death restored |
 | 10 | Keep plural suffix filter | (no change) | ✓ Still works |
 | 9 | Group aliases: plural suffix filter in _is_valid_alias | characters.py | ✓ WORKED — keep |
@@ -241,10 +206,10 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed ✓ |
 
 **Pattern analysis:**
-- F6 reconciliation (`analyzer.py`) has NEVER been modified in this loop — it's a fresh target for fixing group noun characters
-- "Darkness" hallucination is new — requires a mention-count or confidence filter
-- main_cast.py continues to be the most-modified and most-regressed file — be very careful with changes
-- The best scores (8.23, 8.35) came from MINIMAL targeted changes, not large refactors
+- `characters.py` min_grounding_mentions change caused regression — REVERT immediately
+- The grounding threshold approach is too blunt for filtering noise characters — need a more targeted mechanism
+- The best scores (8.23, 8.35) all used min_grounding_mentions=1 (the original default)
+- Priority 2 (alias mention-count safety check) would prevent this entire class of error generically
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
@@ -257,6 +222,7 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Attempt 8: 8.35/10 (+0.00)
 - Attempt 9: 7.35/10 (-1.00) ← REGRESSION
 - Attempt 10: 7.68/10 (+0.33)
+- Attempt 11: 6.95/10 (-0.73) ← REGRESSION
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
@@ -264,7 +230,9 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Temperature 0.7 standard
 - 0 LLM retries across all stages
 - No chunking issues
-- **Root cause is NOT model/config** — remaining issues require code-level filtering in F6 and alias validation
+- **Root cause is NOT model/config** — the regression is caused by min_grounding_mentions=2 filtering The Red Death
 
 ## Next Action
-Run PROMPT_evaluate.md to score the output and diagnose the regression.
+Run PROMPT_fix.md to:
+1. REVERT min_grounding_mentions from 2 to 1 (one-line change in characters.py)
+2. Add alias mention-count safety check in verify_aliases() to prevent more-mentioned entities from being demoted to aliases
