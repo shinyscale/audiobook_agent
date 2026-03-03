@@ -32,7 +32,6 @@ from ..pipeline.character_extraction_v2 import (
     SupportingCastExtractor,
 )
 from ..utils.similarity import names_similar, string_similarity
-from ..utils.debug_log import append_debug_event
 from .base import (
     Agent,
     AgentContext,
@@ -134,6 +133,32 @@ class CharacterAgent(Agent):
     @property
     def name(self) -> str:
         return "characters"
+
+    def _refresh_mentions(
+        self,
+        char_ids: set,
+        cast: list,
+        searcher,
+        mention_results: dict,
+    ) -> None:
+        """Re-search mentions for characters that gained new aliases.
+
+        After any merge/split step that adds aliases, the mention counts
+        and chapter distributions become stale.  This helper re-runs the
+        searcher for the affected characters and updates mention_results
+        so downstream profile generation sees the correct data.
+        """
+        for char_id in char_ids:
+            char = next((c for c in cast if c.id == char_id), None)
+            if char:
+                result = searcher.search_character(char)
+                char.mention_count = result.total_mentions
+                char.mentions = result.mentions
+                mention_results[char.id] = result
+                if result.chapter_distribution:
+                    chapters = sorted(result.chapter_distribution.keys())
+                    char.first_appearance_chapter = chapters[0]
+
 
     @property
     def depends_on(self) -> list[str]:
@@ -313,18 +338,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(within_main_aliases_added)} characters with new aliases"
             )
-            for char_id in within_main_aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    # Transfer actual mentions for profile generation
-                    char.mentions = result.mentions
-                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(within_main_aliases_added, main_cast, searcher, mention_results)
 
         logger.info(f"V2 Step 3.5 complete: {len(main_cast)} main cast after within-cast merge")
 
@@ -342,17 +356,12 @@ class CharacterAgent(Agent):
                 f"into proper-name character(s): {descriptor_merged}"
             )
             # Re-search mentions for characters that gained aliases from descriptor merge
-            for char in main_cast:
-                if char.canonical_name in descriptor_merged or any(
-                    a in descriptor_merged for a in (char.aliases or [])
-                ):
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    char.mentions = result.mentions
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            descriptor_ids = {
+                c.id for c in main_cast
+                if c.canonical_name in descriptor_merged
+                or any(a in descriptor_merged for a in (c.aliases or []))
+            }
+            self._refresh_mentions(descriptor_ids, main_cast, searcher, mention_results)
 
         # STEP 3.7: Defensive split for wrongly-merged titled characters
         # Handles LLM hallucinations where "M. Waldman" gets "M. Krempe" as an alias
@@ -370,100 +379,12 @@ class CharacterAgent(Agent):
         # (e.g., "the creature" as alias of "the old man")
         logger.info("V2 Step 3.8: Splitting semantically conflicting aliases")
 
-        # region agent log
-        try:
-            focus = []
-            for c in main_cast:
-                blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
-                if any(
-                    k in blob
-                    for k in (
-                        "creature",
-                        "monster",
-                        "fiend",
-                        "daemon",
-                        "wretch",
-                        "being",
-                        "lacey",
-                        "old man",
-                    )
-                ):
-                    focus.append(
-                        {
-                            "id": c.id,
-                            "canonical": c.canonical_name,
-                            "aliases": list(c.aliases),
-                            "mentions": c.mention_count,
-                        }
-                    )
-            append_debug_event(
-                {
-                    "sessionId": "debug-session",
-                    "runId": "frankenstein-pre",
-                    "hypothesisId": "H2",
-                    "location": "src/agents/characters.py:step3.8",
-                    "message": "Pre semantic-split focused main_cast snapshot",
-                    "data": {"focus": focus},
-                    "timestamp": int(time.time() * 1000),
-                }
-            )
-        except Exception:
-            pass
-        # endregion
-
         main_cast, semantic_split_count = self._split_semantic_conflicts(main_cast)
         if semantic_split_count > 0:
             logger.warning(
                 f"V2 Step 3.8: Split {semantic_split_count} semantically conflicting alias pairs "
                 f"(LLM merged incompatible entity types)"
             )
-
-        # region agent log
-        try:
-            split_focus = []
-            for c in main_cast:
-                if not isinstance(c.id, str) or not c.id.startswith("split_"):
-                    continue
-                blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
-                if any(
-                    k in blob
-                    for k in (
-                        "creature",
-                        "monster",
-                        "fiend",
-                        "daemon",
-                        "wretch",
-                        "being",
-                        "lacey",
-                        "old man",
-                    )
-                ):
-                    split_focus.append(
-                        {
-                            "id": c.id,
-                            "canonical": c.canonical_name,
-                            "aliases": list(c.aliases),
-                            "mentions": c.mention_count,
-                        }
-                    )
-
-            append_debug_event(
-                {
-                    "sessionId": "debug-session",
-                    "runId": "frankenstein-pre",
-                    "hypothesisId": "H2",
-                    "location": "src/agents/characters.py:step3.8",
-                    "message": "Post semantic-split created split_* characters (focused subset)",
-                    "data": {
-                        "semantic_split_count": semantic_split_count,
-                        "split_focus": split_focus,
-                    },
-                    "timestamp": int(time.time() * 1000),
-                }
-            )
-        except Exception:
-            pass
-        # endregion
 
         # STEP 3.9: Post-split repair pass
         # Splitting creates new split_* character stubs with mention_count=0.
@@ -472,16 +393,8 @@ class CharacterAgent(Agent):
         split_stubs = [c for c in main_cast if isinstance(c.id, str) and c.id.startswith("split_")]
         if split_stubs:
             logger.info(f"V2 Step 3.9: Grounding {len(split_stubs)} split_* character stub(s)")
-            for char in split_stubs:
-                result = searcher.search_character(char)
-                char.mention_count = result.total_mentions
-                # Transfer actual mentions for profile generation
-                char.mentions = result.mentions
-                # Keep mention_results updated for downstream profile generation
-                mention_results[char.id] = result
-                if result.chapter_distribution:
-                    chapters = sorted(result.chapter_distribution.keys())
-                    char.first_appearance_chapter = chapters[0]
+            split_ids = {c.id for c in split_stubs}
+            self._refresh_mentions(split_ids, main_cast, searcher, mention_results)
 
             logger.info("V2 Step 3.9: Re-running within-main merges after split repair")
             main_cast, post_split_aliases_added = self._merge_within_main_cast(main_cast)
@@ -496,59 +409,7 @@ class CharacterAgent(Agent):
                 logger.info(
                     f"V2 Step 3.9: Re-searching mentions for {len(post_split_aliases_added)} post-split merged character(s)"
                 )
-                for char_id in post_split_aliases_added:
-                    char = next((c for c in main_cast if c.id == char_id), None)
-                    if char:
-                        result = searcher.search_character(char)
-                        char.mention_count = result.total_mentions
-                        char.mentions = result.mentions
-                        mention_results[char.id] = result
-                        if result.chapter_distribution:
-                            chapters = sorted(result.chapter_distribution.keys())
-                            char.first_appearance_chapter = chapters[0]
-
-            # region agent log
-            try:
-                focus = []
-                for c in main_cast:
-                    blob = (c.canonical_name + " " + " ".join(c.aliases)).lower()
-                    if any(
-                        k in blob
-                        for k in (
-                            "creature",
-                            "monster",
-                            "fiend",
-                            "daemon",
-                            "wretch",
-                            "being",
-                            "lacey",
-                            "old man",
-                        )
-                    ):
-                        focus.append(
-                            {
-                                "id": c.id,
-                                "canonical": c.canonical_name,
-                                "aliases": list(c.aliases),
-                                "mentions": c.mention_count,
-                                "is_narrator": getattr(c, "is_narrator", None),
-                            }
-                        )
-
-                append_debug_event(
-                    {
-                        "sessionId": "debug-session",
-                        "runId": "frankenstein-postfix",
-                        "hypothesisId": "H4",
-                        "location": "src/agents/characters.py:step3.9",
-                        "message": "Post-split repair focus snapshot (main_cast)",
-                        "data": {"focus": focus},
-                        "timestamp": int(time.time() * 1000),
-                    }
-                )
-            except Exception:
-                pass
-            # endregion
+                self._refresh_mentions(post_split_aliases_added, main_cast, searcher, mention_results)
 
         # STEP 4: Detect narrator (F4)
         logger.info("V2 Step 4: Detecting narrator")
@@ -697,20 +558,7 @@ class CharacterAgent(Agent):
                 f"V2 Step 5.2c: Re-searching mentions for {len(_upgraded_narrator_ids)} "
                 f"narrator-placeholder-upgraded character(s)"
             )
-            for char_id in _upgraded_narrator_ids:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    char.mentions = result.mentions
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters_found = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters_found[0]
-                    logger.info(
-                        f"V2 Step 5.2c: '{char.canonical_name}' now has "
-                        f"{char.mention_count} mention(s) after re-search"
-                    )
+            self._refresh_mentions(_upgraded_narrator_ids, main_cast, searcher, mention_results)
 
         # STEP 5.3: Merge narrator placeholders with their actual named character
         # If the narrator is "the protagonist", "the narrator", etc., find their real name
@@ -728,22 +576,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(narrator_merged_ids)} narrator-merged characters"
             )
-            for char_id in narrator_merged_ids:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    # Transfer actual mentions for profile generation
-                    char.mentions = result.mentions
-                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
-                    logger.info(
-                        f"Narrator-merged character '{char.canonical_name}' now has "
-                        f"{char.mention_count} total mentions (including placeholder)"
-                    )
+            self._refresh_mentions(narrator_merged_ids, main_cast, searcher, mention_results)
 
         # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.
         # Example: main "Jim" (26 mentions) + supporting "James Dillingham Young" (3 mentions)
@@ -759,16 +592,7 @@ class CharacterAgent(Agent):
                 f"V2 Step 5.5a: Re-searching mentions for {len(formal_aliases_added)} "
                 f"character(s) with new formal-name aliases"
             )
-            for char_id in formal_aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    char.mentions = result.mentions
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(formal_aliases_added, main_cast, searcher, mention_results)
 
         logger.info(
             f"V2 Step 5.5a complete: {len(main_cast)} main cast, "
@@ -785,18 +609,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(aliases_added)} characters with new aliases"
             )
-            for char_id in aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    # Transfer actual mentions for profile generation
-                    char.mentions = result.mentions
-                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(aliases_added, main_cast, searcher, mention_results)
 
         logger.info(
             f"V2 Step 5.5 complete: {len(main_cast)} main cast, "
@@ -811,18 +624,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(supp_aliases_added)} supporting chars with new aliases"
             )
-            for char_id in supp_aliases_added:
-                char = next((c for c in supporting_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    # Transfer actual mentions for profile generation
-                    char.mentions = result.mentions
-                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(supp_aliases_added, supporting_cast, searcher, mention_results)
 
         logger.info(
             f"V2 Step 5.6 complete: {len(supporting_cast)} supporting after within-supporting merge"
@@ -840,18 +642,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(cross_cast_aliases_added)} main cast chars with new aliases"
             )
-            for char_id in cross_cast_aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    # Transfer actual mentions for profile generation
-                    char.mentions = result.mentions
-                    # CRITICAL FIX: Update mention_results dict so profile generation has full mention list
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(cross_cast_aliases_added, main_cast, searcher, mention_results)
 
         logger.info(
             f"V2 Step 5.6.5 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
@@ -872,16 +663,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"V2 Step 5.6.5b: Recovered aliases for {len(creature_aliases_added)} creature character(s)"
             )
-            for char_id in creature_aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    char.mentions = result.mentions
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(creature_aliases_added, main_cast, searcher, mention_results)
 
         # STEP 5.6.6: Merge bare surnames into family descriptive handles
         # Handles "De Lacey" (supporting) + "the old man" (main, father of Felix/Agatha De Lacey)
@@ -895,16 +677,7 @@ class CharacterAgent(Agent):
             logger.info(
                 f"Re-searching mentions for {len(surname_aliases_added)} main cast chars with new surname aliases"
             )
-            for char_id in surname_aliases_added:
-                char = next((c for c in main_cast if c.id == char_id), None)
-                if char:
-                    result = searcher.search_character(char)
-                    char.mention_count = result.total_mentions
-                    char.mentions = result.mentions
-                    mention_results[char.id] = result
-                    if result.chapter_distribution:
-                        chapters = sorted(result.chapter_distribution.keys())
-                        char.first_appearance_chapter = chapters[0]
+            self._refresh_mentions(surname_aliases_added, main_cast, searcher, mention_results)
 
         logger.info(
             f"V2 Step 5.6.6 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
@@ -2521,32 +2294,6 @@ class CharacterAgent(Agent):
                     )
 
                 if conflict:
-                    # region agent log
-                    try:
-                        append_debug_event(
-                            {
-                                "sessionId": "debug-session",
-                                "runId": "frankenstein-pre",
-                                "hypothesisId": "H2",
-                                "location": "src/agents/characters.py:_split_semantic_conflicts",
-                                "message": "Semantic conflict detected; alias will be split into new character",
-                                "data": {
-                                    "char_id": char.id,
-                                    "canonical": char.canonical_name,
-                                    "canonical_descriptor": canonical_descriptor,
-                                    "canonical_is_creature": canonical_is_creature,
-                                    "canonical_is_human": canonical_is_human,
-                                    "alias": alias,
-                                    "alias_descriptor": alias_descriptor,
-                                    "alias_is_creature": alias_is_creature,
-                                    "alias_is_human": alias_is_human,
-                                },
-                                "timestamp": int(time.time() * 1000),
-                            }
-                        )
-                    except Exception:
-                        pass
-                    # endregion
 
                     aliases_to_split.append(alias)
                     split_count += 1
@@ -2571,27 +2318,6 @@ class CharacterAgent(Agent):
                 logger.info(
                     f"Created new character from semantically conflicting alias: '{split_alias}'"
                 )
-
-                # region agent log
-                try:
-                    append_debug_event(
-                        {
-                            "sessionId": "debug-session",
-                            "runId": "frankenstein-pre",
-                            "hypothesisId": "H3",
-                            "location": "src/agents/characters.py:_split_semantic_conflicts",
-                            "message": "Created split character stub (note mention_count=0 here)",
-                            "data": {
-                                "new_id": new_char.id,
-                                "canonical": new_char.canonical_name,
-                                "mentions": new_char.mention_count,
-                            },
-                            "timestamp": int(time.time() * 1000),
-                        }
-                    )
-                except Exception:
-                    pass
-                # endregion
 
         return new_characters, split_count
 
