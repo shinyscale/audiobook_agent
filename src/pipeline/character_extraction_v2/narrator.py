@@ -177,9 +177,12 @@ class NarratorDetector:
         is_nested = result.get("is_nested", False)
         nested_narrators = result.get("nested_narrators", [])
 
-        # Match narrator to main cast character
+        # Match narrator to main cast character.
+        # Universal invariant: only first-person or epistolary narratives have a narrator
+        # character. In third-person/omniscient stories the narrator is an external voice,
+        # not a cast member — assigning is_narrator to a character in those stories is wrong.
         narrator_id = None
-        if narrator_name:
+        if narrator_name and pov in ("first-person", "epistolary"):
             narrator_id = self._match_to_character(narrator_name, main_cast)
             if narrator_id:
                 logger.info(f"Narrator '{narrator_name}' matched to character ID: {narrator_id}")
@@ -188,6 +191,11 @@ class NarratorDetector:
                     f"Narrator '{narrator_name}' identified but NOT found in main_cast. "
                     f"Available characters: {[c.canonical_name for c in main_cast]}"
                 )
+        elif narrator_name and pov not in ("first-person", "epistolary"):
+            logger.info(
+                f"Narrator name '{narrator_name}' ignored — POV is '{pov}' (not first-person/epistolary); "
+                f"no character should be marked as narrator in this narrative mode."
+            )
 
         # Match nested narrators to characters
         nested_ids = []

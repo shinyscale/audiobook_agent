@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -136,6 +136,17 @@ For 3rd-person omniscient stories, no character should be marked as narrator. Th
 
 ## Fix History
 
+### Attempt 12 (Score: TBD — awaiting analysis)
+1. **REVERT min_grounding_mentions to 1** in `src/agents/characters.py`:
+   - Root cause: `characters.py:__init__:79` — threshold of 2 was too aggressive, filtered The Red Death (1-2 exact text mentions), triggering catastrophic false merge into Ebony Clock
+   - Smoke test: All 332 tests pass
+   - Expected effect: Red Death restored as standalone character; Rule 3 will block "The Red Death" as alias of Ebony Clock
+2. **POV guard for narrator assignment** in `src/pipeline/character_extraction_v2/narrator.py`:
+   - Root cause: `narrator.py:_parse_result:182` — `narrator_character_id` was assigned even for third-person/omniscient POV; Prospero incorrectly marked `is_narrator=True`
+   - Fix: Only assign narrator_character_id when pov is "first-person" or "epistolary" (universal invariant)
+   - Smoke test: All 332 tests pass
+   - Expected effect: Prospero no longer marked as narrator in 3rd-person narrative (~+0.5 on Profiles)
+
 ### Attempt 11 (Score: 6.95/10 — REGRESSION from 7.68)
 1. **F6 plural group noun filter** in `src/analyzer.py`: ✓ WORKED — no F6 group characters
 2. **min_grounding_mentions = 2** in `src/agents/characters.py`: ✗ OVER-FILTERED — The Red Death removed, causing catastrophic merge into Clock
@@ -182,6 +193,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 12 | Revert min_grounding_mentions from 2 to 1 | characters.py | TBD |
+| 12 | POV guard: narrator only set for first-person/epistolary | narrator.py | TBD |
 | 11 | F6 plural group noun filter | analyzer.py | ✓ Worked — no F6 group characters |
 | 11 | min_grounding_mentions = 2 | characters.py | ✗ OVER-FILTERED — Red Death removed, merged into Clock |
 | 11 | Narrator min-mention guard | narrator.py | ✓ Works for 1-mention, doesn't fix 12-mention Prospero |
@@ -233,6 +246,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — the regression is caused by min_grounding_mentions=2 filtering The Red Death
 
 ## Next Action
-Run PROMPT_fix.md to:
-1. REVERT min_grounding_mentions from 2 to 1 (one-line change in characters.py)
-2. Add alias mention-count safety check in verify_aliases() to prevent more-mentioned entities from being demoted to aliases
+Re-run analysis to verify fix
