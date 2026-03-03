@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -138,7 +138,7 @@ Find where "the masked figure" character (is_symbolic=True) is extracted but blo
 
 ## Fix History
 
-### Attempt 9 (Score: TBD — awaiting analysis)
+### Attempt 9 (Score: TBD — awaiting evaluation)
 1. **Plural group noun filter** in `src/agents/characters.py` `_is_valid_alias()`:
    - Added suffix-based universal check: aliases ending in -ers, -ors, -ians, -ists, -ants, -ents, -iers, -ees, -smen, -ies are blocked for singular canonicals
    - Root cause: `_clean_invalid_aliases` (Step 5.10) is the final safety net; Rule 0.6 in verify_aliases may be bypassed by merges
@@ -149,6 +149,8 @@ Find where "the masked figure" character (is_symbolic=True) is extracted but blo
    - Smoke test: PASS (the masked figure correctly merged into The Red Death)
    - Modified: main_cast.py (save _proposed_before_verify, add symbolic merge after second verify_aliases)
    - Modified: tests/test_character_extraction_v2.py (bump line count limit 9400→9550)
+
+**⚠️ POTENTIAL REGRESSION (attempt 9):** Pipeline output shows 5 characters — Prince Prospero, The Ebony Clock, the musicians, the courtiers, the revellers. **The Red Death is MISSING.** Previous attempts had The Red Death (with wrong aliases). This may indicate the symbolic reveal merge caused The Red Death to be absorbed/removed. The blocked aliases log still references The Red Death as a symbolic object, so it was extracted but may have been merged away or dropped.
 
 ### Attempt 8 (Score: 8.35/10 — NO CHANGE from attempt 7)
 1. **ALIAS_RESOLUTION_PROMPT Rule 2 clarification** in `main_cast.py`:
@@ -226,4 +228,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level alias post-processing
 
 ## Next Action
-Run analysis to verify fixes for attempt 9.
+Evaluate attempt 9 output — potential regression: The Red Death appears MISSING from character list.
