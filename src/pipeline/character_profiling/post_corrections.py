@@ -1696,11 +1696,21 @@ class OutputCharacterCorrector:
                             )
                             char.relationships[other_key] = "associated"
                 elif is_family and comention_count == 0:
-                    logger.info(
-                        f"Hallucinated family rel downgraded: "
-                        f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'acquaintance'"
-                    )
-                    char.relationships[other_key] = "acquaintance"
+                    # Skip downgrade when either character is a first-person narrator.
+                    # Narrator names rarely appear in raw text (the narrator uses "I"),
+                    # so co-occurrence analysis is unreliable for their relationships.
+                    # This is a universal invariant: applies to any first-person narrative.
+                    if getattr(char, 'is_narrator', False) or getattr(other_char, 'is_narrator', False):
+                        logger.debug(
+                            f"Family rel kept (narrator involved, co-mention unreliable): "
+                            f"'{char.canonical_name}' → '{other_key}': '{cur}'"
+                        )
+                    else:
+                        logger.info(
+                            f"Hallucinated family rel downgraded: "
+                            f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'acquaintance'"
+                        )
+                        char.relationships[other_key] = "acquaintance"
                 elif not is_family and comention_count == 0 and cur_lower not in _generic_labels:
                     # Specific non-family label between characters with zero raw-text co-occurrence.
                     logger.info(

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -77,13 +77,18 @@
   - Root cause: `post_corrections.py:_SYMMETRIC_RELATIONSHIPS:line 60` was missing "cousin"
   - Result: Correct fix but insufficient — the relationship was being downgraded BEFORE reaching remove_contradictory_relationships()
   - Modified: src/pipeline/character_profiling/post_corrections.py
+- Attempt 2: In `verify_relationships_from_text()`, skip family-label downgrade when `is_narrator=True` for either character
+  - Root cause: `post_corrections.py:verify_relationships_from_text():line 1698` — narrator names rarely appear in raw text (they use "I"), giving zero co-mentions even for true family relationships
+  - Smoke test: PASS — 332 tests pass, no regressions
+  - Fix is universal: applies to any first-person narrative
+  - Modified: src/pipeline/character_profiling/post_corrections.py
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Profiles: cousin blocked by _SYMMETRIC_RELATIONSHIPS | post_corrections.py | Fixed but insufficient — different downgrade path active |
-| 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | (awaiting fix) | — |
+| 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Skip co-mention downgrade when either char is narrator (universal invariant) |
 
 ## Pipeline Notes
 - Analysis completed in 23m 35s
@@ -94,4 +99,4 @@
 - Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries=qwen3.5:122b-a10b
 
 ## Next Action
-Fix HIGH #1: In `verify_relationships_from_text()` (post_corrections.py ~line 1698), skip the co-mention-based family-label downgrade when either character in the pair is the narrator. This is a generic fix that helps all first-person narratives.
+Re-run analysis to verify fix.
