@@ -1826,6 +1826,36 @@ class CharacterAgent(Agent):
             )
             return False
 
+        # Block plural group noun aliases for singular characters.
+        # Plural agent/role nouns (courtiers, musicians, revellers, soldiers) describe groups,
+        # never individual characters. Universal linguistic invariant: article+plural_noun = group.
+        # Exception: if the canonical is itself a group noun (collective character), allow it.
+        _PLURAL_SUFFIXES = ("ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies")
+        _ARTICLE_WORDS = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+        alias_tokens_p = [
+            w.strip(".,;:'\"()")
+            for w in alias_lower.split()
+            if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _ARTICLE_WORDS
+        ]
+        if alias_tokens_p:
+            alias_head_p = alias_tokens_p[-1]
+            is_plural_group = any(
+                alias_head_p.endswith(sfx) and len(alias_head_p) > len(sfx) + 1
+                for sfx in _PLURAL_SUFFIXES
+            )
+            if is_plural_group:
+                canonical_head_p = canonical_lower.strip(".,;:'\"()").split()[-1]
+                canonical_is_group = any(
+                    canonical_head_p.endswith(sfx) and len(canonical_head_p) > len(sfx) + 1
+                    for sfx in _PLURAL_SUFFIXES
+                )
+                if not canonical_is_group:
+                    logger.warning(
+                        f"BLOCKED alias during merge: '{alias}' is a plural group noun, "
+                        f"not valid alias for individual character '{canonical_name}'"
+                    )
+                    return False
+
         return True
 
     def _clean_invalid_aliases(self, characters: list[Character]) -> None:

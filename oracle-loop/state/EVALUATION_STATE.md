@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Attempt:** 9
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -138,6 +138,18 @@ Find where "the masked figure" character (is_symbolic=True) is extracted but blo
 
 ## Fix History
 
+### Attempt 9 (Score: TBD — awaiting analysis)
+1. **Plural group noun filter** in `src/agents/characters.py` `_is_valid_alias()`:
+   - Added suffix-based universal check: aliases ending in -ers, -ors, -ians, -ists, -ants, -ents, -iers, -ees, -smen, -ies are blocked for singular canonicals
+   - Root cause: `_clean_invalid_aliases` (Step 5.10) is the final safety net; Rule 0.6 in verify_aliases may be bypassed by merges
+   - Smoke test: PASS (The Revellers/Courtiers/Musicians blocked, valid aliases pass)
+2. **Symbolic descriptor reveal merge** in `src/pipeline/character_extraction_v2/main_cast.py` `extract()`:
+   - Added post-verification merge step: if an is_symbolic=True profile was proposed as alias of exactly ONE named character but blocked by Rule 3, merge the symbolic profile as alias of that named character
+   - Root cause: Rule 3 (cross-character conflict) blocked "the masked figure" as alias of "The Red Death" because it was also a separate extracted character
+   - Smoke test: PASS (the masked figure correctly merged into The Red Death)
+   - Modified: main_cast.py (save _proposed_before_verify, add symbolic merge after second verify_aliases)
+   - Modified: tests/test_character_extraction_v2.py (bump line count limit 9400→9550)
+
 ### Attempt 8 (Score: 8.35/10 — NO CHANGE from attempt 7)
 1. **ALIAS_RESOLUTION_PROMPT Rule 2 clarification** in `main_cast.py`:
    - Added "the figure" as example of valid descriptive reference
@@ -172,6 +184,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 9 | Group aliases: plural suffix filter in _is_valid_alias | characters.py | TBD |
+| 9 | Blocked aliases: symbolic reveal merge in extract() | main_cast.py | TBD |
 | 8 | Group nouns as aliases: Rule 2 prompt clarification | main_cast.py | No change — cosmetic only |
 | 7 | Wrong group aliases: Rule 0.7 in verify_aliases | main_cast.py | Partial — changed which aliases, didn't fix |
 | 7 | Missing correct aliases: Rule 3 exception | main_cast.py | No change — wrong rule targeted |
@@ -212,4 +226,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level alias post-processing
 
 ## Next Action
-Run PROMPT_fix.md with CODE-LEVEL fixes only (no more prompt engineering). Priority: deterministic group-alias filter, then symbolic character merge.
+Run analysis to verify fixes for attempt 9.
