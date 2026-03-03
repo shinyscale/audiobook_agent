@@ -174,6 +174,8 @@ the giant ebony clock (aka the clock)  [supporting]  is_symbolic=True
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 15 | Post-extraction identity reveal merge (masked figure → Red Death) | twostage_experiment.py | pending |
+| 15 | Inject Stage 4 characters into summary active_characters for profiling | twostage_experiment.py | pending |
 | 14 | Short-form alias for is_symbolic objects | main_cast.py | ✓ Clock extracted with "the clock" |
 | 14 | Collective noun block (Rule 0.6b) | main_cast.py | ✓ No "the crowd" false alias |
 | 14 | AmbiguousName not iterable bug | summary_evidence.py | ✓ Profiling no longer crashes |

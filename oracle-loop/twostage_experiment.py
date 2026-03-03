@@ -101,6 +101,101 @@ def build_summary_map(summaries: list[ChapterSummary], source_file: str) -> Chap
 
 
 # =============================================================================
+# POST-EXTRACTION FIXUP: Identity Reveal Merge
+# =============================================================================
+
+# Words suggesting a "disguise/appearance" character (the surface form)
+_APPEARANCE_WORDS = frozenset({
+    "figure", "masked", "mask", "disguised", "stranger", "intruder",
+    "mummer", "visitor", "unknown", "apparition",
+})
+
+# Words suggesting a "force/entity" character (the underlying identity)
+_ENTITY_WORDS = frozenset({
+    "death", "plague", "doom", "fate", "evil", "darkness", "shadow",
+    "force", "spirit", "shade", "ghost", "phantom", "spectre", "specter",
+})
+
+
+def merge_reveal_characters(main_cast: list[MainCastProfile]) -> tuple[list[MainCastProfile], list[str]]:
+    """Merge disguise/appearance characters into their underlying entity.
+
+    When a story has two is_symbolic antagonists where one is a surface appearance
+    (masked figure, stranger) and the other is the underlying force/entity (the Red
+    Death, the phantom), the appearance character is absorbed as an alias of the
+    entity character.
+
+    Returns the updated main_cast and a list of canonical names that were merged
+    away (so callers can clean them from other data structures).
+    """
+    symbolic_antagonists = [
+        p for p in main_cast if getattr(p, "is_symbolic", False) and p.role == "antagonist"
+    ]
+    if len(symbolic_antagonists) < 2:
+        return main_cast, []
+
+    appearance_char = None
+    entity_char = None
+
+    for p in symbolic_antagonists:
+        words = set(p.canonical_name.lower().split())
+        if words & _APPEARANCE_WORDS and appearance_char is None:
+            appearance_char = p
+        elif words & _ENTITY_WORDS and entity_char is None:
+            entity_char = p
+
+    if appearance_char is None or entity_char is None:
+        return main_cast, []
+
+    # Merge: appearance character's name and aliases are absorbed into entity character
+    if appearance_char.canonical_name not in entity_char.aliases:
+        entity_char.aliases.append(appearance_char.canonical_name)
+    for alias in appearance_char.aliases:
+        if alias not in entity_char.aliases and alias != entity_char.canonical_name:
+            entity_char.aliases.append(alias)
+
+    print(f"  [MERGE] '{appearance_char.canonical_name}' → merged into '{entity_char.canonical_name}'")
+    merged_names = [appearance_char.canonical_name]
+    return [p for p in main_cast if p is not appearance_char], merged_names
+
+
+def inject_characters_for_profiling(
+    summary_map: "ChapterSummaryMap",
+    main_cast: list[MainCastProfile],
+    merged_names: list[str],
+) -> None:
+    """Ensure that important extracted characters appear in summary active_characters.
+
+    The profiling pipeline identifies which characters to profile from the
+    active_characters lists in chapter summaries.  Characters that Stage 4
+    extracted but the summarizer didn't classify as active (e.g., symbolic
+    forces like the Red Death, objects like the Ebony Clock) are added here
+    so the profiler will generate profiles for them.
+
+    Also removes any characters that were merged away (e.g., the masked figure
+    after it has been merged into the Red Death) so the profiler doesn't create
+    duplicate profiles for the merged-away name.
+    """
+    inject_names = [
+        p.canonical_name for p in main_cast
+        if p.role in ("protagonist", "antagonist") or getattr(p, "is_symbolic", False)
+    ]
+
+    for summary in summary_map.summaries:
+        # Remove merged-away character names
+        if merged_names:
+            summary.active_characters = [
+                c for c in summary.active_characters if c not in merged_names
+            ]
+        # Add missing important characters
+        existing = set(summary.active_characters)
+        for char_name in inject_names:
+            if char_name not in existing:
+                summary.active_characters.append(char_name)
+                existing.add(char_name)
+
+
+# =============================================================================
 # HELPER: Build V1 CharacterMap from MainCastProfile for pronunciation pipeline
 # =============================================================================
 
@@ -305,8 +400,20 @@ def run_twostage(
     print(f"  Characters found: {len(main_cast)}")
     for profile in main_cast:
         aliases_str = f" (aka {', '.join(profile.aliases[:3])})" if profile.aliases else ""
-        print(f"    {profile.canonical_name}{aliases_str} [{profile.role}]")
+        sym_str = "  is_symbolic=True" if getattr(profile, "is_symbolic", False) else ""
+        print(f"    {profile.canonical_name}{aliases_str} [{profile.role}]{sym_str}")
     print(f"  Extraction time: {timing['character_extraction']:.1f}s")
+
+    # Post-extraction fixup: merge disguise/appearance characters into their entity
+    main_cast, merged_names = merge_reveal_characters(main_cast)
+    if merged_names:
+        print(f"  Post-merge cast ({len(main_cast)} characters):")
+        for profile in main_cast:
+            aliases_str = f" (aka {', '.join(profile.aliases[:4])})" if profile.aliases else ""
+            print(f"    {profile.canonical_name}{aliases_str} [{profile.role}]")
+
+    # Inject important characters into summary active_characters for profiling
+    inject_characters_for_profiling(summary_map, main_cast, merged_names)
 
     # =========================================================================
     # Stage 5: Character Profiling (quality model, optional)
