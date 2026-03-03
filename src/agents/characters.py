@@ -1826,41 +1826,6 @@ class CharacterAgent(Agent):
             )
             return False
 
-        # Rule 0.6: Block plural group noun aliases for singular characters
-        # e.g., "The Courtiers", "The Musicians", "The Waltzers" are groups, not aliases
-        _PLURAL_AGENT_SUFFIXES = (
-            "ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies"
-        )
-        _stop_words = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
-        alias_tokens = [
-            w.strip(".,;:'\"()")
-            for w in alias_lower.split()
-            if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _stop_words
-        ]
-        if alias_tokens:
-            alias_head = alias_tokens[-1]
-            is_plural_group = any(
-                alias_head.endswith(sfx) and len(alias_head) > len(sfx) + 1
-                for sfx in _PLURAL_AGENT_SUFFIXES
-            )
-            if is_plural_group:
-                canonical_tokens = [
-                    w.strip(".,;:'\"()")
-                    for w in canonical_lower.split()
-                    if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _stop_words
-                ]
-                canonical_head = canonical_tokens[-1] if canonical_tokens else ""
-                canonical_is_group = any(
-                    canonical_head.endswith(sfx) and len(canonical_head) > len(sfx) + 1
-                    for sfx in _PLURAL_AGENT_SUFFIXES
-                )
-                if not canonical_is_group:
-                    logger.warning(
-                        f"BLOCKED alias during merge: '{alias}' is a plural group noun, "
-                        f"not valid for singular character '{canonical_name}'"
-                    )
-                    return False
-
         return True
 
     def _clean_invalid_aliases(self, characters: list[Character]) -> None:

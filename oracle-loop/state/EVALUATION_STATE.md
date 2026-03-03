@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -135,6 +135,13 @@ This brings us back to attempt 4's score of 8.23, with Character Extraction at 7
 **Expected result after Step 1+2:** Back to ~8.23 with "Prospero" alias working → Character Extraction ~8/10, overall passes.
 
 ## Fix History
+
+### Attempt 6 (Revert regression + keep grounding.py fix)
+1. **REVERTED characters.py Rule 0.6** — Removed the `_is_valid_alias()` Rule 0.6 addition from attempt 5. The plural group suffix check blocked valid Red Death aliases ("the masked figure", "the figure") via an is_symbolic semantic mismatch cascade, destabilizing The Red Death entity and causing it to merge into the clock.
+2. **KEPT grounding.py substring alias exemption** — Preserved the attempt 5 fix that allows aliases which are substrings of their canonical name (e.g., "Prospero" in "Prince Prospero") to pass through even with 0 unique mention count.
+3. **Root cause:** Adding Rule 0.6 to the global `_is_valid_alias()` in characters.py affected ALL alias validation paths, including critical semantic mismatch checks. The fix location for group-noun alias blocking must be scoped to main_cast.py Pass 2 output only, not the global validator.
+4. **Smoke test:** 332 tests pass (same as attempt 4 baseline).
+- Modified: `src/agents/characters.py` (reverted to attempt 4 state)
 
 ### Attempt 5 (Score: 6.60/10 — REGRESSION from 8.23)
 1. **Rule 0.6 added to `_is_valid_alias()` in characters.py** — Caused regression: blocked valid Red Death aliases via semantic mismatch, destabilized Red Death entity → merged into clock. **MUST REVERT.**
