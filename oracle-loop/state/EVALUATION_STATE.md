@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -105,6 +105,16 @@ Navigation functional, information organized. Minor grammar ("1 chapters"). Char
 4. Medium #4 — IPA for homographs (defer if needed)
 
 ## Fix History
+### Attempt 3 Fix (this attempt)
+1. **RULE 0.6: Block plural group noun aliases** — Added to `verify_aliases()` in `main_cast.py` (after Rule 0.5, before Rule 1). Plural agent/role nouns (courtiers, musicians, waltzers, servants, soldiers, etc.) ending in suffix patterns (-ers, -ors, -ians, -ists, -ants, -ents, -iers, -ees, -smen, -ies) are blocked as aliases for non-group canonical characters. Smoke test: "The Courtiers", "The Musicians", "The Waltzers" all blocked for "The Red Death". ✓
+   - Root cause: `verify_aliases()` had no check for plural group descriptors; co-occurrence check passed all aliases in single-chapter stories
+   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+2. **Auto-add title-stripped aliases** — Added `_add_title_stripped_aliases()` method (called before verify_aliases). Noble/royal title prefixes (Prince, King, Queen, Duke, etc.) are stripped to produce shortened name forms. "Prince Prospero" → auto-adds "Prospero" as alias. Smoke test: "Prospero" added and survives verify_aliases (Rule 2 substring check). ✓
+   - Root cause: LLM never sees "Prospero" alone in summaries (always "Prince Prospero"), so Pass 2 doesn't propose it; summary-based alias detection was the bottleneck
+   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+3. **Pass 2 ALIAS_RESOLUTION_PROMPT Rule 2 clarified** — Added "shortened name forms (e.g., 'Prospero' for 'Prince Prospero')" with example, changed "descriptive references" to "singular descriptive references for the same individual", added note about characters appearing under different descriptions. Rule 3 updated to mention "groups, or organizations". ✓
+   - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+
 ### Attempt 2 Fix
 1. **Rule 0.5 scoped to is_symbolic=True only** → Fixed: The Red Death no longer blocked by personified concept check. Clock aliases now correctly blocked. **Result: Partial fix** — Rule 0.5 no longer over-blocks, but wrong aliases (group nouns) still pass through and valid aliases (masked figure) still missing.
 2. **Programmatic is_symbolic for multi-word descriptors** → Fixed: Ebony clock correctly marked is_symbolic=True and removed from character list.
@@ -121,16 +131,18 @@ Navigation functional, information organized. Minor grammar ("1 chapters"). Char
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 3 | Wrong group aliases on Red Death | main_cast.py | Fixed — Rule 0.6 blocks plural group nouns |
+| 3 | Missing "Prospero" alias for Prince Prospero | main_cast.py | Fixed — title-stripping adds it programmatically |
+| 3 | Pass 2 prompt: improve alias proposals | main_cast.py | Fixed — Rule 2 clarified for shortened forms + singular |
 | 2 | Rule 0.5 over-blocking personified concepts | main_cast.py | Fixed — clock blocked, Red Death no longer over-blocked |
 | 2 | Clock not marked is_symbolic | main_cast.py | Fixed — clock removed as character |
 | 2 | Wrong narrator detection | narrator.py | Fixed — third-person correctly identified |
 | 2 | Pronunciation false positives | cmu_proposer.py | Fixed — 4 common words whitelisted |
-| 2 | Wrong group aliases on Red Death | (not yet attempted) | NEW ISSUE — needs plural-group-noun rule |
-| 2 | Missing masked figure alias | (not yet attempted) | NEW ISSUE — needs Pass 2 diagnosis |
 
 ## Score Progression
 - Attempt 1: 6.85/10 (baseline)
 - Attempt 2: 7.98/10 (+1.13) — 4 of 6 issues fixed, 1 category still failing
+- Attempt 3: TBD (awaiting analysis)
 
 ## Configuration Audit
 - Models appropriate (qwen3.5:122b-a10b for characters, qwen3.5:35b-a3b for structure/pronunciation)
@@ -141,4 +153,4 @@ Navigation functional, information organized. Minor grammar ("1 chapters"). Char
 - The LLM confidently produced wrong alias assignments — this is a verification gap, not a model issue
 
 ## Next Action
-Run PROMPT_fix.md to address alias issues (Critical #1: plural group noun blocking, High #2-3: missing valid aliases)
+Re-run analysis to verify fixes

@@ -129,9 +129,9 @@ Description: {description}
 TASK: Find ALL the different ways this character is referred to in the chapter summaries below.
 
 IMPORTANT RULES:
-1. An alias is another name or reference for the EXACT SAME entity as {character_name} — not a different person or object.
-2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman") used in any chapter — a character may be called by description instead of name in some chapters.
-3. Do NOT include persons who created, gave, received, or interacted with this entity — they are separate characters, not aliases.
+1. An alias is another name or reference for the EXACT SAME individual entity as {character_name} — not a different person, group, or object.
+2. Include shortened name forms (e.g., "Prospero" for "Prince Prospero"), nicknames, titles, spelling variants, and singular descriptive references — even if the character appears under a different description in some passages.
+3. Do NOT include persons, groups, or organizations that interacted with this entity — they are separate characters, not aliases.
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 
 CHAPTER SUMMARIES:
@@ -382,6 +382,9 @@ class MainCastExtractor:
         except Exception:
             pass
         # endregion
+
+        # AUTO-ADD title-stripped aliases (e.g., "Prospero" for "Prince Prospero")
+        profiles = self._add_title_stripped_aliases(profiles)
 
         # CRITICAL: Verify aliases to prevent false merges
         # This catches LLM hallucinations like "Mr. Sloane" with alias "Mr. McKee"
@@ -833,6 +836,40 @@ class MainCastExtractor:
                 # CharacterAgent._is_valid_alias() which runs during merge operations.
                 # This avoids duplicate filtering and keeps alias validation in one place.
 
+                # RULE 0.6: Block plural group noun descriptors as aliases for singular characters.
+                # Plural agent/role nouns (courtiers, musicians, waltzers, servants, soldiers)
+                # describe groups of people — they are never valid aliases for an individual.
+                # Universal linguistic invariant: article+plural_noun = group reference ≠ individual.
+                # Exception: if the canonical name is itself a group noun, allow plural aliases.
+                _PLURAL_AGENT_SUFFIXES_R06 = (
+                    "ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies"
+                )
+                _articles_r06 = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                alias_tokens_r06 = [
+                    w.strip(".,;:'\"()")
+                    for w in alias_lower.split()
+                    if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _articles_r06
+                ]
+                if alias_tokens_r06:
+                    alias_head_r06 = alias_tokens_r06[-1]  # already lowercase via alias_lower
+                    is_plural_group_r06 = any(
+                        alias_head_r06.endswith(sfx) and len(alias_head_r06) > len(sfx) + 1
+                        for sfx in _PLURAL_AGENT_SUFFIXES_R06
+                    )
+                    if is_plural_group_r06:
+                        # Don't block if canonical is itself a group noun (collective character)
+                        canonical_head_r06 = profile.canonical_name.split()[-1].lower()
+                        canonical_is_group_r06 = any(
+                            canonical_head_r06.endswith(sfx) and len(canonical_head_r06) > len(sfx) + 1
+                            for sfx in _PLURAL_AGENT_SUFFIXES_R06
+                        )
+                        if not canonical_is_group_r06:
+                            logger.warning(
+                                f"BLOCKED alias: '{alias}' is a plural group noun and cannot be an "
+                                f"alias for individual character '{profile.canonical_name}'"
+                            )
+                            continue
+
                 # RULE 0.5: Semantic coherence check for symbolic objects
                 # If the canonical name is a symbolic entity (is_symbolic=True — an object/artifact),
                 # verify that aliases refer to THE SAME object, not just any co-occurring nouns.
@@ -1079,6 +1116,35 @@ class MainCastExtractor:
             verified_profiles.append(profile)
 
         return verified_profiles
+
+    def _add_title_stripped_aliases(self, profiles: list[MainCastProfile]) -> list[MainCastProfile]:
+        """
+        Auto-add shortened name forms for characters with noble/royal title prefixes.
+
+        'Prince Prospero' → adds 'Prospero' as alias.
+        'King Lear' → adds 'Lear' as alias.
+
+        This handles the universal pattern where formal titles are used in some contexts
+        and the name alone in others. The stripped form is always a valid reference.
+        """
+        _NOBLE_TITLES = {
+            "prince", "princess", "king", "queen", "duke", "duchess",
+            "count", "countess", "lord", "lady", "earl", "baron", "baroness",
+            "sir", "dame", "emperor", "empress", "archduke", "archduchess",
+            "viscount", "viscountess", "marquis", "marchioness",
+        }
+        for profile in profiles:
+            words = profile.canonical_name.split()
+            if len(words) >= 2 and words[0].lower() in _NOBLE_TITLES:
+                stripped_name = " ".join(words[1:])
+                stripped_lower = stripped_name.lower()
+                existing_lower = {a.lower() for a in profile.aliases}
+                if stripped_lower not in existing_lower and stripped_lower != profile.canonical_name.lower():
+                    profile.aliases.append(stripped_name)
+                    logger.info(
+                        f"AUTO-ADDED title-stripped alias: '{stripped_name}' for '{profile.canonical_name}'"
+                    )
+        return profiles
 
     def _detect_patterns(self, summaries_text: str, plot_summary: Optional[str] = None) -> dict[str, list[str]]:
         """
