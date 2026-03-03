@@ -1,6 +1,0 @@
-LLM health check failed: Connection failed: Server error '404' for url 'http://localhost:11434/api/chat': {"error":"model 'llama3.2' not found"}
-📖 Ingesting: The Cask of Amontillado - Poe.txt
-   Extracted 2,358 words
-🔧 Refining text (may download word data on first run)...
-   ⚠️  OCR repair: fixed 1 broken ligatures
-Error during analysis: LLM health check failed: Connection failed: Server error '404' for url 'http://localhost:11434/api/chat': {"error":"model 'llama3.2' not found"}
