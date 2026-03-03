@@ -1,0 +1,2621 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Monkey's Paw - Audiobook Prep Report</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface-alt: #1f2b47;
+            --primary: #0f3460;
+            --accent: #e94560;
+            --accent-soft: #c73e54;
+            --text: #eee;
+            --muted: #888;
+            --success: #2d5a27;
+            --warning: #5a5a27;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* Tab Navigation */
+        nav {
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            padding: 0;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            z-index: 100;
+            display: flex;
+            gap: 0;
+            flex-wrap: wrap;
+            justify-content: center;
+            overflow: hidden;
+        }
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 1rem 1.5rem;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            position: relative;
+        }
+        nav a:hover {
+            background: var(--primary);
+        }
+        nav a.active {
+            background: var(--surface-alt);
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Hide all tab content by default, show only active tab */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* View toggle buttons */
+        .view-toggle {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .view-toggle:hover {
+            background: var(--primary);
+        }
+        .view-toggle.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Pronunciation views */
+        .pron-view {
+            display: none;
+        }
+        .pron-view.active {
+            display: block;
+        }
+
+        /* Glossary styles */
+        .alphabet-nav a:hover {
+            background: var(--accent) !important;
+        }
+        .glossary-item:hover {
+            background: var(--primary) !important;
+        }
+
+        /* Print view: show all tabs and all pronunciation views */
+        @media print {
+            nav {
+                display: none;
+            }
+            .tab-content {
+                display: block !important;
+                page-break-before: always;
+            }
+            .tab-content:first-of-type {
+                page-break-before: auto;
+            }
+            .view-toggle {
+                display: none !important;
+            }
+            .pron-view {
+                display: block !important;
+                page-break-before: always;
+            }
+            /* Glossary print styles */
+            .alphabet-nav {
+                display: none !important;
+            }
+            #glossary-search, button[onclick="clearGlossarySearch()"] {
+                display: none !important;
+            }
+            #glossary-count {
+                display: none !important;
+            }
+            .glossary-section {
+                page-break-inside: avoid;
+            }
+        }
+
+        /* Mobile responsive tabs */
+        @media (max-width: 768px) {
+            nav {
+                flex-direction: column;
+            }
+            nav a {
+                text-align: center;
+            }
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem;
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        header h1 { color: var(--accent); margin-bottom: 0.5rem; font-size: 2.5rem; }
+        header .meta { color: var(--muted); }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-card .label { color: var(--muted); }
+
+        section {
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        section h2 {
+            color: var(--accent);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        section h3 {
+            color: var(--accent-soft);
+            margin: 1.5rem 0 1rem 0;
+            font-size: 1.2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--primary);
+        }
+
+        th { color: var(--accent); font-weight: 600; }
+
+        tr:hover { background: var(--primary); }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: var(--primary);
+            margin: 0.1rem;
+        }
+
+        .tag.homograph { background: #5a3d7a; }
+        .tag.proper_noun { background: #3d5a7a; }
+        .tag.foreign { background: #7a5a3d; }
+        .tag.unknown { background: #5a5a5a; }
+        .tag.llm_refined { background: var(--success); }
+        .tag.high { background: var(--success); }
+        .tag.medium { background: var(--warning); }
+        .tag.low { background: #5a2727; }
+
+        /* Confidence badges */
+        .confidence-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 0.5rem;
+        }
+        .confidence-badge.high {
+            background: var(--success);
+            color: #fff;
+        }
+        .confidence-badge.medium {
+            background: var(--warning);
+            color: #333;
+        }
+        .confidence-badge.low {
+            background: #5a2727;
+            color: #fff;
+        }
+
+        .context {
+            font-style: italic;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .aliases { color: var(--muted); font-size: 0.9rem; }
+
+        .description {
+            font-style: italic;
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .warning {
+            background: #5a4a27;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Relationship cards */
+        .relationship-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .relationship-card {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .relationship-card h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .relationship-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .relationship-card li {
+            padding: 0.25rem 0;
+            color: var(--text);
+        }
+
+        .relationship-card .rel-type {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        /* Character groups */
+        .character-group {
+            margin-bottom: 2rem;
+        }
+
+        .character-group h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .character-group h3 .count {
+            background: var(--primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        /* Pronunciation groups */
+        .pron-group {
+            margin-bottom: 2rem;
+        }
+
+        .pron-group h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pron-note {
+            font-size: 0.85rem;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        /* IPA and phonetic styling */
+        .ipa {
+            font-family: "Doulos SIL", "Charis SIL", "Gentium", "Arial Unicode MS", sans-serif;
+            color: var(--primary);
+            font-size: 0.95em;
+        }
+        .phonetic {
+            color: var(--muted);
+            font-size: 0.9em;
+            font-style: italic;
+        }
+
+        /* Collapsible pronunciation chapters */
+        .pron-chapter-details {
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--primary);
+        }
+        .pron-chapter-details summary {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            list-style: none;
+            display: flex;
+            align-items: center;
+        }
+        .pron-chapter-details summary::-webkit-details-marker {
+            display: none;
+        }
+        .pron-chapter-details summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 0.75rem;
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+            color: var(--muted);
+        }
+        .pron-chapter-details[open] summary::before {
+            transform: rotate(90deg);
+        }
+        .pron-chapter-details summary h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+        .pron-chapter-details[open] {
+            border-left-color: var(--accent);
+        }
+        .pron-chapter-details table {
+            margin: 0 1rem 1rem 1rem;
+        }
+
+        /* Chapter details */
+        .chapter-details {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: var(--surface-alt);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .chapter-characters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
+        /* Chapter summaries */
+        .chapter-summary {
+            background: var(--surface-alt);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .chapter-card {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .chapter-card h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chapter-card .meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        /* Character profiles */
+        .character-profile {
+            background: var(--surface-alt);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent);
+        }
+
+        .character-profile h4 {
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            font-size: 1.2rem;
+        }
+
+        .character-profile .profile-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .character-profile .profile-body {
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .character-profile .aliases-list {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        /* F20: Evidence citations */
+        .evidence-citation {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            margin-left: 0.2rem;
+            cursor: pointer;
+            text-decoration: none;
+            vertical-align: super;
+        }
+        .evidence-citation:hover {
+            background: var(--primary);
+        }
+        .evidence-list {
+            list-style: none;
+            padding: 0;
+            counter-reset: evidence;
+        }
+        .evidence-item {
+            counter-increment: evidence;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+        .evidence-item::before {
+            content: "[" counter(evidence) "]";
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        .evidence-quote {
+            font-style: italic;
+            color: var(--muted);
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+            border-left: 2px solid var(--muted);
+        }
+        .evidence-chapter {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                color: black;
+                padding: 0.5rem;
+            }
+            nav { display: none; }
+            .stat-card, section {
+                border: 1px solid #ddd;
+                break-inside: avoid;
+            }
+            section { page-break-inside: avoid; }
+            .tag { border: 1px solid #999; background: #eee !important; color: black; }
+            header { page-break-after: avoid; }
+            h2 { page-break-after: avoid; }
+            tr { page-break-inside: avoid; }
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f5f5f5;
+                --surface: #fff;
+                --surface-alt: #f9f9f9;
+                --primary: #e0e0e0;
+                --accent: #d32f2f;
+                --accent-soft: #e57373;
+                --text: #333;
+                --muted: #666;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="#overview" class="tab-link" data-tab="overview">Overview</a>
+            <a href="#chapters" class="tab-link" data-tab="chapters">Chapters</a>
+            <a href="#characters" class="tab-link" data-tab="characters">Characters</a>
+            <a href="#pronunciations" class="tab-link" data-tab="pronunciations">Pronunciations</a>
+            
+        </nav>
+
+        <div id="overview" class="tab-content active">
+            <header>
+                <h1>The Monkey's Paw</h1>
+                <p class="meta">
+                    by W. W. Jacobs &middot; 
+                    Narrator's Guide &middot; Generated 2026-03-03 15:31
+                </p>
+                
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    
+                    Analyzed in 
+                    39m 33s
+                </p>
+                
+
+                
+                <p class="meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                    <strong>Started:</strong> Mar 03, 2026 at 2:51 PM &middot;
+                    <strong>Ended:</strong> Mar 03, 2026 at 3:29 PM
+                </p>
+                
+            </header>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="value">3,954</div>
+                    <div class="label">Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">0h 26m</div>
+                    <div class="label">Est. Duration</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">3</div>
+                    <div class="label">Chapters</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="value">4</div>
+                    <div class="label">Main Characters</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">14</div>
+                    <div class="label">Pronunciation Notes</div>
+                </div>
+            </div>
+
+            
+            <section>
+                <h2>📚 Book Structure</h2>
+                
+                <p style="margin-top: 1rem; line-height: 1.8;">This book contains 3 chapters. Chapters have descriptive titles.</p>
+                
+                
+            </section>
+
+            
+            <section>
+                <h2>📖 Plot Summary</h2>
+                <div style="margin-top: 1rem; line-height: 1.8; white-space: pre-wrap;">The story begins at Laburnam Villa where Mr. and Mrs. White and their son Herbert are visited by Sergeant-Major Morris, who brings a cursed monkey's paw from India. Despite Morris's warnings that the paw brings sorrow to those who interfere with fate, Mr. White retrieves the talisman after Morris attempts to destroy it. Herbert jests about wishing for money, prompting Mr. White to wish for two hundred pounds, causing the paw to twist violently and a crash to occur from the piano, while Herbert later sees a horrifying simian face in the fire.
+
+The following morning, the family mocks the paw's magic before Herbert leaves for work, only to receive a devastating visitor from the firm Maw and Meggins. The stranger confirms that Herbert has been killed in machinery at his workplace and offers two hundred pounds as compensation, matching the exact amount Mr. White wished for. This news causes Mr. White to faint and Mrs. White to shriek, shifting the tone from domestic levity to devastating grief as the family buries their son.
+
+Consumed by grief, Mrs. White demands the paw be used to wish their son alive again, leading Mr. White to retrieve the talisman and make the wish despite his fears that the boy is too mutilated to be recognized. A stealthy knock at the door follows, causing the wife to scream that Herbert has returned while the husband frantically searches for the paw to make a final wish. As the bolt draws back and a cold wind rushes in, Mr. White breathes his third wish to stop the knocking, leaving the street quiet and deserted.</div>
+                
+                <p style="margin-top: 1rem; color: var(--muted);">
+                    <strong>Themes:</strong> fate, consequences, grief
+                </p>
+                
+            </section>
+            
+
+            
+            <section>
+                <h2>🤖 Analysis Models</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Model</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Detection</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3.5:35b-a3b</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Summaries</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3.5:122b-a10b</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Extraction</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3.5:122b-a10b</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Profiles</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3.5:122b-a10b</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Pronunciation Guide</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">qwen3.5:35b-a3b</td>
+                            <td style="padding: 0.75rem;">ollama</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </section>
+            
+
+            
+            <section>
+                <h2>⏱️ Performance Timing</h2>
+                <table style="width: 100%; margin-top: 1rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--primary);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--muted);">Phase</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--muted);">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Detection</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">44.2s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Chapter Summaries</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">1m 36s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Extraction</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">22m 40s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Character Profiles</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">9m 43s</td>
+                        </tr>
+                        
+                        
+                        
+                        <tr style="border-bottom: 1px solid var(--primary);">
+                            <td style="padding: 0.75rem;">Pronunciation Guide</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">29.0s</td>
+                        </tr>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        <tr style="border-top: 2px solid var(--primary); font-weight: bold;">
+                            <td style="padding: 0.75rem;">Total</td>
+                            <td style="padding: 0.75rem; text-align: right; font-family: monospace;">37m 46s</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </section>
+            
+            
+
+            <section id="relationships">
+                <h2>🔗 Key Relationships</h2>
+                
+                <div class="relationship-grid">
+                    
+                    <div class="relationship-card">
+                        <h4>Mr. White</h4>
+                        <ul>
+                            
+                            <li>
+                                <strong>Mrs. White</strong>
+                                <span class="rel-type">husband</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Sergeant-Major Morris</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>the monkey's paw</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Herbert White</strong>
+                                <span class="rel-type">husband</span>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                    
+                    <div class="relationship-card">
+                        <h4>Mrs. White</h4>
+                        <ul>
+                            
+                            <li>
+                                <strong>Mr. White</strong>
+                                <span class="rel-type">wife</span>
+                            </li>
+                            
+                            <li>
+                                <strong>the monkey's paw</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Herbert White</strong>
+                                <span class="rel-type">mother</span>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                    
+                    <div class="relationship-card">
+                        <h4>Sergeant-Major Morris</h4>
+                        <ul>
+                            
+                            <li>
+                                <strong>Mr. White</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>the monkey's paw</strong>
+                                <span class="rel-type">friend</span>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                    
+                    <div class="relationship-card">
+                        <h4>the monkey's paw</h4>
+                        <ul>
+                            
+                            <li>
+                                <strong>Sergeant-Major Morris</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Mr. White</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Herbert White</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Mrs. White</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                    
+                    <div class="relationship-card">
+                        <h4>Herbert White</h4>
+                        <ul>
+                            
+                            <li>
+                                <strong>Mrs. White</strong>
+                                <span class="rel-type">son</span>
+                            </li>
+                            
+                            <li>
+                                <strong>Mr. White</strong>
+                                <span class="rel-type">husband</span>
+                            </li>
+                            
+                            <li>
+                                <strong>the monkey's paw</strong>
+                                <span class="rel-type">associated</span>
+                            </li>
+                            
+                        </ul>
+                    </div>
+                    
+                </div>
+                
+            </section>
+
+            
+            <section>
+                <h2>⚠️ Warnings</h2>
+                
+                <div class="warning">Removed 18456 chars of Gutenberg license boilerplate from end</div>
+                
+                <div class="warning">Removed 830 chars of Gutenberg header boilerplate from beginning</div>
+                
+                <div class="warning">Total Gutenberg boilerplate removed: 19286 chars (46.7%)</div>
+                
+                <div class="warning">Text size changed by -46.7% during refinement</div>
+                
+                <div class="warning">Detected 1 front matter and 0 back matter regions</div>
+                
+            </section>
+            
+        </div>
+
+        <div id="chapters" class="tab-content">
+        <section>
+            <h2>📑 Chapter Guide</h2>
+
+            
+
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: var(--accent-soft);">Chapters</h3>
+            
+            <div class="chapter-card">
+                <h4>
+                    <span>Chapter 1</span>
+                    <span class="meta">1,742 words &middot; 11m</span>
+                </h4>
+                
+                <div class="chapter-summary">On a cold, wet night at Laburnam Villa, Mr. White, his son Herbert, and Mrs. White are playing chess when they are visited by Sergeant-Major Morris, a former soldier who recounts wild tales from India and introduces a cursed monkey's paw that grants three wishes to three separate men. Despite Morris's grave warnings that the paw brings sorrow to those who interfere with fate and his attempt to destroy it by throwing it into the fire, Mr. White retrieves the talisman and, encouraged by Herbert's jesting about clearing their house, wishes for two hundred pounds. The paw twists violently in Mr. White's hand like a snake, causing a shuddering cry and a crash from the piano, yet no money immediately appears, leaving the family in an uneasy silence as they retire for the night. Later, alone in the darkness, Herbert sees a horrifying simian face in the dying fire, which vanishes only when he touches the monkey's paw, filling him with unease before he goes to bed.</div>
+                
+                
+                <div class="chapter-characters" style="margin-top: 0.75rem;">
+                    <strong style="margin-right: 0.5rem; color: var(--muted);">Characters:</strong>
+                    
+                    <span class="tag">Mr. White</span>
+                    
+                    <span class="tag">Herbert White</span>
+                    
+                    <span class="tag">Mrs. White</span>
+                    
+                    <span class="tag">Sergeant-Major Morris</span>
+                    
+                    
+                </div>
+                
+            </div>
+            
+            <div class="chapter-card">
+                <h4>
+                    <span>Chapter 2: 2</span>
+                    <span class="meta">936 words &middot; 6m</span>
+                </h4>
+                
+                <div class="chapter-summary">The chapter opens on a bright winter morning at the White family's home, where Mrs. White and Herbert White mock the supposed magic of the monkey's paw while Herbert departs on foot for work. Later, a well-dressed stranger from the firm 'Maw and Meggins' arrives on foot, hesitating at the gate before entering to deliver news of Herbert's death. The visitor explains that Herbert was badly hurt and caught in machinery, confirming the family's worst fears, and offers two hundred pounds as compensation for their loss. Upon hearing the specific amount of money offered, Mr. White faints into a senseless heap while Mrs. White shrieks in horror. The scene is marked by the sudden shift from domestic levity to devastating grief.</div>
+                
+                
+                <div class="chapter-characters" style="margin-top: 0.75rem;">
+                    <strong style="margin-right: 0.5rem; color: var(--muted);">Characters:</strong>
+                    
+                    <span class="tag">Mr. White</span>
+                    
+                    <span class="tag">Mrs. White</span>
+                    
+                    <span class="tag">Herbert White</span>
+                    
+                    <span class="tag">the visitor</span>
+                    
+                    
+                </div>
+                
+            </div>
+            
+            <div class="chapter-card">
+                <h4>
+                    <span>Chapter 3: 3</span>
+                    <span class="meta">1,276 words &middot; 8m</span>
+                </h4>
+                
+                <div class="chapter-summary">In a house steeped in shadow two miles from a new cemetery, an old couple transitions from grief-stricken expectation to resignation after burying their son, until the wife wakes one night hysterically demanding the monkey's paw to wish their son alive again. Despite the husband's terrified warnings that the son was too mutilated to recognize, he retrieves the talisman and, under his wife's frantic pressure, wishes for the boy's return, only to be filled with unspeakable relief when nothing immediately happens. Later, a quiet, stealthy knock at the front door in the darkness prompts the wife to scream that it is Herbert, causing the husband to desperately search the floor for the paw while she struggles to unlock the door. As the bolt slowly draws back and a cold wind rushes up the staircase, the husband frantically breathes his third and final wish, causing the knocking to cease instantly and leaving the street outside quiet and deserted.</div>
+                
+                
+                <div class="chapter-characters" style="margin-top: 0.75rem;">
+                    <strong style="margin-right: 0.5rem; color: var(--muted);">Characters:</strong>
+                    
+                    <span class="tag">the old man</span>
+                    
+                    <span class="tag">the old woman</span>
+                    
+                    
+                </div>
+                
+            </div>
+            
+        </section>
+        </div>
+
+        <div id="characters" class="tab-content">
+        <section>
+            <h2>👥 Character Guide</h2>
+
+            <!-- Confidence Filter -->
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: var(--muted); margin-right: 0.5rem;">
+                    <input type="checkbox" id="show-low-confidence-only" onchange="filterByConfidence(this.checked)">
+                    Show only low-confidence items
+                </label>
+            </div>
+
+            
+            <div class="character-group">
+                <h3>Main Characters <span class="count">4</span></h3>
+
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        Mr. White
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">protagonist</span>
+                        
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+                    <div class="aliases-list" style="margin-bottom: 0.75rem;">Also known as: the old man</div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">An old man with a thin grey beard, described as having 'white-haired' features in the context of his wife, and possessing 'dry lips' and 'quaking limbs' in moments of extreme distress.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Age: elderly</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Features: thin grey beard, white-haired (implied by wife's description context), dry lips, quaking limbs</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">Initially amiably desirous of preventing others from seeing his mistakes and hospitable to guests, he becomes deeply superstitious and terrified when faced with the consequences of the monkey's paw, ultimately acting with frantic desperation to save his son.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: amiably desirous, hospitable, reckless (in chess), terrified, desperate, protective</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: volatile</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> warm and playful initially, shifting to breathless panic and terror</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> No specific regional accent indicated, but uses colloquial phrasing like 'Pathway's a bog' and 'don't look to have taken much harm'.</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> stammers when frightened, voice shakes</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> informal</div>
+                        
+                        
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Hark at the wind"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"That's the worst of living so far out"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Good God, you are mad!"</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem;">
+                        <strong>🔗 Relationships:</strong>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mrs. White (husband)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Sergeant-Major Morris (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">the monkey's paw (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Herbert White (husband)</span>
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-1">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (7 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-1-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White is playful and tries to hide his mistakes from his son during chess.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White is hospitable to his guest.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White has a thin grey beard.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White is curious about the monkey's paw.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White is horrified by the compensation offer for his son's death.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White is terrified of his son's return and warns his wife.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-1-7">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White frantically makes the third wish to stop the knocking.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>25 mentions</span> •
+                            <span>First appears: Ch. 1</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        Mrs. White
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">protagonist</span>
+                        
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+                    <div class="aliases-list" style="margin-bottom: 0.75rem;">Also known as: the old woman</div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">Described as an 'old woman' with a 'trembling old hand'.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Age: elderly</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Features: trembling old hand</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">Begins as a lighthearted, teasing figure in the household, but shifts to a state of wild grief, feverish excitement, and relentless determination after her son's death.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: teasing, hysterical, determined, feverish, desperate</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: volatile</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> shifting from gentle and teasing to wild, screaming, and breathless</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> standard English with no specific regional markers indicated in text</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> crying out names (e.g., 'Herbert'), repetitive commands (e.g., 'Get it'), screaming</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> informal</div>
+                        
+                        
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Tut, tut!"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"The paw!"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Bring him back"</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem;">
+                        <strong>🔗 Relationships:</strong>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mr. White (wife)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">the monkey's paw (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Herbert White (mother)</span>
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-2">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (7 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-2-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mrs. White is an elderly woman with a trembling hand.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She initially displays a lighthearted, teasing demeanor.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She engages in physical playfulness with her husband.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She is consumed by grief after her son's death.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She hysterically demands the paw to wish her son back to life.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She ignores her husband's warnings about the son's condition.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-2-7">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>She physically struggles against her husband to open the door to her son.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>21 mentions</span> •
+                            <span>First appears: Ch. 1</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        the monkey's paw
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">antagonist</span>
+                        
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+                    <div class="aliases-list" style="margin-bottom: 0.75rem;">Also known as: the paw, the visitor</div>
+                    
+
+                    
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">As an inanimate object, it possesses no personality, but its effects are characterized by horror, mischief, and the fulfillment of wishes with tragic consequences.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: cursed, horrible, mischief-causing</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> unknown</div>
+                        
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> unknown</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem;">
+                        <strong>🔗 Relationships:</strong>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Sergeant-Major Morris (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mr. White (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Herbert White (associated)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mrs. White (associated)</span>
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-3">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (6 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-3-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The paw is a cursed object that grants three wishes to three men.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-3-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The first man's third wish was for death.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-3-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The paw is described as dirty and shrivelled.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-3-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The paw causes mischief.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-3-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The paw is associated with a horrible, simian face in the fire.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-3-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>The paw is the catalyst for the final wish that stops a knock at the door.</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>15 mentions</span> •
+                            <span>First appears: Ch. 1</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+                <div class="character-profile character-item" data-confidence="high">
+                    <h4>
+                        Herbert White
+                        
+                        <span class="tag" style="background: var(--primary); font-size: 0.7rem; margin-left: 0.5rem;">protagonist</span>
+                        
+                        
+                        <span class="confidence-badge high" title="Confidence: high">
+                            ✓
+                            
+                        </span>
+                    </h4>
+
+                    
+                    <div class="aliases-list" style="margin-bottom: 0.75rem;">Also known as: Herbert</div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">👤 Appearance:</strong>
+                        <div style="margin-top: 0.25rem;">Described as a 'presumptuous youth' and 'frivolous' young man; no specific physical details like height or eye color are provided in the text.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Age: young</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Features: presumptuous youth, frivolous</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--surface-alt); border-radius: 4px;">
+                        <strong style="color: var(--accent);">🧠 Personality:</strong>
+                        <div style="margin-top: 0.25rem;">Initially portrayed as clever, joking, and skeptical of the monkey's paw, he later becomes the source of a supernatural horror. He displays a sense of humor about his father's credulity but is ultimately a victim of the consequences of that wish.</div>
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Traits: jesting, skeptical, clever, frivolous, presumptuous</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem; color: var(--muted);">Temperament: cheerful</div>
+                        
+                    </div>
+                    
+
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--primary); border-radius: 4px; border-left: 3px solid var(--accent);">
+                        <strong style="color: var(--accent);">🎙️ Voice Guidance:</strong>
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Tone:</strong> playful and ironic in early chapters; silent or inarticulate horror in later chapters</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Dialect:</strong> unknown</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Verbal tics:</strong> cleverly, with pretended...</div>
+                        
+                        
+                        <div style="margin-top: 0.25rem;"><strong>Formality:</strong> informal</div>
+                        
+                        
+                        <div style="margin-top: 0.5rem;"><strong>Example quotes:</strong></div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Well, why don't you have three, sir?"</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"If the tale about the monkey's paw is not more truthful than those he has been telling us, we sha'nt make much out of it."</div>
+                        
+                        <div style="margin-left: 1rem; font-style: italic; color: var(--muted);">"Might drop on his head from the sky."</div>
+                        
+                        
+                    </div>
+                    
+
+                    
+                    
+                    <div class="profile-section" style="margin-bottom: 0.75rem;">
+                        <strong>🔗 Relationships:</strong>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mrs. White (son)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">Mr. White (husband)</span>
+                        
+                        <span class="tag" style="margin-left: 0.5rem;">the monkey's paw (associated)</span>
+                        
+                    </div>
+                    
+
+                    
+                    
+
+                    
+                    
+                    <details style="margin-top: 0.75rem;" id="evidence-4">
+                        <summary style="cursor: pointer; color: var(--muted);">📑 Source Evidence (8 citations)</summary>
+                        <div class="chapter-details" style="margin-top: 0.5rem;">
+                            <ul class="evidence-list">
+                                
+                                
+                                <li class="evidence-item" id="ev-4-1">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert is the son of Mr. and Mrs. White</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-2">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert is characterized as a jesting and clever youth</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-3">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert encourages his father to make a wish</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-4">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert makes a joke about the money falling on his head</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-5">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert sees a horrifying face in the fire</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-6">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert is badly hurt in an accident</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-7">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Herbert is implied to be the entity knocking at the door after death</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                <li class="evidence-item" id="ev-4-8">
+                                    <div>
+                                        <span class="tag">fact</span>
+                                        
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.25rem;"><strong>Mr. White fears opening the door to Herbert</strong></div>
+                                    
+                                    
+                                    
+                                </li>
+                                
+                                
+                            </ul>
+                        </div>
+                    </details>
+                    
+
+                    
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; color: var(--muted); font-size: 0.85rem;">📊 Metadata</summary>
+                        <div class="profile-meta" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);">
+                            <span>14 mentions</span> •
+                            <span>First appears: Ch. 1</span> •
+                            <span class="tag high">high confidence</span>
+                        </div>
+                    </details>
+                </div>
+                
+            </div>
+            
+
+            
+            <div class="character-group">
+                <h3>Supporting Characters <span class="count">1</span></h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Mentions</th>
+                            <th>First Appears</th>
+                            <th>Aliases</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>
+                                <strong>Sergeant-Major Morris</strong>
+                                
+                                
+                                <div class="description">Sergeant-Major Morris is a burly, red-faced former soldier who visits the White family, recounting tales from India and introducing a cursed monkey's paw. He exhibits a complex moral stance: he warns ...</div>
+                                
+                            </td>
+                            <td>5</td>
+                            <td>Ch. 1</td>
+                            <td class="aliases">Morris</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+        </section>
+        </div>
+
+        <div id="pronunciations" class="tab-content">
+        <section>
+            <h2>🗣️ Pronunciation Guide</h2>
+
+            <!-- View Toggle and Search -->
+            <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="color: var(--muted); margin-right: 0.5rem;">View:</span>
+                    <button id="view-by-type" class="view-toggle" onclick="switchPronView('by-type')">By Type</button>
+                    <button id="view-by-chapter" class="view-toggle active" onclick="switchPronView('by-chapter')">By Chapter</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 250px;">
+                    <span style="color: var(--muted);">Search:</span>
+                    <input type="text" id="pron-search" placeholder="Filter pronunciations..."
+                           style="flex: 1; padding: 0.5rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px;"
+                           oninput="searchPronunciations(this.value)">
+                    <button onclick="clearPronSearch()"
+                            style="padding: 0.5rem 1rem; border: 1px solid var(--primary); background: var(--surface-alt); color: var(--text); border-radius: 4px; cursor: pointer;">
+                        Clear
+                    </button>
+                </div>
+                <div id="pron-count" style="color: var(--muted); font-size: 0.9rem;"></div>
+            </div>
+
+            <!-- By Type View -->
+            <div id="pron-by-type" class="pron-view">
+            
+            <div class="pron-group">
+                <h3>Homographs <span class="tag homograph">3</span></h3>
+                <p class="pron-note">Words with multiple pronunciations depending on context</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Confidence</th>
+                            <th>Occurrences</th>
+                            <th>Options/Notes</th>
+                            <th>Example Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>live</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Context-dependent: /lɪv/ (to exist, present) or /laɪv/ (in real time, alive)</td>
+                            <td class="context">
+                                
+                                "......White, with sudden and unlooked-for violence; “of all the beastly, slushy, ou..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>minute</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Context-dependent: /ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)</td>
+                            <td class="context">
+                                
+                                "......n, with an unspeakable sense of relief at the failure of the talisman, crept ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="pron-item" data-confidence="high">
+                            <td><strong>separate</strong></td>
+                            <td>
+                                <span class="confidence-badge high" title="Confidence: high">
+                                    ✓
+                                    
+                                </span>
+                            </td>
+                            <td>1</td>
+                            <td>Context-dependent: /ˈsɛpərɪt/ (adj: apart) or /ˈsɛpəreɪt/ (verb: to divide)</td>
+                            <td class="context">
+                                
+                                "......s, and that those who interfered with it did so to their sorrow. He put a spe..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+
+            
+            <div class="pron-group">
+                <h3>Proper Nouns <span class="tag proper_noun">2</span></h3>
+                <p class="pron-note">Character names, places, and other proper nouns</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>Sergeant-Major</strong></td>
+                            <td>
+                                <span class="ipa">/ˈsɜːrdʒənt ˈmeɪdʒər/</span>
+                                <br><span class="phonetic">SUR-junt MAY-jer</span>
+                                
+                            </td>
+                            <td>9</td>
+                            <td class="context">
+                                
+                                "......her husband entered the room, followed by a tall, burly m..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Meggins</strong></td>
+                            <td>
+                                <span class="ipa">/ˈmɛɡɪnz/</span>
+                                <br><span class="phonetic">MEG-inz</span>
+                                
+                            </td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......he said at last, and stooped and picked a piece of cotton..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+            
+
+            
+
+            
+            <div class="pron-group">
+                <h3>Other <span class="tag unknown">9</span></h3>
+                <p class="pron-note">Technical, archaic, or unusual words</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>unlooked-for</strong></td>
+                            <td>
+                                <span class="ipa">/ˌʌnˈlʊkt fɔːr/</span>
+                                <br><span class="phonetic">un-LOOKT-for</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......Mate,” replied the son. “That’s the worst of living so fa..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>condoled</strong></td>
+                            <td>
+                                <span class="ipa">/kənˈdoʊld/</span>
+                                <br><span class="phonetic">kun-DOHLD</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......pitable haste, and opening the door, was heard condoling ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>rubicund</strong></td>
+                            <td>
+                                <span class="ipa">/ˈruːbɪkʌnd/</span>
+                                <br><span class="phonetic">ROO-bik-und</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......and coughed gently as her husband entered the room, follo..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>fakirs</strong></td>
+                            <td>
+                                <span class="ipa">/ˈfɑːkɪrz/</span>
+                                <br><span class="phonetic">FAK-erz</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......n the empty glass, and sighing softly, shook it again. “I..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>fakir</strong></td>
+                            <td>
+                                <span class="ipa">/ˈfɑːkɪr/</span>
+                                <br><span class="phonetic">FAK-er</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......rom his son, and having examined it, placed it upon the t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>antimacassar</strong></td>
+                            <td>
+                                <span class="ipa">/ˌæntiˈmækəsɑːr/</span>
+                                <br><span class="phonetic">an-ti-MACK-uh-sar</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......u can’t be henpecked.” He darted round the table, pursued..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>shamefacedly</strong></td>
+                            <td>
+                                <span class="ipa">/ˈʃeɪmˌfeɪstli/</span>
+                                <br><span class="phonetic">SHAYM-FAYST-lee</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......his shoulder. “Well, wish for two hundred pounds, then; t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>avaricious</strong></td>
+                            <td>
+                                <span class="ipa">/ævəˈrɪʃəs/</span>
+                                <br><span class="phonetic">av-uh-RISH-us</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......efore I come back,” said Herbert as he rose from the tabl..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>bibulous</strong></td>
+                            <td>
+                                <span class="ipa">/ˈbɪbjələs/</span>
+                                <br><span class="phonetic">BIB-yuh-lus</span>
+                                
+                            </td>
+                            <td><span class="tag">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......the postman’s knock, nor prevent her from referring somew..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+            </div>
+            <!-- End By Type View -->
+
+            <!-- By Chapter View (default) -->
+            <div id="pron-by-chapter" class="pron-view active">
+            
+            <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                <button onclick="expandAllChapters()" class="view-toggle">Expand All</button>
+                <button onclick="collapseAllChapters()" class="view-toggle">Collapse All</button>
+            </div>
+            
+            <details class="pron-chapter-details">
+                <summary>
+                    <h3>Chapter 1 <span class="tag">10 words</span></h3>
+                </summary>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>antimacassar</strong></td>
+                            <td>
+                                <span class="ipa">/ˌæntiˈmækəsɑːr/</span>
+                                <br><span class="phonetic">an-ti-MACK-uh-sar</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......u can’t be henpecked.” He darted round the table, pursued..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>condoled</strong></td>
+                            <td>
+                                <span class="ipa">/kənˈdoʊld/</span>
+                                <br><span class="phonetic">kun-DOHLD</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......pitable haste, and opening the door, was heard condoling ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>fakir</strong></td>
+                            <td>
+                                <span class="ipa">/ˈfɑːkɪr/</span>
+                                <br><span class="phonetic">FAK-er</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......rom his son, and having examined it, placed it upon the t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>fakirs</strong></td>
+                            <td>
+                                <span class="ipa">/ˈfɑːkɪrz/</span>
+                                <br><span class="phonetic">FAK-erz</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......n the empty glass, and sighing softly, shook it again. “I..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>live</strong></td>
+                            <td>
+                                <span class="ipa">/lɪv/ (to exist, present) or /laɪv/ (in real time, alive)</span>
+                                
+                                
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......White, with sudden and unlooked-for violence; “of all the..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>rubicund</strong></td>
+                            <td>
+                                <span class="ipa">/ˈruːbɪkʌnd/</span>
+                                <br><span class="phonetic">ROO-bik-und</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......and coughed gently as her husband entered the room, follo..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>separate</strong></td>
+                            <td>
+                                <span class="ipa">/ˈsɛpərɪt/ (adj: apart) or /ˈsɛpəreɪt/ (verb: to divide)</span>
+                                
+                                
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......s, and that those who interfered with it did so to their ..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Sergeant-Major</strong></td>
+                            <td>
+                                <span class="ipa">/ˈsɜːrdʒənt ˈmeɪdʒər/</span>
+                                <br><span class="phonetic">SUR-junt MAY-jer</span>
+                                
+                            </td>
+                            <td><span class="tag proper_noun">proper_noun</span></td>
+                            <td>9</td>
+                            <td class="context">
+                                
+                                "......her husband entered the room, followed by a tall, burly m..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>shamefacedly</strong></td>
+                            <td>
+                                <span class="ipa">/ˈʃeɪmˌfeɪstli/</span>
+                                <br><span class="phonetic">SHAYM-FAYST-lee</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......his shoulder. “Well, wish for two hundred pounds, then; t..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>unlooked-for</strong></td>
+                            <td>
+                                <span class="ipa">/ˌʌnˈlʊkt fɔːr/</span>
+                                <br><span class="phonetic">un-LOOKT-for</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......Mate,” replied the son. “That’s the worst of living so fa..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </details>
+            
+            <details class="pron-chapter-details">
+                <summary>
+                    <h3>2 <span class="tag">3 words</span></h3>
+                </summary>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>avaricious</strong></td>
+                            <td>
+                                <span class="ipa">/ævəˈrɪʃəs/</span>
+                                <br><span class="phonetic">av-uh-RISH-us</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......efore I come back,” said Herbert as he rose from the tabl..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>bibulous</strong></td>
+                            <td>
+                                <span class="ipa">/ˈbɪbjələs/</span>
+                                <br><span class="phonetic">BIB-yuh-lus</span>
+                                
+                            </td>
+                            <td><span class="tag unknown">unknown</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......the postman’s knock, nor prevent her from referring somew..."
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td><strong>Meggins</strong></td>
+                            <td>
+                                <span class="ipa">/ˈmɛɡɪnz/</span>
+                                <br><span class="phonetic">MEG-inz</span>
+                                
+                            </td>
+                            <td><span class="tag proper_noun">proper_noun</span></td>
+                            <td>2</td>
+                            <td class="context">
+                                
+                                "......he said at last, and stooped and picked a piece of cotton..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </details>
+            
+            <details class="pron-chapter-details">
+                <summary>
+                    <h3>3 <span class="tag">1 words</span></h3>
+                </summary>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Word</th>
+                            <th>Pronunciation</th>
+                            <th>Type</th>
+                            <th>Occurrences</th>
+                            <th>Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><strong>minute</strong></td>
+                            <td>
+                                <span class="ipa">/ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)</span>
+                                
+                                
+                            </td>
+                            <td><span class="tag homograph">homograph</span></td>
+                            <td>1</td>
+                            <td class="context">
+                                
+                                "......n, with an unspeakable sense of relief at the failure of ..."
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </details>
+            
+            
+            </div>
+            <!-- End By Chapter View -->
+
+        </section>
+        </div>
+
+        
+
+        <footer style="text-align: center; color: var(--muted); padding: 2rem;">
+            Generated by Audiobook Prep
+        </footer>
+    </div>
+
+    <script>
+        // Glossary search
+        function searchGlossary(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const items = document.querySelectorAll('.glossary-item');
+            let visibleCount = 0;
+
+            items.forEach(item => {
+                const term = item.querySelector('dt').textContent.toLowerCase();
+                const definition = item.querySelector('dd').textContent.toLowerCase();
+
+                if (searchTerm === '' || term.includes(searchTerm) || definition.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Update count
+            const countDiv = document.getElementById('glossary-count');
+            if (searchTerm) {
+                countDiv.textContent = `Showing ${visibleCount} of ${items.length} entries`;
+            } else {
+                countDiv.textContent = '';
+            }
+
+            // Hide empty letter sections
+            document.querySelectorAll('.glossary-section').forEach(section => {
+                const visibleItems = section.querySelectorAll('.glossary-item:not([style*="display: none"])');
+                section.style.display = visibleItems.length > 0 ? '' : 'none';
+            });
+        }
+
+        function clearGlossarySearch() {
+            document.getElementById('glossary-search').value = '';
+            searchGlossary('');
+        }
+
+        // Pronunciation search
+        function searchPronunciations(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const pronItems = document.querySelectorAll('.pron-item');
+            let visibleCount = 0;
+            let totalCount = pronItems.length;
+
+            pronItems.forEach(item => {
+                const row = item;
+                const cells = row.querySelectorAll('td');
+                let textContent = '';
+
+                // Get text from all cells
+                cells.forEach(cell => {
+                    textContent += cell.textContent.toLowerCase() + ' ';
+                });
+
+                // Show/hide based on search match
+                if (searchTerm === '' || textContent.includes(searchTerm)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update count display
+            const countDiv = document.getElementById('pron-count');
+            if (searchTerm) {
+                countDiv.textContent = `Showing ${visibleCount} of ${totalCount} items`;
+            } else {
+                countDiv.textContent = '';
+            }
+        }
+
+        function clearPronSearch() {
+            document.getElementById('pron-search').value = '';
+            searchPronunciations('');
+        }
+
+        // Confidence filtering
+        function filterByConfidence(showLowOnly) {
+            const items = document.querySelectorAll('.character-item, .pron-item');
+            items.forEach(item => {
+                const confidence = item.getAttribute('data-confidence');
+                if (showLowOnly) {
+                    // Show only low confidence items
+                    if (confidence === 'low') {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                } else {
+                    // Show all items
+                    item.style.display = '';
+                }
+            });
+        }
+
+        // Expand/collapse all pronunciation chapters
+        function expandAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = true);
+        }
+        function collapseAllChapters() {
+            document.querySelectorAll('.pron-chapter-details').forEach(d => d.open = false);
+        }
+
+        // Pronunciation view switching
+        function switchPronView(view) {
+            // Remove active class from all view toggles and views
+            document.querySelectorAll('.view-toggle').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.pron-view').forEach(div => {
+                div.classList.remove('active');
+            });
+
+            // Add active class to selected view
+            if (view === 'by-type') {
+                document.getElementById('view-by-type').classList.add('active');
+                document.getElementById('pron-by-type').classList.add('active');
+            } else if (view === 'by-chapter') {
+                document.getElementById('view-by-chapter').classList.add('active');
+                document.getElementById('pron-by-chapter').classList.add('active');
+            }
+        }
+
+        // Tab switching functionality
+        function switchTab(tabId) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Add active class to selected tab and content
+            const selectedLink = document.querySelector(`.tab-link[data-tab="${tabId}"]`);
+            const selectedContent = document.getElementById(tabId);
+
+            if (selectedLink) selectedLink.classList.add('active');
+            if (selectedContent) selectedContent.classList.add('active');
+
+            // Update URL hash without scrolling
+            if (history.pushState) {
+                history.pushState(null, null, `#${tabId}`);
+            } else {
+                window.location.hash = tabId;
+            }
+        }
+
+        // Handle tab clicks
+        document.querySelectorAll('.tab-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tabId = link.getAttribute('data-tab');
+                switchTab(tabId);
+            });
+        });
+
+        // Handle deep linking (URL hash on page load)
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1); // Remove the '#'
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            } else {
+                // Default to overview tab
+                switchTab('overview');
+            }
+        });
+
+        // Handle browser back/forward buttons
+        window.addEventListener('hashchange', () => {
+            const hash = window.location.hash.substring(1);
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash);
+            }
+        });
+    </script>
+</body>
+</html>

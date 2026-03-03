@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -106,9 +106,17 @@
 - Character extraction had 1 JSON parse failure — this directly caused Morris to get a low-confidence profile and be dropped
 - No retry issues (llm_retries: 0 across all stages)
 
+## Pipeline Notes (Attempt 2)
+- Duration: 39m 33s, 37 LLM calls, 81,513 tokens
+- 5 characters found (up from 4 — Morris now present)
+- Morris restoration: ✅ "Sergeant-Major Morris (aka Morris) - 5 mentions"
+- Mr. White aliases: ✅ "the old man" now assigned
+- Mrs. White aliases: ✅ "the old woman" now assigned
+- "the visitor" still aliased to monkey's paw (blocked for Morris via Rule 3 — paw claimed it first)
+- BLOCKED: 'the husband'→Mr. White, 'the wife'→Mrs. White, 'the mother'→Mrs. White (different titled people rule)
+- Pass 2 failed for Herbert White (kept without aliases except "Herbert" from title-strip)
+- No JSON parse failures this run (5H/0M/0L profiles)
+- Pronunciation false positives: need evaluation to confirm bedclothes/instalment/betokened removed
+
 ## Next Action
-Re-run analysis on monkeys_paw to verify:
-1. Morris now appears in character output (military rank title-stripped alias fix)
-2. Mrs. White → Herbert relationship is "mother" not "father" (second gender consistency pass)
-3. "the visitor" alias may self-resolve with Morris in cast (Pass 2 re-run)
-4. Pronunciation false positives "bedclothes"/"instalment"/"betokened" removed
+Awaiting evaluation.
