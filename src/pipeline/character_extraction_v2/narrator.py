@@ -283,10 +283,23 @@ class NarratorDetector:
 
             # Set narrator flag for the primary narrator
             if char.id == narrator_info.narrator_character_id:
-                char.is_narrator = True
-                char.narrative_role = f"{narrator_info.pov.title()} narrator"
-                # Boost confidence for narrator (they're a key character)
-                char.confidence = ConfidenceLevel.HIGH
+                # Universal invariant: a narrator must be significantly present in the text.
+                # A character with exactly 1 mention cannot be the narrator — they don't appear
+                # enough to tell the story. This prevents single poetic personifications
+                # (e.g., "Darkness" appearing once in a closing line) from being misidentified.
+                # We only block when mention_count > 0 (i.e., when count was actually computed).
+                # mention_count == 0 means "not yet counted" (test/mock scenario), so we allow it.
+                mention_count = getattr(char, "mention_count", 0) or 0
+                if 0 < mention_count <= 1:
+                    logger.warning(
+                        f"Narrator '{char.canonical_name}' has only {mention_count} mention(s) — "
+                        f"too few to be a narrator; skipping narrator assignment"
+                    )
+                else:
+                    char.is_narrator = True
+                    char.narrative_role = f"{narrator_info.pov.title()} narrator"
+                    # Boost confidence for narrator (they're a key character)
+                    char.confidence = ConfidenceLevel.HIGH
 
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:

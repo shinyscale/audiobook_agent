@@ -848,7 +848,7 @@ class MainCastExtractor:
                 # Universal linguistic invariant: article+plural_noun = group reference ≠ individual.
                 # Exception: if the canonical name is itself a group noun, allow plural aliases.
                 _PLURAL_AGENT_SUFFIXES_R06 = (
-                    "ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies"
+                    "ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies", "stra"
                 )
                 _articles_r06 = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
                 alias_tokens_r06 = [

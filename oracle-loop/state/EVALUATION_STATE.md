@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -140,6 +140,30 @@ The core-noun mismatch check blocks "the masked figure" as an alias for "the Red
 
 ## Fix History
 
+### Attempt 11 (changes applied, awaiting analysis)
+1. **F6 plural group noun filter** in `src/analyzer.py` (F6 reconciliation loop):
+   - Before creating an F6 character, check if the name is a plural group noun (ends in agent/collective suffix AND all-lowercase content words)
+   - Uses suffix list: ers, ors, ians, ists, ants, ents, iers, ees, smen, ies, stra
+   - Result: "the courtiers" and "the musicians" will no longer be created as F6 characters
+   - Root cause: F6 had no filter for plural group nouns; analyzer.py:~line 1624
+   - Smoke test: Logic verified by tracing code; _f6_head "courtiers".endswith("iers")=True, all-lowercase=True → skipped
+2. **min_grounding_mentions = 2** in `src/agents/characters.py`:
+   - Changed default from 1 to 2 in CharacterAgent.__init__
+   - Universal invariant: main cast characters must appear at least twice in the text
+   - Result: "Darkness" (1 text mention) will be filtered by the grounding gate
+   - Root cause: characters.py:line 79 default was 1, allowing 1-mention noise through
+3. **Narrator minimum mention guard** in `src/pipeline/character_extraction_v2/narrator.py`:
+   - In update_characters_with_narrator, skip is_narrator=True when 0 < mention_count <= 1
+   - Universal invariant: narrator must appear multiple times to tell the story
+   - Result: Belt-and-suspenders with fix #2; prevents 1-mention characters from being narrator
+   - Root cause: narrator.py:line 285-296 had no mention count check
+   - Tests: all 332 passing (adjusted to 0 < count <= 1 to not affect mock characters with count=0)
+4. **"stra" suffix for collective nouns** added to Rule 0.6 in `src/pipeline/character_extraction_v2/main_cast.py` and `src/agents/characters.py`:
+   - Added "stra" to _PLURAL_AGENT_SUFFIXES_R06 and _PLURAL_SUFFIXES
+   - Catches: "orchestra".endswith("stra")=True → blocked as alias for individual characters
+   - Universal pattern: collective nouns from Latin/Italian (-stra) denote groups not individuals
+   - Result: "the orchestra" will no longer be an alias for "the Red Death"
+
 ### Attempt 10 (Score: 7.68/10 — improvement from 7.35, but below best of 8.35)
 1. **REVERTED symbolic reveal merge** in `src/pipeline/character_extraction_v2/main_cast.py`:
    - Removed `_proposed_before_verify` saving logic and `SYMBOLIC DESCRIPTOR MERGE` block
@@ -184,6 +208,10 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 11 | F6 plural group noun filter | analyzer.py | Pending |
+| 11 | min_grounding_mentions = 2 | characters.py | Pending |
+| 11 | Narrator min-mention guard | narrator.py | Pending |
+| 11 | "stra" suffix for collective nouns | main_cast.py, characters.py | Pending |
 | 10 | Revert symbolic merge (restore Red Death) | main_cast.py | ✓ Red Death restored |
 | 10 | Keep plural suffix filter | (no change) | ✓ Still works |
 | 9 | Group aliases: plural suffix filter in _is_valid_alias | characters.py | ✓ WORKED — keep |
@@ -230,4 +258,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level filtering in F6 and alias validation
 
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1 (F6 group noun filter) and CRITICAL #2 (1-mention character filter), then HIGH #3 (orchestra alias).
+Run PROMPT_analyze.md to re-run the pipeline and verify fixes.

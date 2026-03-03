@@ -1621,6 +1621,40 @@ class AudiobookAnalyzer:
                         continue
                     f6_seen_normalized.add(normalized_for_f6)
 
+                    # Skip plural group nouns (e.g., "the courtiers", "the musicians").
+                    # A plural agent/role noun denotes a group, never an individual character.
+                    # Universal linguistic invariant: article + plural_noun = group reference.
+                    # Uses the same suffix patterns as _is_valid_alias() in characters.py.
+                    _F6_PLURAL_SUFFIXES = (
+                        "ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies", "stra"
+                    )
+                    _f6_article_words = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                    _f6_tokens = [
+                        w.strip(".,;:'\"()")
+                        for w in name.lower().split()
+                        if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _f6_article_words
+                    ]
+                    if _f6_tokens:
+                        _f6_head = _f6_tokens[-1]
+                        _is_plural_group_f6 = any(
+                            _f6_head.endswith(sfx) and len(_f6_head) > len(sfx) + 1
+                            for sfx in _F6_PLURAL_SUFFIXES
+                        )
+                        if _is_plural_group_f6:
+                            # Also check that ALL content words are lowercase (proper nouns are ok to create)
+                            _f6_content = [
+                                w.strip(".,;:'\"()")
+                                for w in name.split()
+                                if w.strip(".,;:'\"()").lower() not in _f6_article_words
+                            ]
+                            _all_lower_f6 = all(w and w[0].islower() for w in _f6_content if w)
+                            if _all_lower_f6:
+                                logger.info(
+                                    f"F6: Skipping '{name}' — plural group noun (head: '{_f6_head}'); "
+                                    f"group references are never individual characters"
+                                )
+                                continue
+
                     # Name is truly missing - add it
                     missing_names.append(name)
 

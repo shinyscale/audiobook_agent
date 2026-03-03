@@ -76,7 +76,7 @@ class CharacterAgent(Agent):
         self,
         llm_client: Optional[LLMClient] = None,
         config: Optional[AgentConfig] = None,
-        min_grounding_mentions: int = 1,
+        min_grounding_mentions: int = 2,
         competitive_config: Optional[CompetitiveConfig] = None,
     ):
         self.llm = llm_client
@@ -1830,7 +1830,7 @@ class CharacterAgent(Agent):
         # Plural agent/role nouns (courtiers, musicians, revellers, soldiers) describe groups,
         # never individual characters. Universal linguistic invariant: article+plural_noun = group.
         # Exception: if the canonical is itself a group noun (collective character), allow it.
-        _PLURAL_SUFFIXES = ("ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies")
+        _PLURAL_SUFFIXES = ("ers", "ors", "ians", "ists", "ants", "ents", "iers", "ees", "smen", "ies", "stra")
         _ARTICLE_WORDS = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
         alias_tokens_p = [
             w.strip(".,;:'\"()")
