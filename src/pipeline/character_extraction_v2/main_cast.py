@@ -131,7 +131,7 @@ TASK: Find ALL the different ways this character is referred to in the chapter s
 IMPORTANT RULES:
 1. An alias is another name or reference for the EXACT SAME entity as {character_name} — not a different person or object.
 2. Include nicknames, titles, shortened forms, spelling variants, and descriptive references (e.g., "the old man", "the woman") used in any chapter — a character may be called by description instead of name in some chapters.
-3. Do NOT include persons who created, gave, received, or interacted with this entity — they are separate characters, not aliases.
+3. Do NOT include persons who interacted with this entity — they are separate characters. Exception: if the summary explicitly reveals a figure IS {character_name} (e.g., "revealed to be", "proving to be", "it was"), include the descriptors used before that reveal as aliases.
 4. If you are unsure, put it in `uncertain_aliases` instead of `aliases`
 
 CHAPTER SUMMARIES:
@@ -873,6 +873,40 @@ class MainCastExtractor:
                             logger.warning(
                                 f"BLOCKED alias: '{alias}' is a plural group noun and cannot be an "
                                 f"alias for individual character '{profile.canonical_name}'"
+                            )
+                            continue
+
+                # RULE 0.7: Block named singular entities as aliases for plural group-noun characters.
+                # The reverse of Rule 0.6: just as a group noun can't alias an individual,
+                # a named individual entity can't be an alias of a group-noun character.
+                # E.g., "The Courtiers" (group) cannot alias to "The Red Death" (named individual).
+                # Universal invariant: group_of_people ≠ named_individual_entity.
+                # This prevents cross-character merges via _deduplicate_alias_canonical_conflicts.
+                canonical_tokens_r07 = [
+                    w.strip(".,;:'\"()")
+                    for w in profile.canonical_name.lower().split()
+                    if w.strip(".,;:'\"()") and w.strip(".,;:'\"()") not in _articles_r06
+                ]
+                if canonical_tokens_r07:
+                    canonical_head_r07 = canonical_tokens_r07[-1]
+                    canonical_is_group_r07 = any(
+                        canonical_head_r07.endswith(sfx) and len(canonical_head_r07) > len(sfx) + 1
+                        for sfx in _PLURAL_AGENT_SUFFIXES_R06
+                    )
+                    if canonical_is_group_r07:
+                        # Block aliases that are proper nouns (have uppercase non-article content words)
+                        alias_content_r07 = [
+                            w.strip(".,;:'\"()")
+                            for w in alias.split()
+                            if w.strip(".,;:'\"()").lower() not in {"the", "a", "an"}
+                        ]
+                        alias_is_proper_r07 = alias_content_r07 and any(
+                            w and w[0].isupper() for w in alias_content_r07
+                        )
+                        if alias_is_proper_r07:
+                            logger.warning(
+                                f"BLOCKED alias: '{alias}' is a named entity and cannot alias "
+                                f"group character '{profile.canonical_name}' (groups ≠ named individuals)"
                             )
                             continue
 

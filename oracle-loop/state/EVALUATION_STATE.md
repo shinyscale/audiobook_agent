@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Attempt:** 7
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -11,7 +11,7 @@
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
 
-## Latest Scores
+## Latest Scores (Attempt 6 — pre-fix)
 - Structure Detection: 9/10 ✓
 - Character Extraction: 7.5/10 ✗
   - Completeness: 9/10
@@ -25,8 +25,9 @@
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL — 1 category below threshold (Character Extraction 7.5/10)
+*(Attempt 7 analysis not yet run — scores above are from attempt 6)*
 
-## Evaluation Details
+## Evaluation Details (Attempt 6)
 
 ### Structure Detection: 9/10 ✓
 Continuous short story correctly identified as single section. Minor "1 chapters" grammar issue persists (cosmetic only).
@@ -55,7 +56,6 @@ Continuous short story correctly identified as single section. Minor "1 chapters
 - ✓ Prince Prospero's aliases are perfect: "the Prince" and "Prospero" (grounding.py fix works!)
 - ✗ The Red Death has 3 WRONG aliases: "The Courtiers", "The Musicians", "The Waltzers" — these are unnamed groups of partygoers, not aliases for the personification of pestilence
 - ✗ The Red Death is MISSING 3 CORRECT aliases: "the masked figure", "the figure", "the intruder" — the text uses all three to refer to The Red Death's physical manifestation
-- Analysis logs confirm: correct aliases were proposed but BLOCKED by semantic mismatch check ("core noun 'figure' vs 'death'") due to is_symbolic processing
 
 ### Character Profiles: 8.5/10 ✓
 
@@ -91,52 +91,50 @@ Comprehensive single summary accurately captures: Prospero's retreat, the castel
 (none — no catastrophic failures)
 
 ### HIGH
-1. **Wrong group-noun aliases on The Red Death** [Alias Grouping]
-   - Problem: "The Courtiers", "The Musicians", "The Waltzers" are aliases of The Red Death. These are unnamed groups of partygoers at Prospero's ball, NOT aliases for the personification of pestilence.
-   - Evidence: In the text, courtiers are the noble guests, musicians play during the ball, and waltzers dance. They are The Red Death's VICTIMS, not its identities.
-   - Source: These group nouns are proposed by the LLM in Pass 2 alias resolution and not filtered out.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Pass 2 processing (`_process_consolidated_pass2`)
-   - Fix approach: Add a post-Pass-2 filter in main_cast.py that strips plural group-noun aliases (definite article + plural noun like "The Courtiers") from non-group characters. This must be in main_cast.py ONLY, NOT in characters.py's global `_is_valid_alias()` (that caused the attempt 5 regression). Specifically:
-     - After `_process_consolidated_pass2()` returns, filter aliases where: (a) alias starts with "The " (definite article), AND (b) alias ends with a plural suffix (-ers, -ors, -ians, -ists), AND (c) the canonical name is NOT itself a group noun.
-     - Alternatively, use the existing Rule 0.6 logic but apply it ONLY at the point where Pass 2 aliases are added, not globally.
-
-2. **Missing correct aliases for The Red Death** [Alias Grouping]
-   - Problem: "the masked figure", "the figure", and "the intruder" are valid aliases for The Red Death (the text explicitly uses them to refer to it) but they were BLOCKED during alias validation.
-   - Evidence: Analysis logs show semantic mismatch check rejected them ("core noun 'figure' vs 'death'"). The Red Death was treated as is_symbolic during processing, triggering a stricter alias validation path where the core nouns must semantically match.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — likely in `verify_aliases()` or `_is_valid_alias()` semantic mismatch check
-   - Fix approach: The Red Death is a personified entity that physically manifests in the story — it's described as a "figure" and an "intruder". The semantic check comparing "figure" to "death" is too strict. Options:
-     - (a) **Best:** Don't mark The Red Death as is_symbolic during alias validation. It's an entity that physically appears, acts, and is confronted — it's more character than symbol. The is_symbolic flag should be reserved for purely abstract/inanimate entities (like the ebony clock).
-     - (b) **Alternative:** Relax the semantic mismatch check to allow human-form descriptors ("figure", "form", "shape", "intruder", "stranger") as aliases for any character, including symbolic ones.
-     - (c) **Safest fallback:** Allow aliases where the proposed alias has a high co-occurrence count with the canonical name in the same passages.
+(none — both HIGH issues from attempt 6 have been fixed in attempt 7)
 
 ### MEDIUM
-3. **"1 chapters" grammar in HTML** [Presentation]
+1. **"1 chapters" grammar in HTML** [Presentation]
    - Problem: "This book contains 1 chapters" should be "1 chapter"
    - Location: HTML report template
    - Fix: Deferred — Presentation is at 8/10, above threshold
 
-4. **2 pronunciation entries missing IPA** [Pronunciation]
+2. **2 pronunciation entries missing IPA** [Pronunciation]
    - Problem: "produce" and "deliberate" have null IPA
    - Fix: Deferred — Pronunciation is at 8/10, above threshold
 
 ### LOW
-5. **Additional Red Death aliases** [Alias Grouping]
+3. **Additional Red Death aliases** [Alias Grouping]
    - "the stranger", "the mummer" could be additional aliases
    - Fix: Deferred until core alias issues resolved
 
-## What's Needed to Pass
+## What's Expected in Attempt 7
 
-Only Character Extraction (7.5/10) needs to reach 8.0. The two HIGH issues are both alias-related:
+The attempt 7 fixes address both HIGH alias issues. Expected outcome:
+- **Fix #1 (Rule 0.7)**: Group-noun canonicals ("The Courtiers" etc.) can no longer validate proper-noun aliases like "The Red Death" → `_deduplicate_alias_canonical_conflicts` won't merge them into The Red Death → Wrong aliases blocked.
+- **Fix #2 (ALIAS_RESOLUTION_PROMPT Rule 3 exception)**: LLM will now propose "the masked figure", "the figure", "the intruder" as aliases when summary reveals the figure IS The Red Death → Correct aliases flow through.
 
-**Fix #1:** Remove wrong group-noun aliases (Courtiers, Musicians, Waltzers) from The Red Death → improves Alias Grouping from 4/10 toward 7/10
-
-**Fix #2:** Allow correct aliases (masked figure, figure, intruder) through semantic check → improves Alias Grouping from 7/10 toward 9/10
-
-Both fixes together should push Alias Grouping to ~8/10, bringing overall Character Extraction to ~9×0.33 + 10×0.33 + 8×0.33 ≈ 9.0, well above threshold.
-
-**CRITICAL CONSTRAINT:** Do NOT modify `src/agents/characters.py` — attempt 5 proved that global changes there cascade unpredictably. Both fixes must be scoped to `src/pipeline/character_extraction_v2/main_cast.py`.
+Expected: Alias Grouping ~8/10, Character Extraction ~9.0/10, overall pass.
 
 ## Fix History
+
+### Attempt 7 (PENDING ANALYSIS)
+Root cause investigation revealed the actual mechanism for wrong group aliases:
+1. `_get_chapter_summaries` in characters.py prepends `[Characters present: ..., the courtiers, the musicians, the waltzers]` to summary text
+2. CHARACTER_IDENTIFICATION_PROMPT says "treat each entry as a distinct character" → Pass 1 LLM extracts group nouns as separate canonical characters
+3. Pass 2 for "The Courtiers" canonically proposes "The Red Death" as its alias (co-occurrence) — passes verify_aliases (no Rule 0.6 match since "death" has no plural suffix)
+4. `_deduplicate_alias_canonical_conflicts` in characters.py merges "The Courtiers" INTO "The Red Death" → "The Courtiers" canonical becomes an alias of The Red Death
+
+And for missing correct aliases:
+- ALIAS_RESOLUTION_PROMPT Rule 3 ("do NOT include persons who interacted with this entity") caused LLM to exclude "the masked figure" since it interacted with Prospero
+
+**Fix 1: Rule 0.7 in verify_aliases()** — Blocks proper-noun aliases for plural-group-noun canonical characters. Universal invariant: group_of_people ≠ named_individual_entity. Prevents "The Red Death" and "Prince Prospero" from becoming validated aliases of "The Courtiers", stopping the cascade into `_deduplicate_alias_canonical_conflicts`.
+
+**Fix 2: ALIAS_RESOLUTION_PROMPT Rule 3 exception** — Added identity-reveal exception: "Exception: if the summary explicitly reveals a figure IS {character_name} (e.g., 'revealed to be', 'proving to be', 'it was'), include the descriptors used before that reveal as aliases." Allows LLM to propose "the masked figure", "the figure", "the intruder" as aliases for The Red Death.
+
+**Tests:** 332 passed, 10 skipped (all pre-existing). Rule 0.7 smoke tests PASS.
+
+**Files modified:** `src/pipeline/character_extraction_v2/main_cast.py` ONLY.
 
 ### Attempt 6 (Score: 8.35/10 overall, Character Extraction 7.5/10 — IMPROVEMENT from 6.60)
 1. **REVERTED characters.py Rule 0.6** — Removed the `_is_valid_alias()` Rule 0.6 addition from attempt 5. Restored The Red Death as its own character.
@@ -164,6 +162,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 7 | Wrong group aliases: Rule 0.7 in verify_aliases | main_cast.py | Pending analysis |
+| 7 | Missing correct aliases: Rule 3 exception in ALIAS_RESOLUTION_PROMPT | main_cast.py | Pending analysis |
 | 6 | Revert characters.py regression | characters.py (reverted) | Fixed ✓ — Red Death back as own character |
 | 6 | Keep grounding.py fix | (no change) | Fixed ✓ — Prospero alias preserved |
 | 5 | Wrong group aliases on Red Death | characters.py (_is_valid_alias) | **REGRESSION** — blocked valid aliases |
@@ -184,7 +184,8 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - Attempt 3: 6.10/10 (-1.88) ← REGRESSION
 - Attempt 4: 8.23/10 (+2.13) ← PREVIOUS BEST
 - Attempt 5: 6.60/10 (-1.63) ← REGRESSION
-- Attempt 6: 8.35/10 (+1.75) ← NEW BEST
+- Attempt 6: 8.35/10 (+1.75) ← CURRENT BEST
+- Attempt 7: TBD
 
 ## Configuration Audit
 - Models: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure/pronunciation
@@ -195,7 +196,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — the remaining issues are alias validation logic in main_cast.py
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. HIGH #1: Block group-noun aliases (Courtiers/Musicians/Waltzers) in main_cast.py Pass 2 output
-2. HIGH #2: Allow personified-form aliases (masked figure/figure/intruder) through semantic check in main_cast.py
-Both fixes must be in `src/pipeline/character_extraction_v2/main_cast.py` ONLY.
+Run PROMPT_analyze.md to execute attempt 7 analysis with the new fixes.

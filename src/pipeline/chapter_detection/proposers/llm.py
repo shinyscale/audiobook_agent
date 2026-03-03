@@ -217,6 +217,17 @@ class LLMMarkerProposer(BaseProposer):
             )
             return []
 
+        # Unwrap dict responses: some models return {"markers": [...]} instead of bare [...]
+        if isinstance(result, dict):
+            if "markers" in result and isinstance(result["markers"], list):
+                result = result["markers"]
+            else:
+                # Fall back to first list-valued key
+                for key, value in result.items():
+                    if isinstance(value, list):
+                        result = value
+                        break
+
         if not isinstance(result, list):
             logger.warning(f"LLM marker proposer returned non-list: {type(result)}")
             return []
@@ -440,6 +451,17 @@ class LLMNarrativeProposer(BaseProposer):
                 f"LLM narrative proposer failed to parse response: {response.content[:200] if response.content else 'empty response'}"
             )
             return []
+
+        # Unwrap dict responses: some models return {"breaks": [...]} instead of bare [...]
+        if isinstance(result, dict):
+            if "breaks" in result and isinstance(result["breaks"], list):
+                result = result["breaks"]
+            else:
+                # Fall back to first list-valued key
+                for key, value in result.items():
+                    if isinstance(value, list):
+                        result = value
+                        break
 
         if not isinstance(result, list):
             return []
