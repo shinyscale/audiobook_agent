@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 8)
+- Analysis completed in 10m 57s
+- Characters found: Prince Prospero (aka the Prince, Prospero), The Red Death (aka The Revellers, The Courtiers)
+- Symbolic alias rule STILL blocking correct aliases: "the masked figure", "a masked figure", "the intruder", "the specter", "the figure" all blocked because core noun "figure"/"intruder"/"specter" ≠ "death"
+- Rule 2 ALIAS_RESOLUTION_PROMPT clarification (attempt 8 fix) changed aliases from lowercase to capitalized ("The Revellers", "The Courtiers") but still didn't block them
+- The symbolic alias rule remains the primary blocker for correct aliases
+- "The Masked Figure" also extracted as a separate character (symbolic) — blocked from merging with Red Death
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
