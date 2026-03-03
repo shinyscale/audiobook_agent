@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -214,7 +214,16 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — remaining issues require code-level alias post-processing
 
 ## Next Action
-Re-run analysis to verify The Red Death is restored (should return to ~8.35 baseline from attempt 8).
+Evaluate attempt 10 output — verify The Red Death is restored and assess scores.
+
+## Pipeline Notes (Attempt 10)
+- The Red Death IS present: "the Red Death (aka the orchestra)" - 14 mentions
+- "the orchestra" is a suspicious alias for Red Death (orchestra is a group noun — should have been blocked by plural filter)
+- "Darkness" - 1 mention, low confidence profile (0.15), likely hallucinated
+- "the courtiers" and "the musicians" still appearing as F6 characters (separate from main cast)
+- Plural suffix BLOCKED filter fired correctly for some aliases (revellers, courtiers, musicians on Red Death)
+- Symbolic alias blocking: "the masked figure" aliases blocked as semantically unrelated (core noun mismatch)
+- Analysis duration: 12m 59s, 31 LLM calls, 52,302 tokens
 
 ### Attempt 10 Fix Applied
 - **REVERTED** the symbolic reveal merge code from attempt 9 in `main_cast.py`
