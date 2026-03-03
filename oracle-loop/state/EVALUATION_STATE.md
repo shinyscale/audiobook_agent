@@ -3,8 +3,8 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
+- **Phase:** awaiting_fix
+- **baseline_score:** 7.40
 - **Competitive Mode:** none
 
 ## Output Files
@@ -12,18 +12,84 @@
 - JSON: ../output/gift_of_the_magi/analysis.json
 
 ## Latest Scores
-(Awaiting evaluation)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 5/10 ✗ (FAILING)
+  - Completeness: 8/10
+  - Identity Resolution: 3/10 ← 3-way false split of protagonist
+  - Alias Grouping: 4/10
+- Character Profiles: 6/10 ✗ (FAILING)
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 7.40/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (2 categories below threshold: Character Extraction, Character Profiles)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
+| 1 | 7.40 | 0 | Baseline. Jim split into 3 characters |
+
+## Current Issues (Priority Order)
+
+### CRITICAL
+1. **3-way false split of Jim** [Identity Resolution, Alias Grouping]
+   - **Problem:** "Jim" (main_cast_1, 26 mentions), "James Dillingham Young" (supporting_0, 3 mentions), and "Dillingham" (supporting_1, 6 mentions) are ALL the same person — Della's husband
+   - **Evidence:** The text says: "In the vestibule below... was a card bearing the name 'Mr. James Dillingham Young.'" and "The 'Dillingham' had been flung to the breeze during a former period of prosperity when its possessor was being paid $30 per week." The narrator and Della call him "Jim" throughout. These are the formal name, middle name fragment, and everyday name of one person.
+   - **IDs:** main_cast_1 (Jim), supporting_0 (James Dillingham Young), supporting_1 (Dillingham) — cross-pipeline split (main_cast + supporting_cast)
+   - **Root cause analysis:**
+     - Pass 2 alias detection likely failed because "Jim" ↔ "James Dillingham Young" requires recognizing Jim as a nickname for James, and the 3-part formal name is unusual
+     - "Dillingham" is a middle name fragment that appears separately in the text with its own narrative context
+     - The supporting_cast pipeline independently extracted these as separate characters rather than aliases
+     - Step 3.6b `_merge_descriptor_into_proper_name()` won't catch this — "Jim" is a proper name, not a descriptor
+   - **Fix approach:** This is likely a case where the consolidated alias prompt (Pass 2) or post-extraction merge logic needs to handle nickname ↔ formal-name patterns better. Specifically:
+     - "Jim" is a common nickname for "James" — the system should recognize this
+     - "Dillingham" appearing as part of "James Dillingham Young" should trigger substring-based merge
+     - The fix should be GENERIC (e.g., common nickname mappings, or detecting when a supporting character's name is a substring of another character's full formal name)
+   - **Location:** `src/pipeline/character_extraction_v2/main_cast.py` (Pass 2 alias detection), `src/agents/characters.py` (post-extraction merges), or `src/pipeline/character_extraction_v2/supporting.py` (supporting cast extraction)
+   - **Impact:** Scores Character Extraction -3 points, Character Profiles -2 points
+
+### HIGH
+2. **Relationship corruption from character split** [Profiles]
+   - **Problem:** Della is listed as "wife" of "James Dillingham Young" but only "associated" with "Jim". Jim's relationships are ALL "associated". The ghost entries (James Dillingham Young, Dillingham) have empty/useless profiles.
+   - **Evidence:** There are only 2 main characters in this story. Della and Jim are husband and wife — this is the central relationship. The profiler confused itself because it treated Jim and James Dillingham Young as different people.
+   - **Fix:** This is a downstream consequence of CRITICAL #1. Fixing the character split will automatically fix the relationship and profile issues.
+   - **Location:** N/A — will resolve when #1 is fixed
+
+### MEDIUM
+(None — all other categories pass threshold)
+
+### LOW
+3. **Canonical name for Sofronie** [Alias Grouping]
+   - **Problem:** Listed as "Sofronie" — the text uses "Mme. Sofronie" on the sign and "Madame" in narration. "Madame Sofronie" would be a more complete canonical name.
+   - **Impact:** Minimal — doesn't affect score threshold
+   - **Fix:** Not needed for passing; skip unless fixing #1 has side effects
+
+## Fix History
+(First attempt — no prior fixes)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
 | (none yet) | - | - | - |
 
 ## Pipeline Notes
-- Completed in 13m 35s
-- 6 characters found: Della Young, Jim, James Dillingham Young, Dillingham, Sofronie, + The magi (F6 reconciliation)
-- "James Dillingham Young" and "Dillingham" may be identity/alias issues for Jim's full name — to review in evaluation
-- "The magi" added via F6 (not in main text directly); UNCERTAIN confidence for passages — expected
-- Single chapter: structure detection returned 1 chapter (valid for short story)
-- Narrator detection: no definitive narrator (expected — third-person narration)
-- No LLM failures or parse errors
+- Single chapter detected (correct for short story)
+- No narrator detected (correct for third-person narration)
+- No LLM retries or parse errors
+- 9 pronunciation entries, all with IPA
+- Profiling ran cleanly (5 stages, 0 retries)
+
+## Configuration Audit
+- Model config fields are null in `_config` — defaults were used
+- No retry issues in profiling (0 retries across all stages)
+- Chunking not a concern for this very short text (~2000 words)
+- No configuration changes needed
+
+## Next Action
+Run PROMPT_fix.md to address the Jim 3-way character split (CRITICAL #1). The fix must be GENERIC — not hardcoded to this text. Consider:
+1. Common nickname recognition (Jim ↔ James) in alias detection
+2. Substring-based merge for supporting characters whose names appear within another character's full formal name
+3. Post-extraction merge for characters where one name is a component of another's multi-part name
