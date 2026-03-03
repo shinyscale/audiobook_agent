@@ -614,6 +614,13 @@ COMMON_WORDS_WHITELIST = {
     "convulsing",     # present participle
     "unutterable",    # standard English adjective (too extreme to express in words)
     "unutterably",    # adverb form
+    # Archaic / compound words with obvious pronunciation
+    "bedclothes",     # compound: bed + clothes (obvious pronunciation)
+    "instalment",     # British spelling of "installment" (narrator would know this)
+    "instalments",    # plural
+    "betokened",      # past tense of "betoken" (to be a sign of — standard archaic English)
+    "betoken",        # base form
+    "betokens",       # present tense
 }
 
 # Contraction fragments that result from tokenization

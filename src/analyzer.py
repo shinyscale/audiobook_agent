@@ -3994,14 +3994,19 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             # one supporting quote; zero evidence indicates a false positive (e.g. an
             # exclamation captured by NER as a PERSON entity). This is a universal
             # invariant — applies to any book, any genre.
-            # Exception: characters with significant mention counts (>5) are real
+            # Exception 1: characters with significant mention counts (>5) are real
             # regardless of whether profile JSON parsing succeeded — a failed parse
             # can produce empty evidence for a genuine character (e.g. Nimdok).
+            # Exception 2: main_cast characters (LLM-extracted and grounding-vetted)
+            # are never discarded on this basis — empty evidence reflects a profile
+            # generation failure, not a false positive. NER false positives
+            # (exclamations, place names) come from supporting cast, not main_cast.
             if (
                 hasattr(pc, "profile_evidence")
                 and not pc.profile_evidence
                 and not getattr(pc, "is_narrator", False)
                 and getattr(pc, "mention_count", 0) <= 5
+                and not pc.id.startswith("main_cast_")
             ):
                 logger.info(
                     f"Discarding '{pc.canonical_name}' — profiled with 0 evidence (false positive)"

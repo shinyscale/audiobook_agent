@@ -1210,6 +1210,14 @@ class MainCastExtractor:
             "count", "countess", "lord", "lady", "earl", "baron", "baroness",
             "sir", "dame", "emperor", "empress", "archduke", "archduchess",
             "viscount", "viscountess", "marquis", "marchioness",
+            # Military ranks (universal across military fiction, historical fiction, etc.)
+            "general", "colonel", "major", "captain", "lieutenant", "sergeant",
+            "corporal", "private", "admiral", "commodore", "marshal",
+            # Compound military ranks (hyphenated first word of canonical name)
+            "sergeant-major", "lieutenant-colonel", "brigadier-general",
+            "major-general", "vice-admiral", "rear-admiral",
+            # Clerical titles
+            "reverend", "bishop", "archbishop", "cardinal", "deacon",
         }
         for profile in profiles:
             words = profile.canonical_name.split()

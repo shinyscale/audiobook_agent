@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.4
 
 ## Output Files
@@ -85,13 +85,18 @@
 | 1 | 7.4 | - | Baseline — Morris dropped, visitor alias wrong, Mr. White no aliases |
 
 ## Fix History
-(none yet)
+- Attempt 1 (monkeys_paw):
+  - **Morris missing (Completeness)**: Added military/clerical ranks to `_add_title_stripped_aliases()` in `main_cast.py` so "Sergeant-Major Morris" gets "Morris" as auto-alias → enough mentions to pass grounding. Also added `not pc.id.startswith("main_cast_")` guard to `_convert_characters` evidence filter in `analyzer.py` — main_cast characters (LLM-vetted) are never dropped by the false-positive filter.
+  - **Mrs. White gender (Profiles)**: Added second call to `enforce_gender_consistency` at end of Phase B `run_all` (after `_propagate_missing_reverses`) in `post_corrections.py` — catches any re-introduced gender mismatches.
+  - **Pronunciation false positives**: Added "bedclothes", "instalment", "betokened" (and variants) to `COMMON_WORDS_WHITELIST` in `cmu_proposer.py`.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | | | |
+| 1 | Morris missing (Completeness) | `main_cast.py`, `analyzer.py` | Added military ranks to title-stripped aliases; main_cast evidence-filter exemption |
+| 1 | Mrs. White gender (Profiles) | `post_corrections.py` | Second enforce_gender_consistency call at end of run_all |
+| 1 | Pronunciation false positives | `cmu_proposer.py` | Added bedclothes/instalment/betokened to whitelist |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (chars, summaries, profiles) — appropriate
@@ -102,10 +107,8 @@
 - No retry issues (llm_retries: 0 across all stages)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Morris dropped due to profile parse failure (CRITICAL #1) — this is the primary blocker
-2. "the visitor" alias on monkey's paw (CRITICAL #2)
-3. Mr. White missing aliases (HIGH #3)
-4. Mrs. White gender-inconsistent relationship label (HIGH #4)
-
-Focus on Issues #1 and #3 as the highest-impact fixes. If Morris is restored and Mr. White gets aliases, Characters should jump from 5→7+ and Profiles from 6.5→8+.
+Re-run analysis on monkeys_paw to verify:
+1. Morris now appears in character output (military rank title-stripped alias fix)
+2. Mrs. White → Herbert relationship is "mother" not "father" (second gender consistency pass)
+3. "the visitor" alias may self-resolve with Morris in cast (Pass 2 re-run)
+4. Pronunciation false positives "bedclothes"/"instalment"/"betokened" removed

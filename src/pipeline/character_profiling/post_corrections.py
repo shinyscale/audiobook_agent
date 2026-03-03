@@ -787,6 +787,10 @@ class OutputCharacterCorrector:
         # labels to be incorrectly flagged (e.g., male Walton can't be 'sister')
         # and removed by clean_unknown_relationships.
         self._propagate_missing_reverses(characters)
+        # Second gender consistency pass: _propagate_missing_reverses can introduce
+        # gender-mismatched labels (e.g., RELATIONSHIP_REVERSES["son"] = "father"
+        # propagated to a female character). Run once more to catch these.
+        self.enforce_gender_consistency(characters)
 
     def extract_relationships_from_evidence(self, characters) -> None:
         """Mine evidence statements to populate missing relationships.
