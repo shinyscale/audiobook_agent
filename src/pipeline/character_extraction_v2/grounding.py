@@ -170,8 +170,16 @@ class GroundingGate:
                 # Optionally remove ungrounded aliases
                 if self.remove_ungrounded_aliases:
                     # Keep canonical name even if ungrounded (it's the identity)
-                    # but remove ungrounded non-canonical aliases
-                    char.aliases = [a for a in char.aliases if a in grounded_aliases]
+                    # but remove ungrounded non-canonical aliases.
+                    # Exception: aliases that are strict substrings of the canonical name
+                    # (e.g., "Prospero" in "Prince Prospero") are always valid — they are
+                    # covered by the canonical's mention spans, so 0 unique mentions is
+                    # expected and does NOT mean the alias is invalid.
+                    canonical_lower = char.canonical_name.lower()
+                    char.aliases = [
+                        a for a in char.aliases
+                        if a in grounded_aliases or a.lower() in canonical_lower
+                    ]
 
                 grounded.append(char)
             else:

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -122,6 +122,10 @@ Character Extraction is at 7/10 (only failing category). To reach 8/10:
 
 ## Fix History
 
+### Attempt 5 (Fixes applied — awaiting analysis)
+1. **Rule 0.6 added to `_is_valid_alias()` in characters.py** — plural group noun blocking now at the FINAL alias cleanup stage (Step 5.10), catching aliases added by any merge operation, not just those going through verify_aliases(). Root cause of attempt 4 integration mismatch: verify_aliases() only runs on Pass 2 output; merge operations in characters.py bypass it.
+2. **Substring alias exemption in grounding.py** — aliases that are strict substrings of the canonical name (case-insensitive) are now exempted from the 0-mention removal in GroundingGate. Root cause: MentionSearcher searched "Prince Prospero" before "Prospero", claiming all spans; "Prospero" then had 0 unique mentions and was removed. The fix recognizes these substring variants are definitionally covered by the canonical's search.
+
 ### Attempt 4 (Score: 8.23/10 — UP from 6.10)
 1. **Reverted attempt 3 main_cast.py** — restored to attempt 2 state
 2. **Improved is_symbolic detection** — lowered threshold, added all_lowercase check → Clock correctly removed ✓
@@ -148,6 +152,8 @@ Character Extraction is at 7/10 (only failing category). To reach 8/10:
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 5 | Wrong group aliases on Red Death (Courtiers/Musicians/Waltzers) | characters.py | Rule 0.6 in _is_valid_alias() — awaiting verification |
+| 5 | Missing "Prospero" alias for Prince Prospero | grounding.py | Substring alias exemption in GroundingGate — awaiting verification |
 | 4 | Revert attempt 3 regression | main_cast.py | Fixed ✓ (clock removed, Red Death as own character) |
 | 4 | is_symbolic detection improvement | main_cast.py | Fixed ✓ |
 | 4 | Rule 0.6 re-added | main_cast.py | Smoke test pass, but aliases still in output ✗ |
