@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** berenice
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -121,15 +121,15 @@
 | 4 | Profiles: descriptions field not scanned by extract_relationships_from_evidence() | post_corrections.py | FIX WORKS at extraction — but reject_unfounded_familial_labels() overwrites "cousin" → "associated" |
 | 5 | Profiles: reject_unfounded_familial_labels() unconditionally downgrades "cousin" (not in sibling_terms) | post_corrections.py | Expanded sibling_terms → extended_family_terms; added narrator exemption |
 
-## Pipeline Notes (Attempt 4 — current output)
-- Analysis completed in 15m 4s
-- **3 characters found** (down from 4): Egaeus (1 mention), Berenice (14 mentions), Ebn Zaiat (2 mentions)
-- **"The Teeth" NOT extracted this run** — LLM non-determinism; doesn't block 8.0 threshold
-- 46 pronunciation flags (all with IPA)
-- Narrator detection: Egaeus (first-person)
+## Pipeline Notes (Attempt 5 — current output)
+- Analysis completed in 39m 24s
+- **3 characters found**: Egaeus (1 mention), Berenice (14 mentions), Ebn Zaiat (2 mentions)
+- **"The Teeth" NOT extracted again** — LLM non-determinism; doesn't block 8.0 threshold
+- 44 pronunciation flags (all with IPA)
+- Narrator detection: INCONSISTENT — intermediate step says "Detected narrator: Egaeus (first-person)" but final step says "No definitive narrator identified from plot summary"; "Narrator 'Egaeus' has only 1 mention(s) — too few to be a narrator; skipping narrator assignment"
+- **RISK:** If `is_narrator=False` for Egaeus at the time `reject_unfounded_familial_labels()` runs, the narrator exemption added in attempt 5 fix may not fire → cousin downgrade may still occur
 - Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries/profiles=qwen3.5:122b-a10b
-- `extract_relationships_from_evidence()` correctly sets "cousin" from descriptions field
-- `reject_unfounded_familial_labels()` overwrites "cousin" → "associated" (the downstream overwrite)
+- Output: ../output/berenice/analysis.json, ../output/berenice/report.html
 
 ## Configuration Audit
 - Models: Appropriate (larger 122b for character/profile, smaller 35b for structure/pronunciation)
