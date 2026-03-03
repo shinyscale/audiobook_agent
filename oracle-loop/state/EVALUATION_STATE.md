@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** berenice
 - **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.68
 - **Competitive Mode:** none
 
@@ -90,13 +90,16 @@
 | 1 | Profiles: cousin blocked by _SYMMETRIC_RELATIONSHIPS | post_corrections.py | Fixed but insufficient — different downgrade path active |
 | 2 | Profiles: cousin downgraded to acquaintance by verify_relationships_from_text() | post_corrections.py | Skip co-mention downgrade when either char is narrator (universal invariant) |
 
-## Pipeline Notes
-- Analysis completed in 23m 35s
-- 4 characters found: Egaeus, Berenice, The servant maiden, Ebn Zaiat
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 15m 17s
+- 4 characters found: Egaeus, Berenice, The Teeth (aka The Servant Maiden), Ebn Zaiat
+- WARNING: "The Servant Maiden" merged as alias of "The Teeth" (symbolic object) — this is a character/object confusion
 - 44 pronunciation flags (26 unknown, 13 proper noun, 5 foreign)
 - Low confidence profile for Ebn Zaiat (0.15) — sparse character
-- Blocked aliases: 'the disfigured body' (hallucinated), 'a servant' (semantic mismatch), 'the maiden' (not in summaries), 'the physician' (not in summaries)
+- Blocked aliases: 'the first-person narrator' (hallucinated), 'the disfigured body' (hallucinated), 'thirty-two ivory-looking objects' (semantic mismatch), 'sentient ideas' (semantic mismatch)
+- Narrator detection: "Egaeus has only 1 mention(s) — too few to be a narrator; skipping narrator assignment" (but later confirmed via summaries)
 - Models: structure/pronunciation=qwen3.5:35b-a3b, characters/summaries=qwen3.5:122b-a10b
+- Fix applied: verify_relationships_from_text() now skips family-label downgrade when either character is narrator
 
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate output.
