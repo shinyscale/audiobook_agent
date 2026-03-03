@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** a_camping_trip
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
@@ -125,6 +125,7 @@ All three must succeed for a pass. #1 is the highest-leverage fix.
 - Attempt 1→2: External changes (commit 3cb3fb5) restored grounding threshold=3, length-adaptive alias context. Fixed narrator flag, removed boat-keeper character, improved profiles.
 - Attempt 2→3: Added milt→milton to NICKNAME_TO_FORMAL, nickname-firstname merge in _merge_lastname_aliases, pronunciation compound detector fixes. **RESULT: Character regression (Milton Jennings split 3 ways).**
 - Attempt 3→4: Reverted characters.py regression, re-applied pronunciation fixes, added summary-crossref merge step, added lead/desert to HOMOGRAPH_IPA_MAP, added gunwale/gunwhale to KNOWN_IRREGULAR_IPA. **RESULT: Partial recovery. Parents extracted, 3-way split reduced to 2-way. But summary-crossref merge didn't fire (LLM produced different character set). Pronunciation overrides not taking effect.**
+- Attempt 4→5: (1) Extended `_merge_summary_name_fragments` with partial match (one strong fragment ≥10 mentions); fixed early-return bug; (2) Added POV guard to STEP 5.8.6 to prevent false narrator in 3rd-person texts; (3) Fixed `enrich_batch()` merge order so KNOWN_IRREGULAR_IPA always overrides LLM results. 332 tests pass.
 
 ## Modification History
 
@@ -138,6 +139,9 @@ All three must succeed for a pass. #1 is the highest-leverage fix.
 | 3→4 | gunwhale IPA | enricher.py (KNOWN_IRREGULAR_IPA) | **No effect**: Override in code but output still wrong IPA |
 | 3→4 | lead/desert null IPA | enricher.py (HOMOGRAPH_IPA_MAP) | **No effect**: Override in code but output still null |
 | 3→4 | NICKNAME_TO_FORMAL "milt" | characters.py | **No effect**: Needs upstream merge to fire |
+| 4→5 | Summary-crossref partial match + early-return bug | characters.py | **Applied**: Partial match fires for "Milton"(23 mentions); early-return fixed to allow promotion |
+| 4→5 | STEP 5.8.6 false narrator guard | characters.py | **Applied**: `narrator_info.pov not in ("third-person", "omniscient")` guard added |
+| 4→5 | enrich_batch merge order | enricher.py | **Applied**: Static overrides now win over LLM results |
 
 **PATTERN: enricher.py modified twice without effect.** The fix phase MUST trace the pronunciation code path to verify the overrides are actually reached at runtime.
 
@@ -150,7 +154,7 @@ All three must succeed for a pass. #1 is the highest-leverage fix.
 - No JSON parse failures ✓
 
 ## Next Action
-Run PROMPT_fix.md. Three priority fixes:
-1. Make `_merge_summary_name_fragments` work when only ONE word fragment matches (the "Milton" case)
-2. Debug and fix pronunciation override code paths (KNOWN_IRREGULAR_IPA and HOMOGRAPH_IPA_MAP not taking effect)
-3. Fix false narrator flag on Mr. Jennings (3rd-person text should have no narrator)
+Run PROMPT_analyze.md. Three fixes applied (attempt 4→5):
+1. `_merge_summary_name_fragments` extended with partial match — if exactly ONE word of a multi-word summary name has a single-word character with ≥10 mentions, rename it to the full summary name and promote to main cast. Also fixed early return bug (returned before promotion when no subordinates). Smoke test: "Milton" (23 mentions) → "Milton Jennings", promoted to main cast, "Milt" stays in supporting for NICKNAME_TO_FORMAL merge.
+2. STEP 5.8.6 false narrator guard — added `narrator_info.pov not in ("third-person", "omniscient")` to prevent heuristic firing in 3rd-person texts.
+3. `enrich_batch()` merge order fixed — `llm_enrichments.update(enrichments)` now ensures static KNOWN_IRREGULAR_IPA overrides win over LLM (previously LLM could overwrite static results if it returned extra words).

@@ -872,6 +872,10 @@ class CharacterAgent(Agent):
             narrative_style
             and "first-person" in narrative_style.lower()
             and narrator_info.narrator_character_id is None
+            # Universal invariant: if the LLM already determined the POV is NOT
+            # first-person, do not apply the first-person heuristic. This prevents
+            # assigning a narrator in third-person/omniscient narratives.
+            and narrator_info.pov not in ("third-person", "omniscient")
             and main_cast
         ):
             narrator_candidate = self._heuristic_narrator_from_mention_count(
@@ -1325,7 +1329,18 @@ class CharacterAgent(Agent):
                 fragments.append(char)
 
             if not all_found:
-                continue
+                # Partial match: if exactly one word has a high-mention single-word
+                # character (≥10 mentions), rename it to the full summary name.
+                # Handles cases where, e.g., "Jennings" doesn't exist as a standalone
+                # character but "Milton" (23 mentions) does — rename Milton → Milton Jennings.
+                # "Exactly one" guard prevents ambiguity when multiple words match.
+                fragments = []
+                for word in words:
+                    char = single_word_lookup.get(word.lower())
+                    if char and char.id not in chars_to_remove and char.mention_count >= 10:
+                        fragments.append(char)
+                if len(fragments) != 1:
+                    continue
 
             # All fragments must be distinct characters (sanity check)
             if len({f.id for f in fragments}) < len(fragments):
@@ -1365,7 +1380,7 @@ class CharacterAgent(Agent):
                     del single_word_lookup[sub_key]
             existing_full_names_lower.add(full_name.lower())
 
-        if not chars_to_remove:
+        if not chars_to_remove and not merged_ids:
             return main_cast, supporting_cast, set()
 
         # Remove absorbed characters from both casts

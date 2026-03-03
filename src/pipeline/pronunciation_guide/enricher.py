@@ -285,9 +285,13 @@ class PronunciationEnricher:
                 logger.debug(f"Word '{p.word}' missing from batch result, enriching individually")
                 llm_enrichments[p.word.lower()] = self.enrich_single(p)
 
-        # Merge: static results take precedence (they're known-correct)
-        enrichments.update(llm_enrichments)
-        return enrichments
+        # Merge: static results take precedence (they're known-correct).
+        # Update LLM results first, then overwrite with static — this ensures
+        # static overrides win even if the LLM returned a result for a word
+        # that should have been filtered (e.g., batch models sometimes return
+        # extra words that weren't in the request).
+        llm_enrichments.update(enrichments)
+        return llm_enrichments
 
     def _fallback_to_single_enrichment(
         self,
