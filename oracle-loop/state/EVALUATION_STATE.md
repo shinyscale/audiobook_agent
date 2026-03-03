@@ -2,14 +2,22 @@
 
 ## Active Text
 - **Name:** a_camping_trip
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.80
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/a_camping_trip/report.html
 - JSON: ../output/a_camping_trip/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Analysis completed in 26m 47s, 81,503 tokens
+- Milton Jennings now merged: appears as "Milton Jennings (aka Milton, Jennings)" with 34 mentions ✅
+- 5 characters extracted: Lincoln Stewart (34), Milton Jennings (34), Rance (27), Bert Jenks (13), Knapp (2)
+- Narrator detection: initially flagged Lincoln Stewart (first-person), then finalization showed "No definitive narrator identified" — narrator guard appears to be working ✅
+- No Milt standalone character — nickname merge also likely fired ✅
+- Pronunciation flags: 23 words (15 unknown, 8 homograph)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
