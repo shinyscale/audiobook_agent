@@ -3,13 +3,23 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/masque_of_red_death/report.html
 - JSON: ../output/masque_of_red_death/analysis.json
+
+## Pipeline Notes (Attempt 6)
+- Analysis completed successfully in 11m 35s
+- 2 characters found: Prince Prospero (aliases: the Prince, Prospero), The Red Death (aliases: The Courtiers, The Musicians)
+- Revert worked: The Red Death is now its own character (not merged into the clock)
+- grounding.py fix confirmed: "Prospero" alias correctly preserved
+- ISSUE: The Red Death still marked as is_symbolic → valid aliases (masked figure, the figure, intruder) BLOCKED by semantic mismatch check
+- ISSUE: Wrong group-noun aliases (The Courtiers, The Musicians) still attached to The Red Death
+- The Ebony Clock blocked from merging with The Red Death (good: "BLOCKED alias during merge: 'The Ebony Clock' contains object keyword")
+- LLM retries: 0 across all stages
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
