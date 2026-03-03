@@ -51,7 +51,7 @@ class MockNarratorInfo:
 
 
 # Import the modules under test
-from src.pipeline.character_extraction_v2.identity_graph import (
+from src.pipeline.character_extraction_v2.experimental.identity_graph import (
     IdentityGraph,
     EdgeType,
     ConstraintType,
@@ -64,7 +64,7 @@ from src.pipeline.character_extraction_v2.identity_graph import (
     _split_by_hard_constraints,
     _select_canonical,
 )
-from src.pipeline.character_extraction_v2.evidence_collectors import (
+from src.pipeline.character_extraction_v2.experimental.evidence_collectors import (
     collect_title_variant_evidence,
     collect_within_cast_evidence,
     collect_cross_cast_evidence,
@@ -520,7 +520,7 @@ class TestEvidenceCollectors:
 
 class TestExecuteMerges:
     def test_basic_merge_execution(self):
-        from src.pipeline.character_extraction_v2.identity_graph import MergeGroup
+        from src.pipeline.character_extraction_v2.experimental.identity_graph import MergeGroup
 
         main = [
             MockCharacter(id="c1", canonical_name="Jay Gatsby", mention_count=200),
@@ -546,7 +546,7 @@ class TestExecuteMerges:
         assert new_main[0].mention_count == 250
 
     def test_cross_cast_merge(self):
-        from src.pipeline.character_extraction_v2.identity_graph import MergeGroup
+        from src.pipeline.character_extraction_v2.experimental.identity_graph import MergeGroup
 
         main = [MockCharacter(id="m1", canonical_name="Jay Gatsby", mention_count=200)]
         supporting = [MockCharacter(id="s1", canonical_name="Mr. Gatsby", mention_count=10)]
@@ -568,7 +568,7 @@ class TestExecuteMerges:
         assert "Mr. Gatsby" in new_main[0].aliases
 
     def test_no_merge_for_single_member_groups(self):
-        from src.pipeline.character_extraction_v2.identity_graph import MergeGroup
+        from src.pipeline.character_extraction_v2.experimental.identity_graph import MergeGroup
 
         main = [
             MockCharacter(id="c1", canonical_name="A", mention_count=10),

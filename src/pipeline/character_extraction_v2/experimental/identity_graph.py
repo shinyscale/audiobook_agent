@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-from ...utils.similarity import names_similar, string_similarity
+from ....utils.similarity import names_similar, string_similarity
 
 logger = logging.getLogger(__name__)
 
