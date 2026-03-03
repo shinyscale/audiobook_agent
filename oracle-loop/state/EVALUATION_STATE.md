@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -12,19 +12,22 @@
 - JSON: ../output/masque_of_red_death/analysis.json
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 4/10 ✗ (FAILING — REGRESSION from attempt 10's 6/10)
-  - Completeness: 5/10
-  - Identity Resolution: 2/10 ← catastrophic false merge is the primary blocker
-  - Alias Grouping: 3/10
-- Character Profiles: 5/10 ✗ (FAILING)
-- Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 8/10 ✓
-- **Overall: 6.95/10** (reference only)
+(Awaiting evaluation — attempt 12 analysis just completed)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL — 2 categories below threshold (Character Extraction 4/10, Character Profiles 5/10)
+**Status:** Awaiting evaluation
+
+## Pipeline Notes (Attempt 12)
+- Analysis completed in 18m 0s (28 LLM calls, 44,921 tokens)
+- 4 characters found during extraction, 2 in final output
+- Final 2 characters: Prince Prospero (6 mentions), The Ebony Clock (25 mentions, aliases: "the clock", "The Masked Figure")
+- **CONCERN:** The Masked Figure appears as alias of Ebony Clock — false merge
+- **CONCERN:** The Red Death missing from final output — filtering issue persists
+- Narrator detection: "None" identified — POV guard appears to be working
+- "Narrator detection failed: None" logged during initial detection, then "No definitive narrator identified" in final step
+- BLOCKED aliases logged for The Red Death (core noun mismatch) and group nouns (waltzers, courtiers, etc.)
+- The Red Death had alias candidates blocked: "masked figure", "the intruder", "figure" (core noun: 'figure' ≠ 'death')
+- "The Masked Figure" extracted as separate character, then merged into Ebony Clock (per alias log)
 
 ## Comparison to Previous Attempts
 
@@ -246,4 +249,4 @@ Rule 0.5, is_symbolic, narrator detection, pronunciation fixes.
 - **Root cause is NOT model/config** — the regression is caused by min_grounding_mentions=2 filtering The Red Death
 
 ## Next Action
-Re-run analysis to verify fix
+Evaluate attempt 12 output
