@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.10
 - **Competitive Mode:** none
 
@@ -116,6 +116,14 @@
 - **Fix:** Added all three (plus common inflected forms) to `COMMON_WORDS_WHITELIST`.
 - **Universality:** These are universally known English words. Any book using them would get false positives.
 - **File:** `src/pipeline/pronunciation_guide/proposers/cmu_proposer.py` — COMMON_WORDS_WHITELIST
+
+## Pipeline Notes (Attempt 3)
+- Luchresi extracted with 6 mentions via F6b (fix working)
+- 4 characters: Montresor, Fortunato, Luchresi, the Montresors
+- 13 pronunciation flags (false positives should be reduced)
+- Warning: "BLOCKED alias: 'the narrator's acquaintance' for 'Fortunato' not found in any chapter summary" — harmless, alias correctly blocked
+- Warning: "No passages provided for Luchresi/the Montresors" — structured via secondary LLM call (OK)
+- Analysis completed in 10m 52s
 
 ## Modification History
 
