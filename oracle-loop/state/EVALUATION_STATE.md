@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.85
 - **Competitive Mode:** none
 
@@ -81,12 +81,14 @@
 |---------|-------|----------------|--------|
 | 2 | Red Death missing, clock wrong aliases, narrator wrong, pronunciation FP | main_cast.py, narrator.py, cmu_proposer.py | Awaiting analysis |
 
-## Pipeline Notes
-- Analysis completed in 19m 59s (2,449 words — short story)
+## Pipeline Notes (Attempt 2)
+- Analysis completed in 21m 2s (2,449 words — short story)
 - Found 1 chapter (single continuous narrative, correct)
-- Found 2 characters: Prince Prospero (6 mentions) and "the gigantic ebony clock" (16 mentions)
-- BLOCKED alias warnings during character extraction showed the pipeline DID detect "the intruder", "the Red Death", "a masked figure" but blocked them from correct grouping
-- "Failed to generate plot summary via LLM" (minor — narrator detection fallback)
+- Found 2 characters: Prince Prospero (6 mentions) and The Red Death (15 mentions, aka The Courtiers, The Musicians)
+- The clock no longer appears as a character (Fix 2 worked — ebony clock now correctly is_symbolic=True)
+- The Masked Figure aliases were BLOCKED: 'the masked figure', 'a mysterious, tall figure', 'the stranger', 'the figure' — all blocked as semantically unrelated to symbolic 'death' (core noun mismatch)
+- The Red Death has wrong aliases: 'The Courtiers' and 'The Musicians' (these are the party guests, not The Red Death)
+- Narrator detection still failed (None) — third-person narrative correctly not identified as 1st-person
 - 0 LLM retries, high confidence on both characters
 - Model: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 
@@ -99,4 +101,4 @@
 - 1 JSON parse failure in chapter detection (minor)
 
 ## Next Action
-Re-run analysis to verify fixes
+Evaluate attempt 2 output against rubric
