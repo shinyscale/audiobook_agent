@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** masque_of_red_death
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.50
 - **Competitive Mode:** none
 
@@ -81,7 +81,14 @@
 |---------|-------|---------------------|-------|
 | 1 | 8.50 | — | Profiles 7/10 failing; missing Prospero↔Red Death relationship |
 
-## Next Action
-Re-run analysis to verify fixes
+## Pipeline Notes (Attempt 2)
+- Completed in 16m 46s
+- Only 2 characters extracted: Prince Prospero + The Red Death (courtiers missing vs attempt 1)
+- Masked figure aliases all blocked (core noun mismatch: figure ≠ death)
+- The Masked Figure was extracted then apparently dropped (not merged into Red Death post-extraction)
+- LLM identity detection returned None (merge_reveal_characters did not fire)
 
-**Phase:** awaiting_analysis
+## Next Action
+Evaluate output
+
+**Phase:** awaiting_evaluation
