@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -158,6 +158,17 @@ Both fixes are in `src/agents/characters.py` only. No prompt changes needed.
   3. Added Step 5.4.6 possessive-descriptor merge (WRONG DIRECTION: merged into father not son)
      - Modified: `src/agents/characters.py` — new Step 5.4.6 block
   - Result: Plot summary improved ✓. Narrator still wrong ✗. "the boy" on father instead of son ✗.
+- Attempt 6:
+  1. Fixed `narrator.py detect()` crash: LLM returns JSON array `[{...}]` instead of `{...}` → `result.get('pov')` crashed with `'list' object has no attribute 'get'`. Fix: unwrap single-element list before dict check. Also added `isinstance(result, dict)` guard.
+     - Root cause: `narrator.py:detect():146` — crash in Step 5.8.5 try/except, causing heuristic fallback to pick Johnny (2 mentions = least)
+     - Modified: `src/pipeline/character_extraction_v2/narrator.py`
+  2. Raised min-mention guard in `update_characters_with_narrator()` from `<= 1` to `<= 2`.
+     - A character with only 2 name mentions cannot be a first-person narrator (universal invariant).
+     - Modified: `src/pipeline/character_extraction_v2/narrator.py`
+  3. Fixed Step 5.4.6 merge direction: was merging B (proper name "Johnny") into A (descriptor "John's Son"). Now merges A into B — "John's Son" and its aliases ("the boy") become aliases of "Johnny", not of "John Donaldson".
+     - Root cause: `characters.py:Step 5.4.6:763-776` — wrong merge target (B removed, A kept)
+     - Modified: `src/agents/characters.py`
+  - Smoke test: All 332 tests pass.
 
 ## Modification History
 
@@ -180,6 +191,4 @@ Both fixes are in `src/agents/characters.py` only. No prompt changes needed.
 - Runtime: ~31 min (31 LLM calls)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Step 4.26 type error (list vs dict) → narrator guard fires correctly
-2. Step 5.4.6 target selection → prefer diminutive match (Johnny) over substring match (John Donaldson)
+Run PROMPT_analyze.md to re-analyze with fixes applied.

@@ -139,8 +139,12 @@ class NarratorDetector:
 
         result, response = self.llm.query_json(prompt)
 
-        if not response.success or result is None:
-            logger.warning(f"Narrator detection failed: {response.error}")
+        # Unwrap single-element list — some LLMs wrap the JSON object in [...]
+        if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+            result = result[0]
+
+        if not response.success or result is None or not isinstance(result, dict):
+            logger.warning(f"Narrator detection failed or returned non-dict: {response.error}")
             return self._fallback_detection(chapter_summaries)
 
         logger.info(
@@ -292,16 +296,16 @@ class NarratorDetector:
             # Set narrator flag for the primary narrator
             if char.id == narrator_info.narrator_character_id:
                 # Universal invariant: a narrator must be significantly present in the text.
-                # A character with exactly 1 mention cannot be the narrator — they don't appear
-                # enough to tell the story. This prevents single poetic personifications
-                # (e.g., "Darkness" appearing once in a closing line) from being misidentified.
+                # A character with ≤ 2 mentions cannot be the narrator — first-person narrators
+                # use "I" extensively, so they appear by name infrequently but still several times.
+                # A character named only once or twice is peripheral, not the storytelling voice.
                 # We only block when mention_count > 0 (i.e., when count was actually computed).
                 # mention_count == 0 means "not yet counted" (test/mock scenario), so we allow it.
                 mention_count = getattr(char, "mention_count", 0) or 0
-                if 0 < mention_count <= 1:
+                if 0 < mention_count <= 2:
                     logger.warning(
                         f"Narrator '{char.canonical_name}' has only {mention_count} mention(s) — "
-                        f"too few to be a narrator; skipping narrator assignment"
+                        f"too few to be a first-person narrator (need > 2); skipping narrator assignment"
                     )
                 else:
                     char.is_narrator = True

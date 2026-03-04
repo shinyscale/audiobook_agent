@@ -760,19 +760,21 @@ class CharacterAgent(Agent):
                 _a_count_546 = getattr(_char_a_546, "mention_count", 0) or 0
                 if _a_count_546 > 0 and _b_count_546 > _a_count_546 * 0.5:
                     continue
-                # Merge B into A
+                # Merge A (possessive descriptor) into B (proper name).
+                # B is the canonical identity — "Johnny" is the character's name.
+                # A ("John's Son") is a descriptor reference that should become an alias.
                 logger.info(
-                    f"V2 Step 5.4.6: Merging '{_char_b_546.canonical_name}' "
-                    f"({_b_count_546} mentions) into '{_char_a_546.canonical_name}' "
-                    f"({_a_count_546} mentions) — possessive-descriptor variant"
+                    f"V2 Step 5.4.6: Merging descriptor '{_char_a_546.canonical_name}' "
+                    f"({_a_count_546} mentions) into proper-name '{_char_b_546.canonical_name}' "
+                    f"({_b_count_546} mentions) — possessive-descriptor absorbed into canonical"
                 )
-                if _char_b_546.canonical_name not in _char_a_546.aliases:
-                    _char_a_546.aliases.append(_char_b_546.canonical_name)
-                for _alias_b_546 in getattr(_char_b_546, "aliases", []):
-                    if _alias_b_546 not in _char_a_546.aliases:
-                        _char_a_546.aliases.append(_alias_b_546)
-                _char_a_546.mention_count = _a_count_546 + _b_count_546
-                _chars_to_remove_546.append(_char_b_546)
+                if _char_a_546.canonical_name not in _char_b_546.aliases:
+                    _char_b_546.aliases.append(_char_a_546.canonical_name)
+                for _alias_a_546 in getattr(_char_a_546, "aliases", []):
+                    if _alias_a_546 not in _char_b_546.aliases:
+                        _char_b_546.aliases.append(_alias_a_546)
+                _char_b_546.mention_count = _a_count_546 + _b_count_546
+                _chars_to_remove_546.append(_char_a_546)
                 break  # Only one merge per descriptor character
         if _chars_to_remove_546:
             main_cast = [c for c in main_cast if c not in _chars_to_remove_546]
