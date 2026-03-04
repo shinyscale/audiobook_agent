@@ -3,13 +3,22 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 10)
+- Runtime: 34m 58s, 33 LLM calls
+- WARNING: "Narrator detection failed or returned non-dict: None" — Uncle Bill may not be flagged as narrator
+- WARNING: Only 3 characters in final output: "John Donaldson", "Uncle Bill", "Ted Frith" — father (John Donaldson Sr.) appears MISSING
+- "Pass 2 failed for John Donaldson, keeping without aliases"
+- Canonical name shows as "John Donaldson (aka John, the boy)" not "John Donaldson (the son)" — Step 5.4.6b may have renamed without father split
+- BLOCKED aliases: 'the dying man', 'his estranged father' claimed by multiple phantom characters (Deceased Friend, Wounded Stretcher-Bearer)
+- F6/F6b added 3+1 characters from summaries (Margaret Donaldson added again)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
