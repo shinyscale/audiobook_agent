@@ -528,21 +528,46 @@ class CharacterAgent(Agent):
                 ]
                 if not _neutral_als_395b:
                     continue
-                # Search for explicit parent attribution in summary text.
-                # Pattern: "named/called/identified as {Name} ... his/her/their father/mother"
-                # This specifically identifies the name as a NAMED PARENT — avoids false positives
-                # like "John Smith walked with his father" where John Smith is the child.
+                # Search for parent attribution using multiple universal patterns.
+                # Pattern A: "named/called {Name} ... his/her father/mother"
+                #            — NAME is introduced as a named parent
+                # Pattern B: "{Name} ... his/her (long-lost) son/daughter/child"
+                #            — NAME is the parent who has a son/daughter
+                # Pattern C: "{Name}'s (long-lost) son/daughter/child"
+                #            — possessive: NAME owns/has a child
+                # Using multiple patterns covers LLM wording variation across runs.
                 _name_esc_395b = _re395b.escape(_char_395b.canonical_name)
-                _introducer_395b = r"(?:named|called|identified as|turned out to be|found to be|proved to be)\s+"
-                _possessive_395b = r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
-                _fwd_re_395b = _re395b.compile(
+                # Pattern A: introducer + NAME + ... + his/her father/mother
+                _pat_A_395b = _re395b.compile(
                     r"(?i)"
-                    + _introducer_395b
+                    r"(?:named|called|identified as|turned out to be|found to be|proved to be)\s+"
                     + _name_esc_395b
                     + r"[^.!?\n]{0,300}"
-                    + _possessive_395b,
+                    r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
                 )
-                _m_395b = _fwd_re_395b.search(_summary_all_395b)
+                # Pattern B: NAME + ... + reveal/confess + ... + his/her (long-lost) son/daughter
+                # Covers: "John Donaldson...reveals the narrator is his long-lost son"
+                # Requires a REVELATION verb to avoid false positives on ordinary parent references
+                # (e.g., "Atticus Finch guided his son" would NOT match — no revelation).
+                _pat_B_395b = _re395b.compile(
+                    r"(?i)"
+                    + _name_esc_395b
+                    + r"[^.!?\n]{0,400}"
+                    r"(?:reveal|revealed|revealing|reveals|found\s+out|discover|identifies?|recognized|confesses?|admitted?|declares?)\s+"
+                    r"(?:\w+\s+){0,6}"
+                    r"(?:his|her|their)\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
+                )
+                # Pattern C: NAME's (long-lost) son/daughter/child
+                _pat_C_395b = _re395b.compile(
+                    r"(?i)"
+                    + _name_esc_395b
+                    + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
+                )
+                _m_395b = (
+                    _pat_A_395b.search(_summary_all_395b)
+                    or _pat_B_395b.search(_summary_all_395b)
+                    or _pat_C_395b.search(_summary_all_395b)
+                )
                 if not _m_395b:
                     continue
 
@@ -579,7 +604,17 @@ class CharacterAgent(Agent):
         for _nick_char_397 in list(main_cast):
             if " " in _nick_char_397.canonical_name:
                 continue  # Only single-word characters qualify as nickname phantoms
-            _nick_count_397 = getattr(_nick_char_397, "mention_count", 0) or 0
+            # Use canonical-name-only mention count (not total_mentions which includes aliases).
+            # After _deduplicate_alias_canonical_conflicts strips cross-character aliases,
+            # char.mention_count may still reflect the inflated total from grounding time
+            # (e.g., "Johnny" had alias "John Donaldson" → total=30, not 2).
+            # Using mentions_by_alias[canonical_name] gives the TRUE canonical-name count.
+            _m_result_397 = mention_results.get(_nick_char_397.id)
+            _nick_count_397 = (
+                _m_result_397.mentions_by_alias.get(_nick_char_397.canonical_name, 0)
+                if _m_result_397 and hasattr(_m_result_397, "mentions_by_alias") and _m_result_397.mentions_by_alias
+                else (getattr(_nick_char_397, "mention_count", 0) or 0)
+            )
             if _nick_count_397 > 3:
                 continue  # Too many mentions — likely a real character
             _nick_lower_397 = _nick_char_397.canonical_name.lower()

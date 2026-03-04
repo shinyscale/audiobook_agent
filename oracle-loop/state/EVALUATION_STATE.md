@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 17
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -185,7 +185,20 @@ Functional navigation, logical organization. Content quality limited by upstream
      - Result: **DID NOT FIRE** — regex pattern didn't match the actual summary wording
   2. STEP 3.97 strengthened: threshold lowered + parenthetical guard
      - Modified: `src/agents/characters.py` — STEP 3.97
-     - Result: **BLOCKED** — tried to add canonical name as alias (wrong merge direction)
+     - Result: **BLOCKED** — "Johnny" mention_count inflated to 30 at STEP 3.97 time (had alias "John Donaldson" during grounding → total_mentions=30 → > 3 check skipped merge)
+- Attempt 18:
+  1. STEP 3.95b: Added Pattern B (revelation verb + his son/daughter) + Pattern C (possessive)
+     - Root cause: Pattern A required "named {name}...his father" but summary said "John Donaldson...reveals...his long-lost son" (reversed direction)
+     - Pattern B requires revelation verb to avoid false positives on ordinary parent references
+     - Smoke test: Pattern B matched actual summary text ✓, did NOT match normal parent reference ✓
+     - Modified: `src/agents/characters.py` — STEP 3.95b
+  2. STEP 3.97: Use canonical-name-only mention count from mention_results
+     - Root cause: after _deduplicate_alias_canonical_conflicts strips cross-character aliases, char.mention_count stays inflated (was total_mentions including stripped aliases). `mentions_by_alias[canonical_name]` gives the actual count.
+     - Smoke test: correctly reads canonical_count=2 (not inflated mention_count=30) → merge fires ✓
+     - Modified: `src/agents/characters.py` — STEP 3.97
+  3. generator.py narrator injection: added "Refer to narrator as '{name}'" to narrator_instruction
+     - Root cause: LLM hallucinated "Johnny" as narrator name from context cues (dying man calling "Johnny" in dialogue, confusing the narrator's identity)
+     - Modified: `src/pipeline/overview/generator.py` — narrator_instruction
 
 ## Modification History
 
@@ -222,7 +235,10 @@ Functional navigation, logical organization. Content quality limited by upstream
 | 15 | Step 6.6: narrator fallback | `analyzer.py` | **FIXED** ✓ — Uncle Bill is narrator |
 | 16 | STEP 3.95 parenthetical tier detection | `characters.py` | **DID NOT FIRE** — no parenthetical in canonical name |
 | 17 | STEP 3.95b: summary-text parent attribution | `characters.py` | **DID NOT FIRE** — regex didn't match summary wording |
-| 17 | STEP 3.97: lower threshold + parenthetical guard | `characters.py` | **BLOCKED** — wrong merge direction |
+| 17 | STEP 3.97: lower threshold + parenthetical guard | `characters.py` | **BLOCKED** — inflated mention_count (alias stripped but count not refreshed) |
+| 18 | STEP 3.95b: added Pattern B (revelation+son) + Pattern C (possessive) | `characters.py` | Pending verification |
+| 18 | STEP 3.97: use canonical-name-only count from mention_results | `characters.py` | Pending verification |
+| 18 | generator.py: narrator name instruction strengthened | `generator.py` | Pending verification |
 
 **ESCALATION PATTERN — CRITICAL:** The father/son split has been attempted across 7 attempts (11, 12, 13, 15, 16, 17) using 5 different heuristics, ALL in `characters.py`. Each heuristic targets a specific LLM output format that may or may not appear:
 - Attempt 11: characters_present lists → empty
@@ -250,7 +266,9 @@ Functional navigation, logical organization. Content quality limited by upstream
 - Pass 2 failures: "Pass 2 failed for the narrator" and "Pass 2 failed for Uncle Bill"
 
 ## Next Action
-Fix phase should:
-1. **STEP 3.95b**: Broaden the father/son detection pattern to search for ANY of these in summary text: "his father", "father of", "[Name]'s father", "identifies.*father", "dying.*father", "father.*dies" — when co-occurring with a character name. Use sentence-level search, not single regex.
-2. **STEP 3.97**: Fix the merge direction — Johnny should be merged INTO John Donaldson (add "Johnny" as alias of John Donaldson), not the other way around. The current code tries to add the canonical name of one character as an alias, which is blocked.
-3. **Plot summary**: Consider injecting narrator identity into the plot summary prompt (Uncle Bill is already identified as narrator in metadata). This would prevent the LLM from misattributing narration to Johnny.
+Re-run analysis to verify fixes from attempt 18:
+1. STEP 3.95b Pattern B should now fire on "John Donaldson...reveals...his long-lost son" → creates "John Donaldson (the father)"
+2. STEP 3.97 should now merge "Johnny" → alias of "John Donaldson" (canonical count=2 not inflated 30)
+3. generator.py should now use narrator name "Uncle Bill" explicitly in plot summary
+
+If father/son split still fails: investigate whether Pattern B's `{0,400}` window is too short, or whether the summary text wording varies again.
