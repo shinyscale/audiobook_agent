@@ -437,6 +437,22 @@ class CharacterAgent(Agent):
         for _char in list(main_cast):
             _parent_als = [a for a in _char.aliases if _alias_tier_395(a) == "parent"]
             _child_als = [a for a in _char.aliases if _alias_tier_395(a) == "child"]
+
+            # Also check the canonical name's own parenthetical label.
+            # e.g. "John Donaldson (the father)" → parenthetical "the father" is parent-tier.
+            # This catches the case where the LLM merges father+son under the father's canonical
+            # name but the son's aliases ("the boy") appear on the same character.
+            _canon_paren_tier = None
+            _canon_paren_str = None
+            if "(" in _char.canonical_name:
+                _paren_content = _char.canonical_name[_char.canonical_name.index("(") + 1:].rstrip(")").strip()
+                _canon_paren_tier = _alias_tier_395(_paren_content)
+                _canon_paren_str = _paren_content
+                if _canon_paren_tier == "parent" and not _parent_als:
+                    _parent_als = [_canon_paren_str]
+                elif _canon_paren_tier == "child" and not _child_als:
+                    _child_als = [_canon_paren_str]
+
             if not _parent_als or not _child_als:
                 continue  # no contradiction — skip
 
@@ -450,21 +466,35 @@ class CharacterAgent(Agent):
                 f"(parent_aliases={_parent_als}, child_aliases={_child_als}); splitting"
             )
 
-            # Parent-tier character: canonical_name + "(the father/mother/...)" suffix
+            # Extract base name (strip any parenthetical already on the canonical)
+            if "(" in _char.canonical_name:
+                _base_name_395 = _char.canonical_name[:_char.canonical_name.index("(")].strip()
+            else:
+                _base_name_395 = _char.canonical_name
+
+            # Parent-tier character: BaseName + "(the father/mother/...)"
             _parent_label = _parent_als[0].lower().strip()  # e.g. "the father"
-            _parent_canonical = f"{_char.canonical_name} ({_parent_label})"
+            _parent_canonical = f"{_base_name_395} ({_parent_label})"
             from ..models import ConfidenceLevel as _CL395
+            # Aliases for parent: real parent-tier aliases (not the paren we synthesized from
+            # canonical) plus the base name and old canonical (if different from new canonical)
+            _parent_char_als_395 = [a for a in _parent_als if a != _canon_paren_str] + [_base_name_395]
+            if _char.canonical_name != _parent_canonical:
+                _parent_char_als_395.append(_char.canonical_name)
             _parent_char = Character(
                 id=f"{_char.id}_parent",
                 canonical_name=_parent_canonical,
                 role="supporting",
                 mention_count=max(1, _char.mention_count // 2),
                 confidence=_CL395.MEDIUM,
-                aliases=_parent_als + [_char.canonical_name],
+                aliases=_parent_char_als_395,
             )
             main_cast.append(_parent_char)
 
-            # Original character keeps canonical_name, child-tier aliases + neutral aliases
+            # Child character: if canonical currently has a parent-tier parenthetical, rename it
+            if _canon_paren_tier == "parent":
+                _child_label = _child_als[0].lower().strip()  # e.g. "the boy"
+                _char.canonical_name = f"{_base_name_395} ({_child_label})"
             _char.aliases = _child_als + _neutral_als
             _char.mention_count = max(1, _char.mention_count - _parent_char.mention_count)
 

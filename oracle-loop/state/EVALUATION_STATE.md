@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 15
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -218,6 +218,12 @@ Functional navigation, logical organization.
 - Issue is NOT configuration — it's extraction and post-processing logic
 
 ## Next Action
-Run PROMPT_fix.md to:
-1. **CRITICAL:** Enhance STEP 3.95 to detect canonical-name-vs-alias parent/child contradiction and split the merged character
-2. Plot summary factual error (Uncle Bill dying) should self-resolve once father/son split works
+Re-run analysis to verify fix.
+
+## Fix History (Attempt 16)
+- **STEP 3.95 extended: canonical-name parenthetical tier detection**
+  - Root cause: STEP 3.95 only checked aliases for parent/child tier words. The canonical name "John Donaldson (the father)" has "the father" in the parenthetical, not in aliases. So `_parent_als` was empty → split never triggered.
+  - Fix: Before the alias check, extract the canonical name's parenthetical and check its tier. If canonical is parent-tier and no parent-tier aliases exist, synthesize `_parent_als` from the parenthetical content. Also extract base name (strip parenthetical) before constructing split character canonical names. If the canonical was parent-tier, rename the child character's canonical to "BaseName (child-label)".
+  - Modified: `src/agents/characters.py` — STEP 3.95 (lines 437-502)
+  - Smoke test: 332 tests pass, 0 failures
+  - Universality: universal invariant — parenthetical role-descriptor in canonical name is a generic pattern, not book-specific
