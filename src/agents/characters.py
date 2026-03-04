@@ -485,6 +485,43 @@ class CharacterAgent(Agent):
                             )
         logger.info("V2 Step 4.25 complete: vocative narrator correction check done")
 
+        # STEP 4.26: Low-mention narrator guard.
+        # Universal invariant: a first-person narrator is PRESENT throughout the story;
+        # they cannot have ≤ 2 explicit name mentions while another character has ≥ 5x
+        # more. This pattern indicates the inner narrator of a nested/frame narrative was
+        # mistakenly selected over the outer frame narrator (who is addressed by name far
+        # more often). Reset narrator assignment so Step 5.8.5 can retry with the
+        # improved prompt guidance about inner vs outer narrators.
+        import re as _re426
+        if (
+            narrator_info.pov in ("first-person", "epistolary")
+            and narrator_info.narrator_character_id is not None
+        ):
+            _narrator_char_426 = next(
+                (c for c in main_cast if c.id == narrator_info.narrator_character_id), None
+            )
+            if _narrator_char_426 is not None:
+                _narrator_count_426 = getattr(_narrator_char_426, "mention_count", 0) or 0
+                _max_other_426 = max(
+                    (getattr(c, "mention_count", 0) or 0 for c in main_cast if c.id != _narrator_char_426.id),
+                    default=0,
+                )
+                if 0 < _narrator_count_426 <= 2 and _max_other_426 >= _narrator_count_426 * 5:
+                    logger.warning(
+                        f"V2 Step 4.26: Narrator '{_narrator_char_426.canonical_name}' "
+                        f"has only {_narrator_count_426} mention(s) but another character "
+                        f"has {_max_other_426}. Resetting narrator — Step 5.8.5 will retry."
+                    )
+                    _narrator_char_426.is_narrator = False
+                    _narrator_char_426.narrative_role = None
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov,
+                        narrator_character_id=None,
+                        narrator_name=None,
+                        confidence=0.3,
+                    )
+        logger.info("V2 Step 4.26 complete: low-mention narrator guard done")
+
         # STEP 4.5: Resolve narrator name from raw text vocative patterns
         # For first-person narratives where the narrator is a placeholder ("the narrator"),
         # the LLM may generate summaries that never name the narrator explicitly. Search
@@ -658,6 +695,92 @@ class CharacterAgent(Agent):
         logger.info(
             f"V2 Step 5.4.5 complete: {len(main_cast)} main cast, "
             f"{len(supporting_cast)} supporting after summary-crossref merge"
+        )
+
+        # STEP 5.4.6: Possessive-descriptor + named-variant merge.
+        # Universal pattern: "X's Son/Daughter/etc" and a separate named character Y
+        # sometimes coexist when the same person is extracted twice — once by their role
+        # descriptor and once by their proper name (a nickname/variant of X).
+        # Example: "John's Son" (14 mentions) + "Johnny" (2 mentions) where "john" is
+        # in NICKNAME_TO_FORMAL (johnny→john) AND another character has "John" as alias.
+        # Rule: if Y's formal name (via NICKNAME_TO_FORMAL) == X (the parent name)
+        #       AND Y is a short single-word name (≤ len(X)+3 chars)
+        #       AND Y.mentions ≤ A.mentions * 0.5
+        #       → merge Y into A (Y becomes alias of A)
+        import re as _re546
+        _POSSESSIVE_ROLES_546 = {"son", "daughter", "child", "boy", "girl", "nephew", "niece"}
+        _chars_to_remove_546: list = []
+        for _char_a_546 in main_cast:
+            _m546 = _re546.match(
+                r"^([A-Za-z]+)'s\s+(" + "|".join(_POSSESSIVE_ROLES_546) + r")$",
+                _char_a_546.canonical_name,
+                _re546.IGNORECASE,
+            )
+            if not _m546:
+                continue
+            _parent_name_546 = _m546.group(1).lower()  # e.g., "john"
+            # Find parent character (has this name as canonical or alias)
+            _parent_char_546 = next(
+                (
+                    p for p in main_cast
+                    if p.id != _char_a_546.id
+                    and (
+                        p.canonical_name.lower() == _parent_name_546
+                        or _parent_name_546 in [a.lower() for a in getattr(p, "aliases", [])]
+                    )
+                ),
+                None,
+            )
+            if _parent_char_546 is None:
+                continue
+            # Look for character B: a short single-word name whose formal form == parent_name
+            for _char_b_546 in main_cast:
+                if (
+                    _char_b_546.id in (_char_a_546.id, _parent_char_546.id)
+                    or _char_b_546 in _chars_to_remove_546
+                ):
+                    continue
+                _b_lower_546 = _char_b_546.canonical_name.lower()
+                # Must be a single-word name (no spaces) and short
+                if " " in _b_lower_546:
+                    continue
+                if len(_b_lower_546) > len(_parent_name_546) + 3:
+                    continue
+                # B's name must be a diminutive/nickname for parent_name.
+                # Check both STANDARD_DIMINUTIVES and NICKNAME_TO_FORMAL.
+                _formal_b_546 = (
+                    STANDARD_DIMINUTIVES.get(_b_lower_546)
+                    or NICKNAME_TO_FORMAL.get(_b_lower_546)
+                    or _b_lower_546
+                )
+                if _formal_b_546 != _parent_name_546:
+                    continue
+                # B must have significantly fewer mentions than A
+                _b_count_546 = getattr(_char_b_546, "mention_count", 0) or 0
+                _a_count_546 = getattr(_char_a_546, "mention_count", 0) or 0
+                if _a_count_546 > 0 and _b_count_546 > _a_count_546 * 0.5:
+                    continue
+                # Merge B into A
+                logger.info(
+                    f"V2 Step 5.4.6: Merging '{_char_b_546.canonical_name}' "
+                    f"({_b_count_546} mentions) into '{_char_a_546.canonical_name}' "
+                    f"({_a_count_546} mentions) — possessive-descriptor variant"
+                )
+                if _char_b_546.canonical_name not in _char_a_546.aliases:
+                    _char_a_546.aliases.append(_char_b_546.canonical_name)
+                for _alias_b_546 in getattr(_char_b_546, "aliases", []):
+                    if _alias_b_546 not in _char_a_546.aliases:
+                        _char_a_546.aliases.append(_alias_b_546)
+                _char_a_546.mention_count = _a_count_546 + _b_count_546
+                _chars_to_remove_546.append(_char_b_546)
+                break  # Only one merge per descriptor character
+        if _chars_to_remove_546:
+            main_cast = [c for c in main_cast if c not in _chars_to_remove_546]
+            logger.info(
+                f"V2 Step 5.4.6: Removed {len(_chars_to_remove_546)} merged variant(s)"
+            )
+        logger.info(
+            f"V2 Step 5.4.6 complete: {len(main_cast)} main cast after possessive-descriptor merge"
         )
 
         # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.

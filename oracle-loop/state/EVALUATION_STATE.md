@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -146,6 +146,14 @@
 - Attempt 4: Reverted attempt 3, then applied co-present guard to `_merge_summary_name_fragments()` (Step 5.4.5)
   - Modified: `src/agents/characters.py` — `_merge_summary_name_fragments()`
   - Result: "American, sir" gone ✓, but narrator REGRESSED (Johnny instead of Bill). Johnny/John's Son false split remains.
+- Attempt 5:
+  1. Improved narrator prompt: added "KEY: If X recounts to Y → Y is the OUTER primary narrator" (frame narrative clarification)
+     - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
+  2. Added Step 4.26 low-mention narrator guard: if narrator has ≤ 2 mentions AND another character has ≥ 5x more, reset narrator_character_id=None so Step 5.8.5 retries with improved prompt
+     - Modified: `src/agents/characters.py` — new Step 4.26 block
+  3. Added Step 5.4.6 possessive-descriptor merge: "John's Son" + "Johnny" → merged when STANDARD_DIMINUTIVES/NICKNAME_TO_FORMAL shows Johnny is a nickname for John (the parent's name)
+     - Modified: `src/agents/characters.py` — new Step 5.4.6 block
+  - All 332 tests pass; no regressions
 
 ## Modification History
 
@@ -155,6 +163,7 @@
 | 2 | Johnny missing (false merge) | (not yet attempted) | Still broken |
 | 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | **REGRESSION** — "American, sir" false character, narrator shifted. REVERTED. |
 | 4 | Johnny false-merged — co_present guard in `_merge_summary_name_fragments()` Step 5.4.5 | `src/agents/characters.py` | "American, sir" gone ✓, narrator regressed ✗, Johnny/John's Son false split ✗ |
+| 5 | Narrator regression + Johnny/John's Son false split | narrator.py + characters.py (Steps 4.26, 5.4.6) | Awaiting analysis |
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
@@ -163,6 +172,4 @@
 - Runtime: 14m 3s (38 LLM calls)
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Narrator detection robustness (programmatic safeguard, not just prompt)
-2. Johnny/John's Son merge (possessive-descriptor recognition)
+Run analysis to verify attempt 5 fixes.
