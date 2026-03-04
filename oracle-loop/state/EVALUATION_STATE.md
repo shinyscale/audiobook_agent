@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 15
-- **Phase:** awaiting_analysis
+- **Attempt:** 16
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -218,7 +218,7 @@ Functional navigation, logical organization.
 - Issue is NOT configuration — it's extraction and post-processing logic
 
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate attempt 16 output.
 
 ## Fix History (Attempt 16)
 - **STEP 3.95 extended: canonical-name parenthetical tier detection**
