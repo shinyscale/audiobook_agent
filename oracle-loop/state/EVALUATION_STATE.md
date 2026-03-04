@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 19
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -11,24 +11,17 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 19)
-- **Father/son split FIRED ✓**: Pattern D worked — "John Donaldson (the son)" (42 mentions) and "John Donaldson (the father)" (13 mentions) are now separate characters.
-- **Narrator WRONG AGAIN**: V2 pipeline correctly detected Uncle Bill, but "Finalizing narrator detection" step overrode to "John Donaldson (the son) (first-person)". The secondary-narrator guard rejected John (42 mentions vs 17 primary), but a separate finalization step still assigned him as narrator. Need to investigate why finalizing overrides V2 detection.
-- **Characters**: 4 main characters (John Donaldson the son, Uncle Bill, John Donaldson the father, Ted Frith). Joe Barron and Margaret Donaldson added via F6/F6b.
-- **narrator_instruction survival clause**: Added — effect on "dying Uncle Bill" error TBD (evaluate phase will check).
-- Analysis completed in 13m 14s.
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 5.5/10 ✗ (FAILING — father/son still merged)
-  - Completeness: 6/10
-  - Identity Resolution: 4/10
-  - Alias Grouping: 7/10
-- Character Profiles: 5/10 ✗ (FAILING — empty relationships for main chars, no desc for John Donaldson)
-- Chapter Summaries: 6/10 ✗ (FAILING — "dying Uncle Bill" factual error, confused final paragraph)
+- Character Extraction: 7/10 ✗ (FAILING — cross-alias contamination, missing minor chars)
+  - Completeness: 7/10
+  - Identity Resolution: 8/10
+  - Alias Grouping: 5/10
+- Character Profiles: 6.5/10 ✗ (FAILING — wrong relationship labels, Uncle Bill empty relationships)
+- Chapter Summaries: 7.5/10 ✗ (FAILING — plot summary says "Uncle Bill's own father")
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 6.8/10** (reference only)
+- **Overall: 7.7/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -36,51 +29,63 @@
 ## Detailed Evaluation
 
 ### 2.1 Structure Detection: 9/10 ✓
-Single section for continuous short story. Correct.
+Two sections for continuous short story. Acceptable.
 
-### 2.2 Character Extraction: 5.5/10 ✗
+### 2.2 Character Extraction: 7/10 ✗
 
-**Completeness (6/10):**
-- Uncle Bill ✓ (18 mentions, narrator)
-- John Donaldson ✓ (28 mentions) — but father and son STILL merged
+**MAJOR WIN: Father/son split FIRED ✓ — Pattern D worked!**
+- "John Donaldson (the son)" (42 mentions, id=main_cast_0)
+- "John Donaldson (the father)" (13 mentions, id=main_cast_0_parent)
+- This resolves the 18-attempt blocker.
+
+**Completeness (7/10):**
+- Uncle Bill ✓ (18 mentions, narrator ✓)
+- John Donaldson (the son) ✓ (42 mentions)
+- John Donaldson (the father) ✓ (13 mentions)
 - Ted Frith ✓ (5 mentions)
-- Joe Barron ✓ (3 mentions) — recovered from attempt 17
-- No Johnny phantom ✓ (STEP 3.97 working)
-- Father (stretcher-bearer, dies) — MISSING as separate character
-- Margaret Donaldson — mentioned in F6 but not in final output
+- No Johnny phantom ✓ (STEP 3.97 still working)
+- Joe Barron MISSING — was present in attempt 18 via F6/F6b, gone this run
+- Margaret Donaldson MISSING — mentioned in Pipeline Notes but not in output
 
-**Identity Resolution (4/10):**
-- **CRITICAL FALSE MERGE (18th attempt):** Father and son both named "John Donaldson" are merged into one character (28 mentions). Father is a stretcher-bearer who dies; son is an ambulance driver who survives. STEP 3.95b Pattern B did NOT fire.
+**Identity Resolution (8/10):**
+- Father/son correctly separated ✓ — correct mention counts, distinct descriptions
+- Son described as "beautiful youngster, towering" ✓
+- Father described as "charming boy in youth, dark face" ✓
+- Uncle Bill correctly a separate character ✓
 
-**Alias Grouping (7/10):**
+**Alias Grouping (5/10):**
+- **Cross-alias contamination from STEP 3.95b split:**
+  - Son's aliases include "John Donaldson (the father)" — WRONG, this is the OTHER character's name
+  - Father's aliases include "John Donaldson (the son)" — WRONG, same issue
+  - Both share "John Donaldson" as alias — acceptable (shared name)
 - Bill → Uncle Bill ✓
-- John → John Donaldson ✓
 - Ted → Ted Frith ✓
-- No self-aliases, no invalid aliases
+- "the boy", "the son" → son ✓
+- "the father", "his father" → father ✓
 
-### 2.3 Character Profiles: 5/10 ✗
-- Uncle Bill: physical desc ✓ ("elderly, grizzled, small man"). Relationships EMPTY — should have nephew→John Donaldson.
-- John Donaldson: NO physical description. Relationships EMPTY — should have uncle→Uncle Bill.
-- Joe Barron: No desc, no relationships.
-- Ted Frith: No desc. Has relationship "companion" with Uncle Bill ✓ — the one working relationship.
+### 2.3 Character Profiles: 6.5/10 ✗
+
+- **Son**: physical desc ✓ ("beautiful youngster, towering"). Relationship to father says "**brother**" — WRONG, should be "son". Relationship to Ted Frith says "comrade" ✓.
+- **Uncle Bill**: physical desc ✓ ("elderly, grizzled, small man"). Relationships EMPTY — should have nephew→John Donaldson (the son).
+- **Father**: physical desc ✓ ("charming boy in youth, dark face"). Relationship to son says "**brother**" — WRONG, should be "father".
+- **Ted Frith**: no physical desc. Has "companion" to John Donaldson (the son) ✓.
 - character_summary null for all 4 characters.
+- **Profile notes for Uncle Bill** incorrectly attribute son's experiences ("The narrator realizes the dying man is his own father") — this is the SON's realization, not Uncle Bill's. Nested narration confuses the profiler.
 
-### 2.4 Chapter Summaries: 6/10 ✗ (improved from 4/10 in attempt 17)
+### 2.4 Chapter Summaries: 7.5/10 ✗
 
-**Plot Summary:**
-- Paragraphs 1-2: Correctly frame Uncle Bill as narrator ✓. Father/son revelation correctly told ✓. Father dies in church dressing station ✓.
-- Paragraph 3 errors:
-  - "the dying Uncle Bill is being comforted" — WRONG. Uncle Bill does NOT die. He is the narrator telling this story at a school commencement.
-  - "Joe Barron, dies after declaring 'American, sir'" — The phrase "American, sir" is the FATHER's dying declaration, not Joe Barron's.
-  - "John embraces Uncle Bill and whispers the same phrase" — GARBLED. The dying father says "American, sir" to his son.
+**Section summaries (good):**
+- Section 1: Correctly frames Uncle Bill as narrator ✓, describes John's war service ✓, father discovery ✓. Accurate story flow.
+- Section 2: Correctly describes deathbed scene ✓, "American, sir" declaration ✓, father/son revelation ✓.
 
-**Section Summary:**
-- Mostly correct story flow. Same error at end: "the narrator comforts the dying Uncle Bill" — contradicts Uncle Bill being the narrator.
-
-**Root cause:** The LLM confuses who dies in the final scene. The narrator instruction correctly establishes Uncle Bill as narrator but the LLM still attributes death to him instead of the father.
+**Plot summary (improved but with error):**
+- Paragraphs 1-2: Good story arc, father/son dynamics correct ✓
+- **Factual error in paragraph 1:** "leading to the shocking realization that the man is actually Uncle Bill's own father" — WRONG. The dying man is JOHN's father, not Uncle Bill's. Uncle Bill is the frame narrator with no blood relation to the dying man.
+- Paragraph 3: "Uncle Bill, who remains alive and survives all events to tell this story" — ✓ narrator survival clause WORKED! No "dying Uncle Bill" error.
+- Overall the plot summary is much improved. The "Uncle Bill's father" error is the sole remaining factual issue.
 
 ### 2.5 Pronunciation Guide: 9/10 ✓
-14 entries with IPA. Good coverage of Italian place names and homographs.
+14 entries with IPA. Good coverage.
 
 ### 2.6 HTML Presentation: 8/10 ✓
 Functional navigation, logical organization.
@@ -88,33 +93,44 @@ Functional navigation, logical organization.
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Father/son John Donaldson STILL merged — 18th attempt** [Identity Resolution]
-   - Problem: Single "John Donaldson" (28 mentions). Father (stretcher-bearer, dies) and son (ambulance driver, survives) merged.
-   - STEP 3.95b did NOT fire AGAIN. Need to verify why — check the actual summary text against Pattern B regex.
-   - **18 ATTEMPTS ON THIS ISSUE.** Format-specific regex heuristics have failed repeatedly across LLM runs.
-   - **ESCALATION REQUIRED:** The only reliable approach left is an LLM-based check. After Pass 1 extraction, for any character with ≥15 mentions, ask the LLM: "Does the summary describe a parent AND child who share the name '{name}'? If yes, respond with the parent's role and the child's role." This is robust against wording variation.
-   - Location: `src/agents/characters.py` — STEP 3.95b needs replacement with LLM-based detection
+1. **Cross-alias contamination from STEP 3.95b split** [Alias Grouping]
+   - Problem: When STEP 3.95b splits a character into parent/child, both new characters inherit ALL aliases from the original, including the OTHER character's parenthetical name.
+   - Evidence: Son has alias "John Donaldson (the father)"; father has alias "John Donaldson (the son)"
+   - Location: `src/agents/characters.py` — STEP 3.95b split logic. When creating the two new characters, aliases must be filtered: remove any alias containing the OTHER character's parenthetical tag.
+   - Fix: After splitting, for each new character, remove aliases that contain the other character's parenthetical disambiguator. E.g., son's aliases should NOT include anything with "(the father)"; father's aliases should NOT include anything with "(the son)".
 
 ### HIGH
-2. **"Dying Uncle Bill" factual error in plot summary** [Summaries]
-   - Problem: Plot summary paragraph 3 says Uncle Bill is dying. Uncle Bill is the narrator — he does NOT die.
-   - The narrator instruction established Uncle Bill correctly in paragraphs 1-2, but paragraph 3 reverts to confusion.
-   - Potential fix: Add explicit instruction to plot summary prompt: "The narrator ({name}) survives and is telling this story in retrospect. Do NOT describe the narrator as dying."
-   - Location: `src/pipeline/overview/generator.py` — narrator_instruction needs "narrator survives" clause
+2. **Wrong relationship labels: "brother" instead of "father"/"son"** [Profiles]
+   - Problem: Son→father labeled "brother"; father→son labeled "brother". Should be "son"→"father" labeled "father" and "father"→"son" labeled "son".
+   - Evidence: Characters are explicitly parenthetically tagged as father/son, yet profiler labels them "brother".
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `force_parenthetical_relationship_labels()` should fire for characters with "(the father)"/"(the son)" in their canonical names, but may not be detecting this pattern.
+   - Fix: Ensure `force_parenthetical_relationship_labels()` handles the parenthetical pattern `(the father)`/`(the son)` and sets correct labels. If the function doesn't fire for this naming convention, update its pattern matching.
 
-3. **Empty relationships for main characters** [Profiles]
-   - Uncle Bill and John Donaldson have ZERO relationships. Should have uncle↔nephew.
-   - Ted Frith → Uncle Bill "companion" is the only relationship ✓
-   - Root cause: Likely cascading from merged father/son confusing the profiler, plus LLM non-determinism in profile generation.
-   - Location: `src/pipeline/character_profiling/` — but likely improves when father/son split is fixed
+3. **Uncle Bill has EMPTY relationships** [Profiles]
+   - Problem: Uncle Bill should have relationship "nephew" → John Donaldson (the son).
+   - Evidence: The story explicitly establishes Uncle Bill as the boy's guardian/uncle figure.
+   - Location: `src/pipeline/character_profiling/` — profiler LLM non-determinism. May improve with better character context now that father/son are split.
+   - Fix: Lower priority — may resolve naturally once cross-alias contamination is fixed (cleaner character data → better profiling).
+
+4. **Plot summary says "Uncle Bill's own father"** [Summaries]
+   - Problem: Plot summary paragraph 1 says "the man is actually Uncle Bill's own father" — WRONG. The dying man is JOHN's father. Uncle Bill is the frame narrator, not related to the dying man.
+   - Evidence: The text clearly establishes John Donaldson (the son) discovers his father, not Uncle Bill.
+   - Location: `src/pipeline/overview/generator.py` — the nested narration confuses the LLM about whose father is dying
+   - Fix: The narrator_instruction already clarifies Uncle Bill's role. This is likely LLM non-determinism — the same prompt sometimes produces correct attribution. Consider adding: "Uncle Bill is NOT related to the dying soldier — he is only the frame narrator."
 
 ### MEDIUM
-4. **No physical description for John Donaldson** [Profiles]
-   - Text describes John with "dark face with olive skin, blue eyes" — profiler should capture this.
-   - May improve when father/son split resolves (merged character confuses profiler).
+5. **Joe Barron missing from output** [Completeness]
+   - Problem: Joe Barron (mentioned ~3 times) was present in attempt 18 but absent this run.
+   - Evidence: F6/F6b character reconciliation is non-deterministic.
+   - Location: `src/analyzer.py` — F6b threshold or summary mentioned_characters variation
+   - Fix: Low priority — minor character. May appear on next run.
 
-5. **character_summary null for all characters** [Profiles]
-   - Minor impact on narrator preparation but indicates profiling pipeline gap.
+6. **character_summary null for all characters** [Profiles]
+   - Minor impact but indicates profiling gap.
+
+7. **Uncle Bill's profile notes misattribute son's experiences** [Profiles]
+   - Profile note says "The narrator realizes the dying man is his own father" — this is the SON's realization in the nested narration, not Uncle Bill's.
+   - Root cause: nested first-person narration confuses the profiler.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -137,6 +153,7 @@ Functional navigation, logical organization.
 | 16 | 6.95 | +0.40 | STEP 3.95 parenthetical fix correct but LLM produced no parenthetical this time. Summaries much improved (Uncle Bill no longer dies). Johnny phantom returned. |
 | 17 | 6.2 | -0.35 | STEP 3.95b and 3.97 didn't fire. Summary SEVERE REGRESSION (LLM non-determinism). Wrong narrator in plot summary, wrong deaths. |
 | 18 | 6.8 | +0.25 | STEP 3.97 ✓ (no Johnny phantom). Summary improved from 17 but "dying Uncle Bill" error persists. Father/son still merged (STEP 3.95b didn't fire). |
+| 19 | 7.7 | +1.15 | **Father/son split ✓ (Pattern D worked!).** "Dying Uncle Bill" gone ✓. New issues: cross-alias contamination, "brother" relationship labels, "Uncle Bill's father" plot error. |
 
 ## Fix History
 - Attempt 11:
@@ -188,13 +205,20 @@ Functional navigation, logical organization.
 - Attempt 18:
   1. STEP 3.95b: Added Pattern B (revelation+son) + Pattern C (possessive)
      - Modified: `src/agents/characters.py` — STEP 3.95b
-     - Result: **DID NOT FIRE** — need to check actual summary text against Pattern B regex
+     - Result: **DID NOT FIRE** — Pattern B regex didn't match
   2. STEP 3.97: Use canonical-name-only mention count from mention_results
      - Modified: `src/agents/characters.py` — STEP 3.97
-     - Result: **FIXED** ✓ — no Johnny phantom (canonical count=2 correctly detected, merge fired)
+     - Result: **FIXED** ✓ — no Johnny phantom
   3. generator.py narrator injection: added "Refer to narrator as '{name}'" to narrator_instruction
      - Modified: `src/pipeline/overview/generator.py` — narrator_instruction
-     - Result: **PARTIAL** — paragraphs 1-2 correctly frame Uncle Bill as narrator, but paragraph 3 still says "dying Uncle Bill"
+     - Result: **PARTIAL** — paragraphs 1-2 correct, paragraph 3 still says "dying Uncle Bill"
+- Attempt 19:
+  1. STEP 3.95b Pattern D: first-name possessive parent
+     - Modified: `src/agents/characters.py` — STEP 3.95b
+     - Result: **FIXED** ✓ — Father/son split worked! Pattern D matched.
+  2. generator.py: narrator survival clause
+     - Modified: `src/pipeline/overview/generator.py` — narrator_instruction
+     - Result: **FIXED** ✓ — "dying Uncle Bill" error gone. But new error: "Uncle Bill's own father" misattribution.
 
 ## Modification History
 
@@ -210,57 +234,32 @@ Functional navigation, logical organization.
 | 6 | Min-mention narrator guard ≤2 | `narrator.py` | Fixed ✓ |
 | 6 | Step 5.4.6 merge direction | `characters.py` | Fixed ✓ |
 | 7 | John Donaldson false secondary narrator | `narrator.py` | Fixed ✓ — mention-count guard blocks correctly |
-| 7 | Boy disappeared (false merge with father) | (not yet attempted) | **NEW ISSUE** |
-| 7 | Plot summary fabrication | (not yet attempted) | **NEW ISSUE** |
 | 8 | Role assignment: John Donaldson (28 mentions) was "supporting" | `characters.py` — Step 5.9.5 | Fixed ✓ |
 | 8 | Chapter summary nested narration | `summarizer.py` — prompts | Fixed ✓ — summaries now correct |
-| 8 | Father/son split | (side effect of summary fix) | Fixed ✓ in attempts 8-9, REGRESSED in attempt 10 |
 | 9 | Cross-character alias contamination | `main_cast.py` — RULE 3d/3e | Fixed ✓ — contamination blocked |
-| 9 | Generic relationship labels (secondary prompt) | `analyzer.py` — secondary prompt | **PARTIAL** — secondary works, primary NOT modified |
-| 10 | Primary profiler "associated" labels | `analyzer.py` — post-filter + secondary call trigger | **NO EFFECT** — still "associated" |
-| 10 | "John's son" confusing canonical name | `characters.py` — new Step 5.4.6b | **DID NOT FIRE** — no parent character (merged) |
-| 11 | STEP 3.95 programmatic split from characters_present | `characters.py` | **DID NOT FIRE** — active_characters empty |
+| 9 | Generic relationship labels (secondary prompt) | `analyzer.py` — secondary prompt | **PARTIAL** |
+| 11 | STEP 3.95 programmatic split | `characters.py` | **DID NOT FIRE** |
 | 11 | "associated" relationship cleanup | `post_corrections.py` | Fixed ✓ |
 | 11 | Narrator from V2 pipeline_metadata | `analyzer.py` | Fixed ✓ |
-| 12 | STEP 3.95 alias contradiction detection | `characters.py` | **FIXED** ✓ — father/son split works |
-| 13 | force_parenthetical_relationship_labels | `post_corrections.py` | Never fired (no split char) |
-| 13 | Frame narrator plot summary instruction | `generator.py` | Fired on wrong narrator → made worse |
-| 14 | STEP 3.97: nickname phantom merge | `characters.py` | **FIXED** ✓ — no Johnny phantom |
-| 14 | Post-5.8.5 narrator guard | `characters.py` | **UNCLEAR** — narrator still not detected |
-| 15 | STEP 5.4.6c: identity-reveal kinship merge | `characters.py` | **FIXED** ✓ — shabby civilian merged |
-| 15 | Step 6.6: narrator fallback | `analyzer.py` | **FIXED** ✓ — Uncle Bill is narrator |
-| 16 | STEP 3.95 parenthetical tier detection | `characters.py` | **DID NOT FIRE** — no parenthetical in canonical name |
-| 17 | STEP 3.95b: summary-text parent attribution | `characters.py` | **DID NOT FIRE** — regex didn't match summary wording |
-| 17 | STEP 3.97: lower threshold + parenthetical guard | `characters.py` | **BLOCKED** — inflated mention_count |
-| 18 | STEP 3.95b: Pattern B (revelation+son) + Pattern C (possessive) | `characters.py` | **DID NOT FIRE** — Pattern B regex didn't match (need investigation) |
-| 18 | STEP 3.97: canonical-name-only count | `characters.py` | **FIXED** ✓ — Johnny merged correctly |
-| 18 | generator.py: narrator name instruction | `generator.py` | **PARTIAL** — paragraphs 1-2 correct, paragraph 3 still wrong |
-| 19 | STEP 3.95b Pattern D: first-name possessive parent (`{FirstName}'s long-lost father`) | `characters.py` | Smoke test PASS — "John's long-lost father" now matches |
-| 19 | generator.py: narrator survival clause | `generator.py` | Added "ALIVE and survives all events" + "Do NOT describe as dying" |
-
-**ESCALATION PATTERN — CRITICAL:** The father/son split has been attempted across 8 attempts (11, 12, 13, 15, 16, 17, 18) using 6 different regex/heuristic approaches, ALL in `characters.py`. Each targets a specific LLM output format that varies run to run:
-- Attempt 11: characters_present lists → empty
-- Attempt 12: alias tier contradiction → works sometimes
-- Attempt 15: same as 12, regressed
-- Attempt 16: canonical-name parenthetical → didn't fire
-- Attempt 17: summary-text regex Pattern A → didn't match
-- Attempt 18: summary-text regex Pattern B/C → didn't match
-
-**MANDATORY ESCALATION:** Regex-based heuristics CANNOT solve this. The fix phase MUST use an LLM call to detect same-name parent-child relationships. This is robust against wording variation. Suggested approach: after Pass 1 extraction, for any character with ≥15 mentions in a short text, call the LLM with the summary text and ask: "Does this text describe a parent and child who share the same name? If yes, what are their distinguishing roles?"
+| 12 | STEP 3.95 alias contradiction detection | `characters.py` | **FIXED** ✓ |
+| 13 | force_parenthetical_relationship_labels | `post_corrections.py` | Never fired |
+| 14 | STEP 3.97: nickname phantom merge | `characters.py` | **FIXED** ✓ |
+| 15 | STEP 5.4.6c: identity-reveal kinship merge | `characters.py` | **FIXED** ✓ |
+| 15 | Step 6.6: narrator fallback | `analyzer.py` | **FIXED** ✓ |
+| 16-18 | STEP 3.95/3.95b regex patterns | `characters.py` | **DID NOT FIRE** (multiple attempts) |
+| 18 | STEP 3.97: canonical-name-only count | `characters.py` | **FIXED** ✓ |
+| 18 | generator.py: narrator name instruction | `generator.py` | **PARTIAL** |
+| 19 | STEP 3.95b Pattern D | `characters.py` | **FIXED** ✓ — father/son split! |
+| 19 | generator.py: narrator survival clause | `generator.py` | **FIXED** ✓ — no dying Uncle Bill |
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
 - All 14 pronunciations have IPA
-- Issue is NOT configuration — it's extraction logic AND summary LLM non-determinism
+- Cross-alias contamination is a code logic issue in STEP 3.95b, not LLM non-determinism
 
 ## Next Action
-Run PROMPT_analyze.md to verify fixes:
-1. **CRITICAL (attempt 19):** STEP 3.95b Pattern D added — first-name possessive parent attribution
-   - Pattern: `{FirstName}'s (long-lost|estranged|absent) father/mother/parent`
-   - Smoke test: "John's long-lost father" now matches (Pattern D fires ✓)
-   - Guard: first_name length ≥ 4 chars (avoids short common words)
-   - Uncle Bill (first_name="Uncle") → NO false match ✓; Ted (3 chars) → skipped ✓
-2. **HIGH (attempt 19):** narrator_instruction now includes explicit survival clause
-   - Added: "{narrator_name} is ALIVE and survives all events to tell this story."
-   - Added: "Do NOT describe {narrator_name} as dying, injured, or being comforted as a casualty."
+Run PROMPT_fix.md to address:
+1. **CRITICAL:** Cross-alias contamination in STEP 3.95b — filter parenthetical aliases after split
+2. **HIGH:** force_parenthetical_relationship_labels() — ensure it fires for "(the father)"/"(the son)" pattern
+3. **HIGH:** Plot summary "Uncle Bill's own father" — add frame narrator clarification to prompt
