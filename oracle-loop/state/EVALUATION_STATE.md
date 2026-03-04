@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -91,5 +91,11 @@
 - summary_chunk_words: 2500 — fine for single-chapter story
 - No configuration changes needed
 
+## Fix History (continued)
+- Attempt 3: Extended `_surnames()` usage in `reject_unfounded_familial_labels()` to include aliases for both `char` and `other_char`. Jim's alias "James Dillingham Young" now contributes "young" and "dillingham" to `char_surnames`, which intersects Della Young's "young" → spouse label preserved without downgrade.
+  - Root cause: `post_corrections.py:reject_unfounded_familial_labels():2249` — `_surnames()` was only called on canonical names, missing surname evidence in aliases.
+  - Smoke test: 332 tests pass, 0 failures.
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+
 ## Next Action
-Run PROMPT_fix.md to address HIGH #1: Jim↔Della "associated" → "husband"/"wife" relationship label. The fix should make `reject_unfounded_familial_labels` in `post_corrections.py` check character aliases (not just canonical names) for shared surname matching. This is the only fix needed to pass — all other issues are below threshold impact.
+Re-run analysis to verify Jim↔Della now has "husband"/"wife" labels and Character Profiles reaches 8/10.

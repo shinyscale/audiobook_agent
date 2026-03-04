@@ -2247,6 +2247,8 @@ class OutputCharacterCorrector:
             if not char.relationships:
                 continue
             char_surnames = _surnames(char.canonical_name)
+            for _alias in (getattr(char, 'aliases', None) or []):
+                char_surnames |= _surnames(_alias)
             pat_a = name_patterns.get(char.canonical_name)
 
             for other_key in list(char.relationships.keys()):
@@ -2260,6 +2262,8 @@ class OutputCharacterCorrector:
                 # Check 1: Shared surname → probably a real family relationship.
                 other_char = char_by_lower.get(other_key.lower())
                 other_surnames = _surnames(other_char.canonical_name) if other_char else set()
+                for _alias in (getattr(other_char, 'aliases', None) or []) if other_char else []:
+                    other_surnames |= _surnames(_alias)
                 if char_surnames & other_surnames:
                     continue
 
