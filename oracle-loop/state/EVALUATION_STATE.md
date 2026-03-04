@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -14,14 +14,14 @@
 ## Latest Scores
 - Structure Detection: 9/10 ✓
 - Character Extraction: 5/10 ✗ (FAILING)
-  - Completeness: 6/10
-  - Identity Resolution: 4/10 ← primary blocker
-  - Alias Grouping: 5/10
-- Character Profiles: 4/10 ✗ (FAILING)
-- Chapter Summaries: 6/10 ✗ (FAILING)
+  - Completeness: 5/10
+  - Identity Resolution: 4/10 ← primary blocker (Johnny false-merged into father)
+  - Alias Grouping: 6/10
+- Character Profiles: 5.5/10 ✗ (FAILING)
+- Chapter Summaries: 5/10 ✗ (FAILING)
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.55/10** (reference only)
+- **Overall: 6.6/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -30,122 +30,121 @@
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 6.55 | 0 | Baseline. Narrator misidentification cascades into profiles + summaries |
+| 2 | 6.6 | +0.05 | Narrator fix worked (Bill=narrator ✓, Bill profile correct ✓). But Johnny still missing, summary still wrong. |
+
+## What Improved in Attempt 2
+- **Narrator identification FIXED**: Bill is now correctly tagged as `is_narrator=true` (was Johnny in attempt 1)
+- **Bill's profile FIXED**: Now shows correct description ("elderly, grizzled, small man") instead of Johnny's description
+- **"the boy" alias no longer misassigned to father** — it's no longer on any character (improvement, though incomplete)
+
+## What Did NOT Improve
+- Johnny (the son) is still completely missing from the character list
+- Summary still contains major factual errors (Bill dying, grandfather vs father)
+- Relationships still all generic ("associated", "colleague")
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Wrong narrator: Uncle Bill is the first-person frame narrator, but Johnny is tagged as narrator** [Identity Resolution]
-   - Problem: The story has a frame narrator (Uncle Bill, the "I" who opens with "I threw the letter...") and an inner narrator (Johnny, whose war story is quoted dialogue). The pipeline tagged Johnny (main_cast_0) as `is_narrator=true` and created Uncle Bill (main_cast_3) as a separate non-narrator character.
-   - Evidence: The text opens "I threw the letter in the scrap-basket..." — this "I" is Uncle Bill. He describes himself: "an elderly, grizzled, small man, grim and unexhilarating" (line 128-129). Johnny's war account is all within quotes ("You know, Uncle Bill, we were blamed proud..."). Uncle Bill speaks at the very end ("John," I said, "we two know the splendor...")
-   - Impact: CASCADING — causes wrong profile attribution (Uncle Bill's appearance → Johnny), wrong relationships, summary hallucinations
-   - Location: Narrator detection in `src/pipeline/character_extraction_v2/` and/or `_get_narrative_style()` in `src/agents/characters.py`
-   - Fix approach: The narrator detection needs to distinguish between the frame "I" narrator and quoted first-person speech. The frame narrator's "I" appears outside quotation marks; Johnny's "I" appears within extensive quoted dialogue. Uncle Bill should be recognized as the narrator since he is the unquoted first-person voice.
+1. **Johnny (the son) is MISSING from the character list — false-merged into father** [Identity Resolution / Completeness]
+   - Problem: The story's central inner-narrative character — Johnny, the son who goes to war, finds his dying father, carries him to a church — does not exist in the output. The pipeline extracted "John" (the son) but merged him into "John Donaldson" (the father) as an alias.
+   - Evidence: `characters_present` in the structure lists both "John" AND "John Donaldson (the father)" as **separate** entries, proving the summarizer recognized them as distinct. But the final character list has only "John Donaldson" with alias "John."
+   - Pipeline log: "Pass 2 failed for John, keeping without aliases" — a standalone "John" character existed but was later absorbed.
+   - Root cause: `_merge_summary_name_fragments()` (Step 5.4.5 in characters.py) treats single-word "John" as a fragment of multi-word "John Donaldson" and merges them. But in this story, "John" = the SON and "John Donaldson" = the FATHER — they are different characters who share a name.
+   - Location: `src/agents/characters.py` — `_merge_summary_name_fragments()` (Step 5.4.5) and/or `_merge_formal_name_aliases()` (Step 5.5a) and/or `_merge_lastname_aliases()` (Step 5.5)
+   - Fix approach: **Guard against merging when both names appear as separate entries in the same summary's `characters_present` list.** If the summarizer listed "John" AND "John Donaldson (the father)" as separate characters in the same section, they should NOT be merged. The summary's character list is ground truth for co-occurrence — separate listing means separate characters.
+   - Impact: CASCADING — without Johnny as a character, profiles, relationships, and role assignments are all wrong. This is the #1 blocker.
 
-2. **False alias: "the boy" assigned to John Donaldson (Father) instead of son** [Alias Grouping / Identity Resolution]
-   - Problem: "the boy" appears 10+ times in the text and ALWAYS refers to the son (Johnny), never the father. Yet it's listed as an alias of "John Donaldson (Father)" (main_cast_2).
-   - Evidence: "the boy, standing before the blazing logs" (line 151), "The boy rose from his chair" (line 197), "the boy went on" (line 361) — all refer to Johnny/the son. The father is called "the man", "the old boy", "the shabby American volunteer", never "the boy."
-   - Impact: Inflates father's mention count, deflates son's. Son (Johnny) shows only 2 mentions when he should have 20+.
-   - Location: Alias resolution in V2 character extraction pipeline — likely Pass 2 or verify_aliases
-   - Fix approach: The pipeline should check textual context when assigning descriptive aliases like "the boy." When two characters share a surname, age-descriptive aliases ("the boy" vs "the man"/"the old boy") should be assigned based on age evidence.
-
-3. **Summary hallucination: "the narrator later comforts a dying Uncle Bill"** [Summaries]
-   - Problem: The summary states "the narrator later comforts a dying Uncle Bill who fears dishonor until the narrator calls him 'father'". Uncle Bill does NOT die. The dying man is John Donaldson (the father). Johnny comforts his dying father, not Uncle Bill.
-   - Evidence: Lines 351-526 — Johnny finds his wounded father, carries him to a church, holds his hand as he dies. Uncle Bill is at home the entire time, listening to Johnny tell the story.
-   - Impact: Factual error makes the summary actively misleading for a narrator preparing to record
-   - Location: Summary generation — likely downstream of narrator confusion (if the summarizer thinks Johnny is the narrator, it may conflate Uncle Bill with the dying father)
-   - Fix approach: This likely resolves if narrator identification is fixed (Issue #1), since the summary LLM will correctly understand the frame structure
+2. **Summary factual errors persist: "Bill dying" and "grandfather" vs "father"** [Summaries]
+   - Problem: The summary says "Bill, now imprisoned and dying, confesses his American identity before passing away with a contented sigh." Bill does NOT die — he is at home in New York the entire time. The dying man is John Donaldson (the father). Also says "John asks if God has forgiven his grandfather's dishonor" — John Donaldson is Johnny's FATHER, not grandfather.
+   - Evidence: In the text, Bill narrates from his home. The dying scene involves John Donaldson (father) in an Italian dressing station. Johnny says "The man I was helping to die was my father."
+   - Root cause: The summary is generated BEFORE character extraction (Structure → Summary → Characters → Profiles). The LLM is confused by the frame/nested narrative structure and same-name characters. The narrator fix did NOT cascade to fix the summary because summaries don't re-run.
+   - Location: Summary generation stage — `src/pipeline/summarizer/`
+   - Fix approach: This is a hard problem because summaries are generated before character resolution. Options:
+     1. Add post-summary correction step that revises summaries using resolved character list
+     2. Improve summary prompt to better handle nested narratives with same-name characters
+     3. Re-generate the plot_summary (overview) after character extraction is complete
+   - Note: The chapter-level summary IS what drives character extraction, so it can't easily be regenerated. But the `plot_summary` in the overview COULD be regenerated post-character-extraction as a separate step.
 
 ### HIGH
 
-4. **Johnny's profile contains Uncle Bill's physical description and personality** [Profiles]
-   - Problem: Johnny's profile says "an elderly, grizzled, small man, grim and unexhilarating" — this is Uncle Bill describing HIMSELF (line 128-129). Johnny is young, tall, olive-skinned with blue eyes and thick dark lashes (lines 91-93, 197-198).
-   - Evidence: "He was a tall boy, and he looked like his father. Very olive he was--and is--and his blue eyes shone out of the dark face from under the same thickset and long lashes" (line 91-93)
-   - Impact: Completely wrong physical description for the protagonist's son
-   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`. Downstream of narrator confusion.
-   - Fix approach: Resolves if narrator identification is fixed (Issue #1)
+3. **All relationships are generic ("associated", "colleague") — no family terms** [Profiles]
+   - Problem: Bill → John Donaldson = "associated" (should be "cousin"). John Donaldson → Bill = "associated" (should be "cousin"). Ted Frith → Bill = "colleague" (Bill and Ted never interact; Ted is Johnny's fellow soldier). No father-son relationship exists because Johnny is missing.
+   - Evidence: Text explicitly states: Bill and John "shared a room for a dozen years" at Yale (cousins). "The man I was helping to die was my father." Uncle Bill becomes Johnny's guardian.
+   - Location: `src/analyzer.py` → `_generate_character_profile()` and `post_corrections.py` → `verify_relationships_from_text`
+   - Fix approach: Will partially resolve if Johnny is restored as a character (Issue #1). The "cousin" relationship between Bill and John Donaldson needs the co-mention analysis to detect "my cousin" / "shared a room" phrasing.
 
-5. **All relationships are generic ("close friend", "associated") instead of family terms** [Profiles]
-   - Problem: Johnny → John Donaldson (Father) is "close friend" (should be "son"). John Donaldson (Father) → Johnny is "close friend" (should be "father"). Uncle Bill → Johnny should be "guardian/uncle figure". Uncle Bill → John Donaldson should be "cousin."
-   - Evidence: "The man I was helping to die was my father" (line 401). Uncle Bill describes being John's cousin who shared a room for a dozen years (lines 29-42). Uncle Bill becomes Johnny's guardian (lines 74-88).
-   - Location: `post_corrections.py` → `verify_relationships_from_text`, and profile generation
-   - Fix approach: The father-son relationship is explicitly stated in the text. The pipeline should detect "my father" / "his son" phrases in co-mention windows.
-
-6. **Margaret Donaldson missing from character list** [Completeness]
-   - Problem: Margaret Donaldson, John's wife and Johnny's mother, is mentioned by name (lines 59, 75) and her letter is quoted. She was noted in pipeline logs as "added from mentioned_characters" but doesn't appear in final output.
-   - Evidence: "I had a note signed Margaret Donaldson, John's wife" (line 59-60). "Margaret Donaldson's boy was left with her poor and elderly parents" (line 75)
-   - Impact: Minor — she's a background character but named and plot-relevant (her death triggers Johnny coming to Uncle Bill)
-   - Location: May have been filtered by mention count threshold or dropped during merges
-   - Fix approach: Not critical for passing. Can revisit if other issues are resolved.
+4. **Role assignments wrong: Ted Frith (5 mentions) = "main", John Donaldson (30 mentions) = "supporting"** [Identity Resolution]
+   - Problem: The most-mentioned non-narrator character (John Donaldson, 30 mentions) has role "supporting" while Ted Frith (5 mentions) has role "main."
+   - Location: Role assignment in character extraction pipeline
+   - Fix approach: Will likely resolve once Johnny is restored — the mention counts will be redistributed (many "John" mentions currently counted under John Donaldson should go to Johnny), and role assignment will be based on correct data.
 
 ### MEDIUM
 
-7. **Summary factual error: "welcoming John's twelve-year-old son back from a fishing trip"** [Summaries]
-   - Problem: Uncle Bill went to the boy's school commencement and THEN took him on a fishing trip to Canada. The summary implies the boy was returning from an existing fishing trip.
-   - Evidence: Lines 86-97 — "I will come to your commencement and bring you back with me... I may take you on a fishing trip to Canada."
-   - Fix approach: Will likely improve with better narrator identification
+5. **John Donaldson's profile mixes father and son physical attributes** [Profiles]
+   - Problem: Profile says "'beautiful youngster' and 'rainbow prince' in youth; later, his son is described as having 'All John Donaldson's physical beauty'" — this confusingly references both father (in youth) and son (inheriting those traits). Without Johnny as a separate character, the profiler can't cleanly separate them.
+   - Fix approach: Resolves if Johnny is restored as a character (Issue #1).
 
-8. **Characters_present in structure lists fragmented identities** [Identity Resolution]
-   - Problem: The chapter's `characters_present` lists "Uncle Bill", "John Donaldson", "The narrator", "The American volunteer", "The dying man" as 5 separate entities. "The narrator" = Uncle Bill. "The American volunteer" = "The dying man" = John Donaldson (Father).
-   - Location: Summary stage character listing
-   - Fix approach: Downstream of character extraction; will improve with better identity resolution
+6. **God profile inverts textual meaning** [Profiles]
+   - Problem: God is listed with trait "narrow-minded." In context, Bill says "Do you suppose a great God is more narrow-minded than I am?" — meaning God is LESS narrow-minded. The profile inverts this rhetorical question.
+   - Impact: Minor — "God" is a borderline character extraction anyway.
+   - Fix approach: Low priority. The profiler misreads rhetorical questions.
 
-9. **Roles misassigned: Ted Frith (5 mentions) labeled "main", John Donaldson Father (43 mentions) labeled "supporting"** [Identity Resolution]
-   - Problem: The father is the most-mentioned character (43) but has role "supporting". Ted Frith with only 5 mentions has role "main". Johnny with 2 mentions has role "protagonist".
-   - Location: Role assignment logic in character extraction pipeline
-   - Fix approach: Likely resolves with better mention attribution once aliases are corrected
+7. **Margaret Donaldson still missing from character list** [Completeness]
+   - Problem: John's wife and Johnny's mother, mentioned by name (lines 59, 75), doesn't appear in output.
+   - Impact: Minor — she's a background character.
+   - Fix approach: Low priority, revisit after primary issues resolved.
 
 ### LOW
 
-10. **Null chapter title for single-section text**
-    - Problem: Structure `title` is null. Could show "American, Sir!" from the text header.
-    - Impact: Very minor presentation issue
+8. **Null chapter title for single-section text**
+   - Impact: Very minor presentation issue.
 
 ## Fix History
 - Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification in summaries
   - Root cause: Chapter summary had self-contradiction: "narrator, known as Uncle Bill" (correct) AND "narrator later comforts a dying Uncle Bill" (hallucination). Narrator detection LLM was confused and picked Johnny instead.
-  - Fix: Added universal rule to NARRATOR_DETECTION_PROMPT: explicit "narrator, known as [Name]" identification takes priority over contradictions. Also added frame/nested narrative guidance: outer narrator (unquoted "I") = primary narrator, inner narrator (quoted dialogue) = secondary/nested.
+  - Fix: Added universal rule to NARRATOR_DETECTION_PROMPT: explicit "narrator, known as [Name]" identification takes priority over contradictions. Also added frame/nested narrative guidance.
   - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
-  - Regression check: gift_of_the_magi uses third-person narrative → no narrator detection triggered → no regression risk
-
-## Pipeline Notes (Attempt 2)
-- Runtime: 30m 36s (36 LLM calls, 75,851 tokens)
-- Narrator: "Confirmed narrator: Bill (first-person)" — narrator fix worked
-- Characters found: 6 → 5 in final (Bill, John Donaldson, Joe Barron, God, Ted Frith) + Margaret Donaldson added
-- WARNING: Johnny (the son) does not appear in the character list — may have been merged into father or dropped
-- "Pass 2 failed for John, keeping without aliases" — alias resolution failed for a character named "John"
-- Bill's appearance correctly injected: "an elderly, grizzled, small man, grim and unexhilarating"
-- BLOCKED: "the narrator" meta-reference correctly blocked for Bill; "American" blocked (claimed by John Donaldson)
+  - Result: Narrator fix WORKED — Bill correctly identified. Profile attribution fixed. But did NOT cascade to fix summaries or restore Johnny.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Analysis complete — awaiting evaluation |
+| 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Fixed — Bill is now narrator ✓ |
+| 2 | Johnny missing (false merge) | (not yet attempted) | Still broken — Johnny merged into father |
+| 2 | Summary errors (Bill dying) | (not yet attempted) | Still broken — summary not re-generated |
 
 ## Root Cause Analysis
 
-The central problem is **frame narrator misidentification**. This story has a nested narrative structure:
-- **Frame**: Uncle Bill narrates in first person (unquoted "I" text)
-- **Inner**: Johnny tells his war story in quoted dialogue (quoted "I" text)
+**Primary blocker: Johnny false-merged into father (Issue #1)**
 
-The pipeline picked Johnny as the narrator, likely because Johnny's extensive quoted speech uses first person. This cascades into:
-1. Uncle Bill's self-descriptions attributed to Johnny (profiles)
-2. "the boy" alias misattributed (the frame narrator calls the son "the boy")
-3. Summary confuses who dies and who is being comforted
-4. Relationships all wrong (narrator identity affects family detection)
+The pipeline's merge logic in `characters.py` sees "John" (single-word character = the son) as a name fragment of "John Donaldson" (multi-word character = the father) and merges them. This is a correct heuristic in MOST cases (e.g., "Jim" → "Jim Dillingham Young") but WRONG when father and son share the same first name.
 
-**Fix priority**: Fixing narrator identification (#1) should cascade improvements to profiles (#4), summaries (#3), and relationships (#5). The "the boy" alias issue (#2) may need a separate fix in alias resolution.
+The key signal that these are different characters is in `characters_present`: the summarizer listed BOTH "John" AND "John Donaldson (the father)" in the same section. If both appear as separate entries in the same summary, they must be separate characters. The merge logic should check this.
+
+**Merge steps that could be responsible (check in order):**
+1. `_merge_summary_name_fragments()` (Step 5.4.5) — most likely. Merges single-word fragments into multi-word canonical names from summary character lists.
+2. `_merge_formal_name_aliases()` (Step 5.5a) — less likely but possible. Merges formal names into nicknames.
+3. `_merge_lastname_aliases()` (Step 5.5) — possible. "John" could be treated as a component.
+
+**Secondary blocker: Summary errors (Issue #2)**
+
+Summaries are generated BEFORE character extraction (pipeline order: Structure → Summary → Characters). The summary LLM is confused by:
+- Frame/nested narrative (Bill narrates, Johnny's war story is quoted dialogue)
+- Same-name characters (father and son both "John Donaldson")
+- The dying man's identity (father, not Bill)
+
+The narrator fix improved character extraction but could NOT retroactively fix already-generated summaries. The `plot_summary` in the overview is derived from chapter summaries, so it inherits their errors.
 
 ## Configuration Notes
-- Model config looks appropriate: qwen3.5:122b-a10b for characters/summaries, qwen3.5:35b-a3b for structure
-- Zero LLM retries across all stages — no prompt/schema failures
-- All 14 pronunciations have IPA — good coverage
+- Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
+- Zero LLM retries across all stages
+- All 14 pronunciations have IPA
+- Runtime: 30m 25s (36 LLM calls)
 
 ## Next Action
-Re-run analysis to verify narrator fix. Expected cascades:
-- Uncle Bill → is_narrator=True (direct fix)
-- Johnny's profile → correct description (young, olive-skinned)
-- Summary → less hallucination about "dying Uncle Bill"
-- Relationships → family terms if narrator correctly identified
-- "the boy" alias → may still be misassigned to father; needs separate fix if narrator fix alone insufficient
+Run PROMPT_fix.md to address Issue #1 (Johnny false-merged into father). The fix should:
+1. Add a guard in `_merge_summary_name_fragments()` (and related merge functions) to prevent merging characters that appear as **separate entries** in the same summary's `characters_present` list
+2. This is the highest-impact fix — restoring Johnny as a character should cascade improvements to profiles, relationships, and role assignments
+3. Summary errors (Issue #2) may need a separate approach since summaries are generated before character extraction
