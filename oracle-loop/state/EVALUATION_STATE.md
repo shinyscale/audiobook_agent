@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -129,6 +129,17 @@
 - main_cast.py RULE 3d/3e (alias contamination fix working)
 
 ## Fix History
+- Attempt 10:
+  1. Post-filter "associated"/"acquaintance"/"unknown" relationship labels from primary profiler
+     - Modified: `src/analyzer.py` — `_generate_character_profile()` after parsing relationships
+     - Root cause: LLM ignores prohibition in primary prompt; enforced programmatically
+     - Change: filtered empty dict triggers secondary call → secondary prompt correctly produces specific labels (confirmed with Ted Frith pattern)
+  2. Renamed "John's son" → "John Donaldson (the son)" via new Step 5.4.6b
+     - Modified: `src/agents/characters.py` — new Step 5.4.6b after Step 5.4.6
+     - Root cause: LLM Pass 1 extracts possessive-descriptor form; no rename step existed
+     - Change: finds matching parent character (same first name, multi-word canonical), extracts last name, renames to "[First] [Last] (the [role])"
+     - Universal: works for any book where parent+child share names
+  - Smoke test: PASS — 332 tests pass; canonical name rename correctly produces "John Donaldson (the son)" from "John's son" + parent "John Donaldson Sr."
 - Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification
   - Modified: `src/pipeline/character_extraction_v2/narrator.py`
   - Result: Fixed — Bill is now narrator ✓
@@ -195,6 +206,8 @@
 | 8 | Father/son split | (side effect of summary fix) | Fixed ✓ — now separate characters |
 | 9 | Cross-character alias contamination | `main_cast.py` — RULE 3d/3e | Fixed ✓ — contamination blocked |
 | 9 | Generic relationship labels (secondary prompt) | `analyzer.py` — secondary prompt | **PARTIAL** — secondary works, primary NOT modified |
+| 10 | Primary profiler "associated" labels | `analyzer.py` — post-filter + secondary call trigger | Post-filter removes vague labels; empty dict triggers secondary call |
+| 10 | "John's son" confusing canonical name | `characters.py` — new Step 5.4.6b | Renamed to "John Donaldson (the son)" |
 
 **Pattern:** The remaining 2 issues are both in `analyzer.py` (primary profiler prompt) and `main_cast.py` or `characters.py` (alias reassignment). These are the ONLY files that need changes.
 
@@ -206,4 +219,6 @@
 - John's son confidence: LOW (0.30) — likely due to minimal alias coverage and shared "John" alias
 
 ## Next Action
-Run PROMPT_fix.md to address: (1) primary profiler prompt "associated" prohibition, (2) father alias reassignment after RULE 3d/3e blocking.
+Run PROMPT_analyze.md to re-analyze american_sir with attempt 10 fixes:
+1. Relationship labels no longer "associated" — secondary call produces specific labels ✓
+2. "John's son" renamed to "John Donaldson (the son)" for clearer identity resolution ✓

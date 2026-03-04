@@ -785,6 +785,53 @@ class CharacterAgent(Agent):
             f"V2 Step 5.4.6 complete: {len(main_cast)} main cast after possessive-descriptor merge"
         )
 
+        # STEP 5.4.6b: Normalize remaining "X's [role]" canonical names to "[X] [Last] (the [role])".
+        # When step 5.4.6 doesn't merge a possessive-descriptor character (e.g., no matching nickname),
+        # the character retains a form like "John's son" which is ambiguous — it reads as a possessive
+        # reference, not as a proper disambiguated name. Rename to "[First] [Last] (the [role])" so it
+        # parallels the parent's "Sr." form and is unambiguous (e.g., "John's son" → "John Donaldson
+        # (the son)" when the parent is "John Donaldson Sr.").
+        # Universal: applies to any book where a parent+child share names and both appear as characters.
+        for _char_466b in main_cast:
+            _m466b = _re546.match(
+                r"^([A-Za-z]+)'s\s+(" + "|".join(_POSSESSIVE_ROLES_546) + r")$",
+                _char_466b.canonical_name,
+                _re546.IGNORECASE,
+            )
+            if not _m466b:
+                continue
+            _parent_first_466b = _m466b.group(1)  # e.g., "John"
+            _role_466b = _m466b.group(2).lower()   # e.g., "son"
+            # Find parent character: canonical starts with the same first name and has a last name
+            _parent_466b = next(
+                (
+                    p for p in main_cast
+                    if p.id != _char_466b.id
+                    and p.canonical_name.lower().startswith(_parent_first_466b.lower() + " ")
+                    and len(p.canonical_name.split()) >= 2
+                ),
+                None,
+            )
+            if _parent_466b is None:
+                continue
+            # Extract last name from parent canonical (strip parenthetical and honorific suffixes)
+            _parent_base_466b = _parent_466b.canonical_name.split(" (")[0]  # strip parenthetical
+            _parent_words_466b = _parent_base_466b.split()
+            _HONORIFIC_SUFFIXES = {"sr.", "jr.", "sr", "jr", "ii", "iii", "iv"}
+            _parent_last_466b = None
+            for _w in reversed(_parent_words_466b):
+                if _w.lower() not in _HONORIFIC_SUFFIXES and _w.lower() != _parent_first_466b.lower():
+                    _parent_last_466b = _w
+                    break
+            if _parent_last_466b is None:
+                continue
+            _new_canonical_466b = f"{_parent_first_466b} {_parent_last_466b} (the {_role_466b})"
+            logger.info(
+                f"V2 Step 5.4.6b: Renaming '{_char_466b.canonical_name}' → '{_new_canonical_466b}' "
+                f"(possessive-form → parenthetical disambiguation)"
+            )
+            _char_466b.canonical_name = _new_canonical_466b
+
         # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.
         # Example: main "Jim" (26 mentions) + supporting "James Dillingham Young" (3 mentions)
         # → "James" is the formal name of nickname "Jim" → merge as alias.
