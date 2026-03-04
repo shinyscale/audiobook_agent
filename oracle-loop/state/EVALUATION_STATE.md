@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -91,7 +91,8 @@ The fix must be in `add_cooccurrence_relationships` (line 999), NOT in `reject_u
 | 1 | Jim↔Della spouse label | `post_corrections.py` (reject_unfounded_familial_labels) | Regression → "sister" |
 | 2 | Jim fragmented into 3 characters | `characters.py` | Fixed ✓ |
 | 3 | Jim↔Della spouse label (surname matching) | `post_corrections.py` (reject_unfounded_familial_labels) | No effect — wrong bottleneck |
-| 4 | Jim↔Della spouse label (cooccurrence overwrite) | `post_corrections.py` (add_cooccurrence_relationships) | **PENDING** |
+| 4 | Jim↔Della spouse label (cooccurrence overwrite) | `post_corrections.py` (add_cooccurrence_relationships) | Wrong root cause |
+| 5 | Jim↔Della spouse label (verify_relationships cross-tier) | `post_corrections.py` (verify_relationships_from_text, _infer_rel) | **APPLIED** |
 
 **Note:** `post_corrections.py` modified in attempts 1 and 3, but different functions. Attempt 4 targets a THIRD function (`add_cooccurrence_relationships`) which is the actual root cause. The attempt 3 fix was correct code but addressed downstream of the real problem.
 
@@ -103,5 +104,26 @@ The fix must be in `add_cooccurrence_relationships` (line 999), NOT in `reject_u
 - No configuration changes needed
 - Profiling: 4 HIGH confidence items, 0 LOW confidence, 0 retries — pipeline is healthy
 
+## Actual Root Cause (Attempt 5)
+
+The real problem was NOT in `add_cooccurrence_relationships` (the check at lines 981-984 correctly skipped already-set pairs).
+
+The actual flow:
+1. `extract_relationships_from_evidence`: Jim→Della = "husband" ✓; Della→Jim = "associated" (evidence "Della is married to Jim" — "married" had no family term match)
+2. `verify_relationships_from_text`: In Jim+Della co-mention windows, "father" and "grandfather" (from "his father's watch") appeared 4× each, overriding "husband" → "father" (and "associated" → "father" for Della)
+3. `fix_bidirectional_parent_labels`: Both = "father" → converts to "associated"
+
+## Fixes Applied (Attempt 5)
+
+1. **Cross-tier guard: spousal → parent/child** (`verify_relationships_from_text`):
+   - Added symmetric guard: don't override spousal label (husband/wife/spouse) with parent/child label (father/mother/son/daughter) from co-mention windows
+   - The existing guard only blocked parent/child → spousal; this is the symmetric case
+   - Universal: any book with a couple + passages about one partner's ancestors would benefit
+
+2. **"married" → "spouse" in `_infer_rel`** (`extract_relationships_from_evidence`):
+   - Added "married"/"marries"/"spouse" detection before family terms loop
+   - Returns "spouse" (neutral) so gender-appropriate term can be assigned later
+   - Without this, "Della is married to Jim" → "associated" (generic) → not protected by spousal guard
+
 ## Next Action
-Run PROMPT_fix.md to fix `add_cooccurrence_relationships()` in `post_corrections.py` — must not overwrite existing non-generic relationship labels with "associated."
+Run analysis to verify fix.

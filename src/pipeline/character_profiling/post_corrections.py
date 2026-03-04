@@ -838,6 +838,10 @@ class OutputCharacterCorrector:
                 return "enemy"
             if any(w in sl for w in _NEIGHBOR_WORDS):
                 return "neighbor"
+            # Check spousal indicators before kinship terms — "married" is a clear
+            # spousal signal even when no explicit "husband"/"wife" word is present.
+            if re.search(r'\b(?:married|marries|spouse)\b', sl):
+                return "spouse"
             # Check kinship/family terms (longest first to avoid "son" matching inside "grandson").
             # Allow optional -s/-es suffix to catch plural forms ("cousins", "brothers", etc.)
             for term in sorted(FAMILY_TERMS, key=len, reverse=True):
@@ -1696,6 +1700,8 @@ class OutputCharacterCorrector:
                             # marriage, not the parent-child relationship itself.
                             cur_is_pc = any(t in cur_lower for t in _PARENT_CHILD_TIER)
                             best_is_spousal = any(t in best for t in _SPOUSAL_TIER)
+                            cur_is_spousal = any(t in cur_lower for t in _SPOUSAL_TIER)
+                            best_is_pc = any(t in best for t in _PARENT_CHILD_TIER)
                             if cur_is_pc and best_is_spousal:
                                 logger.debug(
                                     f"Cross-tier override blocked: "
@@ -1703,6 +1709,18 @@ class OutputCharacterCorrector:
                                     f"'{cur}' (parent/child) not replaced by "
                                     f"'{best}' (spousal) — co-mention window "
                                     f"evidence belongs to a different pair"
+                                )
+                            elif cur_is_spousal and best_is_pc:
+                                # Universal invariant: never override a spousal label with a
+                                # parent/child label from co-mention windows. A "his father's
+                                # watch" phrase near a spousal pair refers to an ancestor's
+                                # possession, not the spouse relationship itself.
+                                logger.debug(
+                                    f"Cross-tier override blocked: "
+                                    f"'{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' (spousal) not replaced by "
+                                    f"'{best}' (parent/child) — co-mention window "
+                                    f"evidence belongs to a different relationship"
                                 )
                             else:
                                 # Family evidence: override any label (e.g., "brother" → "cousin"
