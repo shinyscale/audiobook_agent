@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 19
-- **Phase:** awaiting_analysis
+- **Attempt:** 20
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -258,8 +258,18 @@ Functional navigation, logical organization.
 - All 14 pronunciations have IPA
 - Cross-alias contamination is a code logic issue in STEP 3.95b, not LLM non-determinism
 
+## Pipeline Notes (Attempt 20)
+- Father/son split FIRED ✓ — "John Donaldson (the father)" present (1 mention)
+- Son is now "John Donaldson" without parenthetical tag (59 mentions)
+- Joe Barron present ✓ (3 mentions)
+- Margaret Donaldson added via F6 reconciliation ✓
+- Uncle Bill narrator confirmed ✓
+- BLOCKED: 'the narrator' alias for Uncle Bill ✓
+- BLOCKED: 'the American' alias for John Donaldson ✓
+- Run time: 9m 42s
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate output for cross-alias contamination fix and relationship label fix.
 
 ## Fix History (Attempt 20)
 1. **Cross-alias contamination in STEP 3.95** — mutual alias decontamination after split
