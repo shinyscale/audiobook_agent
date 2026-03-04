@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gift_of_the_magi
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -114,5 +114,12 @@
   - Modified: `src/agents/characters.py:_merge_formal_name_aliases()`
   - Expected cascades: "Dillingham" merged (alias_component of "James Dillingham Young"), Jim↔Della sibling label likely corrected once profiler sees full Jim evidence
 
+## Pipeline Output (Attempt 3)
+- Jim: 32 mentions, aliases: James Dillingham Young, Dillingham — MERGED correctly ✓
+- Della Young: 20 mentions, alias: Della ✓
+- Sofronie: 2 mentions ✓
+- The magi: 4 mentions (F6 added from summaries)
+- Analysis completed in 17m 36s
+
 ## Next Action
-Re-run analysis (awaiting_analysis) to verify fix.
+Evaluate output (awaiting_evaluation).

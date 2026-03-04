@@ -24,6 +24,54 @@
         "pronunciation": 9,
         "presentation": 8.5
       }
+    },
+    "cask_of_amontillado": {
+      "commit": "88143ce7bb1d17cb79e0d5715813313ae3c4bf17",
+      "score": 8.4,
+      "category_scores": {
+        "structure": 9,
+        "characters": 8,
+        "profiles": 8,
+        "summaries": 8.5,
+        "pronunciation": 8.5,
+        "presentation": 8.5
+      }
+    },
+    "masque_of_red_death": {
+      "commit": "177d77af868525ce83bffdd8c4159fb981f2e746",
+      "score": 8.6,
+      "category_scores": {
+        "structure": 9,
+        "characters": 8.5,
+        "profiles": 8,
+        "summaries": 9,
+        "pronunciation": 8,
+        "presentation": 9
+      }
+    },
+    "berenice": {
+      "commit": "5abc466a402c0f99e388e3e65d2889ac079c20c3",
+      "score": 8.75,
+      "category_scores": {
+        "structure": 10,
+        "characters": 9,
+        "profiles": 8,
+        "summaries": 8,
+        "pronunciation": 8,
+        "presentation": 9
+      }
+    },
+    "gift_of_the_magi": {
+      "commit": "9c5320d552a7baa3254dff194792e545ac6d206a",
+      "score": 8.2,
+      "category_scores": {
+        "structure": 9,
+        "characters": 7.5,
+        "profiles": 7,
+        "summaries": 9,
+        "pronunciation": 8.5,
+        "presentation": 8.5
+      }
     }
   }
 }

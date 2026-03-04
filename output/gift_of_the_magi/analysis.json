@@ -1,0 +1,821 @@
+{
+  "metadata": {
+    "title": "﻿O. Henry",
+    "author": null,
+    "source_file": "../Test_Texts/The Gift of the Magi - O_Henry.txt",
+    "source_format": "txt",
+    "total_word_count": 2069,
+    "total_character_count": 11283,
+    "estimated_total_duration_minutes": 13.78,
+    "words_per_minute": 150
+  },
+  "structure": [
+    {
+      "type": "chapter",
+      "title": null,
+      "index": 1,
+      "start_position": 9,
+      "end_position": 11283,
+      "word_count": 2067,
+      "estimated_duration_minutes": 13.78,
+      "confidence": "medium",
+      "children": [],
+      "characters_present": [
+        "Della",
+        "Jim",
+        "Madame Sofronie"
+      ],
+      "summary": "On Christmas Eve in a shabby $8-per-week flat, Della Young counts her meager savings of one dollar and eighty-seven cents and, devastated by her inability to buy a worthy gift for her husband Jim, decides to sell her long, beautiful hair to Madame Sofronie for twenty dollars. After purchasing a platinum fob chain intended for Jim's heirloom gold watch, Della returns home to curl her newly shortened hair, anxiously praying that Jim will still find her pretty when he arrives. Upon Jim's entry, he stares at her with a peculiar, unreadable expression that terrifies Della until she explains she sold her hair to buy his present, at which point Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair. The chapter concludes with the couple realizing their mutual, ironic sacrifice, followed by the narrator's reflection that despite their foolishness in trading their greatest treasures for useless gifts, they are the wisest of gift-givers."
+    }
+  ],
+  "characters": [
+    {
+      "id": "main_cast_0",
+      "canonical_name": "Della Young",
+      "aliases": [
+        "Della"
+      ],
+      "role": "protagonist",
+      "physical_description": "Della has long, brown hair that reaches below her knee, described as rippling and shining like a cascade of brown waters. She has eyes that can shine brilliantly or become dim with tears, and her face loses color when distressed. She wears an old brown jacket and an old brown hat, and after cutting her hair, she styles it into tiny close-lying curls that make her look like a truant schoolboy.",
+      "appearance": {
+        "summary": "Della has long, brown hair that reaches below her knee, described as rippling and shining like a cascade of brown waters. She has eyes that can shine brilliantly or become dim with tears, and her face loses color when distressed. She wears an old brown jacket and an old brown hat, and after cutting her hair, she styles it into tiny close-lying curls that make her look like a truant schoolboy.",
+        "age_indication": null,
+        "distinguishing_features": [
+          "Long brown hair reaching below the knee",
+          "Eyes that shine brilliantly or turn dim",
+          "Face that turns white or loses color when anxious",
+          "Tiny close-lying curls after cutting hair"
+        ]
+      },
+      "personality": {
+        "summary": "Della is deeply loving, self-sacrificing, and generous, willing to give up her greatest treasure for her husband's happiness. She is emotional and prone to weeping when overwhelmed by her circumstances, yet she also displays prudence and a capacity for quick recovery and optimism.",
+        "traits": [
+          "generous",
+          "self-sacrificing",
+          "loving",
+          "emotional",
+          "prudent",
+          "optimistic"
+        ],
+        "temperament": "melancholic yet hopeful",
+        "emotional_range": "Experiences intense sorrow (howling, weeping), anxiety (turning white, terror), and joy (shining eyes, leaping up).",
+        "speech_patterns": [
+          "Uses affectionate terms like 'Jim, darling' and 'boy'",
+          "Asks rhetorical questions",
+          "Speaks with urgency and pleading"
+        ]
+      },
+      "voice_guidance": {
+        "suggested_tone": "tender, anxious, and ultimately warm",
+        "dialect_notes": "Uses informal phrasing such as 'ain't I' and 'boy' in a familiar context.",
+        "verbal_tics": [
+          "Repetition of 'sold and gone'",
+          "Rhetorical questions ('Don't you like me just as well, anyhow?')"
+        ],
+        "formality_level": "informal",
+        "example_quotes": [
+          "Please, God, make him think I am still pretty.",
+          "Don't look at me that way. I had my hair cut off and sold it.",
+          "My hair grows so fast, Jim!",
+          "Isn't it a dandy, Jim?"
+        ]
+      },
+      "descriptions": [
+        {
+          "text": "Della Young is a devoted wife living in poverty who demonstrates profound generosity by selling her most prized possession, her long hair, to buy a Christmas gift for her husband. Her character arc moves from despair over her lack of funds to anxious hope, culminating in a moment of tragic irony where her sacrifice renders her gift useless, yet she maintains a spirit of love and optimism.",
+          "source_position": 336,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {
+        "Jim": "associated"
+      },
+      "evidence": [
+        {
+          "statement": "Della is married to Jim",
+          "quote": "whenever Mr. James Dillingham Young came home and reached his flat above he was called 'Jim' and greatly hugged by Mrs. James Dillingham Young, already introduced to you as Della.",
+          "position": 1611,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della is deeply in love with Jim and wants to give him a gift",
+          "quote": "To-morrow would be Christmas Day, and she had only $1.87 with which to buy Jim a present.",
+          "position": 1611,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della sacrifices her hair for Jim",
+          "quote": "It's sold, I tell you--sold and gone, too. It's Christmas Eve, boy. Be good to me, for it went for you.",
+          "position": 7759,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della is emotional and cries when distressed",
+          "quote": "There was clearly nothing to do but flop down on the shabby little couch and howl. So Della did it.",
+          "position": 336,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della has long brown hair",
+          "quote": "So now Della's beautiful hair fell about her, rippling and shining like a cascade of brown waters. It reached below her knee",
+          "position": 3442,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della styles her hair into curls after cutting it",
+          "quote": "Within forty minutes her head was covered with tiny close-lying curls that made her look wonderfully like a truant schoolboy.",
+          "position": 5361,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della is anxious about Jim's reaction to her new appearance",
+          "quote": "she whispered: 'Please, God, make him think I am still pretty.'",
+          "position": 6187,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della is optimistic despite the irony of her gift",
+          "quote": "But she hugged them to her bosom, and at length she was able to look up with dim eyes and a smile and say: 'My hair grows so fast, Jim!'",
+          "position": 9863,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 1,
+      "mention_count": 20,
+      "mentions": [],
+      "confidence": "high",
+      "gender": null,
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    },
+    {
+      "id": "main_cast_1",
+      "canonical_name": "Jim",
+      "aliases": [
+        "James Dillingham Young",
+        "Dillingham"
+      ],
+      "role": "protagonist",
+      "physical_description": "Physical description is not provided in the text, other than the implication that he wears an heirloom gold watch with an old leather strap.",
+      "appearance": {
+        "summary": "Physical description is not provided in the text, other than the implication that he wears an heirloom gold watch with an old leather strap.",
+        "age_indication": null,
+        "distinguishing_features": []
+      },
+      "personality": {
+        "summary": "Described by Della as possessing 'quietness and value,' similar to the watch he owns. He reacts to sudden emotional news with a peculiar, unreadable expression and laborious mental processing.",
+        "traits": [
+          "quiet",
+          "valued",
+          "thoughtful"
+        ],
+        "temperament": "calm",
+        "emotional_range": "Displays a peculiar, fixed expression of shock and processes information laboriously before reacting.",
+        "speech_patterns": []
+      },
+      "voice_guidance": {
+        "suggested_tone": "laborious and stunned",
+        "dialect_notes": "None indicated in the text.",
+        "verbal_tics": [],
+        "formality_level": "informal",
+        "example_quotes": [
+          "You've cut off your hair?",
+          "Jim, darling"
+        ]
+      },
+      "descriptions": [
+        {
+          "text": "Jim (Mr. James Dillingham Young) is the husband of Della Young, living with her in a modest flat on a reduced income. He is the recipient of a gift Della purchased with her savings, though he has secretly sold his own treasured possession to buy her a gift she can no longer use. The text depicts him as a man of 'quietness and value' whose reaction to his father's sacrifice is initially one of shock and stillness.",
+          "source_position": 1109,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {
+        "Della Young": "associated"
+      },
+      "evidence": [
+        {
+          "statement": "Jim is the husband of Della Young",
+          "quote": "But whenever Mr. James Dillingham Young came home and reached his flat above he was called 'Jim' and greatly hugged by Mrs. James Dillingham Young, already introduced to you as Della.",
+          "position": 1322,
+          "confidence": "medium"
+        },
+        {
+          "statement": "Jim is described as having 'quietness and value'",
+          "quote": "It was like him. Quietness and value--the description applied to both.",
+          "position": 4965,
+          "confidence": "medium"
+        },
+        {
+          "statement": "Jim reacts with a peculiar, fixed expression upon seeing Della",
+          "quote": "stared at her fixedly with that peculiar expression on his face.",
+          "position": 7488,
+          "confidence": "medium"
+        },
+        {
+          "statement": "Jim processes the news of Della's haircut laboriously",
+          "quote": "\"You've cut off your hair?\" asked Jim laboriously, as if he had not arrived at that patent fact yet, even after the hardest mental labor.",
+          "position": 7488,
+          "confidence": "medium"
+        },
+        {
+          "statement": "Jim owns an heirloom gold watch with an old leather strap",
+          "quote": "Grand as the watch was, he sometimes looked at it on the sly on account of the old leather strap he used in place of a chain.",
+          "position": 4965,
+          "confidence": "medium"
+        },
+        {
+          "statement": "Jim has sold his watch to buy a gift for Della",
+          "quote": "Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair.",
+          "position": 0,
+          "confidence": "medium"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 1,
+      "mention_count": 32,
+      "mentions": [],
+      "confidence": "medium",
+      "gender": null,
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    },
+    {
+      "id": "supporting_2",
+      "canonical_name": "Sofronie",
+      "aliases": [],
+      "role": "minor",
+      "physical_description": "Described as 'large' and 'too white' with a 'chilly' bearing. She is referred to as 'Madame' and runs a shop with a sign reading 'Mme. Sofronie, Hair Goods of All Kinds'.",
+      "appearance": {
+        "summary": "Described as 'large' and 'too white' with a 'chilly' bearing. She is referred to as 'Madame' and runs a shop with a sign reading 'Mme. Sofronie, Hair Goods of All Kinds'.",
+        "age_indication": null,
+        "distinguishing_features": [
+          "large",
+          "too white",
+          "chilly"
+        ]
+      },
+      "personality": {
+        "summary": "Professional, detached, and efficient. She conducts business with a practiced hand and maintains a chilly demeanor, showing no warmth or hesitation in the transaction.",
+        "traits": [
+          "professional",
+          "detached",
+          "efficient"
+        ],
+        "temperament": "chilly",
+        "emotional_range": "Limited; displays a cold, business-like demeanor without visible emotional reaction to the seller's distress or the value of the hair.",
+        "speech_patterns": [
+          "uses dialect ('yer')",
+          "direct and concise"
+        ]
+      },
+      "voice_guidance": {
+        "suggested_tone": "chilly and authoritative",
+        "dialect_notes": "Uses non-standard dialect, specifically 'yer' instead of 'your' ('Take yer hat off').",
+        "verbal_tics": [
+          "Take yer hat off",
+          "Give it to me quick"
+        ],
+        "formality_level": "informal",
+        "example_quotes": [
+          "I buy hair",
+          "Take yer hat off and let's have a sight at the looks of it.",
+          "Twenty dollars"
+        ]
+      },
+      "descriptions": [
+        {
+          "text": "Madame Sofronie is a business owner who operates a hair goods shop, described as large, pale, and chilly in demeanor. She acts as a transactional figure in the narrative, purchasing Della Young's hair for twenty dollars with a practiced, efficient manner. She appears only briefly to facilitate Della's sacrifice, showing no emotional connection to the seller.",
+          "source_position": 3987,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {
+        "Della Young": "hair seller",
+        "Jim": "no relationship",
+        "The magi": "associated"
+      },
+      "evidence": [
+        {
+          "statement": "Sofronie is described as large, too white, and chilly.",
+          "quote": "Madame, large, too white, chilly, hardly looked the 'Sofronie.'",
+          "position": 3987,
+          "confidence": "high"
+        },
+        {
+          "statement": "Sofronie offers to buy hair and inspects it with a practiced hand.",
+          "quote": "'I buy hair,' said Madame. 'Take yer hat off and let's have a sight at the looks of it.' ... 'Twenty dollars,' said Madame, lifting the mass with a practiced hand.",
+          "position": 3987,
+          "confidence": "high"
+        },
+        {
+          "statement": "Sofronie's shop sign identifies her business.",
+          "quote": "Where she stopped the sign read: 'Mme. Sofronie, Hair Goods of All Kinds.'",
+          "position": 3987,
+          "confidence": "high"
+        },
+        {
+          "statement": "Sofronie uses dialect in her speech.",
+          "quote": "'Take yer hat off and let's have a sight at the looks of it.'",
+          "position": 3987,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 1,
+      "mention_count": 2,
+      "mentions": [],
+      "confidence": "high",
+      "gender": null,
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    },
+    {
+      "id": "5454b97921a0",
+      "canonical_name": "The magi",
+      "aliases": [],
+      "role": "supporting",
+      "physical_description": null,
+      "appearance": {
+        "summary": null,
+        "age_indication": null,
+        "distinguishing_features": []
+      },
+      "personality": {
+        "summary": "Described as wise and the inventors of the art of giving presents.",
+        "traits": [
+          "wise",
+          "inventive regarding gift-giving"
+        ],
+        "temperament": "unknown",
+        "emotional_range": "unknown",
+        "speech_patterns": []
+      },
+      "voice_guidance": {
+        "suggested_tone": "unknown",
+        "dialect_notes": "unknown",
+        "verbal_tics": [],
+        "formality_level": "unknown",
+        "example_quotes": []
+      },
+      "descriptions": [
+        {
+          "text": "The magi are described as wise men who invented the art of giving Christmas presents and brought valuable gifts to the Babe in the manger. The narrator draws a parallel between these historical figures and the story's protagonists, stating that the two characters are the wisest of all gift-givers and are themselves the magi.",
+          "source_position": 0,
+          "chapter_index": null,
+          "confidence": "llm_refined"
+        }
+      ],
+      "relationships": {
+        "Sofronie": "associated"
+      },
+      "evidence": [
+        {
+          "statement": "The magi were wise men who brought gifts to the Babe in the manger.",
+          "quote": "The magi, as you know, were wise men--wonderfully wise men--who brought gifts to the Babe in the manger.",
+          "position": 10606,
+          "confidence": "high"
+        },
+        {
+          "statement": "They invented the art of giving Christmas presents.",
+          "quote": "They invented the art of giving Christmas presents.",
+          "position": 10606,
+          "confidence": "high"
+        },
+        {
+          "statement": "The story's protagonists are identified as the magi because they are the wisest of gift-givers.",
+          "quote": "They are the magi.",
+          "position": 11274,
+          "confidence": "high"
+        }
+      ],
+      "voice_notes": null,
+      "first_appearance_chapter": 1,
+      "mention_count": 4,
+      "mentions": [],
+      "confidence": "high",
+      "gender": "male",
+      "is_narrator": false,
+      "narrative_role": null,
+      "is_symbolic": false
+    }
+  ],
+  "pronunciations": [
+    {
+      "word": "Sofronie",
+      "flag_reason": "proper_noun",
+      "category": "proper_noun",
+      "occurrences": 4,
+      "first_position": 3987,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...e fluttered out the door and down the stairs to the street. Where she stopped the sign read: \"Mme. Sofronie, Hair Goods of All Kinds.\" One flight up Della ran, and collected herself, panting. Madame, large,...",
+        "...up Della ran, and collected herself, panting. Madame, large, too white, chilly, hardly looked the \"Sofronie.\" \"Will you buy my hair?\" asked Della. \"I buy hair,\" said Madame. \"Take yer hat off and let's hav..."
+      ],
+      "confidence": "high",
+      "ipa": "/səˈfrəʊ.ni/",
+      "phonetic_spelling": "suh-FROH-nee",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress is on the second syllable. The 'o' in the stressed syllable is a long 'oh' sound. The 'ie' at the end is pronounced 'ee'."
+    },
+    {
+      "word": "read",
+      "flag_reason": "homograph",
+      "category": "homograph",
+      "occurrences": 2,
+      "first_position": 3975,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...her eyes, she fluttered out the door and down the stairs to the street. Where she stopped the sign read: \"Mme. Sofronie, Hair Goods of All Kinds.\" One flight up Della ran, and collected herself, panting....",
+        "...nt of quail. His eyes were fixed upon Della, and there was an expression in them that she could not read, and it terrified her. It was not anger, nor surprise, nor disapproval, nor horror, nor any of the..."
+      ],
+      "confidence": "high",
+      "ipa": "/riːd/ (present tense) or /rɛd/ (past tense)",
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Context-dependent: /riːd/ (present tense) or /rɛd/ (past tense)"
+    },
+    {
+      "word": "mendicancy",
+      "flag_reason": "unknown",
+      "category": "unknown",
+      "occurrences": 1,
+      "first_position": 888,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...week. It did not exactly beggar description, but it certainly had that word on the lookout for the mendicancy squad. In the vestibule below was a letter-box into which no letter would go, and an electric butt..."
+      ],
+      "confidence": "medium",
+      "ipa": "/ˈmɛn.dɪ.kən.si/",
+      "phonetic_spelling": "MEN-dih-kan-see",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress is on the first syllable. The 'i' in the second syllable is a short 'ih' sound, and the final 'y' is pronounced as 'ee'."
+    },
+    {
+      "word": "appertaining",
+      "flag_reason": "unknown",
+      "category": "unknown",
+      "occurrences": 1,
+      "first_position": 1053,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...hich no letter would go, and an electric button from which no mortal finger could coax a ring. Also appertaining thereunto was a card bearing the name \"Mr. James Dillingham Young.\" The \"Dillingham\" had been flun..."
+      ],
+      "confidence": "medium",
+      "ipa": "/əˈpɜːr.tə.nɪŋ/",
+      "phonetic_spelling": "uh-PUR-tuh-ning",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress is on the second syllable. The 'a' in the first syllable is a schwa (uh). The 'er' sounds like the 'ur' in 'turn'."
+    },
+    {
+      "word": "meretricious",
+      "flag_reason": "unknown",
+      "category": "unknown",
+      "occurrences": 1,
+      "first_position": 4827,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...ob chain, simple and chaste in design, properly proclaiming its value by substance alone and not by meretricious ornamentation--as all good things should do. It was even worthy of The Watch. As soon as she saw it..."
+      ],
+      "confidence": "medium",
+      "ipa": "/məˈtrɪt.ʃi.əs/",
+      "phonetic_spelling": "muh-TRIT-shus",
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Stress is on the second syllable. The 't' is followed by a 'ch' sound (tch). The final syllable is a quick 'us' sound."
+    },
+    {
+      "word": "live",
+      "flag_reason": "homograph",
+      "category": "homograph",
+      "occurrences": 1,
+      "first_position": 7315,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...rling,\" she cried, \"don't look at me that way. I had my hair cut off and sold it because I couldn't live through Christmas without giving you a present. It'll grow out again--you won't mind, will you? I j..."
+      ],
+      "confidence": "high",
+      "ipa": "/lɪv/ (to exist, present) or /laɪv/ (in real time, alive)",
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Context-dependent: /lɪv/ (to exist, present) or /laɪv/ (in real time, alive)"
+    },
+    {
+      "word": "tear",
+      "flag_reason": "homograph",
+      "category": "homograph",
+      "occurrences": 1,
+      "first_position": 3709,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...n she did it up again nervously and quickly. Once she faltered for a minute and stood still where a tear or two splashed on the worn red carpet. On went her old brown jacket; on went her old brown hat. W..."
+      ],
+      "confidence": "high",
+      "ipa": "/tɪər/ (from the eye) or /tɛər/ (to rip)",
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Context-dependent: /tɪər/ (from the eye) or /tɛər/ (to rip)"
+    },
+    {
+      "word": "close",
+      "flag_reason": "homograph",
+      "category": "homograph",
+      "occurrences": 1,
+      "first_position": 301,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...ble man and the butcher until one's cheeks burned with the silent imputation of parsimony that such close dealing implied. Three times Della counted it. One dollar and eighty-seven cents. And the next day..."
+      ],
+      "confidence": "high",
+      "ipa": "/kloʊs/ (nearby, adj) or /kloʊz/ (to shut, verb)",
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Context-dependent: /kloʊs/ (nearby, adj) or /kloʊz/ (to shut, verb)"
+    },
+    {
+      "word": "minute",
+      "flag_reason": "homograph",
+      "category": "homograph",
+      "occurrences": 1,
+      "first_position": 3678,
+      "chapter_indices": [
+        1
+      ],
+      "context_examples": [
+        "...most a garment for her. And then she did it up again nervously and quickly. Once she faltered for a minute and stood still where a tear or two splashed on the worn red carpet. On went her old brown jacket;..."
+      ],
+      "confidence": "high",
+      "ipa": "/ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)",
+      "phonetic_spelling": null,
+      "audio_url": null,
+      "user_pronunciation": null,
+      "notes": "Context-dependent: /ˈmɪnɪt/ (time unit) or /maɪˈnjuːt/ (tiny)"
+    }
+  ],
+  "glossary": null,
+  "overview": {
+    "structure": {
+      "chapter_count": 1,
+      "has_titles": false,
+      "has_parts": false,
+      "narrative_style": "unknown",
+      "description": "This book contains 1 chapters. Chapters are numbered sequentially."
+    },
+    "plot_summary": {
+      "plot_summary": "On Christmas Eve, Della Young resides in a shabby flat earning eight dollars a week, where she counts her meager savings of one dollar and eighty-seven cents. Devastated by her inability to purchase a worthy gift for her husband Jim, she makes the desperate decision to sell her long, beautiful hair to Madame Sofronie for twenty dollars.\n\nAfter purchasing a platinum fob chain intended for Jim's heirloom gold watch, Della returns home to curl her newly shortened hair while anxiously praying that Jim will still find her pretty upon his arrival. When Jim enters, he stares at her with a peculiar, unreadable expression that terrifies Della until she explains she sold her hair to buy his present.\n\nAt this turning point, Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair, leading the couple to realize their mutual, ironic sacrifice. The chapter concludes with the narrator reflecting that despite their foolishness in trading their greatest treasures for useless gifts, they are the wisest of gift-givers.",
+      "themes": [
+        "sacrifice",
+        "love",
+        "irony",
+        "wisdom"
+      ],
+      "narrative_style": "third-person omniscient"
+    },
+    "model_usage": {
+      "Chapter Detection": {
+        "model": "qwen3.5:35b-a3b",
+        "provider": "ollama"
+      },
+      "Chapter Summaries": {
+        "model": "qwen3.5:122b-a10b",
+        "provider": "ollama"
+      },
+      "Character Extraction": {
+        "model": "qwen3.5:122b-a10b",
+        "provider": "ollama"
+      },
+      "Character Profiles": {
+        "model": "qwen3.5:122b-a10b",
+        "provider": "ollama"
+      },
+      "Pronunciation Guide": {
+        "model": "qwen3.5:35b-a3b",
+        "provider": "ollama"
+      }
+    },
+    "timing": {
+      "Chapter Detection": {
+        "duration_seconds": 26.05,
+        "duration_formatted": "26.1s"
+      },
+      "Chapter Summaries": {
+        "duration_seconds": 48.6,
+        "duration_formatted": "48.6s"
+      },
+      "Character Extraction": {
+        "duration_seconds": 60.2,
+        "duration_formatted": "1m 0s"
+      },
+      "Character Profiles": {
+        "duration_seconds": 331.67,
+        "duration_formatted": "5m 32s"
+      },
+      "Pronunciation Guide": {
+        "duration_seconds": 14.9,
+        "duration_formatted": "14.9s"
+      },
+      "total": {
+        "duration_seconds": 939.06,
+        "duration_formatted": "15m 39s"
+      },
+      "started_at": "2026-03-03 20:08:13",
+      "ended_at": "2026-03-03 20:23:53"
+    }
+  },
+  "consensus_log": null,
+  "warnings": [],
+  "low_confidence_items": [],
+  "_analysis_metadata": {
+    "analyzed_at": "2026-03-03T20:25:50.907353",
+    "analyzer_version": "0.2.0",
+    "pipeline": "multi-agent",
+    "llm_model": "none",
+    "llm_provider": "ollama",
+    "analysis_duration_seconds": 1056.9
+  },
+  "_profiling": {
+    "stages": [
+      {
+        "name": "Chapter Detection",
+        "duration_seconds": 26.05,
+        "llm_calls": 5,
+        "tokens_prompt": 10414,
+        "tokens_completion": 883,
+        "tokens_total": 11297,
+        "avg_latency_ms": 5209.0,
+        "items_processed": 1,
+        "high_confidence": 0,
+        "medium_confidence": 1,
+        "low_confidence": 0,
+        "model_used": "qwen3.5:35b-a3b",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Chapter Summaries",
+        "duration_seconds": 48.6,
+        "llm_calls": 1,
+        "tokens_prompt": 3706,
+        "tokens_completion": 555,
+        "tokens_total": 4261,
+        "avg_latency_ms": 48591.57,
+        "items_processed": 1,
+        "high_confidence": 1,
+        "medium_confidence": 0,
+        "low_confidence": 0,
+        "model_used": "qwen3.5:122b-a10b",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Character Extraction",
+        "duration_seconds": 60.2,
+        "llm_calls": 6,
+        "tokens_prompt": 4446,
+        "tokens_completion": 1026,
+        "tokens_total": 5472,
+        "avg_latency_ms": 9829.16,
+        "items_processed": 3,
+        "high_confidence": 2,
+        "medium_confidence": 1,
+        "low_confidence": 0,
+        "model_used": "qwen3.5:122b-a10b",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Character Profiles",
+        "duration_seconds": 331.67,
+        "llm_calls": 12,
+        "tokens_prompt": 18691,
+        "tokens_completion": 5704,
+        "tokens_total": 24395,
+        "avg_latency_ms": 27638.26,
+        "items_processed": 4,
+        "high_confidence": 3,
+        "medium_confidence": 1,
+        "low_confidence": 0,
+        "model_used": "qwen3.5:122b-a10b",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      },
+      {
+        "name": "Pronunciation Guide",
+        "duration_seconds": 14.9,
+        "llm_calls": 1,
+        "tokens_prompt": 496,
+        "tokens_completion": 395,
+        "tokens_total": 891,
+        "avg_latency_ms": 14404.51,
+        "items_processed": 9,
+        "high_confidence": 6,
+        "medium_confidence": 3,
+        "low_confidence": 0,
+        "model_used": "qwen3.5:35b-a3b",
+        "provider_used": "ollama",
+        "llm_retries": 0,
+        "json_parse_failures": 0
+      }
+    ],
+    "totals": {
+      "duration_seconds": 1056.94,
+      "llm_calls": 25,
+      "tokens": 46316
+    },
+    "bottleneck": [
+      "Character Profiles",
+      31.3798533459721
+    ],
+    "quality_concerns": [],
+    "timestamps": {
+      "started": "2026-03-03 20:08:13",
+      "ended": "2026-03-03 20:25:50"
+    }
+  },
+  "_config": {
+    "orchestrator": {
+      "default_model": "qwen3.5:35b-a3b",
+      "default_provider": "ollama",
+      "parallel_execution": false,
+      "context_length": 32768
+    },
+    "agents": {
+      "structure": {
+        "model": "qwen3.5:35b-a3b",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "characters": {
+        "model": "qwen3.5:122b-a10b",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "summaries": {
+        "model": "qwen3.5:122b-a10b",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      },
+      "pronunciation": {
+        "model": "qwen3.5:35b-a3b",
+        "provider": "ollama",
+        "temperature": 0.7,
+        "context_length": 32768,
+        "max_tokens": 32768,
+        "think_mode": false
+      }
+    },
+    "tuning": {
+      "chapter_marker_chunk_chars": 15000,
+      "chapter_marker_chunk_overlap_chars": 1000,
+      "chapter_narrative_chunk_chars": 20000,
+      "chapter_narrative_chunk_overlap_chars": 2000,
+      "character_llm_chunk_chars": 5000,
+      "character_mention_context_chars": 250,
+      "summary_chunk_words": 2500,
+      "summary_chunk_overlap_words": 200
+    }
+  }
+}
