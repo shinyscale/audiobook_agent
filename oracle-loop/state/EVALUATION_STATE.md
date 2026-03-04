@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -228,8 +228,13 @@ Priority 3: **Narrator detection robustness** — add retry/fallback when narrat
 - Runtime: ~35 min (33 LLM calls)
 - Narrator detection returned None — needs robustness fix
 
+## Pipeline Notes (Attempt 11)
+- Runtime: 9m 51s, 31 LLM calls, 70,489 tokens
+- Characters found: Uncle Bill (18), John Donaldson (43 — still merged), Joe Barron (3), Ted Frith (5)
+- Margaret Donaldson added by F6 reconciliation
+- Narrator from V2 pipeline: "The Narrator (Uncle Bill)" ✓ — narrator fix appears to have worked
+- STEP 3.95 did NOT split father/son — John Donaldson still has 43 mentions (combined), aliased as "the father"
+- "associated" relationship cleanup: to be confirmed by evaluation
+
 ## Next Action
-Run analysis (PROMPT_analyze.md) to verify fixes:
-1. CRITICAL fix applied: STEP 3.95 in characters.py — programmatic same-name split
-2. HIGH fix applied: clean_unknown_relationships() now removes "associated" labels too
-3. HIGH fix applied: narrator extracted from V2 pipeline_metadata in analyzer.py
+Evaluate output (PROMPT_evaluate.md)
