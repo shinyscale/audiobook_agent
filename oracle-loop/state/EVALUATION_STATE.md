@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -13,33 +13,82 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 8/10 ✓
-  - Completeness: 8/10
-  - Identity Resolution: 8.5/10
-  - Alias Grouping: 7.5/10
-- Character Profiles: 5.5/10 ✗ (FAILING — wrong relationships, missing relationships, hallucinated age)
-- Chapter Summaries: 7/10 ✗ (FAILING — plot summary misattributes flashback to Uncle Bill)
+- Character Extraction: 4.5/10 ✗ (FAILING — father/son merge REGRESSED, "Johnny" phantom split)
+  - Completeness: 5/10
+  - Identity Resolution: 3/10
+  - Alias Grouping: 5/10
+- Character Profiles: 3/10 ✗ (FAILING — all profiles wrong, narrator misidentified, descriptions swapped)
+- Chapter Summaries: 4/10 ✗ (FAILING — plot summary completely garbled, confuses all character identities)
 - Pronunciation Guide: 8.5/10 ✓
-- HTML Presentation: 8.5/10 ✓
-- **Overall: 7.7/10** (reference only)
+- HTML Presentation: 8/10 ✓
+- **Overall: 5.8/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (3 categories below threshold) — **REGRESSION from attempt 12 (7.7)**
 
-## What Attempt 12 Changed vs Attempt 11
+**⚠️ REGRESSION ALERT: 5.8 < baseline 6.55 - 0.3 = 6.25. Auto-revert of attempt 13 code changes should trigger.**
 
-**MAJOR IMPROVEMENT:**
-- **Father/son SPLIT WORKED!** — STEP 3.95 alias contradiction detection fired correctly. Now two separate characters:
-  - "John Donaldson" (id=main_cast_1, 32 mentions, aliases: ['son', 'John', 'young John']) — the son
-  - "John Donaldson (his father)" (id=main_cast_1_parent, 12 mentions, aliases: ['his father', 'John Donaldson']) — the father
-- **Uncle Bill still narrator** ✓
-- **5 characters total** — Uncle Bill, John Donaldson (son), John Donaldson (his father), Joe Barron, Ted Frith
+## What Attempt 13 Changed vs Attempt 12
 
-**PERSISTENT/NEW FAILURES:**
-- **Relationships ALL WRONG** — Father↔Son labeled "brother" instead of "father"/"son". Uncle Bill has ZERO relationships. This is the primary blocker.
-- **Plot summary factual error** — Says "a young Uncle Bill, driving a transport vehicle near the Piave River" and "the volunteer is actually Uncle Bill's long-lost father". WRONG: The boy (young John) was the ambulance driver who encountered HIS father in Italy, not Uncle Bill.
-- **Ted Frith age "two years old"** hallucination persists
-- **Father's physical description** has beauty traits ("physical beauty", "charm", "alluring, sidewise smile") that seem copied/shared with the son's — the father's appearance should be distinct
+**THE CODE CHANGES WERE LIKELY CORRECT but LLM non-determinism produced a catastrophically different extraction:**
+
+Attempt 13 code fixes:
+1. `force_parenthetical_relationship_labels()` in `post_corrections.py` — NEVER FIRED because STEP 3.95 didn't produce a "(his father)" character this run
+2. Frame narrator instruction in `generator.py` plot summary — FIRED but narrator was wrong ("Johnny" instead of Uncle Bill), so it attributed embedded events to "Johnny" instead of Uncle Bill
+
+**Root cause: LLM extraction non-determinism.** The qwen3.5:122b-a10b model produced different character extraction results:
+- Attempt 12: STEP 3.95 alias contradiction fired → father/son split ✓ → Uncle Bill narrator ✓
+- Attempt 13: STEP 3.95 did NOT fire → father/son merged → "Johnny" extracted as separate phantom → narrator assigned to "Johnny" → everything cascaded wrong
+
+**Key differences in extraction:**
+| Feature | Attempt 12 | Attempt 13 |
+|---------|------------|------------|
+| Characters | 5 (with father split) | 5 (with Johnny phantom) |
+| Father/son | Split ✓ | Merged ✗ |
+| Narrator | Uncle Bill ✓ | Johnny ✗ |
+| "Johnny" | Not extracted | Extracted as separate char (2 mentions) |
+
+## Detailed Issues
+
+### CATASTROPHIC REGRESSIONS
+
+1. **Father/son merge recurred (STEP 3.95 didn't fire)** [Identity Resolution]
+   - Problem: "John Donaldson" (43 mentions) is a single merged character. No "John Donaldson (his father)" exists.
+   - Evidence: Attempt 12 had the split working. This run, the alias contradiction detection didn't trigger.
+   - Root cause: LLM non-determinism in character extraction — different alias sets produced, so contradiction detection conditions not met.
+   - Location: `src/agents/characters.py` — STEP 3.95
+   - Fix needed: Make STEP 3.95 more robust — don't rely solely on alias contradictions. Add secondary detection: if same-name characters appear in different narrative timeframes (war flashback vs pier scene), force split.
+
+2. **Narrator wrong: "Johnny" (2 mentions) instead of Uncle Bill (18 mentions)** [Profiles, Summaries]
+   - Problem: "Johnny" and "John Donaldson" are both `is_narrator=True`. Uncle Bill is `is_narrator=False`.
+   - Evidence: Uncle Bill is the frame narrator. He has 18 mentions. "Johnny" with 2 mentions is just a nickname for John Donaldson the son.
+   - Location: `src/agents/characters.py` — narrator detection, or `src/pipeline/narrator/narrator.py`
+   - Fix: The mention-count guard (narrator must have significant mentions) should have blocked "Johnny" (2 mentions). Investigate why it didn't.
+
+3. **"Johnny" is a phantom character** [Identity Resolution]
+   - Problem: "Johnny" (2 mentions, id=main_cast_0) exists as separate character from "John Donaldson" (43 mentions). "Johnny" is a nickname for the son — should be an alias of John Donaldson, not a separate entry.
+   - Evidence: Text uses "Johnny" as informal name for the young John Donaldson.
+   - Location: Character extraction Pass 1 or alias resolution Pass 2.
+
+4. **All physical descriptions are SWAPPED** [Profiles]
+   - "Johnny" (phantom) has: "elderly, grizzled, small man, grim and unexhilarating" — that's Uncle Bill's description
+   - "John Donaldson" has: same "elderly, grizzled, small man" — also Uncle Bill's description + "two years old" hallucination
+   - "Uncle Bill" has: "tall, dark-skinned man with shabby appearance, brown skin" — that's the FATHER's description
+   - Everything is wrong. The profiler is assigning descriptions to wrong characters.
+
+5. **Plot summary completely garbled** [Summaries]
+   - Says "an older narrator, Johnny, initially rejects a letter from his twelve-year-old son, John" — WRONG. Uncle Bill (not Johnny) receives the letter about the boy.
+   - Says "Uncle Bill, who is revealed to be Johnny's father, dies" — COMPLETELY WRONG. Uncle Bill is the frame narrator, not anyone's father. The father is the elder John Donaldson who dies in Italy.
+   - The entire plot summary has characters scrambled beyond usefulness.
+
+6. **Relationships nonsensical** [Profiles]
+   - Johnny → John Donaldson: "close friend" (should not exist as separate character)
+   - John Donaldson → John: "father" (John is his OWN alias!)
+   - Uncle Bill: zero relationships (should be guardian/friend of the Donaldsons)
+
+### PERSISTENT
+7. **"two years old" age hallucination** — Now on BOTH John Donaldson AND Ted Frith
+8. **Uncle Bill zero relationships** — Persists across multiple attempts
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -56,77 +105,7 @@
 | 10 | 7.0 | +0.45 | **REGRESSION.** Father/son merge recurred (LLM non-determinism). Both attempt 10 fixes had no effect. |
 | 11 | 7.2 | +0.65 | Narrator fix ✓, relationship cleanup ✓. But STEP 3.95 didn't fire (empty active_characters). Father/son still merged. |
 | 12 | 7.7 | +1.15 | **Father/son split via alias contradiction ✓!** Characters now pass. But profiles (wrong relationships) and summaries (plot summary error) still fail. |
-
-## Current Issues (Priority Order)
-
-### CRITICAL
-
-1. **Father↔Son relationship labeled "brother" instead of "father"/"son"** [Profiles]
-   - Problem: `John Donaldson → John Donaldson (his father) = "brother"` and vice versa. Should be "son" and "father" respectively.
-   - Evidence: The characters are explicitly father and son. The canonical names even contain "(his father)".
-   - Root cause: The profiler LLM is confused by two characters with the same base name "John Donaldson". Despite the disambiguating "(his father)" suffix, it labels the relationship "brother" — likely because same-name = same generation in the LLM's heuristic.
-   - Location: `src/analyzer.py` — `_generate_character_profile()` or `src/pipeline/character_profiling/post_corrections.py`
-   - Fix approach: Post-correction in `post_corrections.py` — if a character's canonical name contains "(his/her/their father/mother/son/daughter)", force the relationship label to match. E.g., if character B is "X (his father)", then A→B should be "father" and B→A should be "son".
-
-2. **Plot summary says "a young Uncle Bill" encountered the father — should be the boy** [Summaries]
-   - Problem: Plot summary states "The narrative shifts into a flashback where a young Uncle Bill, driving a transport vehicle" and "the volunteer is actually Uncle Bill's long-lost father". WRONG — the boy (young John) was the ambulance driver in Italy who encountered HIS father.
-   - Evidence: Uncle Bill is elderly, goes to the pier to meet the boy. The boy tells Uncle Bill about his wartime experience of finding his father.
-   - Root cause: The plot summary consolidation LLM confuses the frame narrator (Uncle Bill) with the embedded narrator (the boy telling his story). The chapter summary uses "a young narrator" which is ambiguous — the consolidation LLM then attributes this to Uncle Bill.
-   - Location: `src/pipeline/summarization/summarizer.py` — plot summary consolidation prompt
-   - Fix approach: The chapter summary's "young narrator" phrasing is the root cause. If the chapter summary correctly said "young John" or "the boy" instead of "young narrator", the plot summary would not confuse the identity. Fix the chapter summary's nested-narration handling to name the embedded narrator properly.
-
-### HIGH
-
-3. **Uncle Bill has ZERO relationships** [Profiles]
-   - Problem: Uncle Bill (narrator, main character) has `relationships: {}`. Should have: guardian/family friend of both John Donaldsons, close friend of Ted Frith.
-   - Evidence: Uncle Bill is the frame narrator who knew the father, raised the boy, and has a close friend Ted Frith.
-   - Location: `src/analyzer.py` — `_generate_character_profile()`
-   - Fix: May partially resolve when CRITICAL #1 is fixed (once father/son relationships are correct, the profiler can better infer Uncle Bill's relationships). If not, the profiler prompt may need guidance about frame narrators having relationships with the characters they narrate about.
-
-4. **Ted Frith age "two years old" hallucination** [Profiles]
-   - Problem: `appearance.age_indication: "two years old"` — completely fabricated. Ted Frith has no age indication in the text.
-   - Evidence: Ted Frith is Uncle Bill's adult companion.
-   - Location: `src/analyzer.py` — profile generation, age parsing
-   - Fix: Add validation rejecting implausibly young ages (< 5) unless the character is explicitly an infant/toddler. Or improve the prompt to distinguish age from time durations mentioned near a character's name.
-
-### MEDIUM
-
-5. **Father's physical description duplicates son's traits** [Profiles]
-   - Problem: Father has "physical beauty", "charm", "alluring, sidewise smile" — these are the SON's features as described in the text. The father is described differently (shabbily dressed, wounded).
-   - Root cause: The split operation may have copied appearance data from the merged character to both split halves.
-   - Location: STEP 3.95 in `src/agents/characters.py` — how it handles appearance data during split
-   - Fix: Clear or reset appearance fields on the split-off parent character, let the profiler regenerate them.
-
-6. **Missing Margaret Donaldson** [Completeness]
-   - Problem: Margaret Donaldson (the boy's mother, mentioned in text) is not in the character list.
-   - Impact: Minor — she's a referenced-only character.
-
-7. **Missing "Johnny" nickname** [Alias Grouping]
-   - Problem: The text uses "Johnny" as a nickname for the son, but it's not in aliases.
-   - Impact: Minor polish.
-
-## Fix Strategy for Attempt 13 — APPLIED
-
-**Priority 1 DONE: Force father/son relationship labels via post-correction.**
-- Added `force_parenthetical_relationship_labels()` to `OutputCharacterCorrector` in `post_corrections.py`
-- Detects characters whose canonical_name matches `{base} (his/her/their/the {rel_term})`
-- Forces: this_char → base_char = rel_term; base_char → this_char = RELATIONSHIP_REVERSES[rel_term]
-- Runs after `verify_relationships_from_text`, before `fix_bidirectional_parent_labels`
-- Universal: any book using parenthetical disambiguation benefits
-
-**Priority 2 DONE: Fix the plot summary misattribution.**
-- Changed `narrator_instruction` in `generator.py:_generate_plot_summary()` from:
-  `"Refer to the narrator by their name ({name}) rather than 'the narrator'"`
-  to:
-  `"{name} is the FRAME narrator who tells the overall story. When chapter summaries describe an embedded flashback, oral account, or story-within-a-story told by a DIFFERENT character to {name}, attribute those embedded events to THAT other character — not to {name}."`
-- Universal: applies to any nested narrative (frame narrator + embedded storyteller)
-
-**Do NOT touch (working correctly):**
-- STEP 3.95 alias contradiction detection (father/son split ✓)
-- Narrator detection (Uncle Bill = narrator ✓)
-- Relationship cleanup ("close friend" in Ted Frith ✓)
-- Pronunciation pipeline
-- Structure detection
+| 13 | 5.8 | -0.75 | **SEVERE REGRESSION.** STEP 3.95 didn't fire, narrator wrong (Johnny), all profiles/summaries garbled. Code changes correct but LLM non-determinism. |
 
 ## Fix History
 - Attempt 11:
@@ -147,9 +126,11 @@
   1. `force_parenthetical_relationship_labels()` in `post_corrections.py`
      - Modified: `src/pipeline/character_profiling/post_corrections.py`
      - Logic: detects canonical names with parenthetical like "(his father)" and forces correct relationship labels
+     - Result: **NEVER FIRED** — no parenthetical character existed (STEP 3.95 didn't split)
   2. `narrator_instruction` in `generator.py:_generate_plot_summary()`
      - Modified: `src/pipeline/overview/generator.py`
      - Logic: clarifies that named narrator is FRAME narrator; embedded story events belong to the embedded character
+     - Result: **FIRED but with wrong narrator** — applied to "Johnny" instead of Uncle Bill, making plot summary worse
 
 ## Modification History
 
@@ -178,23 +159,20 @@
 | 11 | "associated" relationship cleanup | `post_corrections.py` | Fixed ✓ |
 | 11 | Narrator from V2 pipeline_metadata | `analyzer.py` | Fixed ✓ |
 | 12 | STEP 3.95 alias contradiction detection | `characters.py` | **FIXED** ✓ — father/son split works |
+| 13 | force_parenthetical_relationship_labels | `post_corrections.py` | Never fired (no split char) |
+| 13 | Frame narrator plot summary instruction | `generator.py` | Fired on wrong narrator → made worse |
 
-**Pattern:** Characters pipeline is now stable. Remaining issues are in profiling (relationships) and summarization (plot summary). Focus fixes on `post_corrections.py` and `summarizer.py`/`generator.py`.
+**Pattern:** LLM non-determinism is the #1 blocker. STEP 3.95 has fired in 1/2 attempts (attempt 12 yes, 13 no). The father/son same-name problem needs a MORE ROBUST detection mechanism that doesn't depend on specific LLM alias outputs.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
 - All 14 pronunciations have IPA
-- Narrator detection from V2 pipeline: working ✓
-
-## Pipeline Notes (Attempt 13)
-- Analysis completed in 13m 23s
-- **WARNING: Possible regressions vs attempt 12:**
-  - Narrator detected as "Johnny" (2 mentions) — should be "Uncle Bill"
-  - No "John Donaldson (his father)" visible in output — father/son split may not have fired
-  - "Final narrator appearance injection" applied Uncle Bill's appearance to both "Johnny" AND "John Donaldson"
-- Characters found: Johnny (2), John Donaldson (43), Uncle Bill (18), Joe Barron (3), Ted Frith (5)
-- Margaret Donaldson added via F6b ✓
+- Issue is NOT configuration — it's extraction non-determinism
 
 ## Next Action
-Evaluate attempt 13 output — check for regressions on narrator and father/son split.
+**Auto-revert triggered** (5.8 < 6.25 threshold). After revert, the fix phase should:
+1. Keep attempt 13 code changes (they're correct, just didn't fire) — consider re-applying after revert
+2. Address the ROOT CAUSE: make father/son detection and narrator assignment more deterministic/robust
+3. Consider: can STEP 3.95 use BOTH alias contradiction AND mention-count heuristics (same name, different timeframes) as fallback?
+4. Consider: narrator detection should have a hard guard — character with 2 mentions should NEVER be narrator when a character with 18 mentions exists
