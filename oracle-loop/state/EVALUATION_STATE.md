@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -106,5 +106,13 @@
 - No profiling anomalies
 - No configuration changes needed
 
+## Fix History (continued)
+- Attempt 2: Extended `_merge_formal_name_aliases()` in `src/agents/characters.py` to handle multi-word main_cast names.
+  - Root cause: `characters.py:_merge_formal_name_aliases():3067` — `len(main_parts) != 1` guard skipped "Jim Young" (two words); only matched single-word canonicals like "Jim"
+  - Fix: Added multi-word branch: if main_cast first name is a nickname in NICKNAME_TO_FORMAL whose formal matches the supporting first name, AND surnames (last words) match, count as a merge candidate. "Jim Young" → first "Jim" → formal "James" = supporting "James"; surname "Young" = "Young" → merge "James Dillingham Young" as alias of "Jim Young". Cascade: Step 5.5 then finds "Dillingham" as alias_component and merges it too.
+  - Smoke test: PASS — logic confirmed via direct unit test; 332/332 tests pass
+  - Modified: `src/agents/characters.py:_merge_formal_name_aliases()`
+  - Expected cascades: "Dillingham" merged (alias_component of "James Dillingham Young"), Jim↔Della sibling label likely corrected once profiler sees full Jim evidence
+
 ## Next Action
-Run PROMPT_fix.md to address CRITICAL #1 (Jim fragmentation in characters.py Step 5.5a). This is the primary blocker — fixing it should cascade-resolve HIGH #2 (sibling relationship) and MEDIUM #6 (Dillingham role). The fix should extend `_merge_formal_name_aliases()` to handle multi-word main_cast names where the first name is a known nickname.
+Re-run analysis (awaiting_analysis) to verify fix.

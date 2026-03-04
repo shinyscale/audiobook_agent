@@ -3024,17 +3024,20 @@ class CharacterAgent(Agent):
         supporting_cast: list[Character],
     ) -> tuple[list[Character], list[Character], set[str]]:
         """
-        Merge multi-word supporting formal names into single-word main cast nicknames.
+        Merge multi-word supporting formal names into main cast nickname characters.
 
-        Pattern: main cast "Jim" (single-word, many mentions) +
-                 supporting "James Dillingham Young" (multi-word, few mentions)
-                 → "James" is the formal first name of "Jim" via NICKNAME_TO_FORMAL
-                 → merge "James Dillingham Young" as alias of "Jim"
+        Patterns handled:
+          Single-word main cast: "Jim" + supporting "James Dillingham Young"
+            → "James" is the formal first name of "Jim" via NICKNAME_TO_FORMAL
+            → merge "James Dillingham Young" as alias of "Jim"
+          Multi-word main cast: "Jim Young" + supporting "James Dillingham Young"
+            → first name "Jim" → formal "James" matches; surnames "Young" match
+            → merge "James Dillingham Young" as alias of "Jim Young"
 
         Safeguards:
-        - Main cast character must be a single-word canonical (the nickname form)
         - Supporting must be multi-word (the formal name form)
-        - First name of supporting must be the formal version of main cast name
+        - First name of supporting must be the formal version of main cast first name
+        - For multi-word main cast: surname (last word) must match supporting surname
         - Main cast must have ≥ 4x more mentions (the supporting ref is a rare formal citation)
         - Exactly one main cast character must match (no ambiguity)
 
@@ -3060,15 +3063,31 @@ class CharacterAgent(Agent):
 
             matching_nicknames = _FORMAL_TO_NICKNAMES[supp_first]
 
-            # Find main cast characters whose single-word canonical is a nickname for supp_first
+            # Find main cast characters whose canonical nickname form matches supp_first.
+            # Handles two patterns:
+            #   Single-word: main "Jim" → nickname for formal "James"
+            #   Multi-word:  main "Jim Young" first name "Jim" → nickname for "James",
+            #                surname "Young" matches supporting "James Dillingham Young"
             matches: list[int] = []
             for main_idx, main_char in enumerate(main_cast):
                 main_parts = main_char.canonical_name.strip().split()
-                if len(main_parts) != 1:
-                    continue  # Only single-word main cast canonicals (the nickname form)
-                main_name = main_parts[0].lower().strip(".,;:")
-                if main_name in matching_nicknames:
-                    matches.append(main_idx)
+                main_first = main_parts[0].lower().strip(".,;:")
+
+                if len(main_parts) == 1:
+                    # Single-word main cast: check if it's a nickname for supp_first
+                    if main_first in matching_nicknames:
+                        matches.append(main_idx)
+                else:
+                    # Multi-word main cast: first name must be a nickname whose formal
+                    # version equals supp_first, AND surnames must match.
+                    if (
+                        main_first in NICKNAME_TO_FORMAL
+                        and NICKNAME_TO_FORMAL[main_first] == supp_first
+                    ):
+                        main_last = main_parts[-1].lower().strip(".,;:")
+                        supp_last = supp_parts[-1].lower().strip(".,;:")
+                        if main_last == supp_last:
+                            matches.append(main_idx)
 
             # Require exactly one match to avoid ambiguity
             if len(matches) != 1:
