@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -108,11 +108,20 @@
   - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
   - Regression check: gift_of_the_magi uses third-person narrative → no narrator detection triggered → no regression risk
 
+## Pipeline Notes (Attempt 2)
+- Runtime: 30m 36s (36 LLM calls, 75,851 tokens)
+- Narrator: "Confirmed narrator: Bill (first-person)" — narrator fix worked
+- Characters found: 6 → 5 in final (Bill, John Donaldson, Joe Barron, God, Ted Frith) + Margaret Donaldson added
+- WARNING: Johnny (the son) does not appear in the character list — may have been merged into father or dropped
+- "Pass 2 failed for John, keeping without aliases" — alias resolution failed for a character named "John"
+- Bill's appearance correctly injected: "an elderly, grizzled, small man, grim and unexhilarating"
+- BLOCKED: "the narrator" meta-reference correctly blocked for Bill; "American" blocked (claimed by John Donaldson)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Pending re-analysis |
+| 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Analysis complete — awaiting evaluation |
 
 ## Root Cause Analysis
 
