@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -144,6 +144,17 @@ The narrator fix improved character extraction but could NOT retroactively fix a
 - All 14 pronunciations have IPA
 - Runtime: 30m 25s (36 LLM calls)
 
+## Pipeline Notes (Attempt 3)
+- Runtime: 10m 32s (36 LLM calls)
+- BLOCKED alias: 'John Donaldson (the son)' is already claimed as alias by another character — cannot be alias for 'John'
+  - This means "John Donaldson (the son)" was extracted as its own character but got merged somewhere later
+- BLOCKED alias: 'father' → cannot be alias for 'the narrator'
+- Final 5 characters: American sir (false positive), John Donaldson (the father), Uncle Bill, Joe Barron, Ted Frith
+- Johnny (the son) STILL missing from final output
+- "American, sir" falsely extracted as a character (should be filtered — it's a phrase from an Italian soldier)
+- Margaret Donaldson added as referenced character during F6b but not in final 5-character list
+- Uncle Bill still correctly identified as narrator
+
 ## Next Action
-Re-run analysis on american_sir (attempt 3) to verify Johnny is no longer merged into father.
-Expected cascade: Johnny restored → profiles/relationships/role assignments improve.
+Evaluate attempt 3 output — assess whether `_merge_lastname_aliases` exact_firstname guard improved anything.
+Identify what merged "John Donaldson (the son)" into "John Donaldson (the father)".
