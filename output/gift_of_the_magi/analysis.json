@@ -25,7 +25,7 @@
         "Jim",
         "Madame Sofronie"
       ],
-      "summary": "On Christmas Eve in a shabby $8-per-week flat, Della Young counts her meager savings of one dollar and eighty-seven cents and, devastated by her inability to buy a worthy gift for her husband Jim, decides to sell her long, beautiful hair to Madame Sofronie for twenty dollars. After purchasing a platinum fob chain intended for Jim's heirloom gold watch, Della returns home to curl her newly shortened hair, anxiously praying that Jim will still find her pretty when he arrives. Upon Jim's entry, he stares at her with a peculiar, unreadable expression that terrifies Della until she explains she sold her hair to buy his present, at which point Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair. The chapter concludes with the couple realizing their mutual, ironic sacrifice, followed by the narrator's reflection that despite their foolishness in trading their greatest treasures for useless gifts, they are the wisest of gift-givers."
+      "summary": "On Christmas Eve in a shabby $8-per-week flat, Della Young weeps over having only $1.87 to buy a gift for her husband, Jim, until she decides to sell her long, beautiful hair to Madame Sofronie for twenty dollars. After running on foot to various stores, she purchases a platinum fob chain for Jim's heirloom gold watch, then returns home to style her remaining hair into short curls while praying he will still find her pretty. When Jim arrives home looking thin and serious, he stares at Della with a peculiar, unreadable expression that terrifies her before she explains she cut her hair to afford his present. The tension breaks when Jim reveals he sold his own gold watch to buy Della a set of expensive tortoise-shell combs, rendering both gifts useless but demonstrating their mutual sacrifice."
     }
   ],
   "characters": [
@@ -36,53 +36,51 @@
         "Della"
       ],
       "role": "protagonist",
-      "physical_description": "Della has long, brown hair that reaches below her knee, described as rippling and shining like a cascade of brown waters. She has eyes that can shine brilliantly or become dim with tears, and her face loses color when distressed. She wears an old brown jacket and an old brown hat, and after cutting her hair, she styles it into tiny close-lying curls that make her look like a truant schoolboy.",
+      "physical_description": "Della has long, brown hair described as a 'brown cascade' and 'shining brilliantly' before she cuts it. After the sale, her head is covered with 'tiny close-lying curls' making her look like a 'truant schoolboy.' She wears an 'old brown jacket' and 'old brown hat.' She is described as having 'dim eyes' when emotional and her face loses color in moments of fear.",
       "appearance": {
-        "summary": "Della has long, brown hair that reaches below her knee, described as rippling and shining like a cascade of brown waters. She has eyes that can shine brilliantly or become dim with tears, and her face loses color when distressed. She wears an old brown jacket and an old brown hat, and after cutting her hair, she styles it into tiny close-lying curls that make her look like a truant schoolboy.",
+        "summary": "Della has long, brown hair described as a 'brown cascade' and 'shining brilliantly' before she cuts it. After the sale, her head is covered with 'tiny close-lying curls' making her look like a 'truant schoolboy.' She wears an 'old brown jacket' and 'old brown hat.' She is described as having 'dim eyes' when emotional and her face loses color in moments of fear.",
         "age_indication": null,
         "distinguishing_features": [
-          "Long brown hair reaching below the knee",
-          "Eyes that shine brilliantly or turn dim",
-          "Face that turns white or loses color when anxious",
-          "Tiny close-lying curls after cutting hair"
+          "Long, brown hair (initially)",
+          "Tiny close-lying curls (after haircut)",
+          "Old brown jacket",
+          "Old brown hat"
         ]
       },
       "personality": {
-        "summary": "Della is deeply loving, self-sacrificing, and generous, willing to give up her greatest treasure for her husband's happiness. She is emotional and prone to weeping when overwhelmed by her circumstances, yet she also displays prudence and a capacity for quick recovery and optimism.",
+        "summary": "Della is deeply loving, generous, and impulsive in her desire to give, yet also anxious and prone to emotional outbursts. She demonstrates prudence after her initial excitement but is primarily driven by affection.",
         "traits": [
-          "generous",
-          "self-sacrificing",
-          "loving",
-          "emotional",
-          "prudent",
-          "optimistic"
+          "Generous",
+          "Devoted",
+          "Anxious",
+          "Impulsive",
+          "Prudent"
         ],
-        "temperament": "melancholic yet hopeful",
-        "emotional_range": "Experiences intense sorrow (howling, weeping), anxiety (turning white, terror), and joy (shining eyes, leaping up).",
+        "temperament": "emotional",
+        "emotional_range": "Experiences intense weeping ('howl'), fear ('terrified', 'turned white'), excitement ('brilliant sparkle', 'leaped up'), and quiet prayer.",
         "speech_patterns": [
-          "Uses affectionate terms like 'Jim, darling' and 'boy'",
-          "Asks rhetorical questions",
-          "Speaks with urgency and pleading"
+          "Uses endearments like 'Jim, darling'",
+          "Asks rhetorical questions about her actions",
+          "Speaks in short, urgent sentences when distressed"
         ]
       },
       "voice_guidance": {
-        "suggested_tone": "tender, anxious, and ultimately warm",
-        "dialect_notes": "Uses informal phrasing such as 'ain't I' and 'boy' in a familiar context.",
+        "suggested_tone": "earnest and tender, shifting between despair and excitement",
+        "dialect_notes": "Standard English with no specific regional accent indicated, though she addresses her husband informally.",
         "verbal_tics": [
-          "Repetition of 'sold and gone'",
-          "Rhetorical questions ('Don't you like me just as well, anyhow?')"
+          "Repetition of 'Oh!'",
+          "Self-questioning ('what could I do?')"
         ],
         "formality_level": "informal",
         "example_quotes": [
-          "Please, God, make him think I am still pretty.",
-          "Don't look at me that way. I had my hair cut off and sold it.",
+          "Jim, darling, don't look at me that way.",
           "My hair grows so fast, Jim!",
-          "Isn't it a dandy, Jim?"
+          "Please, God, make him think I am still pretty."
         ]
       },
       "descriptions": [
         {
-          "text": "Della Young is a devoted wife living in poverty who demonstrates profound generosity by selling her most prized possession, her long hair, to buy a Christmas gift for her husband. Her character arc moves from despair over her lack of funds to anxious hope, culminating in a moment of tragic irony where her sacrifice renders her gift useless, yet she maintains a spirit of love and optimism.",
+          "text": "Della Young is a devoted and sacrificial wife who, despite living in poverty with only $1.87 for Christmas, sells her most prized possession—her long, beautiful hair—to buy a gift for her husband. Her actions are driven by deep love and a desire to bring joy to Jim, even at the cost of her own appearance, culminating in a moment of shared irony and mutual sacrifice.",
           "source_position": 336,
           "chapter_index": null,
           "confidence": "llm_refined"
@@ -99,45 +97,33 @@
           "confidence": "high"
         },
         {
-          "statement": "Della is deeply in love with Jim and wants to give him a gift",
-          "quote": "To-morrow would be Christmas Day, and she had only $1.87 with which to buy Jim a present.",
-          "position": 1611,
+          "statement": "Della has long brown hair that she sells",
+          "quote": "Down rippled the brown cascade. 'Twenty dollars,' said Madame... 'Give it to me quick,' said Della.",
+          "position": 4037,
           "confidence": "high"
         },
         {
-          "statement": "Della sacrifices her hair for Jim",
-          "quote": "It's sold, I tell you--sold and gone, too. It's Christmas Eve, boy. Be good to me, for it went for you.",
-          "position": 7759,
-          "confidence": "high"
-        },
-        {
-          "statement": "Della is emotional and cries when distressed",
-          "quote": "There was clearly nothing to do but flop down on the shabby little couch and howl. So Della did it.",
+          "statement": "Della is financially poor but saves diligently",
+          "quote": "Pennies saved one and two at a time by bulldozing the grocer and the vegetable man and the butcher until one's cheeks burned with the silent imputation of parsimony.",
           "position": 336,
           "confidence": "high"
         },
         {
-          "statement": "Della has long brown hair",
-          "quote": "So now Della's beautiful hair fell about her, rippling and shining like a cascade of brown waters. It reached below her knee",
-          "position": 3442,
-          "confidence": "high"
-        },
-        {
-          "statement": "Della styles her hair into curls after cutting it",
-          "quote": "Within forty minutes her head was covered with tiny close-lying curls that made her look wonderfully like a truant schoolboy.",
-          "position": 5361,
-          "confidence": "high"
-        },
-        {
-          "statement": "Della is anxious about Jim's reaction to her new appearance",
-          "quote": "she whispered: 'Please, God, make him think I am still pretty.'",
+          "statement": "Della is anxious about Jim's reaction to her haircut",
+          "quote": "If Jim doesn't kill me... he'll say I look like a Coney Island chorus girl.",
           "position": 6187,
           "confidence": "high"
         },
         {
-          "statement": "Della is optimistic despite the irony of her gift",
-          "quote": "But she hugged them to her bosom, and at length she was able to look up with dim eyes and a smile and say: 'My hair grows so fast, Jim!'",
-          "position": 9863,
+          "statement": "Della acts out of love to buy a gift",
+          "quote": "I had my hair cut off and sold it because I couldn't live through Christmas without giving you a present.",
+          "position": 7159,
+          "confidence": "high"
+        },
+        {
+          "statement": "Della's hair is compared to the Queen of Sheba's jewels",
+          "quote": "Had the Queen of Sheba lived in the flat across the airshaft, Della would have let her hair hang out the window some day to dry just to depreciate Her Majesty's jewels and gifts.",
+          "position": 3047,
           "confidence": "high"
         }
       ],
@@ -159,87 +145,110 @@
         "Dillingham"
       ],
       "role": "protagonist",
-      "physical_description": "Physical description is not provided in the text, other than the implication that he wears an heirloom gold watch with an old leather strap.",
+      "physical_description": "Jim is described as looking 'thin' and 'very serious' upon arriving home. He is noted to be in need of a new overcoat and is without gloves.",
       "appearance": {
-        "summary": "Physical description is not provided in the text, other than the implication that he wears an heirloom gold watch with an old leather strap.",
+        "summary": "Jim is described as looking 'thin' and 'very serious' upon arriving home. He is noted to be in need of a new overcoat and is without gloves.",
         "age_indication": null,
-        "distinguishing_features": []
+        "distinguishing_features": [
+          "thin",
+          "very serious expression",
+          "lacks a new overcoat",
+          "without gloves"
+        ]
       },
       "personality": {
-        "summary": "Described by Della as possessing 'quietness and value,' similar to the watch he owns. He reacts to sudden emotional news with a peculiar, unreadable expression and laborious mental processing.",
+        "summary": "Jim exhibits a serious and contemplative demeanor, often reacting with silence or laborious speech when faced with unexpected emotional situations. He is deeply affectionate, prioritizing his wife's happiness over material possessions or social status.",
         "traits": [
+          "serious",
+          "affectionate",
+          "sacrificial",
           "quiet",
-          "valued",
-          "thoughtful"
+          "contemplative"
         ],
         "temperament": "calm",
-        "emotional_range": "Displays a peculiar, fixed expression of shock and processes information laboriously before reacting.",
-        "speech_patterns": []
+        "emotional_range": "Initially displays a 'peculiar, unreadable expression' that terrifies his wife, followed by a gentle reassurance and a smile.",
+        "speech_patterns": [
+          "speaks laboriously",
+          "uses informal terms like 'Dell' and 'boy'",
+          "speaks with 'air almost of idiocy' when shocked"
+        ]
       },
       "voice_guidance": {
-        "suggested_tone": "laborious and stunned",
-        "dialect_notes": "None indicated in the text.",
-        "verbal_tics": [],
+        "suggested_tone": "gentle and serious",
+        "dialect_notes": "Uses informal address ('boy', 'Dell') suggesting a close, domestic intimacy.",
+        "verbal_tics": [
+          "speaks laboriously",
+          "repeats questions in confusion ('You say your hair is gone?')"
+        ],
         "formality_level": "informal",
         "example_quotes": [
           "You've cut off your hair?",
-          "Jim, darling"
+          "You say your hair is gone?",
+          "let's put our Christmas presents away and keep 'em a while. They're too nice to use just at present.",
+          "I sold the watch to get the money to buy your combs."
         ]
       },
       "descriptions": [
         {
-          "text": "Jim (Mr. James Dillingham Young) is the husband of Della Young, living with her in a modest flat on a reduced income. He is the recipient of a gift Della purchased with her savings, though he has secretly sold his own treasured possession to buy her a gift she can no longer use. The text depicts him as a man of 'quietness and value' whose reaction to his father's sacrifice is initially one of shock and stillness.",
+          "text": "Jim is a twenty-two-year-old husband who lives in a shabby flat with his wife, Della, on a reduced income of $20 per week. He possesses a deep, quiet devotion to his wife, demonstrated by his willingness to sell his heirloom gold watch to buy her a gift, even though it renders her gift to him useless. His initial reaction to Della's changed appearance is one of stunned silence and confusion rather than anger or disappointment.",
           "source_position": 1109,
           "chapter_index": null,
           "confidence": "llm_refined"
         }
       ],
       "relationships": {
-        "Della Young": "associated"
+        "Della Young": "associated",
+        "Sofronie": "associated"
       },
       "evidence": [
         {
           "statement": "Jim is the husband of Della Young",
-          "quote": "But whenever Mr. James Dillingham Young came home and reached his flat above he was called 'Jim' and greatly hugged by Mrs. James Dillingham Young, already introduced to you as Della.",
-          "position": 1322,
-          "confidence": "medium"
+          "quote": "whenever Mr. James Dillingham Young came home and reached his flat above he was called 'Jim' and greatly hugged by Mrs. James Dillingham Young, already introduced to you as Della.",
+          "position": 1451,
+          "confidence": "high"
         },
         {
-          "statement": "Jim is described as having 'quietness and value'",
-          "quote": "It was like him. Quietness and value--the description applied to both.",
-          "position": 4965,
-          "confidence": "medium"
+          "statement": "Jim is twenty-two years old",
+          "quote": "Poor fellow, he was only twenty-two",
+          "position": 6772,
+          "confidence": "high"
         },
         {
-          "statement": "Jim reacts with a peculiar, fixed expression upon seeing Della",
-          "quote": "stared at her fixedly with that peculiar expression on his face.",
-          "position": 7488,
-          "confidence": "medium"
+          "statement": "Jim is described as thin and serious",
+          "quote": "He looked thin and very serious.",
+          "position": 6772,
+          "confidence": "high"
         },
         {
-          "statement": "Jim processes the news of Della's haircut laboriously",
-          "quote": "\"You've cut off your hair?\" asked Jim laboriously, as if he had not arrived at that patent fact yet, even after the hardest mental labor.",
-          "position": 7488,
-          "confidence": "medium"
+          "statement": "Jim owns a gold watch inherited from his father and grandfather",
+          "quote": "One was Jim's gold watch that had been his father's and his grandfather's.",
+          "position": 2900,
+          "confidence": "high"
         },
         {
-          "statement": "Jim owns an heirloom gold watch with an old leather strap",
-          "quote": "Grand as the watch was, he sometimes looked at it on the sly on account of the old leather strap he used in place of a chain.",
-          "position": 4965,
-          "confidence": "medium"
+          "statement": "Jim reacts with confusion and silence to Della's haircut",
+          "quote": "His eyes were fixed upon Della, and there was an expression in them that she could not read, and it terrified her. It was not anger, nor surprise, nor disapproval, nor horror, nor any of the sentiments that she had been prepared for.",
+          "position": 6772,
+          "confidence": "high"
         },
         {
-          "statement": "Jim has sold his watch to buy a gift for Della",
-          "quote": "Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair.",
-          "position": 0,
-          "confidence": "medium"
+          "statement": "Jim sold his watch to buy Della combs",
+          "quote": "I sold the watch to get the money to buy your combs.",
+          "position": 10307,
+          "confidence": "high"
+        },
+        {
+          "statement": "Jim reassures Della that her haircut does not change his love for her",
+          "quote": "I don't think there is anything in the way of a haircut or a shave or a shampoo that could make me like my girl any less.",
+          "position": 8667,
+          "confidence": "high"
         }
       ],
       "voice_notes": null,
       "first_appearance_chapter": 1,
       "mention_count": 32,
       "mentions": [],
-      "confidence": "medium",
+      "confidence": "high",
       "gender": null,
       "is_narrator": false,
       "narrative_role": null,
@@ -250,9 +259,9 @@
       "canonical_name": "Sofronie",
       "aliases": [],
       "role": "minor",
-      "physical_description": "Described as 'large' and 'too white' with a 'chilly' bearing. She is referred to as 'Madame' and runs a shop with a sign reading 'Mme. Sofronie, Hair Goods of All Kinds'.",
+      "physical_description": "Large build, too white complexion, and a chilly bearing.",
       "appearance": {
-        "summary": "Described as 'large' and 'too white' with a 'chilly' bearing. She is referred to as 'Madame' and runs a shop with a sign reading 'Mme. Sofronie, Hair Goods of All Kinds'.",
+        "summary": "Large build, too white complexion, and a chilly bearing.",
         "age_indication": null,
         "distinguishing_features": [
           "large",
@@ -261,36 +270,33 @@
         ]
       },
       "personality": {
-        "summary": "Professional, detached, and efficient. She conducts business with a practiced hand and maintains a chilly demeanor, showing no warmth or hesitation in the transaction.",
+        "summary": "Professional and efficient in business dealings, with a cold or distant demeanor.",
         "traits": [
-          "professional",
-          "detached",
+          "chilly",
+          "practiced",
           "efficient"
         ],
         "temperament": "chilly",
-        "emotional_range": "Limited; displays a cold, business-like demeanor without visible emotional reaction to the seller's distress or the value of the hair.",
+        "emotional_range": "Displays little emotion; described as 'chilly' and focused on the transaction.",
         "speech_patterns": [
-          "uses dialect ('yer')",
-          "direct and concise"
+          "Direct and business-like",
+          "Uses colloquialisms like 'yer'"
         ]
       },
       "voice_guidance": {
         "suggested_tone": "chilly and authoritative",
-        "dialect_notes": "Uses non-standard dialect, specifically 'yer' instead of 'your' ('Take yer hat off').",
-        "verbal_tics": [
-          "Take yer hat off",
-          "Give it to me quick"
-        ],
+        "dialect_notes": "Uses 'yer' instead of 'your' (e.g., 'Take yer hat off')",
+        "verbal_tics": [],
         "formality_level": "informal",
         "example_quotes": [
           "I buy hair",
-          "Take yer hat off and let's have a sight at the looks of it.",
+          "Take yer hat off and let's have a sight at the looks of it",
           "Twenty dollars"
         ]
       },
       "descriptions": [
         {
-          "text": "Madame Sofronie is a business owner who operates a hair goods shop, described as large, pale, and chilly in demeanor. She acts as a transactional figure in the narrative, purchasing Della Young's hair for twenty dollars with a practiced, efficient manner. She appears only briefly to facilitate Della's sacrifice, showing no emotional connection to the seller.",
+          "text": "Madame Sofronie is a businesswoman who operates a hair goods shop, characterized by a large, pale, and chilly demeanor. She acts as a buyer in a transaction where she purchases Della Young's hair for twenty dollars, displaying a practiced and efficient approach to the sale.",
           "source_position": 3987,
           "chapter_index": null,
           "confidence": "llm_refined"
@@ -298,8 +304,8 @@
       ],
       "relationships": {
         "Della Young": "hair seller",
-        "Jim": "no relationship",
-        "The magi": "associated"
+        "the magi": "associated",
+        "Jim": "associated"
       },
       "evidence": [
         {
@@ -309,21 +315,27 @@
           "confidence": "high"
         },
         {
-          "statement": "Sofronie offers to buy hair and inspects it with a practiced hand.",
-          "quote": "'I buy hair,' said Madame. 'Take yer hat off and let's have a sight at the looks of it.' ... 'Twenty dollars,' said Madame, lifting the mass with a practiced hand.",
+          "statement": "Sofronie offers to buy hair.",
+          "quote": "\"I buy hair,\" said Madame.",
           "position": 3987,
           "confidence": "high"
         },
         {
-          "statement": "Sofronie's shop sign identifies her business.",
-          "quote": "Where she stopped the sign read: 'Mme. Sofronie, Hair Goods of All Kinds.'",
+          "statement": "Sofronie uses a practiced hand to lift the hair.",
+          "quote": "\"Twenty dollars,\" said Madame, lifting the mass with a practiced hand.",
           "position": 3987,
           "confidence": "high"
         },
         {
-          "statement": "Sofronie uses dialect in her speech.",
-          "quote": "'Take yer hat off and let's have a sight at the looks of it.'",
+          "statement": "Sofronie instructs Della to remove her hat.",
+          "quote": "\"Take yer hat off and let's have a sight at the looks of it.\"",
           "position": 3987,
+          "confidence": "high"
+        },
+        {
+          "statement": "Sofronie sets the price at twenty dollars.",
+          "quote": "\"Twenty dollars,\" said Madame",
+          "position": 4133,
           "confidence": "high"
         }
       ],
@@ -338,8 +350,8 @@
       "is_symbolic": false
     },
     {
-      "id": "5454b97921a0",
-      "canonical_name": "The magi",
+      "id": "530619173dfc",
+      "canonical_name": "the magi",
       "aliases": [],
       "role": "supporting",
       "physical_description": null,
@@ -349,10 +361,10 @@
         "distinguishing_features": []
       },
       "personality": {
-        "summary": "Described as wise and the inventors of the art of giving presents.",
+        "summary": "Described as wise and inventors of the art of giving gifts.",
         "traits": [
           "wise",
-          "inventive regarding gift-giving"
+          "inventive"
         ],
         "temperament": "unknown",
         "emotional_range": "unknown",
@@ -367,7 +379,7 @@
       },
       "descriptions": [
         {
-          "text": "The magi are described as wise men who invented the art of giving Christmas presents and brought valuable gifts to the Babe in the manger. The narrator draws a parallel between these historical figures and the story's protagonists, stating that the two characters are the wisest of all gift-givers and are themselves the magi.",
+          "text": "The magi are described as wise men who brought gifts to the Babe in the manger and are credited with inventing the art of giving Christmas presents. In the narrative's conclusion, they serve as a benchmark for wisdom, with the narrator asserting that the two main characters, who sacrificed their greatest treasures for one another, are equally wise and are themselves identified as the magi.",
           "source_position": 0,
           "chapter_index": null,
           "confidence": "llm_refined"
@@ -390,8 +402,8 @@
           "confidence": "high"
         },
         {
-          "statement": "The story's protagonists are identified as the magi because they are the wisest of gift-givers.",
-          "quote": "They are the magi.",
+          "statement": "The narrator compares the main characters to the magi, stating they are the wisest of gift-givers.",
+          "quote": "Of all who give and receive gifts, such as they are wisest. Everywhere they are the wisest. They are the magi.",
           "position": 11274,
           "confidence": "high"
         }
@@ -422,11 +434,11 @@
         "...up Della ran, and collected herself, panting. Madame, large, too white, chilly, hardly looked the \"Sofronie.\" \"Will you buy my hair?\" asked Della. \"I buy hair,\" said Madame. \"Take yer hat off and let's hav..."
       ],
       "confidence": "high",
-      "ipa": "/səˈfrəʊ.ni/",
+      "ipa": "/səˈfroʊ.ni/",
       "phonetic_spelling": "suh-FROH-nee",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress is on the second syllable. The 'o' in the stressed syllable is a long 'oh' sound. The 'ie' at the end is pronounced 'ee'."
+      "notes": "Based on standard English pronunciation rules for names of this structure. Stress falls on the second syllable. The 'o' is a long 'O' sound."
     },
     {
       "word": "read",
@@ -462,10 +474,10 @@
       ],
       "confidence": "medium",
       "ipa": "/ˈmɛn.dɪ.kən.si/",
-      "phonetic_spelling": "MEN-dih-kan-see",
+      "phonetic_spelling": "MEN-di-kan-see",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress is on the first syllable. The 'i' in the second syllable is a short 'ih' sound, and the final 'y' is pronounced as 'ee'."
+      "notes": "Stress on the first syllable. The 'i' in the second syllable is a short schwa sound."
     },
     {
       "word": "appertaining",
@@ -480,11 +492,11 @@
         "...hich no letter would go, and an electric button from which no mortal finger could coax a ring. Also appertaining thereunto was a card bearing the name \"Mr. James Dillingham Young.\" The \"Dillingham\" had been flun..."
       ],
       "confidence": "medium",
-      "ipa": "/əˈpɜːr.tə.nɪŋ/",
-      "phonetic_spelling": "uh-PUR-tuh-ning",
+      "ipa": "/əˈpɜːr.tə.neɪ.ɪŋ/",
+      "phonetic_spelling": "uh-PUR-tuh-NAY-ing",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress is on the second syllable. The 'a' in the first syllable is a schwa (uh). The 'er' sounds like the 'ur' in 'turn'."
+      "notes": "Stress on the second syllable. The 'ei' is pronounced as a long 'A' sound (like in 'day'). The final 'ing' is a standard nasal ending."
     },
     {
       "word": "meretricious",
@@ -499,11 +511,11 @@
         "...ob chain, simple and chaste in design, properly proclaiming its value by substance alone and not by meretricious ornamentation--as all good things should do. It was even worthy of The Watch. As soon as she saw it..."
       ],
       "confidence": "medium",
-      "ipa": "/məˈtrɪt.ʃi.əs/",
-      "phonetic_spelling": "muh-TRIT-shus",
+      "ipa": "/ˌmɛr.əˈtrɪʃ.əs/",
+      "phonetic_spelling": "mer-uh-TRISH-us",
       "audio_url": null,
       "user_pronunciation": null,
-      "notes": "Stress is on the second syllable. The 't' is followed by a 'ch' sound (tch). The final syllable is a quick 'us' sound."
+      "notes": "Primary stress on the third syllable ('trish'). Secondary stress on the first syllable ('mer'). The 't' followed by 'i' creates a 'ch' sound (/tʃ/)."
     },
     {
       "word": "live",
@@ -592,12 +604,11 @@
       "description": "This book contains 1 chapters. Chapters are numbered sequentially."
     },
     "plot_summary": {
-      "plot_summary": "On Christmas Eve, Della Young resides in a shabby flat earning eight dollars a week, where she counts her meager savings of one dollar and eighty-seven cents. Devastated by her inability to purchase a worthy gift for her husband Jim, she makes the desperate decision to sell her long, beautiful hair to Madame Sofronie for twenty dollars.\n\nAfter purchasing a platinum fob chain intended for Jim's heirloom gold watch, Della returns home to curl her newly shortened hair while anxiously praying that Jim will still find her pretty upon his arrival. When Jim enters, he stares at her with a peculiar, unreadable expression that terrifies Della until she explains she sold her hair to buy his present.\n\nAt this turning point, Jim reveals he sold his own treasured watch to purchase a set of expensive tortoise shell combs for her now-vanished hair, leading the couple to realize their mutual, ironic sacrifice. The chapter concludes with the narrator reflecting that despite their foolishness in trading their greatest treasures for useless gifts, they are the wisest of gift-givers.",
+      "plot_summary": "On Christmas Eve, Della Young weeps in her shabby $8-per-week flat because she has only $1.87 to buy a gift for her husband, Jim. Desperate to find a meaningful present, she decides to sell her long, beautiful hair to Madame Sofronie for twenty dollars. This decision marks the beginning of her journey to secure funds for a gift she believes Jim deserves.\n\nAfter running on foot to various stores, Della purchases a platinum fob chain specifically for Jim's heirloom gold watch. Upon returning home, she styles her remaining hair into short curls, praying that Jim will still find her pretty despite the drastic change. When Jim arrives home looking thin and serious, he stares at Della with a peculiar, unreadable expression that terrifies her before she explains she cut her hair to afford his present.\n\nThe tension breaks when Jim reveals he sold his own gold watch to buy Della a set of expensive tortoise-shell combs, rendering both gifts useless but demonstrating their mutual sacrifice. The story concludes with the couple realizing that their willingness to give up their most prized possessions for one another proves the depth of their love, even though the physical gifts can no longer be used.",
       "themes": [
         "sacrifice",
         "love",
-        "irony",
-        "wisdom"
+        "loss"
       ],
       "narrative_style": "third-person omniscient"
     },
@@ -625,54 +636,54 @@
     },
     "timing": {
       "Chapter Detection": {
-        "duration_seconds": 26.05,
-        "duration_formatted": "26.1s"
+        "duration_seconds": 27.92,
+        "duration_formatted": "27.9s"
       },
       "Chapter Summaries": {
-        "duration_seconds": 48.6,
-        "duration_formatted": "48.6s"
+        "duration_seconds": 45.34,
+        "duration_formatted": "45.3s"
       },
       "Character Extraction": {
-        "duration_seconds": 60.2,
-        "duration_formatted": "1m 0s"
+        "duration_seconds": 51.55,
+        "duration_formatted": "51.5s"
       },
       "Character Profiles": {
-        "duration_seconds": 331.67,
-        "duration_formatted": "5m 32s"
+        "duration_seconds": 321.41,
+        "duration_formatted": "5m 21s"
       },
       "Pronunciation Guide": {
-        "duration_seconds": 14.9,
-        "duration_formatted": "14.9s"
+        "duration_seconds": 14.39,
+        "duration_formatted": "14.4s"
       },
       "total": {
-        "duration_seconds": 939.06,
-        "duration_formatted": "15m 39s"
+        "duration_seconds": 911.28,
+        "duration_formatted": "15m 11s"
       },
-      "started_at": "2026-03-03 20:08:13",
-      "ended_at": "2026-03-03 20:23:53"
+      "started_at": "2026-03-03 20:32:40",
+      "ended_at": "2026-03-03 20:47:51"
     }
   },
   "consensus_log": null,
   "warnings": [],
   "low_confidence_items": [],
   "_analysis_metadata": {
-    "analyzed_at": "2026-03-03T20:25:50.907353",
+    "analyzed_at": "2026-03-03T20:49:45.428648",
     "analyzer_version": "0.2.0",
     "pipeline": "multi-agent",
     "llm_model": "none",
     "llm_provider": "ollama",
-    "analysis_duration_seconds": 1056.9
+    "analysis_duration_seconds": 1024.8
   },
   "_profiling": {
     "stages": [
       {
         "name": "Chapter Detection",
-        "duration_seconds": 26.05,
-        "llm_calls": 5,
-        "tokens_prompt": 10414,
-        "tokens_completion": 883,
-        "tokens_total": 11297,
-        "avg_latency_ms": 5209.0,
+        "duration_seconds": 27.92,
+        "llm_calls": 6,
+        "tokens_prompt": 11056,
+        "tokens_completion": 956,
+        "tokens_total": 12012,
+        "avg_latency_ms": 4651.56,
         "items_processed": 1,
         "high_confidence": 0,
         "medium_confidence": 1,
@@ -684,12 +695,12 @@
       },
       {
         "name": "Chapter Summaries",
-        "duration_seconds": 48.6,
+        "duration_seconds": 45.34,
         "llm_calls": 1,
         "tokens_prompt": 3706,
-        "tokens_completion": 555,
-        "tokens_total": 4261,
-        "avg_latency_ms": 48591.57,
+        "tokens_completion": 486,
+        "tokens_total": 4192,
+        "avg_latency_ms": 45323.93,
         "items_processed": 1,
         "high_confidence": 1,
         "medium_confidence": 0,
@@ -701,12 +712,12 @@
       },
       {
         "name": "Character Extraction",
-        "duration_seconds": 60.2,
+        "duration_seconds": 51.55,
         "llm_calls": 6,
-        "tokens_prompt": 4446,
-        "tokens_completion": 1026,
-        "tokens_total": 5472,
-        "avg_latency_ms": 9829.16,
+        "tokens_prompt": 4143,
+        "tokens_completion": 853,
+        "tokens_total": 4996,
+        "avg_latency_ms": 8392.02,
         "items_processed": 3,
         "high_confidence": 2,
         "medium_confidence": 1,
@@ -718,15 +729,15 @@
       },
       {
         "name": "Character Profiles",
-        "duration_seconds": 331.67,
+        "duration_seconds": 321.41,
         "llm_calls": 12,
-        "tokens_prompt": 18691,
-        "tokens_completion": 5704,
-        "tokens_total": 24395,
-        "avg_latency_ms": 27638.26,
+        "tokens_prompt": 18435,
+        "tokens_completion": 5506,
+        "tokens_total": 23941,
+        "avg_latency_ms": 26783.37,
         "items_processed": 4,
-        "high_confidence": 3,
-        "medium_confidence": 1,
+        "high_confidence": 4,
+        "medium_confidence": 0,
         "low_confidence": 0,
         "model_used": "qwen3.5:122b-a10b",
         "provider_used": "ollama",
@@ -735,12 +746,12 @@
       },
       {
         "name": "Pronunciation Guide",
-        "duration_seconds": 14.9,
+        "duration_seconds": 14.39,
         "llm_calls": 1,
         "tokens_prompt": 496,
-        "tokens_completion": 395,
-        "tokens_total": 891,
-        "avg_latency_ms": 14404.51,
+        "tokens_completion": 382,
+        "tokens_total": 878,
+        "avg_latency_ms": 13898.74,
         "items_processed": 9,
         "high_confidence": 6,
         "medium_confidence": 3,
@@ -752,18 +763,18 @@
       }
     ],
     "totals": {
-      "duration_seconds": 1056.94,
-      "llm_calls": 25,
-      "tokens": 46316
+      "duration_seconds": 1024.83,
+      "llm_calls": 26,
+      "tokens": 46019
     },
     "bottleneck": [
       "Character Profiles",
-      31.3798533459721
+      31.362179972781444
     ],
     "quality_concerns": [],
     "timestamps": {
-      "started": "2026-03-03 20:08:13",
-      "ended": "2026-03-03 20:25:50"
+      "started": "2026-03-03 20:32:40",
+      "ended": "2026-03-03 20:49:45"
     }
   },
   "_config": {

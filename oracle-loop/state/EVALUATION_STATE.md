@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -97,5 +97,10 @@
   - Smoke test: 332 tests pass, 0 failures.
   - Modified: `src/pipeline/character_profiling/post_corrections.py`
 
+## Pipeline Notes (Attempt 3 Run)
+- Completed in 17m 4s
+- 4 characters found: Della Young, Jim (aliases: James Dillingham Young, Dillingham), Sofronie, the magi
+- No pipeline errors
+
 ## Next Action
-Re-run analysis to verify Jim↔Della now has "husband"/"wife" labels and Character Profiles reaches 8/10.
+Evaluate output to verify Jim↔Della now has "husband"/"wife" labels and Character Profiles reaches 8/10.
