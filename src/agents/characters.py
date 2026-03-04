@@ -412,6 +412,88 @@ class CharacterAgent(Agent):
                 )
                 self._refresh_mentions(post_split_aliases_added, main_cast, searcher, mention_results)
 
+        # STEP 3.95: Split over-merged same-name characters using characters_present evidence.
+        # When chapter summaries list multiple distinct entities with the same base name
+        # (e.g., "John (the son)" and "John Donaldson (the father/volunteer)"), the LLM may
+        # have merged them into a single main_cast character. Detect and split programmatically.
+        # This step is universal: it triggers only when the summaries explicitly provide
+        # disambiguated forms of the same name — no vocabulary keywords needed.
+        import re as _re395
+        _paren395 = _re395.compile(r'\s*\(.*?\)\s*$')  # trailing parenthetical
+
+        def _cp_base(name: str) -> str:
+            """Strip trailing parenthetical, lowercase, strip."""
+            return _paren395.sub('', name).strip().lower()
+
+        # Collect all characters_present entries that have parenthetical disambiguators
+        cp_with_paren: list[str] = []
+        for _cs in chapter_summaries:
+            if '[Characters present:' not in _cs:
+                continue
+            _bracket_end = _cs.find(']')
+            if _bracket_end == -1:
+                continue
+            _cp_line = _cs[len('[Characters present: '):_bracket_end]
+            for _entry in _cp_line.split(','):
+                _entry = _entry.strip()
+                if _entry and '(' in _entry:
+                    cp_with_paren.append(_entry)
+
+        if cp_with_paren:
+            from collections import defaultdict as _dd395
+            cp_by_base: dict[str, list[str]] = _dd395(list)
+            for _entry in cp_with_paren:
+                _base = _cp_base(_entry)
+                if _entry not in cp_by_base[_base]:
+                    cp_by_base[_base].append(_entry)
+
+            for _base_name, _cp_list in cp_by_base.items():
+                # Only act when 2+ distinct CP entries share the same base name
+                if len(_cp_list) < 2:
+                    continue
+                # Find main_cast character whose base name matches (no parenthetical itself)
+                _candidates = [
+                    c for c in main_cast
+                    if _cp_base(c.canonical_name) == _base_name
+                    and '(' not in c.canonical_name
+                ]
+                if len(_candidates) != 1:
+                    continue  # 0 = none extracted; 2+ = already split
+                _merged = _candidates[0]
+                _original_canonical = _merged.canonical_name
+                logger.info(
+                    f"V2 Step 3.95: '{_original_canonical}' was over-merged "
+                    f"(cp_entries={_cp_list}); splitting into {len(_cp_list)} characters"
+                )
+                # Rename the original character to the first CP entry (primary form)
+                _merged.canonical_name = _cp_list[0]
+                if _original_canonical not in _merged.aliases:
+                    _merged.aliases.insert(0, _original_canonical)
+                # Create new characters for each additional CP entry
+                for _i, _secondary_cp in enumerate(_cp_list[1:], 1):
+                    from ..models import ConfidenceLevel as _CL395
+                    _new_char = Character(
+                        id=f"{_merged.id}_cp{_i}",
+                        canonical_name=_secondary_cp,
+                        role="supporting",
+                        mention_count=max(1, _merged.mention_count // (len(_cp_list))),
+                        confidence=_CL395.MEDIUM,
+                        aliases=[_original_canonical],
+                    )
+                    main_cast.append(_new_char)
+                    logger.info(
+                        f"V2 Step 3.95: Created split character '{_secondary_cp}' "
+                        f"(id={_new_char.id})"
+                    )
+                # Adjust merged character's mention_count to roughly its share
+                _merged.mention_count = max(
+                    1, _merged.mention_count - (len(_cp_list) - 1) * max(1, _merged.mention_count // len(_cp_list))
+                )
+                # Re-search mentions for all newly created split characters
+                _split_ids = {f"{_merged.id}_cp{_i}" for _i in range(1, len(_cp_list))}
+                _split_ids.add(_merged.id)
+                self._refresh_mentions(_split_ids, main_cast, searcher, mention_results)
+
         # STEP 4: Detect narrator (F4)
         logger.info("V2 Step 4: Detecting narrator")
         narrator_detector = NarratorDetector(self.llm)

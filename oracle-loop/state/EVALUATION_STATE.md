@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -129,6 +129,20 @@ Priority 3: **Narrator detection robustness** — add retry/fallback when narrat
 - summarizer.py nested narration guidance (works when LLM cooperates)
 
 ## Fix History
+- Attempt 11:
+  1. STEP 3.95 — Programmatic same-name split from characters_present lists
+     - Modified: `src/agents/characters.py` — new STEP 3.95 after STEP 3.9 (before narrator detection)
+     - Root cause: LLM non-deterministically merges same-name characters; characters_present already lists them as distinct but LLM ignores the NOTE
+     - Fix: After all merges (3.9), parse [Characters present: ...] from summaries; for each group with 2+ entries sharing the same base name, find the merged main_cast character and split it into N characters
+     - Smoke test: PASS — parsing logic correctly identifies 'john donaldson' group with 2 CP entries; triggers split of "John Donaldson" into "John Donaldson (the narrator in the flashback)" + "John Donaldson (the father/volunteer)"
+  2. clean_unknown_relationships() — extended to also remove "associated" labels
+     - Modified: `src/pipeline/character_profiling/post_corrections.py`
+     - Root cause: add_cooccurrence_relationships() adds "associated" for co-occurring chars; verify_relationships_from_text() fails to upgrade it; result is "associated" labels in output
+     - Fix: Remove "associated"/"associate"/"acquaintance" along with "unknown" in final cleanup
+  3. Narrator extracted from V2 pipeline_metadata in analyzer.py
+     - Modified: `src/analyzer.py` — after line 1107 (V2 extraction result)
+     - Root cause: characters.py Step 4/5.8 already ran narrator detection with the fully-resolved main_cast, but analyzer.py ignored this result and ran a duplicate LLM call (Step 4.5) that sometimes fails
+     - Fix: Extract narrator_name/pov from pipeline_char_map.pipeline_metadata immediately after V2 extraction; set narrator_detected directly
 - Attempt 10:
   1. Post-filter "associated"/"acquaintance"/"unknown" relationship labels from primary profiler
      - Modified: `src/analyzer.py` — `_generate_character_profile()` after parsing relationships
@@ -215,7 +229,7 @@ Priority 3: **Narrator detection robustness** — add retry/fallback when narrat
 - Narrator detection returned None — needs robustness fix
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Programmatic father/son split enforcement (characters.py post-extraction)
-2. HIGH: Debug relationship post-filter (analyzer.py)
-3. HIGH: Narrator detection retry/fallback (narrator.py)
+Run analysis (PROMPT_analyze.md) to verify fixes:
+1. CRITICAL fix applied: STEP 3.95 in characters.py — programmatic same-name split
+2. HIGH fix applied: clean_unknown_relationships() now removes "associated" labels too
+3. HIGH fix applied: narrator extracted from V2 pipeline_metadata in analyzer.py

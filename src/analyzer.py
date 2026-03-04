@@ -1106,6 +1106,20 @@ class AudiobookAnalyzer:
                     character_result = character_agent_v2.run(char_agent_context)
                     pipeline_char_map = character_result.data
 
+                    # Extract narrator info from V2 pipeline result.
+                    # characters.py Step 4/5.8 already ran narrator detection with the
+                    # fully-resolved main_cast — use this result directly rather than
+                    # waiting for the duplicate early detection (Step 4.5) later.
+                    _v2_narrator_name = pipeline_char_map.pipeline_metadata.get("narrator_name")
+                    _v2_narrator_pov = pipeline_char_map.pipeline_metadata.get("narrator_pov", "")
+                    if _v2_narrator_name and _v2_narrator_pov in ("first-person", "epistolary"):
+                        narrator_detected = _v2_narrator_name
+                        logger.info(
+                            f"V2 narrator extracted from pipeline result: "
+                            f"'{narrator_detected}' (pov={_v2_narrator_pov})"
+                        )
+                        print(f"   Narrator (from V2 pipeline): {narrator_detected}")
+
                     ctx.record_items(
                         total=character_result.total_items,
                         high_confidence=character_result.high_confidence_count,

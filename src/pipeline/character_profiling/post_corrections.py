@@ -2415,23 +2415,28 @@ class OutputCharacterCorrector:
                     )
 
     def clean_unknown_relationships(self, characters) -> None:
-        """Remove relationship entries labeled 'unknown' - they provide no information.
+        """Remove relationship entries that provide no useful information.
 
-        'unknown' is a sentinel value meaning the relationship could not be determined.
-        Better to omit the entry than show a meaningless label to the narrator.
+        'unknown' and 'associated' are sentinel/fallback values that tell the narrator
+        nothing specific. Better to omit the entry than show a meaningless label.
+        'associated' is re-added by add_cooccurrence_relationships() for co-appearing
+        characters; if verify_relationships_from_text() could not upgrade it to a
+        specific label, the evidence is insufficient and 'associated' is misleading.
         Runs last so all other corrections (verify_relationships, enforce_gender) have
         already run and may have resolved some entries.
         """
+        _uninformative = {"unknown", "associated", "associate", "acquaintance"}
         for char in characters:
             if not char.relationships:
                 continue
             to_remove = [
                 k for k, v in char.relationships.items()
-                if (v or "").strip().lower() == "unknown"
+                if (v or "").strip().lower() in _uninformative
             ]
             for k in to_remove:
+                _label = char.relationships[k]
                 del char.relationships[k]
                 logger.info(
                     f"Removed uninformative relationship: "
-                    f"'{char.canonical_name}' → '{k}': 'unknown'"
+                    f"'{char.canonical_name}' → '{k}': '{_label}'"
                 )
