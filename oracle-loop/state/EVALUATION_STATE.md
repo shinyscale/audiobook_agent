@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Attempt:** 17
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -241,5 +241,12 @@ Functional navigation, logical organization.
 - All 14 pronunciations have IPA
 - Issue is NOT configuration — it's extraction and post-processing logic
 
+## Pipeline Notes (Attempt 17)
+- STEP 3.95b DID NOT FIRE — father/son still merged into single "John Donaldson" (28 mentions)
+- STEP 3.97 BLOCKED — tried to add "John Donaldson" as alias for "John" but "John Donaldson" is claimed as canonical name; Johnny phantom still present (2 mentions)
+- Uncle Bill narrator: ✓ (V2 pipeline metadata)
+- Analysis completed in 49m 45s (exit code 0)
+- Warning: "Pass 2 failed for the narrator, keeping without aliases" and "Pass 2 failed for Uncle Bill, keeping without aliases"
+
 ## Next Action
-Re-run analysis to verify fix. STEP 3.95b should split father/son. STEP 3.97 (with lowered threshold + parenthetical guard) should merge Johnny.
+Evaluate attempt 17 output. Expect similar or worse scores given STEP 3.95b and 3.97 fixes didn't fire.
