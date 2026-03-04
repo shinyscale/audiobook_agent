@@ -423,6 +423,68 @@ class CharacterAgent(Agent):
             f"narrator={narrator_info.narrator_name}"
         )
 
+        # STEP 4.25: Vocative-based narrator correction.
+        # Universal invariant: in first-person narratives the narrator uses "I" and has
+        # anomalously LOW name-mention count. If the LLM was forced to pick from a single
+        # main-cast character who actually has HIGH mentions (the non-narrator), the
+        # assignment is likely wrong. Search raw text for vocative patterns ("Name!")
+        # to find who is actually being addressed as the narrator.
+        #
+        # Example: Cask of Amontillado — main_cast=[Fortunato(14 mentions)]; LLM assigns
+        # Fortunato as narrator. Vocative search finds "Montresor" (3 mentions) from
+        # "For the love of God, Montresor!" → Montresor is the actual narrator.
+        import re as _re45
+        if narrator_info.pov == "first-person" and narrator_info.narrator_character_id is not None:
+            narrator_char_425 = next(
+                (c for c in main_cast if c.id == narrator_info.narrator_character_id), None
+            )
+            if narrator_char_425 is not None:
+                narrator_count_425 = getattr(narrator_char_425, "mention_count", 0) or 0
+                other_mention_counts_425 = [
+                    getattr(c, "mention_count", 0) or 0
+                    for c in main_cast
+                    if c.id != narrator_char_425.id
+                ]
+                # Suspicious if narrator has MORE mentions than all others, or is the only
+                # main-cast character (no comparison possible, forced false choice)
+                narrator_suspiciously_high = (
+                    narrator_count_425 > 0
+                    and (
+                        not other_mention_counts_425
+                        or narrator_count_425 > max(other_mention_counts_425, default=0)
+                    )
+                )
+                if narrator_suspiciously_high:
+                    vocative_name_425 = self._find_narrator_name_from_vocative(context.text)
+                    if (
+                        vocative_name_425
+                        and vocative_name_425.lower() != narrator_char_425.canonical_name.lower()
+                    ):
+                        voc_count_425 = len(
+                            _re45.findall(
+                                rf"(?<![A-Za-z0-9]){_re45.escape(vocative_name_425)}(?![A-Za-z0-9])",
+                                context.text,
+                                _re45.IGNORECASE,
+                            )
+                        )
+                        if voc_count_425 < narrator_count_425:
+                            # Vocative name has fewer mentions → it's the actual narrator
+                            logger.info(
+                                f"V2 Step 4.25: Narrator correction — '{narrator_char_425.canonical_name}' "
+                                f"({narrator_count_425} mentions) seems wrong; vocative pattern "
+                                f"suggests '{vocative_name_425}' ({voc_count_425} mentions) "
+                                f"is the actual narrator. Resetting narrator assignment."
+                            )
+                            narrator_char_425.is_narrator = False
+                            narrator_char_425.narrative_role = None
+                            narrator_info = NarratorInfo(
+                                pov="first-person",
+                                narrator_name=vocative_name_425,
+                                narrator_character_id=None,
+                                confidence=0.75,
+                            )
+        logger.info("V2 Step 4.25 complete: vocative narrator correction check done")
+
         # STEP 4.5: Resolve narrator name from raw text vocative patterns
         # For first-person narratives where the narrator is a placeholder ("the narrator"),
         # the LLM may generate summaries that never name the narrator explicitly. Search
@@ -859,6 +921,53 @@ class CharacterAgent(Agent):
                     f"V2 Step 5.8.5b: Narrator '{merged_narrator.canonical_name}' "
                     f"found in supporting cast, promoted to main cast "
                     f"(mention_count={merged_narrator.mention_count})"
+                )
+
+        # STEP 5.8.5c: Create narrator character from vocative-identified name.
+        # If narrator_name is known (set in STEP 4 or 4.25) but narrator_character_id
+        # is still None after searching supporting_cast (5.8.5b), the narrator was not
+        # extracted by any pipeline stage. Create a minimal Character entry from the
+        # narrator name so it appears in the output and is correctly marked as narrator.
+        # Verify the name exists in raw text before creating (prevents hallucination).
+        import re as _re585c
+        if (
+            narrator_info.narrator_name is not None
+            and narrator_info.narrator_character_id is None
+        ):
+            _nname_585c = narrator_info.narrator_name
+            _ncount_585c = len(
+                _re585c.findall(
+                    rf"(?<![A-Za-z0-9]){_re585c.escape(_nname_585c)}(?![A-Za-z0-9])",
+                    context.text,
+                    _re585c.IGNORECASE,
+                )
+            )
+            if _ncount_585c >= 1:
+                from ..models import ConfidenceLevel as _CL585c
+                _narrator_new = Character(
+                    id=f"narrator_{_nname_585c.lower().replace(' ', '_')}",
+                    canonical_name=_nname_585c,
+                    role="protagonist",
+                    mention_count=_ncount_585c,
+                    is_narrator=True,
+                    narrative_role="First-Person Narrator",
+                    confidence=_CL585c.MEDIUM,
+                )
+                main_cast.append(_narrator_new)
+                narrator_info = NarratorInfo(
+                    pov=narrator_info.pov or "first-person",
+                    narrator_name=_nname_585c,
+                    narrator_character_id=_narrator_new.id,
+                    confidence=max(narrator_info.confidence, 0.7),
+                )
+                logger.info(
+                    f"V2 Step 5.8.5c: Created narrator character '{_nname_585c}' "
+                    f"from vocative-identified name (text mentions={_ncount_585c})"
+                )
+            else:
+                logger.warning(
+                    f"V2 Step 5.8.5c: Narrator name '{_nname_585c}' not found in raw text "
+                    f"— skipping character creation (likely hallucinated name)"
                 )
 
         # STEP 5.8.6: Heuristic narrator fallback for confirmed first-person narratives.

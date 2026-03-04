@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** cask_of_amontillado
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.95
 - **Competitive Mode:** none
 
@@ -90,13 +90,39 @@
    - Fix: For single-section texts with no chapter markers, use the filename or detected title as the section title.
 
 ## Fix History
-(First attempt — no previous fixes)
+
+### Fix Attempt 1
+
+**Issues addressed:** Critical #1+2 (narrator misattribution), Critical #4 (self-relationship), HIGH #3 cascade (profiles)
+
+**Root cause:** V2 pipeline extracted only Fortunato as main_cast (14 mentions). When narrator detection ran with only Fortunato available, the LLM assigned Fortunato as narrator (forced choice). Montresor (3 mentions, narrator who uses "I") was not extracted by any stage — he was only added by F6 reconciliation after character extraction completed.
+
+**Fix:** Two new algorithmic steps in `src/agents/characters.py`:
+1. **STEP 4.25 (Vocative-based narrator correction):** After narrator detection, if pov=first-person and the assigned narrator has more mentions than ALL other main-cast characters (anomalous for a narrator), run vocative pattern search (`_find_narrator_name_from_vocative`). If a different name is found with fewer mentions, reset the narrator assignment and set narrator_name to the vocative name. This correctly identifies "Montresor" from "For the love of God, Montresor!" (1 occurrence, 1 total mention < Fortunato's 14).
+2. **STEP 5.8.5c (Create narrator character):** If narrator_name is known (from STEP 4.25 or STEP 4) but narrator_character_id is None (not found in supporting_cast), verify the name exists in raw text (>=1 mention) and create a proper Character object. This ensures Montresor appears as a proper main_cast character (not an F6 hash added later).
+
+**Self-relationship fix:** `src/analyzer.py` — filter self-references from relationship maps at both assignment sites (lines ~2051 and ~2282). A character cannot appear in its own relationship dict.
+
+**Files modified:**
+- `src/agents/characters.py` — STEP 4.25 + STEP 5.8.5c
+- `src/analyzer.py` — self-relationship filter
+
+**Smoke test:** PASS
+- Vocative detection correctly finds "Montresor" from "For the love of God, Montresor!" (1 vocative occurrence)
+- narrator_suspiciously_high fires: Fortunato (14) > Montresor (1) ✓
+- STEP 5.8.5c creates Montresor with mention_count=1, is_narrator=True ✓
+- Profile generation has special handling for is_narrator=True with total_mentions<3 (samples broadly) ✓
+- Berenice regression check: Egaeus (1 mention) < Berenice (14 mentions) → narrator_suspiciously_high=False → no correction ✓
+- Monkey's Paw: third-person → STEP 4.25 skipped (pov check) ✓
+- All 332 tests pass ✓
+
+**Expected cascade:** Fortunato → not narrator (clean profile), Montresor → narrator protagonist (proper profile), self-relationship Fortunato→Fortunato removed.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Narrator misattribution + self-relationship | `src/agents/characters.py`, `src/analyzer.py` | awaiting analysis |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -110,4 +136,4 @@
 - "No passages provided" warnings for Montresor and the Montresors suggest the profiler passage retrieval failed for F6-reconciled characters
 
 ## Next Action
-Run PROMPT_fix.md to address narrator misattribution (Critical #1, #2) which should cascade to fix profiles (#3). Also fix self-relationship (#4) and consider "the Montresors" handling (#5).
+Re-run analysis to verify narrator fix cascade (Montresor → narrator, Fortunato → victim, profiles corrected).

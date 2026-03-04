@@ -2049,6 +2049,12 @@ class AudiobookAnalyzer:
                     # Always assign relationships, even if None (will use model default {})
                     # This ensures we don't silently skip assignment when LLM provides data
                     if relationships is not None:
+                        # Remove self-references: a character cannot be in its own relationship map
+                        char_name_lower = char.canonical_name.lower()
+                        relationships = {
+                            k: v for k, v in relationships.items()
+                            if k.lower() != char_name_lower
+                        }
                         char.relationships = relationships
                         logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
 
@@ -2274,6 +2280,11 @@ class AudiobookAnalyzer:
                         if voice_guidance:
                             new_char.voice_guidance = voice_guidance
                         if relationships:
+                            new_char_name_lower = new_char.canonical_name.lower()
+                            relationships = {
+                                k: v for k, v in relationships.items()
+                                if k.lower() != new_char_name_lower
+                            }
                             new_char.relationships = relationships
                         if profile:
                             new_char.descriptions.append(
