@@ -50,7 +50,7 @@
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
       "complete": false,
-      "attempts": 9
+      "attempts": 10
     },
     {
       "name": "john_g",
@@ -105,7 +105,7 @@
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
       "complete": false,
       "attempts": 0,
-      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+      "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
     },
     {
       "name": "hound_of_the_baskervilles",
