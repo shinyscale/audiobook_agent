@@ -28,8 +28,9 @@
     {
       "name": "berenice",
       "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": false,
-      "attempts": 0
+      "complete": true,
+      "attempts": 1,
+      "final_score": 8.75
     },
     {
       "name": "gift_of_the_magi",
