@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** cask_of_amontillado
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.95
 - **Competitive Mode:** none
 
@@ -135,5 +135,13 @@
 - 21 LLM calls, 42,713 tokens — reasonable for a short story
 - "No passages provided" warnings for Montresor and the Montresors suggest the profiler passage retrieval failed for F6-reconciled characters
 
+## Pipeline Notes (Attempt 2)
+- STEP 4.25 vocative detection WORKED: "Narrator 'Montresor' identified" logged
+- STEP 5.8.5c created Montresor as main_cast character with 1 mention, is_narrator=True
+- "No passages provided for Montresor" still logged — profiler passage retrieval still failing for low-mention narrator
+- Characters: Fortunato (14), Montresor (1), the Montresors (2), Luchresi (6)
+- Self-relationship filter applied (Fortunato→Fortunato should be gone)
+- 20 LLM calls, 43,533 tokens, 14m 1s total
+
 ## Next Action
-Re-run analysis to verify narrator fix cascade (Montresor → narrator, Fortunato → victim, profiles corrected).
+Evaluate attempt 2 output to verify narrator fix cascade effectiveness.
