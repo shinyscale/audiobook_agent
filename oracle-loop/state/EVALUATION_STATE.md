@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -102,13 +102,17 @@
     - Impact: Very minor presentation issue
 
 ## Fix History
-(First attempt — no previous fixes)
+- Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification in summaries
+  - Root cause: Chapter summary had self-contradiction: "narrator, known as Uncle Bill" (correct) AND "narrator later comforts a dying Uncle Bill" (hallucination). Narrator detection LLM was confused and picked Johnny instead.
+  - Fix: Added universal rule to NARRATOR_DETECTION_PROMPT: explicit "narrator, known as [Name]" identification takes priority over contradictions. Also added frame/nested narrative guidance: outer narrator (unquoted "I") = primary narrator, inner narrator (quoted dialogue) = secondary/nested.
+  - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
+  - Regression check: gift_of_the_magi uses third-person narrative → no narrator detection triggered → no regression risk
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Pending re-analysis |
 
 ## Root Cause Analysis
 
@@ -130,4 +134,9 @@ The pipeline picked Johnny as the narrator, likely because Johnny's extensive qu
 - All 14 pronunciations have IPA — good coverage
 
 ## Next Action
-Run PROMPT_fix.md to address narrator misidentification (Critical #1) and cascading issues
+Re-run analysis to verify narrator fix. Expected cascades:
+- Uncle Bill → is_narrator=True (direct fix)
+- Johnny's profile → correct description (young, olive-skinned)
+- Summary → less hallucination about "dying Uncle Bill"
+- Relationships → family terms if narrator correctly identified
+- "the boy" alias → may still be misassigned to father; needs separate fix if narrator fix alone insufficient

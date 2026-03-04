@@ -62,13 +62,25 @@
       }
     },
     "gift_of_the_magi": {
-      "commit": "9c5320d552a7baa3254dff194792e545ac6d206a",
-      "score": 8.2,
+      "commit": "e2cdd699e351c168f796f1886b29992a6287768f",
+      "score": 8.7,
       "category_scores": {
         "structure": 9,
-        "characters": 7.5,
-        "profiles": 7,
+        "characters": 8.5,
+        "profiles": 8,
         "summaries": 9,
+        "pronunciation": 8.5,
+        "presentation": 9
+      }
+    },
+    "american_sir": {
+      "commit": "0d11c88ea51f86170164600ad214d3be7746b877",
+      "score": 6.55,
+      "category_scores": {
+        "structure": 9,
+        "characters": 5,
+        "profiles": 4,
+        "summaries": 6,
         "pronunciation": 8.5,
         "presentation": 8.5
       }
