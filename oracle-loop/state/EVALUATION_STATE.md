@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -177,6 +177,15 @@ Functional navigation, logical organization. No broken elements reported.
   2. Post-5.8.5 narrator guard
      - Modified: `src/agents/characters.py`
      - Result: **UNCLEAR** — narrator still not detected. Guard may not have fired, or narrator pipeline returned nothing.
+- Attempt 15:
+  1. STEP 5.4.6c: Kinship alias merge for identity-reveal pattern
+     - Modified: `src/agents/characters.py` — new step after STEP 5.4.6b
+     - Root cause: "Shabby American civilian" (with alias "his father") was extracted separately from "John Donaldson" (proper-name parent). STEP 5.4.6c detects kinship alias + (the son) pattern → merges descriptor into proper-name parent.
+     - Smoke test: PASS — "Shabby American civilian" correctly merged into "John Donaldson" (39 total mentions); "American, Sir" alias transferred; kinship alias "his father" dropped.
+  2. Step 6.6: Narrator fallback using overview narrative_style
+     - Modified: `src/analyzer.py` — new Step 6.6 after Step 6.5
+     - Root cause: All narrator detection stages failed because chapter summaries are written in 3rd person → LLM returns "third-person" pov. The overview generator already correctly identified "first-person retrospective". Step 6.6 trusts this signal and applies the least-mentioned heuristic.
+     - Smoke test: PASS — Uncle Bill (18 mentions) correctly identified as narrator when overview.narrative_style = "first-person retrospective".
 
 ## Modification History
 
@@ -210,9 +219,9 @@ Functional navigation, logical organization. No broken elements reported.
 | 14 | STEP 3.97: nickname phantom merge | `characters.py` | **FIXED** ✓ — no Johnny phantom |
 | 14 | Post-5.8.5 narrator guard | `characters.py` | **UNCLEAR** — narrator still not detected |
 
-**Pattern:** Narrator detection has been fixed and regressed 4+ times. The issue keeps returning because different LLM extraction outputs trigger different code paths. Need to investigate why attempt 14's narrator pipeline returned nothing.
+**Pattern:** Narrator detection has been fixed and regressed 4+ times. The issue keeps returning because different LLM extraction outputs trigger different code paths. Step 6.6 uses the overview's narrative_style as a reliable authoritative signal — this bypasses all LLM narrator detection failures since the overview generator is the most accurate at identifying POV.
 
-**Pattern:** "Shabby American civilian" false split is a NEW issue — an identity-reveal pattern similar to Masque of Red Death's masked figure. Needs post-extraction merge.
+**Pattern:** "Shabby American civilian" false split (identity-reveal pattern) is handled by STEP 5.4.6c which uses kinship alias + "(the son)" name pattern to merge descriptor characters into proper-name parents. This is universal for stories with parent-child name splits.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
@@ -221,7 +230,7 @@ Functional navigation, logical organization. No broken elements reported.
 - Issue is NOT configuration — it's extraction and post-processing logic
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Merge "Shabby American civilian" into "John Donaldson" (father) — identity reveal pattern
-2. HIGH: Fix narrator detection — investigate why Uncle Bill is not flagged as narrator despite prior fixes
-3. HIGH: Uncle Bill empty profile likely resolves once narrator is fixed
+Re-run analysis (attempt 15) to verify:
+1. "Shabby American civilian" is merged into "John Donaldson" (father) via STEP 5.4.6c
+2. Uncle Bill is flagged as narrator via Step 6.6 fallback
+3. Uncle Bill's profile is populated (should improve once narrator is correctly assigned)

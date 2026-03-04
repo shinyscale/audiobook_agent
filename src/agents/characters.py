@@ -931,6 +931,102 @@ class CharacterAgent(Agent):
             )
             _char_466b.canonical_name = _new_canonical_466b
 
+        # STEP 5.4.6c: Merge descriptor characters with parent kinship aliases into proper-name
+        # parent characters when a parent-child name split exists.
+        # Universal pattern: In stories where a parent and child share a name (e.g. "John Donaldson"
+        # and "John Donaldson (the son)"), the parent may appear twice — once as their proper name
+        # and once as a descriptor in a narrative reveal (e.g., "Shabby American civilian" with
+        # alias "his father"). These two extractions are the SAME person.
+        # Detection: descriptor character D has a parent kinship alias ("his father", "the father")
+        # AND there is a named "(the son)"/"(the daughter)" character S AND a proper-name parent P
+        # whose name matches S's base name → merge D into P.
+        import re as _re466c
+        _KINSHIP_ALIAS_466c = _re466c.compile(
+            r"^(his|her|the|their)\s+(father|mother|parent|dad|mum|mom|papa|mamma)$",
+            _re466c.IGNORECASE,
+        )
+        _SON_DAUGHTER_466c = _re466c.compile(
+            r"\s*\(the\s+(son|daughter|child|boy|girl)\)\s*$",
+            _re466c.IGNORECASE,
+        )
+        _chars_to_remove_466c: list = []
+        for _desc_466c in main_cast:
+            if _desc_466c in _chars_to_remove_466c:
+                continue
+            # Must have a parent kinship alias
+            _kinship_466c = next(
+                (a for a in getattr(_desc_466c, "aliases", []) if _KINSHIP_ALIAS_466c.match(a)),
+                None,
+            )
+            if not _kinship_466c:
+                continue
+            # Find a "(the son)"/"(the daughter)" character in main cast
+            _son_chars_466c = [
+                c for c in main_cast
+                if c.id != _desc_466c.id
+                and _SON_DAUGHTER_466c.search(c.canonical_name)
+            ]
+            if not _son_chars_466c:
+                continue
+            for _son_466c in _son_chars_466c:
+                # Derive the base name (strip "(the son)" suffix)
+                _base_466c = _SON_DAUGHTER_466c.sub("", _son_466c.canonical_name).strip()
+                if not _base_466c:
+                    continue
+                # Find a proper-name parent character with that exact base name
+                _parent_466c = next(
+                    (
+                        p for p in main_cast
+                        if p.id not in (_desc_466c.id, _son_466c.id)
+                        and p.canonical_name.strip().lower() == _base_466c.lower()
+                    ),
+                    None,
+                )
+                if _parent_466c is None:
+                    continue
+                # Merge: descriptor absorbs into proper-name parent
+                logger.info(
+                    f"V2 Step 5.4.6c: Merging descriptor '{_desc_466c.canonical_name}' "
+                    f"(kinship alias '{_kinship_466c}') into parent "
+                    f"'{_parent_466c.canonical_name}' via son char '{_son_466c.canonical_name}'"
+                )
+                # Transfer descriptor's canonical_name as alias (not kinship descriptors)
+                if _desc_466c.canonical_name not in _parent_466c.aliases:
+                    _parent_466c.aliases.append(_desc_466c.canonical_name)
+                for _a466c in getattr(_desc_466c, "aliases", []):
+                    # Skip relational descriptors ("his father") — not useful name aliases
+                    if _KINSHIP_ALIAS_466c.match(_a466c):
+                        continue
+                    if _a466c not in _parent_466c.aliases:
+                        _parent_466c.aliases.append(_a466c)
+                _parent_466c.mention_count = (
+                    (getattr(_parent_466c, "mention_count", 0) or 0)
+                    + (getattr(_desc_466c, "mention_count", 0) or 0)
+                )
+                _chars_to_remove_466c.append(_desc_466c)
+                break
+        if _chars_to_remove_466c:
+            _merged_parent_ids_466c = {
+                p.id for p in main_cast
+                if any(
+                    p.canonical_name.strip().lower() == _SON_DAUGHTER_466c.sub("", s.canonical_name).strip().lower()
+                    for s in main_cast
+                    if _SON_DAUGHTER_466c.search(s.canonical_name)
+                )
+            }
+            main_cast = [c for c in main_cast if c not in _chars_to_remove_466c]
+            logger.info(
+                f"V2 Step 5.4.6c: Removed {len(_chars_to_remove_466c)} descriptor-reveal character(s)"
+            )
+            # Re-search mentions so the parent's mention count reflects new aliases
+            if _merged_parent_ids_466c:
+                self._refresh_mentions(
+                    _merged_parent_ids_466c, main_cast, searcher, mention_results
+                )
+        logger.info(
+            f"V2 Step 5.4.6c complete: {len(main_cast)} main cast after kinship-alias merge"
+        )
+
         # STEP 5.5a: Merge multi-word supporting formal names into single-word main cast nicknames.
         # Example: main "Jim" (26 mentions) + supporting "James Dillingham Young" (3 mentions)
         # → "James" is the formal name of nickname "Jim" → merge as alias.

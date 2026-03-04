@@ -2257,6 +2257,46 @@ class AudiobookAnalyzer:
         else:
             print("   Skipped (no plot summary or LLM)")
 
+        # Step 6.6: Narrator fallback — use overview's narrative_style as authoritative signal.
+        # When all LLM-based narrator detection fails (summaries are written in 3rd person so
+        # the LLM keeps returning "third-person" pov), the overview generator may have already
+        # correctly identified the narrative style (e.g., "first-person retrospective").
+        # Universal invariant: if the overview says "first-person" and no narrator has been
+        # detected, pick the least-name-mentioned character who appears in the plot summary —
+        # first-person narrators use "I" instead of their name, so they have anomalously few
+        # direct name mentions compared to characters they narrate about.
+        if not any(getattr(c, "is_narrator", False) for c in pipeline_char_map.characters):
+            _ov_ps = overview.get("plot_summary") if overview else None
+            if isinstance(_ov_ps, dict):
+                _ov_style = _ov_ps.get("narrative_style", "")
+                _ov_text = _ov_ps.get("plot_summary", "")
+                if "first-person" in _ov_style.lower() and _ov_text and pipeline_char_map.characters:
+                    _plot_lower_66 = _ov_text.lower()
+                    _narrator_candidates_66 = [
+                        c for c in pipeline_char_map.characters
+                        if c.canonical_name.lower() in _plot_lower_66
+                        and (getattr(c, "mention_count", 0) or 0) >= 3
+                    ]
+                    if _narrator_candidates_66:
+                        _narrator_pick_66 = min(
+                            _narrator_candidates_66,
+                            key=lambda c: getattr(c, "mention_count", 0) or 0,
+                        )
+                        _narrator_pick_66.is_narrator = True
+                        _narrator_pick_66.narrative_role = "First-Person Narrator"
+                        if getattr(_narrator_pick_66, "role", None) in ("supporting", "minor"):
+                            _narrator_pick_66.role = "protagonist"
+                        narrator_detected = _narrator_pick_66.canonical_name
+                        logger.info(
+                            f"Step 6.6: Narrator fallback via overview narrative_style "
+                            f"'{_ov_style}' → '{_narrator_pick_66.canonical_name}' "
+                            f"(mention_count={getattr(_narrator_pick_66, 'mention_count', 0)})"
+                        )
+                        print(
+                            f"   Narrator identified from overview style: "
+                            f"{_narrator_pick_66.canonical_name}"
+                        )
+
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
 
