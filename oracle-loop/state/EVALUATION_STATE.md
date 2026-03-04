@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -187,5 +187,14 @@
 - All 14 pronunciations have IPA
 - Narrator detection from V2 pipeline: working ✓
 
+## Pipeline Notes (Attempt 13)
+- Analysis completed in 13m 23s
+- **WARNING: Possible regressions vs attempt 12:**
+  - Narrator detected as "Johnny" (2 mentions) — should be "Uncle Bill"
+  - No "John Donaldson (his father)" visible in output — father/son split may not have fired
+  - "Final narrator appearance injection" applied Uncle Bill's appearance to both "Johnny" AND "John Donaldson"
+- Characters found: Johnny (2), John Donaldson (43), Uncle Bill (18), Joe Barron (3), Ted Frith (5)
+- Margaret Donaldson added via F6b ✓
+
 ## Next Action
-Re-run analysis on american_sir attempt 13 to verify fixes.
+Evaluate attempt 13 output — check for regressions on narrator and father/son split.
