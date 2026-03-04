@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 15
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -11,123 +11,111 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 15)
-- Uncle Bill IS narrator ✓ — V2 pipeline detected + Step 6.6 confirmed: "Uncle Bill (first-person)"
-- "Shabby American civilian" NOT in final character list ✓ — STEP 5.4.6c merge fired
-- ONLY 1 John Donaldson shown in output: "John Donaldson (the father)" with 42 mentions — son appears MISSING
-- "The American civilian in Italy": Pass 2 failed (may still exist in JSON as separate entity)
-- New character "Joe Barron" (3 mentions) appeared — not seen in previous runs
-- "John Donaldson (the boy/narrator)" (42 mentions) flagged as secondary narrator candidate then rejected
-- Margaret Donaldson added by F6 (from mentioned_characters)
-- 3 profiles generated for 4 characters (Joe Barron minor → no profile)
-- Runtime: 9m 28s
-
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6.5/10 ✗ (FAILING — Shabby American civilian false split, no narrator, alias misattribution)
-  - Completeness: 7/10
-  - Identity Resolution: 6/10
-  - Alias Grouping: 6.5/10
-- Character Profiles: 6/10 ✗ (FAILING — Uncle Bill empty profile, no narrator attribution)
-- Chapter Summaries: 8/10 ✓
+- Character Extraction: 5/10 ✗ (FAILING — father/son re-merged, aliases cross-contaminated)
+  - Completeness: 6/10
+  - Identity Resolution: 4/10
+  - Alias Grouping: 5/10
+- Character Profiles: 6/10 ✗ (FAILING — merged character has confused profile, Uncle Bill missing John relationship)
+- Chapter Summaries: 6/10 ✗ (FAILING — major factual error: claims Uncle Bill dies)
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.6/10** (reference only)
+- **Overall: 6.85/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (3 categories below threshold)
 
 ## Detailed Evaluation
 
 ### 2.1 Structure Detection: 9/10 ✓
-Single section for a continuous short story — correct. No artificial splitting.
+Single section for continuous short story — correct. No artificial splitting.
 
-### 2.2 Character Extraction: 6.5/10 ✗
+### 2.2 Character Extraction: 5/10 ✗
 
-**Completeness (7/10):**
-- Uncle Bill ✓, John Donaldson (father) ✓, John Donaldson (the son) ✓, Ted Frith ✓
-- Margaret Donaldson missing (mentioned as the boy's mother but very minor — acceptable)
-- Shabby American civilian extracted but is a false split (see Identity Resolution)
+**What Attempt 15 Fixes Got RIGHT:**
+- STEP 5.4.6c fired ✓ — "Shabby American civilian" merged into John Donaldson
+- Step 6.6 fired ✓ — Uncle Bill correctly identified as narrator (is_narrator=true)
+- Joe Barron appeared as minor character (3 mentions)
 
-**Identity Resolution (6/10):**
-- Father/son same-name split WORKS ✓ — huge improvement from attempt 13
-- FALSE SPLIT: "Shabby American civilian" (8 mentions) IS John Donaldson the father — the story reveals the shabby civilian is the father. These should be ONE character with "shabby American civilian" as an alias.
-- "ambulance driver" alias on father (main_cast_2) — the son was the ambulance driver, the father was the stretcher-bearer
-- No narrator flag on any character — Uncle Bill should be is_narrator=true
+**What FAILED (LLM non-determinism):**
 
-**Alias Grouping (6.5/10):**
-- "his father" as alias of Shabby American civilian is a relational descriptor, not a name alias
-- "stretcher-bearer" on father is correct ✓
-- "ambulance driver" on father is WRONG — belongs on son
-- Ted Frith aliases ["Ted"] ✓
+**Completeness (6/10):**
+- Uncle Bill ✓, Ted Frith ✓, Joe Barron ✓
+- John Donaldson (the son) MISSING — merged into father character
+- Only 4 characters total; should be 5 (father + son as separate)
+
+**Identity Resolution (4/10):**
+- **CRITICAL FALSE MERGE:** Only 1 "John Donaldson (the father)" exists with 42 mentions. This combines BOTH the father (stretcher-bearer who dies on battlefield) and the son (ambulance driver, Uncle Bill's nephew). The story has TWO distinct John Donaldsons.
+- The character labeled "(the father)" has aliases "the boy" and "John Donaldson (the boy/narrator)" — these belong to the SON, not the father. This is internal contradictiont hat STEP 3.95 should have caught.
+- STEP 3.95 (alias contradiction detection) apparently did not fire — despite canonical name containing "father" and alias containing "boy", which is an obvious parent/child contradiction.
+
+**Alias Grouping (5/10):**
+- "the boy" alias on a character named "(the father)" — clearly wrong
+- "John Donaldson (the boy/narrator)" alias — this is the son's descriptor on the father's character
+- Aliases from the merged "Shabby American civilian" were absorbed correctly by STEP 5.4.6c
 
 ### 2.3 Character Profiles: 6/10 ✗
 
-- **Uncle Bill**: physical_description=null, relationships={} — MAJOR GAP. He's the protagonist/frame narrator. The character summary text ("reflective, middle-aged man who initially displays selfishness") provides some useful info but structured profile is completely empty.
-- **John Donaldson (father)**: "powerful old boy, middle-aged American civilian" — reasonable ✓. Has father→son relationship ✓
-- **Shabby American civilian**: "middle-aged man with dark complexion, brown skin" — describes the same person as John Donaldson (father), wasting a profile slot on a duplicate
-- **John Donaldson (the son)**: "tall boy, olive complexion, dark face, blue eyes" — good ✓. Has son→father relationship ✓
-- **Ted Frith**: no description (appropriate for minor), has comrade relationship ✓
-- Uncle Bill having ZERO relationships is wrong — he's guardian/uncle figure to the boy
+- **Uncle Bill**: physical_description="elderly, grizzled, small man" ✓, relationship with Ted Frith="colleague" ✓. But MISSING relationship with John Donaldson (nephew/ward). Character_summary=null.
+- **John Donaldson (the father)**: physical_description describes the father correctly ("alluring, sidewise smile", "eyes like his son's"). But relationships={} empty — should have father→son. This is partly because the son doesn't exist as a separate character.
+- **Joe Barron**: no description (appropriate for 3 mentions)
+- **Ted Frith**: no description, has relationship with Uncle Bill ✓
 
-### 2.4 Chapter Summaries: 8/10 ✓
+### 2.4 Chapter Summaries: 6/10 ✗
 
-The single chapter summary is comprehensive and captures the full arc: frame narrative → war story → reveal → redemption → return to frame. Plot summary also excellent — correctly identifies themes and narrative layers.
+**MAJOR FACTUAL ERROR** in both chapter summary and plot summary:
+- "Uncle Bill, who dies confessing his fear of dishonor before revealing his true American identity" — Uncle Bill does NOT die. The FATHER (John Donaldson Sr.) is the one who dies on the battlefield. Uncle Bill is the frame narrator who survives to tell the story.
+- "John embraces the dying narrator" — the narrator (Uncle Bill) is NOT dying; the narrator is alive telling the story in retrospect.
+- The plot summary confuses Uncle Bill with John Donaldson the father in the final paragraph, attributing the father's death scene to Uncle Bill.
 
-Minor issues:
-- "Uncle Bill speaking to his son John by the fire" — John is NOT Bill's biological son; he's the ward/nephew of Bill. "His son" is misleading.
-- Otherwise, factually accurate and useful for narrator preparation.
+**What's correct:**
+- Frame narrative setup (Uncle Bill + John by the fire) ✓
+- War story details (Caporetto, stretcher-bearer, Croix de Guerre) ✓
+- Father's identity reveal ✓
+- Themes correctly identified ✓
+- Narrative style "first-person retrospective" ✓
 
 ### 2.5 Pronunciation Guide: 9/10 ✓
-
-Strong coverage of Italian place names (Piave, Caporetto, Venetia, Tagliamento, Solferino, Bersagliari) and homographs (live, minute, read, close, moderate). All 13 entries have IPA. No egregious false positives.
+14 entries, all with IPA. Strong coverage of Italian place names and homographs. No false positives.
 
 ### 2.6 HTML Presentation: 8/10 ✓
-
-Functional navigation, logical organization. No broken elements reported.
+Functional navigation, logical organization.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **"Shabby American civilian" is a false split from John Donaldson (father)** [Identity Resolution]
-   - Problem: "Shabby American civilian" (main_cast_3, 8 mentions) and "John Donaldson" (main_cast_2, 31 mentions) are the SAME person — the father. The story reveals the mystery civilian IS John Donaldson Sr.
-   - Evidence: Aliases of Shabby American civilian include "his father" — confirming the identity. The plot summary correctly states "this civilian is revealed to be John Donaldson, the boy's long-lost father."
-   - Location: This is an identity-reveal pattern (like Masked Figure → Red Death in Masque). Post-extraction merge needed.
-   - Fix: Add identity-reveal merge logic in `src/agents/characters.py` — after extraction, if a character has "his father"/"his mother"/etc. as alias AND another character has the same family role in relationships, merge them. OR: use `merge_reveal_characters()` pattern from `twostage_experiment.py`.
-   - Alternative: Since "Shabby American civilian" has alias "his father" and "John Donaldson" has relationship "father" to the son, these can be programmatically detected as the same person.
+1. **Father/son John Donaldson re-merged into single character** [Identity Resolution]
+   - Problem: Only 1 "John Donaldson (the father)" with 42 mentions exists. The son (ambulance driver, Uncle Bill's nephew) is MISSING as a separate character. Aliases "the boy" and "John Donaldson (the boy/narrator)" from the son are on the father's character.
+   - Evidence: Character has canonical name containing "father" but alias "the boy" — internal contradiction. 42 mentions combines both characters.
+   - Root cause: LLM non-determinism — V2 extraction sometimes produces 2 John Donaldsons (attempts 8, 9, 12, 14) and sometimes 1 (attempts 10, 13, 15). STEP 3.95 (alias contradiction detection) should have caught the "father"/"boy" contradiction but did NOT fire.
+   - Location: `src/agents/characters.py` — STEP 3.95
+   - Fix: STEP 3.95 needs to detect when a character's CANONICAL NAME contains a parent-tier word (father, mother) AND has aliases containing child-tier words (boy, son, daughter, girl, child). This is a stronger signal than just alias-vs-alias contradiction. When detected, split the character.
+   - **Pattern alert:** This is the SAME issue as attempts 10, 13. The father/son split has been fixed and regressed 3 times due to LLM non-determinism. The fix must be robust enough to handle BOTH cases: (a) when LLM produces 2 John Donaldsons (already works), and (b) when LLM produces 1 merged John Donaldson (STEP 3.95 must catch).
+
+2. **Plot summary major factual error: Uncle Bill incorrectly described as dying** [Summaries]
+   - Problem: Both chapter summary and plot summary claim "Uncle Bill dies confessing his fear of dishonor" and "John embraces the dying narrator." Uncle Bill is the SURVIVING frame narrator. The FATHER dies on the battlefield.
+   - Evidence: Uncle Bill is marked is_narrator=true with narrative_style="first-person retrospective" — a dead narrator cannot narrate in retrospect. The overview correctly says he's the frame narrator.
+   - Location: `src/pipeline/overview/generator.py` or summary generation
+   - Root cause: Likely caused by the father/son merge — since there's only 1 John Donaldson, the LLM confuses which character dies. The merged character's death scene gets attributed to Uncle Bill in the summary. Fixing issue #1 (father/son split) may resolve this.
+   - Fix: May self-resolve when father/son split works. If not, add narrator-death validation: if a character is_narrator=true and narrative_style is retrospective, the summary should not claim the narrator dies (logical impossibility).
 
 ### HIGH
-2. **No narrator detected — Uncle Bill should be frame narrator** [Characters, Profiles]
-   - Problem: All 5 characters have is_narrator=false. Uncle Bill (18 mentions, protagonist) is the frame narrator.
-   - Evidence: Story opens with Uncle Bill's perspective. Overview says narrative_style="first-person retrospective". But narrator detection failed.
-   - Location: `src/pipeline/narrator/narrator.py` or `src/agents/characters.py` narrator detection steps
-   - Note: This has been fixed and regressed multiple times. Attempt 11 added V2 pipeline_metadata narrator extraction. Attempt 14 added post-5.8.5 narrator guard. Something is still not working.
-   - Fix: Investigate why the narrator pipeline returned no result this run. The V2 pipeline_metadata should have identified Uncle Bill.
-
-3. **Uncle Bill has empty structured profile** [Profiles]
-   - Problem: physical_description=null, relationships={} despite being the protagonist
-   - Evidence: His character summary text IS populated ("reflective, middle-aged man...") but structured fields are empty
-   - Location: `src/pipeline/character_profiling/` or `src/analyzer.py` profile generation
-   - Fix: Likely related to narrator status — if narrator detection fails, the profiler may not prioritize Uncle Bill correctly. Fixing issue #2 may resolve this.
+3. **Uncle Bill missing relationship with John Donaldson** [Profiles]
+   - Problem: Uncle Bill has relationship with Ted Frith only. He should have uncle/guardian relationship with John Donaldson (the son).
+   - Evidence: Story opens with Uncle Bill greeting "his nephew John" — the relationship is explicit.
+   - Location: `src/pipeline/character_profiling/` or `src/analyzer.py`
+   - Fix: Likely a cascading effect of the father/son merge. When the son exists as a separate character, the profiler should correctly assign the uncle→nephew relationship. Fix issue #1 first.
 
 ### MEDIUM
-4. **"ambulance driver" alias on wrong character** [Alias Grouping]
-   - Problem: "ambulance driver" is an alias of John Donaldson (father, main_cast_2) but the father was a stretcher-bearer, not an ambulance driver. The SON was the ambulance driver.
-   - Evidence: The son's profile says "wears an ambulance driver's uniform." Father's aliases include both "stretcher-bearer" AND "ambulance driver" — the latter is wrong.
-   - Location: Character extraction Pass 1 or alias resolution
-   - Fix: This is an LLM extraction error — difficult to fix generically without novel-specific rules. Low priority compared to critical/high issues.
-
-5. **"his father" as alias is a descriptor, not a name** [Alias Grouping]
-   - Problem: "his father" in Shabby American civilian's alias list is a relational descriptor, not a proper alias
-   - Evidence: No one calls the character "his father" as a name — it's a relationship descriptor
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — verify_aliases should filter relational descriptors
-   - Fix: Low priority — will be resolved by fixing issue #1 (merging the characters)
+4. **John Donaldson (the father) has empty relationships** [Profiles]
+   - Problem: relationships={} despite being father to the son
+   - Fix: Cascading effect of father/son merge. Will resolve with issue #1.
 
 ### LOW
-6. **"his son" in chapter/plot summary** [Summaries]
-   - Problem: "Uncle Bill speaking to his son John" — John is NOT Bill's biological son, he's a ward/nephew
-   - Evidence: The boy calls him "Uncle Bill" not "Dad/Father"
-   - Fix: LLM summary generation — hard to fix without novel-specific correction
+5. **character_summary=null for all characters** [Profiles]
+   - Problem: No character summaries generated for any character
+   - Minor impact — physical descriptions and relationships are more important for narrators
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -146,6 +134,7 @@ Functional navigation, logical organization. No broken elements reported.
 | 12 | 7.7 | +1.15 | **Father/son split via alias contradiction ✓!** Characters now pass. But profiles (wrong relationships) and summaries (plot summary error) still fail. |
 | 13 | 5.8 | -0.75 | **SEVERE REGRESSION.** STEP 3.95 didn't fire, narrator wrong (Johnny), all profiles/summaries garbled. Code changes correct but LLM non-determinism. |
 | 14 | 7.6 | +1.05 | Father/son split ✓, Johnny phantom gone ✓, summaries much improved ✓. But: no narrator, Shabby civilian false split, Uncle Bill empty profile. |
+| 15 | 6.85 | +0.30 | STEP 5.4.6c ✓ (shabby civilian merged), Step 6.6 ✓ (narrator). BUT father/son re-merged (STEP 3.95 didn't fire). Plot summary claims Uncle Bill dies (factual error). |
 
 ## Fix History
 - Attempt 11:
@@ -179,12 +168,10 @@ Functional navigation, logical organization. No broken elements reported.
 - Attempt 15:
   1. STEP 5.4.6c: Kinship alias merge for identity-reveal pattern
      - Modified: `src/agents/characters.py` — new step after STEP 5.4.6b
-     - Root cause: "Shabby American civilian" (with alias "his father") was extracted separately from "John Donaldson" (proper-name parent). STEP 5.4.6c detects kinship alias + (the son) pattern → merges descriptor into proper-name parent.
-     - Smoke test: PASS — "Shabby American civilian" correctly merged into "John Donaldson" (39 total mentions); "American, Sir" alias transferred; kinship alias "his father" dropped.
+     - Result: **FIXED** ✓ — "Shabby American civilian" correctly merged into John Donaldson
   2. Step 6.6: Narrator fallback using overview narrative_style
      - Modified: `src/analyzer.py` — new Step 6.6 after Step 6.5
-     - Root cause: All narrator detection stages failed because chapter summaries are written in 3rd person → LLM returns "third-person" pov. The overview generator already correctly identified "first-person retrospective". Step 6.6 trusts this signal and applies the least-mentioned heuristic.
-     - Smoke test: PASS — Uncle Bill (18 mentions) correctly identified as narrator when overview.narrative_style = "first-person retrospective".
+     - Result: **FIXED** ✓ — Uncle Bill correctly identified as narrator
 
 ## Modification History
 
@@ -217,19 +204,20 @@ Functional navigation, logical organization. No broken elements reported.
 | 13 | Frame narrator plot summary instruction | `generator.py` | Fired on wrong narrator → made worse |
 | 14 | STEP 3.97: nickname phantom merge | `characters.py` | **FIXED** ✓ — no Johnny phantom |
 | 14 | Post-5.8.5 narrator guard | `characters.py` | **UNCLEAR** — narrator still not detected |
+| 15 | STEP 5.4.6c: identity-reveal kinship merge | `characters.py` | **FIXED** ✓ — shabby civilian merged |
+| 15 | Step 6.6: narrator fallback | `analyzer.py` | **FIXED** ✓ — Uncle Bill is narrator |
 
-**Pattern:** Narrator detection has been fixed and regressed 4+ times. The issue keeps returning because different LLM extraction outputs trigger different code paths. Step 6.6 uses the overview's narrative_style as a reliable authoritative signal — this bypasses all LLM narrator detection failures since the overview generator is the most accurate at identifying POV.
+**Pattern:** Father/son split has been fixed 3 times (attempts 8, 12, 14) and regressed 3 times (attempts 10, 13, 15). The fix works when the LLM happens to extract 2 John Donaldsons, but fails when the LLM merges them into 1 character. STEP 3.95 must be enhanced to detect the canonical-name-vs-alias contradiction (canonical has "father", alias has "boy") — this is a STRONGER signal than alias-vs-alias and should trigger a split even when there's only 1 John Donaldson character.
 
-**Pattern:** "Shabby American civilian" false split (identity-reveal pattern) is handled by STEP 5.4.6c which uses kinship alias + "(the son)" name pattern to merge descriptor characters into proper-name parents. This is universal for stories with parent-child name splits.
+**Key insight for fix phase:** The character "John Donaldson (the father)" has canonical name containing "father" AND aliases containing "the boy" and "the boy/narrator". These are contradictory descriptors — a father is not a boy. STEP 3.95 currently checks alias-vs-alias contradictions but apparently does NOT check canonical-name-vs-alias contradictions. Extending STEP 3.95 to check this would make the split robust against LLM non-determinism.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
-- All 13 pronunciations have IPA
+- All 14 pronunciations have IPA
 - Issue is NOT configuration — it's extraction and post-processing logic
 
 ## Next Action
-Re-run analysis (attempt 15) to verify:
-1. "Shabby American civilian" is merged into "John Donaldson" (father) via STEP 5.4.6c
-2. Uncle Bill is flagged as narrator via Step 6.6 fallback
-3. Uncle Bill's profile is populated (should improve once narrator is correctly assigned)
+Run PROMPT_fix.md to:
+1. **CRITICAL:** Enhance STEP 3.95 to detect canonical-name-vs-alias parent/child contradiction and split the merged character
+2. Plot summary factual error (Uncle Bill dying) should self-resolve once father/son split works
