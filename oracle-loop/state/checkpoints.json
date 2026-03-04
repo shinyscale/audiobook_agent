@@ -2,15 +2,27 @@
   "checkpoints": [],
   "known_good_baseline": {
     "a_camping_trip": {
-      "commit": "9caec7b164fe8bc3117e8681f0234fb4a16862cf",
-      "score": 7.8,
+      "commit": "50b8b7337a9b1c794c9e3d2eb9b7d0e2b8efe008",
+      "score": 8.6,
       "category_scores": {
         "structure": 9,
-        "characters": 6.5,
-        "profiles": 7,
+        "characters": 8.5,
+        "profiles": 8,
         "summaries": 8.5,
-        "pronunciation": 7,
+        "pronunciation": 8.5,
         "presentation": 9
+      }
+    },
+    "monkeys_paw": {
+      "commit": "cb4bcb0",
+      "score": 8.6,
+      "category_scores": {
+        "structure": 8,
+        "characters": 8.5,
+        "profiles": 8,
+        "summaries": 9.5,
+        "pronunciation": 9,
+        "presentation": 8.5
       }
     }
   }
