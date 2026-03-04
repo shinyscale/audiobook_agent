@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 9
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -13,35 +13,32 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6.5/10 ✗ (FAILING)
-  - Completeness: 7/10
-  - Identity Resolution: 7/10 ← father/son separated ✓ but cross-character aliases undermine it
-  - Alias Grouping: 5/10 ← 3 wrong aliases on the son, father has zero aliases
-- Character Profiles: 7.5/10 ✗ (FAILING)
+- Character Extraction: 7/10 ✗ (FAILING)
+  - Completeness: 8/10
+  - Identity Resolution: 7/10 ← father/son separated ✓, but canonical name "John's son" confusing
+  - Alias Grouping: 6.5/10 ← cross-contamination fixed ✓ but father still has no descriptive aliases
+- Character Profiles: 7/10 ✗ (FAILING)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.85/10** (reference only)
+- **Overall: 8.0/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
 
-## What Attempt 8 Changed vs Attempt 7
+## What Attempt 9 Changed vs Attempt 8
 
-**Major improvements:**
-- Father/son SPLIT WORKING ✓ — `John Donaldson (the son)` (76 mentions) and `John Donaldson` (father, 9 mentions) are now separate characters
-- Plot summary NO LONGER FABRICATES false twist ✓ — correctly identifies the dying man as the boy's estranged father, NOT Uncle Bill as the biological father
-- Chapter summary correctly attributes embedded narration ✓ — "John discovers that a dying stretcher-bearer... is actually his estranged father" (correctly attributed to the son, not the narrator)
-- Uncle Bill's profile clean ✓ — no contamination from boy's war experience
-- Narrator correct ✓ — Uncle Bill is narrator, no false secondary narrators
-- Role assignment improved ✓ — John Donaldson (son) is now "protagonist" (was "supporting" in attempt 7)
-- Margaret Donaldson mentioned in chapter summary ✓
+**Improvements:**
+- Cross-character alias contamination FIXED ✓ — son no longer has "the father", "the man", "John Donaldson (the father)" as aliases. RULE 3d/3e working.
+- Ted Frith relationship label improved: "companion" instead of "associated" (secondary profiler prompt fix working)
+- 14 pronunciations all with IPA ✓
 
-**Still broken:**
-- **Cross-character aliases on the son**: `John Donaldson (the son)` has aliases "John Donaldson (the father)", "the father", "the man" — these belong to the FATHER character, not the son
-- **Father has ZERO aliases**: `John Donaldson` (the father, supporting_0) has no aliases at all. He should have descriptors like "the stretcher-bearer", "the volunteer", "the man", "the father"
-- **Mention count imbalance**: Son has 76 mentions, father has only 9 — suggests some father mentions were counted under the son
-- **Relationships still generic**: Bill→both Johns = "associated" (should be "guardian/uncle" for son, "friend/classmate" for father)
+**Still broken / new issues:**
+- **All MAIN character relationships still "associated"** — the fix only modified the secondary profiler prompt (line ~3405), not the primary profiler prompt. Ted Frith is the only character that benefited.
+- **Father (John Donaldson Sr.) still has no descriptive aliases** — aliases "the volunteer", "the stretcher-bearer", etc. were blocked as "already claimed" by the son. The aliases the RULE 3d/3e blocked on the son were not reassigned to the father.
+- **"Age: two years old" hallucinated** on both John Donaldson Sr. and John's son — `appearance.age_indication` field is "two years old" for both. Likely misinterpretation of a time duration in the text.
+- **Canonical name "John's son" is confusing** — reads as "son of John" (= the grandson), but this character IS the protagonist named John. Previous attempt had "John Donaldson (the son)" which was clearer.
+- **Uncle Bill has orphan relationship "John Donaldson: associated"** — doesn't map to either disambiguated character's canonical name
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -54,74 +51,82 @@
 | 6 | 7.0 | +0.45 | Uncle Bill narrator ✓, merge direction fixed ✓. But John Donaldson false secondary narrator → profile catastrophe. |
 | 7 | 6.9 | +0.35 | Narrator guard worked ✓ (John Donaldson not narrator). But boy disappeared (false merge), plot summary fabricates false twist. |
 | 8 | 7.85 | +1.30 | Father/son split ✓, plot summary fixed ✓, summaries fixed ✓, profiles much improved ✓. Remaining: cross-character aliases, generic relationships. |
+| 9 | 8.0 | +1.45 | Cross-character alias contamination fixed ✓. Relationship fix only hit secondary prompt. Father still has 0 descriptive aliases. |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Cross-character alias contamination: "the father" aliases on son character** [Alias Grouping + Identity Resolution]
-   - Problem: `John Donaldson (the son)` has aliases `["John", "the boy", "orphan", "ambulance driver", "John Donaldson (the father)", "the father", "the man"]`. The last three belong to the FATHER character, not the son.
-   - Evidence: "John Donaldson (the father)" is literally the disambiguation form of the OTHER character entry. "the father" and "the man" are descriptors used in the text for the dying stretcher-bearer (the father), not the boy.
-   - Impact: A narrator reading this alias list would believe the son IS the father — undermining the entire character separation.
-   - Root cause: The LLM in Pass 2 alias resolution likely proposed "the father" and "the man" as aliases of the main-cast "John Donaldson (the son)" because the text uses these descriptors near mentions of "John Donaldson". The verify_aliases Rule 3 (cross-character alias check) may not check across main_cast/supporting_cast boundaries, or the father's canonical name "John Donaldson" doesn't contain "the father" so the check misses it.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — verify_aliases(), or `src/agents/characters.py` — post-merge alias dedup
-   - Fix approach: Two options:
-     - (a) In verify_aliases or a post-merge step, block any alias of character A that contains the disambiguating suffix of character B (e.g., if "John Donaldson (the son)" has alias "the father" and another character is "John Donaldson" with role-descriptors referencing fatherhood, block it)
-     - (b) Simpler: after main_cast + supporting_cast are merged, run a cross-character alias dedup that removes from character A any alias that is a substring of character B's canonical_name or that matches character B's role/descriptor
-     - (c) Simplest: if another character's canonical_name contains the same base name (e.g., both "John Donaldson"), block descriptor-only aliases ("the father", "the man") from being assigned to either — they're ambiguous
+(none — no catastrophic failures remaining)
 
 ### HIGH
 
-2. **Father character has ZERO aliases** [Alias Grouping]
-   - Problem: `John Donaldson` (supporting_0, 9 mentions) has no aliases at all. In the text he is referred to as "the volunteer", "the stretcher-bearer", "the man", "the dark-skinned volunteer", "the father".
-   - Evidence: The father appears in the war narrative under multiple descriptors before his identity is revealed.
-   - Impact: A narrator wouldn't know that these text references point to this character.
-   - Location: Supporting cast alias resolution — `src/pipeline/character_extraction_v2/` or F6 reconciliation
-   - Fix approach: Either the LLM needs to propose these aliases for the supporting character, or the aliases incorrectly assigned to the son (issue #1) should be reassigned to the father.
+1. **Primary profiler prompt still allows "associated" relationship labels** [Profiles]
+   - Problem: ALL main character relationships are "associated". The attempt 9 fix only modified the secondary profiler prompt (~line 3405 in analyzer.py). The PRIMARY profiler prompt (for main cast characters) was NOT updated. Ted Frith (the only secondary character with relationships) correctly got "companion", confirming the secondary fix works.
+   - Evidence: Uncle Bill → John's son = "associated" (should be "guardian"/"uncle"), Uncle Bill → John Donaldson Sr. = "associated" (should be "friend"/"former classmate"), John's son → John Donaldson Sr. = "associated" (should be "son"/"estranged son").
+   - Location: `src/analyzer.py` — `_generate_character_profile()` — the PRIMARY prompt block (earlier in the function, for main cast characters). Look for the relationship instruction section in the prompt that runs for `role != "supporting"` or the default/main profile prompt.
+   - Fix: Apply the same "associated"/"acquaintance" prohibition and specific relationship type guidance to the primary profiler prompt, not just the secondary one.
+   - Impact: Fixing this alone pushes Profiles from 7 → 8+
 
-3. **Relationships still all generic ("associated")** [Profiles]
-   - Problem: Uncle Bill's relationships to both Johns are "associated". Should be:
-     - Bill → son: "guardian" or "uncle figure"
-     - Bill → father: "friend" or "former classmate"
-     - Son → Bill: "nephew" or "ward"
-   - Evidence: The text explicitly establishes Bill as the boy's guardian ("take in his orphaned nephew") and Bill and John Sr. as friends from Yale ("shared a room and life with for twelve years after both graduated from Yale").
-   - Location: `src/pipeline/profiling/` or `_generate_character_profile()` in `src/analyzer.py`
-   - Fix approach: The profiler prompt may need stronger guidance to extract specific relationship types rather than defaulting to "associated". This is a prompt improvement, not a logic fix.
-   - Note: Fixing this alone could push Profiles from 7.5 → 8+
+2. **Father character still has no descriptive aliases** [Alias Grouping]
+   - Problem: `John Donaldson Sr.` (main_cast_2, 28 mentions) has aliases `["John", "John Donaldson"]` — functional but missing all the descriptive aliases used in the text: "the volunteer", "the stretcher-bearer", "the man", "the civilian", "the shabby grizzled American civilian".
+   - Root cause: Pipeline notes show these aliases were blocked as "already claimed" by the son character. The son claimed them in Pass 2 before RULE 3d/3e fired. RULE 3d/3e blocks them on the son but doesn't REASSIGN them to the father.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — verify_aliases(), or a post-verify step
+   - Fix approach: When RULE 3d/3e blocks an alias on character A (same-base-name sibling), check if it should be reassigned to character B (the other same-name character). If alias is a descriptor that fits B's role/context better, add it to B's alias list.
+   - Alternative: In a post-merge step in `characters.py`, for disambiguation pairs (characters sharing a base name), redistribute unclaimed descriptor aliases based on role/context clues.
+
+3. **Uncle Bill has orphan relationship reference "John Donaldson"** [Profiles]
+   - Problem: Uncle Bill's relationships include `"John Donaldson": "associated"` which doesn't map to either disambiguated character's canonical name ("John Donaldson Sr." or "John's son"). This is a stale/orphan reference.
+   - Location: `src/analyzer.py` — `_generate_character_profile()` or a post-profiling normalization step
+   - Fix: After profiling, normalize relationship keys to match actual canonical names in the character list. If a relationship key matches a known alias, map it to the canonical name.
 
 ### MEDIUM
 
-4. **Mention count imbalance: son 76, father 9** [Identity Resolution]
-   - Problem: The son has 76 mentions in a ~5000-word story, which seems inflated. The father appears throughout the war narrative and likely has more than 9 mentions. Some father mentions may be counted under the son.
-   - Impact: Low — mention counts are metadata, not narrator-facing. But it indicates imperfect identity resolution at the mention-counting level.
-   - Fix: This would likely self-correct if the alias assignment (issue #1) is fixed, since mentions are counted per alias.
+4. **"Age: two years old" hallucinated on two characters** [Profiles]
+   - Problem: `appearance.age_indication` is "two years old" for both John Donaldson Sr. and John's son. John Donaldson Sr. is elderly/middle-aged (shabby, grizzled). John's son is 18 (explicitly stated in his own physical_description). "Two years old" is completely fabricated.
+   - Root cause: Likely the LLM misinterpreted a time duration phrase (e.g., "for two years") in the text as an age.
+   - Location: `src/analyzer.py` — profile generation, or `src/pipeline/profiling/` — wherever `age_indication` is extracted
+   - Fix: Could add validation to reject absurd ages (< 5 for non-infant characters), or cross-check age_indication against physical_description. Low priority since age_indication is a minor field.
 
-5. **Margaret Donaldson absent from character list** [Completeness]
-   - Problem: Mentioned by name in the chapter 1 summary ("John's widow, Margaret Donaldson") but not in the character list. The evaluation state from the analyze phase noted "Margaret Donaldson added via F6b ✓" but she's not in the final output.
-   - Impact: Very minor — she appears in one sentence and dies before the main narrative.
-   - Fix: Low priority. May have been filtered by mention count threshold.
+5. **Canonical name "John's son" is confusing** [Identity Resolution]
+   - Problem: The protagonist (18-year-old ambulance driver, the main character of the war narrative) is named "John's son". This reads as "the son of John" = the grandson. The previous attempt had "John Donaldson (the son)" which was clearer about which generation.
+   - Impact: A narrator reading this would initially think "John's son" is the 12-year-old grandson who appears in the final scene, not the protagonist.
+   - Root cause: The character extraction pipeline's disambiguation renamed the character.
+   - Fix: Low priority — the name is technically not wrong, just potentially confusing. The profile content clarifies. Would need changes to the disambiguation logic in characters.py.
+
+6. **Son's profile has misattributed quote** [Profiles]
+   - Problem: "American, sir" is listed as an example quote for John's son, but this phrase is spoken by the father (John Donaldson Sr.) and by Joe Barron, not by the son. The son witnesses these declarations.
+   - Impact: Minor — a narrator might prepare the wrong voice for this line.
+   - Location: Profile generation prompt or voice_guidance extraction
 
 ### LOW
 
-6. **Missing nicknames: "Johnny" and "Teddy"** [Alias Grouping]
+7. **Father's evidence misattributes role** [Profiles]
+   - Problem: Evidence entry says father "Died mortally wounded... while serving as an American Red Cross ambulance driver". The father was a civilian volunteer, not the ambulance driver — the SON was the ambulance driver.
+   - Impact: Minor factual error in evidence citations.
+
+8. **Missing nicknames: "Johnny" and "Teddy"** [Alias Grouping]
    - Problem: The boy is called "Johnny" in the text, Ted Frith is called "Teddy". Neither alias appears.
    - Fix: NICKNAME_TO_FORMAL dict additions or LLM prompt improvement.
 
-## Fix Strategy for Attempt 9
+9. **Margaret Donaldson absent from character list** [Completeness]
+   - Problem: Pipeline notes say "Margaret Donaldson added via F6b ✓" but she's not in the final 5 characters. Likely filtered by mention count.
+   - Impact: Very minor — she appears briefly and dies before the main narrative.
 
-**ROOT CAUSE**: The cross-character alias contamination (issue #1) is the single highest-leverage fix. It affects both Character Extraction and Character Profiles scores.
+## Fix Strategy for Attempt 10
 
-**RECOMMENDED APPROACH — Fix alias assignment:**
+**Two highest-leverage fixes to cross the 8.0 threshold in both failing categories:**
 
-1. **Fix cross-character aliases** (CRITICAL): After main_cast and supporting_cast are merged, add a validation step that removes aliases from character A that match or are substrings of character B's canonical name when both share the same base name. Specifically: if `John Donaldson (the son)` and `John Donaldson` both exist, any alias on the son that contains "the father" or matches the father's descriptors should be blocked.
+1. **Fix primary profiler prompt** (HIGH #1) — Apply "associated"/"acquaintance" prohibition to BOTH the primary and secondary profiler prompts in `_generate_character_profile()`. The secondary prompt was already fixed in attempt 9; now the primary prompt needs the same treatment. This is the single change most likely to push Profiles from 7 → 8+.
 
-2. **Fix relationship labels** (HIGH): In the profiler prompt, replace generic "associated" with specific relationship types by providing stronger guidance. The text explicitly uses "uncle", "guardian", "friend", "classmate" — these should be extractable.
+2. **Fix father alias reassignment** (HIGH #2) — When RULE 3d/3e blocks an alias on one same-name sibling, attempt to reassign it to the other sibling. Alternatively, add a post-merge step in `characters.py` that redistributes descriptor aliases between disambiguation pairs. This pushes Characters from 7 → 8 by giving the father his descriptive aliases.
 
-3. **Do NOT touch** (working correctly):
-   - narrator.py (all fixes stable across attempts 6-8)
-   - characters.py Step 5.4.5 (co-present guard)
-   - characters.py Step 5.4.6 (merge direction)
-   - summarizer.py (attempt 8 nested narration fix working)
+**Do NOT touch** (working correctly):
+- narrator.py (stable since attempt 6)
+- characters.py Step 5.4.5 (co-present guard)
+- characters.py Step 5.4.6 (merge direction)
+- summarizer.py (nested narration fix working since attempt 8)
+- main_cast.py RULE 3d/3e (alias contamination fix working)
 
 ## Fix History
 - Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification
@@ -161,6 +166,13 @@
   2. Added nested narration guidance to summarizer CHUNK+CONSOLIDATE prompts
      - Modified: `src/pipeline/summarization/summarizer.py`
      - Result: Chapter summaries correctly attribute embedded narrative to the boy ✓, plot summary no longer fabricated ✓
+- Attempt 9:
+  1. Added RULE 3d + RULE 3e to verify_aliases() in main_cast.py
+     - Modified: `src/pipeline/character_extraction_v2/main_cast.py`
+     - Result: Cross-character alias contamination fixed ✓. Son no longer has "the father" etc.
+  2. Fixed secondary profiler prompt to forbid "associated"/"acquaintance"
+     - Modified: `src/analyzer.py` — secondary prompt only (~line 3405)
+     - Result: **PARTIAL** — Ted Frith got "companion" ✓, but main characters still all "associated" because PRIMARY prompt was not modified.
 
 ## Modification History
 
@@ -181,39 +193,17 @@
 | 8 | Role assignment: John Donaldson (28 mentions) was "supporting" | `characters.py` — Step 5.9.5 | Fixed ✓ |
 | 8 | Chapter summary nested narration | `summarizer.py` — prompts | Fixed ✓ — summaries now correct |
 | 8 | Father/son split | (side effect of summary fix) | Fixed ✓ — now separate characters |
-| 8 | Cross-character aliases on son | (not yet attempted) | **NEW ISSUE** |
-| 8 | Generic relationship labels | (not yet attempted) | **NEW ISSUE** |
+| 9 | Cross-character alias contamination | `main_cast.py` — RULE 3d/3e | Fixed ✓ — contamination blocked |
+| 9 | Generic relationship labels (secondary prompt) | `analyzer.py` — secondary prompt | **PARTIAL** — secondary works, primary NOT modified |
 
-**Pattern:** narrator.py and summarizer.py fixes are stable. Remaining issues are in alias resolution (main_cast.py or characters.py) and profiler prompts (analyzer.py).
+**Pattern:** The remaining 2 issues are both in `analyzer.py` (primary profiler prompt) and `main_cast.py` or `characters.py` (alias reassignment). These are the ONLY files that need changes.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
-- All 13 pronunciations have IPA
-- Runtime: ~12 min (36 LLM calls)
-
-## Fix History (Attempt 9)
-- **Cross-character alias contamination** (CRITICAL #1): Added RULE 3d + RULE 3e to `verify_aliases()` in `main_cast.py`
-  - RULE 3d: Blocks aliases with same base name but different parenthetical disambiguation (e.g., "John Donaldson (the father)" on "John Donaldson (the son)")
-  - RULE 3e: Blocks simple kinship-role aliases that contradict the character's own role identifier (e.g., "the father" alias on a character identified as "(the son)")
-  - Root cause: Rule 3 used exact set membership (doesn't catch the disambiguation-conflict case); kinship exemption let "the father" through unconditionally
-  - Smoke test: PASS — "John Donaldson (the father)" and "the father" blocked, valid aliases preserved
-  - Modified: `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()`
-- **Generic relationship labels** (HIGH #3): Fixed secondary profiler prompt to forbid "associated"/"acquaintance"
-  - Root cause: Secondary prompt (line 3405) allowed "acquaintance" in examples; lacked explicit prohibition on "associated"
-  - Modified: `src/analyzer.py:_generate_character_profile():line 3405`
-
-## Pipeline Notes (Attempt 9 Run)
-- Runtime: 11m 22s, 38 LLM calls
-- Characters found: Uncle Bill (18), John Donaldson Sr. (28), John's son (28), Joe Barron (3), Ted Frith (5)
-- Margaret Donaldson added via F6b ✓
-- Narrator: Uncle Bill (mixed/first-person) ✓
-- RULE 3d/3e fired: "John Donaldson (the father)" and "the father" blocked on son ✓
-- **POTENTIAL REGRESSION**: Father (John Donaldson Sr.) has many valid aliases blocked as "already claimed" — suggests son claimed them first, so father still has 0 meaningful aliases
-  - Blocked on father: "estranged father", "shabby grizzled American civilian", "volunteer", "older man", "his estranged father", "grandfather"
-  - These were claimed by "John Donaldson" (son) before Rule 3 fired, blocking reassignment to father
-- Low confidence profile for John's son: 0.30
-- Son canonical name changed to "John's son" (was "John Donaldson (the son)" in attempt 8)
+- All 14 pronunciations have IPA
+- Runtime: ~11 min (38 LLM calls)
+- John's son confidence: LOW (0.30) — likely due to minimal alias coverage and shared "John" alias
 
 ## Next Action
-Evaluate attempt 9 output.
+Run PROMPT_fix.md to address: (1) primary profiler prompt "associated" prohibition, (2) father alias reassignment after RULE 3d/3e blocking.
