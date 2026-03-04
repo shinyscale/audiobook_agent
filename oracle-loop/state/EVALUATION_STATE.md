@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -198,5 +198,14 @@ The summary is upstream of profiles and the plot summary. If the chapter summary
 - All 14 pronunciations have IPA
 - Runtime: ~14 min (38 LLM calls)
 
+## Pipeline Notes (Attempt 8)
+- Runtime: 12m 10s, 36 LLM calls
+- Father/son split working: `John Donaldson (the son)` (76 mentions) and `John Donaldson` (father, 9 mentions) are separate ✓
+- Narrator correct: Uncle Bill (first-person) ✓
+- Secondary narrator guard blocked `John Donaldson (the son)` correctly ✓
+- Margaret Donaldson added via F6b ✓
+- Profile correction: "Corrected profile for 'John Donaldson' (same-name contamination with 'John Donaldson (the son)')" ✓
+- Plot summary: awaiting evaluation (this was a critical issue in attempt 7)
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate attempt 8 output.
