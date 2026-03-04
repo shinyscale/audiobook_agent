@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 19
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -259,7 +259,17 @@ Functional navigation, logical organization.
 - Cross-alias contamination is a code logic issue in STEP 3.95b, not LLM non-determinism
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL:** Cross-alias contamination in STEP 3.95b — filter parenthetical aliases after split
-2. **HIGH:** force_parenthetical_relationship_labels() — ensure it fires for "(the father)"/"(the son)" pattern
-3. **HIGH:** Plot summary "Uncle Bill's own father" — add frame narrator clarification to prompt
+Re-run analysis to verify fixes.
+
+## Fix History (Attempt 20)
+1. **Cross-alias contamination in STEP 3.95** — mutual alias decontamination after split
+   - Root cause: `_char.aliases = _child_als + _neutral_als` kept "John Donaldson (the father)" as a neutral alias (since it's not a pure role word); and `_parent_char_als_395.append(_char.canonical_name)` added "John Donaldson (the son)" to parent's aliases
+   - Fix: After split, filter each character's aliases to exclude the other character's canonical name
+   - Modified: `src/agents/characters.py` — STEP 3.95 (after alias assignment, before `_refresh_mentions`)
+   - Fix type: algorithmic invariant enforcement; universal (any split character pair)
+
+2. **force_parenthetical_relationship_labels() base-name lookup** — fallback to prefix matching
+   - Root cause: `char_by_name.get(base_name)` looked up "John Donaldson" but the son's canonical is "John Donaldson (the son)" → lookup returned None → function skipped → "brother" label not overridden
+   - Fix: When exact lookup fails, scan for a character whose canonical starts with `base_name + " ("` (handles split pairs); also use the ACTUAL other_canonical name as relationship key (not bare base_name) to replace the existing "brother" entry rather than adding a duplicate key
+   - Modified: `src/pipeline/character_profiling/post_corrections.py` — `force_parenthetical_relationship_labels()`
+   - Fix type: algorithmic; universal (any split character pair with parenthetical disambiguation)

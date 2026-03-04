@@ -2467,25 +2467,38 @@ class OutputCharacterCorrector:
                 continue
             other_char = char_by_name.get(base_name)
             if other_char is None:
+                # Fallback: split-pair characters share a base name but each has a parenthetical
+                # e.g. "John (the father)" → look for "John (the son)" when "John" not found
+                for c in characters:
+                    if c is not char and c.canonical_name.startswith(base_name + " ("):
+                        other_char = c
+                        break
+            if other_char is None:
                 continue
+
+            # Use the other character's actual canonical name as the relationship key
+            other_canonical = other_char.canonical_name
 
             # Force this_char → other_char = rel_label
             if not hasattr(char, "relationships") or char.relationships is None:
                 continue
-            old_fwd = char.relationships.get(base_name)
-            char.relationships[base_name] = rel_label
+            # Remove stale entries keyed by the bare base_name (cleanup incorrect keys)
+            old_fwd = char.relationships.pop(base_name, None) or char.relationships.get(other_canonical)
+            char.relationships[other_canonical] = rel_label
 
             # Force other_char → this_char = reverse
             reverse_label = RELATIONSHIP_REVERSES.get(rel_label, rel_label)
             if hasattr(other_char, "relationships") and other_char.relationships is not None:
+                # Remove stale entry keyed by bare base_name if present
+                other_char.relationships.pop(base_name, None)
                 old_rev = other_char.relationships.get(char.canonical_name)
                 other_char.relationships[char.canonical_name] = reverse_label
                 if old_fwd != rel_label or old_rev != reverse_label:
                     logger.info(
                         f"Forced parenthetical relationship: "
-                        f"'{char.canonical_name}' → '{base_name}': '{rel_label}' "
+                        f"'{char.canonical_name}' → '{other_canonical}': '{rel_label}' "
                         f"(was '{old_fwd}'); "
-                        f"'{base_name}' → '{char.canonical_name}': '{reverse_label}' "
+                        f"'{other_canonical}' → '{char.canonical_name}': '{reverse_label}' "
                         f"(was '{old_rev}')"
                     )
 

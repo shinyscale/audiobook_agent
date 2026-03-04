@@ -498,6 +498,14 @@ class CharacterAgent(Agent):
             _char.aliases = _child_als + _neutral_als
             _char.mention_count = max(1, _char.mention_count - _parent_char.mention_count)
 
+            # Mutual alias decontamination: after split, neither character should carry
+            # the OTHER character's canonical name as one of its aliases.
+            # This prevents cross-contamination where e.g. the son carries "John (the father)"
+            # and the father carries "John (the son)" as aliases.
+            _child_canonical_395 = _char.canonical_name
+            _char.aliases = [a for a in _char.aliases if a != _parent_canonical]
+            _parent_char.aliases = [a for a in (_parent_char.aliases or []) if a != _child_canonical_395]
+
             # Re-search mentions for both split characters
             self._refresh_mentions({_char.id, _parent_char.id}, main_cast, searcher, mention_results)
 
