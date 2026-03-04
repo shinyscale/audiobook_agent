@@ -412,87 +412,64 @@ class CharacterAgent(Agent):
                 )
                 self._refresh_mentions(post_split_aliases_added, main_cast, searcher, mention_results)
 
-        # STEP 3.95: Split over-merged same-name characters using characters_present evidence.
-        # When chapter summaries list multiple distinct entities with the same base name
-        # (e.g., "John (the son)" and "John Donaldson (the father/volunteer)"), the LLM may
-        # have merged them into a single main_cast character. Detect and split programmatically.
-        # This step is universal: it triggers only when the summaries explicitly provide
-        # disambiguated forms of the same name — no vocabulary keywords needed.
-        import re as _re395
-        _paren395 = _re395.compile(r'\s*\(.*?\)\s*$')  # trailing parenthetical
+        # STEP 3.95: Split over-merged same-name characters using alias contradiction detection.
+        # Universal invariant: a single character CANNOT simultaneously hold a parent-generation
+        # role alias ("the father", "the mother") AND a child-generation role alias ("the boy",
+        # "the son", "the daughter"). When both tiers appear on one character, a false merge
+        # occurred. Split programmatically — no external signal or prefix format required.
+        _ROLE_SW_395 = {"the", "a", "an", "his", "her", "their", "my", "our"}
+        _PARENT_TIER_395 = {"father", "mother", "dad", "mom", "daddy", "mama", "papa", "pa", "ma"}
+        _CHILD_TIER_395 = {"son", "daughter", "boy", "girl", "child", "kid", "lad", "lass"}
 
-        def _cp_base(name: str) -> str:
-            """Strip trailing parenthetical, lowercase, strip."""
-            return _paren395.sub('', name).strip().lower()
+        def _alias_tier_395(alias: str) -> Optional[str]:
+            """Return 'parent', 'child', or None.
+            Only returns a tier when the alias is a pure role-descriptor (no extraneous words
+            that would indicate a proper name like "Father Brown")."""
+            core = set(alias.lower().split()) - _ROLE_SW_395
+            if not core:
+                return None
+            if core <= (_PARENT_TIER_395 | _CHILD_TIER_395):
+                if core & _PARENT_TIER_395:
+                    return "parent"
+                return "child"
+            return None
 
-        # Collect all characters_present entries that have parenthetical disambiguators
-        cp_with_paren: list[str] = []
-        for _cs in chapter_summaries:
-            if '[Characters present:' not in _cs:
-                continue
-            _bracket_end = _cs.find(']')
-            if _bracket_end == -1:
-                continue
-            _cp_line = _cs[len('[Characters present: '):_bracket_end]
-            for _entry in _cp_line.split(','):
-                _entry = _entry.strip()
-                if _entry and '(' in _entry:
-                    cp_with_paren.append(_entry)
+        for _char in list(main_cast):
+            _parent_als = [a for a in _char.aliases if _alias_tier_395(a) == "parent"]
+            _child_als = [a for a in _char.aliases if _alias_tier_395(a) == "child"]
+            if not _parent_als or not _child_als:
+                continue  # no contradiction — skip
 
-        if cp_with_paren:
-            from collections import defaultdict as _dd395
-            cp_by_base: dict[str, list[str]] = _dd395(list)
-            for _entry in cp_with_paren:
-                _base = _cp_base(_entry)
-                if _entry not in cp_by_base[_base]:
-                    cp_by_base[_base].append(_entry)
+            _neutral_als = [
+                a for a in _char.aliases
+                if _alias_tier_395(a) is None and a != _char.canonical_name
+            ]
 
-            for _base_name, _cp_list in cp_by_base.items():
-                # Only act when 2+ distinct CP entries share the same base name
-                if len(_cp_list) < 2:
-                    continue
-                # Find main_cast character whose base name matches (no parenthetical itself)
-                _candidates = [
-                    c for c in main_cast
-                    if _cp_base(c.canonical_name) == _base_name
-                    and '(' not in c.canonical_name
-                ]
-                if len(_candidates) != 1:
-                    continue  # 0 = none extracted; 2+ = already split
-                _merged = _candidates[0]
-                _original_canonical = _merged.canonical_name
-                logger.info(
-                    f"V2 Step 3.95: '{_original_canonical}' was over-merged "
-                    f"(cp_entries={_cp_list}); splitting into {len(_cp_list)} characters"
-                )
-                # Rename the original character to the first CP entry (primary form)
-                _merged.canonical_name = _cp_list[0]
-                if _original_canonical not in _merged.aliases:
-                    _merged.aliases.insert(0, _original_canonical)
-                # Create new characters for each additional CP entry
-                for _i, _secondary_cp in enumerate(_cp_list[1:], 1):
-                    from ..models import ConfidenceLevel as _CL395
-                    _new_char = Character(
-                        id=f"{_merged.id}_cp{_i}",
-                        canonical_name=_secondary_cp,
-                        role="supporting",
-                        mention_count=max(1, _merged.mention_count // (len(_cp_list))),
-                        confidence=_CL395.MEDIUM,
-                        aliases=[_original_canonical],
-                    )
-                    main_cast.append(_new_char)
-                    logger.info(
-                        f"V2 Step 3.95: Created split character '{_secondary_cp}' "
-                        f"(id={_new_char.id})"
-                    )
-                # Adjust merged character's mention_count to roughly its share
-                _merged.mention_count = max(
-                    1, _merged.mention_count - (len(_cp_list) - 1) * max(1, _merged.mention_count // len(_cp_list))
-                )
-                # Re-search mentions for all newly created split characters
-                _split_ids = {f"{_merged.id}_cp{_i}" for _i in range(1, len(_cp_list))}
-                _split_ids.add(_merged.id)
-                self._refresh_mentions(_split_ids, main_cast, searcher, mention_results)
+            logger.info(
+                f"V2 Step 3.95: Alias contradiction on '{_char.canonical_name}' "
+                f"(parent_aliases={_parent_als}, child_aliases={_child_als}); splitting"
+            )
+
+            # Parent-tier character: canonical_name + "(the father/mother/...)" suffix
+            _parent_label = _parent_als[0].lower().strip()  # e.g. "the father"
+            _parent_canonical = f"{_char.canonical_name} ({_parent_label})"
+            from ..models import ConfidenceLevel as _CL395
+            _parent_char = Character(
+                id=f"{_char.id}_parent",
+                canonical_name=_parent_canonical,
+                role="supporting",
+                mention_count=max(1, _char.mention_count // 2),
+                confidence=_CL395.MEDIUM,
+                aliases=_parent_als + [_char.canonical_name],
+            )
+            main_cast.append(_parent_char)
+
+            # Original character keeps canonical_name, child-tier aliases + neutral aliases
+            _char.aliases = _child_als + _neutral_als
+            _char.mention_count = max(1, _char.mention_count - _parent_char.mention_count)
+
+            # Re-search mentions for both split characters
+            self._refresh_mentions({_char.id, _parent_char.id}, main_cast, searcher, mention_results)
 
         # STEP 4: Detect narrator (F4)
         logger.info("V2 Step 4: Detecting narrator")

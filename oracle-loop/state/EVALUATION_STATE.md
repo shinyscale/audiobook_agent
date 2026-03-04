@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -216,6 +216,7 @@ The cleanest approach is **alias contradiction detection** (Option C from CRITIC
 | 10 | Primary profiler "associated" labels | `analyzer.py` — post-filter + secondary call trigger | **NO EFFECT** — still "associated" |
 | 10 | "John's son" confusing canonical name | `characters.py` — new Step 5.4.6b | **DID NOT FIRE** — no parent character (merged) |
 | 11 | STEP 3.95 programmatic split from characters_present | `characters.py` | **DID NOT FIRE** — active_characters empty |
+| 12 | STEP 3.95 replaced: alias contradiction detection (parent-tier vs child-tier) | `characters.py` | Pending analysis |
 | 11 | "associated" relationship cleanup | `post_corrections.py` | Fixed ✓ |
 | 11 | Narrator from V2 pipeline_metadata | `analyzer.py` | Fixed ✓ |
 
@@ -228,4 +229,4 @@ The cleanest approach is **alias contradiction detection** (Option C from CRITIC
 - Narrator detection from V2 pipeline: working ✓
 
 ## Next Action
-Run PROMPT_fix.md to fix STEP 3.95 to use alias contradiction detection instead of empty active_characters
+Run PROMPT_analyze.md to re-analyze american_sir with STEP 3.95 alias contradiction detection
