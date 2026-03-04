@@ -14,8 +14,9 @@
     {
       "name": "cask_of_amontillado",
       "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": false,
-      "attempts": 1
+      "complete": true,
+      "attempts": 2,
+      "final_score": 8.4
     },
     {
       "name": "masque_of_red_death",
@@ -101,7 +102,7 @@
       "file": "Test_Texts/Flowers_For_Algernon.pdf",
       "complete": false,
       "attempts": 0,
-      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+      "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
     },
     {
       "name": "hound_of_the_baskervilles",
