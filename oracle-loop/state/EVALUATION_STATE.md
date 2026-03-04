@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -13,32 +13,32 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 5.5/10 ✗ (FAILING — REGRESSION)
+- Character Extraction: 5.5/10 ✗ (FAILING — father/son merge persists)
   - Completeness: 6/10
-  - Identity Resolution: 4/10 ← father/son FALSE MERGE (was split in attempts 8-9)
-  - Alias Grouping: 6/10
-- Character Profiles: 5/10 ✗ (FAILING — REGRESSION)
+  - Identity Resolution: 4/10 ← father/son FALSE MERGE (STEP 3.95 did not fire)
+  - Alias Grouping: 6.5/10
+- Character Profiles: 6/10 ✗ (FAILING — improved from 5 via narrator+relationship fixes)
 - Chapter Summaries: 7/10 ✗ (FAILING)
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.0/10** (reference only)
+- **Overall: 7.2/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold — regression from attempt 9)
+**Status:** FAIL (3 categories below threshold)
 
-## What Attempt 10 Changed vs Attempt 9
+## What Attempt 11 Changed vs Attempt 10
 
-**REGRESSIONS:**
-- **Father/son MERGED BACK into single character** — Only 3 characters: "John Donaldson" (55 mentions), "Uncle Bill" (18), "Ted Frith" (5). In attempts 8-9 these were separate: son (~27) + father (~28). The merged profile confusingly mixes father traits ("embezzled money", "dying stretcher-bearer", "seeks redemption") with son traits ("the boy", "ambulance driver").
-- **Ted Frith lost relationships** — Had "companion" in attempt 9, now has empty relationships {}
-- **Narrator detection STILL failing** — narrator_info is None, Uncle Bill not flagged as narrator
-- **Relationships still "associated"** — The post-filter fix for "associated" labels did NOT work. All relationships remain "associated".
-- **Step 5.4.6b rename did NOT fire** — Canonical name is "John Donaldson" (not "John Donaldson (the son)") because there is no parent character to trigger against.
+**IMPROVEMENTS:**
+- **Narrator detection FIXED** — Uncle Bill is `is_narrator=True` ✓ (was None in attempt 10). The V2 pipeline_metadata narrator extraction in analyzer.py worked.
+- **Relationship cleanup WORKED** — Uncle Bill ↔ Ted Frith = "close friend" ✓ (was "associated" in attempt 10). The `clean_unknown_relationships()` extension to strip "associated" labels worked, and surviving relationships are specific.
+- **Ted Frith has relationship back** — "close friend" with Uncle Bill ✓ (was empty in attempt 10).
 
-**Root cause analysis:**
-The attempt 10 code changes (post-filter for associated + Step 5.4.6b rename) did not CAUSE the regression — they simply had no effect because the underlying father/son split was lost. The split is LLM-non-deterministic: qwen3.5 sometimes separates the two John Donaldsons and sometimes merges them. The code changes from attempts 8-9 that enabled the split (summary prompt guidance for nested narration, role assignment) are still present, but the LLM chose differently this run.
-
-**The fundamental problem:** The father/son split is not ENFORCED programmatically — it depends entirely on the LLM's Pass 1 extraction outputting two separate "John Donaldson" characters. When the LLM merges them, no downstream code can fix it because the evidence is lost.
+**PERSISTENT FAILURES:**
+- **Father/son STILL MERGED** — John Donaldson has 43 mentions (combined father ~28 + son ~15). Aliases include both "the father" AND "the boy" on the same character. STEP 3.95 (programmatic same-name split) did NOT fire.
+- **Root cause of STEP 3.95 failure**: `active_characters` is EMPTY in the structure output. STEP 3.95 parses `[Characters present: ...]` from summaries to find disambiguated same-name entries. Since active_characters is empty, there's nothing to parse → no split signal → no split.
+- **John Donaldson has ZERO relationships** — should have Uncle Bill (guardian/friend), father-son relationship with the other JD
+- **"Age: two years old" hallucination** — still present on John Donaldson
+- **Summary confusion** — "the narrator later reassures his son John about Uncle Bill's redemption" should be "Uncle Bill reassures John about his father's redemption"
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -53,96 +53,93 @@ The attempt 10 code changes (post-filter for associated + Step 5.4.6b rename) di
 | 8 | 7.85 | +1.30 | Father/son split ✓, plot summary fixed ✓, summaries fixed ✓, profiles much improved ✓. Remaining: cross-character aliases, generic relationships. |
 | 9 | 8.0 | +1.45 | Cross-character alias contamination fixed ✓. Relationship fix only hit secondary prompt. Father still has 0 descriptive aliases. |
 | 10 | 7.0 | +0.45 | **REGRESSION.** Father/son merge recurred (LLM non-determinism). Both attempt 10 fixes had no effect. |
+| 11 | 7.2 | +0.65 | Narrator fix ✓, relationship cleanup ✓. But STEP 3.95 didn't fire (empty active_characters). Father/son still merged. |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Father/son characters FALSE MERGED — LLM non-deterministic split** [Identity Resolution]
-   - Problem: "John Donaldson" has 55 mentions (sum of father ~28 + son ~27). The profile mixes: father's traits ("embezzled money", "dying stretcher-bearer", "seeks redemption", "shabby shoulders") with son's traits ("the boy", "ambulance driver", age 18). Evidence says "He physically resembles his son" but HE IS the son in this merged output.
-   - Root cause: The father/son split depends entirely on the LLM producing two separate "John Donaldson" entries in Pass 1 character extraction. Attempts 8-9 happened to get this right; attempt 10 did not. The summarizer prompt improvements from attempt 8 (nested narration guidance) are still present but insufficient to guarantee the split.
-   - Location: `src/pipeline/summarization/summarizer.py` (summaries must clearly distinguish father vs son) AND `src/pipeline/character_extraction_v2/main_cast.py` (Pass 1 must extract both)
-   - Fix strategy: **This needs a programmatic post-extraction split, not more prompt engineering.** When the summary clearly describes two different people with the same name (one is a dying father, one is a young ambulance driver), and the LLM merges them, a post-extraction step in `src/agents/characters.py` should detect the conflicting descriptors and force a split. Alternatively, enhance the summary active_characters to explicitly list "John Donaldson (the father)" and "John Donaldson (the son)" as separate entries, giving the character extractor a stronger signal.
-   - Impact: This single issue causes cascading failures in profiles (mixed identity), relationships (orphan references), and alias grouping.
+1. **STEP 3.95 programmatic split has no signal — active_characters is empty** [Identity Resolution]
+   - Problem: STEP 3.95 was designed to parse `[Characters present: ...]` from summaries and split same-name merged characters. But `active_characters` is `[]` in the structure output, so STEP 3.95 has NO data to work with.
+   - Root cause: The summarizer is not populating `active_characters` or `key_events` fields. These are empty lists. The `[Characters present: ...]` prefix is either not generated or not parsed into the structured fields.
+   - Evidence: `jq '.structure[0].active_characters' analysis.json` → `[]`; `jq '.structure[0].key_events' analysis.json` → `[]`
+   - Location: Either `src/pipeline/summarization/summarizer.py` (not generating the prefix) or `src/analyzer.py` (not parsing it into structured fields)
+   - Fix options:
+     - **(A) Make STEP 3.95 parse raw summary TEXT** instead of relying on `active_characters` field. The summary text DOES mention both "the boy" and "the father" — scan for disambiguating same-name patterns in summary prose.
+     - **(B) Fix the summarizer** to populate `active_characters` properly. This is the cleaner fix but touches more code.
+     - **(C) Alternative split signal**: Instead of relying on active_characters, detect contradictory aliases on a single character. If one character has both "the boy" and "the father" as aliases, that's a strong signal of a false merge. Split based on alias contradiction.
+   - **Recommended: Option (C)** — it's the most robust because it doesn't depend on external fields. A character simultaneously aliased as "the boy" AND "the father" is logically contradictory and should trigger a split.
 
 ### HIGH
 
-2. **Relationships still all "associated" despite attempt 10 fix** [Profiles]
-   - Problem: The post-filter for "associated" labels was supposed to trigger a secondary call for specific labels. But all relationships remain "associated": Uncle Bill → John Donaldson = "associated", John Donaldson → Uncle Bill = "associated".
-   - Evidence: The fix from attempt 10 (post-filter + secondary call trigger) either did not fire or the secondary call also returned "associated".
-   - Location: `src/analyzer.py` — `_generate_character_profile()` — the post-filter logic added in attempt 10
-   - Fix: Debug why the post-filter/secondary-call mechanism failed. The secondary prompt works (proved by Ted Frith getting "companion" in attempt 9). The primary prompt post-filter may not be executing, or the secondary call may not be triggered correctly.
-   - Impact: Profiles 5 → 7+ if relationships become specific (guardian, uncle, friend, son, etc.)
+2. **John Donaldson has ZERO relationships** [Profiles]
+   - Problem: The merged John Donaldson character has empty relationships `{}`. Should have: Uncle Bill (guardian/family friend), and if split, father↔son.
+   - Evidence: `jq '.characters[1].relationships' analysis.json` → `{}`
+   - Location: `src/analyzer.py` — `_generate_character_profile()`
+   - Root cause: The profiler may be confused by the merged identity (father+son traits) and unable to assign coherent relationships.
+   - Fix: Will partially resolve when father/son split is fixed. The split characters would each have clearer context for relationship inference.
 
-3. **Narrator detection failed — Uncle Bill not identified** [Profiles, Summaries]
-   - Problem: `narrator_info` is None. Uncle Bill is the frame narrator of this story but `is_narrator=False` for all characters.
-   - Evidence: Previous attempts (6, 8, 9) had Uncle Bill correctly as narrator. This is a regression.
-   - Location: `src/pipeline/character_extraction_v2/narrator.py`
-   - Root cause: Likely the LLM's narrator detection prompt returned an unparseable result. Pipeline notes say "Narrator detection failed or returned non-dict: None".
-   - Fix: Add fallback/retry logic in narrator.py when detection returns None. Or strengthen the narrator prompt to be more robust.
-
-4. **Ted Frith lost relationships — regression** [Profiles]
-   - Problem: Ted Frith had "companion" relationship in attempt 9 (secondary prompt fix confirmed working). Now has empty relationships {}.
-   - Location: `src/analyzer.py` — profile generation for supporting characters
-   - Root cause: Possibly related to the same post-filter issue as HIGH #2, or the secondary prompt was not invoked for Ted Frith this run.
+3. **Summary says "Uncle Bill's redemption" — should be father's redemption** [Summaries]
+   - Problem: Summary text says "the narrator later reassures his son John about Uncle Bill's redemption". Uncle Bill IS the narrator. The correct reading: Uncle Bill reassures the boy John about his FATHER's (John Donaldson Sr.) redemption.
+   - Evidence: The text's theme is the father's redemption from embezzlement through his death as an "American, sir" on the battlefield.
+   - Location: `src/pipeline/summarization/summarizer.py` — consolidation prompt
+   - Root cause: The LLM confuses the nested narrative layers. With the father/son merge, there's no clear "father" entity to attribute redemption to, so the LLM substitutes Uncle Bill.
+   - Fix: Will partially resolve when father/son split is fixed. With a clear "John Donaldson (the father)" character, the summary can correctly attribute redemption.
 
 ### MEDIUM
 
-5. **"Age: two years old" hallucinated on John Donaldson AND Ted Frith** [Profiles]
-   - Problem: Both characters show `appearance.age_indication: "two years old"`. John Donaldson (merged) should be ~18 (son) or elderly (father). Ted Frith's age is unspecified. "Two years old" is fabricated, likely from a time-duration phrase in the text.
-   - Location: `src/analyzer.py` — profile generation, `age_indication` field
-   - Fix: Add validation rejecting ages < 5 for non-infant characters, or cross-check against physical_description.
+4. **"Age: two years old" hallucination on John Donaldson** [Profiles]
+   - Problem: `appearance.age_indication: "two years old"`. John Donaldson (son) is ~18, the father is middle-aged/elderly. "Two years old" is fabricated, likely from a time-duration phrase misinterpreted.
+   - Location: `src/analyzer.py` — profile generation, age_indication parsing
+   - Fix: Add validation rejecting age < 5 for non-infant characters, or cross-check against physical_description and role.
 
-6. **Summary confuses characters in final section** [Summaries]
-   - Problem: Summary says "the narrator comforts a dying man named Uncle Bill, who fears dishonor until the narrator affirms his American identity, leading to Uncle Bill's peaceful death". Uncle Bill is the FRAME narrator, not a dying war casualty. The dying man in the war scene is the FATHER (John Donaldson Sr.). The summary conflates these two characters.
-   - Location: `src/pipeline/summarization/summarizer.py`
-   - Root cause: With the father/son merge, the LLM has no clear label for the dying father and substitutes "Uncle Bill".
+5. **active_characters and key_events empty in structure output** [Summaries]
+   - Problem: Both fields are `[]`. These enable F6 reconciliation and STEP 3.95.
+   - Location: `src/pipeline/summarization/summarizer.py` or `src/analyzer.py` (parsing)
+   - Fix: Ensure the summarizer generates and parser captures these fields. This is related to CRITICAL #1.
 
-7. **active_characters and key_events empty** [Summaries]
-   - Problem: Both fields are empty lists `[]` in the structure output.
-   - Impact: Minor — the summary text compensates, but these fields enable F6 reconciliation.
+6. **Margaret Donaldson absent from character list** [Completeness]
+   - Problem: The state says "Margaret Donaldson added by F6 reconciliation" but she doesn't appear in the final character list (only 4 characters).
+   - Evidence: Only Uncle Bill, John Donaldson, Joe Barron, Ted Frith in output.
+   - Location: May have been filtered by post-processing or mention count threshold.
+   - Impact: Minor — she's a referenced-only character.
 
 ### LOW
 
-8. **Missing nicknames: "Johnny" and "Teddy"** [Alias Grouping]
+7. **Missing nicknames: "Johnny" and "Teddy"** [Alias Grouping]
    - Still not captured. Low priority compared to critical issues.
 
-9. **Margaret Donaldson absent from character list** [Completeness]
-   - Minor character, filtered by mention count.
+## Fix Strategy for Attempt 12
 
-## Fix Strategy for Attempt 11
+**Priority 1: Make the father/son split work WITHOUT depending on active_characters.**
 
-**The father/son merge is the root cause of most regressions. This must be solved programmatically, not via prompt engineering.**
+The cleanest approach is **alias contradiction detection** (Option C from CRITICAL #1):
+- After all merges complete (end of Step 3.9 or in STEP 3.95), scan each character's aliases
+- If a character has aliases that are logically contradictory (e.g., "the boy" + "the father", or "the son" + "the old man"), this signals a false merge
+- Define contradiction pairs: {boy↔father, son↔father, boy↔old man, young↔old, child↔parent, daughter↔mother, son↔mother}
+- When detected, split the character using the contradictory aliases as seeds for the split identities
+- This is more robust than relying on active_characters because it works regardless of what the summarizer outputs
 
-Priority 1: **Force father/son split when summary evidence supports it.** Options:
-- (A) In `characters.py`, add a post-extraction step that checks for conflicting age/role descriptors in a single character (e.g., "the boy" alias + "embezzled money 20 years ago" evidence = two different people). Split the character.
-- (B) In `summarizer.py`, when the summary describes both a parent and child with the same name, output them as separate active_characters with disambiguating labels: "John Donaldson (father)" and "John Donaldson (son)".
-- (C) Both — (B) gives extraction a signal, (A) catches cases where the LLM still merges.
+**Priority 2: The summary confusion and missing relationships should partially self-resolve** once the split works. Don't touch these directly — evaluate after the split fix.
 
-Priority 2: **Debug the relationship post-filter** from attempt 10. Why didn't it fire? Check if the logic path is actually reached.
-
-Priority 3: **Narrator detection robustness** — add retry/fallback when narrator detection returns None.
-
-**Do NOT touch** (working correctly when split works):
-- main_cast.py RULE 3d/3e (alias contamination fix)
-- characters.py Step 5.4.5 (co-present guard)
-- summarizer.py nested narration guidance (works when LLM cooperates)
+**Do NOT touch** (working correctly):
+- Narrator detection (Uncle Bill = narrator ✓)
+- Relationship cleanup ("close friend" ✓)
+- RULE 3d/3e alias contamination guards
+- Co-present guard (Step 5.4.5)
+- Pronunciation pipeline
 
 ## Fix History
 - Attempt 11:
   1. STEP 3.95 — Programmatic same-name split from characters_present lists
      - Modified: `src/agents/characters.py` — new STEP 3.95 after STEP 3.9 (before narrator detection)
-     - Root cause: LLM non-deterministically merges same-name characters; characters_present already lists them as distinct but LLM ignores the NOTE
-     - Fix: After all merges (3.9), parse [Characters present: ...] from summaries; for each group with 2+ entries sharing the same base name, find the merged main_cast character and split it into N characters
-     - Smoke test: PASS — parsing logic correctly identifies 'john donaldson' group with 2 CP entries; triggers split of "John Donaldson" into "John Donaldson (the narrator in the flashback)" + "John Donaldson (the father/volunteer)"
+     - Result: **DID NOT FIRE** — active_characters is empty, no characters_present to parse
   2. clean_unknown_relationships() — extended to also remove "associated" labels
      - Modified: `src/pipeline/character_profiling/post_corrections.py`
-     - Root cause: add_cooccurrence_relationships() adds "associated" for co-occurring chars; verify_relationships_from_text() fails to upgrade it; result is "associated" labels in output
-     - Fix: Remove "associated"/"associate"/"acquaintance" along with "unknown" in final cleanup
+     - Result: **FIXED** ✓ — Uncle Bill ↔ Ted Frith now "close friend"
   3. Narrator extracted from V2 pipeline_metadata in analyzer.py
      - Modified: `src/analyzer.py` — after line 1107 (V2 extraction result)
-     - Root cause: characters.py Step 4/5.8 already ran narrator detection with the fully-resolved main_cast, but analyzer.py ignored this result and ran a duplicate LLM call (Step 4.5) that sometimes fails
-     - Fix: Extract narrator_name/pov from pipeline_char_map.pipeline_metadata immediately after V2 extraction; set narrator_detected directly
+     - Result: **FIXED** ✓ — Uncle Bill is narrator
 - Attempt 10:
   1. Post-filter "associated"/"acquaintance"/"unknown" relationship labels from primary profiler
      - Modified: `src/analyzer.py` — `_generate_character_profile()` after parsing relationships
@@ -218,23 +215,17 @@ Priority 3: **Narrator detection robustness** — add retry/fallback when narrat
 | 9 | Generic relationship labels (secondary prompt) | `analyzer.py` — secondary prompt | **PARTIAL** — secondary works, primary NOT modified |
 | 10 | Primary profiler "associated" labels | `analyzer.py` — post-filter + secondary call trigger | **NO EFFECT** — still "associated" |
 | 10 | "John's son" confusing canonical name | `characters.py` — new Step 5.4.6b | **DID NOT FIRE** — no parent character (merged) |
+| 11 | STEP 3.95 programmatic split from characters_present | `characters.py` | **DID NOT FIRE** — active_characters empty |
+| 11 | "associated" relationship cleanup | `post_corrections.py` | Fixed ✓ |
+| 11 | Narrator from V2 pipeline_metadata | `analyzer.py` | Fixed ✓ |
 
-**Pattern:** Father/son split is NON-DETERMINISTIC across LLM runs. Attempts 8-9 split correctly; attempt 10 merged. Programmatic enforcement needed — prompt-only approach is unreliable after 3 attempts.
+**Pattern:** STEP 3.95 failed because it depends on `active_characters` being populated, which it isn't. Fix phase must either (A) make STEP 3.95 use a different signal (alias contradictions), or (B) fix active_characters population. **characters.py has been modified 8 times** — consider whether the alias contradiction approach adds too much complexity vs fixing the data source.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
-- All 13 pronunciations have IPA
-- Runtime: ~35 min (33 LLM calls)
-- Narrator detection returned None — needs robustness fix
-
-## Pipeline Notes (Attempt 11)
-- Runtime: 9m 51s, 31 LLM calls, 70,489 tokens
-- Characters found: Uncle Bill (18), John Donaldson (43 — still merged), Joe Barron (3), Ted Frith (5)
-- Margaret Donaldson added by F6 reconciliation
-- Narrator from V2 pipeline: "The Narrator (Uncle Bill)" ✓ — narrator fix appears to have worked
-- STEP 3.95 did NOT split father/son — John Donaldson still has 43 mentions (combined), aliased as "the father"
-- "associated" relationship cleanup: to be confirmed by evaluation
+- All 14 pronunciations have IPA
+- Narrator detection from V2 pipeline: working ✓
 
 ## Next Action
-Evaluate output (PROMPT_evaluate.md)
+Run PROMPT_fix.md to fix STEP 3.95 to use alias contradiction detection instead of empty active_characters
