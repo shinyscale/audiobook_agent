@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -176,6 +176,17 @@ Functional navigation, logical organization.
   1. STEP 3.95 extended: canonical-name parenthetical tier detection
      - Modified: `src/agents/characters.py` — STEP 3.95
      - Result: **DID NOT FIRE** — LLM produced "John Donaldson" without parenthetical this time. Code is correct but targets a specific LLM output format that didn't occur.
+- Attempt 17:
+  1. STEP 3.95b: Summary-text parent attribution split
+     - Modified: `src/agents/characters.py` — new STEP 3.95b after STEP 3.95
+     - Detects "named {Name}... his/her/their father/mother" pattern in chapter summaries
+     - Only fires when: multi-word name, no existing paren annotation, ≥10 mentions, ≥1 neutral alias
+     - Creates "[Name] (the father/mother)" supporting character with 2 estimated mentions
+     - Root cause: STEP 3.95 only checked LLM-assigned aliases; this checks summary text directly
+  2. STEP 3.97 strengthened: threshold lowered + parenthetical guard added
+     - Modified: `src/agents/characters.py` — STEP 3.97 candidates filter
+     - Asymmetry threshold lowered from 10x/min-10 to 5x/min-5 (catches lower-mention formal names)
+     - Added `"(" not in c.canonical_name` guard: excludes STEP 3.95b-created parent characters from candidates, preventing the "two John-starting candidates" ambiguity that would block the merge
 
 ## Modification History
 
@@ -211,6 +222,8 @@ Functional navigation, logical organization.
 | 15 | STEP 5.4.6c: identity-reveal kinship merge | `characters.py` | **FIXED** ✓ — shabby civilian merged |
 | 15 | Step 6.6: narrator fallback | `analyzer.py` | **FIXED** ✓ — Uncle Bill is narrator |
 | 16 | STEP 3.95 parenthetical tier detection | `characters.py` | **DID NOT FIRE** — no parenthetical in canonical name |
+| 17 | STEP 3.95b: summary-text parent attribution | `characters.py` | Pending |
+| 17 | STEP 3.97: lower threshold + parenthetical guard | `characters.py` | Pending |
 
 **ESCALATION PATTERN DETECTED:** The father/son split has been attempted in `characters.py` STEP 3.95 across 5 attempts (11, 12, 13, 15, 16). Each fix targets a specific LLM output format:
 - Attempt 11: characters_present lists → empty lists, didn't fire
@@ -229,4 +242,4 @@ Functional navigation, logical organization.
 - Issue is NOT configuration — it's extraction and post-processing logic
 
 ## Next Action
-Run PROMPT_fix.md. Fix phase MUST use summary-text-aware approach for father/son split (not another STEP 3.95 format variant). Also fix Johnny phantom merge (STEP 3.97).
+Re-run analysis to verify fix. STEP 3.95b should split father/son. STEP 3.97 (with lowered threshold + parenthetical guard) should merge Johnny.

@@ -501,6 +501,73 @@ class CharacterAgent(Agent):
             # Re-search mentions for both split characters
             self._refresh_mentions({_char.id, _parent_char.id}, main_cast, searcher, mention_results)
 
+        # STEP 3.95b: Summary-text parent attribution split.
+        # Handles the case where STEP 3.95 alias contradiction didn't fire because the LLM
+        # failed to assign parent-tier aliases to a merged character, but the chapter summaries
+        # explicitly identify the character's full name as another person's named parent.
+        # Universal invariant: if summary text contains "named {Name} ... his/her/their father/mother"
+        # (or similar introducing-verb pattern), AND the character has non-parent role evidence
+        # (neutral aliases), AND has substantial mentions (≥10), a false merge is present.
+        # Example: "a stretcher-bearer named John Donaldson ... to realize he was his long-lost father"
+        # → "John Donaldson" was extracted as one character combining father + son.
+        import re as _re395b
+        _summary_all_395b = " ".join(chapter_summaries) if chapter_summaries else ""
+
+        if _summary_all_395b:
+            for _char_395b in list(main_cast):
+                # Only consider multi-word names with no existing parenthetical annotation
+                if "(" in _char_395b.canonical_name or " " not in _char_395b.canonical_name:
+                    continue
+                # Require substantial mentions (to avoid splitting minor named-parent characters)
+                if (_char_395b.mention_count or 0) < 10:
+                    continue
+                # Require at least one neutral (non-parent) alias as evidence of non-parent role
+                _neutral_als_395b = [
+                    a for a in (_char_395b.aliases or [])
+                    if _alias_tier_395(a) is None
+                ]
+                if not _neutral_als_395b:
+                    continue
+                # Search for explicit parent attribution in summary text.
+                # Pattern: "named/called/identified as {Name} ... his/her/their father/mother"
+                # This specifically identifies the name as a NAMED PARENT — avoids false positives
+                # like "John Smith walked with his father" where John Smith is the child.
+                _name_esc_395b = _re395b.escape(_char_395b.canonical_name)
+                _introducer_395b = r"(?:named|called|identified as|turned out to be|found to be|proved to be)\s+"
+                _possessive_395b = r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
+                _fwd_re_395b = _re395b.compile(
+                    r"(?i)"
+                    + _introducer_395b
+                    + _name_esc_395b
+                    + r"[^.!?\n]{0,300}"
+                    + _possessive_395b,
+                )
+                _m_395b = _fwd_re_395b.search(_summary_all_395b)
+                if not _m_395b:
+                    continue
+
+                # Determine gender from matched text
+                _matched_395b = _m_395b.group(0).lower()
+                _parent_label_395b = "the mother" if "mother" in _matched_395b else "the father"
+                _parent_canonical_395b = f"{_char_395b.canonical_name} ({_parent_label_395b})"
+
+                logger.info(
+                    f"V2 Step 3.95b: Summary text names '{_char_395b.canonical_name}' as a parent; "
+                    f"creating split → '{_parent_canonical_395b}' (supporting)"
+                )
+                from ..models import ConfidenceLevel as _CL395b
+                _parent_char_395b = Character(
+                    id=f"{_char_395b.id}_parent",
+                    canonical_name=_parent_canonical_395b,
+                    role="supporting",
+                    mention_count=2,
+                    confidence=_CL395b.MEDIUM,
+                    aliases=[],  # No aliases — avoids mention count overlap with the child character
+                )
+                main_cast.append(_parent_char_395b)
+                # Adjust child's mention count downward to reflect removed parent mentions
+                _char_395b.mention_count = max(1, (_char_395b.mention_count or 1) - 2)
+
         # STEP 3.97: Merge low-mention nickname phantoms into their formal-name counterparts.
         # Universal invariant: a single-word main cast character that is a known nickname
         # (via NICKNAME_TO_FORMAL) for the first name of a multi-word main cast character,
@@ -523,8 +590,9 @@ class CharacterAgent(Agent):
                 c for c in main_cast
                 if c.id != _nick_char_397.id
                 and " " in c.canonical_name
+                and "(" not in c.canonical_name  # exclude STEP 3.95/3.95b split annotations
                 and c.canonical_name.lower().split()[0] == _formal_first_397
-                and (getattr(c, "mention_count", 0) or 0) >= max(_nick_count_397 * 10, 10)
+                and (getattr(c, "mention_count", 0) or 0) >= max(_nick_count_397 * 5, 5)
             ]
             if len(_candidates_397) != 1:
                 continue  # Ambiguous or no match — skip
