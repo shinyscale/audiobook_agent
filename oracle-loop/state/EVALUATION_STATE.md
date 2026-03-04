@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -33,6 +33,7 @@
 | 2 | 6.6 | +0.05 | Narrator fix worked (Bill=narrator ✓, Bill profile correct ✓). But Johnny still missing, summary still wrong. |
 | 3 | 6.0 | -0.55 | **REGRESSION.** "American, sir" false character stole narrator from Uncle Bill. Johnny still missing. |
 | 4 | 6.4 | -0.15 | Co-present guard fixed "American, sir" ✓, but narrator REGRESSED (Johnny instead of Bill). Johnny/John's Son false split. |
+| 5 | TBD | TBD | Narrator FIXED (Uncle Bill ✓). Step 4.26 error. Step 5.4.6 merged John's Son into father (John Donaldson) not son (Johnny). |
 
 ## What Attempt 4 Fixed vs Broke
 
@@ -154,6 +155,13 @@
   3. Added Step 5.4.6 possessive-descriptor merge: "John's Son" + "Johnny" → merged when STANDARD_DIMINUTIVES/NICKNAME_TO_FORMAL shows Johnny is a nickname for John (the parent's name)
      - Modified: `src/agents/characters.py` — new Step 5.4.6 block
   - All 332 tests pass; no regressions
+  - Runtime: 30m 42s (31 LLM calls)
+  - **Narrator FIXED** ✓: "Confirmed narrator: Uncle Bill (first-person)"
+  - **New error in Step 4.26**: `'list' object has no attribute 'get'` — guard crashed; narrator detection still succeeded via Step 5.8.5 fallback
+  - **Step 5.4.6 regression**: "the boy" (from John's Son) appears as alias of John Donaldson (father) rather than Johnny (son) → wrong merge direction
+  - **Wrong narrator appearance injection**: "Final narrator appearance injection for 'Johnny': 'an elderly, grizzled, small man'" — Johnny is the young son, not the elderly man; wrong character getting description
+  - **Final characters**: Johnny (2 mentions), John Donaldson/aka John/the boy (42 mentions), Uncle Bill/aka Bill (18 mentions), Ted Frith/aka Ted (5 mentions)
+  - **Margaret Donaldson**: Added by F6 reconciliation but likely filtered from final output (1 mention threshold)
 
 ## Modification History
 
