@@ -778,6 +778,11 @@ class OutputCharacterCorrector:
         self.verify_relationships_from_text(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
         self.reject_unfounded_romantic_labels(characters, source_text)
+        # force_parenthetical_relationship_labels overrides any LLM-generated label
+        # with the definitive relationship encoded in the character's canonical name
+        # (e.g., "John Smith (his father)" → forces father/son labels). Must run
+        # BEFORE fix_bidirectional_parent_labels so the forced labels survive.
+        self.force_parenthetical_relationship_labels(characters)
         # fix_bidirectional_parent_labels must run AFTER verify_relationships_from_text,
         # which overrides relationships based on text evidence and can re-introduce
         # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
@@ -2412,6 +2417,76 @@ class OutputCharacterCorrector:
                         f"Downgraded unfounded romantic label: "
                         f"'{char.canonical_name}' → '{other_key}': "
                         f"'{rel}' → 'associated' (no romantic text evidence)"
+                    )
+
+    def force_parenthetical_relationship_labels(self, characters) -> None:
+        """Force relationship labels when a canonical name contains a disambiguating parenthetical.
+
+        When the pipeline creates a split character named e.g. "John Smith (his father)",
+        the parenthetical "(his father)" is a definitive statement of the relationship
+        to the base character "John Smith". This method enforces that semantic:
+
+          "John Smith (his father)" → "John Smith"  :  "father"
+          "John Smith"              → "John Smith (his father)"  :  "son"  (via RELATIONSHIP_REVERSES)
+
+        Universal invariant: a parenthetical qualifier in a canonical name is authoritative
+        evidence of the relationship direction. Overrides any LLM-generated label.
+        """
+        _POSSESSIVES = frozenset({"his", "her", "their", "the"})
+        # Map parenthetical rel terms to canonical relationship labels
+        _REL_TERM_MAP = {
+            "father": "father",
+            "mother": "mother",
+            "son": "son",
+            "daughter": "daughter",
+            "brother": "brother",
+            "sister": "sister",
+            "grandfather": "grandfather",
+            "grandmother": "grandmother",
+            "grandson": "grandson",
+            "granddaughter": "granddaughter",
+            "uncle": "uncle",
+            "aunt": "aunt",
+            "nephew": "nephew",
+            "niece": "niece",
+        }
+        _PAREN_RE = re.compile(
+            r"^(.+?)\s+\((?:" + "|".join(_POSSESSIVES) + r")\s+(\w+)\)$",
+            re.IGNORECASE,
+        )
+        char_by_name = {c.canonical_name: c for c in characters}
+
+        for char in characters:
+            m = _PAREN_RE.match(char.canonical_name)
+            if not m:
+                continue
+            base_name = m.group(1).strip()
+            rel_word = m.group(2).lower()
+            rel_label = _REL_TERM_MAP.get(rel_word)
+            if not rel_label:
+                continue
+            other_char = char_by_name.get(base_name)
+            if other_char is None:
+                continue
+
+            # Force this_char → other_char = rel_label
+            if not hasattr(char, "relationships") or char.relationships is None:
+                continue
+            old_fwd = char.relationships.get(base_name)
+            char.relationships[base_name] = rel_label
+
+            # Force other_char → this_char = reverse
+            reverse_label = RELATIONSHIP_REVERSES.get(rel_label, rel_label)
+            if hasattr(other_char, "relationships") and other_char.relationships is not None:
+                old_rev = other_char.relationships.get(char.canonical_name)
+                other_char.relationships[char.canonical_name] = reverse_label
+                if old_fwd != rel_label or old_rev != reverse_label:
+                    logger.info(
+                        f"Forced parenthetical relationship: "
+                        f"'{char.canonical_name}' → '{base_name}': '{rel_label}' "
+                        f"(was '{old_fwd}'); "
+                        f"'{base_name}' → '{char.canonical_name}': '{reverse_label}' "
+                        f"(was '{old_rev}')"
                     )
 
     def clean_unknown_relationships(self, characters) -> None:

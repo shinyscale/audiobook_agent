@@ -190,8 +190,10 @@ class OverviewGenerator:
             if narrative_style:
                 narrator_context += f" ({narrative_style})"
             narrator_instruction = (
-                f"\n- Refer to the narrator by their name ({narrator_name}) "
-                f"rather than 'the narrator' or 'an unnamed narrator'"
+                f"\n- {narrator_name} is the FRAME narrator who tells the overall story. "
+                f"When chapter summaries describe an embedded flashback, oral account, or "
+                f"story-within-a-story told by a DIFFERENT character to {narrator_name}, "
+                f"attribute those embedded events to THAT other character — not to {narrator_name}."
             )
 
         # Build main characters context to ground the LLM
