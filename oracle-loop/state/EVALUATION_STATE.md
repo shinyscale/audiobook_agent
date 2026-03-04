@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Attempt:** 15
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -11,17 +11,16 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 14)
-- Father/son SPLIT fired ✓ — Two separate "John Donaldson" characters created
-- Uncle Bill: 18 mentions, John Donaldson (father): 31 mentions, John Donaldson (the son): 28 mentions
-- "Shabby American civilian" still exists as separate character (8 mentions) — FALSE SPLIT from father
-- STEP 3.97 nickname phantom merge: no separate "Johnny" phantom this run ✓
-- **No narrator detected** — all 5 characters have is_narrator=false. Uncle Bill should be frame narrator.
-- Margaret Donaldson NOT in final output (F6 may have been skipped or she was filtered)
-- 5 characters with profiles; Uncle Bill has null physical_description and {} relationships
-- "ambulance driver" alias on John Donaldson (father) — should be on son
-- Plot summary quality is GOOD — accurately captures the multi-layered narrative arc
-- Runtime: 14m 25s
+## Pipeline Notes (Attempt 15)
+- Uncle Bill IS narrator ✓ — V2 pipeline detected + Step 6.6 confirmed: "Uncle Bill (first-person)"
+- "Shabby American civilian" NOT in final character list ✓ — STEP 5.4.6c merge fired
+- ONLY 1 John Donaldson shown in output: "John Donaldson (the father)" with 42 mentions — son appears MISSING
+- "The American civilian in Italy": Pass 2 failed (may still exist in JSON as separate entity)
+- New character "Joe Barron" (3 mentions) appeared — not seen in previous runs
+- "John Donaldson (the boy/narrator)" (42 mentions) flagged as secondary narrator candidate then rejected
+- Margaret Donaldson added by F6 (from mentioned_characters)
+- 3 profiles generated for 4 characters (Joe Barron minor → no profile)
+- Runtime: 9m 28s
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
