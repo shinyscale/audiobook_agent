@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -114,6 +114,7 @@
 | 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Fixed — Bill is now narrator ✓ |
 | 2 | Johnny missing (false merge) | (not yet attempted) | Still broken — Johnny merged into father |
 | 2 | Summary errors (Bill dying) | (not yet attempted) | Still broken — summary not re-generated |
+| 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | Awaiting analysis |
 
 ## Root Cause Analysis
 
@@ -144,7 +145,5 @@ The narrator fix improved character extraction but could NOT retroactively fix a
 - Runtime: 30m 25s (36 LLM calls)
 
 ## Next Action
-Run PROMPT_fix.md to address Issue #1 (Johnny false-merged into father). The fix should:
-1. Add a guard in `_merge_summary_name_fragments()` (and related merge functions) to prevent merging characters that appear as **separate entries** in the same summary's `characters_present` list
-2. This is the highest-impact fix — restoring Johnny as a character should cascade improvements to profiles, relationships, and role assignments
-3. Summary errors (Issue #2) may need a separate approach since summaries are generated before character extraction
+Re-run analysis on american_sir (attempt 3) to verify Johnny is no longer merged into father.
+Expected cascade: Johnny restored → profiles/relationships/role assignments improve.
