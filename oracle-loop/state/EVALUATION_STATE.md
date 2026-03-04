@@ -2,14 +2,25 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Attempt:** 14
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 14)
+- Father/son SPLIT fired ✓ — Two separate "John Donaldson" characters created
+- Uncle Bill: 18 mentions, John Donaldson (father): 31 mentions, John Donaldson (the son): 28 mentions
+- "Shabby American civilian" aliases include "his father, American, Sir" ✓
+- STEP 3.97 nickname phantom merge: no separate "Johnny" phantom this run ✓
+- **WARNING: Narrator = "No definitive narrator identified"** — Uncle Bill should be narrator; narrator detection may have failed
+- "Corrected profile for 'John Donaldson' (same-name contamination with 'John Donaldson (the son)')" appeared — profiler was aware of split
+- Margaret Donaldson added via F6 reconciliation
+- 5 characters with profiles: Uncle Bill, John Donaldson (father), Shabby American civilian, John Donaldson (the son), Ted Frith
+- Runtime: 14m 36s, 39 LLM calls, 88,616 tokens
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
