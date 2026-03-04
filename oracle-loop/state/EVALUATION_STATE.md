@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 5
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -13,15 +13,15 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 4.5/10 ✗ (FAILING)
+- Character Extraction: 4/10 ✗ (FAILING)
   - Completeness: 6/10
-  - Identity Resolution: 3/10 ← narrator regression + Johnny/John's Son false split
-  - Alias Grouping: 5/10
+  - Identity Resolution: 3/10 ← narrator STILL wrong + Step 5.4.6 merged "the boy" into father not son
+  - Alias Grouping: 4/10
 - Character Profiles: 4.5/10 ✗ (FAILING)
-- Chapter Summaries: 5.5/10 ✗ (FAILING)
+- Chapter Summaries: 7.5/10 ✗ (FAILING)
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.4/10** (reference only)
+- **Overall: 6.7/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -33,135 +33,131 @@
 | 2 | 6.6 | +0.05 | Narrator fix worked (Bill=narrator ✓, Bill profile correct ✓). But Johnny still missing, summary still wrong. |
 | 3 | 6.0 | -0.55 | **REGRESSION.** "American, sir" false character stole narrator from Uncle Bill. Johnny still missing. |
 | 4 | 6.4 | -0.15 | Co-present guard fixed "American, sir" ✓, but narrator REGRESSED (Johnny instead of Bill). Johnny/John's Son false split. |
-| 5 | TBD | TBD | Narrator FIXED (Uncle Bill ✓). Step 4.26 error. Step 5.4.6 merged John's Son into father (John Donaldson) not son (Johnny). |
+| 5 | 6.7 | +0.15 | Plot summary improved (correctly names Uncle Bill). But narrator metadata STILL wrong. Step 5.4.6 merged "the boy" into father. |
 
-## What Attempt 4 Fixed vs Broke
+## What Attempt 5 Changed vs Attempt 4
 
-**Fixed (relative to attempt 3):**
-- "American, sir" no longer in character list ✓ (revert of attempt 3 + co-present guard)
-- "John" no longer fully merged as a character into "John Donaldson" (now just an alias)
-- Chapter summaries improved: no "Bill dying" error, no "grandfather vs father" confusion
+**Improved:**
+- Plot summary in HTML now correctly identifies "the narrator, known as 'Uncle Bill'" ✓
+- Chapter summary comprehensive and mostly accurate ✓
+- Step 5.4.6 merged "John's Son" (eliminating false split from attempt 4) ✓
+- Step 4.26 narrator guard was added (but crashed — see below)
 
-**Broke / Still broken:**
-- NARRATOR REGRESSED: Uncle Bill was narrator in attempt 2, now "Johnny" (2 mentions) is narrator AND "John Donaldson" is also marked narrator=True
-- FALSE SPLIT: "Johnny" (main_cast_0, 2 mentions) and "John's Son" (main_cast_6, 14 mentions, alias "the boy") are the SAME character — John Donaldson's son
-- Profile cross-contamination: Bill's self-descriptions ("crabbed, prejudiced, critical, selfish") attributed to BOTH Johnny AND John Donaldson
-- Johnny's physical description is WRONG: "elderly, grizzled, small man" = the FATHER, not the son
-- Roles wrong: Ted Frith (5 mentions) = "main", John Donaldson (28 mentions) = "supporting"
-- Plot summary attributes all narrator actions to "Johnny" instead of Uncle Bill
-- Margaret Donaldson not in final output (despite pipeline notes claiming F6b added her)
+**Still broken / new issues:**
+- NARRATOR METADATA WRONG: Johnny (2 mentions, is_narrator=True) vs Uncle Bill (18 mentions, is_narrator=False)
+- Step 4.26 crashed with `'list' object has no attribute 'get'` — guard didn't execute, narrator detection fell through to Step 5.8.5 fallback which picked Johnny again
+- Step 5.4.6 merged "the boy" alias into John Donaldson (father, 42 mentions) instead of Johnny (son, 2 mentions) — WRONG MERGE DIRECTION
+- Johnny's profile has father's appearance ("elderly, grizzled, small man") and Uncle Bill's personality ("solitary, thoroughly selfish")
+- John Donaldson profile says "estranged son of the narrator (Uncle Bill)" — WRONG: he was Bill's college friend, not his son
+- All relationships still generic ("associated", "close friend") instead of specific (father/son/uncle)
+- Roles: Ted Frith (5 mentions) = "main", John Donaldson (42 mentions) = "supporting"
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **NARRATOR REGRESSION: Uncle Bill must be narrator, not Johnny** [Identity Resolution]
-   - Problem: Uncle Bill (18 mentions, first-person narrator of the entire story) has `is_narrator=false`. Instead, "Johnny" (2 mentions) is tagged as first-person narrator AND "John Donaldson" (28 mentions) is tagged as secondary narrator. Uncle Bill IS the "I" of the frame narrative.
-   - Evidence: Chapter 1 summary says "the narrator, an unnamed man, receiving a letter from John's son" — this is Bill receiving the letter, reflecting on John. Chapter 2: "Uncle Bill drives miles to a freezing pier." Bill narrates the entire story in first person.
-   - Root cause: The narrator detection fix from attempt 2 (commit 52770c3) is still in the code, but the LLM generated different summary text this time. The narrator heuristic (`_get_narrative_style()` + narrator detection) picked up "Johnny" instead of "Uncle Bill." Since the analysis was re-run from scratch, LLM non-determinism changed the narrator signals.
-   - Impact: This one bug cascades into profiles (wrong self-descriptions), plot summary (wrong attribution), and roles. Fixing this alone would improve Characters, Profiles, and Summaries by ~1-2 points each.
-   - Location: `src/pipeline/character_extraction_v2/narrator.py` and `src/agents/characters.py` (narrator assignment logic)
-   - Fix approach: The attempt 2 prompt fix should have been sufficient. Investigate why the narrator heuristic picked "Johnny" over "Uncle Bill" — likely the summary text changed. Options:
-     1. Make narrator detection more robust: prefer characters with higher mention counts when multiple candidates exist
-     2. Cross-check narrator candidate against characters_present lists (Uncle Bill appears in ch2 characters_present; Johnny does not)
-     3. Add a post-hoc narrator validation: if the detected narrator has <5 mentions and another character has 10x more, flag as suspect
-
-2. **FALSE SPLIT: "Johnny" and "John's Son" are the same character** [Identity Resolution]
-   - Problem: "Johnny" (main_cast_0, 2 mentions, narrator=True) and "John's Son" (main_cast_6, 14 mentions, alias "the boy") are both John Donaldson's son. Combined mentions: 16. They should be ONE character.
-   - Evidence: "Johnny" is the boy's name. "John's Son" is a descriptor. The text context for "the boy" quotes include "Uncle Bill" which Johnny also says. John's Son's profile says "The man I was helping to die was my father" — this IS Johnny.
-   - Root cause: Pass 1 extracted both "Johnny" and "John's Son" as separate characters. No merge step connects a name ("Johnny") to a possessive descriptor ("John's Son") because they share no textual overlap.
-   - Location: `src/agents/characters.py` — merge steps (5.4.5, 5.5, 5.5a) don't handle name↔possessive-descriptor relationships
+1. **NARRATOR STILL WRONG: Johnny (2 mentions) = narrator instead of Uncle Bill (18 mentions)** [Identity Resolution]
+   - Problem: Despite narrator detection prompt correctly identifying Uncle Bill during analysis, the final output has Johnny as is_narrator=True. The Step 4.26 low-mention guard crashed with `'list' object has no attribute 'get'`, so the programmatic safeguard never fired.
+   - Evidence: JSON shows `Johnny: is_narrator=true, mentions=2`. `Uncle Bill: is_narrator=false, mentions=18`. Uncle Bill IS the first-person narrator of the entire story.
+   - Root cause: Step 4.26 bug — the code passes a list where a dict was expected. When this guard crashes, the narrator falls through to Step 5.8.5 which re-runs detection and picks the wrong character.
+   - Location: `src/agents/characters.py` — Step 4.26 block (new code from attempt 5)
    - Fix approach:
-     1. Add a merge step that recognizes "X's Son/Daughter" descriptors and checks if any character named with a diminutive of "X" exists (Johnny → John → "John's Son")
-     2. OR: check if both characters share the same relationships (both related to John Donaldson, both related to Uncle Bill) and have compatible gender/role
-     3. Simpler: check if a character's canonical_name is a possessive descriptor ("X's Son/Daughter/Wife/Husband") and another character has a proper name that is a known diminutive of X
+     1. **Fix the Step 4.26 bug**: The `'list' object has no attribute 'get'` error means the code is calling `.get()` on a list instead of a dict. Find and fix the type mismatch.
+     2. **Strengthen the guard**: After fixing the type error, ensure the guard actually works: if detected narrator has ≤ 2 mentions and another character has ≥ 5x more mentions, reject the low-mention narrator.
+     3. **Add final narrator validation**: As a last resort, add a post-pipeline check that verifies the narrator character has reasonable mentions (≥ 5) and appears in characters_present lists.
+   - Impact: This ONE fix cascades into Profiles (+2 pts) and Summaries (+0.5 pts) because the profiler attributes first-person descriptions to the narrator character.
 
-3. **Plot summary wrong narrator attribution** [Summaries]
-   - Problem: "The story is narrated by Johnny, who begins by reflecting on a letter from the son of his old friend John" — the narrator is Uncle Bill, not Johnny. All narrator actions (reading letter, reflecting on Yale, resolving scandal, driving to pier) are attributed to "Johnny."
-   - Impact: Plot summary is the first thing a narrator reads; if it's wrong, their entire understanding of the story is wrong.
-   - Root cause: Plot summary is generated AFTER character extraction and uses the (wrong) narrator identification.
-   - Fix: Resolves automatically when narrator detection is fixed (Critical #1).
+2. **Step 5.4.6 merged "the boy" into FATHER instead of SON** [Identity Resolution / Alias Grouping]
+   - Problem: The possessive-descriptor merge ("John's Son") correctly identified "Johnny" as a diminutive of "John" but then merged "John's Son" (and its alias "the boy") into John Donaldson (the father, who also has "John" in his name). The result: the father has 42 mentions with "the boy" as an alias, while Johnny (the actual boy) has only 2 mentions.
+   - Evidence: `John Donaldson: aliases=["John", "the boy"], mentions=42`. `Johnny: aliases=[], mentions=2`. "The boy" in the text refers to the SON, not the father.
+   - Root cause: Step 5.4.6 looks for a character matching the possessor name "John" and picks the one with the most mentions (John Donaldson, 42). It should prefer the character whose name is a DIMINUTIVE of "John" (Johnny).
+   - Location: `src/agents/characters.py` — Step 5.4.6 block (new code from attempt 5)
+   - Fix approach: When the possessor-name match returns multiple candidates:
+     1. **Prefer the diminutive match**: If one candidate's name IS a diminutive of the possessor (Johnny = diminutive of John), prefer that over a candidate whose name merely CONTAINS the possessor (John Donaldson contains "John")
+     2. **Use kinship context**: "John's Son" → the TARGET should be the SON, not the FATHER. The possessive descriptor itself indicates the relationship direction
+     3. **Fallback**: If no diminutive match, use mention count ratio (prefer the LOWER-mention character, since the possessive descriptor is likely referencing the less-established character)
 
 ### HIGH
 
-4. **Profile cross-contamination from wrong narrator** [Profiles]
-   - Problem: "Johnny" profile has physical description "elderly, grizzled, small man" (the FATHER's description) and personality traits from Uncle Bill's self-description. John Donaldson's profile has Uncle Bill's "crabbed, prejudiced, critical, selfish" personality traits. Uncle Bill's profile is missing physical description and narrator status.
-   - Fix: Mostly resolves when narrator detection is fixed. With correct narrator=Uncle Bill, the profiler will:
-     - Assign Bill's first-person self-descriptions to Bill
-     - Not inject narrator appearance into wrong characters
-     - Generate accurate profiles for Johnny (the son) and John Donaldson (the father) without narrator contamination
+3. **Profile cross-contamination from wrong narrator** [Profiles]
+   - Problem: Johnny's profile has: (a) father's physical description "elderly, grizzled, small man", (b) Uncle Bill's personality "solitary, thoroughly selfish", (c) Uncle Bill's narration quotes "I was a solitary pilgrim ever"
+   - John Donaldson's profile says "estranged son of the narrator (Uncle Bill)" — factually wrong (he was Bill's Yale classmate/friend)
+   - Fix: Mostly resolves automatically when narrator detection is fixed (Critical #1). With correct narrator=Uncle Bill:
+     - Bill's first-person self-descriptions go to Bill's profile
+     - Johnny doesn't get narrator appearance injection
+     - John Donaldson's relationship to Bill would be "friend" not "son"
 
-5. **Roles wrong: Ted Frith = "main" (5 mentions) vs John Donaldson = "supporting" (28 mentions)** [Identity Resolution]
-   - Problem: Role assignment doesn't match mention importance.
-   - Fix: May partially resolve when narrator + Johnny/John's Son merge fixes change the character landscape and mention distribution.
+4. **Roles wrong: mention counts don't match role assignments** [Identity Resolution]
+   - Problem: Ted Frith (5 mentions) = "main", John Donaldson (42 mentions) = "supporting"
+   - Fix: May partially resolve when narrator + merge fixes change mention distributions. If not, role assignment logic needs review.
 
-6. **"John" alias ambiguity** [Alias Grouping]
-   - Problem: "John" is alias of "John Donaldson" (the father). But in chapter 2, "John" refers to the SON (the nephew Uncle Bill meets at the pier). The name "John" is genuinely ambiguous in this text.
-   - Impact: MEDIUM — affects mention count accuracy but doesn't create a visibly wrong character entry.
-   - Fix: This may be acceptable. In a text where father and son share a first name, some ambiguity is inevitable. If Johnny/John's Son are merged, the son character will have sufficient mentions (16) regardless.
+5. **Relationships all generic** [Profiles]
+   - Problem: All relationships are "associated" or "close friend" instead of specific labels:
+     - Johnny → John Donaldson should be "son" (or "father" inverse)
+     - Uncle Bill → Johnny should be "uncle" or "guardian"
+     - Uncle Bill → John Donaldson should be "friend" or "former classmate"
+   - Fix: The relationship extraction struggles with this text's complex nested narrative. Fixing narrator may help the profiler generate better relationships. Otherwise, LOW priority — this is hard to fix generically.
 
 ### MEDIUM
 
-7. **Margaret Donaldson missing from final output** [Completeness]
-   - Problem: John's wife, mentioned by name in chapter 1 summary and characters_present. Pipeline notes claimed F6b added her, but she's not in the 5 final characters.
-   - Impact: Minor — she's a background character mentioned only "via letter."
-   - Fix: Investigate why she was dropped. May have been filtered by minimum mention threshold.
+6. **Margaret Donaldson missing from final output** [Completeness]
+   - Problem: John's wife/mother, mentioned by name in summaries. Pipeline notes say F6 added her but she's not in the 4 final characters.
+   - Impact: Minor — she's barely mentioned.
+   - Fix: Check if she was filtered by minimum mention threshold.
 
-8. **Chapter 2 summary age error: "twelve-year-old nephew"** [Summaries]
-   - Problem: Summary says "Uncle Bill drives miles to a freezing pier at dawn to welcome his twelve-year-old nephew John home from the war." The boy was ~18-20 (text says "was eighteen" and fought in WWI with a Croix de Guerre). A 12-year-old cannot be an ambulance driver.
-   - Impact: Factual error in chapter summary. However, this is LLM hallucination in the summarizer, not a code bug.
-   - Fix: Difficult — would require the summarizer to cross-check stated ages against context. LOW priority relative to narrator/character issues.
+7. **Chapter summary frame-narrative ambiguity** [Summaries]
+   - Problem: Summary says "the narrator then describes navigating a dressing station" — ambiguous whether Uncle Bill (frame narrator) or Johnny (embedded narrator recounting events) is the subject. In reality, Johnny experienced these events; Uncle Bill is relaying Johnny's account.
+   - Impact: Minor — most of the summary is clear. The plot summary in HTML correctly handles this.
 
 ### LOW
 
-9. **All relationships "associated"** [Profiles]
-   - Problem: Uncle Bill→John Donaldson = "associated" (should be "friend" or "cousin"), John Donaldson→John's Son = "associated" (should be "father"), etc.
-   - Fix: Partially resolves with correct character landscape. The relationship extraction struggles with this text's complex nested narrative.
+8. **Null plot_summary in JSON** [Summaries]
+   - Problem: `plot_summary: null` in analysis.json, though the HTML has a well-written plot summary
+   - Impact: Minor — HTML output is what narrators actually use
 
-10. **Null chapter titles** [Structure]
-    - Impact: Very minor. Text has no chapter headings, so null titles are expected.
+9. **Null chapter title** [Structure]
+   - Impact: Expected — text has no chapter headings
 
-## Fix Strategy for Attempt 5
+## Fix Strategy for Attempt 6
 
-**Priority 1: Fix narrator detection (Critical #1)**
-- Investigate why the narrator heuristic picked "Johnny" over "Uncle Bill" in this run
-- The attempt 2 narrator prompt fix (commit 52770c3) is still in the code but LLM non-determinism produced different results
-- Consider adding a programmatic narrator validation: after LLM-based detection, cross-check against mention counts and characters_present lists
-- If narrator candidate has <5 mentions and doesn't appear in any characters_present list, reject it
+**Priority 1: Fix Step 4.26 bug (Critical #1)**
+- The `'list' object has no attribute 'get'` error means Step 4.26 code is calling `.get()` on a list
+- Find the exact line in characters.py Step 4.26 block and fix the type handling
+- After fixing, verify the guard logic: if narrator has ≤ 2 mentions AND another main_cast character has ≥ 5x more mentions, reset narrator_character_id so Step 5.8.5 retries
+- This should result in Uncle Bill being correctly assigned as narrator
 
-**Priority 2: Merge Johnny + John's Son (Critical #2)**
-- Add a merge step for possessive-descriptor characters ("X's Son", "X's Daughter")
-- Check if any existing character's name is a diminutive/variation of X
-- If found and genders compatible, merge the possessive descriptor into the named character
-- This should be a new step after the existing merge sequence
+**Priority 2: Fix Step 5.4.6 merge direction (Critical #2)**
+- When "John's Son" is found as a possessive descriptor:
+  1. Extract possessor name ("John")
+  2. Find candidate targets: characters whose names are DIMINUTIVES of "John" → "Johnny"
+  3. Do NOT pick the character whose canonical name contains "John" as a substring (John Donaldson)
+  4. The merge should go: "John's Son" + its alias "the boy" → merged INTO "Johnny"
+  5. Result: Johnny should have mentions = 2 + 14 = 16, aliases = ["the boy", "John's Son"]
 
-**Note on approach:** Since the narrator detection depends on LLM output and we've seen it flip between runs, a PROGRAMMATIC safeguard is needed rather than relying solely on prompt engineering. The safeguard should validate that the detected narrator makes sense (sufficient mentions, appears in characters_present, etc.).
+**NOTE on approach:** These are both bugs in NEW code from attempt 5. The fixes are targeted:
+1. Step 4.26: fix a type error (list vs dict)
+2. Step 5.4.6: fix target selection to prefer diminutive matches over substring matches
+
+Both fixes are in `src/agents/characters.py` only. No prompt changes needed.
 
 ## Fix History
 - Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification
-  - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
-  - Result: Narrator fix WORKED — Bill correctly identified ✓
+  - Modified: `src/pipeline/character_extraction_v2/narrator.py`
+  - Result: Fixed — Bill is now narrator ✓
 - Attempt 3: Added exact_firstname guard to `_merge_lastname_aliases`
   - Modified: `src/agents/characters.py` — `_merge_lastname_aliases()`
-  - Result: **REGRESSION** — "American, sir" appeared as false character, stole narrator. Johnny NOT fixed. REVERTED.
+  - Result: **REGRESSION** — "American, sir" false character, narrator shifted. REVERTED.
 - Attempt 4: Reverted attempt 3, then applied co-present guard to `_merge_summary_name_fragments()` (Step 5.4.5)
   - Modified: `src/agents/characters.py` — `_merge_summary_name_fragments()`
-  - Result: "American, sir" gone ✓, but narrator REGRESSED (Johnny instead of Bill). Johnny/John's Son false split remains.
+  - Result: "American, sir" gone ✓, narrator regressed ✗, Johnny/John's Son false split ✗
 - Attempt 5:
-  1. Improved narrator prompt: added "KEY: If X recounts to Y → Y is the OUTER primary narrator" (frame narrative clarification)
-     - Modified: `src/pipeline/character_extraction_v2/narrator.py:NARRATOR_DETECTION_PROMPT`
-  2. Added Step 4.26 low-mention narrator guard: if narrator has ≤ 2 mentions AND another character has ≥ 5x more, reset narrator_character_id=None so Step 5.8.5 retries with improved prompt
+  1. Improved narrator prompt: added frame-narrative clarification
+     - Modified: `src/pipeline/character_extraction_v2/narrator.py`
+  2. Added Step 4.26 low-mention narrator guard (CRASHED: `'list' object has no attribute 'get'`)
      - Modified: `src/agents/characters.py` — new Step 4.26 block
-  3. Added Step 5.4.6 possessive-descriptor merge: "John's Son" + "Johnny" → merged when STANDARD_DIMINUTIVES/NICKNAME_TO_FORMAL shows Johnny is a nickname for John (the parent's name)
+  3. Added Step 5.4.6 possessive-descriptor merge (WRONG DIRECTION: merged into father not son)
      - Modified: `src/agents/characters.py` — new Step 5.4.6 block
-  - All 332 tests pass; no regressions
-  - Runtime: 30m 42s (31 LLM calls)
-  - **Narrator FIXED** ✓: "Confirmed narrator: Uncle Bill (first-person)"
-  - **New error in Step 4.26**: `'list' object has no attribute 'get'` — guard crashed; narrator detection still succeeded via Step 5.8.5 fallback
-  - **Step 5.4.6 regression**: "the boy" (from John's Son) appears as alias of John Donaldson (father) rather than Johnny (son) → wrong merge direction
-  - **Wrong narrator appearance injection**: "Final narrator appearance injection for 'Johnny': 'an elderly, grizzled, small man'" — Johnny is the young son, not the elderly man; wrong character getting description
-  - **Final characters**: Johnny (2 mentions), John Donaldson/aka John/the boy (42 mentions), Uncle Bill/aka Bill (18 mentions), Ted Frith/aka Ted (5 mentions)
-  - **Margaret Donaldson**: Added by F6 reconciliation but likely filtered from final output (1 mention threshold)
+  - Result: Plot summary improved ✓. Narrator still wrong ✗. "the boy" on father instead of son ✗.
 
 ## Modification History
 
@@ -169,15 +165,21 @@
 |---------|-------|----------------|--------|
 | 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Fixed — Bill is now narrator ✓ |
 | 2 | Johnny missing (false merge) | (not yet attempted) | Still broken |
-| 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | **REGRESSION** — "American, sir" false character, narrator shifted. REVERTED. |
-| 4 | Johnny false-merged — co_present guard in `_merge_summary_name_fragments()` Step 5.4.5 | `src/agents/characters.py` | "American, sir" gone ✓, narrator regressed ✗, Johnny/John's Son false split ✗ |
-| 5 | Narrator regression + Johnny/John's Son false split | narrator.py + characters.py (Steps 4.26, 5.4.6) | Awaiting analysis |
+| 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | **REGRESSION** — "American, sir" false character. REVERTED. |
+| 4 | Johnny false-merged — co_present guard in Step 5.4.5 | `src/agents/characters.py` | "American, sir" gone ✓, narrator regressed ✗ |
+| 5 | Narrator guard (Step 4.26) | `src/agents/characters.py` | **BUG** — crashed with type error, never fired |
+| 5 | Possessive-descriptor merge (Step 5.4.6) | `src/agents/characters.py` | **WRONG DIRECTION** — merged "the boy" into father |
+| 5 | Narrator prompt (frame narrative) | `narrator.py` | Partial — prompt works but code guard fails |
+
+**Pattern detected:** characters.py has been modified in attempts 3, 4, 5 with mixed results. Steps 4.26 and 5.4.6 are NEW code from attempt 5 with bugs — these are targeted fixes, not architectural changes.
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
-- All 14 pronunciations have IPA
-- Runtime: 14m 3s (38 LLM calls)
+- All 13 pronunciations have IPA
+- Runtime: ~31 min (31 LLM calls)
 
 ## Next Action
-Run analysis to verify attempt 5 fixes.
+Run PROMPT_fix.md to address:
+1. Step 4.26 type error (list vs dict) → narrator guard fires correctly
+2. Step 5.4.6 target selection → prefer diminutive match (Johnny) over substring match (John Donaldson)
