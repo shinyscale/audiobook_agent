@@ -2,14 +2,23 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Completed in 14m 7s, 38 LLM calls, 80,616 tokens
+- Uncle Bill confirmed as narrator (first-person) ✓
+- John Donaldson: aliases "John, young John" (no "John's Son" canonical visible at top-level)
+- 6 final characters, 4 profiles generated
+- "The Dark-Skinned Volunteer" present with alias "his father"
+- "God" appears as a character with 6 mentions
+- No crash or pipeline errors
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
