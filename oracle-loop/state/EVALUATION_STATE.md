@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -146,8 +146,15 @@ Likely mechanism: In attempt 2, the merge logic may have absorbed "American, sir
 - All 14 pronunciations have IPA
 - Runtime: 10m 32s (36 LLM calls)
 
+## Pipeline Notes (Attempt 4)
+- Runtime: 14m 3s, 38 LLM calls, exit code 0
+- 5 characters found: Johnny (2), John Donaldson/John (28), Uncle Bill/Bill (18), John's Son/the boy (14), Ted Frith/Ted (5)
+- "American, sir" NOT in character list ✓ (reverted attempt 3 fix worked)
+- Margaret Donaldson added via F6b reconciliation ✓
+- Narrator detected as "Johnny" (first-person) — potential regression from attempt 2 (Uncle Bill was narrator)
+- "John's Son (aka the boy)" with 14 mentions present — may be the real Johnny character
+- Narrator appearance injection applied to BOTH 'Johnny' AND 'John Donaldson' — suspect bug
+- Needs evaluation to determine if co-present guard fixed the Johnny merge issue
+
 ## Next Action
-Re-run analysis on american_sir to verify:
-1. "American, sir" is absorbed (no false character, as in attempt 2)
-2. Johnny (the son) appears as separate character from John Donaldson (the father)
-3. Uncle Bill is narrator (as in attempt 2)
+Evaluate attempt 4 output.
