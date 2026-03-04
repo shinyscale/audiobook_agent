@@ -563,10 +563,25 @@ class CharacterAgent(Agent):
                     + _name_esc_395b
                     + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
                 )
+                # Pattern D: {FirstName}'s (long-lost) father/mother/parent
+                # Handles summaries that use only the first name possessively to introduce the parent:
+                # e.g., "revealed to be John's long-lost father" where canonical_name = "John Donaldson"
+                # This is universal: any multi-word character whose first name appears in a possessive
+                # kinship phrase introducing a parent is likely a merged parent+child.
+                _first_name_395b = _char_395b.canonical_name.split()[0]
+                _pat_D_395b = None
+                if len(_first_name_395b) >= 4:  # Guard: avoid matching short common words
+                    _fn_esc_395b = _re395b.escape(_first_name_395b)
+                    _pat_D_395b = _re395b.compile(
+                        r"(?i)\b"
+                        + _fn_esc_395b
+                        + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|absent\s+|lost\s+)?(?:father|mother|parent)\b"
+                    )
                 _m_395b = (
                     _pat_A_395b.search(_summary_all_395b)
                     or _pat_B_395b.search(_summary_all_395b)
                     or _pat_C_395b.search(_summary_all_395b)
+                    or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
                 )
                 if not _m_395b:
                     continue

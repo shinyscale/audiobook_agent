@@ -193,6 +193,8 @@ class OverviewGenerator:
                 f"\n- {narrator_name} is the FRAME narrator who tells the overall story. "
                 f"Refer to the narrator as \"{narrator_name}\" — do NOT substitute any other name "
                 f"(even if chapter summaries use 'the narrator' or reference a name from dialogue)."
+                f"\n- {narrator_name} is ALIVE and survives all events to tell this story. "
+                f"Do NOT describe {narrator_name} as dying, injured, or being comforted as a casualty."
                 f"\n- When chapter summaries describe an embedded flashback, oral account, or "
                 f"story-within-a-story told by a DIFFERENT character to {narrator_name}, "
                 f"attribute those embedded events to THAT other character — not to {narrator_name}."
