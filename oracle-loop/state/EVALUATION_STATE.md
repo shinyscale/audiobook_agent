@@ -2,14 +2,21 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Attempt:** 19
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 19)
+- **Father/son split FIRED ✓**: Pattern D worked — "John Donaldson (the son)" (42 mentions) and "John Donaldson (the father)" (13 mentions) are now separate characters.
+- **Narrator WRONG AGAIN**: V2 pipeline correctly detected Uncle Bill, but "Finalizing narrator detection" step overrode to "John Donaldson (the son) (first-person)". The secondary-narrator guard rejected John (42 mentions vs 17 primary), but a separate finalization step still assigned him as narrator. Need to investigate why finalizing overrides V2 detection.
+- **Characters**: 4 main characters (John Donaldson the son, Uncle Bill, John Donaldson the father, Ted Frith). Joe Barron and Margaret Donaldson added via F6/F6b.
+- **narrator_instruction survival clause**: Added — effect on "dying Uncle Bill" error TBD (evaluate phase will check).
+- Analysis completed in 13m 14s.
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
