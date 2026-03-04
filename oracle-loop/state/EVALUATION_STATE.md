@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -161,6 +161,8 @@ Attempt 13 code fixes:
 | 12 | STEP 3.95 alias contradiction detection | `characters.py` | **FIXED** ✓ — father/son split works |
 | 13 | force_parenthetical_relationship_labels | `post_corrections.py` | Never fired (no split char) |
 | 13 | Frame narrator plot summary instruction | `generator.py` | Fired on wrong narrator → made worse |
+| 14 | STEP 3.97: nickname phantom merge | `characters.py` | Pending — merges "Johnny" (2 mentions) into "John Donaldson" (43 mentions) via STANDARD_DIMINUTIVES |
+| 14 | Post-5.8.5 narrator guard | `characters.py` | Pending — re-applies STEP 4.26 low-mention invariant after STEP 5.8.5 re-run |
 
 **Pattern:** LLM non-determinism is the #1 blocker. STEP 3.95 has fired in 1/2 attempts (attempt 12 yes, 13 no). The father/son same-name problem needs a MORE ROBUST detection mechanism that doesn't depend on specific LLM alias outputs.
 
@@ -171,8 +173,4 @@ Attempt 13 code fixes:
 - Issue is NOT configuration — it's extraction non-determinism
 
 ## Next Action
-**Auto-revert triggered** (5.8 < 6.25 threshold). After revert, the fix phase should:
-1. Keep attempt 13 code changes (they're correct, just didn't fire) — consider re-applying after revert
-2. Address the ROOT CAUSE: make father/son detection and narrator assignment more deterministic/robust
-3. Consider: can STEP 3.95 use BOTH alias contradiction AND mention-count heuristics (same name, different timeframes) as fallback?
-4. Consider: narrator detection should have a hard guard — character with 2 mentions should NEVER be narrator when a character with 18 mentions exists
+Re-run analysis (attempt 14).

@@ -471,6 +471,46 @@ class CharacterAgent(Agent):
             # Re-search mentions for both split characters
             self._refresh_mentions({_char.id, _parent_char.id}, main_cast, searcher, mention_results)
 
+        # STEP 3.97: Merge low-mention nickname phantoms into their formal-name counterparts.
+        # Universal invariant: a single-word main cast character that is a known nickname
+        # (via NICKNAME_TO_FORMAL) for the first name of a multi-word main cast character,
+        # AND has very few text mentions relative to the formal (≤3 mentions, ≥10x asymmetry),
+        # is almost certainly a phantom variant reference — not a distinct character.
+        # Example: "Johnny" (2 mentions) + "John Donaldson" (43 mentions) → merge Johnny
+        # as alias of John Donaldson.
+        # Uniqueness guard: only merge when exactly ONE candidate formal exists.
+        for _nick_char_397 in list(main_cast):
+            if " " in _nick_char_397.canonical_name:
+                continue  # Only single-word characters qualify as nickname phantoms
+            _nick_count_397 = getattr(_nick_char_397, "mention_count", 0) or 0
+            if _nick_count_397 > 3:
+                continue  # Too many mentions — likely a real character
+            _nick_lower_397 = _nick_char_397.canonical_name.lower()
+            _formal_first_397 = NICKNAME_TO_FORMAL.get(_nick_lower_397) or STANDARD_DIMINUTIVES.get(_nick_lower_397)
+            if not _formal_first_397:
+                continue  # Not a known nickname
+            _candidates_397 = [
+                c for c in main_cast
+                if c.id != _nick_char_397.id
+                and " " in c.canonical_name
+                and c.canonical_name.lower().split()[0] == _formal_first_397
+                and (getattr(c, "mention_count", 0) or 0) >= max(_nick_count_397 * 10, 10)
+            ]
+            if len(_candidates_397) != 1:
+                continue  # Ambiguous or no match — skip
+            _formal_char_397 = _candidates_397[0]
+            logger.info(
+                f"V2 Step 3.97: Merging nickname phantom '{_nick_char_397.canonical_name}' "
+                f"({_nick_count_397} mentions) as alias of '{_formal_char_397.canonical_name}' "
+                f"({getattr(_formal_char_397, 'mention_count', 0)} mentions) via NICKNAME_TO_FORMAL"
+            )
+            if _nick_char_397.canonical_name not in _formal_char_397.aliases:
+                _formal_char_397.aliases.append(_nick_char_397.canonical_name)
+            for _alias_397 in _nick_char_397.aliases:
+                if _alias_397 not in _formal_char_397.aliases:
+                    _formal_char_397.aliases.append(_alias_397)
+            main_cast.remove(_nick_char_397)
+
         # STEP 4: Detect narrator (F4)
         logger.info("V2 Step 4: Detecting narrator")
         narrator_detector = NarratorDetector(self.llm)
@@ -1123,6 +1163,39 @@ class CharacterAgent(Agent):
                 )
             except Exception as e:
                 logger.warning(f"Narrator re-detection failed: {e}")
+
+        # Post-STEP-5.8.5 narrator guard: re-apply the STEP 4.26 low-mention invariant.
+        # STEP 5.8.5 may re-run narrator detection after STEP 4.26 reset it, potentially
+        # re-assigning the same low-mention character that was already rejected. Enforcing
+        # this invariant again here prevents that re-assignment from persisting.
+        if (
+            narrator_info.pov in ("first-person", "epistolary")
+            and narrator_info.narrator_character_id is not None
+        ):
+            _recheck_char = next(
+                (c for c in main_cast if c.id == narrator_info.narrator_character_id), None
+            )
+            if _recheck_char is not None:
+                _recheck_count = getattr(_recheck_char, "mention_count", 0) or 0
+                _recheck_max_other = max(
+                    (getattr(c, "mention_count", 0) or 0 for c in main_cast
+                     if c.id != _recheck_char.id),
+                    default=0,
+                )
+                if 0 < _recheck_count <= 2 and _recheck_max_other >= _recheck_count * 5:
+                    logger.warning(
+                        f"V2 Step 5.8.5 post-guard: Narrator '{_recheck_char.canonical_name}' "
+                        f"({_recheck_count} mentions) still fails low-mention invariant "
+                        f"(max_other={_recheck_max_other}). Resetting narrator."
+                    )
+                    _recheck_char.is_narrator = False
+                    _recheck_char.narrative_role = None
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov,
+                        narrator_character_id=None,
+                        narrator_name=None,
+                        confidence=0.3,
+                    )
 
         # STEP 5.8.5b: Search supporting_cast for narrator name fragments.
         # When narrator_name was identified but not matched to any main_cast
