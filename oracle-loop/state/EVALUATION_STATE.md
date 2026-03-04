@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -171,6 +171,13 @@ This is the highest-leverage fix. The false narrator flag on John Donaldson (is_
   3. Fixed Step 5.4.6 merge direction (descriptor→proper name)
      - Modified: `src/agents/characters.py`
   - Result: Uncle Bill narrator ✓. Merge direction fixed ✓. But John Donaldson false secondary narrator → profile catastrophe.
+- Attempt 7:
+  1. Added mention-count guard for secondary narrators in `update_characters_with_narrator()`
+     - Modified: `src/pipeline/character_extraction_v2/narrator.py`
+     - Root cause: Lines 316-321 marked secondary narrators without any mention-count validation
+     - Fix: Pre-compute primary narrator mention count; reject secondary narrator candidates whose mention count EXCEEDS the primary narrator's (John Donaldson: 28 > Uncle Bill: 18 → rejected)
+     - Smoke test: All 332 unit tests pass ✓
+     - Universality: Non-nested narratives unaffected (nested_narrators=[]); guard is a sound universal invariant (secondary narrators narrate a smaller portion of the book than the primary)
 
 ## Modification History
 
@@ -186,6 +193,7 @@ This is the highest-leverage fix. The false narrator flag on John Donaldson (is_
 | 6 | Min-mention narrator guard ≤2 | `narrator.py` | Fixed ✓ — Johnny no longer picked as narrator |
 | 6 | Step 5.4.6 merge direction | `characters.py` | Fixed ✓ — "the boy" on John's Son, not father |
 | 6 | John Donaldson false secondary narrator | (not yet attempted) | **NEW ISSUE** — needs fix |
+| 7 | John Donaldson false secondary narrator | `narrator.py` | Mention-count guard added — John Donaldson (28) > Uncle Bill (18) → blocked |
 
 **Pattern:** narrator.py has been key in attempts 2, 5, 6. The secondary narrator assignment is the remaining narrator-layer issue.
 
@@ -196,4 +204,4 @@ This is the highest-leverage fix. The false narrator flag on John Donaldson (is_
 - Runtime: 14m 19s (36 LLM calls)
 
 ## Next Action
-Run PROMPT_fix.md to remove false secondary narrator from John Donaldson (Critical #1). This is in narrator.py — add a mention-count guard that secondary narrators must NOT exceed primary narrator's mention count.
+Re-run analysis on american_sir (attempt 7). The false secondary narrator guard has been applied. Expected: John Donaldson drops is_narrator=False, profiles recover (John Donaldson gets correct third-person descriptions), plot summary confusion reduces.

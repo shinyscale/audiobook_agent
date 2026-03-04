@@ -288,6 +288,18 @@ class NarratorDetector:
         """
         from ...models import ConfidenceLevel
 
+        # Pre-compute primary narrator mention count for secondary narrator guard.
+        # Universal invariant: in a frame narrative the primary narrator sets the outer
+        # frame for the WHOLE story. A secondary narrator only tells their inner portion.
+        # A candidate secondary narrator with MORE mentions than the primary narrator is
+        # almost certainly a major CHARACTER being narrated about, not an actual narrator.
+        primary_mention_count = 0
+        if narrator_info.narrator_character_id:
+            for c in characters:
+                if c.id == narrator_info.narrator_character_id:
+                    primary_mention_count = getattr(c, "mention_count", 0) or 0
+                    break
+
         for char in characters:
             # Reset narrator flags
             char.is_narrator = False
@@ -315,9 +327,18 @@ class NarratorDetector:
 
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:
-                char.is_narrator = True
-                char.narrative_role = "Secondary narrator (nested narrative)"
-                # Also boost confidence for secondary narrators
-                char.confidence = ConfidenceLevel.HIGH
+                secondary_mentions = getattr(char, "mention_count", 0) or 0
+                if primary_mention_count > 0 and secondary_mentions > primary_mention_count:
+                    logger.warning(
+                        f"Secondary narrator candidate '{char.canonical_name}' has "
+                        f"{secondary_mentions} mentions vs primary narrator's "
+                        f"{primary_mention_count} — rejecting: a character with more mentions "
+                        f"than the primary narrator is likely a subject, not a narrator"
+                    )
+                else:
+                    char.is_narrator = True
+                    char.narrative_role = "Secondary narrator (nested narrative)"
+                    # Also boost confidence for secondary narrators
+                    char.confidence = ConfidenceLevel.HIGH
 
         return characters
