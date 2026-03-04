@@ -1143,6 +1143,29 @@ class CharacterAgent(Agent):
             f"V2 Step 5.9 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting"
         )
 
+        # STEP 5.9.5: Correct role assignments for all main_cast characters.
+        # The LLM may assign roles (protagonist/main/supporting) that don't reflect mention-count
+        # evidence. Apply the same mention-count thresholds used in Step 5.8 as a universal
+        # invariant: a character with enough mentions cannot remain "supporting" in the main cast.
+        # Only upgrades roles — never downgrades — to preserve the LLM's narrative judgment.
+        logger.info("V2 Step 5.9.5: Correcting role assignments by mention count")
+        for char in main_cast:
+            if char.is_narrator:
+                continue  # Narrator role is managed separately
+            current_role = char.role or "supporting"
+            if char.mention_count >= effective_protagonist and current_role not in ("protagonist",):
+                logger.info(
+                    f"Step 5.9.5: Upgrading '{char.canonical_name}' from '{current_role}' "
+                    f"to 'protagonist' ({char.mention_count} mentions >= {effective_protagonist})"
+                )
+                char.role = "protagonist"
+            elif char.mention_count >= effective_main and current_role in ("supporting", None, ""):
+                logger.info(
+                    f"Step 5.9.5: Upgrading '{char.canonical_name}' from '{current_role}' "
+                    f"to 'main' ({char.mention_count} mentions >= {effective_main})"
+                )
+                char.role = "main"
+
         # STEP 5.10: Final alias validation
         # Clean up any invalid aliases that may have been added during merge operations
         # This ensures aliases like "the ebony clock" (object) don't appear on non-object characters

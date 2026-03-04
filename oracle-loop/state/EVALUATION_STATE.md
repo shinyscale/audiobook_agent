@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -187,6 +187,8 @@ The summary is upstream of profiles and the plot summary. If the chapter summary
 | 7 | John Donaldson false secondary narrator | `narrator.py` | Fixed ✓ — mention-count guard blocks correctly |
 | 7 | Boy disappeared (false merge with father) | (not yet attempted) | **NEW ISSUE** |
 | 7 | Plot summary fabrication | (not yet attempted) | **NEW ISSUE** |
+| 8 | Role assignment: John Donaldson (28 mentions) was "supporting" | `characters.py` — new Step 5.9.5 | Applies mention-count thresholds to ALL main_cast (upgrade only) |
+| 8 | Chapter summary nested narration: "narrator's father" vs "John's father" | `summarizer.py` — CHUNK+CONSOLIDATE prompts | Added embedded narration attribution guidance to FIRST-PERSON NARRATORS bullet |
 
 **Pattern:** narrator.py issues are now resolved. Remaining issues are in summary generation (nested narration confusion) and character extraction (same-name father/son merge). Summary fixes have NOT been attempted yet — new territory.
 
@@ -197,4 +199,4 @@ The summary is upstream of profiles and the plot summary. If the chapter summary
 - Runtime: ~14 min (38 LLM calls)
 
 ## Next Action
-Run PROMPT_fix.md to address: (1) summary/plot summary nested-narration confusion (CRITICAL #1, #2), (2) role assignment (HIGH #5). The false merge (#3) and profile contamination (#4) may improve as downstream effects of better summaries.
+Re-run analysis to verify fixes.

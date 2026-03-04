@@ -59,7 +59,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
 - Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: If the text is told in first person ("I", "we") and the narrator's name is revealed in the text (e.g., another character addresses them by name, or they introduce themselves), USE THAT NAME in your summary instead of "the narrator". Only use "the narrator" if their name is not revealed in this section.
+- **FIRST-PERSON NARRATORS**: If the text is told in first person and the narrator's name is revealed, USE THAT NAME. When a character within the story tells their own past experience in first person (an embedded story, flashback, or oral account), attribute those events to THAT character — not to the frame narrator.
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
@@ -110,7 +110,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - When events/objects are referenced, ALWAYS include context from the sections
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
 - Use characters' proper names when stated in the section summaries (e.g., "his father John" → write "John"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently in the consolidated summary instead of "the narrator". Only use "the narrator" if their name is not revealed in any section.
+- **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently. When a character in the story recounts their own past in first person (embedded story, flashback, oral account), attribute those events to THAT character — not the frame narrator.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
