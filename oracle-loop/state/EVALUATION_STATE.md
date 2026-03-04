@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -13,34 +13,35 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 6/10 ✗ (FAILING)
+- Character Extraction: 6.5/10 ✗ (FAILING)
   - Completeness: 7/10
-  - Identity Resolution: 5/10 ← father/son false merge is primary blocker
-  - Alias Grouping: 6/10
-- Character Profiles: 6/10 ✗ (FAILING)
-- Chapter Summaries: 5/10 ✗ (FAILING)
+  - Identity Resolution: 7/10 ← father/son separated ✓ but cross-character aliases undermine it
+  - Alias Grouping: 5/10 ← 3 wrong aliases on the son, father has zero aliases
+- Character Profiles: 7.5/10 ✗ (FAILING)
+- Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.9/10** (reference only)
+- **Overall: 7.85/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (2 categories below threshold)
 
-## What Attempt 7 Changed vs Attempt 6
+## What Attempt 8 Changed vs Attempt 7
 
-**Improved:**
-- John Donaldson is_narrator=False ✓ (mention-count guard blocked false secondary narrator)
-- John Donaldson's profile now describes BOTH father and son correctly ✓ (no longer has Bill's traits)
-- Uncle Bill's profile has correct physical description ✓ ("elderly, grizzled, small man")
-- Profiles improved from 4.5 → 6 due to narrator fix cascade
+**Major improvements:**
+- Father/son SPLIT WORKING ✓ — `John Donaldson (the son)` (76 mentions) and `John Donaldson` (father, 9 mentions) are now separate characters
+- Plot summary NO LONGER FABRICATES false twist ✓ — correctly identifies the dying man as the boy's estranged father, NOT Uncle Bill as the biological father
+- Chapter summary correctly attributes embedded narration ✓ — "John discovers that a dying stretcher-bearer... is actually his estranged father" (correctly attributed to the son, not the narrator)
+- Uncle Bill's profile clean ✓ — no contamination from boy's war experience
+- Narrator correct ✓ — Uncle Bill is narrator, no false secondary narrators
+- Role assignment improved ✓ — John Donaldson (son) is now "protagonist" (was "supporting" in attempt 7)
+- Margaret Donaldson mentioned in chapter summary ✓
 
-**Still broken / new issues:**
-- **NEW:** The boy (Johnny/young John) completely ABSENT as a separate character — merged into "John Donaldson" (father+son combined, 28 mentions). In attempt 6, "John's Son" existed with 14 mentions as a distinct entry.
-- **WORSE:** Plot summary FABRICATES a false twist: claims "the narrator is not John's uncle but his biological father, having taken the name 'Uncle Bill' to protect the boy" — THIS IS COMPLETELY INVENTED. The real twist is that the Dark-Skinned Volunteer is John Donaldson (the boy's father), not that Bill is the father.
-- Uncle Bill's personality STILL contaminated by the boy's first-person war narration: "caring for his dying father" and "crying like a child with a feeling I'd never known before when embracing his father" — these are the BOY's experiences, not Bill's. Bill isn't present at the deathbed.
-- Chapter summary says "the narrator's long-lost father" — should be "the boy's father" / "John's father"
-- Roles still wrong: Ted Frith (5 mentions) = "main", John Donaldson (28 mentions) = "supporting"
-- Relationships still all generic ("associated")
+**Still broken:**
+- **Cross-character aliases on the son**: `John Donaldson (the son)` has aliases "John Donaldson (the father)", "the father", "the man" — these belong to the FATHER character, not the son
+- **Father has ZERO aliases**: `John Donaldson` (the father, supporting_0) has no aliases at all. He should have descriptors like "the stretcher-bearer", "the volunteer", "the man", "the father"
+- **Mention count imbalance**: Son has 76 mentions, father has only 9 — suggests some father mentions were counted under the son
+- **Relationships still generic**: Bill→both Johns = "associated" (should be "guardian/uncle" for son, "friend/classmate" for father)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -52,92 +53,75 @@
 | 5 | 6.7 | +0.15 | Plot summary improved (correctly names Uncle Bill). But narrator metadata STILL wrong. Step 5.4.6 merged "the boy" into father. |
 | 6 | 7.0 | +0.45 | Uncle Bill narrator ✓, merge direction fixed ✓. But John Donaldson false secondary narrator → profile catastrophe. |
 | 7 | 6.9 | +0.35 | Narrator guard worked ✓ (John Donaldson not narrator). But boy disappeared (false merge), plot summary fabricates false twist. |
+| 8 | 7.85 | +1.30 | Father/son split ✓, plot summary fixed ✓, summaries fixed ✓, profiles much improved ✓. Remaining: cross-character aliases, generic relationships. |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Plot summary FABRICATES a false central twist** [Summaries]
-   - Problem: The HTML plot summary (lines 643-647 of report.html) claims: "the narrator is not John's uncle but his biological father, having taken the name 'Uncle Bill' to protect the boy." This is COMPLETELY INVENTED. In the actual story, the twist is that the Dark-Skinned Volunteer is revealed to be John Donaldson (the boy's father who ran away years ago). Bill IS the boy's guardian/"uncle" — he is NOT the biological father.
-   - Impact: A narrator reading this would fundamentally misunderstand the story's central revelation and perform the entire piece with the wrong subtext.
-   - Root cause: The LLM generating the plot summary hallucinated an inverted twist. The `plot_summary` field is null in analysis.json, so this is generated in the HTML export step. The LLM may be confusing the nested narrative layers (Bill narrates → boy narrates his war experience → boy discovers his dying father).
-   - Location: HTML export step that generates plot summaries — likely `src/export/` or the HTML template generation code. Also possibly fed by the chapter summary's own errors (which say "the narrator's long-lost father" — misidentifying WHO the father is father OF).
-   - Fix approach: The plot summary generation prompt needs stronger grounding. Consider: (a) validate the plot summary against character relationships in the analysis, (b) lower temperature for plot summary generation, (c) include character relationship data in the plot summary prompt so the LLM knows "Uncle Bill" and "John Donaldson" are friends/classmates, not parent/child.
-
-2. **Chapter summary attributes father relationship to wrong character** [Summaries]
-   - Problem: Chapter summary says "This volunteer is revealed to be the narrator's long-lost father" — the volunteer is NOT the narrator's (Bill's) father. He is JOHN's (the boy's) father. Also says "suspicious death of John's father" — John Donaldson didn't die suspiciously; he ran away after theft. Also garbled ending: "revealed to be his father's son rather than his uncle."
-   - Evidence: 3 factual errors in the chapter summary, all related to confused family relationships across narrative layers.
-   - Location: Summary generation pipeline — `src/pipeline/summarization/` or `src/agents/summary_agent.py`
-   - Fix approach: The summary prompt may need to be more explicit about distinguishing "the narrator" from characters narrating embedded stories. When a character WITHIN the story tells their own tale in first person, the summary should attribute that nested narration to the character, not to the frame narrator.
+1. **Cross-character alias contamination: "the father" aliases on son character** [Alias Grouping + Identity Resolution]
+   - Problem: `John Donaldson (the son)` has aliases `["John", "the boy", "orphan", "ambulance driver", "John Donaldson (the father)", "the father", "the man"]`. The last three belong to the FATHER character, not the son.
+   - Evidence: "John Donaldson (the father)" is literally the disambiguation form of the OTHER character entry. "the father" and "the man" are descriptors used in the text for the dying stretcher-bearer (the father), not the boy.
+   - Impact: A narrator reading this alias list would believe the son IS the father — undermining the entire character separation.
+   - Root cause: The LLM in Pass 2 alias resolution likely proposed "the father" and "the man" as aliases of the main-cast "John Donaldson (the son)" because the text uses these descriptors near mentions of "John Donaldson". The verify_aliases Rule 3 (cross-character alias check) may not check across main_cast/supporting_cast boundaries, or the father's canonical name "John Donaldson" doesn't contain "the father" so the check misses it.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — verify_aliases(), or `src/agents/characters.py` — post-merge alias dedup
+   - Fix approach: Two options:
+     - (a) In verify_aliases or a post-merge step, block any alias of character A that contains the disambiguating suffix of character B (e.g., if "John Donaldson (the son)" has alias "the father" and another character is "John Donaldson" with role-descriptors referencing fatherhood, block it)
+     - (b) Simpler: after main_cast + supporting_cast are merged, run a cross-character alias dedup that removes from character A any alias that is a substring of character B's canonical_name or that matches character B's role/descriptor
+     - (c) Simplest: if another character's canonical_name contains the same base name (e.g., both "John Donaldson"), block descriptor-only aliases ("the father", "the man") from being assigned to either — they're ambiguous
 
 ### HIGH
 
-3. **Father-son false merge: John Donaldson** [Identity Resolution]
-   - Problem: John Donaldson (the father, ~14 mentions) and the boy/Johnny/young John (the son, ~14 mentions) are merged into a SINGLE character entry with 28 combined mentions. They are distinct people: the father is a charming wastrel who ran away and died in WWI; the son is a brave young ambulance driver who discovers his dying father.
-   - Evidence: `John Donaldson: aliases=["John", "young John"], mentions=28`. The profile acknowledges both people ("The father is portrayed as..." / "The son is depicted as...") but they share one entry. In attempt 6, "John's Son" existed as a separate character with 14 mentions.
-   - Root cause: Both characters share the name "John Donaldson." The pass-1 extraction groups all mentions of "John" and "John Donaldson" together. The alias "young John" is treated as a variant of "John" rather than a DIFFERENT person.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` (pass 1 extraction) or `src/agents/characters.py` (merge pipeline)
-   - Fix approach: This is a genuinely hard same-name disambiguation problem. Possible approaches:
-     - (a) If a character profile references BOTH "the father" and "the son" as separate people, flag for potential false merge
-     - (b) Age-modifier aliases ("young X", "old X", "little X") should trigger split consideration when the character has high mentions
-     - (c) Post-extraction validation: if the profiler describes TWO distinct people in one entry, split them
-     - NOTE: Any fix must be GENERIC (no novel-specific logic). This pattern (parent and child with same name) occurs in many novels.
+2. **Father character has ZERO aliases** [Alias Grouping]
+   - Problem: `John Donaldson` (supporting_0, 9 mentions) has no aliases at all. In the text he is referred to as "the volunteer", "the stretcher-bearer", "the man", "the dark-skinned volunteer", "the father".
+   - Evidence: The father appears in the war narrative under multiple descriptors before his identity is revealed.
+   - Impact: A narrator wouldn't know that these text references point to this character.
+   - Location: Supporting cast alias resolution — `src/pipeline/character_extraction_v2/` or F6 reconciliation
+   - Fix approach: Either the LLM needs to propose these aliases for the supporting character, or the aliases incorrectly assigned to the son (issue #1) should be reassigned to the father.
 
-4. **Uncle Bill's profile contaminated by nested first-person narration** [Profiles]
-   - Problem: Uncle Bill's personality says "displays immense compassion and courage while caring for his dying father" and his quotes include "I whispered with my arms around him and crying like a child" — these are the BOY's first-person narration of the war story, not Bill's own experience. Bill isn't present at the deathbed scene.
-   - Evidence: Personality summary attributes the deathbed vigil to Bill. The text has the boy telling this story in first person ("I found him", "I saw").
-   - Root cause: The profiler sees all first-person "I" statements and attributes them to the primary narrator (Bill). In a nested narrative, the inner narrator's "I" belongs to a different character.
+3. **Relationships still all generic ("associated")** [Profiles]
+   - Problem: Uncle Bill's relationships to both Johns are "associated". Should be:
+     - Bill → son: "guardian" or "uncle figure"
+     - Bill → father: "friend" or "former classmate"
+     - Son → Bill: "nephew" or "ward"
+   - Evidence: The text explicitly establishes Bill as the boy's guardian ("take in his orphaned nephew") and Bill and John Sr. as friends from Yale ("shared a room and life with for twelve years after both graduated from Yale").
    - Location: `src/pipeline/profiling/` or `_generate_character_profile()` in `src/analyzer.py`
-   - Fix approach: When `narrative_style` indicates first-person AND character profiles reveal embedded narration, the profiler should recognize that not all "I" statements belong to the frame narrator. This is the same class of problem as issue #2 (nested narration confusion).
-
-5. **Role assignment wrong** [Identity Resolution]
-   - Problem: Ted Frith (5 mentions) = "main", while John Donaldson (28 mentions) = "supporting". Characters with higher mention counts should not be outranked by characters with much lower counts.
-   - Location: `src/agents/characters.py` — role assignment logic
-   - Fix approach: Role assignment should factor in mention count. A character with 28 mentions should never be "supporting" when a character with 5 mentions is "main." This should be a simple threshold-based fix.
+   - Fix approach: The profiler prompt may need stronger guidance to extract specific relationship types rather than defaulting to "associated". This is a prompt improvement, not a logic fix.
+   - Note: Fixing this alone could push Profiles from 7.5 → 8+
 
 ### MEDIUM
 
-6. **Relationships all generic ("associated")** [Profiles]
-   - Problem: Every relationship is "associated" or "companion". Should be: Bill→John Donaldson: "friend/classmate", Bill→the boy: "guardian/uncle figure", the boy→John Donaldson: "son", Dark-Skinned Volunteer→John Donaldson: "same person" or "disguise".
-   - Fix: May improve with better profiler prompts but is low priority compared to CRITICAL issues.
+4. **Mention count imbalance: son 76, father 9** [Identity Resolution]
+   - Problem: The son has 76 mentions in a ~5000-word story, which seems inflated. The father appears throughout the war narrative and likely has more than 9 mentions. Some father mentions may be counted under the son.
+   - Impact: Low — mention counts are metadata, not narrator-facing. But it indicates imperfect identity resolution at the mention-counting level.
+   - Fix: This would likely self-correct if the alias assignment (issue #1) is fixed, since mentions are counted per alias.
 
-7. **Missing aliases: "Johnny" and "Teddy"** [Alias Grouping]
-   - Problem: The boy is called "Johnny" in the text (line ~326), Ted Frith is called "Teddy" (lines ~345, ~422). Neither alias appears.
-   - Fix: `NICKNAME_TO_FORMAL` dict could help if "Johnny"→"John" mapping exists. "Teddy"→"Ted"/"Edward" may need to be added.
-
-8. **Margaret Donaldson still missing** [Completeness]
-   - Problem: Mentioned by name in text. F6b should have caught her but she's absent from the 6 final characters.
-   - Impact: Very minor — she's barely mentioned and dies before the main narrative.
+5. **Margaret Donaldson absent from character list** [Completeness]
+   - Problem: Mentioned by name in the chapter 1 summary ("John's widow, Margaret Donaldson") but not in the character list. The evaluation state from the analyze phase noted "Margaret Donaldson added via F6b ✓" but she's not in the final output.
+   - Impact: Very minor — she appears in one sentence and dies before the main narrative.
+   - Fix: Low priority. May have been filtered by mention count threshold.
 
 ### LOW
 
-9. **Null plot_summary in JSON** [Summaries]
-   - Problem: `plot_summary: null` in analysis.json, though the HTML has a generated plot summary.
-   - The HTML export must generate it separately. Should be populated in the JSON too for consistency.
+6. **Missing nicknames: "Johnny" and "Teddy"** [Alias Grouping]
+   - Problem: The boy is called "Johnny" in the text, Ted Frith is called "Teddy". Neither alias appears.
+   - Fix: NICKNAME_TO_FORMAL dict additions or LLM prompt improvement.
 
-## Fix Strategy for Attempt 8
+## Fix Strategy for Attempt 9
 
-**ROOT CAUSE ANALYSIS:** The 3 failing categories share a common root cause — **nested first-person narration confusion**. The text has three narrative layers:
-1. Frame: Uncle Bill narrates (first person)
-2. Embedded: The boy tells his war story to Uncle Bill (first person within Bill's narration)
-3. Dialogue: John Donaldson speaks within the boy's story
+**ROOT CAUSE**: The cross-character alias contamination (issue #1) is the single highest-leverage fix. It affects both Character Extraction and Character Profiles scores.
 
-The pipeline conflates layers 1 and 2, attributing the boy's "I" to Bill, and merging the boy with his identically-named father.
+**RECOMMENDED APPROACH — Fix alias assignment:**
 
-**RECOMMENDED APPROACH — Fix summaries first (highest leverage):**
+1. **Fix cross-character aliases** (CRITICAL): After main_cast and supporting_cast are merged, add a validation step that removes aliases from character A that match or are substrings of character B's canonical name when both share the same base name. Specifically: if `John Donaldson (the son)` and `John Donaldson` both exist, any alias on the son that contains "the father" or matches the father's descriptors should be blocked.
 
-The summary is upstream of profiles and the plot summary. If the chapter summary correctly identifies the nested narrative structure and WHO the relationships are between, the downstream profile generation and plot summary will improve automatically.
+2. **Fix relationship labels** (HIGH): In the profiler prompt, replace generic "associated" with specific relationship types by providing stronger guidance. The text explicitly uses "uncle", "guardian", "friend", "classmate" — these should be extractable.
 
-1. **Fix the summary prompt** to handle nested first-person narratives: when a frame narrator (Bill) recounts another character's first-person story, the summary should clearly attribute the embedded narrative to the inner narrator (the boy), not the frame narrator.
-
-2. **Fix the plot summary generation** (likely in HTML export) to be grounded in character relationship data rather than re-interpreting the story from scratch. Pass character relationships into the prompt so the LLM knows Bill and John Donaldson are friends/classmates, not parent/child.
-
-3. **Fix role assignment** as a simple mention-count-based correction. Quick win.
-
-**Do NOT touch:**
-- narrator.py (attempt 7 guard working correctly)
-- characters.py Step 5.4.5 (co-present guard working)
-- characters.py Step 5.4.6 (merge direction fix working)
+3. **Do NOT touch** (working correctly):
+   - narrator.py (all fixes stable across attempts 6-8)
+   - characters.py Step 5.4.5 (co-present guard)
+   - characters.py Step 5.4.6 (merge direction)
+   - summarizer.py (attempt 8 nested narration fix working)
 
 ## Fix History
 - Attempt 2: Fixed narrator detection to trust explicit "narrator, known as [Name]" identification
@@ -170,6 +154,13 @@ The summary is upstream of profiles and the plot summary. If the chapter summary
      - Modified: `src/pipeline/character_extraction_v2/narrator.py`
      - Result: John Donaldson no longer false secondary narrator ✓. Profiles improved (4.5→6) ✓.
      - New: Boy (Johnny) disappeared — merged into father. Plot summary fabricated false twist.
+- Attempt 8:
+  1. Added Step 5.9.5 role assignment fix — mention-count-based role upgrades for main_cast
+     - Modified: `src/agents/characters.py`
+     - Result: John Donaldson (son) now "protagonist" ✓
+  2. Added nested narration guidance to summarizer CHUNK+CONSOLIDATE prompts
+     - Modified: `src/pipeline/summarization/summarizer.py`
+     - Result: Chapter summaries correctly attribute embedded narrative to the boy ✓, plot summary no longer fabricated ✓
 
 ## Modification History
 
@@ -187,25 +178,19 @@ The summary is upstream of profiles and the plot summary. If the chapter summary
 | 7 | John Donaldson false secondary narrator | `narrator.py` | Fixed ✓ — mention-count guard blocks correctly |
 | 7 | Boy disappeared (false merge with father) | (not yet attempted) | **NEW ISSUE** |
 | 7 | Plot summary fabrication | (not yet attempted) | **NEW ISSUE** |
-| 8 | Role assignment: John Donaldson (28 mentions) was "supporting" | `characters.py` — new Step 5.9.5 | Applies mention-count thresholds to ALL main_cast (upgrade only) |
-| 8 | Chapter summary nested narration: "narrator's father" vs "John's father" | `summarizer.py` — CHUNK+CONSOLIDATE prompts | Added embedded narration attribution guidance to FIRST-PERSON NARRATORS bullet |
+| 8 | Role assignment: John Donaldson (28 mentions) was "supporting" | `characters.py` — Step 5.9.5 | Fixed ✓ |
+| 8 | Chapter summary nested narration | `summarizer.py` — prompts | Fixed ✓ — summaries now correct |
+| 8 | Father/son split | (side effect of summary fix) | Fixed ✓ — now separate characters |
+| 8 | Cross-character aliases on son | (not yet attempted) | **NEW ISSUE** |
+| 8 | Generic relationship labels | (not yet attempted) | **NEW ISSUE** |
 
-**Pattern:** narrator.py issues are now resolved. Remaining issues are in summary generation (nested narration confusion) and character extraction (same-name father/son merge). Summary fixes have NOT been attempted yet — new territory.
+**Pattern:** narrator.py and summarizer.py fixes are stable. Remaining issues are in alias resolution (main_cast.py or characters.py) and profiler prompts (analyzer.py).
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
 - Zero LLM retries across all stages
-- All 14 pronunciations have IPA
-- Runtime: ~14 min (38 LLM calls)
-
-## Pipeline Notes (Attempt 8)
-- Runtime: 12m 10s, 36 LLM calls
-- Father/son split working: `John Donaldson (the son)` (76 mentions) and `John Donaldson` (father, 9 mentions) are separate ✓
-- Narrator correct: Uncle Bill (first-person) ✓
-- Secondary narrator guard blocked `John Donaldson (the son)` correctly ✓
-- Margaret Donaldson added via F6b ✓
-- Profile correction: "Corrected profile for 'John Donaldson' (same-name contamination with 'John Donaldson (the son)')" ✓
-- Plot summary: awaiting evaluation (this was a critical issue in attempt 7)
+- All 13 pronunciations have IPA
+- Runtime: ~12 min (36 LLM calls)
 
 ## Next Action
-Evaluate attempt 8 output.
+Run PROMPT_fix.md to address cross-character alias contamination (Critical #1) and generic relationship labels (High #3).
