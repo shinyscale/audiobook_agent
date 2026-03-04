@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score:** 8.50
 - **Competitive Mode:** none
 
@@ -13,82 +13,91 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 9/10 ✓
-  - Completeness: 9/10
+- Character Extraction: 8.5/10 ✓
+  - Completeness: 8/10
   - Identity Resolution: 10/10
-  - Alias Grouping: 8/10
-- Character Profiles: 7/10 ✗ (FAILING)
+  - Alias Grouping: 7.5/10
+- Character Profiles: 8/10 ✓
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 8/10 ✓
-- **Overall: 8.50/10** (reference only)
+- HTML Presentation: 9/10 ✓
+- **Overall: 8.6/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (Character Profiles below threshold)
+**Status:** PASS — All categories at or above 8.0
 
-## Current Issues (Priority Order)
+## Evaluation Details
 
-### CRITICAL
-1. **Missing Prospero ↔ Red Death antagonistic relationship** [Profiles]
-   - Problem: The relationship grid shows NO connection between Prince Prospero and The Red Death. Prospero only has a relationship with "the courtiers" (close friend), and The Red Death only has a relationship with "the courtiers" (associated). The central conflict of the entire story — prince defies personified death, confronts the masked figure, and dies — has no relationship entry.
-   - Evidence: In the story, Prospero directly confronts the Red Death figure, chases it through the seven chambers, and is killed. This is THE relationship of the story.
-   - Location: `src/pipeline/character_extraction_v2/` profiling stage, and/or `src/post_corrections.py` (`verify_relationships_from_text`)
-   - Fix: The profiler should detect the antagonistic relationship between Prospero and The Red Death. In a 2400-word text, co-mention windows in `verify_relationships_from_text` should capture this. Check if the issue is that The Red Death is treated as a non-person entity and skipped by relationship detection.
+### Structure Detection: 9/10
+Correctly identifies the continuous short story as a single section. No chapter headings or section breaks exist in the text, so single-section output is correct. Title is null (expected for untitled continuous text).
 
-### HIGH
-2. **Thin Prince Prospero profile** [Profiles]
-   - Problem: Profile says "bold and robust man" but Poe writes "happy and dauntless and sagacious." Profile misses his defiant character, his rage at the masked figure, and his climactic fatal confrontation. "Robust" is not in the source text.
-   - Evidence: Text says "the Prince Prospero was happy and dauntless and sagacious" — profile should capture sagacity and dauntlessness
-   - Location: Profile generation LLM prompts in `src/pipeline/character_extraction_v2/` or `analyzer.py` (`_generate_character_profile()`)
-   - Fix: May improve on re-run with same code (LLM stochasticity). If persistent, check if profile generation has sufficient context for short texts.
+### Character Extraction: 8.5/10
+- **Completeness (8/10):** Both named characters present — Prince Prospero (protagonist) and The Red Death (antagonist). The courtiers/revellers (unnamed collective) were present in attempt 1 but dropped in attempt 2 — minor regression but they are not individually named characters.
+- **Identity Resolution (10/10):** No false splits or merges. Both characters correctly identified as distinct entities.
+- **Alias Grouping (7.5/10):** "Prospero" correctly listed as alias for Prince Prospero. "The presence of the Red Death" is a valid alias. Missing "the masked figure" as Red Death alias (the climax reveals they are the same entity), but this requires plot-reveal understanding which is a hard extraction problem.
 
-3. **Vague/inaccurate relationship labels** [Profiles]
-   - Problem: "close friend" for Prospero ↔ courtiers is inaccurate — they are his court subjects/guests he summoned ("summoned to his presence about a thousand hale and light-hearted friends from among the knights and dames of his court"). "Associated" for Red Death ↔ courtiers is meaningless — the Red Death kills them all.
-   - Evidence: Text clearly establishes lord/subject dynamic and lethal antagonism
-   - Location: Profile generation and `src/post_corrections.py` relationship labeling
-   - Fix: May partially resolve with better Prospero↔Red Death relationship. "Associated" label is a known vague fallback.
+### Character Profiles: 8/10
+Major improvement from attempt 1:
+- ✓ **CRITICAL fix:** Prospero ↔ Red Death "enemy" relationship now present (was completely missing)
+- ✓ Personality section captures "happy, dauntless, sagacious" from the text
+- ✓ Voice guidance includes actual Prospero quotes ("Who dares?")
+- ✓ Red Death physical description is detailed and accurate to the text
+- Minor: "robust" in Prospero's physical description is not in the source text (Poe writes "happy and dauntless and sagacious")
+- Minor: "cowardly" in personality traits is debatable — Prospero charges with a dagger, showing impetuosity not cowardice
+
+### Chapter Summaries: 9/10
+Single summary covers all key events:
+- ✓ Prospero retreating to castellated abbey with courtiers
+- ✓ Masked ball in seven color-coded rooms (blue to black)
+- ✓ Masked figure appearing at midnight ebony clock strike
+- ✓ Prospero chasing figure with dagger
+- ✓ Figure revealed as empty — the Red Death
+- ✓ All guests dying
+Well-structured, accurate, appropriate length for narrator preparation.
+
+### Pronunciation Guide: 8/10
+21/23 entries have IPA. Good coverage of Poe's archaic vocabulary:
+- ✓ Prospero, castellated, improvisatori, habiliments, vesture, cerements, blood-bedewed, illimitable
+- ✓ "Avator" (Poe's spelling of Avatar) — legitimate entry with correct context
+- ✓ Hernani, out-Heroded — literary/biblical allusions correctly flagged
+- ✓ Homographs "live" and "close" handled with contextual IPA
+- Minor: "produce" and "deliberate" lack IPA (2 entries missing)
+- Minor: "casements" and "masqueraders" are common enough to not need flagging
+
+### HTML Presentation: 9/10
+- ✓ Characters correctly grouped as "Main Characters" (fix from attempt 2 working)
+- ✓ Protagonist/antagonist role tags visible
+- ✓ Evidence citations with 6 source facts for Prospero, multiple for Red Death
+- ✓ Voice guidance section with quotes well-formatted
+- ✓ Summary displayed with proper formatting
+
+## Remaining Issues (Not Blocking — For Future Reference)
 
 ### MEDIUM
-4. **"The masked figure" not listed as alias for The Red Death** [Alias Grouping]
-   - Problem: The masked figure and The Red Death are the same entity (revealed at the climax). The summary's active_characters lists "the masked figure" separately, but it's not an alias of The Red Death in the character output.
-   - Evidence: The story's climax reveals the masked figure IS the Red Death personified
-   - Location: Alias detection in `src/pipeline/character_extraction_v2/main_cast.py` — Rule 0.5 (core noun mismatch) blocks "figure"↔"death" aliases
-   - Fix: Post-extraction merge similar to `merge_reveal_characters()` in twostage_experiment.py. This was already solved for this exact pattern in previous experiments.
+1. **"The masked figure" not an alias for The Red Death** — Requires plot-reveal understanding. Post-extraction merge (like `merge_reveal_characters()`) could handle this but didn't fire because LLM identity detection returned None.
+2. **Courtiers dropped in attempt 2** — Present in attempt 1 as a group character, absent now. Unnamed collective so not critical for narrator prep.
+3. **"Robust" in Prospero physical description** — Not in source text. Minor LLM hallucination.
 
-5. **All characters grouped as "Supporting" in HTML** [Presentation]
-   - Problem: The HTML groups all 3 characters under "Supporting Characters" despite JSON having roles: protagonist (Prospero), antagonist (Red Death), supporting (courtiers). Low mention counts in a short story (<10 each) cause the HTML template to classify all as supporting.
-   - Evidence: JSON has `role: "protagonist"` for Prospero and `role: "antagonist"` for Red Death
-   - Location: HTML template in `src/` (report generation)
-   - Fix: Template should use the `role` field to group characters, not just mention counts
+### LOW
+4. **2 pronunciation entries missing IPA** — "produce" and "deliberate" have null IPA.
+5. **Some common words flagged** — "casements", "masqueraders" could be whitelisted.
 
 ## Fix History
-- Attempt 2: Fixed missing Prospero↔Red Death relationship and HTML character grouping
-  - Root cause 1: `add_cooccurrence_relationships` uses `min_shared=3` (default), but Masque has only 1 chapter — shared count never reaches 3, so the pair is never linked. Fix: adaptive `min_shared = max(1, min(3, n_chapters // 3))`.
-  - Root cause 2: HTML groups characters by `mention_count >= 10`, but short story characters all have <10 mentions → all appear under "Supporting". Fix: also include characters with role=protagonist/antagonist.
-  - Smoke test: PASS — Prospero↔Red Death added as "associated" with min_shared=1; HTML groups Prospero+RedDeath as Main, courtiers as Supporting.
-  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `src/export/html_report.py`
-  - Tests: 332 passed, 0 failed
+- Attempt 1: Baseline — Profiles 7/10 failing (missing Prospero↔Red Death relationship)
+- Attempt 2: Fixed `add_cooccurrence_relationships` adaptive min_shared + HTML character grouping by role → PASS
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (first attempt) | — | — | — |
-| 2 | Missing Prospero↔RedDeath relationship; HTML grouping | post_corrections.py, html_report.py | awaiting_analysis |
+| 2 | Missing Prospero↔RedDeath relationship | post_corrections.py | Fixed |
+| 2 | HTML grouping by mention count only | html_report.py | Fixed |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 8.50 | — | Profiles 7/10 failing; missing Prospero↔Red Death relationship |
-
-## Pipeline Notes (Attempt 2)
-- Completed in 16m 46s
-- Only 2 characters extracted: Prince Prospero + The Red Death (courtiers missing vs attempt 1)
-- Masked figure aliases all blocked (core noun mismatch: figure ≠ death)
-- The Masked Figure was extracted then apparently dropped (not merged into Red Death post-extraction)
-- LLM identity detection returned None (merge_reveal_characters did not fire)
+| 2 | 8.60 | +0.10 | All categories ≥ 8.0 — PASS |
 
 ## Next Action
-Evaluate output
-
-**Phase:** awaiting_evaluation
+Ready to advance to next text (berenice)
