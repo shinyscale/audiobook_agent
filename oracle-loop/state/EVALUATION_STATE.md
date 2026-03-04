@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gift_of_the_magi
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -95,7 +95,14 @@
 - No LLM retries recorded — good
 - No profiling anomalies
 
+## Pipeline Notes (Attempt 2)
+- Della Young: present with alias "Della" (20 mentions) — CRITICAL fix appears to work
+- Jim Young: present with alias "Jim" (26 mentions)
+- WARNING: "James Dillingham Young" (3 mentions) appears as a SEPARATE character from Jim Young — Jim's full name should be an alias, not a separate character
+- WARNING: "Dillingham" (6 mentions) appears as a separate character — likely fragment from "James Dillingham Young" nameplate
+- The Magi: present (4 mentions)
+- Total: 6 characters extracted
+- Runtime: 14m 7s
+
 ## Next Action
-Re-run analysis to verify fixes:
-1. Della should now be in main_cast as "Della Young" with alias "Della", role protagonist
-2. Jim↔Della relationship should be "husband"/"wife" instead of "associated"
+Evaluate attempt 2 output for score improvement.
