@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gift_of_the_magi
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -73,13 +73,19 @@
    - Fix: Minor profile completeness issue, won't block passing threshold.
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 1: Two fixes applied:
+  1. Pass 2 failure fallback alias (`main_cast.py`): When Pass 2 LLM fails for a multi-word canonical name not starting with an article, add the first word as a minimal alias. This prevents the grounding gate from rejecting "Della Young" (which doesn't appear in raw text) when "Della" appears 20+ times.
+     - Root cause: `main_cast.py:580-583` — Pass 2 failure leaves canonical "Della Young" with no aliases; grounding gate requires min 3 mentions of canonical; "Della Young" has 0 raw text hits → UNGROUNDED → dropped from main_cast
+     - Smoke test: PASS — "Della Young" gets alias "Della"; "the creature" correctly skipped
+  2. Spouse label text evidence check (`post_corrections.py`): `reject_unfounded_familial_labels` was unconditionally downgrading "husband"/"wife" labels to "associated" when canonical names share no surname (e.g., "Jim" and "Della" are first-name-only). Changed to use 500-char text evidence check for spouse labels (same window as `verify_relationships_from_text`).
+     - Root cause: `post_corrections.py:2274-2281` — unconditional downgrade for non-extended-family labels without shared surname; Jim ("Jim") and Della ("Della") have no surname in their canonicals
+     - Smoke test: PASS — is_spouse=True → goes to text evidence check, not unconditional downgrade
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 1 | Della dropped from main_cast; Jim↔Della "associated" | `main_cast.py`, `post_corrections.py` | awaiting_analysis |
 
 ## Configuration Audit
 - Models: qwen3.5:35b-a3b (structure, pronunciation), qwen3.5:122b-a10b (characters, summaries) — appropriate
@@ -90,6 +96,6 @@
 - No profiling anomalies
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Della dropping from main_cast after Pass 2 failure (characters.py pipeline)
-2. HIGH: Relationship labels — "associated" for husband/wife, fabricated Jim↔Sofronie (profiler)
+Re-run analysis to verify fixes:
+1. Della should now be in main_cast as "Della Young" with alias "Della", role protagonist
+2. Jim↔Della relationship should be "husband"/"wife" instead of "associated"

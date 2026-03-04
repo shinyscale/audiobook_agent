@@ -2263,16 +2263,18 @@ class OutputCharacterCorrector:
                 if char_surnames & other_surnames:
                     continue
 
-                # Option B: Allow text evidence exception for extended family terms
-                # (siblings, cousins, aunts/uncles, nephews/nieces).  These commonly
-                # don't share surnames because they belong to different family branches
-                # (e.g., maternal vs. paternal cousins, aunt by marriage).
-                # Spouses and parent-child pairs almost always share surnames in fiction;
-                # without shared surnames, those labels are likely hallucinated.
+                # Option B: Allow text evidence exception for extended family and spouse terms.
+                # Extended family (siblings, cousins, etc.) don't always share surnames.
+                # Spouse labels (husband/wife/spouse) also require text evidence because
+                # spouses often have different canonical names (first-name-only, maiden
+                # names, etc.) — the shared-surname check is not reliable for them.
+                # Parent/child labels without shared surname are unconditionally downgraded.
+                spouse_terms = {"husband", "wife", "spouse"}
                 extended_family_terms = {"sister", "brother", "cousin", "aunt", "uncle", "nephew", "niece"}
+                is_spouse = any(t in rel_lower for t in spouse_terms)
                 is_extended_family = any(t in rel_lower for t in extended_family_terms)
-                if not is_extended_family:
-                    # Unconditional downgrade for spouse/parent/child without shared surname.
+                if not is_extended_family and not is_spouse:
+                    # Unconditional downgrade for parent/child without shared surname.
                     char.relationships[other_key] = "associated"
                     logger.info(
                         f"Downgraded non-extended-family label (no shared surname) to 'associated': "
@@ -2280,7 +2282,7 @@ class OutputCharacterCorrector:
                     )
                     continue
 
-                # For extended family labels: check text co-mention evidence.
+                # For extended family and spouse labels: check text co-mention evidence.
                 # Exception: first-person narrators rarely appear by name in raw text
                 # (they use "I" instead), so the tight co-mention check almost always
                 # fails for them even when the relationship is genuine.  Trust
@@ -2289,14 +2291,18 @@ class OutputCharacterCorrector:
                 # character's profile text.
                 other_is_narrator = other_char and getattr(other_char, 'is_narrator', False)
                 if getattr(char, 'is_narrator', False) or other_is_narrator:
-                    continue  # Keep the extended-family label for narrator characters.
+                    continue  # Keep the label for narrator characters.
 
+                # Spouse labels use a wider window than extended family: spouses often
+                # appear in the same scene/passage but not in the same tight sentence.
+                # A 500-char window mirrors verify_relationships_from_text's evidence check.
+                evidence_window = 500 if is_spouse else tight_window
                 pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
                 has_evidence = False
                 if pat_a and pat_b:
                     for match_a in pat_a.finditer(source_text):
-                        ws = max(0, match_a.start() - tight_window)
-                        we = min(len(source_text), match_a.end() + tight_window)
+                        ws = max(0, match_a.start() - evidence_window)
+                        we = min(len(source_text), match_a.end() + evidence_window)
                         win = source_text[ws:we]
                         if pat_b.search(win) and _rel_phrase_re.search(win):
                             has_evidence = True
@@ -2305,10 +2311,10 @@ class OutputCharacterCorrector:
                 if has_evidence:
                     continue
 
-                # No extended family evidence: downgrade rather than delete.
+                # No evidence: downgrade rather than delete.
                 char.relationships[other_key] = "associated"
                 logger.info(
-                    f"Downgraded unfounded extended-family label to 'associated': "
+                    f"Downgraded unfounded family label to 'associated': "
                     f"'{char.canonical_name}' → '{other_key}': '{rel}'"
                 )
 

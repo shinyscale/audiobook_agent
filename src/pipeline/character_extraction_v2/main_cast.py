@@ -579,6 +579,17 @@ class MainCastExtractor:
                 logger.info(f"Found {len(char.aliases)} aliases for {char.canonical_name}")
             else:
                 logger.warning(f"Pass 2 failed for {char.canonical_name}, keeping without aliases")
+                # Fallback: for multi-word canonical names that don't start with an article,
+                # add the first word as a minimal alias so the grounding gate can find text
+                # mentions. Universal: "Della Young" → alias "Della"; "the creature" → skip.
+                _words = char.canonical_name.split()
+                _articles = {"the", "a", "an"}
+                if len(_words) >= 2 and _words[0].lower() not in _articles:
+                    char.aliases = [_words[0]]
+                    logger.info(
+                        f"Pass 2 failure fallback: added first-name alias '{_words[0]}' "
+                        f"for '{char.canonical_name}'"
+                    )
 
             profiles.append(char)
 
