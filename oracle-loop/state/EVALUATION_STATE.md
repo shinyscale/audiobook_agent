@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -192,5 +192,16 @@
 - All 13 pronunciations have IPA
 - Runtime: ~12 min (36 LLM calls)
 
+## Fix History (Attempt 9)
+- **Cross-character alias contamination** (CRITICAL #1): Added RULE 3d + RULE 3e to `verify_aliases()` in `main_cast.py`
+  - RULE 3d: Blocks aliases with same base name but different parenthetical disambiguation (e.g., "John Donaldson (the father)" on "John Donaldson (the son)")
+  - RULE 3e: Blocks simple kinship-role aliases that contradict the character's own role identifier (e.g., "the father" alias on a character identified as "(the son)")
+  - Root cause: Rule 3 used exact set membership (doesn't catch the disambiguation-conflict case); kinship exemption let "the father" through unconditionally
+  - Smoke test: PASS — "John Donaldson (the father)" and "the father" blocked, valid aliases preserved
+  - Modified: `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()`
+- **Generic relationship labels** (HIGH #3): Fixed secondary profiler prompt to forbid "associated"/"acquaintance"
+  - Root cause: Secondary prompt (line 3405) allowed "acquaintance" in examples; lacked explicit prohibition on "associated"
+  - Modified: `src/analyzer.py:_generate_character_profile():line 3405`
+
 ## Next Action
-Run PROMPT_fix.md to address cross-character alias contamination (Critical #1) and generic relationship labels (High #3).
+Run analysis to evaluate attempt 9.

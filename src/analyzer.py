@@ -3402,11 +3402,12 @@ Return a JSON object with these fields:
   "appearance": {{"summary": "Physical description if mentioned", "age_indication": "exact age phrase from text if stated, otherwise young/middle-aged/elderly/unknown", "distinguishing_features": []}},
   "personality": {{"summary": "Personality traits and behavior", "traits": ["trait1", "trait2"], "temperament": "overall temperament"}},
   "voice_guidance": {{"suggested_tone": "tone based on character's manner", "formality_level": "formal/informal/moderate"}},
-  "relationships": {{"character_name": "relationship_type (e.g., friend, rival, romantic_interest, employer, employee, mentor, neighbor, spouse, parent, child, sibling, business_associate, acquaintance)"}},
+  "relationships": {{"character_name": "relationship_type (e.g., friend, rival, mentor, spouse, parent, child, sibling, guardian, ward, employer, enemy)"}},
   "evidence": [{{"statement": "claim made about character", "quote": "supporting quote from text", "position": 0}}]
 }}
 
 Only use information explicitly present in the text above. If a category has no information, use "unknown", [], or {{}}.
+Do NOT use "associated", "acquaintance", or "unknown" as relationship labels — omit those entries instead.
 Return ONLY the JSON object."""
 
                             try:

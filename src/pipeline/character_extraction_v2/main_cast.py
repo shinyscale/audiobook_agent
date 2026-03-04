@@ -1051,6 +1051,59 @@ class MainCastExtractor:
                         logger.warning(f"BLOCKED alias: '{alias}' parenthetical references another character")
                         continue
 
+                # RULE 3d: Block aliases that represent a DIFFERENT disambiguation of the same base name.
+                # e.g., "John Donaldson (the father)" cannot alias "John Donaldson (the son)" —
+                # they share the same base name but the parenthetical marks them as DIFFERENT entities.
+                # Universal invariant: two people with the same name but different role qualifiers are
+                # distinct characters, not aliases of each other.
+                if " (" in alias_lower and " (" in canonical_lower:
+                    _alias_base_3d = alias_lower.split(" (", 1)[0].strip()
+                    _canonical_base_3d = canonical_lower.split(" (", 1)[0].strip()
+                    if _alias_base_3d == _canonical_base_3d:
+                        _alias_disambig_3d = alias_lower.split(" (", 1)[1].rstrip(")").strip()
+                        _canonical_disambig_3d = canonical_lower.split(" (", 1)[1].rstrip(")").strip()
+                        if _alias_disambig_3d != _canonical_disambig_3d:
+                            logger.warning(
+                                f"BLOCKED alias: '{alias}' has different disambiguation from "
+                                f"'{profile.canonical_name}' (same base name, different role marker)"
+                            )
+                            continue
+
+                # RULE 3e: Block simple kinship-role aliases that contradict the character's own
+                # role identifier embedded in their canonical name parenthetical.
+                # e.g., "John Donaldson (the son)" cannot have "the father" as alias —
+                # being a son and being a father are mutually exclusive identity roles for the same character.
+                # Only checks SIMPLE kinship descriptors ("the father", "a son") — not compound phrases.
+                if " (" in canonical_lower:
+                    _cd_3e = canonical_lower.split(" (", 1)[1].rstrip(")").strip()
+                    _cd_words_3e = {w for w in _cd_3e.split() if w not in {"the", "a", "an"}}
+                    _canon_kinship_3e = _cd_words_3e & _KINSHIP_TERMS
+                    if _canon_kinship_3e:
+                        _alias_content_3e = [w for w in alias_lower.split() if w not in {"the", "a", "an"}]
+                        if len(_alias_content_3e) == 1:
+                            _alias_role_3e = _alias_content_3e[0]
+                            _KINSHIP_CONFLICTS_3E = {
+                                "father": {"son", "daughter"},
+                                "mother": {"son", "daughter"},
+                                "son": {"father", "mother"},
+                                "daughter": {"father", "mother"},
+                                "grandfather": {"grandson", "granddaughter"},
+                                "grandmother": {"grandson", "granddaughter"},
+                                "grandson": {"grandfather", "grandmother"},
+                                "granddaughter": {"grandfather", "grandmother"},
+                            }
+                            _blocked_3e = False
+                            for _ck in _canon_kinship_3e:
+                                if _alias_role_3e in _KINSHIP_CONFLICTS_3E.get(_ck, set()):
+                                    logger.warning(
+                                        f"BLOCKED alias: '{alias}' contradicts role '{_ck}' in "
+                                        f"'{profile.canonical_name}' (conflicting family roles)"
+                                    )
+                                    _blocked_3e = True
+                                    break
+                            if _blocked_3e:
+                                continue
+
                 # RULE 2: Skip co-occurrence check if alias is a substring of canonical name.
                 if alias_lower in canonical_lower or canonical_lower in alias_lower:
                     verified_aliases.append(alias)
