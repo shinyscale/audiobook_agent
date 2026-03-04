@@ -681,13 +681,9 @@ class CharacterAgent(Agent):
             f"{len(supporting_cast)} supporting after formal-name merge"
         )
 
-        # STEP 5.5: Merge last-name-only supporting characters as aliases.
-        # Pre-compute which name pairs the summarizer listed as SEPARATE characters
-        # (used to guard against false first-name merges like "John" → "John Donaldson"
-        # when father and son share the same first name).
-        _co_present_pairs = self._build_co_present_pairs(chapter_summaries)
+        # STEP 5.5: Merge last-name-only supporting characters as aliases
         main_cast, supporting_cast, aliases_added = self._merge_lastname_aliases(
-            main_cast, supporting_cast, co_present_pairs=_co_present_pairs
+            main_cast, supporting_cast
         )
 
         # Re-search mentions for characters that gained new aliases
@@ -3126,42 +3122,10 @@ class CharacterAgent(Agent):
 
         return main_cast, updated_supporting, chars_with_new_aliases
 
-    def _build_co_present_pairs(self, chapter_summaries: list[str]) -> frozenset:
-        """Return all (name-A, name-B) pairs that appear as SEPARATE entries in any
-        summary's [Characters present: ...] prefix.
-
-        Names are lower-cased and parenthetical suffixes are stripped for comparison
-        (e.g. "John Donaldson (the father)" → "john donaldson").
-
-        A pair in this set means: the summarizer treated both names as distinct
-        characters in the same narrative section, so they must NOT be merged by
-        simple heuristics such as first-name overlap.
-        """
-        import re
-
-        pairs: set[frozenset] = set()
-        for summary_text in chapter_summaries:
-            m = re.match(r"^\[Characters present:\s*(.+?)\]", summary_text)
-            if not m:
-                continue
-            names = [n.strip() for n in m.group(1).split(",") if n.strip()]
-            # Normalize: strip trailing parenthetical "(the father)", "(Father)", etc.
-            normalized: list[str] = []
-            for name in names:
-                clean = re.sub(r"\s*\(.*?\)\s*$", "", name).strip().lower()
-                if clean:
-                    normalized.append(clean)
-            # Record every co-listed pair
-            for i, n1 in enumerate(normalized):
-                for n2 in normalized[i + 1 :]:
-                    pairs.add(frozenset([n1, n2]))
-        return frozenset(pairs)
-
     def _merge_lastname_aliases(
         self,
         main_cast: list[Character],
         supporting_cast: list[Character],
-        co_present_pairs: frozenset | None = None,
     ) -> tuple[list[Character], list[Character], set[str]]:
         """
         Merge last-name-only supporting characters as aliases of main cast.
@@ -3173,11 +3137,6 @@ class CharacterAgent(Agent):
 
         NEW: Also handles reverse case where main_cast has single-word name and
         supporting_cast has full name (e.g., "Wolfshiem" in main, "Meyer Wolfshiem" in supporting)
-
-        co_present_pairs: frozenset of frozensets of (lower-case) name pairs that appeared
-        as SEPARATE entries in the same summary section.  When set, the "exact_firstname"
-        match is blocked for pairs that appear here — the summarizer already treated them
-        as distinct characters.
 
         Returns:
             Tuple of (updated_main_cast, updated_supporting_cast, char_ids_with_new_aliases)
@@ -3330,13 +3289,6 @@ class CharacterAgent(Agent):
                 if len(main_name_parts) >= 2:
                     main_firstname = main_name_parts[0].strip(".,;:")
                     if supp_name.lower() == main_firstname.lower():
-                        # Guard: if the summary explicitly listed both names as SEPARATE
-                        # entries, they are different characters (e.g., father "John
-                        # Donaldson" vs son "John" in the same section).  Do not merge.
-                        if co_present_pairs is not None:
-                            pair = frozenset([supp_name.lower(), main_char.canonical_name.lower()])
-                            if pair in co_present_pairs:
-                                continue
                         matches.append((main_idx, "exact_firstname"))
                         continue
 
