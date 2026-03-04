@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -106,13 +106,15 @@ Likely mechanism: In attempt 2, the merge logic may have absorbed "American, sir
 
 ## Fix Strategy for Attempt 4
 
-**Step 1: REVERT** commit 1418ccf to restore attempt 2 codebase (where Bill was correctly narrator).
+**Step 1: REVERT** commit 1418ccf ✓ — restored attempt 2 codebase.
 
-**Step 2: Targeted fix for Johnny merge** — Guard `_merge_summary_name_fragments()` (Step 5.4.5):
-- Before merging single-word fragment "X" into multi-word name "X Y", check all summaries' `characters_present` lists
-- If ANY summary lists BOTH "X" and "X Y" (or "X Y (qualifier)") as separate entries, BLOCK the merge
-- This preserves the merge for normal cases (e.g., "Jim" → "Jim Dillingham Young") where the summarizer does NOT list them separately
-- Only blocks when there's explicit evidence they're different characters
+**Step 2: Targeted fix for Johnny merge** ✓ — Guard `_merge_summary_name_fragments()` (Step 5.4.5):
+- Added `co_present_pairs` set built from all summary `[Characters present: ...]` prefixes
+- Before any merge, checks if fragment and full_name are co-listed as separate entries
+- If co-present, skips merge (summarizer explicitly treated them as different characters)
+- Parenthetical qualifiers (e.g., "(the father)") are stripped before comparison
+- This preserves normal merges (e.g., "Jim" → "Jim Dillingham Young") where summarizer does NOT list them separately
+- Applied at Step 5.4.5 ONLY (not 5.5 which caused "American, sir" regression in attempt 3)
 
 **Step 3: Re-analyze** and evaluate.
 
@@ -122,42 +124,21 @@ Likely mechanism: In attempt 2, the merge logic may have absorbed "American, sir
   - Result: Narrator fix WORKED — Bill correctly identified ✓
 - Attempt 3: Added exact_firstname guard to `_merge_lastname_aliases`
   - Modified: `src/agents/characters.py` — `_merge_lastname_aliases()`
-  - Result: **REGRESSION** — "American, sir" appeared as false character, stole narrator. Johnny NOT fixed. REVERT NEEDED.
+  - Result: **REGRESSION** — "American, sir" appeared as false character, stole narrator. Johnny NOT fixed. REVERTED.
+- Attempt 4: Reverted attempt 3, then applied co-present guard to `_merge_summary_name_fragments()` (Step 5.4.5) instead of Step 5.5
+  - Root cause: Step 5.4.5 merges single-word "John" into multi-word "John Donaldson (the father)" via partial match
+  - Fix: `co_present_pairs` set built from summary character lists; blocks merge when fragment + full_name are co-listed as separate entries
+  - Modified: `src/agents/characters.py` — `_merge_summary_name_fragments()`
+  - Smoke test: 332 tests pass, no regressions
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 2 | Wrong narrator (Uncle Bill vs Johnny) | `src/pipeline/character_extraction_v2/narrator.py` | Fixed — Bill is now narrator ✓ |
-<<<<<<< HEAD
 | 2 | Johnny missing (false merge) | (not yet attempted) | Still broken |
-| 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | **REGRESSION** — "American, sir" false character, narrator shifted. REVERT. |
-=======
-| 2 | Johnny missing (false merge) | (not yet attempted) | Still broken — Johnny merged into father |
-| 2 | Summary errors (Bill dying) | (not yet attempted) | Still broken — summary not re-generated |
-
-## Root Cause Analysis
-
-**Primary blocker: Johnny false-merged into father (Issue #1)**
-
-The pipeline's merge logic in `characters.py` sees "John" (single-word character = the son) as a name fragment of "John Donaldson" (multi-word character = the father) and merges them. This is a correct heuristic in MOST cases (e.g., "Jim" → "Jim Dillingham Young") but WRONG when father and son share the same first name.
-
-The key signal that these are different characters is in `characters_present`: the summarizer listed BOTH "John" AND "John Donaldson (the father)" in the same section. If both appear as separate entries in the same summary, they must be separate characters. The merge logic should check this.
-
-**Merge steps that could be responsible (check in order):**
-1. `_merge_summary_name_fragments()` (Step 5.4.5) — most likely. Merges single-word fragments into multi-word canonical names from summary character lists.
-2. `_merge_formal_name_aliases()` (Step 5.5a) — less likely but possible. Merges formal names into nicknames.
-3. `_merge_lastname_aliases()` (Step 5.5) — possible. "John" could be treated as a component.
-
-**Secondary blocker: Summary errors (Issue #2)**
-
-Summaries are generated BEFORE character extraction (pipeline order: Structure → Summary → Characters). The summary LLM is confused by:
-- Frame/nested narrative (Bill narrates, Johnny's war story is quoted dialogue)
-- Same-name characters (father and son both "John Donaldson")
-- The dying man's identity (father, not Bill)
-
-The narrator fix improved character extraction but could NOT retroactively fix already-generated summaries. The `plot_summary` in the overview is derived from chapter summaries, so it inherits their errors.
->>>>>>> parent of 1418ccf (Fix: guard exact_firstname merge when summary lists names as separate characters)
+| 3 | Johnny missing — `_merge_lastname_aliases` exact_firstname guard | `src/agents/characters.py` | **REGRESSION** — "American, sir" false character, narrator shifted. REVERTED. |
+| 4 | Johnny false-merged — co_present guard in `_merge_summary_name_fragments()` Step 5.4.5 | `src/agents/characters.py` | Awaiting verification |
 
 ## Configuration Notes
 - Model config appropriate: qwen3.5:122b-a10b for characters/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
@@ -166,13 +147,7 @@ The narrator fix improved character extraction but could NOT retroactively fix a
 - Runtime: 10m 32s (36 LLM calls)
 
 ## Next Action
-<<<<<<< HEAD
-1. REVERT commit 1418ccf
-2. Apply targeted fix to `_merge_summary_name_fragments()` (Step 5.4.5) — guard against merging when summary lists names separately
-3. Re-analyze and evaluate
-=======
-Run PROMPT_fix.md to address Issue #1 (Johnny false-merged into father). The fix should:
-1. Add a guard in `_merge_summary_name_fragments()` (and related merge functions) to prevent merging characters that appear as **separate entries** in the same summary's `characters_present` list
-2. This is the highest-impact fix — restoring Johnny as a character should cascade improvements to profiles, relationships, and role assignments
-3. Summary errors (Issue #2) may need a separate approach since summaries are generated before character extraction
->>>>>>> parent of 1418ccf (Fix: guard exact_firstname merge when summary lists names as separate characters)
+Re-run analysis on american_sir to verify:
+1. "American, sir" is absorbed (no false character, as in attempt 2)
+2. Johnny (the son) appears as separate character from John Donaldson (the father)
+3. Uncle Bill is narrator (as in attempt 2)

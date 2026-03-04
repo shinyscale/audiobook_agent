@@ -1387,8 +1387,12 @@ class CharacterAgent(Agent):
         import re
         from collections import Counter
 
-        # Parse character names from [Characters present: name1, name2, ...] prefixes
+        # Parse character names from [Characters present: name1, name2, ...] prefixes.
+        # Also build co_present_pairs: name pairs that were listed as SEPARATE entries in
+        # the same summary section.  A pair in this set means the summarizer treated both
+        # names as distinct characters — merging them is forbidden.
         name_counts: Counter = Counter()
+        co_present_pairs: set[frozenset] = set()
         for summary_text in chapter_summaries:
             m = re.match(r"^\[Characters present:\s*(.+?)\]", summary_text)
             if not m:
@@ -1396,6 +1400,15 @@ class CharacterAgent(Agent):
             names = [n.strip() for n in m.group(1).split(",") if n.strip()]
             for name in names:
                 name_counts[name] += 1
+            # Record every pair of co-listed names (normalized: strip parenthetical qualifier)
+            normalized: list[str] = []
+            for name in names:
+                clean = re.sub(r"\s*\(.*?\)\s*$", "", name).strip().lower()
+                if clean:
+                    normalized.append(clean)
+            for i, n1 in enumerate(normalized):
+                for n2 in normalized[i + 1 :]:
+                    co_present_pairs.add(frozenset([n1, n2]))
 
         # Only process multi-word names (2+ words)
         multi_word_names = [n for n in name_counts if len(n.split()) >= 2]
@@ -1453,6 +1466,21 @@ class CharacterAgent(Agent):
 
             # All fragments must be distinct characters (sanity check)
             if len({f.id for f in fragments}) < len(fragments):
+                continue
+
+            # Co-present guard: if the summarizer listed a fragment AND the full name as
+            # SEPARATE entries in the same section, they are different characters — skip merge.
+            # Example: "John" and "John Donaldson (the father)" co-listed → father ≠ son.
+            full_name_base = re.sub(r"\s*\(.*?\)\s*$", "", full_name).strip().lower()
+            if any(
+                frozenset([f.canonical_name.lower(), full_name_base]) in co_present_pairs
+                for f in fragments
+            ):
+                logger.info(
+                    f"V2 Step 5.4.5: Skipping merge of '{full_name}' — "
+                    f"summary lists fragment(s) as separate characters: "
+                    f"{[f.canonical_name for f in fragments]}"
+                )
                 continue
 
             # Dominant fragment = the one with the most mentions
