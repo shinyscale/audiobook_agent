@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Attempt:** 18
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -257,6 +257,16 @@ Functional navigation, logical organization. Content quality limited by upstream
 - Zero LLM retries across all stages
 - All 14 pronunciations have IPA
 - Issue is NOT configuration — it's extraction logic AND summary LLM non-determinism
+
+## Pipeline Notes (Attempt 18)
+- Analysis completed in 29m 49s
+- 4 final characters: Uncle Bill (18), John Donaldson (28), Joe Barron (3), Ted Frith (5)
+- No "Johnny" phantom character ✓ (STEP 3.97 working)
+- "John's Father" appeared in warnings (BLOCKED alias log) — STEP 3.95b may have fired but created a character that was filtered
+- "Pass 2 failed for John, keeping without aliases" — alias processing issue for short name
+- "Low confidence profile for John Donaldson: 0.30" + JSON parse failure
+- Joe Barron present ✓ (was missing in attempt 17 due to LLM non-determinism)
+- Margaret Donaldson added via F6 reconciliation but not in final top-level characters
 
 ## Pipeline Notes (Attempt 17)
 - STEP 3.95b DID NOT FIRE — regex `named\s+{name}.*?\b(his|her|their)\s+(father|mother)` didn't match
