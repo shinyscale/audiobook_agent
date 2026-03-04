@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -190,5 +190,14 @@ Both fixes are in `src/agents/characters.py` only. No prompt changes needed.
 - All 13 pronunciations have IPA
 - Runtime: ~31 min (31 LLM calls)
 
+## Pipeline Notes (Attempt 6)
+- Runtime: 14m 19s (36 LLM calls)
+- Narrator correctly detected: Uncle Bill (first-person) ✓
+- John's Son (aka the boy) - 14 mentions ✓ (merge direction fixed)
+- WARNING: "Final narrator appearance injection for 'John Donaldson'" — appearance injected into both Uncle Bill AND John Donaldson (bug candidate for evaluation)
+- "Pass 2 failed for John Donaldson, keeping without aliases"
+- Margaret Donaldson added via F6b ✓
+- Characters (5): Uncle Bill (18), John Donaldson (28), John's Son (14), Joe Barron (3), Ted Frith (5)
+
 ## Next Action
-Run PROMPT_analyze.md to re-analyze with fixes applied.
+Run PROMPT_evaluate.md to evaluate attempt 6 output.
