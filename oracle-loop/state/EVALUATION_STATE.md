@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -203,5 +203,17 @@
   - Root cause: Secondary prompt (line 3405) allowed "acquaintance" in examples; lacked explicit prohibition on "associated"
   - Modified: `src/analyzer.py:_generate_character_profile():line 3405`
 
+## Pipeline Notes (Attempt 9 Run)
+- Runtime: 11m 22s, 38 LLM calls
+- Characters found: Uncle Bill (18), John Donaldson Sr. (28), John's son (28), Joe Barron (3), Ted Frith (5)
+- Margaret Donaldson added via F6b ✓
+- Narrator: Uncle Bill (mixed/first-person) ✓
+- RULE 3d/3e fired: "John Donaldson (the father)" and "the father" blocked on son ✓
+- **POTENTIAL REGRESSION**: Father (John Donaldson Sr.) has many valid aliases blocked as "already claimed" — suggests son claimed them first, so father still has 0 meaningful aliases
+  - Blocked on father: "estranged father", "shabby grizzled American civilian", "volunteer", "older man", "his estranged father", "grandfather"
+  - These were claimed by "John Donaldson" (son) before Rule 3 fired, blocking reassignment to father
+- Low confidence profile for John's son: 0.30
+- Son canonical name changed to "John's son" (was "John Donaldson (the son)" in attempt 8)
+
 ## Next Action
-Run analysis to evaluate attempt 9.
+Evaluate attempt 9 output.
