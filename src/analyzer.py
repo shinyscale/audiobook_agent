@@ -226,6 +226,9 @@ class AudiobookAnalyzer:
                 logger.warning(f"Unknown LLM provider: {self.llm_provider}")
                 return None
 
+            # Disable thinking mode by default (thinking models like qwen3.5 return empty
+            # content when think=None; agents override this as needed via their own configs)
+            config.think = False
             self._llm_client = LLMClient(config, metrics=self._metrics)
 
             # Run health check to detect broken models (empty responses, etc.)

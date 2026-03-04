@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gift_of_the_magi
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 8.2
 
 ## Output Files
@@ -125,5 +125,13 @@ The actual flow:
    - Returns "spouse" (neutral) so gender-appropriate term can be assigned later
    - Without this, "Della is married to Jim" → "associated" (generic) → not protected by spousal guard
 
+## Pipeline Notes (Attempt 5)
+- Health check fix applied: `analyzer.py` now sets `config.think = False` on default client to avoid empty responses from qwen3.5 thinking mode
+- 4 characters extracted: Della Young (alias: Della), Jim Young (aliases: Jim, James Dillingham Young), Sofronie, The magi
+- Pass 2 failed for Della Young (keeping without aliases) — not blocking
+- No narrator identified (correct — 3rd-person narrative)
+- 4 profiles generated (4 HIGH confidence)
+- Runtime: 28m 7s
+
 ## Next Action
-Run analysis to verify fix.
+Evaluate output.
