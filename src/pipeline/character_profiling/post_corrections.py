@@ -767,7 +767,12 @@ class OutputCharacterCorrector:
         # Runs before verify_relationships_from_text so text evidence can upgrade
         # "associated" to a more specific family term when available.
         if chapter_summaries:
-            self.add_cooccurrence_relationships(characters, chapter_summaries)
+            # Scale threshold with text length: short stories (1-2 chapters) need
+            # min_shared=1 since the central character pair may only share one summary;
+            # longer works use up to 3 to avoid spurious associations from incidental
+            # chapter overlap. This is a universal invariant — not book-specific.
+            adaptive_min = max(1, min(3, len(chapter_summaries) // 3))
+            self.add_cooccurrence_relationships(characters, chapter_summaries, min_shared=adaptive_min)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)

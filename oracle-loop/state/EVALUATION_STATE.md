@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** masque_of_red_death
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 8.50
 - **Competitive Mode:** none
 
@@ -62,13 +62,19 @@
    - Fix: Template should use the `role` field to group characters, not just mention counts
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 2: Fixed missing Prospero↔Red Death relationship and HTML character grouping
+  - Root cause 1: `add_cooccurrence_relationships` uses `min_shared=3` (default), but Masque has only 1 chapter — shared count never reaches 3, so the pair is never linked. Fix: adaptive `min_shared = max(1, min(3, n_chapters // 3))`.
+  - Root cause 2: HTML groups characters by `mention_count >= 10`, but short story characters all have <10 mentions → all appear under "Supporting". Fix: also include characters with role=protagonist/antagonist.
+  - Smoke test: PASS — Prospero↔Red Death added as "associated" with min_shared=1; HTML groups Prospero+RedDeath as Main, courtiers as Supporting.
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`, `src/export/html_report.py`
+  - Tests: 332 passed, 0 failed
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | (first attempt) | — | — | — |
+| 2 | Missing Prospero↔RedDeath relationship; HTML grouping | post_corrections.py, html_report.py | awaiting_analysis |
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -76,4 +82,6 @@
 | 1 | 8.50 | — | Profiles 7/10 failing; missing Prospero↔Red Death relationship |
 
 ## Next Action
-Run PROMPT_fix.md to address profile issues (Critical #1: missing antagonistic relationship, High #2: thin Prospero profile)
+Re-run analysis to verify fixes
+
+**Phase:** awaiting_analysis

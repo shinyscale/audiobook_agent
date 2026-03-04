@@ -1652,11 +1652,18 @@ def export_html_report(
             main_idx += 1
 
     # Separate main vs minor characters
-    # Main characters: 10+ mentions OR is narrator (narrators always get full profile)
-    main_characters = [c for c in result.characters if c.mention_count >= 10 or c.is_narrator]
-    minor_characters = [c for c in result.characters if c.mention_count < 10 and not c.is_narrator][
-        :30
+    # Main characters: 10+ mentions, narrator, or explicitly protagonist/antagonist role.
+    # The role-based check is critical for short stories where even central characters
+    # may have fewer than 10 mentions — using role is a universal invariant.
+    _MAIN_ROLES = {"protagonist", "antagonist"}
+    main_characters = [
+        c for c in result.characters
+        if c.mention_count >= 10
+        or c.is_narrator
+        or (c.role and c.role.lower() in _MAIN_ROLES)
     ]
+    _main_ids = {id(c) for c in main_characters}
+    minor_characters = [c for c in result.characters if id(c) not in _main_ids][:30]
 
     # Clean malformed JSON from character descriptions
     # This handles cases where LLM returned malformed JSON with embedded structured fields
