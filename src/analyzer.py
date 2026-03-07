@@ -1868,6 +1868,28 @@ class AudiobookAnalyzer:
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"
                     )
+
+                    # For first-person narratives, replace "the narrator" references in
+                    # chapter summaries with the narrator's actual name. The summaries are
+                    # generated before narrator detection, so they may use "the narrator"
+                    # as a stand-in for the protagonist. Using the real name improves
+                    # summary specificity for any first-person narrative.
+                    if narrator_info.pov == "first-person" and summary_map:
+                        _nn = narrator_info.narrator_name
+                        _replaced = 0
+                        for _sum in summary_map.summaries:
+                            if _sum.summary and "narrator" in _sum.summary.lower():
+                                _new_sum = re.sub(
+                                    r'\bthe narrator\b', _nn,
+                                    _sum.summary, flags=re.IGNORECASE,
+                                )
+                                if _new_sum != _sum.summary:
+                                    _sum.summary = _new_sum
+                                    _replaced += 1
+                        if _replaced:
+                            logger.info(
+                                f"Replaced 'the narrator' with '{_nn}' in {_replaced} summaries"
+                            )
                 else:
                     print("   No definitive narrator identified yet")
                     logger.info("Early narrator detection: No narrator identified")
@@ -2558,6 +2580,94 @@ class AudiobookAnalyzer:
         OutputCharacterCorrector(llm_client=profile_llm).run_all(
             characters, doc.text, chapter_summaries=_phase_b_summaries
         )
+
+        # Post-Phase-B role validation: re-apply false-antagonist check and colleague
+        # replacement using final (Phase-B-corrected) relationships. Phase B may refine
+        # relationship labels in ways that would have changed the pipeline-level role
+        # corrections. Running again on output characters ensures the final JSON reflects
+        # accurate roles based on the most complete relationship data available.
+        # Universal invariant: a true antagonist has outgoing aggressor labels (labels
+        # their targets as victims/prisoners) OR incoming aggressor labels (others call
+        # them tormentor/captor). A character with neither should be protagonist.
+        _PHSB_OUTGOING = {"victim", "prisoner", "captive", "subordinate", "prey",
+                          "servant", "slave", "subject", "hostage", "pawn"}
+        _PHSB_INCOMING = {"tormentor", "captor", "oppressor", "persecutor", "jailer",
+                          "warden", "abuser", "enslaver", "tyrant", "predator",
+                          "antagonist", "villain"}
+        for _fc in characters:
+            if _fc.role != "antagonist" or getattr(_fc, "is_narrator", False):
+                continue
+            _fc_own = sum(
+                1 for v in (_fc.relationships or {}).values()
+                if isinstance(v, str) and any(a in v.lower() for a in _PHSB_OUTGOING)
+            )
+            _fc_name = _fc.canonical_name.lower()
+            _fc_inc = sum(
+                1 for oc in characters
+                if oc.id != _fc.id
+                for k, v in (oc.relationships or {}).items()
+                if k.lower() == _fc_name and isinstance(v, str)
+                and any(a in v.lower() for a in _PHSB_INCOMING)
+            )
+            if _fc_own <= 1 and _fc_inc == 0:
+                _fc.role = "protagonist"
+                logger.info(
+                    f"Post-Phase-B role corrected: '{_fc.canonical_name}' "
+                    f"antagonist→protagonist (outgoing={_fc_own}, incoming={_fc_inc})"
+                )
+
+        # Colleague replacement on output characters: build antagonist/protagonist lists
+        # AFTER the role fix above so corrected roles are used.
+        _phsb_antagonists = [c for c in characters if c.role == "antagonist"]
+        _phsb_protagonists = [c for c in characters if c.role in ("protagonist", "main")]
+        _phsb_all_adv = _PHSB_OUTGOING | _PHSB_INCOMING
+        for _bant in _phsb_antagonists:
+            _bprot_names = {p.canonical_name.lower() for p in _phsb_protagonists}
+            _bant_to_prot = {
+                k: v for k, v in (_bant.relationships or {}).items()
+                if k.lower() in _bprot_names and isinstance(v, str)
+            }
+            if not _bant_to_prot:
+                continue
+            _bactive = [
+                v for v in _bant_to_prot.values()
+                if any(a in v.lower() for a in _phsb_all_adv) and "colleague" not in v.lower()
+            ]
+            _bcols = [k for k, v in _bant_to_prot.items() if "colleague" in v.lower()]
+            if _bactive and _bcols:
+                from collections import Counter
+                _bdom = Counter(_bactive).most_common(1)[0][0]
+                for _bck in _bcols:
+                    _bant.relationships[_bck] = _bdom
+                    logger.info(
+                        f"Post-Phase-B: '{_bant.canonical_name}'→'{_bck}' "
+                        f"'colleague'→'{_bdom}'"
+                    )
+        # Inverse: protagonist→antagonist "colleague" corrected using majority label.
+        for _bant in _phsb_antagonists:
+            _bant_name = _bant.canonical_name.lower()
+            _bprot_pairs = [
+                (p, v)
+                for p in _phsb_protagonists
+                for k, v in (p.relationships or {}).items()
+                if k.lower() == _bant_name and isinstance(v, str)
+            ]
+            _bactive_inv = [
+                v for _, v in _bprot_pairs
+                if any(a in v.lower() for a in _PHSB_INCOMING)
+            ]
+            _bcol_prots = [p for p, v in _bprot_pairs if "colleague" in v.lower()]
+            if _bactive_inv and _bcol_prots:
+                from collections import Counter
+                _bdom_inv = Counter(_bactive_inv).most_common(1)[0][0]
+                for _bcp in _bcol_prots:
+                    for _bk in list((_bcp.relationships or {}).keys()):
+                        if _bk.lower() == _bant_name:
+                            _bcp.relationships[_bk] = _bdom_inv
+                            logger.info(
+                                f"Post-Phase-B: '{_bcp.canonical_name}'→'{_bk}' "
+                                f"'colleague'→'{_bdom_inv}'"
+                            )
 
         # Convert pronunciations
         pronunciations = self._convert_pronunciations(pron_map)

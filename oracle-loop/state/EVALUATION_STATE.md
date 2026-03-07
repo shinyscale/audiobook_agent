@@ -84,6 +84,19 @@ The mention-ratio narrator guard from attempt 10 apparently worked (Ted=narrator
 ## Fix Priority
 Focus on CRITICAL #1 and #2 — these are the primary blockers for Character Profiles reaching 8.0. If roles and relationships are fixed, profiles should jump to ~7.5-8.0. HIGH #4 (summary naming) would push summaries to 8.0+.
 
+## Attempt 11 Fix Applied
+- **Post-Phase-B false-antagonist correction + colleague replacement** (`src/analyzer.py` after Phase B):
+  - Re-runs false-antagonist check on final (Phase-B-corrected) output characters
+  - Simulation confirms: Nimdok → protagonist, Benny → protagonist; Ellen stays antagonist (in_adv=1 from Gorrister's "abuser" label)
+  - AM→Ted/Gorrister: "colleague" → "victim" (after role fix, AM has 2 active victim labels to protagonists)
+  - Ted/Gorrister→AM: "colleague" → "tormentor" (Nimdok/Benny call AM "tormentor" → dominant label)
+  - Root cause: pipeline role corrections run on Phase-A relationships; Phase B then refines them; running again on final data gives correct results
+- **Summary narrator name substitution** (`src/analyzer.py` after narrator detection, line 1877):
+  - After first-person narrator detected, replaces "the narrator" with actual name (e.g., "Ted") in chapter summaries
+  - Fixes HIGH #4: summaries will use "Ted" instead of "the narrator"
+  - Universal: only runs when pov == "first-person" AND narrator_name is detected
+- Smoke test: Python simulation confirms all logic correct; 332 tests pass
+
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
@@ -190,4 +203,11 @@ The false-antagonist fix from attempt 8 worked perfectly (all 4 humans became pr
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to address: (1) false-antagonist regression for Ellen/Nimdok/Benny, (2) colleague label persistence, (3) summary narrator naming.
+Run analysis (PROMPT_analyze.md) to verify attempt 11 fixes:
+- Nimdok, Benny should be protagonist
+- AM→Ted/Gorrister should be "victim" not "colleague"
+- Ted/Gorrister→AM should be "tormentor" not "colleague"
+- Chapter summaries should say "Ted" not "the narrator"
+- Ellen stays antagonist (harder to fix without regression risk)
+
+**Phase:** awaiting_analysis
