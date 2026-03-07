@@ -2,24 +2,15 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
+- **Competitive Mode:** none
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 9/10 ✓
-  - Completeness: 10/10
-  - Identity Resolution: 10/10
-  - Alias Grouping: 8/10
-- Character Profiles: 7/10 ✗ (FAILING)
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 8.50/10** (reference only)
+(Awaiting evaluation — attempt 9)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -32,44 +23,48 @@
 | 6 | 8.4 | +2.05 | ACTIVE/PASSIVE fix did NOT work — semantic direction bug. 4 humans still "antagonist" |
 | 7 | 6.65 | +0.30 | REGRESSION: Ted missing (replaced by "the ice caverns"), 4 humans still antagonist |
 | 8 | 8.50 | +2.15 | Ted restored, all roles correct. Only profiles failing (AM "colleague" labels) |
+| 9 | TBD | TBD | AM "colleague" → "captor"/"tormentor" fix applied. ⚠️ WARNING: Ellen detected as narrator (not Ted) — possible regression |
+
+## Pipeline Notes (Attempt 9)
+- Analysis completed in 20m 23s
+- 6 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35), + 1 more (Ted?)
+- ⚠️ **POSSIBLE REGRESSION**: "Narrator (from V2 pipeline): Ellen" — Ted was narrator in attempt 8
+- "Detected narrator: Ellen (first-person)" — LLM narrator detection said Ellen
+- "No definitive narrator identified from plot summary" — final step
+- Contradictory relationship removed: AM→Gorrister=victim AND Gorrister→AM=victim
+- All alias blocks look correct (pronouns, hallucinated aliases, comma phrases)
 
 ## Current Issues (Priority Order)
 
 ### HIGH
 1. **AM's relationships to Ellen, Nimdok, Gorrister, Benny are all "colleague"** [Profiles — Relationships]
-   - Problem: AM→Ellen: "colleague", AM→Nimdok: "colleague", AM→Gorrister: "colleague", AM→Benny: "colleague". AM is a malevolent supercomputer that tortures and imprisons these humans for 109 years — "colleague" is completely wrong.
-   - Evidence: The text explicitly describes AM torturing all five humans. AM blinds Benny, mutilates their bodies, controls their food supply, and keeps them alive against their will. The summary itself says AM "torments them for granting it sentience."
-   - Similarly: Ellen→AM: "colleague", Nimdok→AM: "colleague", Gorrister→AM: "colleague", Benny→AM: "colleague" — all should be "captor" or "tormentor".
-   - Only Ted→AM ("captor") and AM→Ted ("tormentor") are correct.
-   - Root cause: The LLM profiler defaults to "colleague" when it can't determine a specific relationship. This was noted in attempt 3 fix history. The relationship vocabulary was expanded but the LLM still uses "colleague" as a fallback.
-   - Location: `src/analyzer.py` — `_generate_character_profile()`. The post-processing in `verify_relationships_from_text` or `enforce_role_consistency` could replace "colleague" labels between an antagonist and protagonists.
-   - Fix approach: Add a post-profile correction: if character A has role="antagonist" and character B has role="protagonist", and A→B relationship is "colleague", replace with "captor" (or "tormentor"). Similarly B→A "colleague" → "captor". This is a safe inference — an antagonist and protagonist are not colleagues.
+   - Fix applied in attempt 9: post-profile colleague→role-appropriate label replacement
+   - Check if fix worked
+
+2. **Possible narrator regression: Ellen instead of Ted** [Character Extraction]
+   - Attempt 8 fixed Ted detection via vocative expansion
+   - But this run says "Narrator (from V2 pipeline): Ellen"
+   - Check the JSON output to confirm narrator assignment
 
 ### MEDIUM
-2. **Summary uses "first-person narrator" instead of "Ted"** [Summaries — Accuracy]
-   - Problem: The summary refers to Ted as "the first-person narrator" rather than by name, despite dialogue in the text explicitly naming him ("Please, Ted, let's try it").
-   - Evidence: Summary text says "prompting the narrator to kill him" and "the narrator kills Benny and Gorrister".
-   - Impact: Mild — the narrator IS identified as Ted in the character list, so a human reader can infer this. But for narrator preparation, using the actual name would be clearer.
-   - This is an LLM generation issue. The summarizer model chose to use a generic reference.
+3. **Summary uses "first-person narrator" instead of "Ted"** [Summaries — Accuracy]
    - Score impact: ~0.5 points on summaries (already at 8, so not blocking).
 
-3. **No speech patterns noted for any character** [Profiles — Completeness]
-   - Problem: All 6 characters have `speech_patterns: null`. AM in particular has very distinctive speech — the iconic "HATE. LET ME TELL YOU HOW MUCH I'VE COME TO HATE YOU" monologue, and AM's electronic/typed communication style.
-   - Evidence: AM's speech is one of the most memorable elements of the story.
+4. **No speech patterns noted for any character** [Profiles — Completeness]
+   - AM's distinctive speech style not captured.
    - Score impact: ~0.5 points on profiles.
-   - Location: `src/analyzer.py` — profile generation prompt may not specifically ask for speech patterns.
 
-4. **Ellen→Gorrister: "victim of abuse"** [Profiles — Accuracy]
-   - Problem: There's no clear textual evidence that Gorrister specifically abuses Ellen. The text implies a sexual dynamic around Ellen (she's the only woman), but "victim of abuse" from Ellen toward Gorrister specifically is not well-supported.
+5. **Ellen→Gorrister: "victim of abuse"** [Profiles — Accuracy]
+   - No clear textual evidence.
    - Score impact: Minor.
 
 ### LOW
-5. **Chapter title is null** [Structure]
-   - Single section has `title: null` — could display the story title "I Have No Mouth, and I Must Scream".
+6. **Chapter title is null** [Structure]
+   - Single section has `title: null`.
    - Not blocking.
 
-6. **No aliases for any character** [Character Extraction — Alias Grouping]
-   - AM could have "Allied Mastercomputer" as an alias. Minor since AM is the primary reference throughout.
+7. **No aliases for any character** [Character Extraction — Alias Grouping]
+   - AM could have "Allied Mastercomputer" as an alias.
    - Not blocking.
 
 ## Fix History
@@ -107,6 +102,9 @@
   1. **STEP 4.25b: narrator vocative check expansion** (`src/agents/characters.py:829-874`) — Ted restored as narrator. Fixed.
   2. **False-antagonist threshold raised** (`src/analyzer.py:2218`) — All 4 humans now correctly "protagonist". Fixed.
 
+- Attempt 9: Colleague label replacement for antagonist↔protagonist relationships
+  1. **Post-profile colleague→role-appropriate label replacement** (`src/analyzer.py`) — TBD (awaiting evaluation)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -131,11 +129,10 @@
 | 7 | Ted missing / "the ice caverns" narrator | NEW REGRESSION | Model output variation — Ted not extracted |
 | 8 | Ted missing / wrong narrator | characters.py (STEP 4.25b vocative expansion) | **Fixed** |
 | 8 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (threshold <=1) | **Fixed** |
-| 8 | AM "colleague" relationships | — | TBD (new issue for attempt 9) |
-| 9 | AM→colleague labels + protagonist→antagonist colleague | analyzer.py (threshold >=1 + combined adversarial label sets for forward direction) | TBD |
+| 9 | AM "colleague" → "captor"/"tormentor" | analyzer.py (post-profile colleague replacement) | TBD |
 
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate attempt 9 output. Check: (1) AM relationship labels, (2) narrator assignment (Ellen vs Ted).
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
