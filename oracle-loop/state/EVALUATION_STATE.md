@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -218,5 +218,19 @@ Regressions (LLM non-determinism):
   - File: `src/agents/characters.py` (~line 1872-1899)
   - Smoke test: 332 tests pass, no regressions
 
+## Pipeline Notes (Attempt 13)
+- Analysis completed in 20m 15s
+- 9 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35) + 3 more (Ted, Huergelmir, the ice caverns or Jesus)
+- 7 profiles generated for 7 eligible characters
+- "the ice caverns" still extracted (LLM used non-possessive form, bypassing possessive filter)
+- New spurious characters: Huergelmir (mythological creature), AM's hatred, Jesus
+- Narrator "the narrator" identified but NOT matched to Ted in main_cast (is_narrator elevation fix may not trigger)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Character Profiles bottleneck: 9m 48s (48.4% of total)
+
+## Output Files
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
