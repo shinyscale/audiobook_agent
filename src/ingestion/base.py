@@ -201,6 +201,9 @@ class DocumentIngester(ABC):
         if not title:
             return None
 
+        # Strip BOM (U+FEFF) that can appear at the start of text files
+        title = title.lstrip("\ufeff")
+
         # Remove common suffixes
         title = re.sub(r"\.(pdf|docx|epub|txt)$", "", title, flags=re.IGNORECASE)
 

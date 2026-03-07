@@ -85,11 +85,18 @@ class TXTIngester(DocumentIngester):
 
     def _detect_title(self, text: str) -> Optional[str]:
         """Try to detect book title from text content."""
+        import re as _re_title
         lines = text.split("\n")[:20]  # Check first 20 lines
 
+        _TOC_MARKERS = {"CONTENTS", "TABLE OF CONTENTS", "INDEX",
+                        "TABLE OF CONTENT", "FOREWORD", "DEDICATION"}
+        allcaps_candidate: Optional[str] = None
+        saw_allcaps = False  # True immediately after storing an all-caps candidate
+
         for line in lines:
-            line = line.strip()
-            # Skip empty lines
+            # Strip leading BOM (U+FEFF) before any processing
+            line = line.strip().lstrip("\ufeff")
+            # Skip empty lines (do NOT reset saw_allcaps — blank lines separate author/title)
             if not line:
                 continue
             # Skip Project Gutenberg headers
@@ -98,20 +105,35 @@ class TXTIngester(DocumentIngester):
             if line.startswith("***"):
                 continue
 
-            # Title is often all caps or the first substantial line
-            # Skip known navigation/TOC headers — these are never the book title
-            _TOC_MARKERS = {"CONTENTS", "TABLE OF CONTENTS", "INDEX",
-                            "TABLE OF CONTENT", "FOREWORD", "DEDICATION"}
+            # All-caps line: could be title OR author header.
+            # Save as candidate and keep scanning — some archival texts list the author
+            # name in all-caps first, followed by the actual (quoted) title on the next
+            # non-empty line (e.g., "MARY RAYMOND SHIPMAN ANDREWS\n\n\"American, Sir!\"").
             if line.isupper() and len(line) > 3 and len(line) < 100:
-                if line.strip() in _TOC_MARKERS:
+                if line in _TOC_MARKERS:
                     continue
-                return line.title()  # Convert to title case
+                if allcaps_candidate is None:
+                    allcaps_candidate = line.title()
+                    saw_allcaps = True
+                continue
 
-            # Or it might be prefixed with "Title:"
+            # After seeing an all-caps candidate, check the very next non-empty line.
+            if saw_allcaps:
+                saw_allcaps = False
+                if line.startswith('"'):
+                    # Quoted line following an all-caps line → use it as the title.
+                    # Strip trailing footnote markers like [A], [1], etc.
+                    title = _re_title.sub(r'\s*\[[\w]+\]\s*$', '', line).strip().strip('"').strip()
+                    if title:
+                        return title
+                # Non-quoted content after all-caps — the all-caps WAS the title.
+                return allcaps_candidate
+
+            # "Title:" prefix
             if line.lower().startswith("title:"):
                 return line[6:].strip()
 
-        return None
+        return allcaps_candidate
 
     def _detect_author(self, text: str) -> Optional[str]:
         """Try to detect author from text content."""

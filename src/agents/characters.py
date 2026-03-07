@@ -616,6 +616,66 @@ class CharacterAgent(Agent):
                 # Adjust child's mention count downward to reflect removed parent mentions
                 _char_395b.mention_count = max(1, (_char_395b.mention_count or 1) - 2)
 
+        # STEP 3.95c: Kinship-fragment sibling-name split.
+        # Handles the case where a merged parent+child character A (multi-word, high-mention)
+        # produced a low-mention single-word fragment B that carries a child-tier alias
+        # ("his son", "the boy", etc.) and whose name is a diminutive/prefix of A's first name.
+        # Universal invariant: a child-tier alias on a fragment whose name maps to A's first name
+        # (via STANDARD_DIMINUTIVES) is a structural signal — independent of LLM summary wording —
+        # that A is a merged parent+child. This fills the gap when STEP 3.95/3.95b don't fire
+        # due to LLM wording variation.
+        # Example: "Johnny" (1 mention, alias="his son") + "John Donaldson" (33 mentions)
+        #   → STANDARD_DIMINUTIVES["johnny"]="john" matches "John Donaldson"'s first word
+        #   → Split: "John Donaldson (the father)" created; original becomes the child.
+        for _frag_395c in list(main_cast):
+            if " " in _frag_395c.canonical_name:
+                continue  # Only single-word fragments qualify
+            _frag_count_395c = (getattr(_frag_395c, "mention_count", 0) or 0)
+            if _frag_count_395c > 3:
+                continue  # Too many mentions — likely a real standalone character
+            if len(_frag_395c.canonical_name) < 3:
+                continue  # Too short to match reliably
+            # B must have at least one child-tier alias
+            _child_als_395c = [a for a in (_frag_395c.aliases or []) if _alias_tier_395(a) == "child"]
+            if not _child_als_395c:
+                continue
+            # Map B's name to a canonical first name via STANDARD_DIMINUTIVES
+            _b_lower_395c = _frag_395c.canonical_name.lower()
+            _b_formal_395c = STANDARD_DIMINUTIVES.get(_b_lower_395c) or _b_lower_395c
+            # Find exactly one multi-word character A where A's first word == B's formal name
+            _candidates_395c = [
+                c for c in main_cast
+                if c.id != _frag_395c.id
+                and " " in c.canonical_name
+                and "(" not in c.canonical_name  # skip already-split characters
+                and c.canonical_name.lower().split()[0] == _b_formal_395c
+                and (getattr(c, "mention_count", 0) or 0) >= max(_frag_count_395c * 10, 10)
+            ]
+            if len(_candidates_395c) != 1:
+                continue
+            _parent_cand_395c = _candidates_395c[0]
+            # Skip if STEP 3.95/3.95b already split this character
+            if any(c.id == f"{_parent_cand_395c.id}_parent" for c in main_cast):
+                continue
+            logger.info(
+                f"V2 Step 3.95c: Fragment '{_frag_395c.canonical_name}' "
+                f"(child-tier aliases={_child_als_395c}, {_frag_count_395c} mentions) "
+                f"signals '{_parent_cand_395c.canonical_name}' is a merged parent+child; splitting"
+            )
+            from ..models import ConfidenceLevel as _CL395c
+            _parent_canonical_395c = f"{_parent_cand_395c.canonical_name} (the father)"
+            _parent_char_395c = Character(
+                id=f"{_parent_cand_395c.id}_parent",
+                canonical_name=_parent_canonical_395c,
+                role="supporting",
+                mention_count=2,
+                confidence=_CL395c.MEDIUM,
+                aliases=[],  # No aliases — avoids mention count overlap with the child character
+            )
+            main_cast.append(_parent_char_395c)
+            # Original character keeps its id and name (represents the child/son)
+            _parent_cand_395c.mention_count = max(1, (_parent_cand_395c.mention_count or 1) - 2)
+
         # STEP 3.97: Merge low-mention nickname phantoms into their formal-name counterparts.
         # Universal invariant: a single-word main cast character that is a known nickname
         # (via NICKNAME_TO_FORMAL) for the first name of a multi-word main cast character,

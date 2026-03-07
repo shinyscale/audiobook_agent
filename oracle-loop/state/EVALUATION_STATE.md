@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -160,6 +160,7 @@ The nested narration structure (Uncle Bill telling John's story about encounteri
 ## Fix History
 - Attempt 11-20: See previous entries
 - Attempt 21: Re-analysis with new config (commit 90b62a5). Narrator and alias absorption improved. Father/son split still not firing. Summary hallucinations persist.
+- Attempt 22: STEP 3.95c added (deterministic sibling-name split). HTML BOM/title fix.
 
 ## Modification History
 
@@ -182,8 +183,12 @@ The nested narration structure (Uncle Bill telling John's story about encounteri
 | 19 | STEP 3.95b Pattern D / narrator survival | `characters.py`, `generator.py` | Fixed |
 | 20 | Cross-alias decontamination / parenthetical rel labels | `characters.py`, `post_corrections.py` | UNTESTABLE |
 | 21 | Re-analysis with new config (90b62a5) | No code changes | Narrator ✓, alias ✓, split ✗ |
+| 22 | STEP 3.95c: kinship-fragment sibling-name split | `characters.py` | Pending |
+| 22 | HTML title BOM + author-as-title fix | `txt.py`, `base.py` | Pending |
 
 **Pattern: STEP 3.95/3.95b fires ~50% of the time due to LLM non-determinism in summary wording. This is the core instability. 21 attempts and the split has fired in attempts 8, 9, 12, 14, 19 — and failed in 10, 11, 13, 15, 16, 17, 18, 20, 21.**
+
+**Attempt 22 fix approach:** STEP 3.95c uses STRUCTURAL signal (low-mention fragment with child-tier alias + STANDARD_DIMINUTIVES name match) instead of LLM summary text. This is DETERMINISTIC — fires whenever "Johnny" (child-tier alias) + STANDARD_DIMINUTIVES["johnny"]="john" matches "John Donaldson" first word. No summary wording dependency.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
