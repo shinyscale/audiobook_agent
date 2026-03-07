@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -121,6 +121,10 @@
   1. **Direction-aware _OUTGOING_AGGRESSOR_LABELS + _INCOMING_AGGRESSOR_LABELS** (`src/analyzer.py:2184-2223`) — Code is correct in principle, but threshold `_own_adv == 0` is too strict. All 4 humans have exactly 1 "victim" match from mercy killing relationships, so _own_adv=1 and correction doesn't fire.
   2. **New regression**: Ted replaced by "the ice caverns" — model-dependent output variation, not caused by code change
 
+- Attempt 8: Two robustness fixes
+  1. **STEP 4.25b: narrator vocative check expansion** (`src/agents/characters.py:829-874`) — Added `else` branch that fires when narrator name has 0 vocative (direct-address) occurrences but a vocative candidate exists with fewer total text mentions. Catches "the ice caverns" as wrong narrator since it never appears in ", Name!" patterns. Smoke test: PASS.
+  2. **False-antagonist threshold raised** (`src/analyzer.py:2218`) — Changed `_own_adv == 0` to `_own_adv <= 1`. Characters with only 1 outgoing "victim" label (mercy kills) are now correctly corrected to protagonist. AM with 5+ victim labels is unaffected. Smoke test: PASS.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -143,11 +147,11 @@
 | 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | **No change** — depends on correct roles |
 | 7 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (direction-aware labels) | **No change** — threshold too strict (_own_adv==0 vs ==1 from mercy kills) |
 | 7 | Ted missing / "the ice caverns" narrator | NEW REGRESSION | Model output variation — Ted not extracted |
+| 8 | Ted missing / wrong narrator | characters.py (STEP 4.25b vocative expansion) | TBD |
+| 8 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (threshold <=1) | TBD |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Ted missing — ensure character extraction finds Ted from dialogue references even when summarizer uses "unnamed narrator"
-2. CRITICAL #2: Raise false-antagonist threshold from `_own_adv == 0` to `_own_adv <= 1` so single mercy-kill labels don't block correction
+Re-run analysis to verify fixes from attempt 8.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html

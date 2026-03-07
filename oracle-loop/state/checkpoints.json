@@ -96,6 +96,18 @@
         "pronunciation": 8.5,
         "presentation": 8.5
       }
+    },
+    "i_have_no_mouth": {
+      "commit": "8b7252140faa0f62efbd785bfa3c0c19c8304644",
+      "score": 8.4,
+      "category_scores": {
+        "structure": 9,
+        "characters": 10,
+        "profiles": 6,
+        "summaries": 8,
+        "pronunciation": 9,
+        "presentation": 9
+      }
     }
   }
 }

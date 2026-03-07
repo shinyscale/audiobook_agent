@@ -2215,11 +2215,11 @@ class AudiobookAnalyzer:
                     if _k.lower() == _rchar_name_lower and isinstance(_v, str)
                     and any(adv in _v.lower() for adv in _INCOMING_AGGRESSOR_LABELS)
                 )
-                if _own_adv == 0 and _in_adv == 0:
+                if _own_adv <= 1 and _in_adv == 0:
                     _rchar.role = "protagonist"
                     logger.info(
                         f"Role corrected: '{_rchar.canonical_name}' antagonist→protagonist "
-                        f"(no direction-aware adversarial evidence: outgoing={_own_adv}, incoming={_in_adv})"
+                        f"(insufficient direction-aware adversarial evidence: outgoing={_own_adv}, incoming={_in_adv})"
                     )
 
             # Relationship consistency enforcement: if a confirmed antagonist has outgoing

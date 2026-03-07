@@ -826,6 +826,52 @@ class CharacterAgent(Agent):
                                 narrator_character_id=None,
                                 confidence=0.75,
                             )
+                else:
+                    # STEP 4.25b: also correct when the narrator name never appears in any
+                    # vocative (direct-address) pattern, but another name does with fewer
+                    # total text mentions. Universal invariant: in a first-person story the
+                    # actual narrator IS occasionally addressed by name; if the assigned
+                    # narrator name never appears in direct-address context (", Name!" /
+                    # ", Name,") but a vocative candidate does and has fewer total mentions,
+                    # the assignment is wrong. Safeguard: narrator_voc_count == 0 prevents
+                    # false corrections when the narrator IS addressed but less than others.
+                    vocative_name_425 = self._find_narrator_name_from_vocative(context.text)
+                    if (
+                        vocative_name_425
+                        and vocative_name_425.lower() != narrator_char_425.canonical_name.lower()
+                    ):
+                        _narrator_voc_count = len(
+                            _re45.findall(
+                                rf"[,!]\s+{_re45.escape(narrator_char_425.canonical_name)}"
+                                rf"(?:\s+[A-Z][a-zA-Z]{{2,}})?\s*[!?,]",
+                                context.text,
+                                _re45.IGNORECASE,
+                            )
+                        )
+                        if _narrator_voc_count == 0:
+                            voc_count_425 = len(
+                                _re45.findall(
+                                    rf"(?<![A-Za-z0-9]){_re45.escape(vocative_name_425)}(?![A-Za-z0-9])",
+                                    context.text,
+                                    _re45.IGNORECASE,
+                                )
+                            )
+                            if voc_count_425 < narrator_count_425:
+                                logger.info(
+                                    f"V2 Step 4.25b: Narrator correction — "
+                                    f"'{narrator_char_425.canonical_name}' never directly addressed "
+                                    f"(0 vocative occurrences); vocative pattern suggests "
+                                    f"'{vocative_name_425}' ({voc_count_425} mentions < "
+                                    f"{narrator_count_425}). Resetting narrator assignment."
+                                )
+                                narrator_char_425.is_narrator = False
+                                narrator_char_425.narrative_role = None
+                                narrator_info = NarratorInfo(
+                                    pov="first-person",
+                                    narrator_name=vocative_name_425,
+                                    narrator_character_id=None,
+                                    confidence=0.75,
+                                )
         logger.info("V2 Step 4.25 complete: vocative narrator correction check done")
 
         # STEP 4.26: Low-mention narrator guard.
