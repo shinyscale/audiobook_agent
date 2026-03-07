@@ -2538,7 +2538,7 @@ class AudiobookAnalyzer:
                     _nn_final = _nc.canonical_name
                     break
             # Only substitute if we have a real name (not just "the narrator")
-            _nn_pat = re.compile(r'\bthe (?:first-person )?narrator\b', re.IGNORECASE)
+            _nn_pat = re.compile(r'\bthe (?:\S+ )?narrator\b', re.IGNORECASE)
             _do_sub = _nn_final.lower() not in ('the narrator', 'narrator', '')
 
             if _do_sub:
@@ -2578,13 +2578,17 @@ class AudiobookAnalyzer:
                             if _psumm and 'narrator' in _psumm.lower():
                                 _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
                         if hasattr(_char, 'evidence') and _char.evidence:
-                            for _ev in _char.evidence:
-                                if isinstance(_ev, dict) and 'statement' in _ev:
+                            for _i, _ev in enumerate(_char.evidence):
+                                if isinstance(_ev, str) and 'narrator' in _ev.lower():
+                                    _char.evidence[_i] = _nn_pat.sub(_nn_final, _ev)
+                                elif isinstance(_ev, dict) and 'statement' in _ev:
                                     if 'narrator' in _ev['statement'].lower():
                                         _ev['statement'] = _nn_pat.sub(_nn_final, _ev['statement'])
                         if hasattr(_char, 'descriptions') and _char.descriptions:
-                            for _desc in _char.descriptions:
-                                if isinstance(_desc, dict) and 'text' in _desc:
+                            for _i, _desc in enumerate(_char.descriptions):
+                                if isinstance(_desc, str) and 'narrator' in _desc.lower():
+                                    _char.descriptions[_i] = _nn_pat.sub(_nn_final, _desc)
+                                elif isinstance(_desc, dict) and 'text' in _desc:
                                     if 'narrator' in _desc['text'].lower():
                                         _desc['text'] = _nn_pat.sub(_nn_final, _desc['text'])
 

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -191,5 +191,9 @@ If both CRITICAL fixes land, all categories should be >= 8.0 → PASS.
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (Attempt 21 → 22)
+- **Step 6.9 evidence/descriptions plain string fix:** Changed to handle strings directly with index-based replacement; dict case retained as fallback — should fix all 5 evidence entries and descriptions still saying "The narrator"
+- **Step 6.9 regex broadened:** Changed `\bthe (?:first-person )?narrator\b` → `\bthe (?:\S+ )?narrator\b` to catch any single-word modifier (unnamed, first-person, story's, etc.)
+
 ## Next Action
-Run PROMPT_fix.md to fix Step 6.9 evidence/descriptions (handle plain strings) and broaden regex further.
+Re-run analysis to verify both fixes work.
