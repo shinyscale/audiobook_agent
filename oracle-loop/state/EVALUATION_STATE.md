@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -200,5 +200,14 @@ The post-Phase-B false-antagonist correction fixed Ellen and Benny but NOT Nimdo
   - Modified: `src/analyzer.py` (post-Phase-B false-antagonist check)
   - CRITICAL #2 will auto-fix (colleague replacement fires for AM↔Nimdok once Nimdok=protagonist)
 
+## Pipeline Notes (Attempt 12)
+- Analysis completed in 22m 23s
+- 7 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35), + 2 more
+- WARNING: "Detected narrator: AM (first-person)" during summaries phase — potential regression
+- Late-stage narrator finalization: "No definitive narrator identified from plot summary"
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Character Profiles took 10m 37s (bottleneck, 47.5% of total)
+- Fix applied: "fellow victim" guard in post-Phase-B false-antagonist check
+
 ## Next Action
-awaiting_analysis
+awaiting_evaluation
