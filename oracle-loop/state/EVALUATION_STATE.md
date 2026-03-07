@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -145,7 +145,20 @@ Possible causes:
 - Pronunciation: 10 entries, all correct
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 
-## Fix History
+## Fix History (Attempt 17)
+- **Ted narrator fix (CRITICAL):**
+  - Root cause: LLM returns narrator_name="the narrator" (generic) not "Ted"; STEP 4.5b only fires when narrator_name is None, missing generic placeholders; STEP 5.8.5 then re-runs LLM with wrong main_cast
+  - Fix A: Extended STEP 4.5b condition to also fire when narrator_name is a generic placeholder ("the narrator", "narrator", "protagonist", etc.) — vocative search then returns "Ted"
+  - Fix B: Extended STEP 5.8.4b to search supporting_cast for narrator_name (after self-id scan) — finds Ted in supporting_0, promotes to main_cast, sets narrator_character_id before STEP 5.8.5 can run
+  - Fix C: Added STEP 4.24 else branch update — saves self-id name (belt-and-suspenders)
+  - Smoke test: `_find_narrator_name_from_vocative` confirmed returns "Ted" (vocative=3, total=5) from actual text
+- **AM aliases fix (HIGH):**
+  - Root cause: Rule 0.5 in verify_aliases blocks "Allied Mastercomputer" because core noun "mastercomputer" ≠ "am"
+  - Fix: Added acronym expansion exemption to Rule 0.5 — if canonical is ALL-CAPS (2-5 chars) and alias initials match canonical, skip semantic check
+  - Universal: acronym expansions are a well-defined linguistic pattern (AM = Allied Mastercomputer)
+- Modified: src/agents/characters.py (STEP 4.5b, STEP 4.24 else, STEP 5.8.4b), src/pipeline/character_extraction_v2/main_cast.py (Rule 0.5)
+
+## Fix History (Previous)
 - Attempt 2: Benny dedup, vocative narrator, pronunciation fixes
 - Attempt 3: Same-name guard, adversarial role correction, relationship vocab, pronunciation whitelist
 - Attempt 4: STEP 5.8 dedup, victim label, self-relationship filter (none worked)

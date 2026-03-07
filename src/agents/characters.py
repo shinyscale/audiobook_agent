@@ -870,7 +870,16 @@ class CharacterAgent(Agent):
                 else:
                     logger.info(
                         f"V2 Step 4.24: Self-identification '{_self_id_name}' found but "
-                        f"no matching character in main_cast — skipping override"
+                        f"no matching character in main_cast — updating narrator_name for "
+                        f"downstream steps (supporting_cast not yet populated)"
+                    )
+                    # Update narrator_name so STEP 5.8.4b can find the character in
+                    # supporting_cast once it is populated (STEP 5 runs later).
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov if narrator_info.pov not in ("unknown", "") else "first-person",
+                        narrator_name=_self_id_name,
+                        narrator_character_id=narrator_info.narrator_character_id,
+                        confidence=max(narrator_info.confidence, 0.9),
                     )
         logger.info("V2 Step 4.24 complete: self-identification scan done")
 
@@ -1119,10 +1128,19 @@ class CharacterAgent(Agent):
         # mentions (they write "I"), so the name with the FEWEST total mentions among vocative
         # candidates is the narrator. Setting narrator_name here allows STEP 5.8.5b to
         # find the narrator in supporting_cast and promote them.
+        # Also fires when narrator_name is a generic placeholder (e.g., "the narrator") — these
+        # are never real character names, so the vocative search should always be tried.
+        _generic_narrator_45b = {
+            "the narrator", "narrator", "the protagonist", "protagonist",
+            "the main character", "main character", "unknown", "the unknown",
+        }
         if (
             narrator_info.pov == "first-person"
             and narrator_info.narrator_character_id is None
-            and narrator_info.narrator_name is None
+            and (
+                narrator_info.narrator_name is None
+                or narrator_info.narrator_name.lower() in _generic_narrator_45b
+            )
         ):
             _voc_name_45b = self._find_narrator_name_from_vocative(context.text)
             if _voc_name_45b:
@@ -1801,6 +1819,135 @@ class CharacterAgent(Agent):
                     f"V2 Step 5.8.4: Resolved narrator '{narrator_info.narrator_name}' "
                     f"to character ID '{_resolved_584.id}' — skipping LLM re-detection"
                 )
+
+        # STEP 5.8.4b: Self-identification scan with full cast (supporting_cast now populated).
+        # STEP 4.24 could not search supporting_cast because it runs before STEP 5. Now that
+        # supporting_cast is fully populated, re-scan the raw text for explicit first-person
+        # self-identification ("I am Name", "I'm Name", "my name is Name") and search
+        # both main_cast and supporting_cast. This is the strongest possible narrator evidence
+        # and must run BEFORE LLM re-detection (STEP 5.8.5) to prevent a wrong LLM assignment.
+        import re as _re584b
+        if (
+            narrator_info.narrator_character_id is None
+            and narrator_info.pov in ("first-person", "epistolary")
+            and context.text
+        ):
+            _self_id_pats_584b = [
+                r"\bI\s+am\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"\bI'm\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"\bmy\s+name\s+is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+            ]
+            _found_name_584b: Optional[str] = None
+            for _pat_584b in _self_id_pats_584b:
+                _m_584b = _re584b.search(_pat_584b, context.text)
+                if _m_584b:
+                    _found_name_584b = _m_584b.group(1)
+                    break
+            if _found_name_584b:
+                _low_584b = _found_name_584b.lower()
+                # Search main_cast first, then supporting_cast
+                _cast_match_584b = next(
+                    (c for c in main_cast
+                     if c.canonical_name.lower() == _low_584b
+                     or _low_584b in c.canonical_name.lower()
+                     or any(_low_584b == a.lower() for a in (c.aliases or []))),
+                    None,
+                )
+                _from_supporting_584b = False
+                if _cast_match_584b is None and supporting_cast:
+                    _cast_match_584b = next(
+                        (c for c in supporting_cast
+                         if c.canonical_name.lower() == _low_584b
+                         or _low_584b in c.canonical_name.lower()
+                         or any(_low_584b == a.lower() for a in (c.aliases or []))),
+                        None,
+                    )
+                    _from_supporting_584b = _cast_match_584b is not None
+                if _cast_match_584b is not None:
+                    if _from_supporting_584b:
+                        supporting_cast.remove(_cast_match_584b)
+                        main_cast.append(_cast_match_584b)
+                        logger.info(
+                            f"V2 Step 5.8.4b: Self-identification '{_found_name_584b}' found "
+                            f"in text; promoted '{_cast_match_584b.canonical_name}' from "
+                            f"supporting cast to main cast"
+                        )
+                    # Clear any old narrator flags
+                    for _c584b in main_cast:
+                        if _c584b.id != _cast_match_584b.id and _c584b.is_narrator:
+                            _c584b.is_narrator = False
+                            _c584b.narrative_role = None
+                    narrator_info = NarratorInfo(
+                        pov="first-person",
+                        narrator_character_id=_cast_match_584b.id,
+                        narrator_name=_cast_match_584b.canonical_name,
+                        confidence=0.95,
+                    )
+                    main_cast = narrator_detector.update_characters_with_narrator(
+                        main_cast, narrator_info
+                    )
+                    logger.info(
+                        f"V2 Step 5.8.4b: Narrator confirmed as '{_cast_match_584b.canonical_name}' "
+                        f"via self-identification in raw text — skipping LLM re-detection"
+                    )
+                else:
+                    logger.info(
+                        f"V2 Step 5.8.4b: Self-identification '{_found_name_584b}' found in text "
+                        f"but no matching character in either cast — proceeding to narrator_name lookup"
+                    )
+            # Even if no self-id match in text, check if narrator_name (set by STEP 4.5b)
+            # matches a supporting_cast character. This handles the common case where the
+            # narrator is identified by vocative patterns ("Please, Ted") but is only in
+            # the supporting cast (not extracted as main cast by the LLM).
+            if narrator_info.narrator_character_id is None and narrator_info.narrator_name:
+                _nname_584b = narrator_info.narrator_name.lower()
+                _generic_584b = {
+                    "the narrator", "narrator", "the protagonist", "protagonist",
+                    "main character", "the main character", "unknown",
+                }
+                if _nname_584b not in _generic_584b:
+                    # Check main_cast first
+                    _name_match_584b = next(
+                        (c for c in main_cast
+                         if c.canonical_name.lower() == _nname_584b
+                         or _nname_584b in c.canonical_name.lower()
+                         or any(_nname_584b == a.lower() for a in (c.aliases or []))),
+                        None,
+                    )
+                    if _name_match_584b is None and supporting_cast:
+                        _name_match_584b = next(
+                            (c for c in supporting_cast
+                             if c.canonical_name.lower() == _nname_584b
+                             or _nname_584b in c.canonical_name.lower()
+                             or any(_nname_584b == a.lower() for a in (c.aliases or []))),
+                            None,
+                        )
+                        if _name_match_584b is not None:
+                            supporting_cast.remove(_name_match_584b)
+                            main_cast.append(_name_match_584b)
+                            logger.info(
+                                f"V2 Step 5.8.4b: Narrator '{narrator_info.narrator_name}' "
+                                f"found in supporting cast; promoting "
+                                f"'{_name_match_584b.canonical_name}' to main cast"
+                            )
+                    if _name_match_584b is not None:
+                        for _c584b2 in main_cast:
+                            if _c584b2.id != _name_match_584b.id and _c584b2.is_narrator:
+                                _c584b2.is_narrator = False
+                                _c584b2.narrative_role = None
+                        narrator_info = NarratorInfo(
+                            pov=narrator_info.pov or "first-person",
+                            narrator_character_id=_name_match_584b.id,
+                            narrator_name=_name_match_584b.canonical_name,
+                            confidence=max(narrator_info.confidence, 0.85),
+                        )
+                        main_cast = narrator_detector.update_characters_with_narrator(
+                            main_cast, narrator_info
+                        )
+                        logger.info(
+                            f"V2 Step 5.8.4b: Narrator '{_name_match_584b.canonical_name}' "
+                            f"resolved from narrator_name lookup — skipping LLM re-detection"
+                        )
 
         # STEP 5.8.5: Re-run narrator detection if narrator was not identified in STEP 4
         # This handles the case where main_cast was empty during STEP 4 (LLM extraction failed

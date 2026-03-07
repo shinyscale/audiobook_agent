@@ -1031,13 +1031,34 @@ class MainCastExtractor:
                         alias_noun[:-2] == canonical_noun
                     )
 
-                    if not are_related:
+                    # Acronym expansion exemption: canonical="AM", alias="Allied Mastercomputer"
+                    # If the canonical name is ALL-CAPS (≤5 chars) and the alias initials
+                    # spell the canonical, it is an acronym expansion — skip Rule 0.5.
+                    # Universal linguistic invariant: acronyms expand by definition.
+                    _is_acronym_584 = (
+                        profile.canonical_name.isupper()
+                        and 1 < len(profile.canonical_name) <= 5
+                        and " " not in profile.canonical_name
+                    )
+                    _acronym_match_584 = False
+                    if _is_acronym_584:
+                        _alias_initials_584 = "".join(
+                            w[0].upper() for w in alias.split() if w and w[0].isalpha()
+                        )
+                        _acronym_match_584 = _alias_initials_584 == profile.canonical_name
+
+                    if not are_related and not _acronym_match_584:
                         logger.warning(
                             f"BLOCKED alias: '{alias}' (core noun: '{alias_noun}') is semantically "
                             f"unrelated to symbolic object '{profile.canonical_name}' (core noun: '{canonical_noun}'). "
                             f"Symbolic objects must have aliases referring to the SAME object."
                         )
                         continue
+                    elif _acronym_match_584:
+                        logger.info(
+                            f"ALLOWED alias: '{alias}' is acronym expansion of "
+                            f"'{profile.canonical_name}' — Rule 0.5 skipped"
+                        )
                     else:
                         logger.debug(
                             f"ALLOWED alias: '{alias}' is semantically related to '{profile.canonical_name}' "
