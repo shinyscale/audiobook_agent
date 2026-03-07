@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -135,7 +135,7 @@
 | 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending |
 
 ## Next Action
-Fix `unhashable type: 'Character'` crash in analyzer.py (introduced by attempt 6 consistency enforcement code). Then re-run analysis.
+Re-run analysis to verify attempt 6 fixes (ACTIVE vs PASSIVE adversarial labels + consistency enforcement) work correctly without the crash.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
@@ -150,7 +150,7 @@ Fix `unhashable type: 'Character'` crash in analyzer.py (introduced by attempt 6
 - 16 pronunciation flags — all reasonable
 - Contradictory relationship pairs removed: AM↔Nimdok tormentor, AM↔Benny tormentor
 
-- Attempt 6 FAILED: `Error during analysis: unhashable type: 'Character'`
-  - Crash occurs after profile generation, during post-profile corrections in analyzer.py
-  - Caused by attempt 6 consistency enforcement code using Character objects in a set or dict key context
-  - Fix: find where Character objects are being hashed and use character IDs instead
+- Attempt 6 crash fixed: `unhashable type: 'Character'` in consistency enforcement code
+  - `{c for c in ...}` set comprehensions → `[c for c in ...]` list comprehensions (lines 2223-2224)
+  - `_prot_to_ant[_prot]` dict with Character key → `_prot_label_pairs` list of `(prot, label)` tuples (line 2260)
+  - All 332 tests pass

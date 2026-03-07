@@ -2220,8 +2220,8 @@ class AudiobookAnalyzer:
             # antagonist as "colleague" but other protagonists use an adversarial label for
             # the antagonist, replace "colleague" with the majority label.
             # Universal invariant: consistent power dynamics within a cast.
-            _all_antagonists = {c for c in pipeline_char_map.characters if c.role == "antagonist"}
-            _all_protagonists = {c for c in pipeline_char_map.characters if c.role == "protagonist"}
+            _all_antagonists = [c for c in pipeline_char_map.characters if c.role == "antagonist"]
+            _all_protagonists = [c for c in pipeline_char_map.characters if c.role == "protagonist"]
             for _ant in _all_antagonists:
                 _ant_rels = _ant.relationships or {}
                 # Collect antagonist's outgoing labels to protagonists
@@ -2256,20 +2256,20 @@ class AudiobookAnalyzer:
             # Inverse: protagonist→antagonist "colleague" corrected to majority label.
             for _ant in _all_antagonists:
                 _ant_name_lower = _ant.canonical_name.lower()
-                # Collect all protagonist outgoing labels toward this antagonist
-                _prot_to_ant = {}
+                # Collect all protagonist outgoing labels toward this antagonist as (prot, label) pairs
+                _prot_label_pairs = []
                 for _prot in _all_protagonists:
                     for _k, _v in (_prot.relationships or {}).items():
                         if _k.lower() == _ant_name_lower and isinstance(_v, str):
-                            _prot_to_ant[_prot] = _v
-                if not _prot_to_ant:
+                            _prot_label_pairs.append((_prot, _v))
+                if not _prot_label_pairs:
                     continue
                 _active_prot_labels = [
-                    v for v in _prot_to_ant.values()
+                    v for _, v in _prot_label_pairs
                     if any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
                 ]
                 _colleague_prots = [
-                    p for p, v in _prot_to_ant.items()
+                    p for p, v in _prot_label_pairs
                     if "colleague" in v.lower() and not any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
                 ]
                 if len(_active_prot_labels) >= 2 and _colleague_prots:
