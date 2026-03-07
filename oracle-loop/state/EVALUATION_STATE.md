@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 24
-- **Phase:** awaiting_analysis
+- **Attempt:** 25
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -11,13 +11,13 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 24)
-- "American, sir" comma-filter: WORKED — not in character list (was Fix 1 from attempt 24)
-- Narrator low-mention guard: PARTIALLY worked — blocked Johnny(2) but "the boy"(13) selected instead of Uncle Bill(18)
-- Father/son: STILL MERGED — "John" has 30 mentions combining both
+## Pipeline Notes (Attempt 25)
+- Narrator max fix: PARTIAL — V2 pipeline correctly identified Uncle Bill ✓, but post-V2 step (F5/narrator-from-summaries) re-detected "Johnny (first-person)" and overrode it ✗
+- Final character list: Johnny(2), John (the boy)(103), Uncle Bill(19), Ted Frith(5) — 4 characters
+- Father/son: STILL MERGED — "John (the boy)" has 103 mentions combining both John Donaldsons
 - Joe Barron: still missing
-- Profile cross-contamination: still present ("the boy" has Uncle Bill's physical description)
-- Summary: still confuses Uncle Bill with a dying soldier
+- Uncle Bill appearance injected correctly: "an elderly, grizzled, small man, grim and unexhilarating"
+- Profiles generated for 3 eligible characters
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
