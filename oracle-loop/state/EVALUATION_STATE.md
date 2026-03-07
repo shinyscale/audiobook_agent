@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -162,4 +162,6 @@ The CRITICAL issue is narrator detection robustness. This is the THIRD time narr
 | 9 | Narrator regression | NEW REGRESSION | Ellen detected as narrator instead of Ted — LLM non-determinism |
 
 ## Next Action
-Run PROMPT_fix.md. Priority: Harden narrator detection to be robust against LLM variation. The same class of regression has occurred twice (attempts 7 and 9). The fix must ensure Ted is reliably detected as narrator even when the LLM says otherwise. Secondary: extend colleague replacement to cover role="main" characters.
+Re-run analysis to verify fix. Two fixes applied:
+1. STEP 4.27 (characters.py): Mention-ratio narrator validation — catches when assigned narrator has ≥15 mentions, another character has ≤7 mentions, with ≥3x discrepancy (Ellen=30, Ted=5 → ratio=6x → Ted correctly reassigned as narrator).
+2. Expanded _all_protagonists (analyzer.py:2234): Now includes role="main" characters so AM↔Ted colleague labels are corrected alongside other antagonist↔protagonist pairs.

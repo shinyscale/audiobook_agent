@@ -2231,7 +2231,13 @@ class AudiobookAnalyzer:
             # the antagonist, replace "colleague" with the majority label.
             # Universal invariant: consistent power dynamics within a cast.
             _all_antagonists = [c for c in pipeline_char_map.characters if c.role == "antagonist"]
-            _all_protagonists = [c for c in pipeline_char_map.characters if c.role == "protagonist"]
+            # Include both "protagonist" and "main" roles — main-cast characters are
+            # significant story participants and should have consistent adversarial labels
+            # relative to antagonists, regardless of the exact role label.
+            _all_protagonists = [
+                c for c in pipeline_char_map.characters
+                if c.role in ("protagonist", "main")
+            ]
             for _ant in _all_antagonists:
                 _ant_rels = _ant.relationships or {}
                 # Collect antagonist's outgoing labels to protagonists

@@ -911,6 +911,60 @@ class CharacterAgent(Agent):
                     )
         logger.info("V2 Step 4.26 complete: low-mention narrator guard done")
 
+        # STEP 4.27: Mention-ratio narrator validation.
+        # Universal invariant: in first-person narration the narrator refers to themselves
+        # as "I", so their proper name appears rarely relative to other named characters.
+        # If the assigned narrator has ≥15 name-mentions and another main-cast character
+        # has ≤7 mentions with a ≥3x discrepancy, the low-mention character is more likely
+        # the actual narrator. This catches LLM non-determinism where a high-mention
+        # character is wrongly assigned as narrator despite the classic low-mention pattern.
+        import re as _re427
+        if (
+            narrator_info.pov == "first-person"
+            and narrator_info.narrator_character_id is not None
+        ):
+            _narrator_char_427 = next(
+                (c for c in main_cast if c.id == narrator_info.narrator_character_id), None
+            )
+            if _narrator_char_427 is not None:
+                _narrator_count_427 = getattr(_narrator_char_427, "mention_count", 0) or 0
+                _other_427 = [
+                    (c, getattr(c, "mention_count", 0) or 0)
+                    for c in main_cast
+                    if c.id != _narrator_char_427.id
+                ]
+                if _other_427:
+                    _min_char_427, _min_count_427 = min(_other_427, key=lambda x: x[1])
+                    if (
+                        _narrator_count_427 >= 15
+                        and 0 < _min_count_427 <= 7
+                        and _narrator_count_427 >= 3 * _min_count_427
+                    ):
+                        _min_raw_count_427 = len(
+                            _re427.findall(
+                                rf"(?<![A-Za-z0-9]){_re427.escape(_min_char_427.canonical_name)}(?![A-Za-z0-9])",
+                                context.text,
+                                _re427.IGNORECASE,
+                            )
+                        )
+                        if _min_raw_count_427 > 0:
+                            logger.info(
+                                f"V2 Step 4.27: Mention-ratio narrator correction — "
+                                f"'{_narrator_char_427.canonical_name}' ({_narrator_count_427} mentions) "
+                                f"has ≥3x mentions of '{_min_char_427.canonical_name}' ({_min_count_427}); "
+                                f"low-mention character likely the actual narrator. Reassigning."
+                            )
+                            _narrator_char_427.is_narrator = False
+                            _narrator_char_427.narrative_role = None
+                            _min_char_427.is_narrator = True
+                            narrator_info = NarratorInfo(
+                                pov="first-person",
+                                narrator_name=_min_char_427.canonical_name,
+                                narrator_character_id=_min_char_427.id,
+                                confidence=0.7,
+                            )
+        logger.info("V2 Step 4.27 complete: mention-ratio narrator validation done")
+
         # STEP 4.5: Resolve narrator name from raw text vocative patterns
         # For first-person narratives where the narrator is a placeholder ("the narrator"),
         # the LLM may generate summaries that never name the narrator explicitly. Search
