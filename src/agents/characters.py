@@ -1012,7 +1012,7 @@ class CharacterAgent(Agent):
                     (getattr(c, "mention_count", 0) or 0 for c in main_cast if c.id != _narrator_char_426.id),
                     default=0,
                 )
-                if 0 < _narrator_count_426 <= 2 and _max_other_426 >= _narrator_count_426 * 5:
+                if 0 < _narrator_count_426 <= 5 and _max_other_426 >= _narrator_count_426 * 5:
                     logger.warning(
                         f"V2 Step 4.26: Narrator '{_narrator_char_426.canonical_name}' "
                         f"has only {_narrator_count_426} mention(s) but another character "
@@ -2266,6 +2266,80 @@ class CharacterAgent(Agent):
                         char.first_appearance_chapter = chapter_indices[0]
             except Exception as e:
                 logger.warning(f"Supporting cast mention search failed: {e}")
+
+        # STEP 5.11: Final promotion pass — re-check supporting cast after alias-aware mention search.
+        # STEP 5.7.5 ran before aliases were added to many supporting characters, so their mention
+        # counts were based on the bare canonical name only. After STEP 5.10.5, mention counts
+        # reflect all aliases. Any supporting character now crossing the protagonist threshold
+        # (200+ mentions) should be promoted to main cast — they are clearly central characters
+        # that were missed by the main cast LLM extraction but found by NER + alias resolution.
+        # Universal invariant: a character with protagonist-level mentions is ALWAYS a protagonist.
+        import re as _re511
+
+        def _count_name_511(name: str, text: str) -> int:
+            return len(_re511.findall(
+                rf"(?<![A-Za-z0-9]){_re511.escape(name)}(?![A-Za-z0-9])",
+                text, _re511.IGNORECASE
+            ))
+
+        main_cast_names_511 = {c.canonical_name.lower() for c in main_cast}
+        # Also track aliases so we don't re-add something already represented in main cast
+        for c in main_cast:
+            for a in (c.aliases or []):
+                main_cast_names_511.add(a.lower())
+
+        late_promoted = []
+        still_supporting = []
+        for char in supporting_cast:
+            if (char.mention_count >= effective_protagonist
+                    and char.canonical_name.lower() not in main_cast_names_511):
+                # Universal invariant: prefer the name the character is most commonly called.
+                # If the canonical has very few text mentions but an alias has many more,
+                # rename to the most common alias (prefer multi-word fullest name).
+                if context.text:
+                    canonical_count_511 = _count_name_511(char.canonical_name, context.text)
+                    if canonical_count_511 < 10 and char.aliases:
+                        best_alias_511 = None
+                        best_count_511 = 0
+                        for alias in (char.aliases or []):
+                            ac = _count_name_511(alias, context.text)
+                            if ac > canonical_count_511 * 1.5:
+                                if best_alias_511 is None:
+                                    best_alias_511 = alias
+                                    best_count_511 = ac
+                                elif len(alias.split()) > 1 and len(best_alias_511.split()) == 1:
+                                    # Prefer multi-word (fuller) name over single-word
+                                    best_alias_511 = alias
+                                    best_count_511 = ac
+                                elif (len(alias.split()) == len(best_alias_511.split())
+                                      and ac > best_count_511):
+                                    best_alias_511 = alias
+                                    best_count_511 = ac
+                        if best_alias_511:
+                            old_canonical = char.canonical_name
+                            char.aliases = [a for a in char.aliases if a != best_alias_511]
+                            if old_canonical not in char.aliases:
+                                char.aliases.append(old_canonical)
+                            char.canonical_name = best_alias_511
+                            logger.info(
+                                f"V2 Step 5.11: Renamed '{old_canonical}' → '{best_alias_511}' "
+                                f"({best_count_511} mentions vs {canonical_count_511} for canonical)"
+                            )
+
+                char.role = "protagonist"
+                late_promoted.append(char)
+                main_cast_names_511.add(char.canonical_name.lower())
+                logger.info(
+                    f"V2 Step 5.11: Late-promoting '{char.canonical_name}' to main cast "
+                    f"({char.mention_count} mentions, role set to protagonist)"
+                )
+            else:
+                still_supporting.append(char)
+
+        if late_promoted:
+            main_cast.extend(late_promoted)
+            supporting_cast = still_supporting
+            logger.info(f"V2 Step 5.11: Late-promoted {len(late_promoted)} character(s) to main cast")
 
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(

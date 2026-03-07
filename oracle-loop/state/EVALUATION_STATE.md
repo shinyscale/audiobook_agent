@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -131,13 +131,33 @@
     - Fitzgerald spelled it "Vladimir Tostoff" — the extraction dropped the 'i'. Very minor.
 
 ## Fix History
-(First attempt — no prior fixes)
+
+### Attempt 2 fixes
+
+**Fix A: False narrator — STEP 4.26 threshold raised**
+- Root cause: `characters.py:run():~1015` STEP 4.26 only reset narrator if `mention_count <= 2`. Doctor T. J. Eckleburg has 5 mentions — too many for the old guard, too few to be a real narrator.
+- Fix: Changed threshold from `<= 2` to `<= 5` (with existing `* 5` ratio guard).
+- After reset: STEP 4.5b finds vocative candidate "Nick" → STEP 5.8.4 assigns Nick Carraway as narrator.
+- Smoke test: Logic trace confirms Eckleburg (5 mentions) now triggers reset; Montresor in Cask (3 mentions, Fortunato=14) does NOT (14 < 15=3*5).
+
+**Fix B: Gatsby cast tier — STEP 5.11 final promotion pass added**
+- Root cause: STEP 5.7.5 (pre-promotion mention search) ran before "Jay Gatsby"/"Gatsby" aliases were added to the "James Gatz" supporting character. At STEP 5.8 time, James Gatz had only 4 NER-based mentions (< 50 threshold) and was not promoted. Aliases were added afterward (by some later step), giving 268 total mentions at STEP 5.10.5, but too late for promotion.
+- Fix: Added STEP 5.11 after STEP 5.10.5 — re-checks all supporting characters after alias-aware mention counts are updated. Any character with >= protagonist threshold (200 mentions) is promoted to main cast.
+- Also: canonical name rename — if canonical has < 10 text mentions but a multi-word alias has 1.5x+ more mentions, use that alias as canonical (e.g., "James Gatz" → "Jay Gatsby" since "Jay Gatsby" has 8 mentions vs 4 for "James Gatz").
+- Smoke test: 268 mentions >> 200 threshold; "Jay Gatsby" multi-word alias would be selected as canonical.
+
+**Fix C: Relationship label catastrophe — verify_relationships_from_text guard added**
+- Root cause: `post_corrections.py:verify_relationships_from_text():~1877` allowed co-mention window family terms (like "his wife", "her husband") to override ANY existing relationship label, including specific non-family ones like "friend" or "rival". In Gatsby, "husband" appears near almost every character co-mention (Tom = Daisy's husband, George = Myrtle's husband), causing all relationships to be overridden to "husband".
+- Fix: Changed `if is_best_family or cur_lower in _generic_labels:` to `if cur_lower in _generic_labels or (is_best_family and is_family):` — only override when (a) current label is generic placeholder, OR (b) both current AND found terms are family (within-family correction like "brother" → "cousin").
+- Smoke test: Test `test_text_overrides_llm_relationship` still passes (brother→cousin within-family); "friend" → "husband" would no longer override.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | False narrator (Eckleburg) | `src/agents/characters.py` (STEP 4.26 threshold) | Pending re-run |
+| 2 | Gatsby wrong cast tier + canonical name | `src/agents/characters.py` (STEP 5.11 new) | Pending re-run |
+| 2 | Relationship labels all "husband"/"colleague" | `src/pipeline/character_profiling/post_corrections.py` | Pending re-run |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -147,9 +167,8 @@
 - No chunking issues apparent from profiling data
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: False narrator (Eckleburg → Nick Carraway)
-2. CRITICAL #2: Gatsby canonical name and cast tier
-3. CRITICAL #3: Relationship label catastrophe in profiles
-4. CRITICAL #4: Wolfsheim/Wolfshiem duplicate merge
-Focus on these 4 issues first — they account for >90% of the score deficit.
+Re-run analysis on gatsby (attempt 2). Fixes applied:
+- CRITICAL #1: False narrator → STEP 4.26 threshold raised (≤2→≤5)
+- CRITICAL #2: Gatsby cast tier + canonical name → STEP 5.11 added
+- CRITICAL #3: Relationship label catastrophe → verify_relationships_from_text guard fixed
+CRITICAL #4 (Wolfsheim duplicate) deferred to attempt 3 if needed.

@@ -1874,7 +1874,14 @@ class OutputCharacterCorrector:
                     best = max(found, key=found.get)
                     is_best_family = any(t in best for t in family_set)
                     if best not in cur_lower:
-                        if is_best_family or cur_lower in _generic_labels:
+                        # Universal invariant: co-mention windows frequently contain family terms
+                        # ("his wife", "her husband") that describe a THIRD character's relationship,
+                        # not the pair being analyzed. Allow overrides when:
+                        #   (a) current label is generic (upgrade placeholder to specific), OR
+                        #   (b) both current AND best are family terms (correct within-family: brother → cousin)
+                        # NEVER use a family term from context to override a specific non-family label
+                        # (e.g., "friend" → "husband") — those co-mention family terms refer to others.
+                        if cur_lower in _generic_labels or (is_best_family and is_family):
                             # Universal invariant: never override a parent/child label with a
                             # spousal label based on co-mention window evidence. A "his wife"
                             # phrase in a parent-child co-mention window refers to the parent's
