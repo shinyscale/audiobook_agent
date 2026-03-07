@@ -173,6 +173,7 @@ class Character:
     voice_guidance: Optional[dict] = (
         None  # {suggested_tone, dialect_notes, verbal_tics, formality_level}
     )
+    relationships: dict = field(default_factory=dict)  # target_name -> relationship label
 
     def to_dict(self) -> dict:
         return {
@@ -196,6 +197,7 @@ class Character:
             "appearance": self.appearance,
             "personality": self.personality,
             "voice_guidance": self.voice_guidance,
+            "relationships": self.relationships,
         }
 
     @classmethod
@@ -227,6 +229,7 @@ class Character:
             appearance=data.get("appearance"),
             personality=data.get("personality"),
             voice_guidance=data.get("voice_guidance"),
+            relationships=data.get("relationships", {}),
         )
 
 

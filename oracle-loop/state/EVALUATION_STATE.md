@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -200,14 +200,14 @@
   - Root cause: "early narrator detection" step in analyzer.py (line ~1865) overwrote `narrator_detected="Ted"` (set by V2 pipeline) with LLM re-detection result "Ellen" (from summaries generated without narrator info). Fixed: only overwrite narrator_detected if V2 didn't already find one.
   - Modified: `src/analyzer.py` (line ~1865)
 - **Pipeline crash fix (attempt 18b):**
-  - Root cause: `_ADVERSARIAL_LABELS` was referenced at analyzer.py:2198 but the Gorrister fix renamed it. The incoming-adversarial check for the protagonist→antagonist loop referenced the old name.
-  - Fix: Defined `_INCOMING_AGGRESSOR_LABELS_EARLY` before the first loop and replaced the undefined `_ADVERSARIAL_LABELS` reference with it.
+  - Root cause: `_ADVERSARIAL_LABELS` was referenced at analyzer.py:2198 but the Gorrister fix renamed it.
+  - Fix: Defined `_INCOMING_AGGRESSOR_LABELS_EARLY` before the first loop.
   - Modified: `src/analyzer.py` (lines ~2165-2202)
-- Smoke test: 332 tests passed
-- **Pipeline crash (attempt 18c — analysis run):**
-  - Error: `'Character' object has no attribute 'relationships'` — occurs during profile generation
-  - Also: "the ice caverns" still being extracted (regression); narrator still "the narrator" not "Ted"
-  - Phase set to awaiting_fix
+- **Pipeline crash fix (attempt 18c — `relationships` AttributeError):**
+  - Root cause: `Character` dataclass in `src/pipeline/character_extraction/models.py` had no `relationships` field. Profile generation sets it dynamically on eligible chars only. Post-profile role correction code iterates ALL chars and accesses `.relationships` → AttributeError on chars that skipped profiling.
+  - Fix: Added `relationships: dict = field(default_factory=dict)` to the dataclass; updated `to_dict`/`from_dict`.
+  - Smoke test: 332 tests passed
+  - Modified: `src/pipeline/character_extraction/models.py`
 
 ## Next Action
-Fix pipeline crash: `'Character' object has no attribute 'relationships'` — occurs during profile generation step.
+Re-run analysis to verify all attempt 18 fixes work together (Ted protagonist, Gorrister not antagonist, narrator preserved, no crash).
