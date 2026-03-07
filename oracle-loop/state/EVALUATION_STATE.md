@@ -2,14 +2,24 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 21
-- **Phase:** awaiting_analysis
+- **Attempt:** 22
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Attempt 22 Pipeline Notes
+- Duration: 18m 2s
+- Characters detected: Uncle Bill (18), John (Uncle Bill's son) (38), American, sir (12), Johnny (2), Ted Frith (5)
+- Father/son still merged into "John (Uncle Bill's son)" (38 mentions)
+- "American, sir" appears as SEPARATE character (12 mentions, alias "sir") — REGRESSION from attempt 21 where it was absorbed as alias of John Donaldson
+- Narrator: initially detected as "American, sir", secondary candidate Uncle Bill rejected (18 mentions > 2 for primary), final narrator detection failed from plot summary
+- Wrong appearance injection: "American, sir" got Uncle Bill's physical description ("elderly, grizzled, small man")
+- Margaret Donaldson added via F6b ✓
+- LLM proposed "John Jr." character but it was blocked by alias rules
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
