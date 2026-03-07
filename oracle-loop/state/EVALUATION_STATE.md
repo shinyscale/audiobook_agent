@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 20
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -13,77 +13,95 @@
   - Completeness: 10/10
   - Identity Resolution: 10/10
   - Alias Grouping: 7/10
-- Character Profiles: 6/10 ✗ (FAILING)
-- Chapter Summaries: 6.5/10 ✗ (FAILING)
+- Character Profiles: 7.5/10 ✗ (FAILING)
+- Chapter Summaries: 7.5/10 ✗ (FAILING)
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 8/10 ✓
-- **Overall: 7.78/10** (reference only)
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 8.30/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
 
-## What Changed (Attempt 18 → 19)
-- Step 6.9 added for narrator name substitution — but **did NOT fire** due to two bugs:
-  1. `_nn_final = narrator_detected` but `narrator_detected = "the narrator"` → replaces "the narrator" with "the narrator" (no-op)
-  2. Plot summary check `isinstance(_ps_obj, dict)` but `overview.get('plot_summary')` returns a **string**, not a dict → condition never true
-- Net result: **no improvement** from attempt 18 on the failing categories
+## What Changed (Attempt 19 → 20)
+- **narrator_character_id** now set correctly to `main_cast_1` (Ted) — CRITICAL #2 from last eval is FIXED
+- **personality.summary** for Ted now uses "Ted" not "The narrator" — Bug A fix WORKED for this field
+- **active_characters/characters_present** now includes Ted — chapter character tags show Ted ✓
+- **Plot summary** still uses "The narrator" (3 instances) — Bug B NOT fully fixed (nested dict)
+- **Chapter summary** still opens with "the first-person narrator" — regex doesn't match this pattern
+- **Evidence statements** for Ted still say "The narrator" — Step 6.9 doesn't cover evidence/descriptions fields
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Step 6.9 narrator substitution has two bugs — neither substitution fires** [Summaries + Profiles]
-   - **Bug A:** Line 2533: `_nn_final = narrator_detected` but `narrator_detected = "the narrator"`. The code replaces "the narrator" with "the narrator" — a no-op. Should instead find the character with `is_narrator=True` and use their `canonical_name` ("Ted").
-   - **Bug B:** Line 2551: `isinstance(_ps_obj, dict)` but `overview.get('plot_summary')` is a **string** (the plot summary text itself), not a nested dict. The condition is never true so plot summary is never substituted.
-   - Location: `src/analyzer.py` lines 2532-2561
-   - Fix Bug A: Replace `_nn_final = narrator_detected` with: scan `pipeline_char_map.characters` for `is_narrator=True`, use that character's `canonical_name` as `_nn_final`. If `_nn_final` equals "the narrator" or is empty, skip substitution.
-   - Fix Bug B: Replace lines 2549-2552 with: `if overview and isinstance(overview.get('plot_summary'), str) and 'narrator' in overview['plot_summary'].lower(): overview['plot_summary'] = _nn_pat.sub(_nn_final, overview['plot_summary'])`
+1. **Step 6.9 Bug B still present: plot_summary is a nested dict** [Summaries]
+   - Problem: `overview['plot_summary']` returns a dict `{"plot_summary": "...", "themes": [...], "narrative_style": "..."}`, not a string. Code checks `isinstance(_ps_obj, str)` which is False, so substitution is skipped entirely.
+   - Evidence: 3 instances of "The narrator" remain in plot summary text; `jq '.overview.plot_summary | type'` → "object"
+   - Location: `src/analyzer.py` line 2565-2567
+   - Fix: Change to access the nested string:
+     ```python
+     if isinstance(_ps_obj, dict) and isinstance(_ps_obj.get('plot_summary'), str):
+         if 'narrator' in _ps_obj['plot_summary'].lower():
+             _ps_obj['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj['plot_summary'])
+     elif isinstance(_ps_obj, str) and 'narrator' in _ps_obj.lower():
+         overview['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj)
+     ```
 
-2. **narrator_character_id still None despite Ted having is_narrator=True** [Profiles + Summaries]
-   - Problem: Top-level `narrator_character_id` in analysis.json is `null`. This cascades to: profiler doesn't apply first-person extraction for Ted, no narrator-aware summary generation.
-   - Evidence: `jq '.narrator_character_id'` → `null`; Ted has `is_narrator: true`
-   - Location: `src/analyzer.py` — where AnalysisResult is assembled (after Step 7). Search for `narrator_character_id` assignment.
-   - Fix: After character extraction, scan characters for `is_narrator=True` and set `narrator_character_id` to that character's ID. This is a simple post-extraction fixup that should be added near where the AnalysisResult is constructed.
+2. **Step 6.9 regex too narrow: misses "the first-person narrator"** [Summaries]
+   - Problem: `\bthe narrator\b` doesn't match "the first-person narrator" (there's "first-person " between "the" and "narrator"). Chapter summary opens with "the first-person narrator" which is not substituted.
+   - Location: `src/analyzer.py` line 2541
+   - Fix: Broaden regex to `r'\bthe (?:first-person )?narrator\b'`
 
 ### HIGH
-3. **Ted missing physical_description** [Profiles]
-   - Problem: Ted has `physical_description: None`. The text describes Ted as "the handsome one" / "I was still the handsome one" — the only survivor AM didn't physically transform. This is narratively critical.
-   - Root cause: With `narrator_character_id=None`, the profiler doesn't apply first-person self-description extraction. Ted rarely refers to himself by name (5 mentions), so the profiler has limited evidence.
-   - Fix: Resolves with CRITICAL #2 — once narrator_character_id is set, profiler's first-person attribution activates for Ted.
+3. **Ted's evidence statements still say "The narrator"** [Profiles]
+   - Problem: All 6 evidence entries for Ted say "The narrator is...", "The narrator has...", etc. Step 6.9 only substitutes `personality.summary` (line 2572-2575) but not `evidence[].statement` or `descriptions[].text`.
+   - Evidence: HTML lines 1306-1366 all show "The narrator..." in Ted's relationship evidence
+   - Location: `src/analyzer.py` Step 6.9 block (lines 2570-2575)
+   - Fix: Extend Step 6.9 to also substitute in:
+     - `_char.evidence[].statement` (if evidence is a list of dicts with 'statement' key)
+     - `_char.descriptions[].text` (if descriptions is a list of dicts with 'text' key)
+     ```python
+     # After personality substitution, also fix evidence and descriptions
+     if hasattr(_char, 'evidence') and _char.evidence:
+         for _ev in _char.evidence:
+             if isinstance(_ev, dict) and 'statement' in _ev:
+                 if 'narrator' in _ev['statement'].lower():
+                     _ev['statement'] = _nn_pat.sub(_nn_final, _ev['statement'])
+     if hasattr(_char, 'descriptions') and _char.descriptions:
+         for _desc in _char.descriptions:
+             if isinstance(_desc, dict) and 'text' in _desc:
+                 if 'narrator' in _desc['text'].lower():
+                     _desc['text'] = _nn_pat.sub(_nn_final, _desc['text'])
+     ```
 
-4. **Plot summary treats "the narrator" and "Ted" as two separate people** [Summaries]
-   - Problem: Plot summary says "the narrator recounts the harrowing journey of Ellen, Nimdok, Gorrister, Benny, and Ted" — lists 6 people but there are only 5 survivors. Then "the narrator observes..." and "the narrator, alive to tell this tale" while Ted is transformed. Factually contradictory.
-   - Fix: Resolves with CRITICAL #1 Bug A+B — once "the narrator" is replaced with "Ted" in the plot summary, it reads correctly.
-
-5. **Ted's personality summary and relationship evidence use "the narrator" not "Ted"** [Profiles]
-   - Problem: HTML lines 1237, 1308, 1320, 1332, 1344 all say "The narrator..." instead of "Ted..."
-   - Fix: Resolves with CRITICAL #1 Bug A — once `_nn_final` is "Ted", the personality substitution at lines 2554-2560 will fire correctly.
-
-6. **Ted missing from chapter active_characters tags** [Presentation]
-   - Problem: Chapter characters show Ellen, Nimdok, Gorrister, Benny, AM — but NOT Ted, despite being narrator and protagonist.
-   - Root cause: `structure[0].active_characters` is `null`. The summarizer listed "the narrator" as active character, but either it was removed or never mapped to Ted.
-   - Fix: Step 6.9 line 2542-2546 handles active_characters substitution, but Bug A prevents it. Additionally, if active_characters was null from the start, need to ensure the summarizer populates it OR Step 6.9 injects the narrator into active_characters when missing.
+4. **Ted missing physical_description** [Profiles]
+   - Problem: `physical_description: null` despite text saying "I was the handsome one" / "I was still the handsome one"
+   - Evidence: Ted's JSON has `physical_description: null`, `appearance.summary: null`
+   - Root cause: narrator_character_id is now set, but the profiler may not be using it effectively for first-person self-descriptions. The text uses "I" not "Ted" for self-descriptions, so the profiler needs narrator-aware extraction.
+   - This is likely a deeper profiler issue. Given narrator_character_id is now correct, if the profiler already has first-person attribution logic (per MEMORY.md), it should pick this up. If not, this may need a separate fix.
+   - Priority: HIGH but may resolve naturally once narrator_character_id is properly consumed by the profiler.
 
 ### MEDIUM
-7. **AM missing "Allied Mastercomputer" alias** [Character Extraction - Alias Grouping]
-   - AM has no aliases despite "Allied Mastercomputer" being mentioned in the text and even in the chapter summary.
-   - Low priority — AM is clearly identified.
+5. **AM missing aliases** [Character Extraction - Alias Grouping]
+   - AM is called "Allied Mastercomputer", "Adaptive Manipulator", and "Aggressive Menace" in the text but has no aliases listed.
+   - Low priority — AM is clearly identified and this doesn't impact narrator preparation significantly.
 
-8. **"darkway" pronunciation IPA appears wrong** [Pronunciation]
-   - Listed as /ˈdɑːrkteɪ/ — looks like it should be /ˈdɑːrkweɪ/ (dark-way, not dark-tay)
-   - Minor issue.
+6. **"darkway" pronunciation IPA appears wrong** [Pronunciation]
+   - Listed as /ˈdɑːrkteɪ/ — should likely be /ˈdɑːrkweɪ/ (dark-way, not dark-tay)
+   - Very minor.
 
 ## Fix Priority
 
-**Two bugs in Step 6.9 are the immediate fix target.** They are simple code errors:
-1. Bug A: Use `canonical_name` from `is_narrator=True` character instead of `narrator_detected`
-2. Bug B: Check for string plot_summary, not dict
+**Three code fixes in Step 6.9 are the immediate targets:**
+1. Fix nested dict handling for plot_summary (CRITICAL #1)
+2. Broaden regex to match "the first-person narrator" (CRITICAL #2)
+3. Extend substitution to evidence/descriptions fields (HIGH #3)
 
-**Additionally**, set `narrator_character_id` on the AnalysisResult by scanning characters for `is_narrator=True`.
+All three are in `src/analyzer.py` lines 2540-2575, within the existing Step 6.9 block. These are small, surgical changes.
 
 **Expected score improvements if fixed:**
-- Summaries: 6.5 → 8.5+ (plot summary corrected, Ted in active_characters)
-- Profiles: 6 → 8+ (Ted gets full profiling with narrator_character_id set, personality uses "Ted")
-- Overall: 7.78 → ~8.5+
+- Summaries: 7.5 → 8.5+ (plot summary corrected, chapter summary opening fixed)
+- Profiles: 7.5 → 8+ (evidence statements use "Ted", descriptions use "Ted")
+- Overall: 8.30 → ~8.7+
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -107,16 +125,14 @@
 | 17 | 7.53 | +1.18 | Ice caverns gone, AM aliases fixed, Ted=narrator but role/summary wrong |
 | 18 | 7.93 | +1.58 | Ted=protagonist, Gorrister fixed, chapter summary correct, narrator_character_id still None |
 | 19 | 7.78 | +1.43 | Step 6.9 added but has 2 bugs — no improvement over 18 |
+| 20 | 8.30 | +1.95 | narrator_character_id fixed, personality uses Ted, but plot summary/evidence still broken |
 
 ## Fix History (Attempt 19 → 20)
-- **Step 6.9 narrator substitution bugs fixed:**
-  - Bug A: Now scans `pipeline_char_map.characters` for `is_narrator=True`, uses `canonical_name` ("Ted") as `_nn_final`; only substitutes when name is not "the narrator"
-  - Bug B: Changed `isinstance(_ps_obj, dict)` → `isinstance(_ps_obj, str)` for plot_summary type check
-  - Added narrator injection into `active_characters` when narrator is absent from chapter cast
-  - Modified: `src/analyzer.py` (Step 6.9 block)
-- **narrator_character_id added to AnalysisResult:**
-  - Added field to `src/models.py:AnalysisResult`
-  - Set in `src/analyzer.py` by scanning converted characters for `is_narrator=True`
+- **Step 6.9 narrator substitution bugs fixed (partial):**
+  - Bug A: Now scans characters for is_narrator=True, uses canonical_name ("Ted") — WORKED for personality.summary
+  - Bug B: Changed isinstance check — but plot_summary is a nested dict, so still doesn't fire
+  - narrator injection into active_characters — WORKED (Ted now in characters_present)
+- **narrator_character_id added:** Set correctly to main_cast_1 (Ted) — WORKED
 
 ## Fix History (Previous)
 - Attempt 2: Benny dedup, vocative narrator, pronunciation fixes
@@ -136,6 +152,7 @@
 - Attempt 16: STEP 5.8.4 narrator name resolver, STEP 1.2 standalone char removal (neither worked)
 - Attempt 17: Generic narrator name STEP 4.5b (Fixed), supporting→main narrator STEP 5.8.4b (Partial), Rule 0.5 acronym exemption (Fixed)
 - Attempt 18: Ted role=protagonist (Fixed), Gorrister role=antagonist (Fixed), narrator_detected preservation (Fixed), pipeline crashes (Fixed)
+- Attempt 19: Step 6.9 narrator substitution — 2 bugs (no-op name, wrong type check)
 
 ## Modification History
 
@@ -180,11 +197,14 @@
 | 18 | Gorrister role=antagonist | analyzer.py | **Fixed** |
 | 18 | narrator_detected preservation | analyzer.py | **Fixed** |
 | 18 | Pipeline crashes | analyzer.py, models.py | **Fixed** |
-| 19 | Step 6.9 narrator substitution | analyzer.py (lines 2527-2561) | **Bug** (2 bugs: no-op substitution + wrong type check) |
+| 19 | Step 6.9 narrator substitution | analyzer.py (lines 2527-2561) | **Bug** (2 bugs) |
+| 20 | Step 6.9 Bug A (name) | analyzer.py | **Fixed** |
+| 20 | Step 6.9 Bug B (dict) | analyzer.py | **Partial** (nested dict not handled) |
+| 20 | narrator_character_id | analyzer.py, models.py | **Fixed** |
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Next Action
-Re-run analysis to verify Step 6.9 bug fixes and narrator_character_id population.
+Fix Step 6.9: (1) handle nested plot_summary dict, (2) broaden regex for "the first-person narrator", (3) extend substitution to evidence/descriptions fields. All changes in src/analyzer.py lines 2540-2575.
