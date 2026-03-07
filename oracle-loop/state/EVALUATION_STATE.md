@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -202,7 +202,23 @@ The false-antagonist fix from attempt 8 worked perfectly (all 4 humans became pr
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Pipeline Notes (Attempt 11)
+- Analysis completed in 19m 14s
+- 6 characters found: AM (79), Ted (5), Ellen (30), Nimdok (17), Gorrister (29), Benny (?)
+- Ted correctly identified as narrator (first-person)
+- AM now has aliases: "Allied Mastercomputer, Adaptive Manipulator" ✓
+- Contradictory tormentor<->tormentor pairs removed for AM↔Ellen, AM↔Nimdok, AM↔Gorrister, AM↔Benny (both directions had same label — system removed them)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Character Profiles took 8m 34s (bottleneck, 44.5% of total)
+
 ## Next Action
+Run evaluation (PROMPT_evaluate.md) to verify attempt 11 fixes:
+- Did Nimdok, Benny become protagonist?
+- Did AM→Ted/Gorrister change from "colleague" to "victim"?
+- Did chapter summaries use "Ted" instead of "the narrator"?
+- Note: tormentor pairs were removed — check what replaced them
+
+**Previous Next Action (pre-analysis):**
 Run analysis (PROMPT_analyze.md) to verify attempt 11 fixes:
 - Nimdok, Benny should be protagonist
 - AM→Ted/Gorrister should be "victim" not "colleague"
