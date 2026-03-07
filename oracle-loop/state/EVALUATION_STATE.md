@@ -3,11 +3,23 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 6
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 
 ## Latest Scores
-(Awaiting evaluation)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 10/10 ✓
+  - Completeness: 10/10
+  - Identity Resolution: 10/10
+  - Alias Grouping: 10/10
+- Character Profiles: 6/10 ✗ (FAILING)
+- Chapter Summaries: 8/10 ✓
+- Pronunciation Guide: 9/10 ✓
+- HTML Presentation: 9/10 ✓
+- **Overall: 8.4/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (Character Profiles below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -17,61 +29,51 @@
 | 3 | 7.8 | +1.45 | Relationship vocab improved, pronunciation fixed, but duplicate Ted and AM role fixes didn't work |
 | 4 | 7.6 | +1.25 | Fixes did NOT take effect — duplicate Ted persists, AM still "protagonist" |
 | 5 | 8.1 | +1.75 | Dup Ted FIXED, AM now antagonist, self-alias fixed. But 3 humans wrongly labeled antagonist |
-| 6 | TBD | TBD | ACTIVE vs PASSIVE adversarial labels + consistency enforcement fixes |
+| 6 | 8.4 | +2.05 | ACTIVE/PASSIVE fix did NOT work — semantic direction bug. 4 humans still "antagonist" |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Ellen, Nimdok, Gorrister all wrongly labeled "antagonist"** [Profiles — Role Assignment]
-   - Problem: 3 of 5 human victims are labeled "antagonist". Only Ted and Benny are correctly "protagonist". Ellen, Nimdok, and Gorrister are fellow prisoners/victims of AM, not antagonists.
-   - Root cause: The LLM assigns "antagonist" (probably because all humans participate in violence at the end — Ted kills Benny/Gorrister/Ellen, Ellen kills Nimdok). The attempt 5 false-antagonist correction checks for zero adversarial evidence, but these characters DO have adversarial-looking labels:
-     - Ellen outgoing: "enemy (killed in retaliation)" to Nimdok — "enemy" is in _ADVERSARIAL_LABELS
-     - Nimdok outgoing: "enemy" to Ellen — same
-     - Gorrister outgoing: "victim" to AM and Benny — "victim" was added to _ADVERSARIAL_LABELS in attempt 4
-   - **The "victim" label in _ADVERSARIAL_LABELS is a catch-22**: Adding "victim" to detect AM's adversarial nature means actual VICTIMS (Gorrister) also appear to have adversarial evidence, blocking the false-antagonist correction.
-   - **Fix approach — distinguish ACTIVE vs PASSIVE adversarial labels:**
-     - ACTIVE labels (tormentor, captor, abuser, oppressor, persecutor) = evidence FOR antagonist role — the character is INFLICTING harm
-     - PASSIVE labels (victim, enemy, target, prisoner) = NOT evidence for antagonist role — the character is RECEIVING harm or in mutual conflict
-     - In the false-antagonist correction in `src/analyzer.py`, only count ACTIVE adversarial labels as evidence to KEEP the "antagonist" role. Characters whose only adversarial labels are passive (victim, enemy) should be relabeled to "protagonist"
-     - "enemy" between two non-AM characters (Ellen↔Nimdok) is mutual conflict under duress, not antagonism
-   - Location: `src/analyzer.py` — the post-profile adversarial role correction (added in attempt 3, modified in attempt 5)
-
-### HIGH
-2. **AM→Nimdok and AM→Benny still labeled "colleague"** [Profiles — Relationships]
-   - Problem: AM torments all 5 humans equally, but AM→Nimdok: "colleague" and AM→Benny: "colleague" instead of "tormentor"
-   - Evidence: AM→Ted and AM→Ellen are correctly "tormentor", AM→Gorrister is correctly "tormentor". Only Nimdok and Benny are wrong.
-   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`
-   - Note: This is an LLM output quality issue. The relationship vocabulary expansion from attempt 3 partially worked (3/5 now correct), but the LLM still defaults to "colleague" for some characters.
-   - Possible fix: In the post-profile correction, if a character is confirmed "antagonist" (after role correction), any "colleague" labels from antagonist→non-antagonist should be flagged as suspicious and potentially relabeled based on the character's dominant outgoing label pattern (if 3/5 are "tormentor", the remaining 2 "colleague" labels are likely also "tormentor")
-
-3. **Nimdok→AM and Benny→AM labeled "colleague"** [Profiles — Relationships]
-   - Same issue from the victim side: Nimdok and Benny label AM as "colleague" when AM is their captor/tormentor
-   - Fix: Similar consistency enforcement — if AM is confirmed antagonist, victim→AM relationships labeled "colleague" should be corrected to "captor" or "tormentor"
+1. **Benny, Gorrister, Ellen, Nimdok all wrongly labeled "antagonist"** [Profiles — Role Assignment]
+   - Problem: 4 of 5 human victims are labeled "antagonist". Only Ted is correctly "protagonist". All four are fellow prisoners/victims of AM, not antagonists.
+   - Root cause: **Semantic direction bug in false-antagonist correction** (analyzer.py:2192-2213). The code checks outgoing relationship VALUES for `_ACTIVE_ADVERSARIAL_LABELS` (which includes "tormentor", "captor", etc.). But when Benny has `relationships["AM"] = "tormentor"`, it means AM is Benny's tormentor — Benny is the VICTIM. The code wrongly counts "tormentor" in the outgoing value as evidence that Benny is adversarial.
+   - The relationship dict convention is `relationships[target_name] = label_describing_what_target_is_to_me`. So:
+     - Outgoing "tormentor" = "my target is my tormentor" → I am a victim (NOT aggressor evidence)
+     - Outgoing "victim" = "my target is my victim" → I am the aggressor (IS aggressor evidence)
+   - All 4 humans have `relationships["AM"] = "tormentor"`, so `_own_adv >= 1` for all of them, blocking the correction.
+   - **Fix: Use direction-aware label sets:**
+     - `OUTGOING_AGGRESSOR_LABELS = {"victim", "prisoner", "captive", "subordinate", "target", "prey", "servant"}` — labels that describe the TARGET as being beneath/harmed by the character
+     - `INCOMING_AGGRESSOR_LABELS = {"tormentor", "captor", "oppressor", "persecutor", "jailer", "warden", "abuser", "enslaver", "tyrant", "predator", "antagonist", "villain"}` — labels that OTHERS apply to describe THIS character as the aggressor
+     - `_own_adv` should use `OUTGOING_AGGRESSOR_LABELS` (checking the character's outgoing values)
+     - `_in_adv` should use `INCOMING_AGGRESSOR_LABELS` (checking what others label this character as)
+   - Verification: With this fix:
+     - AM: _own_adv=5 ("victim" x5, in OUTGOING set), _in_adv=4 ("tormentor" x4, in INCOMING set) → stays antagonist ✓
+     - Benny: _own_adv=0 ("romantic interest", "tormentor" — neither in OUTGOING set), _in_adv=0 (AM labels Benny as "victim" — not in INCOMING set) → relabeled protagonist ✓
+     - Same logic applies to Gorrister, Ellen, Nimdok → all relabeled protagonist ✓
+   - Location: `src/analyzer.py:2180-2213` — replace single `_ACTIVE_ADVERSARIAL_LABELS` with two direction-aware sets
 
 ### MEDIUM
-4. **Ellen→Gorrister: "victim of physical abuse" is incorrect** [Profiles — Relationships]
-   - Problem: Gorrister does not physically abuse Ellen in the text. The humans are all victims of AM, not of each other (except the mercy killings at the end).
-   - Severity: Medium — single incorrect relationship label, likely LLM hallucination
+2. **"Ellen is physically abused by Gorrister" — hallucinated evidence** [Profiles — Evidence]
+   - Problem: Evidence item ev-4-4 claims Gorrister physically abuses Ellen. This is not in the source text. The humans are all victims of AM, not of each other.
+   - Severity: Medium — single hallucinated evidence item, not blocking the 8.0 threshold by itself.
 
-5. **Ted and AM have no physical description** [Profiles — Descriptions]
-   - Ted: desc_len=0, AM: desc_len=0
-   - Ted as first-person narrator rarely describes himself, so this is somewhat expected
-   - AM is a computer/AI, so physical description is complex — the text describes AM's internal environment more than AM itself
-   - Severity: Medium — not entirely fixable for first-person narrators
+3. **Ted and AM have no physical description** [Profiles — Descriptions]
+   - Ted: first-person narrator rarely describes himself — expected limitation
+   - AM: a computer/AI — the text describes AM's internal environment, not AM's physical form
+   - Severity: Medium — not fixable without hallucinating content
 
-6. **Summary says "AM destroys its obsolete systems"** [Summaries]
-   - In the text, they pass through AM's infrastructure (computer banks), but the characterization of AM "destroying obsolete systems" is a minor inaccuracy
-   - Also: "he created them with sentience" — AM did not create the humans; it preserved/imprisoned them
-   - Severity: Medium — minor factual inaccuracies in summary
+4. **Gorrister→Ted: "colleague" label** [Profiles — Relationships]
+   - "Fellow prisoner" or "fellow victim" would be more accurate than "colleague"
+   - Severity: Medium — cosmetic, not blocking
 
 ### LOW
-7. **Chapter title is null** [Structure]
+5. **Chapter title is null** [Structure]
    - Single section has `title: null` — could display the story title
    - Not blocking — single-section detection is correct
 
-8. **"colleague" labels pervasive in non-AM relationships** [Profiles]
-   - Gorrister→Ted/Ellen/Nimdok: "group member" — acceptable but "fellow prisoner" would be more accurate
-   - This is cosmetic compared to the role and AM-relationship issues
+6. **Summary minor inaccuracy: Benny "obliterated" at memory cube** [Summaries]
+   - Summary says Benny was "obliterated" (killed) by AM at the memory cube. In the text, Benny is blinded but survives; he is killed later by Ted in the mercy killing.
+   - Severity: Low — the overall arc is correct, but this detail conflates two events
 
 ## Fix History
 - Attempt 2: Three connected fixes for character extraction and pronunciation
@@ -80,7 +82,7 @@
   3. **Pronunciation fixes** (`cmu_proposer.py`, `enricher.py`) — Partially fixed false positives
 
 - Attempt 3: Four fixes (two didn't take effect)
-  1. **STEP 5.8.5b same-name guard** (`src/agents/characters.py`) — Code is correct but targets wrong path; duplicate Ted comes from STEP 5.8 general promotion → WRONG, actually comes from STEP 5.8.6
+  1. **STEP 5.8.5b same-name guard** (`src/agents/characters.py`) — Code is correct but targets wrong path; duplicate Ted comes from STEP 5.8.6
   2. **Post-profile adversarial role correction** (`src/analyzer.py`) — Code is correct but `_ADVERSARIAL_LABELS` doesn't include "victim"
   3. **Relationship vocabulary expanded** (`src/analyzer.py`) — WORKED: but LLM still uses "colleague" as fallback
   4. **Pronunciation whitelist additions** (`cmu_proposer.py`) — WORKED
@@ -90,17 +92,15 @@
   2. **"victim" added to `_ADVERSARIAL_LABELS`** (`src/analyzer.py:2134`) — Correct addition, but AM's outgoing labels are mostly "colleague" not "victim", so threshold not met
   3. **Self-relationship filter** (`src/analyzer.py`) — May have worked (no self-relationships visible), but didn't address core issues
 
-- Attempt 6: Two fixes (awaiting verification)
-  1. **ACTIVE vs PASSIVE adversarial labels** (`src/analyzer.py:2177-2213`) — False-antagonist correction now uses `_ACTIVE_ADVERSARIAL_LABELS` (no "enemy"/"victim") so Ellen/Nimdok/Gorrister (who only have "enemy"/"victim" labels) are correctly relabeled to "protagonist"
-  2. **Consistency enforcement for colleague labels** (`src/analyzer.py:2215-2285`) — If antagonist has ≥2 active adversarial labels to protagonists but some "colleague" labels, replace "colleague" with dominant active label; same for inverse protagonist→antagonist direction
-  - Root cause: `_ADVERSARIAL_LABELS` included "enemy" and "victim" (passive labels), blocking false-antagonist correction for victim characters
-  - Smoke test: 332 tests pass
-
 - Attempt 5: Four fixes — **3 of 4 worked**
   1. **STEP 5.2b placeholder→existing merge** (`src/agents/characters.py`) — WORKED: No duplicate Ted
   2. **Incoming adversarial label check** (`src/analyzer.py`) — WORKED: AM now correctly "antagonist"
   3. **False antagonist correction** (`src/analyzer.py`) — PARTIALLY WORKED: Benny corrected to "protagonist", but Ellen/Nimdok/Gorrister still "antagonist" because they have adversarial-looking labels (enemy, victim)
   4. **Self-alias filter** (`src/agents/characters.py:_is_valid_alias`) — WORKED: No AM self-alias
+
+- Attempt 6: Two fixes — **Neither took effect**
+  1. **ACTIVE vs PASSIVE adversarial labels** (`src/analyzer.py:2177-2213`) — Code correctly separates label sets, BUT has semantic direction bug: checks outgoing relationship values for "tormentor" (an active label), not realizing that outgoing "tormentor" means "my target IS a tormentor" (I'm the victim), not "I am a tormentor"
+  2. **Consistency enforcement for colleague labels** (`src/analyzer.py:2215-2285`) — Depends on correct role assignment which didn't happen, so consistency enforcement had no effect
 
 ## Modification History
 
@@ -120,11 +120,11 @@
 | 5 | AM wrong role | analyzer.py (incoming adversarial check) | **Fixed** — AM now "antagonist" |
 | 5 | False antagonist | analyzer.py (zero adversarial evidence check) | **Partial** — Benny fixed, Ellen/Nimdok/Gorrister still "antagonist" |
 | 5 | AM self-alias | characters.py (_is_valid_alias) | **Fixed** |
-| 6 | Ellen/Nimdok/Gorrister wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | Pending evaluation |
-| 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending evaluation |
+| 6 | Ellen/Nimdok/Gorrister/Benny wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | **No change** — semantic direction bug: outgoing "tormentor" means target is my tormentor, not I am a tormentor |
+| 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | **No change** — depends on correct roles |
 
 ## Next Action
-Evaluate attempt 6 output.
+Run PROMPT_fix.md to fix the semantic direction bug in false-antagonist correction (Critical #1). Replace single `_ACTIVE_ADVERSARIAL_LABELS` with two direction-aware sets: `_OUTGOING_AGGRESSOR_LABELS` for checking what a character labels their targets as (aggressor evidence = "victim", "prisoner", etc.) and `_INCOMING_AGGRESSOR_LABELS` for checking what others label this character as (aggressor evidence = "tormentor", "captor", etc.).
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
@@ -135,6 +135,4 @@ Evaluate attempt 6 output.
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - 6 characters total (AM, Benny, Gorrister, Ellen, Nimdok, Ted) — narrator Ted correctly identified
 - 16 pronunciation flags
-- "Jesus" appeared during extraction but filtered out from final 6
-- Narrator 'the narrator' identified but matched to Ted via narrator finalization
-- Contradictory relationship removed: Gorrister→Ted / Ted→Gorrister both "group member" (non-symmetric)
+- Relationship data in analysis.json is exported as strings (target names only), not dicts — relationship types are only visible in HTML
