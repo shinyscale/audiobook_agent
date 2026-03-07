@@ -523,8 +523,11 @@ class CharacterAgent(Agent):
 
         if _summary_all_395b:
             for _char_395b in list(main_cast):
-                # Only consider multi-word names with no existing parenthetical annotation
-                if "(" in _char_395b.canonical_name or " " not in _char_395b.canonical_name:
+                # Only consider multi-word names not already split by STEP 3.95
+                if " " not in _char_395b.canonical_name:
+                    continue
+                # Skip if already split (a _parent sibling exists) — avoids double-splitting
+                if any(c.id == f"{_char_395b.id}_parent" for c in main_cast):
                     continue
                 # Require substantial mentions (to avoid splitting minor named-parent characters)
                 if (_char_395b.mention_count or 0) < 10:
@@ -537,70 +540,95 @@ class CharacterAgent(Agent):
                 if not _neutral_als_395b:
                     continue
                 # Search for parent attribution using multiple universal patterns.
-                # Pattern A: "named/called {Name} ... his/her father/mother"
+                # Pattern A: "named/called/revealed to be {Name} ... his/her father/mother"
                 #            — NAME is introduced as a named parent
                 # Pattern B: "{Name} ... his/her (long-lost) son/daughter/child"
                 #            — NAME is the parent who has a son/daughter
                 # Pattern C: "{Name}'s (long-lost) son/daughter/child"
                 #            — possessive: NAME owns/has a child
-                # Using multiple patterns covers LLM wording variation across runs.
-                _name_esc_395b = _re395b.escape(_char_395b.canonical_name)
-                # Pattern A: introducer + NAME + ... + his/her father/mother
-                _pat_A_395b = _re395b.compile(
-                    r"(?i)"
-                    r"(?:named|called|identified as|turned out to be|found to be|proved to be)\s+"
-                    + _name_esc_395b
-                    + r"[^.!?\n]{0,300}"
-                    r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
-                )
-                # Pattern B: NAME + ... + reveal/confess + ... + his/her (long-lost) son/daughter
-                # Covers: "John Donaldson...reveals the narrator is his long-lost son"
-                # Requires a REVELATION verb to avoid false positives on ordinary parent references
-                # (e.g., "Atticus Finch guided his son" would NOT match — no revelation).
-                _pat_B_395b = _re395b.compile(
-                    r"(?i)"
-                    + _name_esc_395b
-                    + r"[^.!?\n]{0,400}"
-                    r"(?:reveal|revealed|revealing|reveals|found\s+out|discover|identifies?|recognized|confesses?|admitted?|declares?)\s+"
-                    r"(?:\w+\s+){0,6}"
-                    r"(?:his|her|their)\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
-                )
-                # Pattern C: NAME's (long-lost) son/daughter/child
-                _pat_C_395b = _re395b.compile(
-                    r"(?i)"
-                    + _name_esc_395b
-                    + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
-                )
-                # Pattern D: {FirstName}'s (long-lost) father/mother/parent
-                # Handles summaries that use only the first name possessively to introduce the parent:
-                # e.g., "revealed to be John's long-lost father" where canonical_name = "John Donaldson"
-                # This is universal: any multi-word character whose first name appears in a possessive
-                # kinship phrase introducing a parent is likely a merged parent+child.
-                _first_name_395b = _char_395b.canonical_name.split()[0]
-                _pat_D_395b = None
-                if len(_first_name_395b) >= 4:  # Guard: avoid matching short common words
-                    _fn_esc_395b = _re395b.escape(_first_name_395b)
-                    _pat_D_395b = _re395b.compile(
-                        r"(?i)\b"
-                        + _fn_esc_395b
-                        + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|absent\s+|lost\s+)?(?:father|mother|parent)\b"
+                # We search both the canonical name AND multi-word neutral aliases —
+                # the LLM sometimes stores the parent's formal name as an alias of the merged
+                # son character (e.g., "John (Uncle Bill's son)" with alias "John Donaldson"
+                # where the summary names "John Donaldson" as the parent).
+                _search_names_395b = [_char_395b.canonical_name] + [
+                    a for a in _neutral_als_395b if " " in a
+                ]
+                _m_395b = None
+                _matched_base_395b = _char_395b.canonical_name
+                for _sn_395b in _search_names_395b:
+                    _sn_esc_395b = _re395b.escape(_sn_395b)
+                    _sfn_395b = _sn_395b.split()[0]
+                    # Pattern A: introducer + NAME + ... + his/her father/mother
+                    _pat_A_395b = _re395b.compile(
+                        r"(?i)"
+                        r"(?:named|called|identified as|turned out to be|found to be"
+                        r"|proved to be|revealed to be)\s+"
+                        + _sn_esc_395b
+                        + r"[^.!?\n]{0,300}"
+                        r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
                     )
-                _m_395b = (
-                    _pat_A_395b.search(_summary_all_395b)
-                    or _pat_B_395b.search(_summary_all_395b)
-                    or _pat_C_395b.search(_summary_all_395b)
-                    or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
-                )
+                    # Pattern B: NAME + ... + reveal/confess + ... + his/her (long-lost) son/daughter
+                    # Requires a REVELATION verb to avoid false positives on ordinary parent refs.
+                    _pat_B_395b = _re395b.compile(
+                        r"(?i)"
+                        + _sn_esc_395b
+                        + r"[^.!?\n]{0,400}"
+                        r"(?:reveal|revealed|revealing|reveals|found\s+out|discover|identifies?|recognized|confesses?|admitted?|declares?)\s+"
+                        r"(?:\w+\s+){0,6}"
+                        r"(?:his|her|their)\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
+                    )
+                    # Pattern C: NAME's (long-lost) son/daughter/child
+                    _pat_C_395b = _re395b.compile(
+                        r"(?i)"
+                        + _sn_esc_395b
+                        + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
+                    )
+                    # Pattern D: {FirstName}'s (long-lost) father/mother/parent
+                    _pat_D_395b = None
+                    if len(_sfn_395b) >= 4:  # Guard: avoid matching short common words
+                        _fn_esc_395b = _re395b.escape(_sfn_395b)
+                        _pat_D_395b = _re395b.compile(
+                            r"(?i)\b"
+                            + _fn_esc_395b
+                            + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|absent\s+|lost\s+)?(?:father|mother|parent)\b"
+                        )
+                    # Pattern E: NAME...reveals/confesses...he/she is X's...father/mother
+                    # Handles "NAME...reveals...he is John Jr.'s long-lost father" where the
+                    # name before the apostrophe may contain titles with periods (e.g., "Jr.").
+                    _pat_E_395b = _re395b.compile(
+                        r"(?i)"
+                        + _sn_esc_395b
+                        + r"[^.!?\n]{0,400}"
+                        r"(?:reveal|reveals|revealed|confess|confesses|confessed)\s+"
+                        r"[^.!?\n]{0,100}"
+                        r"(?:he|she)\s+(?:is|was)\s+"
+                        r"[\w\s.]{0,30}[\u2018\u2019\u0027]s\s+"
+                        r"(?:long.{0,6})?"
+                        r"(?:father|mother|parent)\b"
+                    )
+                    _m_395b = (
+                        _pat_A_395b.search(_summary_all_395b)
+                        or _pat_B_395b.search(_summary_all_395b)
+                        or _pat_C_395b.search(_summary_all_395b)
+                        or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
+                        or _pat_E_395b.search(_summary_all_395b)
+                    )
+                    if _m_395b:
+                        _matched_base_395b = _sn_395b
+                        break
+
                 if not _m_395b:
                     continue
 
                 # Determine gender from matched text
                 _matched_395b = _m_395b.group(0).lower()
                 _parent_label_395b = "the mother" if "mother" in _matched_395b else "the father"
-                _parent_canonical_395b = f"{_char_395b.canonical_name} ({_parent_label_395b})"
+                _parent_canonical_395b = f"{_matched_base_395b} ({_parent_label_395b})"
 
                 logger.info(
-                    f"V2 Step 3.95b: Summary text names '{_char_395b.canonical_name}' as a parent; "
+                    f"V2 Step 3.95b: Summary text names '{_matched_base_395b}' as a parent "
+                    f"(via {'alias' if _matched_base_395b != _char_395b.canonical_name else 'canonical'} "
+                    f"of '{_char_395b.canonical_name}'); "
                     f"creating split → '{_parent_canonical_395b}' (supporting)"
                 )
                 from ..models import ConfidenceLevel as _CL395b
@@ -647,7 +675,7 @@ class CharacterAgent(Agent):
                 c for c in main_cast
                 if c.id != _frag_395c.id
                 and " " in c.canonical_name
-                and "(" not in c.canonical_name  # skip already-split characters
+                and not c.id.endswith("_parent")  # skip already-split characters
                 and c.canonical_name.lower().split()[0] == _b_formal_395c
                 and (getattr(c, "mention_count", 0) or 0) >= max(_frag_count_395c * 10, 10)
             ]
@@ -708,7 +736,7 @@ class CharacterAgent(Agent):
                 c for c in main_cast
                 if c.id != _nick_char_397.id
                 and " " in c.canonical_name
-                and "(" not in c.canonical_name  # exclude STEP 3.95/3.95b split annotations
+                and not c.id.endswith("_parent")  # exclude STEP 3.95/3.95b split annotations
                 and c.canonical_name.lower().split()[0] == _formal_first_397
                 and (getattr(c, "mention_count", 0) or 0) >= max(_nick_count_397 * 5, 5)
             ]

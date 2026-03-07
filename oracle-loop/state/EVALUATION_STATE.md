@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 22
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -166,6 +166,29 @@
 - No config issues identified — the problems are in character extraction logic, not model configuration.
 
 ## Next Action
-1. **Debug why STEP 3.95c didn't fire** — read the code added in commit a105ac9 and check if its preconditions were met given the actual extraction output.
-2. **Investigate "American, sir" regression** — why did it revert to a separate character when attempt 21 absorbed it correctly? Was there a code change in attempt 22 that inadvertently broke this?
-3. **Consider escalation** — after 22 attempts with a ~23% success rate on the father/son split, the current approach may need fundamental redesign. The fix phase should consider whether to continue iterating on STEP 3.95 variants or try a completely different approach (e.g., physical description contradiction detection).
+Re-run analysis to verify fixes.
+
+## Attempt 23 Fix Summary
+### Why STEP 3.95c didn't fire (attempt 22)
+- "Johnny" (main_cast_5) had NO aliases — the child-tier alias check `if not _child_als_395c: continue` exited early
+- STEP 3.95c requires the fragment to have a child-tier alias like "his son" — LLM didn't assign any to "Johnny"
+
+### Why STEP 3.95b didn't fire (attempt 22)
+Two issues:
+1. Guard `"(" in _char_395b.canonical_name` skipped "John (Uncle Bill's son)" — the "(" was a natural LLM-generated parenthetical, not a split annotation
+2. Pattern search used canonical name "John (Uncle Bill's son)" in regex, but summary contains "John Donaldson" (an alias). No pattern matched.
+
+### Fixes applied (attempt 23)
+**STEP 3.95b** (`src/agents/characters.py`):
+- Removed `"(" in canonical_name` guard → replaced with sibling-ID check `any(c.id == f"{_char_395b.id}_parent" for c in main_cast)`
+- Added "revealed to be" to Pattern A introducer list
+- Search now iterates over canonical name AND multi-word neutral aliases — covers cases where the parent's formal name is stored as an alias
+- Added Pattern E: `NAME...reveals/confesses...he/she is X's...father` with period-permissive character class for titles like "Jr." — handles "John Donaldson...reveals...he is John Jr.'s long-lost father"
+
+**STEP 3.95c + STEP 3.97** (`src/agents/characters.py`):
+- Replaced `"(" not in c.canonical_name` guard with `not c.id.endswith("_parent")` in both steps — allows processing characters with natural LLM parentheticals
+
+### Expected behavior in attempt 23
+- STEP 3.95b fires: "John (Uncle Bill's son)" has alias "John Donaldson" → Pattern E matches in summary → creates "John Donaldson (the father)"
+- STEP 3.97 fires: "Johnny" (2 mentions, nickname for "john") → merges as alias of "John (Uncle Bill's son)"
+- Narrator detection: with proper split, Uncle Bill should be correctly identified as narrator
