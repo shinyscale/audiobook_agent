@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 15
-- **Phase:** awaiting_fix
+- **Attempt:** 16
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -225,7 +225,23 @@ If this scan already exists (STEP 4.24), it may be:
 - **Fix:** After injecting aliases into AM, scan all other characters for canonical_name matching an alias, and remove them.
 - **Files:** `src/agents/characters.py` (STEP 1.2 ~line 252)
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
+
+## Pipeline Notes (Attempt 16)
+- Analysis completed in 22m 8s
+- 7 characters found (including spurious "the ice caverns")
+- Narrator still detected as "the narrator" (generic) — NOT Ted
+  - STEP 5.8.4 fix didn't help: narrator_name="the narrator", not "Ted", so name→ID lookup never fires
+  - STEP 4.24 self-identification scan did NOT fire again (same as attempt 15)
+- "Allied Mastercomputer" BLOCKED by Rule 0.5: core noun 'am' ≠ 'mastercomputer' (symbolic object semantic guard)
+  - STEP 1.2 standalone-char removal fix irrelevant — Rule 0.5 blocks injection before any standalone char created
+- AM: zero aliases still
+- Ted: still not narrator
+- Pronunciation: 10 entries (still correct)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 
 ## Next Action
-Re-run analysis to verify: (1) Ted is narrator, (2) AM has acronym aliases, (3) score improves.
+Awaiting evaluation to see score, then fix phase must:
+1. Debug why STEP 4.24 ("I am Ted") scan never fires — check if it runs on raw text or summaries, check pattern matching
+2. Fix AM acronym aliases — Rule 0.5 blocks "Allied Mastercomputer" because 'mastercomputer' ≠ 'am'; acronym expansions need an exemption from Rule 0.5
+3. Filter "the ice caverns" location noun
