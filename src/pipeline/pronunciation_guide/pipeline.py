@@ -249,6 +249,17 @@ class PronunciationGuidePipeline:
                     enrichments[word_lower] = self.enricher.enrich_homograph(proposal)
                     checkpoint.enriched_words.append(word_lower)
 
+        # Apply static irregular IPA overrides before batch LLM enrichment.
+        # This mirrors the homograph path: static lookups go directly into enrichments
+        # and are removed from the LLM batch, guaranteeing they survive any LLM
+        # failure path (early return, exception, fallback to single enrichment).
+        from .enricher import KNOWN_IRREGULAR_IPA
+        for word_lower in list(unique_proposals.keys()):
+            if word_lower in KNOWN_IRREGULAR_IPA:
+                enrichments[word_lower] = KNOWN_IRREGULAR_IPA[word_lower]
+                checkpoint.enriched_words.append(word_lower)
+                del unique_proposals[word_lower]
+
         # Batch enrichment for non-homographs
         proposals_list = list(unique_proposals.values())
 

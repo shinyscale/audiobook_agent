@@ -361,12 +361,23 @@ class PipelineCharacterCorrector:
             window_chars: Maximum character distance between two mentions to count
                           as a co-occurrence (default 600 — roughly one paragraph).
         """
-        # Collect mention positions for each character from pipeline mention objects
+        # Collect mention positions for each character from pipeline mention objects.
+        # Supporting cast characters have empty mentions lists (NER-based, no position data),
+        # so fall back to regex search of source_text for those characters.
         char_positions: dict[str, list[int]] = {}
         for char in characters:
             mentions = getattr(char, 'mentions', None) or []
             positions = [getattr(m, 'position', None) for m in mentions]
             positions = [p for p in positions if p is not None]
+            if not positions:
+                # Regex fallback: search source text for canonical name and aliases
+                name_variants = [char.canonical_name]
+                for alias in (getattr(char, 'aliases', None) or []):
+                    if len(alias) >= 3:
+                        name_variants.append(alias)
+                for name in name_variants:
+                    pat = re.compile(r'\b' + re.escape(name) + r'\b', re.IGNORECASE)
+                    positions.extend(m.start() for m in pat.finditer(source_text))
             if positions:
                 char_positions[char.canonical_name] = positions
 
@@ -838,6 +849,14 @@ class OutputCharacterCorrector:
             # chapter overlap. This is a universal invariant — not book-specific.
             adaptive_min = max(1, min(3, len(chapter_summaries) // 3))
             self.add_cooccurrence_relationships(characters, chapter_summaries, min_shared=adaptive_min)
+        # Text-window fallback: catches pairs still missing a relationship after the
+        # summary-based scan. Uses an adaptive window (half the text, capped at 15000
+        # chars) so short stories (where characters appear sections apart) and longer
+        # novels (where 15000 chars ≈ one scene) are both handled sensibly. Only adds
+        # where both characters are searchable by name in source text.
+        if source_text:
+            text_window = max(600, min(len(source_text) // 2, 15000))
+            self._add_text_window_cooccurrence(characters, source_text, window_chars=text_window)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text)
@@ -872,6 +891,65 @@ class OutputCharacterCorrector:
         # gender-mismatched labels (e.g., RELATIONSHIP_REVERSES["son"] = "father"
         # propagated to a female character). Run once more to catch these.
         self.enforce_gender_consistency(characters)
+
+    def _add_text_window_cooccurrence(
+        self, characters, source_text: str, window_chars: int = 8000
+    ) -> None:
+        """Add 'associated' for character pairs whose names appear within window_chars
+        in source text but have no relationship entry yet.
+
+        Complements add_cooccurrence_relationships (which uses chapter summaries)
+        for cases where summaries are unavailable or a pair was missed. Uses regex
+        search of source text so supporting cast (no stored mention positions) is
+        handled correctly. Only adds — never changes existing relationships.
+        """
+        # Build position lists for each character via regex search
+        char_positions: dict[str, list[int]] = {}
+        for char in characters:
+            name_variants = [char.canonical_name]
+            for alias in (getattr(char, 'aliases', None) or []):
+                if len(alias) >= 3:
+                    name_variants.append(alias)
+            positions = []
+            for name in name_variants:
+                pat = re.compile(r'\b' + re.escape(name) + r'\b', re.IGNORECASE)
+                positions.extend(m.start() for m in pat.finditer(source_text))
+            if positions:
+                char_positions[char.canonical_name] = positions
+
+        for i, char_a in enumerate(characters):
+            for j, char_b in enumerate(characters):
+                if j <= i:
+                    continue
+
+                rels_a = getattr(char_a, 'relationships', None) or {}
+                rels_b = getattr(char_b, 'relationships', None) or {}
+                if char_b.canonical_name in rels_a or char_a.canonical_name in rels_b:
+                    continue
+
+                pos_a = char_positions.get(char_a.canonical_name, [])
+                pos_b = char_positions.get(char_b.canonical_name, [])
+                if not pos_a or not pos_b:
+                    continue
+
+                found = any(
+                    abs(pa - pb) <= window_chars
+                    for pa in pos_a
+                    for pb in pos_b
+                )
+                if not found:
+                    continue
+
+                if not isinstance(getattr(char_a, 'relationships', None), dict):
+                    char_a.relationships = {}
+                if not isinstance(getattr(char_b, 'relationships', None), dict):
+                    char_b.relationships = {}
+                char_a.relationships[char_b.canonical_name] = "associated"
+                char_b.relationships[char_a.canonical_name] = "associated"
+                logger.info(
+                    f"Text co-occurrence (window={window_chars}): "
+                    f"'{char_a.canonical_name}' ↔ '{char_b.canonical_name}': 'associated'"
+                )
 
     def extract_relationships_from_evidence(self, characters) -> None:
         """Mine evidence statements to populate missing relationships.
