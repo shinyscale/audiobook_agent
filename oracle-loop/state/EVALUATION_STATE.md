@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -191,5 +191,12 @@ Fix approach:
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (Attempt 19)
+- **Comprehensive "the narrator" → narrator name substitution (Step 6.9):**
+  - Root cause: Chapter active_characters lists, plot summary, and personality summaries all used "the narrator" instead of "Ted" because the LLM generates this phrasing and previous substitution only covered chapter summary TEXT (not active_characters lists, overview, or personality dicts)
+  - Fix: Added Step 6.9 in `src/analyzer.py` before Step 7 (result building): after narrator_detected is finalized, replace "the narrator" with the narrator's name in (1) chapter summary texts, (2) active_characters lists, (3) plot summary in overview, (4) narrator character's personality.summary
+  - Smoke test: PASS — substitution logic verified for all 4 field types
+  - Modified: `src/analyzer.py` (new Step 6.9, lines ~2527-2561)
+
 ## Next Action
-Run PROMPT_fix.md to set `narrator_character_id` from character with `is_narrator=True`. Single root cause fix in `src/analyzer.py` where AnalysisResult is assembled.
+Set phase to awaiting_analysis — re-run pipeline to verify narrator substitution fixes plot summary, active_characters, and personality summary.

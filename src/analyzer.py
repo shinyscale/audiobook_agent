@@ -2524,6 +2524,41 @@ class AudiobookAnalyzer:
                             f"{_narrator_pick_66.canonical_name}"
                         )
 
+        # Step 6.9: Comprehensive "the narrator" → narrator name substitution.
+        # First-person narrators are often referred to as "the narrator" in LLM-generated text
+        # (chapter summaries, active_characters, plot summary, personality profiles).
+        # Now that narrator_detected is finalized, replace all such references with the
+        # narrator's actual name for consistency across all output fields.
+        if narrator_detected:
+            _nn_final = narrator_detected
+            _nn_pat = re.compile(r'\bthe narrator\b', re.IGNORECASE)
+
+            # 1. Chapter summary texts (already partly done earlier, but may have missed some)
+            # 2. active_characters lists in chapter summaries
+            if summary_map:
+                for _sum in summary_map.summaries:
+                    if _sum.summary and 'narrator' in _sum.summary.lower():
+                        _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
+                    if hasattr(_sum, 'active_characters') and _sum.active_characters:
+                        _sum.active_characters = [
+                            _nn_final if re.match(r'^the narrator$', ac, re.IGNORECASE) else ac
+                            for ac in _sum.active_characters
+                        ]
+
+            # 3. Plot summary text in overview
+            if overview:
+                _ps_obj = overview.get('plot_summary')
+                if isinstance(_ps_obj, dict) and _ps_obj.get('plot_summary'):
+                    _ps_obj['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj['plot_summary'])
+
+            # 4. Narrator character's personality summary (LLM uses "The narrator is..." phrasing)
+            for _char in pipeline_char_map.characters:
+                if getattr(_char, 'is_narrator', False):
+                    if isinstance(getattr(_char, 'personality', None), dict):
+                        _psumm = _char.personality.get('summary', '')
+                        if _psumm and 'narrator' in _psumm.lower():
+                            _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
+
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
 
