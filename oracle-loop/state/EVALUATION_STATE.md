@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** john_g
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.80
 
 ## Output Files
@@ -109,5 +109,13 @@
 - Character Profiles took 669s (11 min) — disproportionately long for 4 characters
 - Richardson profile has LOW confidence (0.30) — likely root cause of missing speech patterns and relationships
 
+## Pipeline Notes (Attempt 2)
+- Captain Adams: NOW PRESENT (fix worked) — 1 mention
+- Price aliases: "Price, Sergeant Price" listed (compound rank fix worked)
+- "the Sergeant" alias still NOT listed — still open issue
+- Character Profiles: 3H/1M confidence (Richardson still medium confidence)
+- Pronunciation: 13 flags (7 homograph, 5 unknown, 1 proper_noun)
+- Run time: 11m 55s
+
 ## Next Action
-Run PROMPT_fix.md to address failing categories. Priority: Issues #1-6 (HIGH) to cross 8.0 threshold in Characters, Profiles, and Pronunciation.
+Run PROMPT_evaluate.md to score attempt 2.
