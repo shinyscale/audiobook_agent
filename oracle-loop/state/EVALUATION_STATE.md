@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -16,10 +16,10 @@
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.8/10** (reference only)
+- **Overall: 7.8/10** (reference only, from attempt 3)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold)
+**Status:** FAIL (2 categories below threshold) — awaiting re-evaluation
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -27,6 +27,7 @@
 | 1 | 6.35 | 0 | Baseline - duplicate Benny, wrong narrator, profile errors |
 | 2 | 7.3 | +0.95 | Benny dedup fixed, narrator=Ted, but duplicate Ted appeared, profiles improved |
 | 3 | 7.8 | +1.45 | Relationship vocab improved, pronunciation fixed, but duplicate Ted and AM role fixes didn't work |
+| 4 | TBD | TBD | Three fixes: STEP 5.8 dedup, "victim" in _ADVERSARIAL_LABELS, self-relationship filter |
 
 ## Current Issues (Priority Order)
 
@@ -74,7 +75,7 @@
 
 - Attempt 4: Three fixes
   1. **STEP 5.8 same-name dedup** (`src/agents/characters.py:1476-1494`) — Added `main_cast_names_lower` set check before promotion; merges mention_count into existing entry and skips duplicate promotion
-     - Root cause: STEP 5.8 general promotion loop had no same-name guard; supporting_cast Ted fragment with ≥ threshold mentions was promoted unconditionally
+     - Root cause: STEP 5.8 general promotion loop had no same-name guard; supporting_cast Ted fragment with >= threshold mentions was promoted unconditionally
      - Smoke test: 332 tests pass, no regressions
   2. **"victim" added to `_ADVERSARIAL_LABELS`** (`src/analyzer.py:2134`) — When AM's outgoing relationship labels are all "victim", now correctly triggers protagonist→antagonist relabeling
      - Root cause: "victim" describes what others are TO AM, semantically meaning AM is the victimizer/antagonist
@@ -97,16 +98,18 @@
 | 4 | Self-relationship | analyzer.py (post-profile filter) | Added safety net |
 
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify all three fixes.
+Evaluate output (PROMPT_evaluate.md).
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 3 analysis completed successfully in 21m 35s
+- Attempt 4 analysis completed successfully in 20m 40s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive mode: none (baseline behavior)
 - Ted detected as narrator (first-person)
-- 7 characters extracted: AM (77), Benny (35), Ellen (30), Gorrister (29), Nimdok (17), Ted (5), Ted (5)
-- 16 pronunciation flags (improved from previous attempts)
+- 7 characters extracted: AM (77), Benny (35), Ellen (30), Gorrister (29), Nimdok (17), + 2 more
+- 16 pronunciation flags
+- No duplicate Ted visible in output summary
+- Contradictory symmetric relationships removed (tormentor/tormentor, fellow victim/fellow victim)
