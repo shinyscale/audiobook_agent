@@ -2174,42 +2174,52 @@ class AudiobookAnalyzer:
                         f"({_adversarial_count} outgoing + {_incoming_adversarial} incoming adversarial labels)"
                     )
 
-            # ACTIVE adversarial labels: the character is inflicting harm.
-            # Distinct from PASSIVE labels (enemy, victim) which describe the character
-            # as a target/sufferer — passive labels do NOT support an antagonist role.
-            _ACTIVE_ADVERSARIAL_LABELS = {
+            # Direction-aware aggressor detection:
+            # Relationship convention: relationships[target] = "what target is to me"
+            # So outgoing "tormentor" means "my target is my tormentor" (I am the VICTIM).
+            # Outgoing "victim" means "my target is my victim" (I am the AGGRESSOR).
+            #
+            # _OUTGOING_AGGRESSOR_LABELS: labels a character applies to their TARGETS that
+            # reveal the character is the aggressor (the target is beneath/harmed by them).
+            _OUTGOING_AGGRESSOR_LABELS = {
+                "victim", "prisoner", "captive", "subordinate", "prey",
+                "servant", "slave", "subject", "hostage", "pawn",
+            }
+            # _INCOMING_AGGRESSOR_LABELS: labels OTHER characters apply to describe THIS
+            # character as an aggressor (others call them a tormentor, captor, etc.).
+            _INCOMING_AGGRESSOR_LABELS = {
                 "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
                 "abuser", "enslaver", "tyrant", "predator", "antagonist", "villain",
             }
 
             # False antagonist correction: if a character is labeled "antagonist" but has
-            # zero ACTIVE adversarial evidence (labels that indicate the character inflicts
-            # harm), the LLM misclassified them. Characters whose only "adversarial" labels
-            # are passive (enemy, victim) are not true antagonists — they are in mutual
-            # conflict or are victims themselves.
-            # Universal invariant: a true antagonist must have at least one ACTIVE adversarial
-            # label (they inflict harm on others) visible from some direction in the story.
+            # zero direction-aware adversarial evidence, the LLM misclassified them.
+            # Universal invariant: a true antagonist must have aggressor evidence from
+            # at least one direction (outgoing labels showing they have victims, OR
+            # incoming labels showing others call them the aggressor).
             for _rchar in pipeline_char_map.characters:
                 if _rchar.role != "antagonist":
                     continue
+                # Outgoing: does this character label any target as "victim", "prisoner", etc.?
                 _own_adv = sum(
                     1 for v in (_rchar.relationships or {}).values()
-                    if isinstance(v, str) and any(adv in v.lower() for adv in _ACTIVE_ADVERSARIAL_LABELS)
+                    if isinstance(v, str) and any(adv in v.lower() for adv in _OUTGOING_AGGRESSOR_LABELS)
                 )
                 _rchar_name_lower = _rchar.canonical_name.lower()
+                # Incoming: do other characters label this character as "tormentor", "captor", etc.?
                 _in_adv = sum(
                     1
                     for _other in pipeline_char_map.characters
                     if _other.id != _rchar.id
                     for _k, _v in (_other.relationships or {}).items()
                     if _k.lower() == _rchar_name_lower and isinstance(_v, str)
-                    and any(adv in _v.lower() for adv in _ACTIVE_ADVERSARIAL_LABELS)
+                    and any(adv in _v.lower() for adv in _INCOMING_AGGRESSOR_LABELS)
                 )
                 if _own_adv == 0 and _in_adv == 0:
                     _rchar.role = "protagonist"
                     logger.info(
                         f"Role corrected: '{_rchar.canonical_name}' antagonist→protagonist "
-                        f"(no active adversarial evidence in outgoing or incoming relationships)"
+                        f"(no direction-aware adversarial evidence: outgoing={_own_adv}, incoming={_in_adv})"
                     )
 
             # Relationship consistency enforcement: if a confirmed antagonist has outgoing
@@ -2232,15 +2242,16 @@ class AudiobookAnalyzer:
                 }
                 if not _ant_to_prot:
                     continue
-                # Count active adversarial labels vs "colleague" labels to protagonists
+                # Count outgoing aggressor labels vs "colleague" labels to protagonists
+                # (antagonist labels protagonist "victim"/"prisoner" = aggressor evidence)
                 _active_labels = [
                     v for v in _ant_to_prot.values()
-                    if any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                    if any(a in v.lower() for a in _OUTGOING_AGGRESSOR_LABELS)
                 ]
                 _colleague_keys = [
                     k for k, v in _ant_to_prot.items()
                     if isinstance(v, str) and "colleague" in v.lower()
-                    and not any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                    and not any(a in v.lower() for a in _OUTGOING_AGGRESSOR_LABELS)
                 ]
                 if len(_active_labels) >= 2 and _colleague_keys:
                     # Find the most common active adversarial label
@@ -2264,13 +2275,15 @@ class AudiobookAnalyzer:
                             _prot_label_pairs.append((_prot, _v))
                 if not _prot_label_pairs:
                     continue
+                # Protagonists' outgoing labels toward antagonist: "tormentor", "captor" etc.
+                # = incoming aggressor evidence (protagonist calls antagonist the aggressor)
                 _active_prot_labels = [
                     v for _, v in _prot_label_pairs
-                    if any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                    if any(a in v.lower() for a in _INCOMING_AGGRESSOR_LABELS)
                 ]
                 _colleague_prots = [
                     p for p, v in _prot_label_pairs
-                    if "colleague" in v.lower() and not any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                    if "colleague" in v.lower() and not any(a in v.lower() for a in _INCOMING_AGGRESSOR_LABELS)
                 ]
                 if len(_active_prot_labels) >= 2 and _colleague_prots:
                     from collections import Counter

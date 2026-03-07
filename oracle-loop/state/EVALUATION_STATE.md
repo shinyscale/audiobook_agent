@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -122,9 +122,10 @@
 | 5 | AM self-alias | characters.py (_is_valid_alias) | **Fixed** |
 | 6 | Ellen/Nimdok/Gorrister/Benny wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | **No change** — semantic direction bug: outgoing "tormentor" means target is my tormentor, not I am a tormentor |
 | 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | **No change** — depends on correct roles |
+| 7 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (direction-aware _OUTGOING_AGGRESSOR_LABELS + _INCOMING_AGGRESSOR_LABELS) | Smoke test PASS — all 4 victims correctly corrected to protagonist; AM stays antagonist |
 
 ## Next Action
-Run PROMPT_fix.md to fix the semantic direction bug in false-antagonist correction (Critical #1). Replace single `_ACTIVE_ADVERSARIAL_LABELS` with two direction-aware sets: `_OUTGOING_AGGRESSOR_LABELS` for checking what a character labels their targets as (aggressor evidence = "victim", "prisoner", etc.) and `_INCOMING_AGGRESSOR_LABELS` for checking what others label this character as (aggressor evidence = "tormentor", "captor", etc.).
+Re-run analysis to verify fix. Phase: awaiting_analysis
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
