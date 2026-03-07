@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 23
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -157,5 +157,12 @@
 | 22 | Step 6.9 regex catch-all modifier | analyzer.py | Unknown (substitution never fires) |
 | 23 | Step 6.9 attribute names fixed + ALL chars loop | analyzer.py | `profile_evidence` (was `evidence`), `description` string (was `descriptions` list), removed `is_narrator` guard so all chars get substitution |
 
+## Pipeline Notes (Attempt 23)
+- Exit code: 0, completed in 20m 23s
+- 6 characters found: AM, Ellen, Nimdok, Gorrister, Benny, Ted
+- "the narrator" blocked as alias for Ted (expected)
+- No crashes or pipeline errors
+- Output: ../output/i_have_no_mouth/report.html + analysis.json
+
 ## Next Action
-Re-run analysis to verify fix.
+Evaluate output to verify Step 6.9 attribute name fix resolved evidence/descriptions issue.
