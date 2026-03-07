@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -132,8 +132,9 @@ Re-run analysis to verify fix. Phase: awaiting_analysis
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 6 analysis completed successfully in 16m 6s
+- Attempt 7 analysis completed successfully in 21m 3s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- 6 characters total (AM, Benny, Gorrister, Ellen, Nimdok, Ted) — narrator Ted correctly identified
+- 6 characters total (AM, Ellen, Nimdok, Gorrister, Benny, + 1 more likely Ted) — narrator is "the unnamed narrator"
 - 16 pronunciation flags
+- WARNING: "Failed to parse JSON response for Ted: Could not parse JSON: line 1 column 1 (char 0)" → Low confidence profile for Ted: 0.30
 - Relationship data in analysis.json is exported as strings (target names only), not dicts — relationship types are only visible in HTML
