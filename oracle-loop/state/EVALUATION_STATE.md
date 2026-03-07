@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -114,18 +114,19 @@
 | 4 | Dup Ted | characters.py (STEP 5.8 promotion dedup) | No change — wrong code path AGAIN |
 | 4 | AM wrong role | analyzer.py ("victim" in _ADVERSARIAL_LABELS) | No change — AM labels are "colleague" not "victim" |
 | 4 | Self-relationship | analyzer.py (post-profile filter) | Likely worked (no self-rels visible) |
+| 5 | Dup Ted | characters.py (STEP 5.2b placeholder→existing merge) | Root cause: 5.2b renames "the narrator"→"Ted" after STEP 3.5 dedup; fix merges into existing |
+| 5 | AM wrong role | analyzer.py (incoming adversarial label check) | Checks both outgoing (captor) AND incoming (Ted→tormentor) signals |
+| 5 | Nimdok wrong role | analyzer.py (false antagonist correction) | Zero adversarial evidence → relabel protagonist |
+| 5 | AM self-alias | characters.py (_is_valid_alias) | Added alias==canonical guard |
 
-**ESCALATION WARNING:** Duplicate Ted has been attempted 3 times (attempts 2, 3, 4) without success. Each attempt targeted a different code path but missed the actual source (STEP 5.8.6 narrator fallback). The fix phase MUST:
-1. Read STEP 5.8.6 code carefully to find the narrator creation logic
-2. Add a same-name check BEFORE creating a new main_cast entry
-3. Verify with grep that no other code path also creates narrator entries
-
-**ESCALATION WARNING:** AM role has been attempted 2 times (attempts 3, 4). The adversarial label approach cannot work because the LLM generates "colleague" labels. The fix phase should consider:
-1. A simpler heuristic: if OTHER characters label this character as "tormentor"/"captor", it's an antagonist (check incoming labels, not just outgoing)
-2. OR: post-profile role override based on incoming relationship evidence
+- Attempt 5: Four fixes
+  1. **STEP 5.2b placeholder→existing merge** (`src/agents/characters.py`) — Root cause found: STEP 5.2b renames "the narrator" → "Ted" AFTER STEP 3.5 dedup has run, creating a duplicate. Fix: before renaming, check if the new name already exists in main_cast and merge the placeholder into the existing character instead of renaming.
+  2. **Incoming adversarial label check** (`src/analyzer.py`) — AM has 1 outgoing adversarial (captor) + Ted labels AM as "tormentor" (1 incoming). Combined check (>= 1 outgoing AND >= 1 incoming) triggers antagonist relabeling.
+  3. **False antagonist correction** (`src/analyzer.py`) — Characters labeled "antagonist" with zero adversarial evidence in outgoing OR incoming relationships are relabeled "protagonist". Fixes Nimdok.
+  4. **Self-alias filter** (`src/agents/characters.py:_is_valid_alias`) — Added check to return False when alias == canonical_name. Fixes AM alias ["AM"].
 
 ## Next Action
-Run PROMPT_fix.md. Priority: (1) Fix duplicate Ted by targeting STEP 5.8.6 narrator fallback, (2) Fix AM role by checking incoming adversarial labels, (3) Fix Nimdok role.
+Run PROMPT_analyze.md to re-run the pipeline.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html

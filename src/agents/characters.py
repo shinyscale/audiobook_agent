@@ -983,6 +983,7 @@ class CharacterAgent(Agent):
             "the protagonist", "the narrator", "narrator", "protagonist",
             "main character", "the main character",
         ]
+        _52b_chars_to_remove: list = []
         for char in main_cast:
             if not any(p in char.canonical_name.lower() for p in _narrator_placeholder_terms):
                 continue
@@ -997,15 +998,54 @@ class CharacterAgent(Agent):
             # Choose the fullest (most tokens) proper-name alias as new canonical
             new_canonical = max(proper_aliases, key=lambda a: len(a.split()))
             old_canonical = char.canonical_name
-            # Move old canonical to aliases, set new canonical
-            char.aliases = [a for a in char.aliases if a != new_canonical]
-            if old_canonical not in char.aliases:
-                char.aliases.append(old_canonical)
-            char.canonical_name = new_canonical
+            # Check if the new canonical name already exists in main_cast.
+            # This happens when the LLM extracted both "Ted" (main_cast_5) and
+            # "the narrator" (main_cast_7, with alias "Ted" from vocative detection).
+            # In that case, merge the placeholder into the existing character instead
+            # of renaming — renaming would create a duplicate caught only after STEP 3.5.
+            _existing_52b = next(
+                (c for c in main_cast if c is not char and c.canonical_name.lower() == new_canonical.lower()),
+                None,
+            )
+            if _existing_52b is not None:
+                # Merge placeholder into existing: transfer aliases (placeholder name + its aliases)
+                for _alias_52b in ([old_canonical] + list(char.aliases or [])):
+                    if _alias_52b.lower() != _existing_52b.canonical_name.lower() and _alias_52b not in _existing_52b.aliases:
+                        _existing_52b.aliases.append(_alias_52b)
+                # Transfer narrator attributes if placeholder has them
+                if char.is_narrator and not _existing_52b.is_narrator:
+                    _existing_52b.is_narrator = True
+                    _existing_52b.narrative_role = char.narrative_role or _existing_52b.narrative_role
+                # Update narrator_info if it pointed to the placeholder
+                if narrator_info.narrator_character_id == char.id:
+                    from ..pipeline.character_extraction_v2.narrator import NarratorInfo as _NI52b
+                    narrator_info = _NI52b(
+                        pov=narrator_info.pov,
+                        narrator_name=narrator_info.narrator_name,
+                        narrator_character_id=_existing_52b.id,
+                        confidence=narrator_info.confidence,
+                    )
+                _52b_chars_to_remove.append(char)
+                logger.info(
+                    f"V2 Step 5.2b: Placeholder '{old_canonical}' → merged into existing "
+                    f"'{_existing_52b.canonical_name}' (id={_existing_52b.id}); "
+                    f"placeholder removed to prevent duplicate"
+                )
+            else:
+                # Normal rename: no conflict, just upgrade the canonical name
+                char.aliases = [a for a in char.aliases if a != new_canonical]
+                if old_canonical not in char.aliases:
+                    char.aliases.append(old_canonical)
+                char.canonical_name = new_canonical
+                logger.info(
+                    f"V2 Step 5.2b: Upgraded narrator placeholder "
+                    f"'{old_canonical}' → '{new_canonical}' "
+                    f"(aliases: {char.aliases})"
+                )
+        if _52b_chars_to_remove:
+            main_cast = [c for c in main_cast if c not in _52b_chars_to_remove]
             logger.info(
-                f"V2 Step 5.2b: Upgraded narrator placeholder "
-                f"'{old_canonical}' → '{new_canonical}' "
-                f"(aliases: {char.aliases})"
+                f"V2 Step 5.2b: Removed {len(_52b_chars_to_remove)} placeholder duplicate(s) from main cast"
             )
 
         # STEP 5.2c: Re-search mentions for narrator-placeholder-upgraded characters.
@@ -2740,6 +2780,10 @@ class CharacterAgent(Agent):
         """
         alias_lower = alias.lower().strip()
         canonical_lower = canonical_name.lower().strip()
+
+        # Block self-aliases: alias identical to canonical name is redundant
+        if alias_lower == canonical_lower:
+            return False
 
         # Block meta-references
         meta_references = {"narrator", "the narrator", "reader", "the reader", "audience", "the audience"}

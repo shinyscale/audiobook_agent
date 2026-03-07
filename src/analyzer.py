@@ -2140,8 +2140,7 @@ class AudiobookAnalyzer:
                 if _rchar.role != "protagonist" or _rchar.is_narrator:
                     continue
                 _rels = _rchar.relationships or {}
-                if not _rels:
-                    continue
+                # Check outgoing adversarial labels
                 _adversarial_count = sum(
                     1 for v in _rels.values()
                     if isinstance(v, str) and any(adv in v.lower() for adv in _ADVERSARIAL_LABELS)
@@ -2150,7 +2149,56 @@ class AudiobookAnalyzer:
                     _rchar.role = "antagonist"
                     logger.info(
                         f"Role corrected: '{_rchar.canonical_name}' protagonist→antagonist "
-                        f"({_adversarial_count}/{len(_rels)} adversarial relationship labels)"
+                        f"({_adversarial_count}/{len(_rels)} outgoing adversarial labels)"
+                    )
+                    continue
+                # Check incoming adversarial labels: if OTHER characters label this character
+                # adversarially, it is likely the antagonist even if its own outgoing labels
+                # are mislabeled (e.g., LLM defaults to "colleague" for a captor→victim bond).
+                # Universal invariant: a true antagonist will show adversarial signals in BOTH
+                # directions — at least 1 outgoing adversarial label (they see some as adversaries)
+                # AND at least 1 incoming adversarial label (others label them as tormentor/captor).
+                _rchar_name_lower = _rchar.canonical_name.lower()
+                _incoming_adversarial = 0
+                for _other in pipeline_char_map.characters:
+                    if _other.id == _rchar.id:
+                        continue
+                    for _rel_key, _rel_val in (_other.relationships or {}).items():
+                        if _rel_key.lower() == _rchar_name_lower and isinstance(_rel_val, str):
+                            if any(adv in _rel_val.lower() for adv in _ADVERSARIAL_LABELS):
+                                _incoming_adversarial += 1
+                if _incoming_adversarial >= 1 and _adversarial_count >= 1:
+                    _rchar.role = "antagonist"
+                    logger.info(
+                        f"Role corrected: '{_rchar.canonical_name}' protagonist→antagonist "
+                        f"({_adversarial_count} outgoing + {_incoming_adversarial} incoming adversarial labels)"
+                    )
+
+            # False antagonist correction: if a character is labeled "antagonist" but has
+            # zero adversarial evidence in outgoing OR incoming relationships, the LLM
+            # misclassified them. Universal invariant: a true antagonist must have at least
+            # one adversarial relationship label visible from some direction in the story.
+            for _rchar in pipeline_char_map.characters:
+                if _rchar.role != "antagonist":
+                    continue
+                _own_adv = sum(
+                    1 for v in (_rchar.relationships or {}).values()
+                    if isinstance(v, str) and any(adv in v.lower() for adv in _ADVERSARIAL_LABELS)
+                )
+                _rchar_name_lower = _rchar.canonical_name.lower()
+                _in_adv = sum(
+                    1
+                    for _other in pipeline_char_map.characters
+                    if _other.id != _rchar.id
+                    for _k, _v in (_other.relationships or {}).items()
+                    if _k.lower() == _rchar_name_lower and isinstance(_v, str)
+                    and any(adv in _v.lower() for adv in _ADVERSARIAL_LABELS)
+                )
+                if _own_adv == 0 and _in_adv == 0:
+                    _rchar.role = "protagonist"
+                    logger.info(
+                        f"Role corrected: '{_rchar.canonical_name}' antagonist→protagonist "
+                        f"(no adversarial evidence in outgoing or incoming relationships)"
                     )
 
         # Post-profile self-relationship filter: remove any relationship where the key
