@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 22
-- **Phase:** awaiting_fix
+- **Attempt:** 23
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -155,11 +155,7 @@
 | 21 | Step 6.9 evidence/descriptions | analyzer.py | **No change** (expected dicts, got strings) |
 | 22 | Step 6.9 evidence/descriptions (strings) | analyzer.py | **No change** (wrong attribute: `evidence` vs `profile_evidence`, `descriptions` vs `description`) |
 | 22 | Step 6.9 regex catch-all modifier | analyzer.py | Unknown (substitution never fires) |
+| 23 | Step 6.9 attribute names fixed + ALL chars loop | analyzer.py | `profile_evidence` (was `evidence`), `description` string (was `descriptions` list), removed `is_narrator` guard so all chars get substitution |
 
 ## Next Action
-Run PROMPT_fix.md to fix Step 6.9 attribute names:
-1. Line 2580: `_char.evidence` → `_char.profile_evidence` (3 occurrences in block)
-2. Line 2587-2593: Replace `_char.descriptions` list iteration with `_char.description` singular string check
-3. Line 2574: Change `if getattr(_char, 'is_narrator', False)` to iterate ALL characters (Gorrister/Benny descriptions also reference "the narrator")
-
-This is a 3-line attribute name fix. Should be the final fix needed to pass.
+Re-run analysis to verify fix.

@@ -2570,27 +2570,23 @@ class AudiobookAnalyzer:
                     elif isinstance(_ps_obj, str) and 'narrator' in _ps_obj.lower():
                         overview['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj)
 
-                # 4. Narrator character's personality summary, evidence, and descriptions
+                # 4. All characters' personality summary, evidence, and descriptions
+                # (Gorrister/Benny descriptions also reference "the narrator" and need substitution)
                 for _char in pipeline_char_map.characters:
-                    if getattr(_char, 'is_narrator', False):
-                        if isinstance(getattr(_char, 'personality', None), dict):
-                            _psumm = _char.personality.get('summary', '')
-                            if _psumm and 'narrator' in _psumm.lower():
-                                _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
-                        if hasattr(_char, 'evidence') and _char.evidence:
-                            for _i, _ev in enumerate(_char.evidence):
-                                if isinstance(_ev, str) and 'narrator' in _ev.lower():
-                                    _char.evidence[_i] = _nn_pat.sub(_nn_final, _ev)
-                                elif isinstance(_ev, dict) and 'statement' in _ev:
-                                    if 'narrator' in _ev['statement'].lower():
-                                        _ev['statement'] = _nn_pat.sub(_nn_final, _ev['statement'])
-                        if hasattr(_char, 'descriptions') and _char.descriptions:
-                            for _i, _desc in enumerate(_char.descriptions):
-                                if isinstance(_desc, str) and 'narrator' in _desc.lower():
-                                    _char.descriptions[_i] = _nn_pat.sub(_nn_final, _desc)
-                                elif isinstance(_desc, dict) and 'text' in _desc:
-                                    if 'narrator' in _desc['text'].lower():
-                                        _desc['text'] = _nn_pat.sub(_nn_final, _desc['text'])
+                    if isinstance(getattr(_char, 'personality', None), dict):
+                        _psumm = _char.personality.get('summary', '')
+                        if _psumm and 'narrator' in _psumm.lower():
+                            _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
+                    if hasattr(_char, 'profile_evidence') and _char.profile_evidence:
+                        for _i, _ev in enumerate(_char.profile_evidence):
+                            if isinstance(_ev, str) and 'narrator' in _ev.lower():
+                                _char.profile_evidence[_i] = _nn_pat.sub(_nn_final, _ev)
+                            elif isinstance(_ev, dict) and 'statement' in _ev:
+                                if 'narrator' in _ev['statement'].lower():
+                                    _ev['statement'] = _nn_pat.sub(_nn_final, _ev['statement'])
+                    if hasattr(_char, 'description') and _char.description:
+                        if 'narrator' in _char.description.lower():
+                            _char.description = _nn_pat.sub(_nn_final, _char.description)
 
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
