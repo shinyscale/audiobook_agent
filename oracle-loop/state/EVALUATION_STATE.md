@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -209,5 +209,17 @@
   - Smoke test: 332 tests passed
   - Modified: `src/pipeline/character_extraction/models.py`
 
+## Output Files
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
+## Pipeline Notes
+- Completed successfully in 15m 7s (exit code 0) — no crash
+- 6 characters found (Ted, AM, Ellen, Nimdok, Gorrister, Benny)
+- Narrator from V2 pipeline still shows "the narrator" (generic) — may need evaluation to confirm Ted role
+- "Narrator already identified by V2 pipeline: the narrator (skipping re-detection)" logged
+- No AttributeError crash (attempt 18c fix confirmed working)
+- No _ADVERSARIAL_LABELS crash (attempt 18b fix confirmed working)
+
 ## Next Action
-Re-run analysis to verify all attempt 18 fixes work together (Ted protagonist, Gorrister not antagonist, narrator preserved, no crash).
+Evaluate output to verify: Ted=protagonist, Gorrister≠antagonist, narrator_character_id set, summary POV correct.
