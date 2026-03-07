@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -158,10 +158,10 @@ Re-run analysis to verify fixes from attempt 8.
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 7 analysis completed successfully in 21m 3s
+- Attempt 8 analysis completed successfully in 18m 16s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- 6 characters total: AM, Ellen, Nimdok, Gorrister, Benny, "the ice caverns" (should be Ted)
+- 7 characters found, 6 profiles generated
+- Ted detected as narrator (first-person) ✓ — vocative expansion fix appears to have worked
 - 16 pronunciation flags
-- WARNING: "Failed to parse JSON response for Ted: Could not parse JSON: line 1 column 1 (char 0)" → Low confidence profile for Ted: 0.30
-- Relationship data in analysis.json is exported as strings (target names only), not dicts — relationship types are only visible in HTML
-- REGRESSION NOTE: The profiler DID try to generate a profile for "Ted" (see JSON parse warning) but failed. This suggests Ted WAS known to the profiler but the character extraction produced "the ice caverns" instead, and the profiler couldn't match "Ted" to any extracted character.
+- No JSON parse errors
+- Characters summary: Ted (5 mentions), AM (77), Ellen (30), Nimdok (17), Gorrister (29), + 1 more (Benny)
