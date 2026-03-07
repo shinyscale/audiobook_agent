@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 21
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -11,155 +11,126 @@
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
 
-## Pipeline Notes (Attempt 21)
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Duration: 16m 50s
-- Characters (4): Johnny (1 mention), John Donaldson (33 mentions, aliases: American sir, John), Uncle Bill (18 mentions), Ted Frith (5)
-- IMPROVEMENT: "the American, sir" is now absorbed as alias of John Donaldson (not a false separate character)
-- STILL FAILING: Father/son split did NOT fire — John Donaldson still merges father+son into 33 mentions
-- Narrator: V2 pipeline correctly identifies Uncle Bill, but plot summary narrator detection returns "No definitive narrator identified"
-- Final narrator appearance injection fires for Uncle Bill — may mean Uncle Bill gets narrator in output
-- "Johnny" appears as a separate 1-mention fragment character
-- BLOCKED alias: 'John Donaldson' blocked from being alias of 'John' (claimed by another character) — suggests separate characters exist in pipeline but weren't properly split
-- Config changes from commit 90b62a5 appear to have had mixed effects
-
-## IMPORTANT: External Changes Detected
-
-Commit `90b62a5` ("Rationalize LLM tuning params for qwen3-next:80b model") was made OUTSIDE the oracle loop after the analysis commit. It changed:
-- LLMConfig max_tokens: 4096 -> 8192
-- AgentConfig max_tokens: 32768 -> 8192
-- AgentConfig context_length: 65536 -> 32768
-- Fixed config mutation bug where qwen3 auto-tuning permanently mutated self.config
-
-**The analysis MUST be re-run before applying more code fixes** to verify whether these config changes affect the output. The current output may reflect stale config.
-
-## IMPORTANT: Pipeline Notes vs Actual Output Mismatch
-
-The previous pipeline notes (from the analysis phase) claimed father/son split fired, Joe Barron present, Margaret Donaldson present, Uncle Bill narrator confirmed. **None of these match the actual output.** The output shows:
-- Single "John" character (no father/son split)
-- No Joe Barron or Margaret Donaldson
-- John marked as narrator (WRONG — Uncle Bill should be)
-- "the American, sir" as a false character
-
-The analysis phase likely wrote notes based on intermediate log output that didn't persist to the final analysis.json. Evaluate based on ACTUAL OUTPUT only.
-
 ## Latest Scores
-- Structure Detection: 8/10 ✓
-- Character Extraction: 4/10 ✗ (FAILING — no father/son split, false character, wrong narrator)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 5/10 ✗ (FAILING — father/son merged, Johnny fragment)
   - Completeness: 5/10
-  - Identity Resolution: 3/10
-  - Alias Grouping: 5/10
-- Character Profiles: 3/10 ✗ (FAILING — profile contamination from narrator misassignment, wrong relationships)
-- Chapter Summaries: 6.5/10 ✗ (FAILING — "Uncle Bill's father" error, Uncle Bill on battlefield)
+  - Identity Resolution: 4/10
+  - Alias Grouping: 7/10
+- Character Profiles: 5.5/10 ✗ (FAILING — merged character contamination, null summaries)
+- Chapter Summaries: 5/10 ✗ (FAILING — hallucinated Uncle Bill on battlefield, wrong encounter attribution)
 - Pronunciation Guide: 9/10 ✓
-- HTML Presentation: 7.5/10 ✗ (FAILING — BOM in title, author name as title instead of story name)
-- **Overall: 5.95/10** (reference only)
+- HTML Presentation: 7.5/10 ✗ (FAILING — BOM in title, author name as title)
+- **Overall: 6.5/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (4 categories below threshold) — SEVERE REGRESSION from attempt 19 (7.7)
+**Status:** FAIL (4 categories below threshold)
+
+## Improvements from Attempt 20
+
+1. **Narrator correctly assigned to Uncle Bill** ✓ (was John in attempt 20)
+2. **"the American, sir" absorbed as alias of John Donaldson** ✓ (was false separate character in attempt 20)
+3. **Uncle Bill's profile now correct** — "elderly, grizzled, small man" ✓ (was on John's profile in attempt 20)
 
 ## Detailed Evaluation
 
-### 2.1 Structure Detection: 8/10 ✓
-- 1 section for continuous short story — correct, no chapter markers in source text
-- Title is null — minor issue but acceptable for continuous text
-- Attempt 19 had 2 sections; 1 section is arguably more correct for this text
+### 2.1 Structure Detection: 9/10 ✓
+- 1 section for continuous short story — correct
+- Title is null — minor issue
 
-### 2.2 Character Extraction: 4/10 ✗
+### 2.2 Character Extraction: 5/10 ✗
 
 **Completeness (5/10):**
-- John (44 mentions) ✓ — but this is son only, father not separated
-- Uncle Bill (18 mentions) ✓
+- John Donaldson (33 mentions) — merges father AND son into one entry
+- Uncle Bill (18 mentions, narrator=True) ✓
 - Ted Frith (5 mentions) ✓
-- "the American, sir" (5 mentions) — FALSE CHARACTER. This is a quote/phrase from the story, not a character name. The "shabby American civilian" is John Donaldson's father.
-- MISSING: John Donaldson (the father) as a separate character
-- MISSING: Joe Barron, Margaret Donaldson
+- Johnny (1 mention) — false fragment, should be merged with John/the son
+- MISSING: Joe Barron, Margaret Donaldson (minor characters)
 
-**Identity Resolution (3/10):**
-- Father/son NOT split — the central identity puzzle of this story is completely unresolved
-- "the American, sir" is a false extraction that should be the father character
-- Narrator misassigned: John=narrator (WRONG), Uncle Bill=not narrator (WRONG). Uncle Bill is the first-person frame narrator.
+**Identity Resolution (4/10):**
+- Father/son NOT split — the central identity puzzle remains unresolved. "John Donaldson" (father, the shabby American civilian) and "John" (son, the WWI ambulance driver) are merged into one 33-mention character.
+- Johnny is a separate 1-mention fragment that should be the son
+- Narrator correctly Uncle Bill ✓ (improvement)
 
-**Alias Grouping (5/10):**
-- John aliases: ['the boy', 'John Donaldson', 'John', 'Johnny'] — reasonable for the son
-- Uncle Bill aliases: ['Bill'] — OK
-- "the American, sir" aliases: ['American, sir'] — entire entry is invalid
-- Ted Frith aliases: ['Ted'] — OK
+**Alias Grouping (7/10):**
+- John Donaldson aliases: ['American, sir', 'John'] — "American, sir" correctly grouped ✓
+- Uncle Bill aliases: ['Bill'] ✓
+- Johnny aliases: ['his son'] — reasonable but character shouldn't exist separately
+- Ted Frith aliases: ['Ted'] ✓
 
-### 2.3 Character Profiles: 3/10 ✗
+### 2.3 Character Profiles: 5.5/10 ✗
 
-- **John** (marked narrator): Physical description is "elderly, grizzled, small man, grim and unexhilarating" — this is UNCLE BILL's description, not John's! John should be "beautiful youngster, towering". The narrator misassignment caused the profiler to attribute Uncle Bill's first-person self-descriptions ("I am crabbed and prejudiced") to John.
-- **Uncle Bill** (marked non-narrator): Has no physical description of his own. Relationships empty except "the American, sir (uncle)" — meaningless since that character shouldn't exist.
-- **"the American, sir"**: Has physical description "tall and broad-shouldered, dark skin, shabby clothing" — this is actually the father's description, but attached to a false character name. Relationships claim uncle↔John and nephew↔Uncle Bill — completely wrong.
-- **Ted Frith**: colleague to John ✓ — only correct relationship in the output.
-- character_summary null for all characters.
+- **Uncle Bill**: Physical description correct ✓ ("elderly, grizzled, small man"). Relationships: Ted Frith (colleague) ✓. Major improvement from attempt 20.
+- **John Donaldson**: Description is the father's ("Tall, dark-skinned, shabby clothing... resembles his son's beauty") — internally coherent but the merged character means the son's attributes aren't captured. No relationships listed.
+- **Johnny**: No physical description. Relationship "Ted Frith: close friend" — WRONG, Ted is Uncle Bill's colleague, not Johnny's friend.
+- **Ted Frith**: Relationships reasonable (Johnny: close friend — wrong, Uncle Bill: colleague ✓, John Donaldson: concerned observer — OK).
+- character_summary null for ALL characters.
 
-### 2.4 Chapter Summaries: 6.5/10 ✗
+### 2.4 Chapter Summaries: 5/10 ✗
 
-**Section summary (decent):**
-- Covers story arc from Uncle Bill receiving letter → John's war service → deathbed scene
-- Correctly mentions "American, sir" declaration
-- Erroneously says "the narrator encounters John Donaldson" on the battlefield — Uncle Bill is NOT on the battlefield; John encounters his father there
+The section summary has major hallucinations:
+1. "the narrator encounters that same man—John Donaldson" — Since narrator=Uncle Bill, this says Uncle Bill encounters John Donaldson on the Italian front. WRONG. Uncle Bill is never on the battlefield. It's John (the son) who encounters his father there.
+2. "Uncle Bill, mortally wounded on a battlefield, confesses his fear of dishonor" — COMPLETELY FABRICATED. Uncle Bill is never wounded or on any battlefield. He is the elderly frame narrator at home.
+3. "his son John embraces him" — Implies Uncle Bill's son is John. John is Uncle Bill's NEPHEW, not son.
+4. Opening section (letter, fishing trip, WWI service) is largely correct ✓
+5. "American, sir" declaration correctly captured ✓
 
-**Plot summary (major errors):**
-- Paragraph 1: "he is Uncle Bill's long-lost father" — WRONG. The dying man is JOHN's father, not Uncle Bill's. Uncle Bill is the frame narrator with no blood relation.
-- Paragraph 2: "Uncle Bill himself encounters this same man" — WRONG. Uncle Bill is not on the Italian front. John encounters the dying man.
-- Paragraph 3: Good — correctly notes Uncle Bill "alive and whole, carries this moment"
-- The nested narration (Uncle Bill telling John's story) continues to confuse the LLM
+The nested narration structure (Uncle Bill telling John's story about encountering his father) continues to confuse the LLM, which collapses the frame narrator into the battlefield narrative.
 
 ### 2.5 Pronunciation Guide: 9/10 ✓
 - 15 entries, all with IPA ✓
 - Excellent foreign terms: Caporetto, Piave, Solferino, Guerre, Venetia, Tagliamento, Bersagliari, Bordeaux
 - Homographs: live, minute, read, close, moderate — appropriate
-- Minor: "dum-dums" and "mayn't" are valid flags
+- Minor entries: "dum-dums" and "mayn't" are valid flags
 
 ### 2.6 HTML Presentation: 7.5/10 ✗
-- Title shows "Mary Raymond Shipman Andrews" (author) instead of story title "American, Sir"
-- BOM character in title: `﻿Mary Raymond Shipman Andrews`
+- Title shows "Mary Raymond Shipman Andrews" (author) instead of story title
+- BOM character in title and h1
 - Navigation functional ✓
-- Character sections logically organized ✓
-- 2 main + 2 supporting character layout ✓
+- Character sections organized ✓
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Father/son split did not fire — STEP 3.95/3.95b regression** [Identity Resolution]
-   - Problem: Only one "John" character exists (44 mentions). The father is not a separate character.
-   - Evidence: Attempt 19 successfully split using Pattern D (STEP 3.95b). This run, the split didn't occur.
-   - Root cause: LLM non-determinism in summary text. Pattern D regex depends on specific wording in summaries. Different summary wording → different regex matches → split doesn't fire.
-   - NOTE: Before adding more patterns, re-run analysis first — external config changes (commit 90b62a5) may affect model output.
+1. **Father/son merge: John Donaldson father + John son = one character** [Identity Resolution]
+   - Problem: The father ("John Donaldson", shabby American civilian who abandoned family, dies on battlefield) and son ("John", beautiful youngster, ambulance driver, Uncle Bill's nephew) are merged into a single 33-mention character.
+   - Evidence: 21 attempts and STEP 3.95/3.95b fires ~50% of the time due to LLM non-determinism in summary wording.
+   - Root cause: The father/son split depends on specific LLM summary phrasings that Pattern A-D regex can match. When the LLM uses different wording, no pattern fires.
+   - Location: `src/agents/characters.py` STEP 3.95/3.95b
+   - Fix approach: The split logic needs to be MORE ROBUST — either add more pattern variants, or use a completely different signal (e.g., the physical description contrast "elderly shabby" vs "beautiful youngster" in the source text, or the alias "American, sir" as an indicator of a separate identity).
 
-2. **"the American, sir" extracted as false character** [Completeness/Identity]
-   - Problem: "the American, sir" is a quote/phrase, not a character name. The actual character is John Donaldson's father (the "shabby American civilian").
-   - Evidence: main_cast_3 with id "main_cast_3" has 5 mentions. The phrase appears in dialogue.
-   - Location: V2 character extraction — LLM incorrectly extracts quoted phrases as character names
-   - Fix: This may resolve naturally if the father/son split fires correctly (the father would absorb these mentions). Could also add a post-extraction filter for quoted phrases containing "sir".
-
-3. **Narrator misassignment: John instead of Uncle Bill** [Identity Resolution]
-   - Problem: John is narrator=True, Uncle Bill is narrator=False. Uncle Bill is the first-person frame narrator.
-   - Evidence: Uncle Bill's quotes ("I am not soft-hearted. I am crabbed and prejudiced...") are attributed to John's profile.
-   - Location: Narrator detection pipeline — Step 6.6 narrator fallback (analyzer.py) may not be firing.
-   - Note: This worked in attempts 14-15, 19. Regression suggests LLM non-determinism or config change impact.
+2. **Summary hallucination: Uncle Bill on battlefield, mortally wounded** [Summaries]
+   - Problem: Summary says "Uncle Bill, mortally wounded on a battlefield" — completely fabricated. Uncle Bill is never on a battlefield.
+   - Evidence: The story's nested narration (Uncle Bill recounting John's experience) is collapsed by the LLM.
+   - Location: `src/pipeline/summarizer/` — the summarizer doesn't distinguish frame narrator from story protagonist
+   - Fix approach: Summarizer prompt could include narrator identity to help the LLM maintain narrative layers. Also, the "narrator encounters" phrasing cascades from the merged character issue — if father/son were split, the summary might correctly attribute encounters.
 
 ### HIGH
-4. **Profile contamination from narrator misassignment** [Profiles]
-   - Problem: John's profile contains Uncle Bill's physical description and personality traits. Uncle Bill's profile is empty.
-   - Evidence: John shows "elderly, grizzled, small man" — this describes Uncle Bill. John should be "beautiful youngster, towering."
-   - Root cause: Cascades from Issue #3. When narrator is fixed, profiles should improve.
+3. **Johnny 1-mention fragment character** [Completeness]
+   - Problem: "Johnny" (id=main_cast_0, 1 mention) is a separate character from "John Donaldson" (33 mentions). Johnny is the son's nickname and should be an alias of the son character.
+   - Evidence: aliases=['his son'] confirms this IS the son
+   - Location: V2 character extraction — Johnny should merge into the son character, but since father/son aren't split, there's no clean "son-only" character to merge into.
+   - Note: This resolves naturally if the father/son split works — Johnny would merge into the son character.
 
-5. **Plot summary says "Uncle Bill's father" and puts Uncle Bill on battlefield** [Summaries]
-   - Problem: (a) "he is Uncle Bill's long-lost father" — should be JOHN's father. (b) "Uncle Bill himself encounters this same man" — Uncle Bill is not in Italy.
-   - Evidence: The text establishes John Donaldson (the son) discovers his father on the Italian front. Uncle Bill is the frame narrator in New York/at home.
-   - Location: `src/pipeline/overview/generator.py` — narrator_instruction needs stronger clarification about nested narration.
+4. **character_summary null for all characters** [Profiles]
+   - Problem: No character summaries generated for any character
+   - Evidence: `character_summary: null` for all 4 characters
+   - Location: Profile generation in `src/pipeline/character_profiling/` or `src/analyzer.py`
+   - Note: This was also null in attempt 20. May be a config or model issue with qwen3-next.
 
 ### MEDIUM
-6. **HTML title shows author name instead of story title** [Presentation]
-   - Problem: `<title>﻿Mary Raymond Shipman Andrews - Audiobook Prep Report</title>` — should be "American, Sir" or the actual story title.
-   - BOM character `﻿` is also present.
-   - Location: Title extraction in ingestion or HTML template generation.
+5. **HTML title shows author name instead of story title** [Presentation]
+   - Problem: `<title>Mary Raymond Shipman Andrews</title>` — should be the story title
+   - BOM character also present
+   - Location: Title extraction in ingestion or HTML template
+   - Fix: Strip BOM in ingestion; use story title not author name
+
+6. **Johnny→Ted Frith "close friend" relationship is wrong** [Profiles]
+   - Problem: Johnny shows relationship with Ted Frith as "close friend". Ted is Uncle Bill's colleague, not Johnny's friend.
+   - Location: Profile generation — likely LLM hallucination during profiling
 
 7. **Missing minor characters: Joe Barron, Margaret Donaldson** [Completeness]
-   - F6/F6b reconciliation non-deterministic. Low priority.
+   - Low mention count characters. F6/F6b reconciliation non-deterministic.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -183,17 +154,12 @@ The analysis phase likely wrote notes based on intermediate log output that didn
 | 17 | 6.2 | -0.35 | Summary severe regression. Wrong narrator in plot summary. |
 | 18 | 6.8 | +0.25 | No Johnny phantom. Father/son still merged. |
 | 19 | 7.7 | +1.15 | Father/son split (Pattern D)! "Dying Uncle Bill" gone. |
-| 20 | 5.95 | -0.60 | **SEVERE REGRESSION.** Father/son split didn't fire. "American, sir" false char. Narrator wrong. External config change may be factor. |
+| 20 | 5.95 | -0.60 | SEVERE REGRESSION. Father/son split didn't fire. "American, sir" false char. Narrator wrong. |
+| 21 | 6.5 | -0.05 | Narrator fixed ✓, "American sir" absorbed ✓. Father/son still merged. Summary hallucinations. |
 
 ## Fix History
-- Attempt 11-19: See previous entries (preserved from prior evaluations)
-- Attempt 20:
-  1. Cross-alias contamination in STEP 3.95 — mutual alias decontamination after split
-     - Modified: `src/agents/characters.py` — STEP 3.95
-     - Result: **UNTESTABLE** — STEP 3.95 didn't fire, so decontamination code never ran
-  2. force_parenthetical_relationship_labels() base-name lookup fallback
-     - Modified: `src/pipeline/character_profiling/post_corrections.py`
-     - Result: **UNTESTABLE** — no parenthetical characters exist, so function never fired
+- Attempt 11-20: See previous entries
+- Attempt 21: Re-analysis with new config (commit 90b62a5). Narrator and alias absorption improved. Father/son split still not firing. Summary hallucinations persist.
 
 ## Modification History
 
@@ -214,19 +180,22 @@ The analysis phase likely wrote notes based on intermediate log output that didn
 | 15 | STEP 5.4.6c / Step 6.6 narrator | `characters.py`, `analyzer.py` | Fixed |
 | 16-18 | STEP 3.95/3.95b patterns | `characters.py` | Intermittent |
 | 19 | STEP 3.95b Pattern D / narrator survival | `characters.py`, `generator.py` | Fixed |
-| 20 | Cross-alias decontamination / parenthetical rel labels | `characters.py`, `post_corrections.py` | UNTESTABLE (split didn't fire) |
+| 20 | Cross-alias decontamination / parenthetical rel labels | `characters.py`, `post_corrections.py` | UNTESTABLE |
+| 21 | Re-analysis with new config (90b62a5) | No code changes | Narrator ✓, alias ✓, split ✗ |
 
-**Pattern: STEP 3.95/3.95b fires ~50% of the time due to LLM non-determinism in summary wording. This is the core instability.**
+**Pattern: STEP 3.95/3.95b fires ~50% of the time due to LLM non-determinism in summary wording. This is the core instability. 21 attempts and the split has fired in attempts 8, 9, 12, 14, 19 — and failed in 10, 11, 13, 15, 16, 17, 18, 20, 21.**
 
 ## Configuration Notes
-- External commit 90b62a5 changed LLM config: max_tokens 4096→8192, context_length 65536→32768, fixed config mutation bug
-- These changes were NOT reflected in the current output (analysis ran before config commit)
-- Model: qwen3.5:122b-a10b for chars/summaries/profiles, qwen3.5:35b-a3b for structure/pronunciation
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Config: max_tokens=8192, context_length=32768, think_mode=false
+- Duration: 16m 50s
 
 ## Next Action
-**RE-ANALYZE FIRST.** External config changes (commit 90b62a5) must be tested before applying more code fixes. Run the analysis phase again with the new config to see if:
-1. Father/son split fires with new config
-2. "the American, sir" false character is eliminated
-3. Narrator assignment improves
+The father/son split is the ROOT CAUSE of most failures (characters, profiles, summaries all cascade from it). After 21 attempts, the regex-pattern approach in STEP 3.95/3.95b is fundamentally unreliable (~50% fire rate).
 
-If the re-analysis still shows the same issues, THEN apply code fixes targeting the root instability: STEP 3.95b's dependence on specific LLM summary wording.
+**Recommended fix approach:** Instead of adding more LLM-dependent regex patterns, implement a DETERMINISTIC split signal. Options:
+1. **Physical description contrast**: The source text describes the father as "shabby", "dark-skinned", elderly vs the son as "beautiful youngster", "towering". If the profiler finds contradictory age/appearance descriptors for a single character, trigger a split.
+2. **Alias-based split**: When "American, sir" (a dialogue phrase) is an alias AND the character has aliases like "Johnny"/"the boy" (youth terms), that contradiction signals two identities.
+3. **Mention-context analysis**: Check if the character's mentions span incompatible contexts (pre-war childhood + battlefield death), which would indicate merged identities.
+
+The fix phase should focus ONLY on making the father/son split deterministic. All other issues (profiles, summaries, Johnny fragment) cascade from this.
