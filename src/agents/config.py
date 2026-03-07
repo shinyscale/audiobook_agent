@@ -27,8 +27,8 @@ class AgentConfig:
 
     # Model parameters
     temperature: float = 0.7  # Model-recommended default for local LLMs
-    max_tokens: int = 32768  # 32k - large enough for complex JSON responses without truncation
-    context_length: int = 65536  # Context window size (num_ctx for Ollama) - 64k for larger models
+    max_tokens: int = 8192  # 8k - sufficient for complex JSON; avoids wasteful generation
+    context_length: int = 32768  # Context window size (num_ctx for Ollama) - 32k sweet spot for qwen3-next:80b
 
     # Behavior
     enable_verification: bool = True
@@ -357,8 +357,8 @@ class OrchestratorConfig:
 # NOTE on Qwen3 Instruct models:
 # - Qwen3-30B-A3B-Instruct-2507 and Qwen3-Next-80B-A3B-Instruct are NON-THINKING
 # - They do NOT produce <think> tags (different from base Qwen3 models)
-# - LLMClient auto-applies when model contains "qwen3":
-#   top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+# - LLMClient auto-applies per-request when model contains "qwen3":
+#   top_p=0.8, top_k=20, presence_penalty=1.0 (sampling only, no max_tokens override)
 # - We still favor qwen2.5 and llama3 for stability, but Qwen3 Instruct variants are viable
 RECOMMENDED_AGENT_MODELS = {
     "structure": {

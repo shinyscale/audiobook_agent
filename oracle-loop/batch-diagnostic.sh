@@ -29,6 +29,10 @@ PROMPTS_DIR="prompts"
 LOGS_DIR="logs"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 OUTPUT_DIR="$PROJECT_ROOT/output"  # output/ lives at project root, not oracle-loop/
+# Activate project venv
+if [ -f "$PROJECT_ROOT/venv/bin/activate" ]; then
+    source "$PROJECT_ROOT/venv/bin/activate"
+fi
 
 # Parse arguments
 RUN_ALL=false
@@ -72,11 +76,11 @@ done
 
 # Timestamp for this diagnostic run
 TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
-DIAG_LOG_DIR="$LOGS_DIR/diagnostic_${TIMESTAMP}"
+DIAG_LOG_DIR="$SCRIPT_DIR/$LOGS_DIR/diagnostic_${TIMESTAMP}"
 mkdir -p "$DIAG_LOG_DIR"
 
-MATRIX_FILE="$STATE_DIR/diagnostic_matrix.json"
-REPORT_FILE="$STATE_DIR/diagnostic_report.md"
+MATRIX_FILE="$SCRIPT_DIR/$STATE_DIR/diagnostic_matrix.json"
+REPORT_FILE="$SCRIPT_DIR/$STATE_DIR/diagnostic_report.md"
 
 # =============================================================================
 # Helper Functions

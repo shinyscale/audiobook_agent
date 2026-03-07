@@ -28,13 +28,13 @@ class LLMConfig:
     base_url: Optional[str] = None  # For Ollama/LM Studio
     api_key: Optional[str] = None
     temperature: float = 0.7  # Model-recommended default for local LLMs
-    max_tokens: int = 4096
+    max_tokens: int = 8192
     context_length: int = 32768  # Context window size (num_ctx for Ollama)
     think: Optional[Union[bool, str]] = (
         None  # Reasoning control: False, True, "low", "medium", "high"
     )
     # Additional sampling parameters
-    # Qwen3 auto-applies: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
+    # Qwen3 defaults (applied per-request, not mutated): top_p=0.8, top_k=20, presence_penalty=1.0
     top_p: Optional[float] = None  # Nucleus sampling threshold
     top_k: Optional[int] = None  # Top-k sampling limit
     presence_penalty: Optional[float] = None  # 0-2, reduces repetition
@@ -243,24 +243,25 @@ class LLMClient:
 
         url = f"{self.config.base_url}/api/chat"
 
-        # Auto-apply Qwen3 recommended settings if not explicitly set
-        # Qwen3 Instruct: top_p=0.8, top_k=20, max_tokens=16384, presence_penalty=1.0
-        model_lower = self.config.model.lower()
-        if "qwen3" in model_lower:
-            if self.config.top_p is None:
-                self.config.top_p = 0.8
-            if self.config.top_k is None:
-                self.config.top_k = 20
-            # Increase max_tokens if at default (4096) - Qwen3 recommends 16384
-            if self.config.max_tokens <= 4096:
-                self.config.max_tokens = 16384
-            # Moderate presence_penalty reduces repetition (0-2 range, 1.0 is balanced)
-            if self.config.presence_penalty is None:
-                self.config.presence_penalty = 1.0
-
         # Use provided overrides or fall back to config
         effective_temp = temperature if temperature is not None else self.config.temperature
         effective_max_tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+
+        # Compute effective sampling params (config values take precedence)
+        effective_top_p = self.config.top_p
+        effective_top_k = self.config.top_k
+        effective_presence_penalty = self.config.presence_penalty
+
+        # Auto-apply Qwen3 recommended defaults for unset params (without mutating config)
+        # Qwen3 Instruct: top_p=0.8, top_k=20, presence_penalty=1.0
+        model_lower = self.config.model.lower()
+        if "qwen3" in model_lower:
+            if effective_top_p is None:
+                effective_top_p = 0.8
+            if effective_top_k is None:
+                effective_top_k = 20
+            if effective_presence_penalty is None:
+                effective_presence_penalty = 1.0
 
         # Build options dict, only including optional params if set
         options = {
@@ -268,12 +269,12 @@ class LLMClient:
             "num_predict": effective_max_tokens,
             "num_ctx": self.config.context_length,
         }
-        if self.config.top_p is not None:
-            options["top_p"] = self.config.top_p
-        if self.config.top_k is not None:
-            options["top_k"] = self.config.top_k
-        if self.config.presence_penalty is not None:
-            options["presence_penalty"] = self.config.presence_penalty
+        if effective_top_p is not None:
+            options["top_p"] = effective_top_p
+        if effective_top_k is not None:
+            options["top_k"] = effective_top_k
+        if effective_presence_penalty is not None:
+            options["presence_penalty"] = effective_presence_penalty
 
         body = {
             "model": self.config.model,
