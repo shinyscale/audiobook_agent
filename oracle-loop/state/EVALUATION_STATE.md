@@ -3,23 +3,11 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 9/10 ✓
-  - Completeness: 10/10
-  - Identity Resolution: 10/10
-  - Alias Grouping: 8/10
-- Character Profiles: 5.5/10 ✗ (FAILING)
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 8.5/10 ✓
-- HTML Presentation: 8/10 ✓
-- **Overall: 8.1/10** (reference only)
-
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+(Awaiting evaluation)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -29,6 +17,7 @@
 | 3 | 7.8 | +1.45 | Relationship vocab improved, pronunciation fixed, but duplicate Ted and AM role fixes didn't work |
 | 4 | 7.6 | +1.25 | Fixes did NOT take effect — duplicate Ted persists, AM still "protagonist" |
 | 5 | 8.1 | +1.75 | Dup Ted FIXED, AM now antagonist, self-alias fixed. But 3 humans wrongly labeled antagonist |
+| 6 | TBD | TBD | ACTIVE vs PASSIVE adversarial labels + consistency enforcement fixes |
 
 ## Current Issues (Priority Order)
 
@@ -131,26 +120,21 @@
 | 5 | AM wrong role | analyzer.py (incoming adversarial check) | **Fixed** — AM now "antagonist" |
 | 5 | False antagonist | analyzer.py (zero adversarial evidence check) | **Partial** — Benny fixed, Ellen/Nimdok/Gorrister still "antagonist" |
 | 5 | AM self-alias | characters.py (_is_valid_alias) | **Fixed** |
-| 6 | Ellen/Nimdok/Gorrister wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | Pending |
-| 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending |
+| 6 | Ellen/Nimdok/Gorrister wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | Pending evaluation |
+| 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending evaluation |
 
 ## Next Action
-Re-run analysis to verify attempt 6 fixes (ACTIVE vs PASSIVE adversarial labels + consistency enforcement) work correctly without the crash.
+Evaluate attempt 6 output.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 5 analysis completed successfully in 19m 8s
+- Attempt 6 analysis completed successfully in 16m 6s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- 6 characters total (Ted, AM, Ellen, Nimdok, Gorrister, Benny) — duplicate Ted fixed
-- AM has alias "I Am" — self-alias filter working
-- Ted correctly identified as first-person narrator
-- 16 pronunciation flags — all reasonable
-- Contradictory relationship pairs removed: AM↔Nimdok tormentor, AM↔Benny tormentor
-
-- Attempt 6 crash fixed: `unhashable type: 'Character'` in consistency enforcement code
-  - `{c for c in ...}` set comprehensions → `[c for c in ...]` list comprehensions (lines 2223-2224)
-  - `_prot_to_ant[_prot]` dict with Character key → `_prot_label_pairs` list of `(prot, label)` tuples (line 2260)
-  - All 332 tests pass
+- 6 characters total (AM, Benny, Gorrister, Ellen, Nimdok, Ted) — narrator Ted correctly identified
+- 16 pronunciation flags
+- "Jesus" appeared during extraction but filtered out from final 6
+- Narrator 'the narrator' identified but matched to Ted via narrator finalization
+- Contradictory relationship removed: Gorrister→Ted / Ted→Gorrister both "group member" (non-symmetric)
