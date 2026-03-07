@@ -903,6 +903,32 @@ class CharacterAgent(Agent):
                         f"for placeholder '{char.canonical_name}'"
                     )
                 break  # Only process first narrator placeholder
+
+        # STEP 4.5b: Vocative-based narrator name discovery for fully unidentified narrators.
+        # When the narrative is first-person but narrator detection returned no name and no
+        # character ID (i.e., the narrator is "the unnamed narrator" in summaries), search
+        # the raw text for direct address patterns. The narrator's name appears rarely as text
+        # mentions (they write "I"), so the name with the FEWEST total mentions among vocative
+        # candidates is the narrator. Setting narrator_name here allows STEP 5.8.5b to
+        # find the narrator in supporting_cast and promote them.
+        if (
+            narrator_info.pov == "first-person"
+            and narrator_info.narrator_character_id is None
+            and narrator_info.narrator_name is None
+        ):
+            _voc_name_45b = self._find_narrator_name_from_vocative(context.text)
+            if _voc_name_45b:
+                narrator_info = NarratorInfo(
+                    pov="first-person",
+                    narrator_name=_voc_name_45b,
+                    narrator_character_id=None,
+                    confidence=0.55,
+                )
+                logger.info(
+                    f"V2 Step 4.5b: Vocative-detected narrator candidate '{_voc_name_45b}' "
+                    f"(narrator_character_id not yet resolved — will search supporting cast)"
+                )
+
         logger.info("V2 Step 4.5 complete: narrator vocative name check done")
 
         # STEP 5: Extract supporting cast (F3)
@@ -3367,6 +3393,35 @@ class CharacterAgent(Agent):
         chars_to_remove = set()
         chars_with_new_aliases = set()
 
+        # Pass -1: Merge exact canonical name duplicates
+        # Universal invariant: two characters cannot have the same canonical name.
+        # When the LLM emits duplicates (e.g., "Benny" twice in Pass 1), collapse them.
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+            for other_idx in range(idx + 1, len(main_cast)):
+                if other_idx in chars_to_remove:
+                    continue
+                other_char = main_cast[other_idx]
+                if char.canonical_name.lower() == other_char.canonical_name.lower():
+                    # Keep the one with more mentions; merge aliases and remove the other
+                    keep, drop, drop_idx = (
+                        (char, other_char, other_idx)
+                        if char.mention_count >= other_char.mention_count
+                        else (other_char, char, idx)
+                    )
+                    for alias in ([drop.canonical_name] + list(drop.aliases or [])):
+                        if alias.lower() != keep.canonical_name.lower() and alias not in keep.aliases:
+                            keep.aliases.append(alias)
+                    chars_with_new_aliases.add(keep.id)
+                    chars_to_remove.add(drop_idx)
+                    logger.info(
+                        f"Dedup exact canonical match: '{drop.canonical_name}' (id={drop.id}) "
+                        f"→ merged into '{keep.canonical_name}' (id={keep.id})"
+                    )
+                    if drop_idx == idx:
+                        break  # current char was merged away; stop inner loop
+
         # Pass 0: Merge middle initial variants
         # "George B. Wilson" (1 mention) → alias of "George Wilson" (91 mentions)
         for idx, char in enumerate(main_cast):
@@ -5056,17 +5111,24 @@ class CharacterAgent(Agent):
         """
         import re
 
-        # Vocative pattern: proper name appearing after "," or "!" followed by "!" or "?"
+        # Vocative pattern 1: proper name followed by "!" or "?"
         # Covers: "For the love of God, Montresor!" / "Come, Watson!" / "Help me, John?"
         vocative_pattern = re.compile(
             r"[,!]\s+([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]{2,})?)\s*[!?]",
             re.MULTILINE,
         )
+        # Vocative pattern 2: name between two commas (", Ted, let's go")
+        # Covers prose style where the addressee is comma-delimited mid-sentence.
+        vocative_pattern_comma = re.compile(
+            r"[,!]\s+([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]{2,})?)\s*,",
+            re.MULTILINE,
+        )
 
         name_vocative_counts: dict[str, int] = {}
-        for match in vocative_pattern.finditer(text):
-            name = match.group(1).strip()
-            name_vocative_counts[name] = name_vocative_counts.get(name, 0) + 1
+        for pattern in (vocative_pattern, vocative_pattern_comma):
+            for match in pattern.finditer(text):
+                name = match.group(1).strip()
+                name_vocative_counts[name] = name_vocative_counts.get(name, 0) + 1
 
         if not name_vocative_counts:
             return None

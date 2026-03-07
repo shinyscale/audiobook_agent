@@ -108,6 +108,15 @@ KNOWN_IRREGULAR_IPA: dict[str, PronunciationEnrichment] = {
         notes='"Fanged" rhymes with "banged". The g is pronounced, not silent.',
         confidence=1.0,
     ),
+    # "cogito" (Latin: "I think") from "cogito ergo sum"; LLMs often use soft g /dʒ/ → wrong.
+    # Standard Latin: hard g, stress on first syllable: KOG-ih-toh.
+    "cogito": PronunciationEnrichment(
+        word="cogito",
+        ipa="/ˈkɒɡɪtoʊ/",
+        phonetic_spelling="KOG-ih-toh",
+        notes='Latin philosophical term ("I think" from "cogito ergo sum"). Hard g, not soft. KOG-ih-toh.',
+        confidence=1.0,
+    ),
     # "bolo" is an unfamiliar word (Filipino knife); LLMs often give garbled IPA for
     # hyphenated compounds. Standard phonetics: BOH-loh.
     "bolo-toothed": PronunciationEnrichment(

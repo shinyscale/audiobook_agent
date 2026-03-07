@@ -621,6 +621,20 @@ COMMON_WORDS_WHITELIST = {
     "betokened",      # past tense of "betoken" (to be a sign of — standard archaic English)
     "betoken",        # base form
     "betokens",       # present tense
+    # Geological / descriptive nouns with standard English pronunciation
+    "stalactite",     # cave formation; standard English (sta-LAC-tite)
+    "stalactites",    # plural
+    "stalagmite",     # cave formation; standard English (sta-LAG-mite)
+    "stalagmites",    # plural
+    # Common nouns that any narrator would know
+    "palette",        # flat surface for mixing paint; also figurative
+    "tinfoil",        # compound: tin + foil (obvious pronunciation)
+    "eternity",       # common English noun
+    "eternities",     # plural
+    "choir",          # standard English: group of singers (KWY-er)
+    "shoal",          # shallow water or group of fish; standard English
+    "puckering",      # present participle of "pucker" (standard English verb)
+    "puckerings",     # plural noun form
 }
 
 # Contraction fragments that result from tokenization

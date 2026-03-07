@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -102,20 +102,27 @@
     - Not blocking — single-section detection is correct
 
 ## Fix History
-(First attempt — no prior fixes)
+- Attempt 2: Three connected fixes for character extraction and pronunciation
+  1. **Exact-name dedup in `_merge_within_main_cast`** (`src/agents/characters.py` Pass -1)
+     - Root cause: `_merge_within_main_cast` Pass 1 skips single-word vs single-word comparisons; Pass 2 should catch it but apparently doesn't when both entries have equal mention counts and the `break` at the else branch prevents second character from being processed again. Added explicit Pass -1 that collapses any two characters with identical canonical names before all other merge passes.
+     - Addresses: Critical #1 (duplicate Benny)
+  2. **Vocative pattern + narrator fallback** (`src/agents/characters.py`)
+     - Extended `_find_narrator_name_from_vocative` to also detect `, Name,` patterns (comma-delimited vocative address, e.g., "Please, Ted, let's try it"). Original pattern only matched `, Name!` / `, Name?`.
+     - Added STEP 4.5b: when pov=first-person AND narrator_character_id is None AND narrator_name is None, run vocative detection to set narrator_name. This allows STEP 5.8.5b to find the narrator in supporting_cast and promote them.
+     - Addresses: Critical #2 (wrong narrator), Critical #3 (Ted in supporting cast)
+  3. **Pronunciation fixes** (`cmu_proposer.py`, `enricher.py`)
+     - Added stalactite(s), palette, tinfoil, eternity/eternities, choir, shoal, puckering(s) to COMMON_WORDS_WHITELIST
+     - Added "cogito" → /ˈkɒɡɪtoʊ/ (KOG-ih-toh) to KNOWN_IRREGULAR_IPA
+     - Addresses: Medium #9 (false positives), Medium #10 (wrong cogito IPA)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | Dup Benny + narrator + pronunciation | characters.py, cmu_proposer.py, enricher.py | Awaiting analysis |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Duplicate Benny merge (Critical #1)
-2. Narrator identification — Ted is narrator (Critical #2)
-3. Ted promotion to main cast (Critical #3)
-These three issues are interconnected and likely share root causes in the character extraction pipeline.
+Re-run analysis on i_have_no_mouth to verify fixes.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
