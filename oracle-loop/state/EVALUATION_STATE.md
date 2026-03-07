@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 19
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -108,11 +108,15 @@
 | 18 | 7.93 | +1.58 | Ted=protagonist, Gorrister fixed, chapter summary correct, narrator_character_id still None |
 | 19 | 7.78 | +1.43 | Step 6.9 added but has 2 bugs — no improvement over 18 |
 
-## Fix History (Attempt 19)
-- **Step 6.9 narrator substitution (FAILED — 2 bugs):**
-  - Bug A: `_nn_final = narrator_detected` = "the narrator" → no-op substitution
-  - Bug B: `isinstance(_ps_obj, dict)` but plot_summary is a string → condition never true
-  - Modified: `src/analyzer.py` (lines 2527-2561)
+## Fix History (Attempt 19 → 20)
+- **Step 6.9 narrator substitution bugs fixed:**
+  - Bug A: Now scans `pipeline_char_map.characters` for `is_narrator=True`, uses `canonical_name` ("Ted") as `_nn_final`; only substitutes when name is not "the narrator"
+  - Bug B: Changed `isinstance(_ps_obj, dict)` → `isinstance(_ps_obj, str)` for plot_summary type check
+  - Added narrator injection into `active_characters` when narrator is absent from chapter cast
+  - Modified: `src/analyzer.py` (Step 6.9 block)
+- **narrator_character_id added to AnalysisResult:**
+  - Added field to `src/models.py:AnalysisResult`
+  - Set in `src/analyzer.py` by scanning converted characters for `is_narrator=True`
 
 ## Fix History (Previous)
 - Attempt 2: Benny dedup, vocative narrator, pronunciation fixes
@@ -183,4 +187,4 @@
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to fix Step 6.9 bugs (Bug A: use canonical_name from is_narrator character; Bug B: handle string plot_summary) and set narrator_character_id on AnalysisResult.
+Re-run analysis to verify Step 6.9 bug fixes and narrator_character_id population.

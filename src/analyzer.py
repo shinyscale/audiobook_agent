@@ -2530,34 +2530,49 @@ class AudiobookAnalyzer:
         # Now that narrator_detected is finalized, replace all such references with the
         # narrator's actual name for consistency across all output fields.
         if narrator_detected:
+            # Bug A fix: find the actual narrator character's canonical_name instead of using
+            # narrator_detected which may be the generic placeholder "the narrator".
             _nn_final = narrator_detected
+            for _nc in pipeline_char_map.characters:
+                if getattr(_nc, 'is_narrator', False) and _nc.canonical_name:
+                    _nn_final = _nc.canonical_name
+                    break
+            # Only substitute if we have a real name (not just "the narrator")
             _nn_pat = re.compile(r'\bthe narrator\b', re.IGNORECASE)
+            _do_sub = _nn_final.lower() not in ('the narrator', 'narrator', '')
 
-            # 1. Chapter summary texts (already partly done earlier, but may have missed some)
-            # 2. active_characters lists in chapter summaries
-            if summary_map:
-                for _sum in summary_map.summaries:
-                    if _sum.summary and 'narrator' in _sum.summary.lower():
-                        _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
-                    if hasattr(_sum, 'active_characters') and _sum.active_characters:
-                        _sum.active_characters = [
-                            _nn_final if re.match(r'^the narrator$', ac, re.IGNORECASE) else ac
-                            for ac in _sum.active_characters
-                        ]
+            if _do_sub:
+                # 1. Chapter summary texts (already partly done earlier, but may have missed some)
+                # 2. active_characters lists in chapter summaries
+                if summary_map:
+                    for _sum in summary_map.summaries:
+                        if _sum.summary and 'narrator' in _sum.summary.lower():
+                            _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
+                        if hasattr(_sum, 'active_characters'):
+                            if _sum.active_characters:
+                                _sum.active_characters = [
+                                    _nn_final if re.match(r'^the narrator$', ac, re.IGNORECASE) else ac
+                                    for ac in _sum.active_characters
+                                ]
+                            # Also inject narrator into active_characters if absent
+                            _ac_lower = [ac.lower() for ac in (_sum.active_characters or [])]
+                            if _nn_final.lower() not in _ac_lower:
+                                _sum.active_characters = list(_sum.active_characters or []) + [_nn_final]
 
-            # 3. Plot summary text in overview
-            if overview:
-                _ps_obj = overview.get('plot_summary')
-                if isinstance(_ps_obj, dict) and _ps_obj.get('plot_summary'):
-                    _ps_obj['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj['plot_summary'])
+                # 3. Plot summary text in overview
+                # Bug B fix: plot_summary is a string, not a nested dict
+                if overview:
+                    _ps_obj = overview.get('plot_summary')
+                    if isinstance(_ps_obj, str) and 'narrator' in _ps_obj.lower():
+                        overview['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj)
 
-            # 4. Narrator character's personality summary (LLM uses "The narrator is..." phrasing)
-            for _char in pipeline_char_map.characters:
-                if getattr(_char, 'is_narrator', False):
-                    if isinstance(getattr(_char, 'personality', None), dict):
-                        _psumm = _char.personality.get('summary', '')
-                        if _psumm and 'narrator' in _psumm.lower():
-                            _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
+                # 4. Narrator character's personality summary (LLM uses "The narrator is..." phrasing)
+                for _char in pipeline_char_map.characters:
+                    if getattr(_char, 'is_narrator', False):
+                        if isinstance(getattr(_char, 'personality', None), dict):
+                            _psumm = _char.personality.get('summary', '')
+                            if _psumm and 'narrator' in _psumm.lower():
+                                _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
 
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")
@@ -2754,6 +2769,13 @@ class AudiobookAnalyzer:
         consensus_log_data = consensus_collector.build_log()
         consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
 
+        # Determine narrator_character_id from the converted output characters
+        _narrator_char_id = None
+        for _oc in characters:
+            if getattr(_oc, 'is_narrator', False):
+                _narrator_char_id = _oc.id
+                break
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
@@ -2765,6 +2787,7 @@ class AudiobookAnalyzer:
             consensus_log=consensus_log,
             warnings=warnings,
             low_confidence_items=low_confidence,
+            narrator_character_id=_narrator_char_id,
         )
 
         # Track analysis duration

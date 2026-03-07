@@ -260,6 +260,9 @@ class AnalysisResult(BaseModel):
     # Overview summary (book structure, plot, models, timing)
     overview: Optional[dict] = None
 
+    # ID of the narrator character (if first-person narrative)
+    narrator_character_id: Optional[str] = None
+
     # Raw text preserved for reference
     raw_text: Optional[str] = None
 
