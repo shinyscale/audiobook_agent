@@ -3,23 +3,23 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 5/10 ✗ (FAILING — REGRESSION)
-  - Completeness: 4/10
-  - Identity Resolution: 7/10
-  - Alias Grouping: 5/10
-- Character Profiles: 4/10 ✗ (FAILING — REGRESSION)
-- Chapter Summaries: 7/10 ✗ (FAILING)
+- Character Extraction: 9/10 ✓
+  - Completeness: 10/10
+  - Identity Resolution: 10/10
+  - Alias Grouping: 8/10
+- Character Profiles: 7/10 ✗ (FAILING)
+- Chapter Summaries: 8/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 6.65/10** (reference only)
+- **Overall: 8.50/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold — REGRESSION from attempt 6)
+**Status:** FAIL (1 category below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -31,64 +31,46 @@
 | 5 | 8.1 | +1.75 | Dup Ted FIXED, AM now antagonist, self-alias fixed. But 3 humans wrongly labeled antagonist |
 | 6 | 8.4 | +2.05 | ACTIVE/PASSIVE fix did NOT work — semantic direction bug. 4 humans still "antagonist" |
 | 7 | 6.65 | +0.30 | REGRESSION: Ted missing (replaced by "the ice caverns"), 4 humans still antagonist |
+| 8 | 8.50 | +2.15 | Ted restored, all roles correct. Only profiles failing (AM "colleague" labels) |
 
 ## Current Issues (Priority Order)
 
-### CRITICAL
-1. **Ted (narrator/protagonist) missing — replaced by "the ice caverns"** [Completeness, Identity Resolution]
-   - Problem: The first-person narrator Ted is not in the character list at all. Instead, "the ice caverns" (a LOCATION in the story) is extracted as a character and marked as the narrator. It has aliases "ice caverns" and "the unnamed narrator".
-   - Evidence: Other characters address Ted by name in dialogue: "Please, Ted, let's try it", "No, Ted, sit down". The summary itself mentions "Ted" 3 times. "The ice caverns" is the location where the climax occurs, not a character.
-   - This is a REGRESSION from attempts 5-6 where Ted was correctly identified. The new model run (qwen3-next:80b) produced different extraction results.
-   - Root cause: The summarizer used "the unnamed narrator" instead of "Ted", and Pass 1 character extraction picked up "the ice caverns" (a frequently mentioned location) and conflated it with the narrator role.
-   - Impact: Cascades to profiles (narrator profile is for a location), summaries (uses "unnamed narrator" instead of Ted), and relationships (other chars reference "the unnamed narrator").
-   - Location: Two-pronged fix needed:
-     1. **Summary level**: The summarizer should use character names from dialogue when referring to the narrator, not "the unnamed narrator". The text has dialogue explicitly naming Ted.
-     2. **Character extraction level**: "the ice caverns" is a location phrase, not a character. The extraction pipeline should filter location-like entities. However, the more robust fix is ensuring Ted is extracted from dialogue references.
-   - Note: Previous attempts fixed Ted detection via vocative pattern + narrator fallback in characters.py (STEP 4.5b). That code path may not be firing with the new model output, or the model may be suppressing "Ted" from active_characters.
-
-2. **Benny, Gorrister, Ellen, Nimdok all wrongly labeled "antagonist"** [Profiles — Role Assignment]
-   - Problem: 4 of 5 human victims are labeled "antagonist". Only "the ice caverns" (the misidentified narrator) is "protagonist".
-   - Root cause: The direction-aware fix from attempt 7 IS in the code (analyzer.py:2184-2223), but it doesn't fire because ALL four humans have at least one outgoing "victim" substring match:
-     - Ellen → Nimdok: "victim of Ellen's final act" → "victim" matches _OUTGOING_AGGRESSOR_LABELS → _own_adv=1
-     - Benny → Gorrister: "victim (of final violent act)" → _own_adv=1
-     - Gorrister → Benny: "victim" → _own_adv=1
-     - Nimdok → Ellen: "victim (killed by)" → _own_adv=1
-   - These "victim" labels refer to the MERCY KILLINGS at the story's climax. The humans killed each other to escape AM's torture — this is an act of compassion, not antagonism.
-   - The condition `_own_adv == 0 and _in_adv == 0` is too strict. A true antagonist like AM has _own_adv=5 (labels ALL humans as "victim"). A character with _own_adv=1 from a single mercy killing is not an antagonist.
-   - **Fix: Raise the threshold or use a ratio.** Options:
-     - (A) Require `_own_adv >= 2` to count as genuine aggressor evidence (single isolated "victim" label insufficient)
-     - (B) Compare `_own_adv` to total relationship count: if aggressor labels are < 50% of relationships, likely not a true antagonist
-     - (C) Compare to the maximum _own_adv among all characters: if this char's _own_adv is << max, they're not the antagonist
-   - Option A is simplest and directly addresses this case. AM has _own_adv=5, so threshold of 2 preserves AM. All humans have _own_adv=1, so threshold of 2 corrects them.
-   - Location: `src/analyzer.py:2218` — change `if _own_adv == 0 and _in_adv == 0:` to `if _own_adv <= 1 and _in_adv == 0:`
-
 ### HIGH
-3. **Summary uses "the unnamed narrator" instead of "Ted"** [Summaries — Accuracy]
-   - Problem: The chapter summary refers to the narrator as "the unnamed narrator" throughout, despite other characters calling him "Ted" in dialogue within the text.
-   - Evidence: Summary text includes "prompting the unnamed narrator to kill him" and "the unnamed narrator kills Ellen with an ice spear". Meanwhile, dialogue quotes in the HTML show "Please, Ted, let's try it" and "No, Ted, sit down".
-   - Impact: Cascades to character extraction (no "Ted" entity extracted from summaries).
-   - This is an LLM generation issue — the model chose to use "the unnamed narrator" instead of the name used in dialogue.
-   - Location: This is a model behavior issue, not easily fixed with code. The character extraction pipeline should compensate by checking dialogue for character names not in summaries (which the vocative pattern in STEP 4.5b was designed to do).
+1. **AM's relationships to Ellen, Nimdok, Gorrister, Benny are all "colleague"** [Profiles — Relationships]
+   - Problem: AM→Ellen: "colleague", AM→Nimdok: "colleague", AM→Gorrister: "colleague", AM→Benny: "colleague". AM is a malevolent supercomputer that tortures and imprisons these humans for 109 years — "colleague" is completely wrong.
+   - Evidence: The text explicitly describes AM torturing all five humans. AM blinds Benny, mutilates their bodies, controls their food supply, and keeps them alive against their will. The summary itself says AM "torments them for granting it sentience."
+   - Similarly: Ellen→AM: "colleague", Nimdok→AM: "colleague", Gorrister→AM: "colleague", Benny→AM: "colleague" — all should be "captor" or "tormentor".
+   - Only Ted→AM ("captor") and AM→Ted ("tormentor") are correct.
+   - Root cause: The LLM profiler defaults to "colleague" when it can't determine a specific relationship. This was noted in attempt 3 fix history. The relationship vocabulary was expanded but the LLM still uses "colleague" as a fallback.
+   - Location: `src/analyzer.py` — `_generate_character_profile()`. The post-processing in `verify_relationships_from_text` or `enforce_role_consistency` could replace "colleague" labels between an antagonist and protagonists.
+   - Fix approach: Add a post-profile correction: if character A has role="antagonist" and character B has role="protagonist", and A→B relationship is "colleague", replace with "captor" (or "tormentor"). Similarly B→A "colleague" → "captor". This is a safe inference — an antagonist and protagonist are not colleagues.
 
 ### MEDIUM
-4. **Hallucinated relationship details** [Profiles — Evidence]
-   - Gorrister → Ellen: "authority figure who enforces discipline" — not supported by text
-   - Ellen → Nimdok: "victim of Ellen's final act" — technically Ellen kills Nimdok at the end, but the phrasing is oddly vague
-   - Gorrister → Benny: "victim" — unclear direction; in the text, Benny attacks Gorrister (eats his face), making Gorrister the victim of Benny, not the other way
+2. **Summary uses "first-person narrator" instead of "Ted"** [Summaries — Accuracy]
+   - Problem: The summary refers to Ted as "the first-person narrator" rather than by name, despite dialogue in the text explicitly naming him ("Please, Ted, let's try it").
+   - Evidence: Summary text says "prompting the narrator to kill him" and "the narrator kills Benny and Gorrister".
+   - Impact: Mild — the narrator IS identified as Ted in the character list, so a human reader can infer this. But for narrator preparation, using the actual name would be clearer.
+   - This is an LLM generation issue. The summarizer model chose to use a generic reference.
+   - Score impact: ~0.5 points on summaries (already at 8, so not blocking).
 
-5. **Ted and AM have no physical description** [Profiles — Descriptions]
-   - Ted: first-person narrator rarely describes himself — expected limitation
-   - AM: a computer/AI — the text describes AM's internal environment, not AM's physical form
-   - Severity: Medium — not fixable without hallucinating content
+3. **No speech patterns noted for any character** [Profiles — Completeness]
+   - Problem: All 6 characters have `speech_patterns: null`. AM in particular has very distinctive speech — the iconic "HATE. LET ME TELL YOU HOW MUCH I'VE COME TO HATE YOU" monologue, and AM's electronic/typed communication style.
+   - Evidence: AM's speech is one of the most memorable elements of the story.
+   - Score impact: ~0.5 points on profiles.
+   - Location: `src/analyzer.py` — profile generation prompt may not specifically ask for speech patterns.
+
+4. **Ellen→Gorrister: "victim of abuse"** [Profiles — Accuracy]
+   - Problem: There's no clear textual evidence that Gorrister specifically abuses Ellen. The text implies a sexual dynamic around Ellen (she's the only woman), but "victim of abuse" from Ellen toward Gorrister specifically is not well-supported.
+   - Score impact: Minor.
 
 ### LOW
-6. **Chapter title is null** [Structure]
-   - Single section has `title: null` — could display the story title
-   - Not blocking — single-section detection is correct
+5. **Chapter title is null** [Structure]
+   - Single section has `title: null` — could display the story title "I Have No Mouth, and I Must Scream".
+   - Not blocking.
 
-7. **Summary minor inaccuracy: "Benny is blinded and deafened"** [Summaries]
-   - In the text, Benny is blinded by AM as punishment, but the "deafened" part is less clear
-   - Minor detail, not blocking
+6. **No aliases for any character** [Character Extraction — Alias Grouping]
+   - AM could have "Allied Mastercomputer" as an alias. Minor since AM is the primary reference throughout.
+   - Not blocking.
 
 ## Fix History
 - Attempt 2: Three connected fixes for character extraction and pronunciation
@@ -121,9 +103,9 @@
   1. **Direction-aware _OUTGOING_AGGRESSOR_LABELS + _INCOMING_AGGRESSOR_LABELS** (`src/analyzer.py:2184-2223`) — Code is correct in principle, but threshold `_own_adv == 0` is too strict. All 4 humans have exactly 1 "victim" match from mercy killing relationships, so _own_adv=1 and correction doesn't fire.
   2. **New regression**: Ted replaced by "the ice caverns" — model-dependent output variation, not caused by code change
 
-- Attempt 8: Two robustness fixes
-  1. **STEP 4.25b: narrator vocative check expansion** (`src/agents/characters.py:829-874`) — Added `else` branch that fires when narrator name has 0 vocative (direct-address) occurrences but a vocative candidate exists with fewer total text mentions. Catches "the ice caverns" as wrong narrator since it never appears in ", Name!" patterns. Smoke test: PASS.
-  2. **False-antagonist threshold raised** (`src/analyzer.py:2218`) — Changed `_own_adv == 0` to `_own_adv <= 1`. Characters with only 1 outgoing "victim" label (mercy kills) are now correctly corrected to protagonist. AM with 5+ victim labels is unaffected. Smoke test: PASS.
+- Attempt 8: Two robustness fixes — **BOTH WORKED**
+  1. **STEP 4.25b: narrator vocative check expansion** (`src/agents/characters.py:829-874`) — Ted restored as narrator. Fixed.
+  2. **False-antagonist threshold raised** (`src/analyzer.py:2218`) — All 4 humans now correctly "protagonist". Fixed.
 
 ## Modification History
 
@@ -147,21 +129,13 @@
 | 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | **No change** — depends on correct roles |
 | 7 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (direction-aware labels) | **No change** — threshold too strict (_own_adv==0 vs ==1 from mercy kills) |
 | 7 | Ted missing / "the ice caverns" narrator | NEW REGRESSION | Model output variation — Ted not extracted |
-| 8 | Ted missing / wrong narrator | characters.py (STEP 4.25b vocative expansion) | TBD |
-| 8 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (threshold <=1) | TBD |
+| 8 | Ted missing / wrong narrator | characters.py (STEP 4.25b vocative expansion) | **Fixed** |
+| 8 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (threshold <=1) | **Fixed** |
+| 8 | AM "colleague" relationships | — | TBD (new issue for attempt 9) |
 
 ## Next Action
-Re-run analysis to verify fixes from attempt 8.
+Run PROMPT_fix.md to address HIGH #1: replace "colleague" labels between antagonist and protagonist characters with appropriate relationship terms (captor/tormentor).
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
-
-## Pipeline Notes
-- Attempt 8 analysis completed successfully in 18m 16s
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- 7 characters found, 6 profiles generated
-- Ted detected as narrator (first-person) ✓ — vocative expansion fix appears to have worked
-- 16 pronunciation flags
-- No JSON parse errors
-- Characters summary: Ted (5 mentions), AM (77), Ellen (30), Nimdok (17), Gorrister (29), + 1 more (Benny)
