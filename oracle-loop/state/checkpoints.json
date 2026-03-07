@@ -84,6 +84,18 @@
         "pronunciation": 8.5,
         "presentation": 8.5
       }
+    },
+    "john_g": {
+      "commit": "bcdbf3bc279c37a3a5e7bf0c93a53b24dbb7c90f",
+      "score": 8.25,
+      "category_scores": {
+        "structure": 9,
+        "characters": 8,
+        "profiles": 7,
+        "summaries": 9,
+        "pronunciation": 7.5,
+        "presentation": 8.5
+      }
     }
   }
 }

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80
 
 ## Output Files
@@ -88,6 +88,16 @@
 - Richardson profile has LOW confidence (0.30) — root cause of missing speech patterns and relationships
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Pronunciation null IPA** (HIGH #3): Debug why KNOWN_IRREGULAR_IPA lookup fails for "sharp-fanged" at runtime; add "bolo-toothed" and "produce" overrides
-2. **Richardson profile gaps** (HIGH #1, #2): Add post-profile speech pattern extraction or improve low-confidence profile handling
+Re-run analysis to verify attempt 3 fixes.
+
+## Fix History (continued)
+- Attempt 3: Three fixes applied:
+  1. **Pronunciation "bolo-toothed"** (null IPA): Added to KNOWN_IRREGULAR_IPA with `/ˈboʊ.loʊ.tuːθt/`. Root cause: `enricher.py:KNOWN_IRREGULAR_IPA`.
+  2. **Pronunciation "produce"** (null IPA): Added to HOMOGRAPH_IPA_MAP with both stress variants. Root cause: `enricher.py:HOMOGRAPH_IPA_MAP` — `enrich_homograph()` returned no IPA when word not found in map.
+  3. **Pronunciation "sharp-fanged"** (null IPA): Fix was already in code from attempt 2; cleared `__pycache__` to ensure bytecode cache is invalidated. Root cause: stale .pyc file (classic pycache timing issue noted in MEMORY.md).
+  4. **Richardson missing Price relationship** (Profiles): Added `add_text_window_cooccurrence_relationships` to `PipelineCharacterCorrector.run_all` in `post_corrections.py`. Scans character mention positions (from V2 mention search) and adds "colleague" for pairs within 600-char windows. Root cause: no summary-based co-occurrence possible for single-chapter texts (summaries list is empty); Phase B co-occurrence scan skipped. Smoke test: PASS — Richardson→Price "colleague" added correctly.
+
+### Fix Classification (Attempt 3)
+- **Fix type:** Reference lexicon extension (pronunciation dicts) + algorithmic (text co-occurrence)
+- **Universality check:** Pronunciation overrides apply to these words in any book. Text window co-occurrence is universal — characters sharing scenes in any story have a relationship.
+- **Root-cause location:** `enricher.py:KNOWN_IRREGULAR_IPA` (bolo-toothed), `enricher.py:HOMOGRAPH_IPA_MAP` (produce), `post_corrections.py:PipelineCharacterCorrector.run_all` (no text-based co-occurrence fallback)

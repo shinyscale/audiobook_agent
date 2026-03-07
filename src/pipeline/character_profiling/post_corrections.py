@@ -337,9 +337,74 @@ class PipelineCharacterCorrector:
         self.inject_narrator_appearance(characters, source_text)
         self.remove_contradictory_relationships(characters)
         self.infer_bidirectional_relationships(characters)
+        self.add_text_window_cooccurrence_relationships(characters, source_text)
         self.fix_same_name_contamination(characters)
         self.remove_unsupported_death_claims(characters)
         self.correct_description_relationships(characters, source_text)
+
+    def add_text_window_cooccurrence_relationships(
+        self, characters, source_text: str, window_chars: int = 600
+    ) -> None:
+        """Add 'colleague' for character pairs whose text mentions appear within
+        window_chars of each other but currently have no relationship entry.
+
+        Universal invariant: characters who physically share scenes (co-appear
+        within the same text window) are in a narrative relationship. Only adds —
+        never changes existing labels. Phase B verify_relationships_from_text can
+        upgrade 'colleague' to a more specific label when text evidence supports it.
+
+        Uses pipeline character mention positions (populated by V2 mention search),
+        so this works even when chapter summaries are unavailable (e.g., single-
+        chapter short stories).
+
+        Args:
+            window_chars: Maximum character distance between two mentions to count
+                          as a co-occurrence (default 600 — roughly one paragraph).
+        """
+        # Collect mention positions for each character from pipeline mention objects
+        char_positions: dict[str, list[int]] = {}
+        for char in characters:
+            mentions = getattr(char, 'mentions', None) or []
+            positions = [getattr(m, 'position', None) for m in mentions]
+            positions = [p for p in positions if p is not None]
+            if positions:
+                char_positions[char.canonical_name] = positions
+
+        for i, char_a in enumerate(characters):
+            for j, char_b in enumerate(characters):
+                if j <= i:
+                    continue
+
+                # Skip if relationship already exists in either direction
+                rels_a = getattr(char_a, 'relationships', None) or {}
+                rels_b = getattr(char_b, 'relationships', None) or {}
+                if char_b.canonical_name in rels_a or char_a.canonical_name in rels_b:
+                    continue
+
+                pos_a = char_positions.get(char_a.canonical_name, [])
+                pos_b = char_positions.get(char_b.canonical_name, [])
+                if not pos_a or not pos_b:
+                    continue
+
+                # Check if any mention of A is within window_chars of any mention of B
+                found = any(
+                    abs(pa - pb) <= window_chars
+                    for pa in pos_a
+                    for pb in pos_b
+                )
+                if not found:
+                    continue
+
+                if not isinstance(getattr(char_a, 'relationships', None), dict):
+                    char_a.relationships = {}
+                if not isinstance(getattr(char_b, 'relationships', None), dict):
+                    char_b.relationships = {}
+                char_a.relationships[char_b.canonical_name] = "colleague"
+                char_b.relationships[char_a.canonical_name] = "colleague"
+                logger.info(
+                    f"Text co-occurrence relationship: '{char_a.canonical_name}' ↔ "
+                    f"'{char_b.canonical_name}': 'colleague' (within {window_chars} chars)"
+                )
 
     def inject_narrator_appearance(self, characters, source_text: str) -> None:
         """Inject physical self-description for first-person narrators.

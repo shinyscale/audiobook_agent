@@ -69,6 +69,7 @@ HOMOGRAPH_IPA_MAP: dict[str, str] = {
     "tear": "/tɪər/ (from the eye) or /tɛər/ (to rip)",
     "lead": "/liːd/ (verb: to guide) or /lɛd/ (noun: the heavy metal)",
     "desert": "/ˈdɛzərt/ (noun: arid region) or /dɪˈzɜːrt/ (verb: to abandon)",
+    "produce": "/ˈproʊ.duːs/ (noun: fresh food, esp. vegetables) or /prəˈduːs/ (verb: to make/create)",
 }
 
 
@@ -105,6 +106,16 @@ KNOWN_IRREGULAR_IPA: dict[str, PronunciationEnrichment] = {
         ipa="/fæŋd/",
         phonetic_spelling="FANGD",
         notes='"Fanged" rhymes with "banged". The g is pronounced, not silent.',
+        confidence=1.0,
+    ),
+    # "bolo" is an unfamiliar word (Filipino knife); LLMs often give garbled IPA for
+    # hyphenated compounds. Standard phonetics: BOH-loh.
+    "bolo-toothed": PronunciationEnrichment(
+        word="bolo-toothed",
+        ipa="/ˈboʊ.loʊ.tuːθt/",
+        phonetic_spelling="BOH-loh-TOOTHT",
+        notes='"Bolo" rhymes with "solo"; "toothed" = /tuːθt/ (clear th, then t). '
+              'Bolo is a large single-edged Filipino knife.',
         confidence=1.0,
     ),
 }
