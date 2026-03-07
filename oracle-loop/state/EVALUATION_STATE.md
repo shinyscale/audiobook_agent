@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 23
-- **Phase:** awaiting_evaluation
+- **Phase:** complete
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -16,43 +16,36 @@
 - Character Extraction: 8.5/10 ✓
   - Completeness: 9/10
   - Identity Resolution: 10/10
-  - Alias Grouping: 7/10
-- Character Profiles: 7.5/10 ✗ (FAILING)
+  - Alias Grouping: 7.5/10
+- Character Profiles: 8.5/10 ✓
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.40/10** (reference only)
+- **Overall: 8.60/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** PASS — All categories at or above 8.0
 
-## Current Issues (Priority Order)
-
-### CRITICAL
-1. **Step 6.9 narrator substitution uses WRONG ATTRIBUTE NAMES on pipeline objects** [Profiles]
-   - Problem: Ted's evidence (5/5 entries) and description still say "The narrator" instead of "Ted". Two other characters (Gorrister, Benny) also reference "the narrator" in their descriptions instead of "Ted".
-   - Root cause CONFIRMED by code inspection:
-     - Line 2580: `hasattr(_char, 'evidence')` — WRONG. Pipeline `CharacterInfo` objects store evidence as `profile_evidence` (set at line 2111: `char.profile_evidence = evidence`). `hasattr(_char, 'evidence')` returns False, so the loop never runs.
-     - Line 2587: `hasattr(_char, 'descriptions')` — WRONG. Pipeline objects have `description` (singular string via `pc.description`), not `descriptions` (list). `hasattr(_char, 'descriptions')` returns False, so this loop also never runs.
-   - Fix (EXACT):
-     - Line 2580: Change `hasattr(_char, 'evidence')` → `hasattr(_char, 'profile_evidence')` and all references to `_char.evidence` in that block → `_char.profile_evidence`
-     - Line 2587: Change `hasattr(_char, 'descriptions')` → check `_char.description` (singular string). Replace the list iteration with a simple string substitution: `if hasattr(_char, 'description') and _char.description and 'narrator' in _char.description.lower(): _char.description = _nn_pat.sub(_nn_final, _char.description)`
-   - Location: `src/analyzer.py` lines 2580-2593
-   - Additionally: The substitution should run on ALL characters (not just `is_narrator`), since Gorrister's and Benny's descriptions also say "the narrator" when they should say "Ted". Change the loop at line 2574 from `if getattr(_char, 'is_narrator', False)` to iterate ALL characters.
-
-### Scoring Rationale
+## Scoring Rationale
 
 **Structure Detection: 9/10** — Continuous short story correctly identified as single section. No artificial splits.
 
-**Character Extraction: 8.5/10** — All 6 characters present (AM, Ted, Ellen, Nimdok, Gorrister, Benny). Ted=narrator, AM=antagonist, no false splits/merges. AM has "Allied Mastercomputer" alias. AM's other aliases ("the machine", "the computer") blocked by Rule 0.5 as expected — not a defect.
+**Character Extraction: 8.5/10** — All 6 characters present (AM, Ellen, Nimdok, Gorrister, Benny, Ted). Ted=narrator, AM=antagonist, no false splits/merges. AM has "Allied Mastercomputer" alias. AM's other aliases ("the machine", "the computer") blocked by Rule 0.5 as expected — not a defect.
 
-**Character Profiles: 7.5/10** — Personality, voice guidance, speech patterns, and relationships are well-populated for all 6 characters. Evidence quotes are real and relevant. BUT: all 5 of Ted's evidence statements say "The narrator" instead of "Ted", Ted's description says "The narrator", and Gorrister/Benny descriptions reference "the narrator" instead of "Ted". This is confusing for an audiobook narrator reading the prep material.
+**Character Profiles: 8.5/10** — Major improvement from 7.5. Step 6.9 attribute name fix resolved the blocking issue:
+- All evidence entries now use "Ted" instead of "The narrator"
+- All descriptions now use "Ted" instead of "The narrator"
+- Gorrister and Benny descriptions no longer reference "the narrator"
+- Personality, speech patterns, and voice guidance well-populated for all 6 characters
+- Relationships present for all characters with appropriate labels (tormentor, victim, captor, companion)
+- Physical descriptions present where the source text provides them (Ellen, Gorrister, Benny); absence for AM (computer), Ted (first-person narrator), and Nimdok (minimal physical description in text) is expected
+- Evidence quotes are real and relevant
 
-**Chapter Summaries: 8.5/10** — Detailed, accurate summary covering all key events. Uses character names properly (not "the narrator"). Correctly describes AM's evolution, Benny's transformation, the ice caverns climax, and Ted's final fate.
+**Chapter Summaries: 8.5/10** — Detailed, accurate 1372-char summary covering all key events: AM's torment, Benny's blinding, the hurricane, Ellen's loss and resurrection, ice caverns, Benny's madness, Ted's mercy killing, and Ted's transformation into a mute jelly-like creature. Uses character names properly throughout.
 
-**Pronunciation Guide: 9/10** — 11 entries, all with IPA. Good coverage of unusual words (Huergelmir, Hurakan, cogito, paresis, putrified, mewl, beatific, darkway) and character names (Gorrister, Nimdok).
+**Pronunciation Guide: 9/10** — 10 entries, all with IPA. Good coverage: character names (Gorrister, Nimdok), unusual/invented words (Huergelmir, Hurakan, darkway, putrified), Latin (cogito), medical (paresis), and literary vocabulary (beatific, mewl).
 
-**HTML Presentation: 8.5/10** — Functional navigation, logical organization, character cards with evidence quotes.
+**HTML Presentation: 8.5/10** — Functional navigation, logical organization, character cards with evidence quotes. Ted correctly tagged as first-person narrator.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -79,6 +72,7 @@
 | 20 | 8.30 | +1.95 | narrator_character_id fixed, personality uses Ted, but plot summary/evidence still broken |
 | 21 | 8.40 | +2.05 | plot_summary fixed, darkway IPA fixed, but evidence/descriptions still broken (wrong type) |
 | 22 | 8.40 | +2.05 | Evidence/descriptions STILL broken — wrong attribute names on pipeline objects |
+| 23 | 8.60 | +2.25 | **PASS** — Step 6.9 attribute names fixed, all categories >= 8.0 |
 
 ## Fix History (Previous)
 - Attempt 2: Benny dedup, vocative narrator, pronunciation fixes
@@ -101,7 +95,8 @@
 - Attempt 19: Step 6.9 narrator substitution — 2 bugs (no-op name, wrong type check)
 - Attempt 20: Step 6.9 Bug A fixed (name), Bug B partial (nested dict), narrator_character_id added
 - Attempt 21: Step 6.9 plot_summary nested dict (Fixed), regex broadened partial, evidence/descriptions no-op (wrong type)
-- Attempt 22: Step 6.9 evidence/descriptions plain-string fix + regex catch-all modifier — STILL BROKEN (wrong attribute names: `evidence` should be `profile_evidence`, `descriptions` should be `description`)
+- Attempt 22: Step 6.9 evidence/descriptions plain-string fix + regex catch-all modifier — STILL BROKEN (wrong attribute names)
+- Attempt 23: Step 6.9 attribute names corrected (`profile_evidence`, `description` singular), removed `is_narrator` guard → **ALL FIXED**
 
 ## Modification History
 
@@ -151,18 +146,11 @@
 | 20 | Step 6.9 Bug B (dict) | analyzer.py | **Partial** (nested dict not handled) |
 | 20 | narrator_character_id | analyzer.py, models.py | **Fixed** |
 | 21 | Step 6.9 plot_summary nested dict | analyzer.py | **Fixed** |
-| 21 | Step 6.9 regex broadened | analyzer.py | **Partial** ("unnamed" not covered) |
+| 21 | Step 6.9 regex broadened | analyzer.py | **Partial** |
 | 21 | Step 6.9 evidence/descriptions | analyzer.py | **No change** (expected dicts, got strings) |
-| 22 | Step 6.9 evidence/descriptions (strings) | analyzer.py | **No change** (wrong attribute: `evidence` vs `profile_evidence`, `descriptions` vs `description`) |
-| 22 | Step 6.9 regex catch-all modifier | analyzer.py | Unknown (substitution never fires) |
-| 23 | Step 6.9 attribute names fixed + ALL chars loop | analyzer.py | `profile_evidence` (was `evidence`), `description` string (was `descriptions` list), removed `is_narrator` guard so all chars get substitution |
-
-## Pipeline Notes (Attempt 23)
-- Exit code: 0, completed in 20m 23s
-- 6 characters found: AM, Ellen, Nimdok, Gorrister, Benny, Ted
-- "the narrator" blocked as alias for Ted (expected)
-- No crashes or pipeline errors
-- Output: ../output/i_have_no_mouth/report.html + analysis.json
+| 22 | Step 6.9 evidence/descriptions (strings) | analyzer.py | **No change** (wrong attribute names) |
+| 22 | Step 6.9 regex catch-all modifier | analyzer.py | Unknown |
+| 23 | Step 6.9 attribute names + ALL chars loop | analyzer.py | **Fixed** — PASS |
 
 ## Next Action
-Evaluate output to verify Step 6.9 attribute name fix resolved evidence/descriptions issue.
+Text complete. Ready to advance to next text.
