@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 23
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -116,6 +116,9 @@
 ## Fix History
 - Attempt 22: STEP 3.95c added (kinship-fragment split). HTML BOM/title fix. 3.95c didn't fire.
 - Attempt 23: STEP 3.95b: removed `"(" in canonical_name` guard → sibling-ID check; alias iteration; Pattern E. STEP 3.95c/3.97: replaced `"(" not in canonical_name` guard with `not c.id.endswith("_parent")`.
+- Attempt 24:
+  - Fix 1: `main_cast.py:_parse_pass1_results` + `_parse_profiles` — reject canonical names with commas (dialogue phrase filter). Universal invariant: character names never contain commas. Removes "'American, sir'" hallucination. Smoke test: PASS.
+  - Fix 2: `characters.py:_heuristic_narrator_from_mention_count` — exclude ≤ 2-mention candidates when max ≥ 5. Universal invariant: a narrator is addressed by name more than twice. Smoke test: PASS — Uncle Bill(18) selected over Johnny(1); Montresor(3) still correctly selected over Fortunato(15).
 
 ## Modification History
 

@@ -632,6 +632,20 @@ class MainCastExtractor:
             if not canonical:
                 continue
 
+            # Universal invariant: character names do not contain commas.
+            # A comma in the name indicates a dialogue fragment or address phrase
+            # (e.g., "'American, sir'") rather than a character name.
+            # Exception: name suffixes after comma (Jr., Sr., II, III, IV).
+            if "," in canonical:
+                _after_comma = canonical.split(",", 1)[1].strip().lower().rstrip(".")
+                _name_suffixes = {"jr", "sr", "ii", "iii", "iv", "v", "2nd", "3rd"}
+                if _after_comma not in _name_suffixes:
+                    logger.info(
+                        f"Pass 1: Skipping '{canonical}' — commas in character names"
+                        " indicate dialogue phrases, not person names."
+                    )
+                    continue
+
             profile = MainCastProfile(
                 canonical_name=canonical,
                 aliases=[],  # No aliases in Pass 1
@@ -680,6 +694,13 @@ class MainCastExtractor:
             ).strip()
             if not canonical:
                 continue
+
+            # Universal invariant: character names do not contain commas.
+            if "," in canonical:
+                _after_comma = canonical.split(",", 1)[1].strip().lower().rstrip(".")
+                if _after_comma not in {"jr", "sr", "ii", "iii", "iv", "v", "2nd", "3rd"}:
+                    logger.info(f"Skipping '{canonical}' — comma indicates dialogue phrase.")
+                    continue
 
             profile = MainCastProfile(
                 canonical_name=canonical,

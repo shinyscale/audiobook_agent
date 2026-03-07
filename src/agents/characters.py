@@ -5023,6 +5023,17 @@ class CharacterAgent(Agent):
         if not candidates:
             candidates = list(main_cast)
 
+        # Universal invariant: exclude 1-2 mention fragments when there are
+        # substantive candidates. A ≤ 2-mention character is not the narrator —
+        # even a narrator who uses "I" will be addressed by name more than twice.
+        # Only apply if at least one candidate has ≥ 5 mentions (avoid filtering
+        # everything in very short texts where all counts are low).
+        _max_count = max((c.mention_count for c in candidates), default=0)
+        if _max_count >= 5:
+            _eligible = [c for c in candidates if c.mention_count > 2]
+            if _eligible:
+                candidates = _eligible
+
         # The narrator has the lowest mention count (uses "I" not their name)
         return min(candidates, key=lambda c: c.mention_count, default=None)
 
