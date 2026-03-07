@@ -326,7 +326,7 @@ class NarratorDetector:
                     char.confidence = ConfidenceLevel.HIGH
                     # Universal invariant: first-person narrators are never minor/supporting.
                     # They are the narrative voice of the story — always protagonist-level.
-                    if narrator_info.pov == "first-person" and getattr(char, "role", None) in ("minor", "supporting", None):
+                    if narrator_info.pov == "first-person" and getattr(char, "role", None) in ("minor", "supporting", "main", None):
                         old_role = getattr(char, "role", None)
                         char.role = "protagonist"
                         logger.info(

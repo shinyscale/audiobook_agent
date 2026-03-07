@@ -2225,7 +2225,7 @@ class CharacterAgent(Agent):
         # when mention counts were zero, or because a later merge step overwrote the role).
         if narrator_info.pov == "first-person":
             for char in main_cast:
-                if char.is_narrator and getattr(char, "role", None) in ("minor", "supporting", None):
+                if char.is_narrator and getattr(char, "role", None) != "protagonist":
                     old_role = char.role
                     char.role = "protagonist"
                     logger.info(

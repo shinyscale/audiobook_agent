@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 17
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -187,20 +187,19 @@
 | 17 | Supporting→main narrator | characters.py (STEP 5.8.4b) | **Partial** (is_narrator=True but narrator_character_id=None) |
 | 17 | Rule 0.5 acronym | main_cast.py (Rule 0.5) | **Fixed** (AM aliases work) |
 
-**PATTERN ALERT:** narrator_character_id=None is the remaining blocker. Ted has is_narrator=True but the top-level field isn't set. STEP 5.9.6 should handle this — debug why it doesn't fire.
-
-## Key Debugging Notes for Fix Phase
-
-1. **CRITICAL: Debug STEP 5.9.6.** Read `src/agents/characters.py` around STEP 5.9.6. It should:
-   - Find any character with `is_narrator=True`
-   - Set `narrator_character_id` to that character's ID
-   - Set that character's `role` to `protagonist`
-   - Check: does it have preconditions that prevent firing? (e.g., checking narrator_character_id first)
-   - Check: does it run AFTER Ted gets is_narrator=True? (ordering issue)
-
-2. **HIGH: Fix Gorrister role=antagonist.** In `src/analyzer.py` role assignment, AM's victims should not be labeled antagonist. Check if there's a rule that says "if character X is listed as 'victim' by the primary antagonist, X cannot be antagonist."
-
-3. **MEDIUM: Summary POV attribution.** Even after fixing narrator_character_id, the summary text is already generated. Check if there's a post-hoc narrator substitution step that replaces "the narrator"/"Ellen" with "Ted" in summary text. If not, the summary will need to be regenerated (which means the fix must happen before summary generation in the pipeline).
+## Fix History (Attempt 18)
+- **Ted role=protagonist fix:**
+  - Root cause A: `narrator.py:update_characters_with_narrator` only elevated role from ("minor","supporting",None) — not from "main". Added "main" to the condition.
+  - Root cause B: `characters.py:STEP 5.9.6` same condition. Changed to `!= "protagonist"` to catch all non-protagonist roles.
+  - Modified: `src/pipeline/character_extraction_v2/narrator.py` (line 329), `src/agents/characters.py` (STEP 5.9.6)
+- **Gorrister role=antagonist fix:**
+  - Root cause: `analyzer.py` protagonist→antagonist check used `_ADVERSARIAL_LABELS` which includes victim-of-others labels ("tormentor", "captor"). Gorrister's outgoing "AM: tormentor" (AM torments Gorrister = Gorrister is VICTIM) was counted as adversarial. Fix: use only outgoing-aggressor labels (labels where the TARGET is the victim: "victim", "prisoner", "captive", etc.).
+  - Smoke test: Gorrister adversarial_count=1/4 → stays protagonist ✓; AM 4/4 → stays antagonist ✓
+  - Modified: `src/analyzer.py` (lines ~2153-2170)
+- **narrator_detected preservation:**
+  - Root cause: "early narrator detection" step in analyzer.py (line ~1865) overwrote `narrator_detected="Ted"` (set by V2 pipeline) with LLM re-detection result "Ellen" (from summaries generated without narrator info). Fixed: only overwrite narrator_detected if V2 didn't already find one.
+  - Modified: `src/analyzer.py` (line ~1865)
+- Smoke test: 332 tests passed
 
 ## Next Action
-Run PROMPT_fix.md to address STEP 5.9.6 (narrator_character_id + role promotion) and Gorrister role.
+Set phase to awaiting_analysis — re-run pipeline to verify fixes.

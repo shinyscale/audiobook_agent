@@ -1861,9 +1861,15 @@ class AudiobookAnalyzer:
                         pipeline_char_map.characters, adapted_info
                     )
 
-                    # Update narrator_detected for use in profile generation
-                    narrator_detected = narrator_info.narrator_name
-                    print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
+                    # Update narrator_detected for use in profile generation.
+                    # Only update if V2 pipeline didn't already identify a narrator —
+                    # V2 ran detection with full context (raw text + summaries + cast),
+                    # so its result is more reliable than re-detecting from summaries alone.
+                    if narrator_detected is None:
+                        narrator_detected = narrator_info.narrator_name
+                        print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
+                    else:
+                        print(f"   Narrator already identified by V2 pipeline: {narrator_detected} (skipping re-detection)")
                     logger.info(
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"
@@ -2152,20 +2158,22 @@ class AudiobookAnalyzer:
 
             # Post-profile role correction: if a non-narrator "protagonist" character's
             # outgoing relationships are predominantly adversarial, relabel as "antagonist".
-            # Universal invariant: characters described as tormentors/captors are antagonists.
-            _ADVERSARIAL_LABELS = {
-                "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
-                "abuser", "enslaver", "tyrant", "enemy", "predator", "antagonist", "villain",
-                "victim",  # when outgoing labels are all "victim", this char is the victimizer
+            # Universal invariant: characters described as having victims/captives are antagonists.
+            # IMPORTANT: Only count labels where THIS character IS the aggressor (target is victim/
+            # prisoner/prey). Do NOT count victim-of-others labels like "tormentor" or "captor" —
+            # outgoing "tormentor" means "my target torments me", making me the VICTIM not aggressor.
+            _OUTGOING_AGGRESSOR_LABELS_EARLY = {
+                "victim", "prisoner", "captive", "subordinate", "prey",
+                "servant", "slave", "subject", "hostage", "pawn",
             }
             for _rchar in pipeline_char_map.characters:
                 if _rchar.role != "protagonist" or _rchar.is_narrator:
                     continue
                 _rels = _rchar.relationships or {}
-                # Check outgoing adversarial labels
+                # Check outgoing aggressor labels only (labels where the TARGET is the victim)
                 _adversarial_count = sum(
                     1 for v in _rels.values()
-                    if isinstance(v, str) and any(adv in v.lower() for adv in _ADVERSARIAL_LABELS)
+                    if isinstance(v, str) and any(adv in v.lower() for adv in _OUTGOING_AGGRESSOR_LABELS_EARLY)
                 )
                 if _adversarial_count > 0 and _adversarial_count >= len(_rels) / 2:
                     _rchar.role = "antagonist"
