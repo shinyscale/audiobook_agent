@@ -2538,7 +2538,7 @@ class AudiobookAnalyzer:
                     _nn_final = _nc.canonical_name
                     break
             # Only substitute if we have a real name (not just "the narrator")
-            _nn_pat = re.compile(r'\bthe narrator\b', re.IGNORECASE)
+            _nn_pat = re.compile(r'\bthe (?:first-person )?narrator\b', re.IGNORECASE)
             _do_sub = _nn_final.lower() not in ('the narrator', 'narrator', '')
 
             if _do_sub:
@@ -2560,19 +2560,33 @@ class AudiobookAnalyzer:
                                 _sum.active_characters = list(_sum.active_characters or []) + [_nn_final]
 
                 # 3. Plot summary text in overview
-                # Bug B fix: plot_summary is a string, not a nested dict
+                # Bug B fix: plot_summary may be a nested dict {"plot_summary": "...", "themes": [...], ...}
                 if overview:
                     _ps_obj = overview.get('plot_summary')
-                    if isinstance(_ps_obj, str) and 'narrator' in _ps_obj.lower():
+                    if isinstance(_ps_obj, dict):
+                        _ps_inner = _ps_obj.get('plot_summary')
+                        if isinstance(_ps_inner, str) and 'narrator' in _ps_inner.lower():
+                            _ps_obj['plot_summary'] = _nn_pat.sub(_nn_final, _ps_inner)
+                    elif isinstance(_ps_obj, str) and 'narrator' in _ps_obj.lower():
                         overview['plot_summary'] = _nn_pat.sub(_nn_final, _ps_obj)
 
-                # 4. Narrator character's personality summary (LLM uses "The narrator is..." phrasing)
+                # 4. Narrator character's personality summary, evidence, and descriptions
                 for _char in pipeline_char_map.characters:
                     if getattr(_char, 'is_narrator', False):
                         if isinstance(getattr(_char, 'personality', None), dict):
                             _psumm = _char.personality.get('summary', '')
                             if _psumm and 'narrator' in _psumm.lower():
                                 _char.personality['summary'] = _nn_pat.sub(_nn_final, _psumm)
+                        if hasattr(_char, 'evidence') and _char.evidence:
+                            for _ev in _char.evidence:
+                                if isinstance(_ev, dict) and 'statement' in _ev:
+                                    if 'narrator' in _ev['statement'].lower():
+                                        _ev['statement'] = _nn_pat.sub(_nn_final, _ev['statement'])
+                        if hasattr(_char, 'descriptions') and _char.descriptions:
+                            for _desc in _char.descriptions:
+                                if isinstance(_desc, dict) and 'text' in _desc:
+                                    if 'narrator' in _desc['text'].lower():
+                                        _desc['text'] = _nn_pat.sub(_nn_final, _desc['text'])
 
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 20
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -206,5 +206,12 @@ All three are in `src/analyzer.py` lines 2540-2575, within the existing Step 6.9
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (Attempt 20 → 21)
+- **Step 6.9 regex broadened:** `\bthe narrator\b` → `\bthe (?:first-person )?narrator\b` (line 2541)
+- **Step 6.9 nested dict fix:** `plot_summary` handled as nested dict `{"plot_summary": "..."}` (lines 2563-2571)
+- **Step 6.9 evidence/descriptions:** Substitution extended to `evidence[].statement` and `descriptions[].text` for narrator character (lines 2580-2589)
+
 ## Next Action
-Fix Step 6.9: (1) handle nested plot_summary dict, (2) broaden regex for "the first-person narrator", (3) extend substitution to evidence/descriptions fields. All changes in src/analyzer.py lines 2540-2575.
+Re-run analysis to verify fixes.
+
+**Phase:** awaiting_analysis
