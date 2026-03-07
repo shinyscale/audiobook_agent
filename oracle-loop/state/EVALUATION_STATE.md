@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Attempt:** 18
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -187,6 +187,15 @@
 | 17 | Supporting→main narrator | characters.py (STEP 5.8.4b) | **Partial** (is_narrator=True but narrator_character_id=None) |
 | 17 | Rule 0.5 acronym | main_cast.py (Rule 0.5) | **Fixed** (AM aliases work) |
 
+## Pipeline Error (Attempt 18)
+- **Crash:** `Error during analysis: name '_ADVERSARIAL_LABELS' is not defined`
+  - Location: `src/analyzer.py` (Gorrister role=antagonist fix from attempt 18 pre-run changes)
+  - Root cause: `_ADVERSARIAL_LABELS` was referenced but removed/renamed in the analyzer.py fix
+  - Fix needed: Check `src/analyzer.py` around the false-antagonist check (lines ~2153-2170) to find the undefined name reference
+- **Secondary issue observed:** Narrator still detected as "Narrator" (generic) despite STEP 4.5b fix
+  - Pipeline output: `Narrator (from V2 pipeline): Narrator` — the generic placeholder was not converted to "Ted"
+  - This contradicts the smoke test from attempt 17 Fix History; may need further investigation
+
 ## Fix History (Attempt 18)
 - **Ted role=protagonist fix:**
   - Root cause A: `narrator.py:update_characters_with_narrator` only elevated role from ("minor","supporting",None) — not from "main". Added "main" to the condition.
@@ -202,4 +211,4 @@
 - Smoke test: 332 tests passed
 
 ## Next Action
-Set phase to awaiting_analysis — re-run pipeline to verify fixes.
+Fix pipeline crash before re-running analysis.
