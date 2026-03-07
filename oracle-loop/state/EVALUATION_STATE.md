@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -133,11 +133,12 @@ Run PROMPT_analyze.md to re-run the pipeline.
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 4 analysis completed successfully in 20m 40s
+- Attempt 5 analysis completed successfully in 19m 8s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive mode: none (baseline behavior)
 - Ted detected as narrator (first-person)
-- 7 characters in JSON, 6 displayed in HTML (role="main" Ted excluded from display?)
-- 16 pronunciation flags, all with IPA
-- Self-relationship filter appears to have worked
-- "colleague" relationship label is pervasive and masking the adversarial role correction
+- 6 characters total (Ted, AM, Ellen, Nimdok, Gorrister, +1) — 7→6 suggests duplicate Ted may be fixed
+- AM has alias "I Am" — self-alias filter working (blocking "AM" as self-alias)
+- 'the narrator' blocked as meta-reference during Ted merge — narrator heuristic properly handled
+- 16 pronunciation flags
+- Contradictory relationship pairs removed: AM↔Nimdok tormentor, AM↔Benny tormentor
