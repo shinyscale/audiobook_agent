@@ -91,6 +91,22 @@ KNOWN_IRREGULAR_IPA: dict[str, PronunciationEnrichment] = {
         notes='Variant spelling of "gunwale". Pronounced "GUN-ul" (rhymes with "funnel"). Not "gun-whale".',
         confidence=1.0,
     ),
+    # "-fanged" compounds: LLMs often produce /feɪnd/ (silent-g, like "feigned") instead
+    # of the correct /fæŋd/. Add overrides for likely encountered forms.
+    "sharp-fanged": PronunciationEnrichment(
+        word="sharp-fanged",
+        ipa="/ˈʃɑːrp.fæŋd/",
+        phonetic_spelling="SHARP-fangd",
+        notes='"Fanged" rhymes with "banged" — the g is pronounced. Not "faned" (do not treat as silent g).',
+        confidence=1.0,
+    ),
+    "fanged": PronunciationEnrichment(
+        word="fanged",
+        ipa="/fæŋd/",
+        phonetic_spelling="FANGD",
+        notes='"Fanged" rhymes with "banged". The g is pronounced, not silent.',
+        confidence=1.0,
+    ),
 }
 
 

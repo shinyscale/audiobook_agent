@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.80
 
 ## Output Files
@@ -89,13 +89,18 @@
 | 1 | 7.80 | N/A | First run — 3 categories failing |
 
 ## Fix History
-(None yet)
+- Attempt 2: Three fixes applied:
+  1. **Captain Adams (Completeness)**: F6 adds Captain Adams from `active_characters`, but the post-profiling evidence filter in `_convert_characters()` discards him (mention_count=1 ≤ 5, no evidence, non-main_cast ID). Fixed by exempting characters with `supporting_strategies=["chapter_summary_reconciliation"]` from the evidence filter. Root cause: `analyzer.py:_convert_characters():4086-4096`.
+  2. **Alias grouping (Completeness/Alias)**: `_add_title_stripped_aliases` only handled single-word title prefixes. "First Sergeant Price" → words[0]="First" not in titles → no alias added. Extended to handle multi-word compound ranks: adds "Price" and "Sergeant Price" as aliases for "First Sergeant Price". Both survive verify_aliases Rule 2 bypass (substring of canonical). Root cause: `main_cast.py:_add_title_stripped_aliases():1320-1330`.
+  3. **IPA sharp-fanged (Pronunciation)**: LLM produced /ʃɑːrp-feɪnd/ (treating "-fanged" like silent-g "feigned"). Added "sharp-fanged" and "fanged" to KNOWN_IRREGULAR_IPA with correct /ˈʃɑːrp.fæŋd/. Root cause: `enricher.py:KNOWN_IRREGULAR_IPA`.
+  - Smoke test: Logic verified by code trace; cannot run full pipeline without re-analysis.
+  - Note: Profiles at 6/10 likely needs re-run — Richardson's profile data is trapped in `descriptions[0].text` as malformed JSON (LLM output parsing failure at low confidence=0.30). Role assignments (Price=supporting, Richardson=protagonist) are LLM decisions not fixed by current code.
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| — | — | — | — |
+| 2 | Captain Adams, alias grouping, IPA | analyzer.py, main_cast.py, enricher.py | Awaiting re-analysis |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)

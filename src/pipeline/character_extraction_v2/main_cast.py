@@ -1319,15 +1319,55 @@ class MainCastExtractor:
         }
         for profile in profiles:
             words = profile.canonical_name.split()
+            existing_lower = {a.lower() for a in profile.aliases}
+
+            # Single-word title prefix: "Captain Adams" → "Adams", "Sergeant Price" → "Price"
             if len(words) >= 2 and words[0].lower() in _NOBLE_TITLES:
                 stripped_name = " ".join(words[1:])
                 stripped_lower = stripped_name.lower()
-                existing_lower = {a.lower() for a in profile.aliases}
                 if stripped_lower not in existing_lower and stripped_lower != profile.canonical_name.lower():
                     profile.aliases.append(stripped_name)
+                    existing_lower.add(stripped_lower)
                     logger.info(
                         f"AUTO-ADDED title-stripped alias: '{stripped_name}' for '{profile.canonical_name}'"
                     )
+
+            # Multi-word title prefix: "First Sergeant Price" → strip leading title words
+            # Handles compound ranks like "First Sergeant", "Major General", "Vice Admiral"
+            # where the first word is NOT itself a title but the full prefix is.
+            # Strategy: find the first non-title word from the left; that's the name start.
+            if len(words) >= 3:
+                # Find index of first word that is NOT a title/rank/modifier
+                _RANK_MODIFIERS = {"first", "second", "third", "senior", "junior", "chief",
+                                   "vice", "rear", "acting", "brevet"}
+                first_name_idx = None
+                for i, w in enumerate(words):
+                    w_lower = w.lower()
+                    if w_lower not in _NOBLE_TITLES and w_lower not in _RANK_MODIFIERS:
+                        first_name_idx = i
+                        break
+                # Only act if there are 2+ leading title/modifier words and at least 1 name word
+                if first_name_idx is not None and first_name_idx >= 2:
+                    name_only = " ".join(words[first_name_idx:])
+                    name_only_lower = name_only.lower()
+                    if name_only_lower not in existing_lower and name_only_lower != profile.canonical_name.lower():
+                        profile.aliases.append(name_only)
+                        existing_lower.add(name_only_lower)
+                        logger.info(
+                            f"AUTO-ADDED compound-rank-stripped alias: '{name_only}' for '{profile.canonical_name}'"
+                        )
+                    # Also add the intermediate form: strip just the leading modifier(s)
+                    # e.g., "First Sergeant Price" → "Sergeant Price"
+                    # This form often appears verbatim in raw text and summaries.
+                    if words[0].lower() in _RANK_MODIFIERS and words[1].lower() in _NOBLE_TITLES:
+                        rank_plus_name = " ".join(words[1:])
+                        rank_plus_name_lower = rank_plus_name.lower()
+                        if rank_plus_name_lower not in existing_lower and rank_plus_name_lower != profile.canonical_name.lower():
+                            profile.aliases.append(rank_plus_name)
+                            existing_lower.add(rank_plus_name_lower)
+                            logger.info(
+                                f"AUTO-ADDED rank+name alias: '{rank_plus_name}' for '{profile.canonical_name}'"
+                            )
 
         # Auto-add short-form aliases for is_symbolic multi-word objects.
         # "the Ebony Clock" → add "the Clock" so mention search finds short references.

@@ -4083,12 +4083,20 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             # are never discarded on this basis — empty evidence reflects a profile
             # generation failure, not a false positive. NER false positives
             # (exclamations, place names) come from supporting cast, not main_cast.
+            # Exception 3: F6 reconciliation characters were explicitly listed in
+            # LLM-generated chapter summaries as active characters — they are
+            # definitively real. NER false positives never reach F6 (they don't
+            # appear in LLM summaries). Discarding them here is always wrong.
+            _is_f6_character = "chapter_summary_reconciliation" in getattr(
+                pc, "supporting_strategies", []
+            )
             if (
                 hasattr(pc, "profile_evidence")
                 and not pc.profile_evidence
                 and not getattr(pc, "is_narrator", False)
                 and getattr(pc, "mention_count", 0) <= 5
                 and not pc.id.startswith("main_cast_")
+                and not _is_f6_character
             ):
                 logger.info(
                     f"Discarding '{pc.canonical_name}' — profiled with 0 evidence (false positive)"
