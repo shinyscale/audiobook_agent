@@ -212,5 +212,20 @@ If this scan already exists (STEP 4.24), it may be:
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix Applied (Attempt 15 → 16)
+
+### Fix 1 (CRITICAL): STEP 5.8.4 — Narrator name-to-ID resolver before LLM re-detection
+- **Root cause:** STEP 4.25b correctly identifies "Ted" via vocative pattern but sets `narrator_character_id=None`. STEP 5.8.5 then re-runs LLM detection (condition: narrator_character_id is None) which picks Ellen/Gorrister again.
+- **Fix:** Added STEP 5.8.4 before STEP 5.8.5: when narrator_name is known but narrator_character_id is None, do a deterministic name lookup in main_cast. If Ted is in main_cast, resolve and skip LLM re-detection.
+- **Smoke test:** PASS — "Ted" in main_cast resolves immediately; STEP 5.8.5 skipped.
+- **Files:** `src/agents/characters.py` (STEP 5.8.4 inserted ~line 1755)
+
+### Fix 2 (HIGH): STEP 1.2 — Remove standalone expansion characters after acronym alias injection
+- **Root cause:** LLM extracted "Allied Mastercomputer" as standalone character AND as alias of AM. verify_aliases Rule 3 then blocked it (claimed by another character).
+- **Fix:** After injecting aliases into AM, scan all other characters for canonical_name matching an alias, and remove them.
+- **Files:** `src/agents/characters.py` (STEP 1.2 ~line 252)
+
+**Phase:** awaiting_analysis
+
 ## Next Action
-Run PROMPT_fix.md to address: (1) deterministic narrator detection from raw text, (2) acronym injection bug, (3) location noun filtering.
+Re-run analysis to verify: (1) Ted is narrator, (2) AM has acronym aliases, (3) score improves.

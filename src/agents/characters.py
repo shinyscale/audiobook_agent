@@ -254,6 +254,20 @@ class CharacterAgent(Agent):
                     logger.info(
                         f"V2 Step 1.2: Injected acronym aliases for '{_cname}': {_new_aliases}"
                     )
+                    # Remove any standalone characters whose canonical_name is now an alias
+                    # of this acronym character. This prevents verify_aliases Rule 3 from
+                    # blocking the alias because "another character" claims the expansion name.
+                    _all_aliases_lower = {a.lower() for a in _char.aliases}
+                    _dups_to_remove = [
+                        _oc for _oc in characters
+                        if _oc is not _char and _oc.canonical_name.lower() in _all_aliases_lower
+                    ]
+                    for _oc in _dups_to_remove:
+                        characters.remove(_oc)
+                        logger.info(
+                            f"V2 Step 1.2: Removed standalone '{_oc.canonical_name}' "
+                            f"(absorbed as alias of '{_cname}')"
+                        )
 
         # STEP 1.4: Filter non-character entities (locations, objects, concepts)
         # Some LLMs may extract setting elements with roles like "setting/plot device"
@@ -1751,6 +1765,42 @@ class CharacterAgent(Agent):
             f"V2 Step 5.8 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting "
             f"after promotion"
         )
+
+        # STEP 5.8.4: Resolve narrator name to character ID before potentially re-running LLM.
+        # When STEP 4.25b (vocative correction) or similar identifies a narrator name but
+        # clears narrator_character_id (because the match failed at that point), we now have
+        # a fully-populated main_cast and can do a deterministic name lookup. This prevents
+        # STEP 5.8.5 from re-running LLM-based narrator detection unnecessarily.
+        # Universal invariant: if narrator_name is known and matches a main_cast character
+        # by name or alias, that IS the narrator — no LLM re-detection needed.
+        if (
+            narrator_info.narrator_name is not None
+            and narrator_info.narrator_character_id is None
+            and narrator_info.pov not in ("unknown", "")
+            and main_cast
+        ):
+            _resolve_name_584 = narrator_info.narrator_name.lower()
+            _resolved_584 = next(
+                (
+                    c for c in main_cast
+                    if c.canonical_name.lower() == _resolve_name_584
+                    or _resolve_name_584 in c.canonical_name.lower().split()
+                    or any(_resolve_name_584 == a.lower() for a in (c.aliases or []))
+                ),
+                None,
+            )
+            if _resolved_584 is not None:
+                narrator_info = NarratorInfo(
+                    pov=narrator_info.pov,
+                    narrator_name=_resolved_584.canonical_name,
+                    narrator_character_id=_resolved_584.id,
+                    confidence=max(narrator_info.confidence, 0.75),
+                )
+                main_cast = narrator_detector.update_characters_with_narrator(main_cast, narrator_info)
+                logger.info(
+                    f"V2 Step 5.8.4: Resolved narrator '{narrator_info.narrator_name}' "
+                    f"to character ID '{_resolved_584.id}' — skipping LLM re-detection"
+                )
 
         # STEP 5.8.5: Re-run narrator detection if narrator was not identified in STEP 4
         # This handles the case where main_cast was empty during STEP 4 (LLM extraction failed
