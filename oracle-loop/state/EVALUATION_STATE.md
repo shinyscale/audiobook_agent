@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -204,6 +204,10 @@
   - Fix: Defined `_INCOMING_AGGRESSOR_LABELS_EARLY` before the first loop and replaced the undefined `_ADVERSARIAL_LABELS` reference with it.
   - Modified: `src/analyzer.py` (lines ~2165-2202)
 - Smoke test: 332 tests passed
+- **Pipeline crash (attempt 18c — analysis run):**
+  - Error: `'Character' object has no attribute 'relationships'` — occurs during profile generation
+  - Also: "the ice caverns" still being extracted (regression); narrator still "the narrator" not "Ted"
+  - Phase set to awaiting_fix
 
 ## Next Action
-Re-run analysis to verify fixes (Ted protagonist, Gorrister not antagonist, narrator_detected preserved).
+Fix pipeline crash: `'Character' object has no attribute 'relationships'` — occurs during profile generation step.
