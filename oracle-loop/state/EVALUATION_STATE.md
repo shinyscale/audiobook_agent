@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** john_g
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.80
 
 ## Output Files
@@ -87,8 +87,16 @@
 - Character Profiles took 669s (11 min) — disproportionately long for 4 characters
 - Richardson profile has LOW confidence (0.30) — root cause of missing speech patterns and relationships
 
+## Pipeline Notes (Attempt 3)
+- Completed in 12m 35s (vs previous ~11min for profiles alone)
+- Character Profiles: 4H/0M/0L confidence (Richardson now HIGH — was 0.30 in Attempt 2)
+- 6 characters total, 4 profiles generated
+- 13 pronunciation words flagged
+- No pipeline errors (exit code 0)
+- Output: output/john_g/analysis.json, output/john_g/report.html
+
 ## Next Action
-Re-run analysis to verify attempt 3 fixes.
+Evaluate attempt 3 output.
 
 ## Fix History (continued)
 - Attempt 3: Three fixes applied:
