@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -246,5 +246,18 @@ New regressions from LLM variation:
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (Attempt 14)
+- **Fix 1: STEP 4.24 self-identification scan** (`src/agents/characters.py`)
+  - Root cause: LLM narrator detection assigned "the ice caverns" as narrator; no deterministic override existed
+  - Fix: After STEP 4, scan raw text for "I am {Name}" / "I'm {Name}" / "my name is {Name}" patterns. If matched character is in main_cast, override narrator assignment. This is deterministic and universal.
+  - Expected effect: "I am Ted" found in text → Ted assigned narrator; "the ice caverns" cleared of narrator flag
+  - Smoke test: Module imports cleanly, 332 tests pass
+
+- **Fix 2: Post-Phase-B threshold `_fc_own <= 2`** (`src/analyzer.py:2613`)
+  - Root cause: Gorrister had 2 outgoing "victim" labels (Benny + Huergelmir), both likely mislabeled (Gorrister IS the victim). Old threshold `<= 1` didn't catch 2 artifacts.
+  - Fix: Changed `_fc_own <= 1` to `_fc_own <= 2` — a character with ≤2 outgoing victim-type labels AND zero incoming aggressor labels is not a true antagonist
+  - Guard: AM has 5+ outgoing victim labels AND incoming "tormentor" from Ted → stays antagonist
+  - Smoke test: Module imports cleanly, 332 tests pass
+
 ## Next Action
-**Phase:** awaiting_fix — Fix narrator detection robustness and false-positive character filtering
+**Phase:** awaiting_analysis

@@ -766,6 +766,63 @@ class CharacterAgent(Agent):
             f"narrator={narrator_info.narrator_name}"
         )
 
+        # STEP 4.24: Self-identification scan.
+        # Universal invariant: if the raw text contains an explicit first-person
+        # self-identification ("I am {Name}", "I'm {Name}", "my name is {Name}"),
+        # that character IS the narrator — this is stronger evidence than the LLM result.
+        # Only fires for first-person narratives when the source text is available.
+        import re as _re424
+        if narrator_info.pov == "first-person" and context.text:
+            _self_id_patterns = [
+                r"\bI\s+am\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"\bI'm\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+                r"\bmy\s+name\s+is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)",
+            ]
+            _self_id_name: Optional[str] = None
+            for _pat in _self_id_patterns:
+                _m = _re424.search(_pat, context.text)
+                if _m:
+                    _self_id_name = _m.group(1)
+                    break
+            if _self_id_name:
+                _self_id_lower = _self_id_name.lower()
+                _self_id_match = next(
+                    (c for c in main_cast
+                     if c.canonical_name.lower() == _self_id_lower
+                     or _self_id_lower in c.canonical_name.lower()
+                     or any(_self_id_lower == a.lower() for a in (c.aliases or []))),
+                    None,
+                )
+                if _self_id_match and _self_id_match.id != narrator_info.narrator_character_id:
+                    logger.info(
+                        f"V2 Step 4.24: Self-identification '{_self_id_name}' found in text — "
+                        f"overriding narrator from '{narrator_info.narrator_name}' "
+                        f"to '{_self_id_match.canonical_name}'"
+                    )
+                    # Clear old narrator flag
+                    for _c424 in main_cast:
+                        if _c424.is_narrator:
+                            _c424.is_narrator = False
+                            _c424.narrative_role = None
+                    narrator_info = NarratorInfo(
+                        pov="first-person",
+                        narrator_character_id=_self_id_match.id,
+                        narrator_name=_self_id_match.canonical_name,
+                        confidence=0.95,
+                    )
+                    main_cast = narrator_detector.update_characters_with_narrator(main_cast, narrator_info)
+                elif _self_id_match:
+                    logger.info(
+                        f"V2 Step 4.24: Self-identification '{_self_id_name}' confirms "
+                        f"narrator '{narrator_info.narrator_name}' — no change needed"
+                    )
+                else:
+                    logger.info(
+                        f"V2 Step 4.24: Self-identification '{_self_id_name}' found but "
+                        f"no matching character in main_cast — skipping override"
+                    )
+        logger.info("V2 Step 4.24 complete: self-identification scan done")
+
         # STEP 4.25: Vocative-based narrator correction.
         # Universal invariant: in first-person narratives the narrator uses "I" and has
         # anomalously LOW name-mention count. If the LLM was forced to pick from a single

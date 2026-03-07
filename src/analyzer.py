@@ -2610,7 +2610,7 @@ class AudiobookAnalyzer:
                 if k.lower() == _fc_name and isinstance(v, str)
                 and any(a in v.lower() for a in _PHSB_INCOMING)
             )
-            if _fc_own <= 1 and _fc_inc == 0:
+            if _fc_own <= 2 and _fc_inc == 0:
                 _fc.role = "protagonist"
                 logger.info(
                     f"Post-Phase-B role corrected: '{_fc.canonical_name}' "
