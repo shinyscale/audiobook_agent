@@ -3,54 +3,153 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 1
-- **Phase:** awaiting_evaluation
-- **baseline_score:** null
-- **Competitive Mode:** none
+- **Phase:** awaiting_fix
+- **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
 ## Latest Scores
-(Awaiting evaluation)
+- Structure Detection: 10/10 ✓
+- Character Extraction: 4.5/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 3/10
+  - Alias Grouping: 4/10
+- Character Profiles: 2/10 ✗
+- Chapter Summaries: 8/10 ✓
+- Pronunciation Guide: 7/10 ✗
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 5.90/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (3 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
+| 1 | 5.90 | - | Baseline. Profiles catastrophic, character identity broken |
+
+## Current Issues (Priority Order)
+
+### CRITICAL
+
+1. **False narrator: Doctor T. J. Eckleburg tagged as narrator instead of Nick Carraway** [Identity Resolution]
+   - Problem: `main_cast_12` "Doctor T. J. Eckleburg" has `is_narrator: true`. Nick Carraway (`main_cast_0`) has `is_narrator: false`.
+   - Evidence: Nick Carraway is the first-person narrator of The Great Gatsby. Doctor T. J. Eckleburg is the name on a billboard advertisement (the eyes of Doctor T. J. Eckleburg), not even a person.
+   - Impact: Narrator identification is completely wrong. Affects profiles and summaries downstream.
+   - Location: V2 narrator detection logic — likely `src/pipeline/character_extraction_v2/` narrator assignment or `src/analyzer.py` narrator detection
+   - Fix: The narrator detection heuristic is picking a symbolic entity instead of the actual first-person narrator. Nick Carraway has only 34 mentions (low for a narrator) because first-person narrators refer to themselves as "I" not by name. The pipeline needs to identify the first-person narrator from summary/text evidence, not just mention counts or heuristics.
+
+2. **Protagonist in wrong cast tier with wrong canonical name** [Identity Resolution]
+   - Problem: Jay Gatsby — the title character — exists only as `supporting_12` "James Gatz" (268 mentions) with aliases "Jay Gatsby" and "Gatsby". There is NO main_cast entry for Gatsby.
+   - Evidence: The novel is called "The Great Gatsby." The character is referred to as "Gatsby" or "Jay Gatsby" throughout 8 of 9 chapters. "James Gatz" is his birth name revealed only in Chapter 6.
+   - Impact: The most important character is in the supporting cast with the wrong canonical name.
+   - Location: The EVALUATION_STATE notes show "BLOCKED alias: 'James Gatz' and 'Jay Gatsby' appear in summaries but NEVER co-occur in the same chapter and have no name overlap" — so Pass 1 extracted them as separate characters, Pass 2 tried to merge but the co-occurrence check blocked it. The main_cast "Jay Gatsby" entry was likely consumed/removed while "James Gatz" survived in supporting.
+   - Fix: The co-occurrence requirement is too strict for identity-reveal patterns (where a character's real name is revealed in a single chapter). A name that appears as an alias of another in summaries AND shares the same role/description should be mergeable even without co-occurrence.
+
+3. **Relationship labels are catastrophically wrong — almost all labeled "husband" or "colleague"** [Profiles]
+   - Problem: Nearly every relationship for every character is labeled "husband" or "colleague". Examples:
+     - Nick → James Gatz: "husband" (should be "friend/neighbor")
+     - Nick → Tom Buchanan: "husband" (should be "cousin-in-law/friend")
+     - Nick → Myrtle Wilson: "husband" (nonsensical)
+     - Tom → George Wilson: "husband" (should be "acquaintance" or none)
+     - James Gatz → George Wilson: "brother" (completely wrong)
+     - James Gatz → Henry C. Gatz: "son" (correct but only one)
+   - Evidence: The LLM is outputting garbage relationship labels. Only ~1 out of 50+ relationships is correct.
+   - Impact: Profiles are completely unusable for narrator preparation. This alone drops Profile score to 2/10.
+   - Location: `src/analyzer.py` `_generate_character_profile()` — the relationship extraction prompt or the relationship label vocabulary is broken
+   - Fix: The profile generation prompt likely lacks proper relationship label guidance. Should use labels like: parent, child, sibling, spouse, friend, rival, employer, employee, lover, neighbor, acquaintance. The LLM may be defaulting to "husband" as a catch-all male relationship term.
+
+4. **Meyer Wolfsheim / Meyer Wolfshiem duplicate** [Identity Resolution]
+   - Problem: Two separate entries for the same character with a spelling variant:
+     - `main_cast_7` "Meyer Wolfsheim" (6 mentions) with alias "Meyer Wolfshiem"
+     - `supporting_2` "Meyer Wolfshiem" (32 mentions) with alias "Wolfshiem"
+   - Evidence: Same character, Fitzgerald actually spelled it "Wolfshiem" in the text. The pipeline created both spellings as separate characters.
+   - Location: Cross-tier merge logic in `src/pipeline/character_extraction_v2/` or `src/agents/characters.py` — fuzzy matching for spelling variants across main/supporting cast
+   - Fix: Fuzzy string matching (edit distance) should catch single-letter spelling variants like Wolfsheim/Wolfshiem.
+
+### HIGH
+
+5. **Invalid aliases on multiple characters** [Alias Grouping]
+   - Problem: Several characters have nonsensical aliases:
+     - Tom Buchanan: "the Buchanans' house" (a building), "Tom and Daisy" (a couple)
+     - George Wilson: "Wilson's body" (a corpse reference), "her husband" (generic pronoun)
+     - Myrtle Wilson: "the woman" (generic descriptor)
+     - Dan Cody: "the Tuolomee" (that's Cody's yacht, not Cody)
+     - Tom Buchanan: "Tom" appears twice in aliases
+   - Location: Alias extraction in V2 pipeline `src/pipeline/character_extraction_v2/main_cast.py` — possessive/compound phrases not filtered
+   - Fix: Add validation rules to reject aliases containing possessives ('s), conjunctions ("and"), or that are clearly non-person nouns (house, body). Filter duplicates.
+
+6. **"Buchanan" alias conflict between Tom and Daisy** [Alias Grouping]
+   - Problem: "Buchanan" appears as alias for both `main_cast_2` (Daisy) and `main_cast_3` (Tom). A shared surname alias creates ambiguity.
+   - Location: Alias deduplication in `src/pipeline/character_extraction_v2/`
+   - Fix: When a surname alias is claimed by multiple characters, either remove it from all or assign it to the character who uses it most as a standalone reference.
+
+7. **Owl-eyed man duplicated as two F6 entries** [Identity Resolution]
+   - Problem: "The man with owl-eyed glasses" (`f189a657a225`, 1 mention) and "The owl-eyed man" (`3c8fa52c5db5`, 1 mention) are clearly the same character — commonly known as "Owl Eyes."
+   - Location: F6 reconciliation in `src/analyzer.py` — no deduplication of descriptive F6 entries
+   - Fix: F6 should check if a new entry is a substring/paraphrase of an existing entry before creating a duplicate.
+
+8. **Excessive F6 generic descriptor characters** [Completeness]
+   - Problem: 12 F6-reconciled characters, most are generic descriptors: "New York reporter", "Gardener", "Butler" (20 mentions!), "Chauffeur" (10 mentions), "The Lutheran minister", "The war veteran", "The detective", "The postman". These clutter the character list.
+   - Location: F6 reconciliation in `src/analyzer.py`
+   - Fix: F6 should filter out single-word generic occupational descriptors (butler, chauffeur, gardener, postman, detective) that aren't proper names. "Butler" with 20 mentions is a role, not a character name.
+
+### MEDIUM
+
+9. **No physical description for Nick Carraway** [Profiles]
+   - Problem: `physical_description: null` for the narrator/protagonist
+   - Evidence: Fitzgerald doesn't describe Nick extensively, but the text mentions he's about 30, from the Midwest. Some physical inference is possible.
+   - Location: Profile generation in `src/analyzer.py`
+
+10. **No speech patterns noted for any character** [Profiles]
+    - Problem: `speech_pattern: null` for all characters
+    - Evidence: Several characters have distinctive speech: Gatsby's "old sport", Wolfshiem's dialect spelling ("gonnegtion", "Oggsford"), Tom's aggressive/domineering tone
+    - Location: Profile generation prompt in `src/analyzer.py`
+
+11. **131 of 150 pronunciation entries have MEDIUM confidence** [Pronunciation]
+    - Problem: High proportion of medium-confidence entries suggests the model is hedging or json_mode validation is flagging preamble text
+    - Evidence: From pipeline notes: "Model refused to invent IPA for obscure proper nouns"
+    - Location: Pronunciation pipeline confidence scoring
+
+12. **Common English words flagged as pronunciation entries** [Pronunciation]
+    - Problem: Words like "chauffeur", "silhouette", "bureau", "settee" are common English — not unusual enough to flag
+    - Location: `src/pipeline/pronunciation/cmu_proposer.py` COMMON_WORDS_WHITELIST
+    - Fix: Add these to the whitelist
+
+13. **Chapter 1 summary has repeated name** [Summaries]
+    - Problem: "Nick Carraway, Nick Carraway, reflecting on..." — name doubled
+    - Location: Summary generation or post-processing
+
+### LOW
+
+14. **"The green light" as a character entry** [Completeness]
+    - Per rubric, symbolic objects ARE acceptable extractions. The green light is narratively significant. No action needed, but its relationships are nonsensical (Daisy → green light: "wife").
+
+15. **Vladmir Tostoff spelling** [Pronunciation]
+    - Fitzgerald spelled it "Vladimir Tostoff" — the extraction dropped the 'i'. Very minor.
+
+## Fix History
+(First attempt — no prior fixes)
+
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
 | (none yet) | - | - | - |
 
-## Notes
-Analysis complete (89m 16s, 303 LLM calls, 643K tokens).
+## Configuration Audit
+- Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
+- Context length: 32768 — adequate for Gatsby's chapter sizes
+- Temperature: 0.7 for all agents — reasonable
+- Zero LLM retries across all stages — no prompt/schema failures
+- No chunking issues apparent from profiling data
 
-### Pipeline Stats
-- 51,257 words extracted; 9 chapters detected (correct)
-- 32 characters found (24 from extraction + 12 added by F6)
-- 150 pronunciation flags
-
-### Known Issues (Pre-Evaluation)
-
-**CRITICAL - False narrator:**
-- V2 pipeline identified `Doctor T. J. Eckleburg` as narrator (a billboard advertisement character, NOT a person)
-- Nick Carraway is the actual first-person narrator of The Great Gatsby
-- Line 129: "Narrator (from V2 pipeline): Doctor T. J. Eckleburg"
-- Line 137: "Narrator already identified by V2 pipeline: Doctor T. J. Eckleburg (skipping re-detection)"
-- Line 145: "No definitive narrator identified from plot summary" (finalizing step also failed)
-
-**SIGNIFICANT - James Gatz alias blocked:**
-- Line 26: "BLOCKED alias: 'James Gatz' and 'Jay Gatsby' appear in summaries but NEVER co-occur in the same chapter and have no name overlap"
-- James Gatz IS Jay Gatsby's real birth name — this is a key identity reveal in the novel
-- Co-occurrence check blocks it because Gatsby's real name is only revealed in one chapter (Ch 6)
-
-**MINOR - Odd alias for Tom Buchanan:**
-- "the Buchanans' house" listed as alias for Tom Buchanan (should not be an alias)
-
-**MINOR - Pronunciation json_mode errors:**
-- Model refused to invent IPA for obscure proper nouns (Croirier, Vladmir, Chrysties)
-- 116 of 150 flags have MEDIUM confidence (model preamble/refusal in json_mode validation)
-
-### Character Summary (key characters)
-- Nick Carraway (aka Nick, Carraway) - 34 mentions — narrator, but NOT tagged as such
-- Daisy Buchanan (aka Daisy, Daisy Fay) - 208 mentions
-- Tom Buchanan (aka Tom, the Buchanans' house) - 198 mentions
-- Jordan Baker (aka Jordan, Baker) - 101 mentions
-- Myrtle Wilson (aka Myrtle, the woman) - 30 mentions
+## Next Action
+Run PROMPT_fix.md to address:
+1. CRITICAL #1: False narrator (Eckleburg → Nick Carraway)
+2. CRITICAL #2: Gatsby canonical name and cast tier
+3. CRITICAL #3: Relationship label catastrophe in profiles
+4. CRITICAL #4: Wolfsheim/Wolfshiem duplicate merge
+Focus on these 4 issues first — they account for >90% of the score deficit.
