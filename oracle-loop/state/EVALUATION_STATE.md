@@ -2,25 +2,38 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 16
-- **Phase:** awaiting_analysis
+- **Attempt:** 17
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
 ## Latest Scores
-- Structure Detection: 9/10 ✓
-- Character Extraction: 4.5/10 ✗
-  - Completeness: 6/10
-  - Identity Resolution: 4/10
-  - Alias Grouping: 4/10
-- Character Profiles: 5/10 ✗
-- Chapter Summaries: 6.5/10 ✗
-- Pronunciation Guide: 8.5/10 ✓
-- HTML Presentation: 7.5/10 ✗
-- **Overall: 6.58/10**
+(Awaiting evaluation of attempt 17)
 
-**Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (4 categories below threshold: Character Extraction, Character Profiles, Chapter Summaries, HTML Presentation)
+## Output Files
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
+## Pipeline Notes (Attempt 17)
+- Analysis completed in 20m 34s
+- 6 characters found (ice caverns GONE ✓)
+- AM has alias 'Allied Mastercomputer' (Rule 0.5 acronym fix worked ✓)
+- Ted: is_narrator=True, role=main, id=supporting_0 (narrator flag set correctly ✓, but role not promoted)
+- narrator_character_id=None (top-level narrator ID not set — STEP 5.9.6 invariant may not have fired)
+- Ellen: role=protagonist (incorrect — should be Ted)
+- Gorrister: role=antagonist (incorrect — should be victim)
+- Ted has profile with personality+voice_guidance but no physical_description
+- Pipeline log: "Narrator (from V2 pipeline): Ted" then "Detected narrator: Ellen (first-person)" (overridden)
+- Then: "No definitive narrator identified from plot summary" (final check failed)
+- narrator_character_id=None despite Ted.is_narrator=True
+
+## What Changed (Attempt 16 → 17)
+- **FIXED: AM aliases** — 'Allied Mastercomputer' now present (Rule 0.5 acronym exemption worked)
+- **FIXED: "the ice caverns"** — no longer in character list
+- **FIXED: Ted is_narrator** — Ted.is_narrator=True (was False in attempt 16), has basic profile
+- **STILL BROKEN: narrator_character_id=None** — top-level field not set
+- **STILL BROKEN: Ted role=main** — not promoted to protagonist despite is_narrator=True
+- **NEW ISSUE: Ellen role=protagonist** — wrong role, analyzer overwrote with incorrect narrator detection
 
 ## What Changed (Attempt 15 → 16)
 - **REGRESSION: "the ice caverns" is now the NARRATOR** — Attempt 15 had Ellen+Gorrister as narrators (wrong but human). Now a LOCATION is the narrator. Strictly worse.
