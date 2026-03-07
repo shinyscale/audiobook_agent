@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -129,6 +129,9 @@ Re-run analysis on i_have_no_mouth to verify fixes.
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Analysis completed successfully
+- Attempt 2 analysis completed successfully in 22m 21s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive mode: none (baseline behavior)
+- Ted detected as narrator (first-person) — vocative fix worked
+- 8 characters extracted (was 9 with duplicate Benny in attempt 1)
+- AM: 77 mentions, Ellen: 30, Gorrister: 29, Nimdok: 17, Ted: 5
