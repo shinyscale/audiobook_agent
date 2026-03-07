@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 20
-- **Phase:** awaiting_analysis
+- **Attempt:** 21
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -211,7 +211,12 @@ All three are in `src/analyzer.py` lines 2540-2575, within the existing Step 6.9
 - **Step 6.9 nested dict fix:** `plot_summary` handled as nested dict `{"plot_summary": "..."}` (lines 2563-2571)
 - **Step 6.9 evidence/descriptions:** Substitution extended to `evidence[].statement` and `descriptions[].text` for narrator character (lines 2580-2589)
 
-## Next Action
-Re-run analysis to verify fixes.
+## Pipeline Notes (Attempt 21)
+- Completed in 19m 32s
+- 1 low-confidence profile: Ellen (0.30)
+- BLOCKED: 'the narrator' alias for Ted (meta-reference guard working)
+- 7 characters found, 6 profiles generated
+- Output: ../output/i_have_no_mouth/analysis.json + report.html
 
-**Phase:** awaiting_analysis
+## Next Action
+Evaluate output for Step 6.9 fixes (plot_summary nested dict, broadened regex, evidence/descriptions substitution).
