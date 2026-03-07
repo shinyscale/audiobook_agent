@@ -2166,6 +2166,10 @@ class AudiobookAnalyzer:
                 "victim", "prisoner", "captive", "subordinate", "prey",
                 "servant", "slave", "subject", "hostage", "pawn",
             }
+            _INCOMING_AGGRESSOR_LABELS_EARLY = {
+                "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
+                "abuser", "enslaver", "tyrant", "predator", "antagonist", "villain",
+            }
             for _rchar in pipeline_char_map.characters:
                 if _rchar.role != "protagonist" or _rchar.is_narrator:
                     continue
@@ -2195,7 +2199,7 @@ class AudiobookAnalyzer:
                         continue
                     for _rel_key, _rel_val in (_other.relationships or {}).items():
                         if _rel_key.lower() == _rchar_name_lower and isinstance(_rel_val, str):
-                            if any(adv in _rel_val.lower() for adv in _ADVERSARIAL_LABELS):
+                            if any(adv in _rel_val.lower() for adv in _INCOMING_AGGRESSOR_LABELS_EARLY):
                                 _incoming_adversarial += 1
                 if _incoming_adversarial >= 1 and _adversarial_count >= 1:
                     _rchar.role = "antagonist"

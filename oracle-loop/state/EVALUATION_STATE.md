@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -187,15 +187,6 @@
 | 17 | Supporting→main narrator | characters.py (STEP 5.8.4b) | **Partial** (is_narrator=True but narrator_character_id=None) |
 | 17 | Rule 0.5 acronym | main_cast.py (Rule 0.5) | **Fixed** (AM aliases work) |
 
-## Pipeline Error (Attempt 18)
-- **Crash:** `Error during analysis: name '_ADVERSARIAL_LABELS' is not defined`
-  - Location: `src/analyzer.py` (Gorrister role=antagonist fix from attempt 18 pre-run changes)
-  - Root cause: `_ADVERSARIAL_LABELS` was referenced but removed/renamed in the analyzer.py fix
-  - Fix needed: Check `src/analyzer.py` around the false-antagonist check (lines ~2153-2170) to find the undefined name reference
-- **Secondary issue observed:** Narrator still detected as "Narrator" (generic) despite STEP 4.5b fix
-  - Pipeline output: `Narrator (from V2 pipeline): Narrator` — the generic placeholder was not converted to "Ted"
-  - This contradicts the smoke test from attempt 17 Fix History; may need further investigation
-
 ## Fix History (Attempt 18)
 - **Ted role=protagonist fix:**
   - Root cause A: `narrator.py:update_characters_with_narrator` only elevated role from ("minor","supporting",None) — not from "main". Added "main" to the condition.
@@ -208,7 +199,11 @@
 - **narrator_detected preservation:**
   - Root cause: "early narrator detection" step in analyzer.py (line ~1865) overwrote `narrator_detected="Ted"` (set by V2 pipeline) with LLM re-detection result "Ellen" (from summaries generated without narrator info). Fixed: only overwrite narrator_detected if V2 didn't already find one.
   - Modified: `src/analyzer.py` (line ~1865)
+- **Pipeline crash fix (attempt 18b):**
+  - Root cause: `_ADVERSARIAL_LABELS` was referenced at analyzer.py:2198 but the Gorrister fix renamed it. The incoming-adversarial check for the protagonist→antagonist loop referenced the old name.
+  - Fix: Defined `_INCOMING_AGGRESSOR_LABELS_EARLY` before the first loop and replaced the undefined `_ADVERSARIAL_LABELS` reference with it.
+  - Modified: `src/analyzer.py` (lines ~2165-2202)
 - Smoke test: 332 tests passed
 
 ## Next Action
-Fix pipeline crash before re-running analysis.
+Re-run analysis to verify fixes (Ted protagonist, Gorrister not antagonist, narrator_detected preserved).
