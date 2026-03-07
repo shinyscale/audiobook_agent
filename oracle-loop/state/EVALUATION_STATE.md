@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 14
-- **Phase:** awaiting_analysis
+- **Attempt:** 15
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -226,8 +226,17 @@
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Pipeline Notes (Attempt 15)
+- Analysis completed in 22m 14s
+- 8 characters found (7 profiles generated)
+- Narrator from V2 pipeline: Ellen (WRONG — same regression as attempt 9/13)
+- Narrator from summaries: "the narrator" — NOT found in main_cast → Ted not set as narrator
+- Acronym injection BLOCKED: "Allied Mastercomputer" claimed by another character (injection created standalone char)
+- Pronunciation flags: 10 (down from 16 — homograph exclusion worked!)
+- Characters: AM, Ellen, Gorrister, Benny, Nimdok, Ted, + 2 extras (ice caverns, Jesus)
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate output, then fix: (1) Ellen re-identified as narrator instead of Ted, (2) Acronym injection creates standalone character instead of aliasing to AM.
 
 ## Fix History (continued)
 - Attempt 15 fixes:
