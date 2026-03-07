@@ -252,7 +252,7 @@ class TestProposersWithWordIndex:
 
     def test_homograph_proposer_with_index(self):
         """HomographProposer finds homographs using WordIndex."""
-        text = "I read the book yesterday. I will read another book today. The lead singer took the lead."
+        text = "He shed a tear as he began to tear the letter. The bass player played a bass guitar."
         boundaries = [(1, 0, len(text))]
         word_index = WordIndex(text, boundaries)
 
@@ -272,8 +272,8 @@ class TestProposersWithWordIndex:
         words_with = {p.word for p in proposals_with_index}
         words_without = {p.word for p in proposals_without_index}
         assert words_with == words_without
-        assert "read" in words_with
-        assert "lead" in words_with
+        assert "tear" in words_with
+        assert "bass" in words_with
 
     def test_character_proposer_with_index(self):
         """CharacterProposer finds character names using WordIndex."""

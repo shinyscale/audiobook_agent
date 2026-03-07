@@ -23,6 +23,12 @@ COMMON_HOMOGRAPHS_EXCLUSION = {
     "record",   # "a record" vs "to record" - extremely common
     "use",      # "noun: a use" vs "verb: to use" - extremely common
     "present",  # "a present/be present" vs "to present" - extremely common
+    "wind",     # "moving air" vs "to coil" - universally known
+    "read",     # "present tense" vs "past tense" - universally known
+    "lead",     # "to guide" vs "the metal" - universally known
+    "does",     # "he does" vs "female deer" - extremely common verb form
+    "close",    # "nearby" vs "to shut" - universally known
+    "subject",  # "topic" vs "to expose" - universally known
 }
 
 # Homographs: words spelled the same but with different pronunciations
@@ -86,6 +92,8 @@ class HomographProposer(BasePronunciationProposer):
         proposals = []
 
         for word, pronunciations in HOMOGRAPHS.items():
+            if word in COMMON_HOMOGRAPHS_EXCLUSION:
+                continue
             # Use WordIndex if available (O(1) lookup)
             if word_index is not None:
                 if not word_index.has_word(word):

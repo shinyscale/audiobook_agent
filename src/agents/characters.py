@@ -218,6 +218,43 @@ class CharacterAgent(Agent):
         characters = main_cast_extractor.profiles_to_characters(profiles)
         logger.info(f"V2 Step 1 complete: {len(characters)} main cast candidates")
 
+        # STEP 1.2: Programmatic acronym alias injection.
+        # Universal invariant: if a character has an all-caps short name (2-5 letters),
+        # scan the raw text for explicit expansions ("NAME stands for ...", "NAME, Full Phrase")
+        # and inject them as aliases deterministically. This handles LLM non-determinism
+        # where Pass 2 may or may not capture acronym expansions on a given run.
+        import re as _re12
+        if context.text:
+            _acronym_pat1 = _re12.compile(
+                r'\b([A-Z]{2,5})\b\s+st(?:ands?|ood)\s+for\s+([A-Za-z][A-Za-z\s]{5,60}?)(?=[,.\n;]|$)',
+                _re12.MULTILINE,
+            )
+            _acronym_pat2 = _re12.compile(
+                r'\b([A-Z]{2,5})\b[,\.]\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
+                _re12.MULTILINE,
+            )
+            for _char in characters:
+                _cname = _char.canonical_name.strip()
+                if not _re12.match(r'^[A-Z]{2,5}$', _cname):
+                    continue
+                _new_aliases: list[str] = []
+                _existing_aliases = list(_char.aliases or [])
+                for _m in _acronym_pat1.finditer(context.text):
+                    if _m.group(1) == _cname:
+                        _exp = _m.group(2).strip()
+                        if _exp and _exp not in _existing_aliases and _exp not in _new_aliases and _exp != _cname:
+                            _new_aliases.append(_exp)
+                for _m in _acronym_pat2.finditer(context.text):
+                    if _m.group(1) == _cname:
+                        _exp = _m.group(2).strip()
+                        if _exp and _exp not in _existing_aliases and _exp not in _new_aliases and _exp != _cname:
+                            _new_aliases.append(_exp)
+                if _new_aliases:
+                    _char.aliases = _existing_aliases + _new_aliases
+                    logger.info(
+                        f"V2 Step 1.2: Injected acronym aliases for '{_cname}': {_new_aliases}"
+                    )
+
         # STEP 1.4: Filter non-character entities (locations, objects, concepts)
         # Some LLMs may extract setting elements with roles like "setting/plot device"
         non_character_roles = ["setting", "location", "place", "object", "concept", "device"]
@@ -1982,6 +2019,22 @@ class CharacterAgent(Agent):
                     f"to 'main' ({char.mention_count} mentions >= {effective_main})"
                 )
                 char.role = "main"
+
+        # STEP 5.9.6: Final narrator role invariant.
+        # Universal invariant: first-person narrators are always protagonist-level.
+        # This runs after all merge/split steps to catch cases where role was set to
+        # "minor" or "supporting" by the LLM and was never elevated (e.g., because the
+        # mention_count guard in update_characters_with_narrator blocked the assignment
+        # when mention counts were zero, or because a later merge step overwrote the role).
+        if narrator_info.pov == "first-person":
+            for char in main_cast:
+                if char.is_narrator and getattr(char, "role", None) in ("minor", "supporting", None):
+                    old_role = char.role
+                    char.role = "protagonist"
+                    logger.info(
+                        f"V2 Step 5.9.6: Narrator role invariant: '{char.canonical_name}' "
+                        f"'{old_role}' → 'protagonist'"
+                    )
 
         # STEP 5.10: Final alias validation
         # Clean up any invalid aliases that may have been added during merge operations

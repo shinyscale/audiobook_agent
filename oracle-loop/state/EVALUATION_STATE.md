@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -227,4 +227,20 @@
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to address summary factual errors (Critical #1), Ted role elevation (Critical #2), and pronunciation false positives (High #4).
+Re-run analysis to verify fixes.
+
+## Fix History (continued)
+- Attempt 15 fixes:
+  1. **SINGLE_CHAPTER_PROMPT narrator guideline** (`summarizer.py:175`) — Added `**FIRST-PERSON NARRATORS**` guideline matching what already exists in CHUNK_SUMMARY_PROMPT and CONSOLIDATE_PROMPT. Short stories use this path; it was missing.
+     - Root cause: Inconsistency — multi-chunk paths had the guideline, single-chunk path didn't
+     - Smoke test: PASS — guideline now present in all 3 prompt paths
+  2. **Narrator role invariant STEP 5.9.6** (`characters.py:after STEP 5.9.5`) — Final post-all-merges invariant: if is_narrator=True and pov=first-person, role must be protagonist.
+     - Root cause: Ted had is_narrator=True but role=minor; nothing guaranteed role elevation after all merge/split steps
+     - Smoke test: PASS — invariant added after STEP 5.9.5 which already skips narrators
+  3. **Acronym alias injection STEP 1.2** (`characters.py:after STEP 1`) — Scans raw text for "{CAPS} stands/stood for {Expansion}" and "{CAPS}. Expansion" patterns; injects as aliases for all-caps 2-5 letter character names.
+     - Root cause: LLM non-determinism in Pass 2 would sometimes miss AM's aliases; programmatic detection is deterministic
+     - Smoke test: PASS — correctly finds "Allied Mastercomputer" and "Aggressive Menace" from test text
+  4. **Common homograph exclusion** (`homograph_proposer.py`) — Added "wind", "read", "lead", "does", "close", "subject" to COMMON_HOMOGRAPHS_EXCLUSION + added the check to the propose() loop (was defined but never checked).
+     - Root cause: These 6 words were in HOMOGRAPHS dict; exclusion set existed but was never applied
+     - Smoke test: PASS — words excluded from proposals; test updated to use non-excluded words
+     - Tests: all 332 pass

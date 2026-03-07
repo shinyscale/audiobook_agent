@@ -179,6 +179,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
 - Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
+- **FIRST-PERSON NARRATORS**: If the text is told in first person and the narrator's name is revealed, USE THAT NAME. Do not attribute the narrator's actions ("I killed", "I survived", "I decided") to any other character.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
