@@ -3,99 +3,85 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 11
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7.5/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 9/10
-  - Alias Grouping: 5.5/10
-- Character Profiles: 5.5/10 ✗
-- Chapter Summaries: 7.5/10 ✗
-- Pronunciation Guide: 8.5/10 ✓
+- Character Extraction: 8.5/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 10/10
+  - Alias Grouping: 7/10
+- Character Profiles: 7/10 ✗
+- Chapter Summaries: 8.5/10 ✓
+- Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.65/10**
+- **Overall: 8.30/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (1 category below threshold: Character Profiles)
 
-## Regression Analysis
-Attempt 10 narrator fix PARTIALLY worked: Ted IS correctly identified as narrator (narrator=True, role=protagonist). However:
-- 3 of 5 humans (Ellen, Nimdok, Benny) are still labeled "antagonist" — the false-antagonist correction from attempt 8 regressed
-- "colleague" labels persist for AM<->Ted, AM<->Gorrister despite both being antagonist<->protagonist pairs
-- Summary uses "the narrator" instead of Ted's name throughout
-- No aliases for any character
+## Improvement Summary (Attempt 10 → 11)
+Major progress this attempt:
+- Ellen: antagonist → protagonist ✓ (was CRITICAL #1, partially fixed)
+- AM→Ted: "colleague" → "tormentor" ✓ (was CRITICAL #2, fixed)
+- AM→Gorrister: "colleague" → "tormentor" ✓ (was CRITICAL #2, fixed)
+- AM aliases: "Allied Mastercomputer", "Adaptive Manipulator", "I am" ✓ (was HIGH #3, fixed)
+- Summary uses "Ted" by name ✓ (was HIGH #4, fixed)
+- Benny: still protagonist ✓ (stable)
 
-The mention-ratio narrator guard from attempt 10 apparently worked (Ted=narrator), but the downstream fixes (role correction, colleague replacement) did NOT fire correctly.
+Remaining: Nimdok still "antagonist" with "colleague" labels to/from AM.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **3 humans wrongly labeled "antagonist"** [Profiles — Roles]
-   - Problem: Ellen (antagonist), Nimdok (antagonist), Benny (antagonist) — all should be protagonist/victim. Only AM should be antagonist.
-   - Evidence: In the story, all 5 humans are victims of AM's torment. Ellen, Nimdok, Benny are prisoners, not antagonists.
-   - Root cause: The false-antagonist threshold fix from attempt 8 (analyzer.py:2218) worked in attempt 8 but regressed. Possibly because the LLM now generates different relationship labels that the threshold check doesn't catch, or the code path changed.
-   - Location: `src/analyzer.py` — false-antagonist correction logic
-   - Fix: Investigate why the false-antagonist fix from attempt 8 no longer fires for Ellen/Nimdok/Benny. The fix should check: if a character has NO outgoing aggressor labels AND receives "victim"/"captive" labels from an antagonist, they cannot be an antagonist.
+1. **Nimdok wrongly labeled "antagonist"** [Profiles — Roles]
+   - Problem: Nimdok has role="antagonist". He is a victim/prisoner of AM, not an antagonist.
+   - Evidence: In the text, Nimdok is one of the 5 humans tormented by AM. He has no aggressor behavior.
+   - Root cause: The post-Phase-B false-antagonist correction fixed Ellen and Benny but NOT Nimdok. Nimdok likely has an incoming adversarial label that keeps him above the threshold (similar to how Ellen stayed antagonist in attempt 10 due to "abuser" from Gorrister).
+   - Location: `src/analyzer.py` — post-Phase-B false-antagonist correction logic
+   - Fix: Check what adversarial labels Nimdok has. The post-Phase-B correction should also catch Nimdok. Possible approaches:
+     (a) Lower the threshold further
+     (b) Check if Nimdok has "colleague" to AM — which should NOT count as adversarial evidence
+     (c) If AM is the ONLY antagonist, all other characters should be protagonist by default
 
-2. **"colleague" labels for AM<->Ted and AM<->Gorrister** [Profiles — Relationships]
-   - Problem: AM->Ted: "colleague", AM->Gorrister: "colleague", Ted->AM: "colleague", Gorrister->AM: "colleague", Gorrister->Ted: "colleague", Ted->Gorrister: "colleague"
-   - Evidence: AM is their captor/tormentor. Ted and Gorrister are fellow prisoners. "Colleague" is completely wrong.
-   - Root cause: The attempt 10 fix expanded _all_protagonists to include role="main", but Ted and Gorrister already have role="protagonist". The colleague replacement should fire for antagonist<->protagonist pairs. Either (a) the replacement code doesn't run, (b) it runs before role assignment, or (c) there's a logic bug.
-   - Location: `src/analyzer.py` — post-profile colleague replacement logic
-   - Fix: Debug why colleague replacement isn't firing for AM(antagonist)<->Ted(protagonist) and AM(antagonist)<->Gorrister(protagonist). Check execution order.
-
-### HIGH
-3. **No aliases for any character** [Character Extraction — Alias Grouping]
-   - Problem: AM has zero aliases. Should at minimum have "Allied Mastercomputer" (explicitly mentioned in text/summary).
-   - Evidence: Summary says "AM's origins as the Allied Mastercomputer" — this name appears in the text.
-   - Location: `src/pipeline/character_extraction_v2/` — alias detection
-   - Fix: This is likely an LLM output issue for short stories with few alias variations. Low priority compared to role/relationship fixes.
-
-4. **Summary uses "the narrator" instead of "Ted"** [Summaries — Specificity]
-   - Problem: The summary never mentions Ted by name. Says "the narrator" throughout.
-   - Evidence: "the narrator, realizing death is the only escape, kills him" — should say "Ted"
-   - Root cause: Ted has only 5 name-mentions in the text (first-person narrators are rarely named). The summarizer may not have had Ted's name available, or the narrator assignment happened after summary generation.
-   - Location: `src/analyzer.py` or `src/agents/summary_agent.py` — check if narrator name is injected into summaries
-   - Fix: Post-summary step could replace "the narrator" with the detected narrator's name.
+2. **AM→Nimdok and Nimdok→AM both "colleague"** [Profiles — Relationships]
+   - Problem: AM's relationship to Nimdok is "colleague", and Nimdok's to AM is "colleague". Should be "tormentor"/"captor" respectively.
+   - Evidence: AM torments ALL 5 humans equally. AM→Ted/Ellen/Gorrister/Benny are all "tormentor" or "captor" — only Nimdok is the outlier.
+   - Root cause: The colleague replacement logic runs for antagonist↔protagonist pairs. Since Nimdok is still "antagonist", the AM↔Nimdok pair is antagonist↔antagonist, so the replacement doesn't fire.
+   - Location: `src/analyzer.py` — post-Phase-B colleague replacement
+   - Fix: This will auto-fix once CRITICAL #1 is fixed (Nimdok becomes protagonist → colleague replacement fires for AM↔Nimdok pair).
 
 ### MEDIUM
-5. **Ellen's relationship descriptions partially inaccurate** [Profiles — Accuracy]
-   - "Nimdok: victim of her violence" — Ellen kills Nimdok as an act of mercy, not violence
-   - "Benny: sexual object of her desire" — in the text it's more that Benny is sexually aggressive toward Ellen, not the reverse
-   - "Gorrister: recipient of his physical abuse" — not clearly supported by text
+3. **Ellen→Gorrister: "victim"** [Profiles — Relationship Accuracy]
+   - Problem: Ellen's relationship to Gorrister is labeled "victim" — ambiguous and misleading. They're fellow prisoners.
+   - Evidence: In the text, Ellen and Gorrister are both victims of AM; they don't have a victim-perpetrator dynamic between them.
+   - This is a minor issue — the label comes from the LLM's interpretation of their interactions.
 
-6. **Missing physical descriptions for Ted, Nimdok, AM** [Profiles — Completeness]
-   - AM is a computer (acceptable to have no physical desc), but Ted's transformation into a blob at the end and Nimdok's appearance could be described.
+4. **No speech patterns noted for any character** [Profiles — Completeness]
+   - Problem: AM has a distinctive megalomaniacal speech style (the "HATE" monologue). Not captured. Ted narrates in a cynical, observational tone. Not captured.
+   - This is a persistent gap but doesn't block passing — speech patterns are "nice to have" in profiles.
 
-7. **No speech patterns noted** [Profiles — Completeness]
-   - AM has a distinctive megalomaniacal speech style (the "HATE" monologue). Not captured.
+5. **Ted missing from characters_present in summary** [Summaries — Metadata]
+   - Problem: The chapter's characters_present list is ["Ellen", "Nimdok", "Gorrister", "Benny"] — Ted is missing despite being the narrator and a character in the story.
+   - The summary TEXT correctly mentions Ted, so the narrative content is fine. This is a metadata issue.
 
 ### LOW
-8. **Chapter title is null** [Structure]
-   - Single section has `title: null`. Minor cosmetic issue for a short story.
+6. **Chapter title is null** [Structure]
+   - Single section has `title: null`. Minor cosmetic issue for a short story with no chapter heading.
 
-9. **Common homographs in pronunciation** [Pronunciation — False Positives]
-   - "read", "lead", "does", "close", "subject" are common English homographs that most narrators wouldn't need flagged. Minor noise.
+7. **Common homographs in pronunciation** [Pronunciation — False Positives]
+   - "read", "lead", "does", "close", "subject" are 5 common English homographs that add noise. Most narrators wouldn't need these flagged.
+   - 12 of 17 pronunciation entries are genuinely useful; 5 are common-word noise.
 
 ## Fix Priority
-Focus on CRITICAL #1 and #2 — these are the primary blockers for Character Profiles reaching 8.0. If roles and relationships are fixed, profiles should jump to ~7.5-8.0. HIGH #4 (summary naming) would push summaries to 8.0+.
+**CRITICAL #1 is the ONLY blocker.** If Nimdok's role is fixed to "protagonist", then:
+- CRITICAL #2 auto-fixes (colleague replacement fires for antagonist↔protagonist pair)
+- Character Profiles score should jump from 7/10 to ~8/10
+- All categories would be ≥ 8.0 → PASS
 
-## Attempt 11 Fix Applied
-- **Post-Phase-B false-antagonist correction + colleague replacement** (`src/analyzer.py` after Phase B):
-  - Re-runs false-antagonist check on final (Phase-B-corrected) output characters
-  - Simulation confirms: Nimdok → protagonist, Benny → protagonist; Ellen stays antagonist (in_adv=1 from Gorrister's "abuser" label)
-  - AM→Ted/Gorrister: "colleague" → "victim" (after role fix, AM has 2 active victim labels to protagonists)
-  - Ted/Gorrister→AM: "colleague" → "tormentor" (Nimdok/Benny call AM "tormentor" → dominant label)
-  - Root cause: pipeline role corrections run on Phase-A relationships; Phase B then refines them; running again on final data gives correct results
-- **Summary narrator name substitution** (`src/analyzer.py` after narrator detection, line 1877):
-  - After first-person narrator detected, replaces "the narrator" with actual name (e.g., "Ted") in chapter summaries
-  - Fixes HIGH #4: summaries will use "Ted" instead of "the narrator"
-  - Universal: only runs when pov == "first-person" AND narrator_name is detected
-- Smoke test: Python simulation confirms all logic correct; 332 tests pass
+The fix should focus EXCLUSIVELY on why Nimdok isn't caught by the post-Phase-B false-antagonist correction. Debug what adversarial evidence Nimdok has that keeps him labeled "antagonist", and adjust the logic accordingly.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -110,14 +96,15 @@ Focus on CRITICAL #1 and #2 — these are the primary blockers for Character Pro
 | 8 | 8.50 | +2.15 | Ted restored, all roles correct. Only profiles failing (AM "colleague" labels) |
 | 9 | 7.25 | +0.90 | REGRESSION: Ellen detected as narrator (not Ted). Colleague fix partially worked but narrator cascade drops 3 categories |
 | 10 | 7.65 | +1.30 | Ted narrator restored. But 3 humans still antagonist, colleague labels persist, summary uses "the narrator" not "Ted" |
+| 11 | 8.30 | +1.95 | Major progress: Ellen/Benny protagonist, AM relationships fixed, aliases added, summary uses "Ted". Only Nimdok antagonist remains. |
 
-## Pipeline Notes (Attempt 10)
-- Analysis completed in 34m 35s
-- 6 characters found: AM (77), Ted (5), Ellen (30), Nimdok (17), Gorrister (29), Benny (35)
-- Ted correctly identified as narrator (narrator=True, role=protagonist)
+## Pipeline Notes (Attempt 11)
+- Analysis completed in 19m 14s
+- 6 characters found: AM (79), Ted (5), Ellen (30), Nimdok (17), Gorrister (29), Benny (35)
+- Ted correctly identified as narrator (first-person)
+- AM now has aliases: "Allied Mastercomputer, Adaptive Manipulator, I am"
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Character Profiles took 1041s (17 min) — longest stage by far
-- No aliases for any character
+- Character Profiles took 8m 34s (bottleneck, 44.5% of total)
 
 ## Fix History
 - Attempt 2: Three connected fixes for character extraction and pronunciation
@@ -161,6 +148,10 @@ Focus on CRITICAL #1 and #2 — these are the primary blockers for Character Pro
   1. **STEP 4.27 mention-ratio narrator validation** (`src/agents/characters.py`) — WORKED: Ted is narrator again
   2. **role="main" in _all_protagonists** (`src/analyzer.py`) — DID NOT WORK: colleague labels still present for AM<->Ted and AM<->Gorrister despite both being protagonist role now. Also, false-antagonist fix regressed (3 humans labeled antagonist).
 
+- Attempt 11: Two fixes — **MOSTLY WORKED**
+  1. **Post-Phase-B role correction + colleague replacement** (`src/analyzer.py`) — WORKED for Ellen/Benny (protagonist) and AM→Ted/Gorrister (tormentor). Did NOT fix Nimdok (still antagonist, still "colleague" with AM).
+  2. **Summary narrator name substitution** (`src/analyzer.py`) — WORKED: Summary uses "Ted" instead of "the narrator".
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -190,40 +181,18 @@ Focus on CRITICAL #1 and #2 — these are the primary blockers for Character Pro
 | 10 | Narrator fix | characters.py (STEP 4.27 mention-ratio guard) | **Fixed** — Ted is narrator |
 | 10 | AM<->Ted colleague | analyzer.py (role="main" in _all_protagonists) | **No change** — colleague labels persist |
 | 10 | 3 humans antagonist | analyzer.py (false-antagonist fix from attempt 8) | **Regressed** — 3 humans still antagonist |
+| 11 | Roles + colleagues | analyzer.py (post-Phase-B re-run) | **Partial** — Ellen/Benny fixed, Nimdok still antagonist |
+| 11 | Summary narrator | analyzer.py (name substitution) | **Fixed** — "Ted" in summary |
 
 ## Key Debugging Question for Fix Phase
-The false-antagonist fix from attempt 8 worked perfectly (all 4 humans became protagonist). Now in attempt 10, 3 of 5 humans are back to "antagonist" despite the same code being present. The fix phase MUST:
-1. Read the actual false-antagonist correction code in analyzer.py and verify it's still intact
-2. Check if the LLM-generated relationship labels changed (different labels may bypass the threshold)
-3. Check execution order: does colleague replacement run BEFORE or AFTER role correction?
-4. Consider a simpler approach: in a story with exactly 1 antagonist (AM), ALL other characters should be protagonist
+The post-Phase-B false-antagonist correction fixed Ellen and Benny but NOT Nimdok. The fix phase MUST:
+1. Read the post-Phase-B correction code in analyzer.py and check what adversarial evidence Nimdok has
+2. Look at Nimdok's incoming/outgoing relationship labels to understand why he exceeds the threshold
+3. Consider: since AM is the ONLY true antagonist in this story, a simpler rule might work: if there is exactly 1 character with strong antagonist evidence AND a character's only adversarial-looking label comes from "colleague"/"fellow victim" relationships, they should NOT be antagonist
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
-## Pipeline Notes (Attempt 11)
-- Analysis completed in 19m 14s
-- 6 characters found: AM (79), Ted (5), Ellen (30), Nimdok (17), Gorrister (29), Benny (?)
-- Ted correctly identified as narrator (first-person)
-- AM now has aliases: "Allied Mastercomputer, Adaptive Manipulator" ✓
-- Contradictory tormentor<->tormentor pairs removed for AM↔Ellen, AM↔Nimdok, AM↔Gorrister, AM↔Benny (both directions had same label — system removed them)
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Character Profiles took 8m 34s (bottleneck, 44.5% of total)
-
 ## Next Action
-Run evaluation (PROMPT_evaluate.md) to verify attempt 11 fixes:
-- Did Nimdok, Benny become protagonist?
-- Did AM→Ted/Gorrister change from "colleague" to "victim"?
-- Did chapter summaries use "Ted" instead of "the narrator"?
-- Note: tormentor pairs were removed — check what replaced them
-
-**Previous Next Action (pre-analysis):**
-Run analysis (PROMPT_analyze.md) to verify attempt 11 fixes:
-- Nimdok, Benny should be protagonist
-- AM→Ted/Gorrister should be "victim" not "colleague"
-- Ted/Gorrister→AM should be "tormentor" not "colleague"
-- Chapter summaries should say "Ted" not "the narrator"
-- Ellen stays antagonist (harder to fix without regression risk)
-
-**Phase:** awaiting_analysis
+Run PROMPT_fix.md to fix Nimdok's role from "antagonist" to "protagonist" (CRITICAL #1). This is the ONLY remaining blocker — fixing it should also auto-fix CRITICAL #2 (AM↔Nimdok "colleague" labels).
