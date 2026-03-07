@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -106,6 +106,23 @@
      - Added "cogito" to KNOWN_IRREGULAR_IPA
      - Addresses: Medium #9 (false positives) — PARTIALLY FIXED (more remain), Medium #10 (cogito IPA) — FIXED
 
+## Fix History (Attempt 3)
+1. **Duplicate Ted — STEP 5.8.5b now checks for existing main_cast entry** (`src/agents/characters.py`)
+   - Root cause: STEP 5.8.5b appended `merged_narrator` to main_cast without checking if a character with the same name was already there (the LLM had extracted Ted in Pass 1; supporting cast also had a Ted fragment; promotion created a second entry after Pass -1 dedup already ran).
+   - Fix: Before appending, search main_cast for a character with matching canonical_name. If found, update is_narrator/narrative_role/mention_count on the existing entry; skip append.
+   - Universal invariant: "no two main_cast characters with the same name" applied at promotion time.
+
+2. **AM role protagonist→antagonist via post-profile correction** (`src/analyzer.py`)
+   - Root cause: Pass 1 LLM labeled AM "protagonist" (highest mentions, narrative driver). Post-profile relationships correctly showed "tormentor" labels but role was never corrected.
+   - Fix: After `corrector.run_all()`, added a universal post-processing pass: non-narrator "protagonist" characters whose outgoing relationships are ≥50% adversarial labels → role="antagonist". Small reference set of unambiguously adversarial labels (tormentor, captor, oppressor, etc.).
+
+3. **Relationship vocabulary expanded** (`src/analyzer.py`)
+   - Added "captor", "prisoner", "tormentor", "victim" to the example label list in profile generation prompt.
+   - Gives LLM better vocabulary so it uses "captor" instead of "creator" for power/confinement relationships.
+
+4. **Pronunciation whitelist additions** (`cmu_proposer.py`)
+   - Added: sentience, sentient, loonie/loonies, piteously, gibbered/gibbering, despond/despondency, sonority/sonorities
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -113,12 +130,18 @@
 | 2 | Dup Benny | characters.py (Pass -1 dedup) | Fixed |
 | 2 | Wrong narrator | characters.py (vocative + STEP 4.5b) | Fixed but introduced dup Ted |
 | 2 | Pronunciation FPs | cmu_proposer.py, enricher.py | Partially fixed |
+| 3 | Dup Ted | characters.py (STEP 5.8.5b same-name guard) | Pending |
+| 3 | AM wrong role | analyzer.py (post-profile adversarial role correction) | Pending |
+| 3 | Relationship vocab | analyzer.py (captor/prisoner/tormentor/victim labels) | Pending |
+| 3 | Pronunciation FPs | cmu_proposer.py (7 more words whitelisted) | Pending |
 
-## Next Action
-Run PROMPT_fix.md to address:
-1. Critical #1: Duplicate Ted — narrator promotion must check for existing main_cast entry with same name
-2. High #2: AM role should be "antagonist" (generic fix: infer from "tormentor" relationships)
-3. Medium #5: More pronunciation whitelist additions
+## Next Action (Attempt 3)
+Re-run analysis to verify:
+1. Duplicate Ted resolved (expect 6 characters, one Ted as narrator)
+2. AM labeled "antagonist" (via post-profile adversarial-relationship detection)
+3. Fewer pronunciation false positives
+
+**Phase:** awaiting_analysis
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html

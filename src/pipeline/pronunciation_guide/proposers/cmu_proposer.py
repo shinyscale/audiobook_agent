@@ -635,6 +635,18 @@ COMMON_WORDS_WHITELIST = {
     "shoal",          # shallow water or group of fish; standard English
     "puckering",      # present participle of "pucker" (standard English verb)
     "puckerings",     # plural noun form
+    # Common English words any professional narrator would know
+    "sentience",      # quality of being sentient; standard vocabulary
+    "sentient",       # capable of feeling; standard adjective
+    "loonie",         # informal for a crazy person; common slang
+    "loonies",        # plural
+    "piteously",      # in a pitiable manner; standard adverb
+    "gibbered",       # past tense of "gibber" (to speak rapidly/incoherently)
+    "gibbering",      # present participle
+    "despond",        # archaic/literary: to lose hope; recognizable to narrators
+    "despondency",    # state of despair; common vocabulary
+    "sonorities",     # plural of "sonority"; standard musical/linguistic term
+    "sonority",       # resonance or quality of sound; standard vocabulary
 }
 
 # Contraction fragments that result from tokenization

@@ -2128,6 +2128,30 @@ class AudiobookAnalyzer:
             )
             corrector.run_all(pipeline_char_map.characters, doc.text)
 
+            # Post-profile role correction: if a non-narrator "protagonist" character's
+            # outgoing relationships are predominantly adversarial, relabel as "antagonist".
+            # Universal invariant: characters described as tormentors/captors are antagonists.
+            _ADVERSARIAL_LABELS = {
+                "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
+                "abuser", "enslaver", "tyrant", "enemy", "predator", "antagonist", "villain",
+            }
+            for _rchar in pipeline_char_map.characters:
+                if _rchar.role != "protagonist" or _rchar.is_narrator:
+                    continue
+                _rels = _rchar.relationships or {}
+                if not _rels:
+                    continue
+                _adversarial_count = sum(
+                    1 for v in _rels.values()
+                    if isinstance(v, str) and any(adv in v.lower() for adv in _ADVERSARIAL_LABELS)
+                )
+                if _adversarial_count > 0 and _adversarial_count >= len(_rels) / 2:
+                    _rchar.role = "antagonist"
+                    logger.info(
+                        f"Role corrected: '{_rchar.canonical_name}' protagonist→antagonist "
+                        f"({_adversarial_count}/{len(_rels)} adversarial relationship labels)"
+                    )
+
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
             print("🗣️  Generating pronunciation guide...")
@@ -3094,7 +3118,7 @@ CRITICAL INSTRUCTIONS:
 RELATIONSHIPS EXTRACTION:
 Include ONLY relationships where the provided text or summary evidence EXPLICITLY describes how these characters interact or relate to each other.
 Use familial labels (parent, child, sibling, spouse, brother, sister) only when the text explicitly uses these words.
-Use other labels ("close friend", "rival", "mentor", "employer", "enemy", "creator", "creation") only with direct textual support.
+Use other labels ("close friend", "rival", "mentor", "employer", "enemy", "creator", "creation", "captor", "prisoner", "tormentor", "victim") only with direct textual support.
 If two characters merely appear in the same context without explicit relationship words, OMIT them from the relationships dict entirely.
 Do NOT use "acquaintance", "associated", or "unknown" — omit instead."""
 

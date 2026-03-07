@@ -1580,18 +1580,45 @@ class CharacterAgent(Agent):
             )
             if result is not None:
                 merged_narrator, supporting_cast = result
-                main_cast.append(merged_narrator)
-                narrator_info = NarratorInfo(
-                    pov=narrator_info.pov or "first-person",
-                    narrator_name=merged_narrator.canonical_name,
-                    narrator_character_id=merged_narrator.id,
-                    confidence=max(narrator_info.confidence, 0.75),
+                # Check if a main_cast character with the same name already exists.
+                # This can happen when the LLM already extracted the narrator in Pass 1
+                # and the supporting cast also has a fragment for the same name.
+                # In that case, mark the existing entry as narrator instead of creating a dup.
+                _existing_narrator = next(
+                    (c for c in main_cast if c.canonical_name.lower() == merged_narrator.canonical_name.lower()),
+                    None,
                 )
-                logger.info(
-                    f"V2 Step 5.8.5b: Narrator '{merged_narrator.canonical_name}' "
-                    f"found in supporting cast, promoted to main cast "
-                    f"(mention_count={merged_narrator.mention_count})"
-                )
+                if _existing_narrator is not None:
+                    _existing_narrator.is_narrator = True
+                    if not _existing_narrator.narrative_role:
+                        _existing_narrator.narrative_role = "First-Person Narrator"
+                    _existing_narrator.mention_count = max(
+                        _existing_narrator.mention_count, merged_narrator.mention_count
+                    )
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov or "first-person",
+                        narrator_name=_existing_narrator.canonical_name,
+                        narrator_character_id=_existing_narrator.id,
+                        confidence=max(narrator_info.confidence, 0.75),
+                    )
+                    logger.info(
+                        f"V2 Step 5.8.5b: Narrator '{merged_narrator.canonical_name}' "
+                        f"already exists in main_cast (id={_existing_narrator.id}); "
+                        f"updated is_narrator=True instead of creating duplicate"
+                    )
+                else:
+                    main_cast.append(merged_narrator)
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov or "first-person",
+                        narrator_name=merged_narrator.canonical_name,
+                        narrator_character_id=merged_narrator.id,
+                        confidence=max(narrator_info.confidence, 0.75),
+                    )
+                    logger.info(
+                        f"V2 Step 5.8.5b: Narrator '{merged_narrator.canonical_name}' "
+                        f"found in supporting cast, promoted to main cast "
+                        f"(mention_count={merged_narrator.mention_count})"
+                    )
 
         # STEP 5.8.5c: Create narrator character from vocative-identified name.
         # If narrator_name is known (set in STEP 4 or 4.25) but narrator_character_id
