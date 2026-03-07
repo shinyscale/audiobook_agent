@@ -3,91 +3,77 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 17
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
 ## Latest Scores
-(Awaiting evaluation of attempt 17)
+- Structure Detection: 9/10 ✓
+- Character Extraction: 8.5/10 ✓
+  - Completeness: 9/10
+  - Identity Resolution: 9/10
+  - Alias Grouping: 8/10
+- Character Profiles: 6/10 ✗ (FAILING)
+- Chapter Summaries: 5/10 ✗ (FAILING)
+- Pronunciation Guide: 9/10 ✓
+- HTML Presentation: 8/10 ✓
+- **Overall: 7.53/10** (reference only)
 
-## Output Files
-- HTML: ../output/i_have_no_mouth/report.html
-- JSON: ../output/i_have_no_mouth/analysis.json
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (2 categories below threshold)
 
-## Pipeline Notes (Attempt 17)
-- Analysis completed in 20m 34s
-- 6 characters found (ice caverns GONE ✓)
-- AM has alias 'Allied Mastercomputer' (Rule 0.5 acronym fix worked ✓)
-- Ted: is_narrator=True, role=main, id=supporting_0 (narrator flag set correctly ✓, but role not promoted)
-- narrator_character_id=None (top-level narrator ID not set — STEP 5.9.6 invariant may not have fired)
-- Ellen: role=protagonist (incorrect — should be Ted)
-- Gorrister: role=antagonist (incorrect — should be victim)
-- Ted has profile with personality+voice_guidance but no physical_description
-- Pipeline log: "Narrator (from V2 pipeline): Ted" then "Detected narrator: Ellen (first-person)" (overridden)
-- Then: "No definitive narrator identified from plot summary" (final check failed)
-- narrator_character_id=None despite Ted.is_narrator=True
-
-## What Changed (Attempt 16 → 17)
-- **FIXED: AM aliases** — 'Allied Mastercomputer' now present (Rule 0.5 acronym exemption worked)
-- **FIXED: "the ice caverns"** — no longer in character list
-- **FIXED: Ted is_narrator** — Ted.is_narrator=True (was False in attempt 16), has basic profile
-- **STILL BROKEN: narrator_character_id=None** — top-level field not set
-- **STILL BROKEN: Ted role=main** — not promoted to protagonist despite is_narrator=True
-- **NEW ISSUE: Ellen role=protagonist** — wrong role, analyzer overwrote with incorrect narrator detection
-
-## What Changed (Attempt 15 → 16)
-- **REGRESSION: "the ice caverns" is now the NARRATOR** — Attempt 15 had Ellen+Gorrister as narrators (wrong but human). Now a LOCATION is the narrator. Strictly worse.
-- **STEP 5.8.4 fix didn't help** — narrator_name was "the narrator" (generic), not "Ted", so the name-to-ID resolver never matched.
-- **STEP 4.24 self-identification scan still not firing** — Same failure as attempt 15. The "I am Ted" pattern is not being found.
-- **AM aliases still zero** — Rule 0.5 blocks "Allied Mastercomputer" because core noun 'mastercomputer' != 'am'. Acronym expansions need Rule 0.5 exemption.
-- **"the ice caverns" still present** — No location filtering was implemented in attempt 15→16 fixes.
+## What Improved (Attempt 16 → 17)
+- **FIXED: "the ice caverns" removed** — no longer in character list (6 chars, clean)
+- **FIXED: AM alias** — "Allied Mastercomputer" now present (Rule 0.5 acronym exemption worked)
+- **FIXED: Ted is_narrator=True** — narrator badge shows correctly in HTML
+- Character Extraction jumped from ~4.5 to 8.5 — major improvement
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Ted is NOT the narrator — "the ice caverns" is falsely marked as narrator** [Identity Resolution + Profiles + Summaries]
-   - Problem: `the ice caverns.is_narrator=True`, `Ted.is_narrator=False, role=main, id=supporting_0, mentions=5`. Ted is the ONLY narrator — he narrates in first person throughout.
-   - Evidence: The story literally contains "I am Ted" or "My name is Ted" — a definitive self-identification.
-   - Root cause chain: (1) STEP 4.24 self-identification scan does NOT fire → (2) narrator_name stays generic "the narrator" → (3) STEP 5.8.4 name resolver can't match generic name → (4) STEP 5.8.5 LLM re-detection runs and picks wrong entity → (5) "the ice caverns" gets narrator=True
-   - **The fundamental fix: STEP 4.24 must be debugged.** Check:
-     - Does it scan RAW TEXT or summaries? It MUST scan raw text.
-     - Is the raw text (`full_text` or `raw_text`) available at that point?
-     - What exact regex pattern does it use? Does it match "I'm Ted" or "I am Ted"?
-     - Is there a case sensitivity issue?
-     - Does it run BEFORE or AFTER the character list is populated? (If Ted isn't in the cast yet, name matching fails)
-   - Location: `src/agents/characters.py` (STEP 4.24)
-   - Fix approach: **Print/log the raw text snippet and pattern match results in STEP 4.24.** Then fix whatever is broken. If raw text isn't available, thread it through. If the pattern is wrong, fix it. This has been broken for 6+ attempts — it needs actual debugging, not more workarounds.
+1. **Summary attributes Ted's entire role to Ellen** [Summaries]
+   - Problem: The summary never mentions Ted by name. It says "Ellen, Ellen, Nimdok, Gorrister, and Benny" (Ellen duplicated, Ted missing). The entire first-person narrative is attributed to Ellen as POV character.
+   - Evidence: Ted narrates the entire story in first person. The text's final line "I have no mouth. And I must scream" is Ted's. The summary says "AM keeps Ellen alive in a mutilated, mouthless body" — this is WRONG. AM keeps TED alive as the mouthless blob.
+   - Root cause: `narrator_character_id=None` at top level. The summary agent doesn't know Ted is the narrator, so it picks Ellen (highest-mention non-AM character) as POV. The summary was generated BEFORE narrator detection completed.
+   - Location: The cascade is: (1) `narrator_character_id=None` means narrator name substitution doesn't fire, (2) summary prompt doesn't know to use "Ted" as POV
+   - Fix: The root cause is `narrator_character_id=None`. Ted has `is_narrator=True` but the top-level field isn't set. STEP 5.9.6 should set `narrator_character_id` when it finds a character with `is_narrator=True`. Check why it doesn't fire — likely because Ted's `role=main` not `protagonist`, or because the step checks conditions that aren't met.
 
-2. **"the ice caverns" is a spurious character AND the narrator** [Completeness + Identity Resolution]
-   - Problem: A physical location extracted as a character with `role=protagonist, mentions=5, is_narrator=True`. Has relationships like "comrade" to humans — nonsensical.
-   - Evidence: Ice caverns are where canned food is stored — passive scenery, not a narrative entity.
-   - Location: Likely extracted by main_cast pipeline (`id=main_cast_11`). Needs location-noun filtering.
-   - Fix: Add location/geographical terms to an exclusion list in main_cast extraction. Terms: "caverns", "caves", "mountains", "forest", "castle", "city", "village", "river", "cavern", "tunnel", "chamber". Block any character whose canonical name consists entirely of articles + location nouns.
+2. **Ted role=main instead of protagonist** [Profiles + Summaries]
+   - Problem: Ted has `id=supporting_0, role=main, mentions=5`. As the first-person narrator of the entire story, Ted should be `role=protagonist`.
+   - Evidence: Every sentence is Ted's narration. 5 explicit name mentions is correct (first-person narrators rarely say their own name), but role should reflect narrative importance.
+   - Root cause: STEP 5.9.6 narrator role invariant should elevate Ted to protagonist AND set `narrator_character_id`. Either it doesn't fire or its conditions are too strict.
+   - Location: `src/agents/characters.py` — STEP 5.9.6
+   - Fix: Debug STEP 5.9.6 — check if it requires `narrator_character_id` to already be set (circular dependency) or if it checks for role already being protagonist. The step should: (1) find any character with `is_narrator=True`, (2) set their role to `protagonist`, (3) set `narrator_character_id` to their ID.
 
 ### HIGH
-3. **AM has zero aliases** [Alias Grouping]
-   - Problem: AM should have aliases: "Allied Mastercomputer", "Adaptive Manipulator", "Aggressive Menace".
-   - Root cause: Rule 0.5 (symbolic object semantic guard) blocks "Allied Mastercomputer" because core noun 'mastercomputer' != 'am'. This rule is designed for objects like "the Ebony Clock" but incorrectly fires on acronym expansions.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` (Rule 0.5 in verify_aliases)
-   - Fix: **Acronym expansions must be exempt from Rule 0.5.** Detection: if the canonical name is ALL-CAPS and ≤4 chars, and the alias initials spell the canonical name, it's an acronym expansion → skip Rule 0.5. Example: canonical="AM", alias="Allied Mastercomputer" → initials "A.M." match → exempt.
+3. **Ted has no physical_description or personality_traits** [Profiles]
+   - Problem: Ted's profile has `physical_description=null, personality=null`. Only has voice_guidance (tone: flat, verbal tics, quotes) and relationships.
+   - Evidence: The text describes Ted as handsome, "the unaltered one" — he's the only one AM didn't physically transform. This is narratively significant.
+   - Root cause: With `role=main` and only 5 mentions, the profiler likely gives Ted minimal treatment. If Ted were `protagonist`, he'd get full profiling. Also, since the summary doesn't mention Ted by name, the profiler has no text evidence to work with.
+   - Fix: Will largely auto-resolve when Ted is promoted to protagonist and narrator_character_id is set. The profiler gives deeper treatment to protagonists and narrators.
 
-4. **Ted has role=main but is in supporting cast** [Completeness]
-   - Problem: Ted has `id=supporting_0` with only 5 mentions. As first-person narrator, Ted should be protagonist.
-   - Root cause: Mention counting only counts explicit name references. In first-person narration, "I"/"me"/"my" are all Ted but not counted.
-   - Fix: Will auto-resolve when Ted is correctly identified as narrator. STEP 5.9.6 narrator role invariant should elevate to protagonist.
+4. **Gorrister role=antagonist** [Profiles]
+   - Problem: Gorrister is a fellow victim of AM, not an antagonist. He's described as having "a weary stoicism" — a sufferer, not an aggressor.
+   - Evidence: All five humans are victims of AM. Gorrister never acts as an antagonist.
+   - Root cause: Role assignment logic may be confused by Gorrister recounting AM's backstory or by the "abuser" relationship label from Ellen's profile.
+   - Location: `src/analyzer.py` — role assignment logic
+   - Fix: This is a recurring issue (seen in multiple attempts). The role assignment should recognize that characters labeled as "victim" by the primary antagonist (AM) should not themselves be "antagonist". Check if there's a rule that prevents AM's victims from being labeled antagonist.
+
+5. **Summary ending factually wrong** [Summaries]
+   - Problem: "Ellen kills all four companions with ice spears" and "AM keeps Ellen alive" — in the text, TED is the one who kills the others and is kept alive as the mouthless blob. Ellen is one of the victims Ted kills.
+   - Evidence: The story's climax: Ted realizes killing the others would free them from AM. He and Ellen kill the other three, then Ted kills Ellen. AM transforms Ted into a slug-like creature without a mouth.
+   - Root cause: Same as CRITICAL #1 — the summary treats Ellen as POV character instead of Ted.
+   - Fix: Resolves with CRITICAL #1 — once narrator_character_id is set and summary uses Ted as POV.
 
 ### MEDIUM
-5. **Ted has no profile** [Profiles]
-   - Problem: No physical description, no personality traits, no speech patterns. Only relationships.
-   - Fix: Will auto-resolve when Ted is narrator/protagonist and gets full profiling.
+6. **"Ellen, Ellen" duplication in summary** [Summaries]
+   - Problem: Summary begins "The chapter follows Ellen, Ellen, Nimdok, Gorrister, and Benny" — Ellen appears twice.
+   - Root cause: Likely a character list deduplication issue in the summary prompt, or the LLM echoed a malformed character list.
+   - Location: Summary generation in `src/agents/summary_agent.py` or `src/pipeline/summarizer/`
 
-6. **Summary uses "the narrator" instead of "Ted"** [Summaries]
-   - Problem: Summary says "the narrator kills him" instead of "Ted kills him".
-   - Fix: Will auto-resolve when narrator detection is fixed and narrator name substitution works.
-
-7. **HTML shows "the ice caverns" as narrator** [Presentation]
-   - Problem: Misleading narrator attribution visible in the report.
-   - Fix: Will auto-resolve when ice caverns is filtered and Ted is narrator.
+7. **Gorrister described as "reluctant narrator"** [Profiles]
+   - Problem: Gorrister's personality says he's "a reluctant narrator who repeatedly recounts AM's origin." He's not a narrator — he's a character who tells backstory. This phrasing would confuse an audiobook narrator about who the actual narrator is.
+   - Fix: Minor — would improve with correct narrator attribution.
 
 ### LOW
 8. **Chapter title is null** [Structure]
@@ -95,37 +81,20 @@
 
 ## Fix Priority
 
-**Everything cascades from CRITICAL #1 (Ted not narrator) and CRITICAL #2 (ice caverns as character).**
+**The cascade:** Everything flows from `narrator_character_id=None` and `Ted.role=main`:
 
-The fix phase MUST:
-1. **Actually debug STEP 4.24** — read the code, add logging if needed, run a targeted test. Stop applying workarounds without understanding WHY the scan doesn't fire. This is attempt 16 and the same issue keeps recurring.
-2. **Add location-noun filtering** to block "the ice caverns" from extraction.
-3. **Exempt acronym expansions from Rule 0.5** so AM gets its aliases.
+1. Fix STEP 5.9.6 to: find character with `is_narrator=True` → set role to `protagonist` → set `narrator_character_id` to their ID
+2. This enables: narrator name substitution in summaries (Ted replaces "the narrator")
+3. This enables: full profiling for Ted as protagonist
+4. This enables: correct summary POV (Ted, not Ellen)
+5. Fix Gorrister role=antagonist (separate issue)
 
-If Ted is correctly identified as narrator:
-- Role elevates to protagonist (STEP 5.9.6)
-- Full profile gets generated
-- Summary substitutes "Ted" for "the narrator"
-- Profiles score: 5 → ~8
-- Summaries score: 6.5 → ~8
-- Character Extraction score: 4.5 → ~8
-- HTML Presentation score: 7.5 → ~8.5
+**Note:** The summary was already generated with Ellen as POV. Even if narrator_character_id is fixed, the existing summary text won't change unless the summary is regenerated OR there's a post-hoc narrator name substitution step. Check if the pipeline has a step that replaces "the narrator" → actual narrator name in existing summaries.
 
-## Root Cause Analysis: Why Does STEP 4.24 Keep Failing?
-
-**This is the #1 question the fix phase must answer.** Across attempts 14-16:
-- Attempt 14: STEP 4.24 fired, Ted identified as narrator ✓
-- Attempt 15: STEP 4.24 did NOT fire ✗
-- Attempt 16: STEP 4.24 did NOT fire ✗
-
-Possible causes:
-1. **Raw text not available** — STEP 4.24 may reference a variable that's None or empty
-2. **Pattern too strict** — Maybe the text says "I'm Ted" not "I am Ted", or there's punctuation between words
-3. **Character list not populated yet** — If Ted isn't in the cast when STEP 4.24 runs, name matching fails
-4. **Code path not reached** — Maybe an earlier condition short-circuits past STEP 4.24
-5. **LLM non-determinism in text content** — If STEP 4.24 scans summaries (not raw text), different LLM runs produce different text
-
-**The fix phase MUST read the STEP 4.24 code, understand its inputs, and test it directly.** No more blind fixes.
+**Expected score improvements if fixed:**
+- Summaries: 5 → 8+ (Ted as POV, correct ending)
+- Profiles: 6 → 8+ (Ted gets full profile, Gorrister role fixed)
+- Overall: 7.53 → ~8.5
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -146,17 +115,7 @@ Possible causes:
 | 14 | 7.20 | +0.85 | Ted narrator restored, summary wrong |
 | 15 | 6.73 | +0.38 | REGRESSION: Ted lost narrator again |
 | 16 | 6.58 | +0.23 | REGRESSION: ice caverns is narrator now |
-
-## Pipeline Notes (Attempt 16)
-- Analysis completed in 22m 8s
-- 7 characters found (including spurious "the ice caverns")
-- "the ice caverns" marked as narrator (WORST result yet)
-- Ted: is_narrator=False, role=main, id=supporting_0, mentions=5
-- STEP 5.8.4 fix: narrator_name="the narrator" (generic) — name resolver couldn't match
-- STEP 4.24: did NOT fire (same as attempt 15)
-- AM: zero aliases (Rule 0.5 blocks acronym expansions)
-- Pronunciation: 10 entries, all correct
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+| 17 | 7.53 | +1.18 | Ice caverns gone, AM aliases fixed, Ted=narrator but role/summary wrong |
 
 ## Fix History (Attempt 17)
 - **Ted narrator fix (CRITICAL):**
@@ -166,7 +125,7 @@ Possible causes:
   - Fix C: Added STEP 4.24 else branch update — saves self-id name (belt-and-suspenders)
   - Smoke test: `_find_narrator_name_from_vocative` confirmed returns "Ted" (vocative=3, total=5) from actual text
 - **AM aliases fix (HIGH):**
-  - Root cause: Rule 0.5 in verify_aliases blocks "Allied Mastercomputer" because core noun "mastercomputer" ≠ "am"
+  - Root cause: Rule 0.5 in verify_aliases blocks "Allied Mastercomputer" because core noun "mastercomputer" != "am"
   - Fix: Added acronym expansion exemption to Rule 0.5 — if canonical is ALL-CAPS (2-5 chars) and alias initials match canonical, skip semantic check
   - Universal: acronym expansions are a well-defined linguistic pattern (AM = Allied Mastercomputer)
 - Modified: src/agents/characters.py (STEP 4.5b, STEP 4.24 else, STEP 5.8.4b), src/pipeline/character_extraction_v2/main_cast.py (Rule 0.5)
@@ -186,7 +145,7 @@ Possible causes:
 - Attempt 13: Narrator elevation, possessive filter (neither fired)
 - Attempt 14: Self-identification scan STEP 4.24 (worked for narrator, not role), antagonist threshold (worked)
 - Attempt 15: Summary prompt, narrator invariant STEP 5.9.6, acronym injection STEP 1.2, homograph exclusion (only homograph exclusion worked)
-- Attempt 16: STEP 5.8.4 narrator name resolver, STEP 1.2 standalone char removal (neither worked — name was generic, Rule 0.5 blocked aliases)
+- Attempt 16: STEP 5.8.4 narrator name resolver, STEP 1.2 standalone char removal (neither worked — name was generic, Rule 0.5 blocked first)
 
 ## Modification History
 
@@ -224,25 +183,24 @@ Possible causes:
 | 15 | Homograph exclusion | homograph_proposer.py | **Fixed** |
 | 16 | Narrator name resolver | characters.py (STEP 5.8.4) | No change (name was generic) |
 | 16 | Acronym dedup | characters.py (STEP 1.2) | No change (Rule 0.5 blocked first) |
+| 17 | Generic narrator name | characters.py (STEP 4.5b) | **Fixed** (Ted found via vocative) |
+| 17 | Supporting→main narrator | characters.py (STEP 5.8.4b) | **Partial** (is_narrator=True but narrator_character_id=None) |
+| 17 | Rule 0.5 acronym | main_cast.py (Rule 0.5) | **Fixed** (AM aliases work) |
 
-**PATTERN ALERT:** Narrator detection has been fixed and broken 7+ times across 16 attempts. The fix phase MUST:
-1. READ the STEP 4.24 code and understand exactly what it does
-2. TEST it in isolation with the actual raw text
-3. Fix the root cause, not add another workaround layer
+**PATTERN ALERT:** narrator_character_id=None is the remaining blocker. Ted has is_narrator=True but the top-level field isn't set. STEP 5.9.6 should handle this — debug why it doesn't fire.
 
 ## Key Debugging Notes for Fix Phase
 
-1. **CRITICAL: Debug STEP 4.24.** Read `src/agents/characters.py` around STEP 4.24. Determine:
-   - What text does it scan? (raw text variable name, where it comes from)
-   - What pattern does it match? (exact regex)
-   - Is the text actually populated at runtime?
-   - Does the character "Ted" exist in the cast when the scan runs?
-   - Add a print/log statement to see the scan input and results
+1. **CRITICAL: Debug STEP 5.9.6.** Read `src/agents/characters.py` around STEP 5.9.6. It should:
+   - Find any character with `is_narrator=True`
+   - Set `narrator_character_id` to that character's ID
+   - Set that character's `role` to `protagonist`
+   - Check: does it have preconditions that prevent firing? (e.g., checking narrator_character_id first)
+   - Check: does it run AFTER Ted gets is_narrator=True? (ordering issue)
 
-2. **HIGH: Exempt acronym expansions from Rule 0.5.** In `main_cast.py`, Rule 0.5 checks core noun similarity. Add: if canonical is all-caps ≤4 chars and alias initials match canonical, skip Rule 0.5.
+2. **HIGH: Fix Gorrister role=antagonist.** In `src/analyzer.py` role assignment, AM's victims should not be labeled antagonist. Check if there's a rule that says "if character X is listed as 'victim' by the primary antagonist, X cannot be antagonist."
 
-3. **HIGH: Filter location nouns.** Add exclusion for geographical/architectural terms in character extraction. "caverns", "caves", "mountains", etc. should not be character names.
+3. **MEDIUM: Summary POV attribution.** Even after fixing narrator_character_id, the summary text is already generated. Check if there's a post-hoc narrator substitution step that replaces "the narrator"/"Ellen" with "Ted" in summary text. If not, the summary will need to be regenerated (which means the fix must happen before summary generation in the pipeline).
 
-## Output Files
-- HTML: ../output/i_have_no_mouth/report.html
-- JSON: ../output/i_have_no_mouth/analysis.json
+## Next Action
+Run PROMPT_fix.md to address STEP 5.9.6 (narrator_character_id + role promotion) and Gorrister role.
