@@ -2,10 +2,23 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 21
-- **Phase:** awaiting_analysis
+- **Attempt:** 22
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
+
+## Output Files
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 19m 21s
+- 6 characters found (AM, Ted, Ellen, Nimdok, Gorrister + 1 more)
+- 11 pronunciation flags
+- BLOCKED alias: 'the narrator' meta-reference blocked for Ted (expected)
+- BLOCKED alias: 'the machine' / 'a vengeful god' / etc. for AM (expected — Rule 0.5)
+- Benny hallucinated aliases blocked (expected)
+- Companion relationship contradictions removed (expected)
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -13,77 +26,18 @@
   - Completeness: 9/10
   - Identity Resolution: 10/10
   - Alias Grouping: 7/10
-- Character Profiles: 7.5/10 ✗ (FAILING)
+- Character Profiles: 7.5/10 ✗ (FAILING — from attempt 21)
 - Chapter Summaries: 8/10 ✓
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.40/10** (reference only)
+- **Overall: 8.40/10** (attempt 21 — awaiting re-evaluation)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold)
+**Status:** Awaiting evaluation
 
-## What Changed (Attempt 20 → 21)
-- **plot_summary nested dict fix WORKED**: All 3 "The narrator" instances in plot_summary now say "Ted"
-- **"darkway" IPA fixed**: Now /ˈdɑːrkweɪ/ instead of /ˈdɑːrkteɪ/
-- **Evidence/descriptions fix DID NOT WORK**: All 5 evidence entries and 1 description still say "The narrator" — the fix looked for `dict` objects with `'statement'`/`'text'` keys, but the data is stored as **plain strings** in a list
-- **Chapter summary regex still misses "the unnamed narrator"**: The broadened regex `\bthe (?:first-person )?narrator\b` doesn't match "the unnamed narrator"
-
-## Current Issues (Priority Order)
-
-### CRITICAL
-1. **Step 6.9 evidence/descriptions substitution: wrong data type assumption** [Profiles]
-   - Problem: Evidence is a list of **plain strings**, not a list of dicts. The fix at lines 2580-2589 checks `isinstance(_ev, dict) and 'statement' in _ev` which is always False for strings.
-   - Evidence: All 5 evidence entries for Ted still say "The narrator is...", "The narrator has...", etc. (HTML lines 1103-1151)
-   - Location: `src/analyzer.py` Step 6.9 block (lines ~2580-2589)
-   - Fix: Change to handle strings directly:
-     ```python
-     if hasattr(_char, 'evidence') and _char.evidence:
-         for _i, _ev in enumerate(_char.evidence):
-             if isinstance(_ev, str) and 'narrator' in _ev.lower():
-                 _char.evidence[_i] = _nn_pat.sub(_nn_final, _ev)
-     if hasattr(_char, 'descriptions') and _char.descriptions:
-         for _i, _desc in enumerate(_char.descriptions):
-             if isinstance(_desc, str) and 'narrator' in _desc.lower():
-                 _char.descriptions[_i] = _nn_pat.sub(_nn_final, _desc)
-     ```
-   - Also handle dict case as fallback (some models may return dicts).
-
-2. **Step 6.9 regex still too narrow: misses "the unnamed narrator"** [Summaries/Profiles]
-   - Problem: Chapter summary opens with "the unnamed narrator" — regex `\bthe (?:first-person )?narrator\b` doesn't match.
-   - Evidence: HTML line 966: "follows Ellen, Nimdok, Gorrister, Benny, and the unnamed narrator"
-   - Location: `src/analyzer.py` line ~2541
-   - Fix: Broaden to `r'\bthe (?:(?:first-person|unnamed|story.s) )?narrator\b'` or more generically `r'\bthe (?:\S+ )?narrator\b'` to catch any single-word modifier before "narrator". The generic approach is better since LLMs may use various adjectives.
-
-### HIGH
-3. **Ted missing physical_description** [Profiles]
-   - Problem: `physical_description: null` despite text saying "I was the handsome one"
-   - Evidence: Ted's JSON has `physical_description: null`, `appearance.summary: null`
-   - Root cause: The profiler sees "I" not "Ted" for self-descriptions. narrator_character_id is set but the profiler may not consume it for physical description extraction.
-   - Priority: HIGH but this is a deeper profiler issue. May need narrator-aware extraction in the profiler prompt.
-
-4. **Ellen has no personality or physical description** [Profiles]
-   - Problem: Ellen's profile has `personality.summary: null` and `physical_description: null`
-   - Evidence: Low confidence profile (0.30). The text does describe Ellen ("Ellen was the only one AM had given to [Ted]", references to her being desired by the group)
-   - Root cause: Low confidence from profiler — possibly insufficient text about Ellen in summaries
-   - Priority: This is an LLM quality issue, not easily fixable with code changes
-
-### MEDIUM
-5. **AM missing expanded aliases** [Character Extraction - Alias Grouping]
-   - AM is called "Allied Mastercomputer", "Adaptive Manipulator", and "Aggressive Menace" in the text but only has "the machine" as alias.
-   - Low priority — AM is clearly identified.
-
-## Fix Priority
-
-**Two code fixes in Step 6.9 are the immediate targets (both in src/analyzer.py):**
-1. Fix evidence/descriptions to handle plain strings, not just dicts (CRITICAL #1)
-2. Broaden regex to catch any modifier before "narrator" (CRITICAL #2)
-
-**Expected score improvements if fixed:**
-- Profiles: 7.5 → 8.0+ (evidence/descriptions use "Ted")
-- Summaries: 8 → 8.5 (chapter summary opening fixed)
-- Overall: 8.40 → ~8.65+
-
-If both CRITICAL fixes land, all categories should be >= 8.0 → PASS.
+## What Changed (Attempt 21 → 22)
+- **Step 6.9 evidence/descriptions plain string fix:** Changed to handle strings directly with index-based replacement; dict case retained as fallback — should fix all 5 evidence entries and descriptions still saying "The narrator"
+- **Step 6.9 regex broadened:** Changed `\bthe (?:first-person )?narrator\b` → `\bthe (?:\S+ )?narrator\b` to catch any single-word modifier (unnamed, first-person, story's, etc.)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -109,11 +63,7 @@ If both CRITICAL fixes land, all categories should be >= 8.0 → PASS.
 | 19 | 7.78 | +1.43 | Step 6.9 added but has 2 bugs — no improvement over 18 |
 | 20 | 8.30 | +1.95 | narrator_character_id fixed, personality uses Ted, but plot summary/evidence still broken |
 | 21 | 8.40 | +2.05 | plot_summary fixed, darkway IPA fixed, but evidence/descriptions still broken (wrong type) |
-
-## Fix History (Attempt 20 → 21)
-- **Step 6.9 nested dict fix:** plot_summary handled as nested dict — WORKED (all 3 instances fixed)
-- **Step 6.9 regex broadened:** Added "first-person" to regex — PARTIAL (caught that pattern but "unnamed narrator" still present)
-- **Step 6.9 evidence/descriptions:** Added substitution for evidence/descriptions — DID NOT WORK (expected dicts, got strings)
+| 22 | TBD | TBD | Evidence/descriptions plain-string fix + regex broadened |
 
 ## Fix History (Previous)
 - Attempt 2: Benny dedup, vocative narrator, pronunciation fixes
@@ -135,6 +85,8 @@ If both CRITICAL fixes land, all categories should be >= 8.0 → PASS.
 - Attempt 18: Ted role=protagonist (Fixed), Gorrister role=antagonist (Fixed), narrator_detected preservation (Fixed), pipeline crashes (Fixed)
 - Attempt 19: Step 6.9 narrator substitution — 2 bugs (no-op name, wrong type check)
 - Attempt 20: Step 6.9 Bug A fixed (name), Bug B partial (nested dict), narrator_character_id added
+- Attempt 21: Step 6.9 plot_summary nested dict (Fixed), regex broadened partial, evidence/descriptions no-op (wrong type)
+- Attempt 22: Step 6.9 evidence/descriptions plain-string fix + regex catch-all modifier
 
 ## Modification History
 
@@ -186,14 +138,5 @@ If both CRITICAL fixes land, all categories should be >= 8.0 → PASS.
 | 21 | Step 6.9 plot_summary nested dict | analyzer.py | **Fixed** |
 | 21 | Step 6.9 regex broadened | analyzer.py | **Partial** ("unnamed" not covered) |
 | 21 | Step 6.9 evidence/descriptions | analyzer.py | **No change** (expected dicts, got strings) |
-
-## Output Files
-- HTML: ../output/i_have_no_mouth/report.html
-- JSON: ../output/i_have_no_mouth/analysis.json
-
-## Fix History (Attempt 21 → 22)
-- **Step 6.9 evidence/descriptions plain string fix:** Changed to handle strings directly with index-based replacement; dict case retained as fallback — should fix all 5 evidence entries and descriptions still saying "The narrator"
-- **Step 6.9 regex broadened:** Changed `\bthe (?:first-person )?narrator\b` → `\bthe (?:\S+ )?narrator\b` to catch any single-word modifier (unnamed, first-person, story's, etc.)
-
-## Next Action
-Re-run analysis to verify both fixes work.
+| 22 | Step 6.9 evidence/descriptions (strings) | analyzer.py | TBD |
+| 22 | Step 6.9 regex catch-all modifier | analyzer.py | TBD |
