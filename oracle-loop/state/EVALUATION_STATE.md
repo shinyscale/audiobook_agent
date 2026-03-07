@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -132,9 +132,10 @@
 | 8 | Ted missing / wrong narrator | characters.py (STEP 4.25b vocative expansion) | **Fixed** |
 | 8 | Benny/Gorrister/Ellen/Nimdok wrong role | analyzer.py (threshold <=1) | **Fixed** |
 | 8 | AM "colleague" relationships | — | TBD (new issue for attempt 9) |
+| 9 | AM→colleague labels + protagonist→antagonist colleague | analyzer.py (threshold >=1 + combined adversarial label sets for forward direction) | TBD |
 
 ## Next Action
-Run PROMPT_fix.md to address HIGH #1: replace "colleague" labels between antagonist and protagonist characters with appropriate relationship terms (captor/tormentor).
+Re-run analysis to verify fix.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html

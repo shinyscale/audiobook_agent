@@ -2242,18 +2242,20 @@ class AudiobookAnalyzer:
                 }
                 if not _ant_to_prot:
                     continue
-                # Count outgoing aggressor labels vs "colleague" labels to protagonists
-                # (antagonist labels protagonist "victim"/"prisoner" = aggressor evidence)
+                # Count outgoing aggressor labels vs "colleague" labels to protagonists.
+                # Check both label sets: LLMs don't always follow direction conventions,
+                # so an antagonist may use "tormentor" (normally incoming) for a protagonist.
+                _all_adversarial = _OUTGOING_AGGRESSOR_LABELS | _INCOMING_AGGRESSOR_LABELS
                 _active_labels = [
                     v for v in _ant_to_prot.values()
-                    if any(a in v.lower() for a in _OUTGOING_AGGRESSOR_LABELS)
+                    if any(a in v.lower() for a in _all_adversarial)
                 ]
                 _colleague_keys = [
                     k for k, v in _ant_to_prot.items()
                     if isinstance(v, str) and "colleague" in v.lower()
                     and not any(a in v.lower() for a in _OUTGOING_AGGRESSOR_LABELS)
                 ]
-                if len(_active_labels) >= 2 and _colleague_keys:
+                if len(_active_labels) >= 1 and _colleague_keys:
                     # Find the most common active adversarial label
                     from collections import Counter
                     _dominant = Counter(_active_labels).most_common(1)[0][0]
@@ -2285,7 +2287,7 @@ class AudiobookAnalyzer:
                     p for p, v in _prot_label_pairs
                     if "colleague" in v.lower() and not any(a in v.lower() for a in _INCOMING_AGGRESSOR_LABELS)
                 ]
-                if len(_active_prot_labels) >= 2 and _colleague_prots:
+                if len(_active_prot_labels) >= 1 and _colleague_prots:
                     from collections import Counter
                     _dominant_inv = Counter(_active_prot_labels).most_common(1)[0][0]
                     for _cp in _colleague_prots:
