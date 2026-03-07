@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.80
 
 ## Output Files
@@ -12,18 +12,18 @@
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7/10 ✗
-  - Completeness: 7/10
+- Character Extraction: 8/10 ✓
+  - Completeness: 8/10
   - Identity Resolution: 10/10
-  - Alias Grouping: 7/10
-- Character Profiles: 6/10 ✗
+  - Alias Grouping: 7.5/10
+- Character Profiles: 7/10 ✗
 - Chapter Summaries: 9/10 ✓
-- Pronunciation Guide: 7/10 ✗
+- Pronunciation Guide: 7.5/10 ✗
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.80/10** (reference only)
+- **Overall: 8.25/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold: Characters, Profiles, Pronunciation)
+**Status:** FAIL (2 categories below threshold: Profiles, Pronunciation)
 
 ## Current Issues (Priority Order)
 
@@ -31,91 +31,63 @@
 (None)
 
 ### HIGH
-1. **Missing character: Captain Adams** [Completeness]
-   - Problem: Captain Adams is a named character with dialogue (lines 41-50 of source text) who gives Price the order to ride out. He appears in `characters_present` for the chapter but has no character entry.
-   - Evidence: "Sergeant," said Captain Adams, with a half-turn of his desk-chair..." — he has a speaking role and drives the plot.
-   - Location: Character extraction pipeline — likely filtered by low mention count (only ~2 mentions). F6 reconciliation should have caught him from `characters_present`.
-   - Fix: This may be a threshold issue. Captain Adams appears in the summary's characters_present but wasn't promoted to a character entry.
+1. **Richardson speech_patterns missing "soft Southern tongue"** [Profiles]
+   - Problem: The text explicitly states Richardson speaks in "his soft Southern tongue" but speech_patterns is null.
+   - Evidence: Direct quote: "rejoined Corporal Richardson, in his soft Southern tongue"
+   - Location: Profile generation in `analyzer.py` (`_generate_character_profile`). Richardson's profile has LOW confidence (0.30) — the LLM likely produced malformed output that couldn't be parsed.
+   - Fix: This is an LLM output quality issue. Options: (a) increase temperature/retries for low-confidence profiles, (b) add a post-profile pass that scans source text for explicit speech pattern phrases like "in his [adjective] tongue/voice/accent", (c) lower the summary chunk size to give the profiler more focused context. A targeted regex scan for "in his/her [adj] tongue/voice/accent/drawl" patterns would be most reliable.
 
-2. **Wrong role assignments: Price=supporting, Richardson=protagonist** [Profiles]
-   - Problem: First Sergeant Price is labeled "supporting" despite being the primary human character who drives all the action. Corporal Richardson is labeled "protagonist" despite appearing only in the final scene.
-   - Evidence: Price has 4 mentions but dominates the narrative; Richardson has 4 mentions and only appears at the end.
-   - Location: Role assignment logic in character profiling (`src/pipeline/character_extraction_v2/` or `analyzer.py` profile generation)
-   - Fix: Role assignment should consider narrative prominence (dialogue lines, action involvement), not just mention count.
+2. **Richardson relationships incomplete** [Profiles]
+   - Problem: Richardson only has `{"John G.": "caretaker"}` but should also have a relationship to Price (colleague/fellow trooper).
+   - Evidence: Richardson and Price spend the mission together; Richardson is the farrier of the Troop under Price's command.
+   - Location: Same root cause as #1 — low confidence profile (0.30) means sparse data.
+   - Fix: Same fix as #1. If profile confidence < threshold, a fallback extraction using co-occurrence could fill gaps.
 
-3. **Missing Richardson's speech patterns: "soft Southern tongue"** [Profiles]
-   - Problem: The text explicitly states Richardson speaks in "his soft Southern tongue" (line 243), but speech_patterns is null.
-   - Evidence: Direct quote from text: "rejoined Corporal Richardson, in his soft Southern tongue"
-   - Location: Profile generation in `analyzer.py` (`_generate_character_profile`)
-   - Fix: The LLM profiler should pick this up from the text. May be a low-confidence profile issue (noted as 0.30 confidence for Richardson).
-
-4. **Missing Richardson's relationships** [Profiles]
-   - Problem: Corporal Richardson has empty relationships `{}` but clearly has relationships to both John G. (caregiver) and First Sergeant Price (colleague/fellow caretaker).
-   - Evidence: Richardson and Price spend three hours together caring for John G. Richardson is the farrier of the Troop.
-   - Location: Profile generation — likely related to low confidence (0.30) for this character.
-
-5. **Missing alias "the Sergeant" for First Sergeant Price** [Alias Grouping]
-   - Problem: "the Sergeant" is used extensively throughout the text (lines 34, 83, 93, 100, 107, 114, 123, 136, 171, 187, 194, 196, 198, 208, 238) to refer to Price, but is not listed as an alias.
-   - Evidence: 15+ uses of "the Sergeant" in text, all referring to Price.
-   - Location: Alias detection in `src/pipeline/character_extraction_v2/main_cast.py` — titled descriptors like "the Sergeant" may be filtered by descriptor-blocking rules.
-
-6. **Wrong IPA for "sharp-fanged"** [Pronunciation]
-   - Problem: IPA shows /ʃɑːrp-feɪnd/ but "fanged" is pronounced /fæŋd/, not /feɪnd/.
-   - Evidence: Standard English pronunciation — "fang" → /fæŋ/, "fanged" → /fæŋd/.
-   - Location: LLM-generated IPA in pronunciation pipeline (`src/pipeline/pronunciation/enricher.py`)
-   - Fix: Could add to KNOWN_IRREGULAR_IPA if this is a recurring LLM error, or this may be a one-off LLM mistake.
+3. **3 pronunciation entries have null IPA** [Pronunciation]
+   - Problem: "sharp-fanged", "bolo-toothed", and "produce" all have `ipa: null` despite "sharp-fanged" being in KNOWN_IRREGULAR_IPA.
+   - Evidence: `jq '.pronunciations[] | select(.ipa == null) | .word' analysis.json` returns these three words. The KNOWN_IRREGULAR_IPA entry for "sharp-fanged" exists at enricher.py:96 with `/ˈʃɑːrp.fæŋd/`.
+   - Location: `src/pipeline/pronunciation_guide/enricher.py` and `pipeline.py`. The static lookup at line 219 should match, but the output has null. Possible causes: (a) the enrichment batch errored and fell through to the fallback path at line 442-448 which creates empty PronunciationEnrichment(confidence=0.0) entries that overwrite the static result; (b) "produce" goes through `enrich_homograph()` which may not check KNOWN_IRREGULAR_IPA.
+   - Fix: Investigate why KNOWN_IRREGULAR_IPA lookup didn't take effect. Add "bolo-toothed" to KNOWN_IRREGULAR_IPA with `/ˈboʊ.loʊ.tuːθt/`. For "produce", ensure `enrich_homograph()` returns IPA (it's a homograph — /ˈprɒd.juːs/ noun vs /prəˈdjuːs/ verb). May need to add produce to HOMOGRAPH_IPA_MAP.
 
 ### MEDIUM
-7. **Price→Two Troopers relationship labeled "employee"** [Profiles]
-   - Problem: The relationship label "employee" is incorrect for a military context. Should be "subordinate" or "commands".
-   - Evidence: Price is the First Sergeant; the troopers follow his orders.
-   - Location: Profile generation prompt in `analyzer.py`
-
-8. **Missing IPA for "bolo-toothed" and "produce"** [Pronunciation]
-   - Problem: Two pronunciation entries have null IPA values.
-   - Location: `src/pipeline/pronunciation/enricher.py` — LLM failed to generate IPA for these.
+4. **"the Sergeant" alias missing for Price** [Alias Grouping]
+   - Problem: "the Sergeant" is used 15+ times in the text to refer to Price but is not listed as an alias.
+   - Evidence: Lines 34, 83, 93, 100, 107, 114, 123, 136, 171, 187, 194, 196, 198, 208, 238 — all "the Sergeant" = Price.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — likely filtered by descriptor-blocking rules (Rule 0.6 or similar). "the Sergeant" is a generic rank descriptor.
+   - Fix: This is a design tradeoff — in multi-character texts, "the Sergeant" could be ambiguous. In this single-sergeant story it's unambiguous. Not worth adding special-case logic for a marginal alias improvement. Accept 7.5 on alias grouping.
 
 ### LOW
-9. **Missing "Johnny boy" alias for John G.** [Alias Grouping]
-   - Problem: "Johnny boy" used once (line 161) as an endearment for John G. Minor alias gap.
-
-10. **Voice guidance for John G. (a horse) shows "unknown" for tone/dialect** [Presentation]
-    - Problem: Voice guidance section is not meaningful for a non-speaking animal character.
-    - This is a minor presentation oddity, not worth fixing.
+5. **"Johnny boy" alias for John G.** [Alias Grouping]
+   - Minor: Used once as an endearment (line 161). Not worth fixing.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.80 | N/A | First run — 3 categories failing |
+| 2 | 8.25 | +0.45 | Characters fixed (8.0), Profiles and Pronunciation still failing |
 
 ## Fix History
 - Attempt 2: Three fixes applied:
-  1. **Captain Adams (Completeness)**: F6 adds Captain Adams from `active_characters`, but the post-profiling evidence filter in `_convert_characters()` discards him (mention_count=1 ≤ 5, no evidence, non-main_cast ID). Fixed by exempting characters with `supporting_strategies=["chapter_summary_reconciliation"]` from the evidence filter. Root cause: `analyzer.py:_convert_characters():4086-4096`.
-  2. **Alias grouping (Completeness/Alias)**: `_add_title_stripped_aliases` only handled single-word title prefixes. "First Sergeant Price" → words[0]="First" not in titles → no alias added. Extended to handle multi-word compound ranks: adds "Price" and "Sergeant Price" as aliases for "First Sergeant Price". Both survive verify_aliases Rule 2 bypass (substring of canonical). Root cause: `main_cast.py:_add_title_stripped_aliases():1320-1330`.
-  3. **IPA sharp-fanged (Pronunciation)**: LLM produced /ʃɑːrp-feɪnd/ (treating "-fanged" like silent-g "feigned"). Added "sharp-fanged" and "fanged" to KNOWN_IRREGULAR_IPA with correct /ˈʃɑːrp.fæŋd/. Root cause: `enricher.py:KNOWN_IRREGULAR_IPA`.
-  - Smoke test: Logic verified by code trace; cannot run full pipeline without re-analysis.
-  - Note: Profiles at 6/10 likely needs re-run — Richardson's profile data is trapped in `descriptions[0].text` as malformed JSON (LLM output parsing failure at low confidence=0.30). Role assignments (Price=supporting, Richardson=protagonist) are LLM decisions not fixed by current code.
+  1. **Captain Adams (Completeness)**: Exempted `chapter_summary_reconciliation` characters from evidence filter in `_convert_characters()`. Root cause: `analyzer.py:_convert_characters():4086-4096`.
+  2. **Alias grouping (Completeness/Alias)**: Extended `_add_title_stripped_aliases` for multi-word compound ranks ("First Sergeant Price" -> "Price", "Sergeant Price"). Root cause: `main_cast.py:_add_title_stripped_aliases():1320-1330`.
+  3. **IPA sharp-fanged (Pronunciation)**: Added to KNOWN_IRREGULAR_IPA with `/ˈʃɑːrp.fæŋd/`. Root cause: `enricher.py:KNOWN_IRREGULAR_IPA`. **NOTE: Fix is in code but IPA is still null in output — enricher may have errored for the batch.**
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 2 | Captain Adams, alias grouping, IPA | analyzer.py, main_cast.py, enricher.py | Awaiting re-analysis |
+| 2 | Captain Adams missing | analyzer.py | Fixed — Captain Adams now present |
+| 2 | Alias grouping (compound ranks) | main_cast.py | Fixed — "Price", "Sergeant Price" aliases present |
+| 2 | IPA sharp-fanged | enricher.py | No change — IPA still null despite code fix |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Config: max_tokens=8192, context_length=32768, think_mode=false
 - No LLM retries needed (0 retries across all stages)
 - Character Profiles took 669s (11 min) — disproportionately long for 4 characters
-- Richardson profile has LOW confidence (0.30) — likely root cause of missing speech patterns and relationships
-
-## Pipeline Notes (Attempt 2)
-- Captain Adams: NOW PRESENT (fix worked) — 1 mention
-- Price aliases: "Price, Sergeant Price" listed (compound rank fix worked)
-- "the Sergeant" alias still NOT listed — still open issue
-- Character Profiles: 3H/1M confidence (Richardson still medium confidence)
-- Pronunciation: 13 flags (7 homograph, 5 unknown, 1 proper_noun)
-- Run time: 11m 55s
+- Richardson profile has LOW confidence (0.30) — root cause of missing speech patterns and relationships
 
 ## Next Action
-Run PROMPT_evaluate.md to score attempt 2.
+Run PROMPT_fix.md to address:
+1. **Pronunciation null IPA** (HIGH #3): Debug why KNOWN_IRREGULAR_IPA lookup fails for "sharp-fanged" at runtime; add "bolo-toothed" and "produce" overrides
+2. **Richardson profile gaps** (HIGH #1, #2): Add post-profile speech pattern extraction or improve low-confidence profile handling
