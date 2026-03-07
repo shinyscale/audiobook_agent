@@ -3,87 +3,111 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 13
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7.5/10 ✗
-  - Completeness: 8/10
-  - Identity Resolution: 10/10
-  - Alias Grouping: 6/10
-- Character Profiles: 7.5/10 ✗
-- Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 9/10 ✓
-- **Overall: 8.20/10**
+- Character Extraction: 6/10 ✗
+  - Completeness: 6/10
+  - Identity Resolution: 7/10
+  - Alias Grouping: 5/10
+- Character Profiles: 5.5/10 ✗
+- Chapter Summaries: 7.5/10 ✗
+- Pronunciation Guide: 7.5/10 ✗
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 7.23/10**
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction, Character Profiles)
+**Status:** FAIL (4 categories below threshold: Character Extraction, Character Profiles, Chapter Summaries, Pronunciation Guide)
 
-## Improvement Summary (Attempt 11 → 12)
-- Nimdok: antagonist → protagonist ✓ (was CRITICAL #1, FIXED by "fellow victim" guard)
-- AM→Nimdok: "colleague" → "victim" ✓ (CRITICAL #2 auto-fixed)
-- Nimdok→AM: "tormentor" ✓
+## Regression Analysis (Attempt 12 → 13)
+The attempt 13 fixes (narrator role elevation, possessive sub-entity filter) **did NOT fire** due to LLM non-determinism:
+- **Narrator role elevation:** Ted was NOT flagged as narrator this run. Instead, "the ice caverns" got `is_narrator=True`. The fix code is correct but didn't trigger because the wrong character was assigned narrator.
+- **Possessive filter (STEP 5.9.2):** LLM used "the ice caverns" (no possessive "AM's"), bypassing the `{char}'s ` pattern match. The filter needs to be broader.
 
-Regressions (LLM non-determinism):
-- AM aliases GONE (attempt 11 had "Allied Mastercomputer", "Adaptive Manipulator", "I am" — now empty)
-- "AM's ice caverns" extracted as a 7th character (spurious location-as-character)
-- Ted role changed from "protagonist" to "minor" (only 5 mentions)
+New regressions from LLM variation:
+- "the ice caverns" is now NARRATOR (was just a spurious character before)
+- "Huergelmir" (mythological bird) extracted as a character (4 mentions, role=protagonist)
+- Gorrister role=antagonist (was protagonist in attempt 12)
+- Summary uses "the narrator" instead of "Ted" (attempt 11 fixed this, regressed)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Ted role="minor" — narrator should never be "minor"** [Profiles — Roles]
-   - Problem: Ted is the first-person narrator (is_narrator=True) but has role="minor" because he only has 5 mentions. The narrator/protagonist should never be classified as "minor".
-   - Evidence: Ted narrates the entire story. He is one of the 5 humans tormented by AM. role="minor" is factually wrong.
-   - Root cause: Role assignment likely uses mention count. Ted's low count (5) puts him in "minor" tier. The narrator role should override mention-based classification.
-   - Location: `src/analyzer.py` or `src/agents/characters.py` — wherever roles are assigned post-extraction
-   - Fix: If a character has `is_narrator=True`, their role should be at minimum "protagonist" (or "main"), never "minor" or "supporting". This is a universal invariant: narrators are always significant characters.
+1. **"the ice caverns" is marked as narrator** [Extraction — False Narrator]
+   - Problem: `the ice caverns` has `is_narrator=True, role=protagonist`. This is a location/setting, not a character, and definitely not the narrator. Ted (the actual first-person narrator) has `is_narrator=False, role=main`.
+   - Evidence: The ice caverns are a place the characters travel to. Ted narrates the entire story in first person. "The ice caverns" has relationships like "comrade" to all humans — nonsense for a location.
+   - Root cause: The narrator detection pipeline assigned narrator to the wrong entity. Ted only has 5 mentions (characters refer to themselves rarely in first-person), making him a weak candidate. The pipeline needs a guard: locations/settings should NEVER be assigned narrator status.
+   - Location: `src/pipeline/character_extraction_v2/narrator.py` — narrator assignment logic
+   - Fix approach (two-pronged):
+     1. **Narrator exclusion filter:** Characters whose canonical_name starts with "the " followed by a common location/setting noun (caverns, caves, mountains, forest, room, house, etc.) should be excluded from narrator candidacy. More broadly: if a character has NO dialogue and name is a common noun phrase (starts with "the "), skip it.
+     2. **Strengthen Ted detection:** The narrator in this story says "I" throughout. The pipeline should detect first-person narration and match the narrator to a named character who appears in self-referential contexts, not just by mention count.
+
+2. **Ted is not narrator and has wrong role** [Extraction — Narrator Detection]
+   - Problem: Ted has `is_narrator=False, role=main`. He should be `is_narrator=True, role=protagonist`.
+   - Evidence: Ted narrates the entire story. "I am Ted" is in the text. Every first-person passage is Ted.
+   - Root cause: Same as CRITICAL #1 — narrator assignment went to wrong entity, so Ted's narrator elevation never triggered.
+   - Location: Same as CRITICAL #1
+   - Fix: Fixing #1 should cascade to fixing this — if "the ice caverns" is excluded from narrator candidacy, Ted should be the next best candidate.
 
 ### HIGH
-2. **"AM's ice caverns" extracted as a character** [Extraction — False Positive]
-   - Problem: "AM's ice caverns" (5 mentions) is a location/setting, not a character. It has a profile, relationships to all other characters (all "colleague"), and adds noise throughout the report.
-   - Evidence: Ice caverns are a place the characters travel to. They don't act, speak, or have agency.
-   - Root cause: LLM non-determinism — attempt 11 had 6 characters (correct), attempt 12 added this spurious entry. The pipeline lacks a post-extraction filter for obvious locations.
-   - Location: `src/agents/characters.py` — post-extraction filtering, or `src/analyzer.py` post-profile
-   - Fix: Consider a generic filter: if a character's canonical_name contains location indicators ("cavern", "cave", "room", "house", "castle", "forest", "city", "town", etc.) AND the character has low mentions AND has no dialogue, filter it out. BUT be careful not to filter legitimate named characters who happen to share names with places. A safer approach: if the character's profile relationships are ALL "colleague" (no meaningful relationship types), and name contains possessive of another character ("AM's"), it's likely a sub-entity/location, not a character.
+3. **"the ice caverns" and "Huergelmir" are false positive characters** [Extraction — False Positives]
+   - Problem: Two non-character entities extracted:
+     - "the ice caverns" (5 mentions, id=main_cast_9) — a location
+     - "Huergelmir" (4 mentions, id=main_cast_7, aliases=["the bird"]) — a mythological creature AM creates as a torture device, not a character with agency/dialogue
+   - Evidence: Ice caverns are a setting. Huergelmir is a supernatural phenomenon AM creates — more like a weapon than a character. Neither has dialogue.
+   - Root cause: LLM extracts any frequently mentioned noun phrase as a character. The pipeline lacks post-extraction filtering for non-character entities.
+   - Location: `src/agents/characters.py` — post-extraction filtering
+   - Fix: Broaden the STEP 5.9.2 possessive filter to also catch:
+     - Common-noun entities starting with "the " that are location/setting words (caverns, caves, forest, room, house, castle, city, etc.)
+     - Entities with very low mentions (< 5) that have no dialogue and ALL relationships are generic ("colleague", "comrade")
+   - Note: The possessive filter from attempt 12 only catches `{char}'s X` patterns. This run the LLM dropped the possessive, so a broader filter is needed.
 
-3. **AM aliases completely missing** [Extraction — Alias Regression]
-   - Problem: AM has zero aliases. In attempt 11, AM had ["Allied Mastercomputer", "Adaptive Manipulator", "I am"]. These are textually stated expansions of the acronym.
-   - Evidence: The text explicitly says AM stands for "Allied Mastercomputer" then "Adaptive Manipulator" then "Aggressive Menace" then "I think, therefore I AM."
-   - Root cause: LLM non-determinism in Pass 2 alias extraction. Code didn't change alias logic.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Pass 2 alias extraction
-   - Fix: This is hard to fix deterministically since it's LLM variation. A programmatic approach: scan summary text for "stands for" / "stood for" / "short for" patterns near character names and inject found expansions as aliases. This would be a new post-extraction step.
+4. **Gorrister role=antagonist** [Profiles — Wrong Role]
+   - Problem: Gorrister has role=antagonist. He is one of the 5 human victims of AM — a fellow sufferer, not an antagonist.
+   - Evidence: Gorrister is tormented by AM alongside the others. He has no antagonistic agency.
+   - Root cause: The post-Phase-B role correction (attempts 8-12) should fix this, but may not be firing correctly this run. Gorrister's outgoing relationships include "victim" (to Benny) which may be triggering the false-antagonist heuristic.
+   - Location: `src/analyzer.py` — post-Phase-B false-antagonist correction
+   - Fix: Check why the false-antagonist correction didn't catch Gorrister. His profile has outgoing "victim" to Benny — but Gorrister IS the victim of Benny (Benny attacks Gorrister). The label direction may be confusing the heuristic.
+
+5. **AM aliases completely missing** [Extraction — Alias Regression]
+   - Problem: AM has zero aliases. The text explicitly states AM stands for "Allied Mastercomputer", "Adaptive Manipulator", "Aggressive Menace", and references "I think, therefore I AM."
+   - Evidence: These are textually stated acronym expansions. Attempt 11 had them; attempts 12-13 lost them.
+   - Root cause: LLM non-determinism in Pass 2 alias extraction.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — Pass 2
+   - Fix: Programmatic acronym expansion detection: scan summary text for patterns like "stood for" / "stands for" / "short for" near character names and inject as aliases. This would be deterministic.
 
 ### MEDIUM
-4. **Relationship noise from spurious "AM's ice caverns" character** [Profiles]
-   - Problem: Multiple characters have relationships to "AM's ice caverns" labeled "colleague", "place of suffering", "fellow victim" — adding noise to profile sections.
-   - Fix: Auto-resolves if HIGH #2 is fixed (ice caverns removed from character list).
+6. **Summary uses "the narrator" instead of "Ted"** [Summaries — Narrator Attribution]
+   - Problem: Summary text says "the narrator recounts..." and "the narrator realizes..." instead of using Ted's name.
+   - Evidence: Attempt 11 fixed this with narrator name substitution, but the fix depends on Ted being identified as narrator. Since Ted isn't narrator this run, the substitution doesn't fire.
+   - Fix: Auto-resolves when CRITICAL #1-2 are fixed.
 
-5. **Common homographs in pronunciation** [Pronunciation — False Positives]
-   - "read", "lead", "does", "close", "subject" — 5 common English homographs that most narrators wouldn't need flagged. 11 of 16 entries are genuinely useful.
-   - Persistent issue from multiple attempts. LOW priority.
+7. **Common homographs in pronunciation** [Pronunciation — False Positives]
+   - "read", "lead", "does", "close", "subject" — 5 common English homographs most narrators wouldn't need flagged. 11 of 16 entries are genuinely useful.
+   - Persistent issue across multiple attempts. LOW priority.
 
 ### LOW
-6. **Chapter title is null** [Structure]
+8. **Chapter title is null** [Structure]
    - Single section with `title: null`. Cosmetic for a short story with no heading.
 
-7. **No speech patterns noted** [Profiles — Completeness]
-   - AM's megalomaniacal monologue ("HATE. LET ME TELL YOU HOW MUCH I'VE COME TO HATE YOU...") and Ted's cynical narration are not captured. Nice-to-have but not blocking.
+9. **No speech patterns noted** [Profiles — Completeness]
+   - AM's megalomaniacal monologue and Ted's cynical narration not captured in profiles.
 
 ## Fix Priority
-**CRITICAL #1 is the primary blocker.** If Ted's role is fixed from "minor" to "protagonist":
-- Character Profiles score improves: the narrator having correct role is a major quality signal
-- Profiles should move from 7.5 → 8.0+
+**CRITICAL #1 and #2 are the primary blockers.** They are the same root cause: narrator assigned to "the ice caverns" instead of Ted. Fixing narrator detection to exclude non-character entities would:
+- Remove "the ice caverns" as narrator → Ted becomes narrator → role elevated to protagonist
+- Summary narrator substitution fires → "Ted" instead of "the narrator"
+- Character Profiles improve (correct narrator, correct role)
+- Character Extraction improves (one fewer false positive)
 
-**HIGH #2 is secondary.** Removing "AM's ice caverns" as a character:
-- Character Extraction completeness improves (no false positive)
-- Removes relationship noise from all other character profiles
-- Extraction should move from 7.5 → 8.0+
+**HIGH #3 is secondary.** A broader post-extraction filter for non-character entities (locations, mythological props) would remove both "the ice caverns" and "Huergelmir", cleaning up the character list and relationship noise.
 
-**HIGH #3 (AM aliases) is desirable but risky** — programmatic alias injection for acronym expansions could help but adds complexity. Consider deferring if #1 and #2 are sufficient to pass.
+**HIGH #4 (Gorrister role)** should auto-fix if the post-Phase-B correction runs correctly. May need investigation.
+
+**HIGH #5 (AM aliases)** is LLM non-determinism. A programmatic acronym-expansion detector would help but adds complexity. Consider deferring if #1-3 are sufficient to pass.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -100,16 +124,19 @@ Regressions (LLM non-determinism):
 | 10 | 7.65 | +1.30 | Ted narrator restored. But 3 humans still antagonist, colleague labels persist, summary uses "the narrator" not "Ted" |
 | 11 | 8.30 | +1.95 | Major progress: Ellen/Benny protagonist, AM relationships fixed, aliases added, summary uses "Ted". Only Nimdok antagonist remains. |
 | 12 | 8.20 | +1.85 | Nimdok FIXED to protagonist. But LLM regression: AM aliases lost, ice caverns spurious character, Ted role="minor" |
+| 13 | 7.23 | +0.88 | REGRESSION: "the ice caverns" is narrator, Ted not narrator, Huergelmir false positive, Gorrister antagonist |
 
-## Pipeline Notes (Attempt 12)
-- Analysis completed in 22m 23s
-- 7 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35), Ted (5), AM's ice caverns (5)
-- Ted correctly identified as narrator (first-person, is_narrator=True)
-- Ted role="minor" despite being narrator — role assignment bug
-- AM has NO aliases (regression from attempt 11)
-- "AM's ice caverns" is a spurious location-as-character
+## Pipeline Notes (Attempt 13)
+- Analysis completed in 20m 15s
+- 8 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35), Ted (5), Huergelmir (4), the ice caverns (5)
+- "the ice caverns" incorrectly identified as narrator (is_narrator=True)
+- Ted has is_narrator=False, role=main — narrator elevation fix didn't trigger
+- Gorrister role=antagonist (wrong, should be protagonist)
+- Huergelmir is a mythological bird reference, not a story character
+- AM has NO aliases (regression persists from attempt 12)
+- STEP 5.9.2 possessive filter didn't fire — LLM used "the ice caverns" not "AM's ice caverns"
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Character Profiles took 10m 37s (bottleneck, 47.5% of total)
+- Character Profiles bottleneck: 9m 48s (48.4% of total)
 
 ## Fix History
 - Attempt 2: Three connected fixes for character extraction and pronunciation
@@ -160,6 +187,10 @@ Regressions (LLM non-determinism):
 - Attempt 12: One fix — **WORKED but LLM regression on other fronts**
   1. **"fellow victim" guard in post-Phase-B false-antagonist check** (`src/analyzer.py`) — WORKED: Nimdok now protagonist, AM->Nimdok corrected. But LLM non-determinism caused: AM aliases lost, ice caverns character appeared, Ted role="minor".
 
+- Attempt 13: Two fixes — **Neither took effect due to LLM variation**
+  1. **Narrator role elevation** (`narrator.py:update_characters_with_narrator()`) — Code correct but didn't fire: Ted wasn't flagged as narrator (ice caverns was).
+  2. **Possessive sub-entity filter (STEP 5.9.2)** (`characters.py`) — Code correct but didn't fire: LLM used "the ice caverns" not "AM's ice caverns".
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -193,44 +224,27 @@ Regressions (LLM non-determinism):
 | 11 | Summary narrator | analyzer.py (name substitution) | **Fixed** — "Ted" in summary |
 | 12 | Nimdok antagonist | analyzer.py ("fellow victim" guard) | **Fixed** — Nimdok now protagonist |
 | 12 | LLM regression | N/A | AM aliases lost, ice caverns character, Ted role="minor" |
+| 13 | Narrator elevation | narrator.py (role elevation for is_narrator) | **No change** — Ted wasn't flagged as narrator |
+| 13 | Possessive filter | characters.py (STEP 5.9.2) | **No change** — LLM used non-possessive form |
+| 13 | LLM regression | N/A | ice caverns=narrator, Huergelmir false positive, Gorrister antagonist |
 
 ## Key Debugging Notes for Fix Phase
-1. **CRITICAL #1 (Ted role):** Find where roles are assigned. If `is_narrator=True`, role must be >= "protagonist". This is a universal invariant — narrators are never minor characters. Search for role assignment logic in `src/agents/characters.py` or `src/analyzer.py`.
-2. **HIGH #2 (ice caverns):** The spurious character has possessive form ("AM's ice caverns") and all relationships are "colleague". A post-extraction filter could check: if canonical_name contains possessive of another character AND all relationships are generic, remove it.
-3. **HIGH #3 (AM aliases):** LLM variation. A programmatic fix could scan summary text for acronym expansion patterns near "AM" and inject as aliases. But this is risky — defer unless #1 and #2 aren't enough to pass.
 
-## Output Files
-- HTML: ../output/i_have_no_mouth/report.html
-- JSON: ../output/i_have_no_mouth/analysis.json
+**The core recurring problem is LLM non-determinism in narrator detection.** Ted has been narrator in attempts 2-8, 10-12, but lost it in 9 (Ellen) and 13 (ice caverns). The narrator detection needs to be MORE ROBUST against LLM variation:
 
-## Fix History (Attempt 13)
-- **CRITICAL #1: Ted role="minor"** — Fixed in `narrator.py:update_characters_with_narrator()`.
-  Added role elevation: when `is_narrator=True` is set for a first-person narrator, if their role
-  is "minor"/"supporting"/None, it is elevated to "protagonist". Universal invariant: first-person
-  narrators are never minor characters.
-  - File: `src/pipeline/character_extraction_v2/narrator.py` (~line 326-334)
-  - Smoke test: 332 tests pass, no regressions
+1. **CRITICAL: Exclude non-character entities from narrator candidacy.** A character whose name is a common-noun phrase (starts with "the " + location/object noun) should never be narrator. This is a structural invariant.
 
-- **HIGH #2: "AM's ice caverns" spurious character** — Fixed in `characters.py` as new STEP 5.9.2.
-  Post-extraction structural filter: if a canonical_name starts with `{another_character}'s ` (possessive),
-  it's a sub-entity/location of that character, not a standalone character. Purely structural check,
-  no keyword lists.
-  - File: `src/agents/characters.py` (~line 1872-1899)
-  - Smoke test: 332 tests pass, no regressions
+2. **CRITICAL: Strengthen "I am {Name}" detection.** The text contains "I am Ted" — if the pipeline detects "I am {CharName}" in the source text, that character should be strongly preferred as narrator. This is more robust than LLM-based detection.
 
-## Pipeline Notes (Attempt 13)
-- Analysis completed in 20m 15s
-- 9 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35) + 3 more (Ted, Huergelmir, the ice caverns or Jesus)
-- 7 profiles generated for 7 eligible characters
-- "the ice caverns" still extracted (LLM used non-possessive form, bypassing possessive filter)
-- New spurious characters: Huergelmir (mythological creature), AM's hatred, Jesus
-- Narrator "the narrator" identified but NOT matched to Ted in main_cast (is_narrator elevation fix may not trigger)
-- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
-- Character Profiles bottleneck: 9m 48s (48.4% of total)
+3. **HIGH: Broaden false-positive character filter.** The possessive filter (STEP 5.9.2) is too narrow. Need a broader filter that catches:
+   - Common-noun phrases ("the ice caverns", "the bird") with low mentions and no dialogue
+   - Mythological/creature references that aren't story characters (Huergelmir)
+
+4. **HIGH: Gorrister role=antagonist** — investigate why post-Phase-B correction didn't fix this. May be a regression in the correction logic.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Next Action
-**Phase:** awaiting_evaluation
+**Phase:** awaiting_fix — Fix narrator detection robustness and false-positive character filtering
