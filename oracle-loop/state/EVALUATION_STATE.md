@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -135,7 +135,7 @@
 | 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending |
 
 ## Next Action
-Re-run analysis to verify fixes from attempt 6.
+Fix `unhashable type: 'Character'` crash in analyzer.py (introduced by attempt 6 consistency enforcement code). Then re-run analysis.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
@@ -149,3 +149,8 @@ Re-run analysis to verify fixes from attempt 6.
 - Ted correctly identified as first-person narrator
 - 16 pronunciation flags — all reasonable
 - Contradictory relationship pairs removed: AM↔Nimdok tormentor, AM↔Benny tormentor
+
+- Attempt 6 FAILED: `Error during analysis: unhashable type: 'Character'`
+  - Crash occurs after profile generation, during post-profile corrections in analyzer.py
+  - Caused by attempt 6 consistency enforcement code using Character objects in a set or dict key context
+  - Fix: find where Character objects are being hashed and use character IDs instead
