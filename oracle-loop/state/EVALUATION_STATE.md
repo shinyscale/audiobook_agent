@@ -3,8 +3,8 @@
 ## Active Text
 - **Name:** john_g
 - **Attempt:** 1
-- **Phase:** awaiting_analysis
-- **baseline_score:** N/A
+- **Phase:** awaiting_evaluation
+- **baseline_score:** null
 - **Competitive Mode:** none
 
 ## Output Files
@@ -18,16 +18,25 @@
 - Chapter Summaries: N/A
 - Pronunciation Guide: N/A
 - HTML Presentation: N/A
-- **Overall: N/A** (first attempt)
+- **Overall: N/A** (awaiting evaluation)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** PENDING — no analysis run yet
+**Status:** PENDING — analysis complete, awaiting evaluation
+
+## Pipeline Notes
+- Completed in 18m 38s
+- 2,228 words extracted (short text)
+- 1 chapter detected (LLM marker proposer returned non-list — single chapter fallback)
+- 4 characters found: First Sergeant Price, John G. (aka John), Corporal Richardson (aka the Corporal/Richardson), Two Troopers
+- 13 pronunciation flags (7 homograph, 5 unknown, 1 proper_noun)
+- Low confidence profile for Corporal Richardson (0.30)
+- "No passages provided for Two Troopers" warning
 
 ## What Changed in Attempt 1
 First attempt on this text. No previous analysis.
 
 ## Current Issues (Priority Order)
-(None yet — awaiting first analysis)
+(None yet — awaiting evaluation)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -48,4 +57,4 @@ First attempt on this text. No previous analysis.
 - Config: max_tokens=8192, context_length=32768, think_mode=false
 
 ## Next Action
-Run analysis on john_g ("Test_Texts/John G - Katherine Mayo.txt") to establish baseline.
+Evaluate output for john_g attempt 1.
