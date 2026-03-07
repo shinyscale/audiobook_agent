@@ -2,14 +2,26 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 20
-- **Phase:** awaiting_analysis
+- **Attempt:** 21
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 21)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+- Duration: 16m 50s
+- Characters (4): Johnny (1 mention), John Donaldson (33 mentions, aliases: American sir, John), Uncle Bill (18 mentions), Ted Frith (5)
+- IMPROVEMENT: "the American, sir" is now absorbed as alias of John Donaldson (not a false separate character)
+- STILL FAILING: Father/son split did NOT fire — John Donaldson still merges father+son into 33 mentions
+- Narrator: V2 pipeline correctly identifies Uncle Bill, but plot summary narrator detection returns "No definitive narrator identified"
+- Final narrator appearance injection fires for Uncle Bill — may mean Uncle Bill gets narrator in output
+- "Johnny" appears as a separate 1-mention fragment character
+- BLOCKED alias: 'John Donaldson' blocked from being alias of 'John' (claimed by another character) — suggests separate characters exist in pipeline but weren't properly split
+- Config changes from commit 90b62a5 appear to have had mixed effects
 
 ## IMPORTANT: External Changes Detected
 
