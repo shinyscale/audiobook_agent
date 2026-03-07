@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -101,6 +101,12 @@
   2. **"victim" added to `_ADVERSARIAL_LABELS`** (`src/analyzer.py:2134`) — Correct addition, but AM's outgoing labels are mostly "colleague" not "victim", so threshold not met
   3. **Self-relationship filter** (`src/analyzer.py`) — May have worked (no self-relationships visible), but didn't address core issues
 
+- Attempt 6: Two fixes (awaiting verification)
+  1. **ACTIVE vs PASSIVE adversarial labels** (`src/analyzer.py:2177-2213`) — False-antagonist correction now uses `_ACTIVE_ADVERSARIAL_LABELS` (no "enemy"/"victim") so Ellen/Nimdok/Gorrister (who only have "enemy"/"victim" labels) are correctly relabeled to "protagonist"
+  2. **Consistency enforcement for colleague labels** (`src/analyzer.py:2215-2285`) — If antagonist has ≥2 active adversarial labels to protagonists but some "colleague" labels, replace "colleague" with dominant active label; same for inverse protagonist→antagonist direction
+  - Root cause: `_ADVERSARIAL_LABELS` included "enemy" and "victim" (passive labels), blocking false-antagonist correction for victim characters
+  - Smoke test: 332 tests pass
+
 - Attempt 5: Four fixes — **3 of 4 worked**
   1. **STEP 5.2b placeholder→existing merge** (`src/agents/characters.py`) — WORKED: No duplicate Ted
   2. **Incoming adversarial label check** (`src/analyzer.py`) — WORKED: AM now correctly "antagonist"
@@ -125,11 +131,11 @@
 | 5 | AM wrong role | analyzer.py (incoming adversarial check) | **Fixed** — AM now "antagonist" |
 | 5 | False antagonist | analyzer.py (zero adversarial evidence check) | **Partial** — Benny fixed, Ellen/Nimdok/Gorrister still "antagonist" |
 | 5 | AM self-alias | characters.py (_is_valid_alias) | **Fixed** |
+| 6 | Ellen/Nimdok/Gorrister wrong role | analyzer.py (ACTIVE vs PASSIVE adversarial labels) | Pending |
+| 6 | AM→Nimdok/Benny "colleague" | analyzer.py (consistency enforcement) | Pending |
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL**: Fix false-antagonist correction to distinguish ACTIVE vs PASSIVE adversarial labels (src/analyzer.py)
-2. **HIGH**: Add consistency enforcement for antagonist→victim "colleague" labels (src/analyzer.py)
+Re-run analysis to verify fixes from attempt 6.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html

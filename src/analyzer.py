@@ -2174,16 +2174,27 @@ class AudiobookAnalyzer:
                         f"({_adversarial_count} outgoing + {_incoming_adversarial} incoming adversarial labels)"
                     )
 
+            # ACTIVE adversarial labels: the character is inflicting harm.
+            # Distinct from PASSIVE labels (enemy, victim) which describe the character
+            # as a target/sufferer — passive labels do NOT support an antagonist role.
+            _ACTIVE_ADVERSARIAL_LABELS = {
+                "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
+                "abuser", "enslaver", "tyrant", "predator", "antagonist", "villain",
+            }
+
             # False antagonist correction: if a character is labeled "antagonist" but has
-            # zero adversarial evidence in outgoing OR incoming relationships, the LLM
-            # misclassified them. Universal invariant: a true antagonist must have at least
-            # one adversarial relationship label visible from some direction in the story.
+            # zero ACTIVE adversarial evidence (labels that indicate the character inflicts
+            # harm), the LLM misclassified them. Characters whose only "adversarial" labels
+            # are passive (enemy, victim) are not true antagonists — they are in mutual
+            # conflict or are victims themselves.
+            # Universal invariant: a true antagonist must have at least one ACTIVE adversarial
+            # label (they inflict harm on others) visible from some direction in the story.
             for _rchar in pipeline_char_map.characters:
                 if _rchar.role != "antagonist":
                     continue
                 _own_adv = sum(
                     1 for v in (_rchar.relationships or {}).values()
-                    if isinstance(v, str) and any(adv in v.lower() for adv in _ADVERSARIAL_LABELS)
+                    if isinstance(v, str) and any(adv in v.lower() for adv in _ACTIVE_ADVERSARIAL_LABELS)
                 )
                 _rchar_name_lower = _rchar.canonical_name.lower()
                 _in_adv = sum(
@@ -2192,14 +2203,86 @@ class AudiobookAnalyzer:
                     if _other.id != _rchar.id
                     for _k, _v in (_other.relationships or {}).items()
                     if _k.lower() == _rchar_name_lower and isinstance(_v, str)
-                    and any(adv in _v.lower() for adv in _ADVERSARIAL_LABELS)
+                    and any(adv in _v.lower() for adv in _ACTIVE_ADVERSARIAL_LABELS)
                 )
                 if _own_adv == 0 and _in_adv == 0:
                     _rchar.role = "protagonist"
                     logger.info(
                         f"Role corrected: '{_rchar.canonical_name}' antagonist→protagonist "
-                        f"(no adversarial evidence in outgoing or incoming relationships)"
+                        f"(no active adversarial evidence in outgoing or incoming relationships)"
                     )
+
+            # Relationship consistency enforcement: if a confirmed antagonist has outgoing
+            # "colleague" labels to protagonists but also has active adversarial labels to
+            # other protagonists, the "colleague" labels are LLM fallbacks — replace them
+            # with the dominant active adversarial label.
+            # Also enforce the inverse: if a confirmed protagonist labels a confirmed
+            # antagonist as "colleague" but other protagonists use an adversarial label for
+            # the antagonist, replace "colleague" with the majority label.
+            # Universal invariant: consistent power dynamics within a cast.
+            _all_antagonists = {c for c in pipeline_char_map.characters if c.role == "antagonist"}
+            _all_protagonists = {c for c in pipeline_char_map.characters if c.role == "protagonist"}
+            for _ant in _all_antagonists:
+                _ant_rels = _ant.relationships or {}
+                # Collect antagonist's outgoing labels to protagonists
+                _prot_names = {p.canonical_name.lower() for p in _all_protagonists}
+                _ant_to_prot = {
+                    k: v for k, v in _ant_rels.items()
+                    if k.lower() in _prot_names and isinstance(v, str)
+                }
+                if not _ant_to_prot:
+                    continue
+                # Count active adversarial labels vs "colleague" labels to protagonists
+                _active_labels = [
+                    v for v in _ant_to_prot.values()
+                    if any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                ]
+                _colleague_keys = [
+                    k for k, v in _ant_to_prot.items()
+                    if isinstance(v, str) and "colleague" in v.lower()
+                    and not any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                ]
+                if len(_active_labels) >= 2 and _colleague_keys:
+                    # Find the most common active adversarial label
+                    from collections import Counter
+                    _dominant = Counter(_active_labels).most_common(1)[0][0]
+                    for _ck in _colleague_keys:
+                        _ant.relationships[_ck] = _dominant
+                        logger.info(
+                            f"Relationship corrected: '{_ant.canonical_name}'→'{_ck}' "
+                            f"'colleague'→'{_dominant}' (consistency with dominant active label)"
+                        )
+
+            # Inverse: protagonist→antagonist "colleague" corrected to majority label.
+            for _ant in _all_antagonists:
+                _ant_name_lower = _ant.canonical_name.lower()
+                # Collect all protagonist outgoing labels toward this antagonist
+                _prot_to_ant = {}
+                for _prot in _all_protagonists:
+                    for _k, _v in (_prot.relationships or {}).items():
+                        if _k.lower() == _ant_name_lower and isinstance(_v, str):
+                            _prot_to_ant[_prot] = _v
+                if not _prot_to_ant:
+                    continue
+                _active_prot_labels = [
+                    v for v in _prot_to_ant.values()
+                    if any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                ]
+                _colleague_prots = [
+                    p for p, v in _prot_to_ant.items()
+                    if "colleague" in v.lower() and not any(a in v.lower() for a in _ACTIVE_ADVERSARIAL_LABELS)
+                ]
+                if len(_active_prot_labels) >= 2 and _colleague_prots:
+                    from collections import Counter
+                    _dominant_inv = Counter(_active_prot_labels).most_common(1)[0][0]
+                    for _cp in _colleague_prots:
+                        for _k in list((_cp.relationships or {}).keys()):
+                            if _k.lower() == _ant_name_lower:
+                                _cp.relationships[_k] = _dominant_inv
+                                logger.info(
+                                    f"Relationship corrected: '{_cp.canonical_name}'→'{_k}' "
+                                    f"'colleague'→'{_dominant_inv}' (consistency with majority protagonist label)"
+                                )
 
         # Post-profile self-relationship filter: remove any relationship where the key
         # matches the character's own canonical name (artifact of duplicate characters
