@@ -2600,6 +2600,7 @@ class AudiobookAnalyzer:
             _fc_own = sum(
                 1 for v in (_fc.relationships or {}).values()
                 if isinstance(v, str) and any(a in v.lower() for a in _PHSB_OUTGOING)
+                and "fellow" not in v.lower()  # "fellow victim/prisoner" = co-victim, not aggressor
             )
             _fc_name = _fc.canonical_name.lower()
             _fc_inc = sum(

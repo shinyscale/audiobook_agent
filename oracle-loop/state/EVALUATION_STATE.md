@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -80,8 +80,6 @@ Remaining: Nimdok still "antagonist" with "colleague" labels to/from AM.
 - CRITICAL #2 auto-fixes (colleague replacement fires for antagonist↔protagonist pair)
 - Character Profiles score should jump from 7/10 to ~8/10
 - All categories would be ≥ 8.0 → PASS
-
-The fix should focus EXCLUSIVELY on why Nimdok isn't caught by the post-Phase-B false-antagonist correction. Debug what adversarial evidence Nimdok has that keeps him labeled "antagonist", and adjust the logic accordingly.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -194,5 +192,13 @@ The post-Phase-B false-antagonist correction fixed Ellen and Benny but NOT Nimdo
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (continued)
+- Attempt 12: "fellow victim" counted as outgoing aggressor evidence
+  - Root cause: `src/analyzer.py:2600-2603` — `_fc_own` count matched "victim" substring in "fellow victim", making Nimdok's outgoing score = 3 (exceeds threshold of 1)
+  - Fix: Added `and "fellow" not in v.lower()` guard — "fellow victim/prisoner" is co-victimhood, not aggression. Universal invariant: "fellow X" always means shared status.
+  - Smoke test: Verified Nimdok's relationships in analysis.json: all 3 "victim" entries are "fellow victim"; no `_PHSB_INCOMING` terms point to Nimdok → `_fc_own=0, _fc_inc=0` → corrects to protagonist
+  - Modified: `src/analyzer.py` (post-Phase-B false-antagonist check)
+  - CRITICAL #2 will auto-fix (colleague replacement fires for AM↔Nimdok once Nimdok=protagonist)
+
 ## Next Action
-Run PROMPT_fix.md to fix Nimdok's role from "antagonist" to "protagonist" (CRITICAL #1). This is the ONLY remaining blocker — fixing it should also auto-fix CRITICAL #2 (AM↔Nimdok "colleague" labels).
+awaiting_analysis
