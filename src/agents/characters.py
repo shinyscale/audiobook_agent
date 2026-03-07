@@ -1472,9 +1472,26 @@ class CharacterAgent(Agent):
 
         promoted_chars = []
         remaining_supporting = []
+        main_cast_names_lower = {c.canonical_name.lower() for c in main_cast}
 
         for char in supporting_cast:
             if char.mention_count >= effective_promotion:
+                # Skip promotion if a character with the same name already exists in main_cast.
+                # This prevents duplicates when the LLM extracted the character in Pass 1 AND
+                # NER/supporting cast also produced a fragment for the same name.
+                if char.canonical_name.lower() in main_cast_names_lower:
+                    _existing = next(
+                        (c for c in main_cast if c.canonical_name.lower() == char.canonical_name.lower()),
+                        None,
+                    )
+                    if _existing is not None:
+                        _existing.mention_count = max(_existing.mention_count, char.mention_count)
+                        logger.info(
+                            f"V2 Step 5.8: '{char.canonical_name}' already in main_cast "
+                            f"(id={_existing.id}); merged mention_count={_existing.mention_count}, skipped duplicate promotion"
+                        )
+                    remaining_supporting.append(char)
+                    continue
                 # Promote to main cast with role based on mention count
                 if char.mention_count >= effective_protagonist:
                     char.role = "protagonist"
@@ -1483,6 +1500,7 @@ class CharacterAgent(Agent):
                 else:
                     char.role = "supporting"
                 promoted_chars.append(char)
+                main_cast_names_lower.add(char.canonical_name.lower())
                 logger.info(
                     f"Promoted '{char.canonical_name}' to main cast ({char.mention_count} mentions, "
                     f"role: {char.role})"

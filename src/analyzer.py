@@ -2134,6 +2134,7 @@ class AudiobookAnalyzer:
             _ADVERSARIAL_LABELS = {
                 "tormentor", "captor", "oppressor", "persecutor", "jailer", "warden",
                 "abuser", "enslaver", "tyrant", "enemy", "predator", "antagonist", "villain",
+                "victim",  # when outgoing labels are all "victim", this char is the victimizer
             }
             for _rchar in pipeline_char_map.characters:
                 if _rchar.role != "protagonist" or _rchar.is_narrator:
@@ -2151,6 +2152,22 @@ class AudiobookAnalyzer:
                         f"Role corrected: '{_rchar.canonical_name}' protagonist→antagonist "
                         f"({_adversarial_count}/{len(_rels)} adversarial relationship labels)"
                     )
+
+        # Post-profile self-relationship filter: remove any relationship where the key
+        # matches the character's own canonical name (artifact of duplicate characters
+        # being profiled together).
+        for _schar in pipeline_char_map.characters:
+            if not _schar.relationships:
+                continue
+            _self_keys = [
+                k for k in _schar.relationships
+                if k.lower() == _schar.canonical_name.lower()
+            ]
+            for _sk in _self_keys:
+                del _schar.relationships[_sk]
+                logger.info(
+                    f"Removed self-relationship '{_sk}' from '{_schar.canonical_name}'"
+                )
 
         # Step 5: Pronunciation Guide (skip if already done in parallel mode)
         if pron_map is None:
