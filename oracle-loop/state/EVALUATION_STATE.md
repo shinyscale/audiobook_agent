@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Attempt:** 14
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -259,5 +259,14 @@ New regressions from LLM variation:
   - Guard: AM has 5+ outgoing victim labels AND incoming "tormentor" from Ted → stays antagonist
   - Smoke test: Module imports cleanly, 332 tests pass
 
+## Pipeline Notes (Attempt 14)
+- Analysis completed in 22m 20s
+- 7 characters found, 6 profiles generated
+- **Narrator detected: Gorrister** (first-person) — WRONG, Ted should be narrator
+- Fix 1 (self-identification "I am Ted" scan) did NOT override Gorrister detection
+- "the narrator" alias blocked for Ted (good)
+- Contradictory relationship removals: AM↔Gorrister, AM↔Nimdok, AM↔Benny (tormentor both ways), Gorrister↔Benny (companion both ways)
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
+
 ## Next Action
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
