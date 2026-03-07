@@ -1873,6 +1873,36 @@ class CharacterAgent(Agent):
             f"V2 Step 5.9 complete: {len(main_cast)} main cast, {len(supporting_cast)} supporting"
         )
 
+        # STEP 5.9.2: Remove possessive sub-entities from main_cast.
+        # Universal invariant: if a character's canonical name is "{known_char}'s {noun_phrase}",
+        # it's a location/possession of that character, not a standalone person.
+        # Examples: "AM's ice caverns", "Gatsby's mansion", "Captain Ahab's ship".
+        # This check is purely structural — no keyword lists involved.
+        _known_names_lower = {c.canonical_name.lower() for c in main_cast}
+        _possessive_filtered: list = []
+        for char in main_cast:
+            name_lower = char.canonical_name.lower()
+            is_possessive_subentity = False
+            for other_name_lower in _known_names_lower:
+                if other_name_lower == name_lower:
+                    continue
+                # Check both straight and curly apostrophe variants
+                for apos in ("'s ", "\u2019s "):
+                    if name_lower.startswith(other_name_lower + apos):
+                        is_possessive_subentity = True
+                        logger.info(
+                            f"Step 5.9.2: Removing '{char.canonical_name}' — possessive sub-entity "
+                            f"of another character (name starts with another character's name in possessive form)"
+                        )
+                        break
+                if is_possessive_subentity:
+                    break
+            if not is_possessive_subentity:
+                _possessive_filtered.append(char)
+        if len(_possessive_filtered) < len(main_cast):
+            _known_names_lower = {c.canonical_name.lower() for c in _possessive_filtered}
+            main_cast = _possessive_filtered
+
         # STEP 5.9.5: Correct role assignments for all main_cast characters.
         # The LLM may assign roles (protagonist/main/supporting) that don't reflect mention-count
         # evidence. Apply the same mention-count thresholds used in Step 5.8 as a universal

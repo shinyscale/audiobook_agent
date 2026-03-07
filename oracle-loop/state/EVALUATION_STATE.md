@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** i_have_no_mouth
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -203,5 +203,20 @@ Regressions (LLM non-determinism):
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
+## Fix History (Attempt 13)
+- **CRITICAL #1: Ted role="minor"** — Fixed in `narrator.py:update_characters_with_narrator()`.
+  Added role elevation: when `is_narrator=True` is set for a first-person narrator, if their role
+  is "minor"/"supporting"/None, it is elevated to "protagonist". Universal invariant: first-person
+  narrators are never minor characters.
+  - File: `src/pipeline/character_extraction_v2/narrator.py` (~line 326-334)
+  - Smoke test: 332 tests pass, no regressions
+
+- **HIGH #2: "AM's ice caverns" spurious character** — Fixed in `characters.py` as new STEP 5.9.2.
+  Post-extraction structural filter: if a canonical_name starts with `{another_character}'s ` (possessive),
+  it's a sub-entity/location of that character, not a standalone character. Purely structural check,
+  no keyword lists.
+  - File: `src/agents/characters.py` (~line 1872-1899)
+  - Smoke test: 332 tests pass, no regressions
+
 ## Next Action
-Run PROMPT_fix.md to address Ted role="minor" (CRITICAL #1) and ice caverns spurious character (HIGH #2)
+**Phase:** awaiting_analysis

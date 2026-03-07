@@ -324,6 +324,15 @@ class NarratorDetector:
                     char.narrative_role = f"{narrator_info.pov.title()} narrator"
                     # Boost confidence for narrator (they're a key character)
                     char.confidence = ConfidenceLevel.HIGH
+                    # Universal invariant: first-person narrators are never minor/supporting.
+                    # They are the narrative voice of the story — always protagonist-level.
+                    if narrator_info.pov == "first-person" and getattr(char, "role", None) in ("minor", "supporting", None):
+                        old_role = getattr(char, "role", None)
+                        char.role = "protagonist"
+                        logger.info(
+                            f"Elevated first-person narrator '{char.canonical_name}' "
+                            f"from '{old_role}' to 'protagonist'"
+                        )
 
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:
