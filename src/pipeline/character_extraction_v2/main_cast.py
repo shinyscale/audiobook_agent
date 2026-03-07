@@ -881,6 +881,19 @@ class MainCastExtractor:
                     )
                     continue
 
+                # Universal invariant: character aliases do not contain commas.
+                # A comma indicates a dialogue phrase or address form (e.g. "American, sir"),
+                # not a character name. Exception: honorific suffixes (Jr., Sr., II, III, IV).
+                if "," in alias:
+                    _after_comma = alias.split(",", 1)[1].strip().lower().rstrip(".")
+                    _name_suffixes = {"jr", "sr", "ii", "iii", "iv", "v", "2nd", "3rd"}
+                    if _after_comma not in _name_suffixes:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' contains a comma — "
+                            f"dialogue phrase, not a character alias for '{profile.canonical_name}'"
+                        )
+                        continue
+
                 # RULE 0.4: Block meta-references that are never character aliases
                 # "narrator" is a storytelling voice/device, not a character reference
                 # "reader" / "audience" are similar meta-references
