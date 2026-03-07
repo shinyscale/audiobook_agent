@@ -2,14 +2,23 @@
 
 ## Active Text
 - **Name:** american_sir
-- **Attempt:** 23
-- **Phase:** awaiting_analysis
+- **Attempt:** 24
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
 ## Output Files
 - HTML: ../output/american_sir/report.html
 - JSON: ../output/american_sir/analysis.json
+
+## Pipeline Notes (Attempt 24)
+- "American, sir" comma-filter: WORKED — not in character list
+- 5 characters: John (30), the boy (13), Uncle Bill (18), Johnny (2), Ted Frith (5)
+- Joe Barron: still missing from output
+- Narrator: "the narrator" detected but NOT found in main_cast — narrator not mapped to Uncle Bill
+- Profile bug: narrator appearance injection still targeting 'the boy' with Uncle Bill's description
+- Father/son: still merged — "John" has 30 mentions
+- Johnny: now 2 mentions (was 1), alias "the narrator (the father)" — unusual
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
@@ -116,7 +125,7 @@
 ## Fix History
 - Attempt 22: STEP 3.95c added (kinship-fragment split). HTML BOM/title fix. 3.95c didn't fire.
 - Attempt 23: STEP 3.95b: removed `"(" in canonical_name` guard → sibling-ID check; alias iteration; Pattern E. STEP 3.95c/3.97: replaced `"(" not in canonical_name` guard with `not c.id.endswith("_parent")`.
-- Attempt 24:
+- Attempt 25:
   - Fix 1: `main_cast.py:_parse_pass1_results` + `_parse_profiles` — reject canonical names with commas (dialogue phrase filter). Universal invariant: character names never contain commas. Removes "'American, sir'" hallucination. Smoke test: PASS.
   - Fix 2: `characters.py:_heuristic_narrator_from_mention_count` — exclude ≤ 2-mention candidates when max ≥ 5. Universal invariant: a narrator is addressed by name more than twice. Smoke test: PASS — Uncle Bill(18) selected over Johnny(1); Montresor(3) still correctly selected over Fortunato(15).
 
