@@ -1,228 +1,314 @@
 {
-  "timestamp": "2026-02-16T18:01:29-07:00",
+  "timestamp": "2026-03-06T14:45:29-07:00",
   "texts": {
-    "american_sir": {
-      "text": "american_sir",
+    "a_camping_trip": {
+      "text": "a_camping_trip",
       "scores": {
         "structure": 7,
-        "characters": 5,
-        "profiles": 5,
-        "summaries": 8,
-        "pronunciation": 7,
+        "characters": 6,
+        "profiles": 6,
+        "summaries": 9,
+        "pronunciation": 8,
         "presentation": 7
       },
-      "overall": 6.5,
+      "overall": 7.17,
+      "pass": false,
+      "issues": [
+        {
+          "category": "characters",
+          "severity": "HIGH",
+          "description": "\"The Boat\" extracted as a protagonist character \u2014 inanimate object should not be a character entry"
+        },
+        {
+          "category": "characters",
+          "severity": "HIGH",
+          "description": "Milton Jennings incorrectly marked as first-person narrator; this is a third-person narrative"
+        },
+        {
+          "category": "profiles",
+          "severity": "HIGH",
+          "description": "Bert Jenks profile has null personality/voice_guidance and description field contains malformed JSON-like text instead of prose"
+        },
+        {
+          "category": "profiles",
+          "severity": "MEDIUM",
+          "description": "Mr. Jennings description incorrectly begins with \"Milton Jennings is a supportive adult\" \u2014 wrong character name"
+        },
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "Role-based aliases (\"treasurer\" for Rance, \"cook\" for Bert) are unusual and could confuse a narrator"
+        },
+        {
+          "category": "structure",
+          "severity": "MEDIUM",
+          "description": "Metadata title is \"Hamlin Garland\" (author name) instead of the story title \"A Camping Trip\""
+        },
+        {
+          "category": "profiles",
+          "severity": "MEDIUM",
+          "description": "Some relationship labels are questionable: Rance\u2192Mr. Jennings as \"prot\u00e9g\u00e9\", Lincoln\u2192Mr. Jennings as \"employer\""
+        },
+        {
+          "category": "pronunciation",
+          "severity": "LOW",
+          "description": "Bass fish IPA listed as /be\u026as/ \u2014 should be /b\u00e6s/ (same vowel as musical bass); killdee note says \"semipalmated plover\" which is incorrect"
+        },
+        {
+          "category": "presentation",
+          "severity": "MEDIUM",
+          "description": "Report header displays \"Hamlin Garland\" (author) as the title rather than the story name"
+        }
+      ],
+      "notes": "Summaries and pronunciation are strong, but character extraction is undermined by an inanimate object (The Boat) being treated as a protagonist, a false narrator assignment to Milton, and a corrupted Bert Jenks profile. The wrong title in metadata propagates through the HTML report."
+    },
+    "berenice": {
+      "text": "berenice",
+      "scores": {
+        "structure": 8,
+        "characters": 7,
+        "profiles": 8,
+        "summaries": 9,
+        "pronunciation": 6,
+        "presentation": 8
+      },
+      "overall": 7.67,
+      "pass": false,
+      "issues": [
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "Berenice labeled 'antagonist' when she is a victim/object of obsession, not an active antagonist"
+        },
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "Berenice gender is null despite being clearly female"
+        },
+        {
+          "category": "characters",
+          "severity": "LOW",
+          "description": "Berenice's Teeth extracted as a separate character rather than a symbolic motif on Berenice's profile"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "HIGH",
+          "description": "Jove IPA /d\u0292\u028cv/ is wrong \u2014 should be /d\u0292o\u028av/ (rhymes with stove, not love)"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "HIGH",
+          "description": "pertinaciously phonetic spelling 'puh-TIN-uh-SIS-uh-lee-lee' is garbled \u2014 should be 'pur-tin-AY-shus-lee'"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "MEDIUM",
+          "description": "emaciation IPA uses /m\u00e6\u0283/ \u2014 the 'ci' is /si/ not /\u0283/"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "MEDIUM",
+          "description": "False positives: tarried, sentient, conformation, unloveliness are common English words that don't need pronunciation guidance"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "LOW",
+          "description": "Mad'selle note says contraction of 'Madame' \u2014 it's 'Mademoiselle'"
+        }
+      ],
+      "notes": "Strong summary and character profiles for a short Poe story, but pronunciation section has several IPA errors on well-known words and flags common English terms as needing guidance. Berenice's gender and role classification need correction."
+    },
+    "cask_of_amontillado": {
+      "text": "cask_of_amontillado",
+      "scores": {
+        "structure": 9,
+        "characters": 6,
+        "profiles": 7,
+        "summaries": 9,
+        "pronunciation": 7,
+        "presentation": 8
+      },
+      "overall": 7.67,
       "pass": false,
       "issues": [
         {
           "category": "characters",
           "severity": "CRITICAL",
-          "description": "John Donaldson (the son) profile contains the father's appearance and personality data \u2014 complete identity swap between the two characters"
-        },
-        {
-          "category": "characters",
-          "severity": "HIGH",
-          "description": "Red Cross listed as a character (organization, not a person)"
-        },
-        {
-          "category": "characters",
-          "severity": "MEDIUM",
-          "description": "Johnny not merged as alias of John Donaldson (the son) \u2014 kept as separate character"
-        },
-        {
-          "category": "profiles",
-          "severity": "CRITICAL",
-          "description": "Son's profile describes a 'dark-skinned, middle-aged man who committed grave betrayals' \u2014 entirely wrong person's data"
+          "description": "\"The Amontillado\" extracted as a character (protagonist, is_symbolic=true) with nonsensical aliases (The Catacombs, The Bones, pile of bones) \u2014 it is a wine, not a character"
         },
         {
           "category": "profiles",
           "severity": "MEDIUM",
-          "description": "Quote 'No--no. It's covered over...' attributed to Uncle Bill but spoken by John the son"
-        },
-        {
-          "category": "characters",
-          "severity": "MEDIUM",
-          "description": "Father labeled as antagonist and narrator (is_narrator: true) \u2014 he is neither"
-        },
-        {
-          "category": "structure",
-          "severity": "MEDIUM",
-          "description": "Title shows as author name 'Mary Raymond Shipman Andrews' instead of story title 'American Sir'"
+          "description": "Fortunato missing iconic physical description: parti-striped jester costume with conical cap and bells"
         },
         {
           "category": "pronunciation",
           "severity": "MEDIUM",
-          "description": "Missing important Italian place names: Perugia, Ventimiglia; includes unnecessary common English words (whippersnapper, thriftless, orderlies)"
+          "description": "Latin 'impune' IPA wrong (/\u026am\u02c8pju\u02d0n/ should be /\u026am\u02c8pu\u02d0ne\u026a/); 'lacessit' pronunciation questionable"
         },
         {
-          "category": "presentation",
+          "category": "pronunciation",
           "severity": "LOW",
-          "description": "Performance timing table renders started_at/ended_at as empty rows"
+          "description": "Duplicate entries (hearken/hearkened, Montresor/Montresors); homographs not context-resolved"
         },
         {
-          "category": "summaries",
+          "category": "characters",
           "severity": "LOW",
-          "description": "Ch 2 summary says 'deceased sister's son' but should be 'cousin's son'"
+          "description": "Fortunato labeled 'antagonist' \u2014 he is more accurately the victim, though defensible from narrator POV"
         }
       ],
-      "notes": "The critical flaw is a full identity swap between John Donaldson father and son \u2014 the son's profile contains the father's physical description, personality, quotes, and relationships, making the character guide unreliable for an audiobook narrator. Structure, summaries, and pronunciation are adequate but the character confusion undermines the core use case."
-    },
-    "cask_of_amontillado": {
-      "text": "cask_of_amontillado",
-      "scores": {
-        "structure": 10.0,
-        "characters": 8.0,
-        "profiles": 8.0,
-        "summaries": 9.0,
-        "pronunciation": 9.0,
-        "presentation": 9.0
-      },
-      "overall": 8.95,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "masque_of_red_death": {
-      "text": "masque_of_red_death",
-      "scores": {
-        "structure": 10.0,
-        "characters": 9.0,
-        "profiles": 8.0,
-        "summaries": 10.0,
-        "pronunciation": 9.0,
-        "presentation": 10.0
-      },
-      "overall": 9.35,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "berenice": {
-      "text": "berenice",
-      "scores": {
-        "structure": 10.0,
-        "characters": 9.0,
-        "profiles": 8.0,
-        "summaries": 9.0,
-        "pronunciation": 9.0,
-        "presentation": 9.0
-      },
-      "overall": 9.1,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "monkeys_paw": {
-      "text": "monkeys_paw",
-      "scores": {
-        "structure": 10.0,
-        "characters": 9.0,
-        "profiles": 8.0,
-        "summaries": 10.0,
-        "pronunciation": 9.0,
-        "presentation": 9.0
-      },
-      "overall": 9.2,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "gatsby": {
-      "text": "gatsby",
-      "scores": {
-        "structure": 9.5,
-        "characters": 9,
-        "profiles": 8,
-        "summaries": 9.5,
-        "pronunciation": 9,
-        "presentation": 9
-      },
-      "overall": 8.98,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "i_have_no_mouth": {
-      "text": "i_have_no_mouth",
-      "scores": {
-        "structure": 9.0,
-        "characters": 8.0,
-        "profiles": 8.0,
-        "summaries": 9.0,
-        "pronunciation": 9.0,
-        "presentation": 9.0
-      },
-      "overall": 8.8,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "frankenstein": {
-      "text": "frankenstein",
-      "scores": {
-        "structure": 8.0,
-        "characters": 8.0,
-        "profiles": 7.0,
-        "summaries": 8.0,
-        "pronunciation": 8.0,
-        "presentation": 9.0
-      },
-      "overall": 8.1,
-      "pass": false,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
+      "notes": "Real characters (Montresor, Fortunato, Luchresi) are well-identified with strong profiles and evidence, but the phantom 'The Amontillado' character is a significant false positive that drags down the characters score. Summaries and structure are excellent for this short story."
     },
     "gift_of_the_magi": {
       "text": "gift_of_the_magi",
       "scores": {
-        "structure": 10,
+        "structure": 8,
         "characters": 9,
         "profiles": 8,
-        "summaries": 9.5,
-        "pronunciation": 8,
+        "summaries": 9,
+        "pronunciation": 7,
+        "presentation": 7
+      },
+      "overall": 8.0,
+      "pass": false,
+      "issues": [
+        {
+          "category": "structure",
+          "severity": "MEDIUM",
+          "description": "Metadata title is 'O. Henry' (author) instead of 'The Gift of the Magi'; author field is null \u2014 title/author are swapped"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "HIGH",
+          "description": "Missing 'Magi' \u2014 the title word and a key thematic proper noun that narrators need guidance on"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "MEDIUM",
+          "description": "Missing 'Dillingham' \u2014 recurring proper noun for Jim's full name"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "LOW",
+          "description": "Phonetic spelling for 'appertaining' shows stress on PUR (uh-PUR-tay-ning) but primary stress should be on TAIN"
+        },
+        {
+          "category": "presentation",
+          "severity": "MEDIUM",
+          "description": "HTML title contains BOM character and shows author name instead of story title: '\ufeffO. Henry - Audiobook Prep Report'"
+        },
+        {
+          "category": "profiles",
+          "severity": "LOW",
+          "description": "Jim has null physical_description and empty appearance summary \u2014 text mentions he is 22 and wears a thin overcoat without gloves"
+        },
+        {
+          "category": "characters",
+          "severity": "LOW",
+          "description": "Sofronie canonical name missing 'Madame' title used consistently in the text"
+        }
+      ],
+      "notes": "Strong character extraction and summaries for this short story. Main gaps are in pronunciation (missing 'Magi' and 'Dillingham') and metadata (title/author swap causing presentation issues)."
+    },
+    "masque_of_red_death": {
+      "text": "masque_of_red_death",
+      "scores": {
+        "structure": 9,
+        "characters": 6,
+        "profiles": 8,
+        "summaries": 9,
+        "pronunciation": 7,
+        "presentation": 9
+      },
+      "overall": 8.0,
+      "pass": false,
+      "issues": [
+        {
+          "category": "characters",
+          "severity": "HIGH",
+          "description": "Red Death has bogus aliases 'the seven rooms' and 'the rooms' \u2014 these are physical locations, not character aliases"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "HIGH",
+          "description": "Prospero pronounced as 'pruh-SPAIR-oh' \u2014 should be 'PROS-peh-roh' (Italian origin, stress on first syllable)"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "MEDIUM",
+          "description": "cerements given as 'suh-REM-uhnts' \u2014 should be 'SEER-ments' (/\u02c8s\u026a\u0259rm\u0259nts/)"
+        },
+        {
+          "category": "summaries",
+          "severity": "LOW",
+          "description": "Narrative style incorrectly labeled 'first-person retrospective' \u2014 story is third-person omniscient"
+        },
+        {
+          "category": "characters",
+          "severity": "LOW",
+          "description": "Prince Prospero has no physical_description (minor \u2014 Poe provides minimal physical detail)"
+        }
+      ],
+      "notes": "Good overall analysis of a short story with strong summaries and presentation, but the Red Death's nonsensical room aliases and the mispronunciation of the title character's name are significant issues that would mislead a narrator."
+    },
+    "monkeys_paw": {
+      "text": "monkeys_paw",
+      "scores": {
+        "structure": 3,
+        "characters": 7,
+        "profiles": 5,
+        "summaries": 7,
+        "pronunciation": 7,
+        "presentation": 8
+      },
+      "overall": 6.17,
+      "pass": false,
+      "issues": [
+        {
+          "category": "structure",
+          "severity": "CRITICAL",
+          "description": "Story has 3 parts (I, II, III) but pipeline detected only 1 chapter with wrong title 'The Lady Of The Barge And Other Stories' (collection title, not story title)"
+        },
+        {
+          "category": "profiles",
+          "severity": "CRITICAL",
+          "description": "Sergeant-Major Morris relationships completely wrong: listed as husband of Mrs. White and father of Herbert White. Morris is an old friend/visitor, not family"
+        },
+        {
+          "category": "characters",
+          "severity": "MEDIUM",
+          "description": "'the knocking at the door' as symbolic antagonist is debatable; the monkey's paw itself is the antagonist. Missing the Maw and Meggins representative"
+        },
+        {
+          "category": "summaries",
+          "severity": "HIGH",
+          "description": "Only 1 summary due to structure failure; story's 3-part arc (wish/consequence/horror) collapsed into single block"
+        },
+        {
+          "category": "pronunciation",
+          "severity": "LOW",
+          "description": "Duplicate fakir/fakirs entries with inconsistent IPA; rubicund stress placement questionable"
+        },
+        {
+          "category": "profiles",
+          "severity": "MEDIUM",
+          "description": "Mrs. White relationship to Morris listed as 'wife' \u2014 relationship labels appear copy-pasted from the character's own identity rather than their relation to the target"
+        }
+      ],
+      "notes": "Structure detection completely failed \u2014 missed the story's 3 Roman-numeral parts and used the collection title instead. Relationship extraction has a systematic bug where characters' own roles (wife, father) are assigned as their relationship to unrelated characters."
+    },
+    "american_sir": {
+      "text": "american_sir",
+      "scores": {
+        "structure": 9,
+        "characters": 7,
+        "profiles": 7,
+        "summaries": 8.5,
+        "pronunciation": 8.5,
         "presentation": 8.5
       },
-      "overall": 9.0,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "a_camping_trip": {
-      "text": "a_camping_trip",
-      "scores": {
-        "structure": 10,
-        "characters": 9,
-        "profiles": 8,
-        "summaries": 10,
-        "pronunciation": 8.5,
-        "presentation": 9
-      },
-      "overall": 9.2,
-      "pass": true,
-      "issues": [],
-      "notes": "(historical baseline from checkpoints.json)",
-      "source": "historical"
-    },
-    "john_g": {
-      "text": "john_g",
-      "scores": {
-        "structure": 10,
-        "characters": 9,
-        "profiles": 8.5,
-        "summaries": 9,
-        "pronunciation": 8,
-        "presentation": 9
-      },
-      "overall": 8.9,
-      "pass": true,
+      "overall": 8.0,
+      "pass": false,
       "issues": [],
       "notes": "(historical baseline from checkpoints.json)",
       "source": "historical"
@@ -230,62 +316,77 @@
   },
   "column_stats": {
     "structure": {
-      "mean": 9.41,
-      "min": 7,
-      "max": 10.0,
-      "count": 11,
-      "failing_count": 1,
+      "mean": 7.57,
+      "min": 3,
+      "max": 9,
+      "count": 7,
+      "failing_count": 2,
       "failing_texts": [
-        "american_sir"
+        "a_camping_trip",
+        "monkeys_paw"
       ]
     },
     "characters": {
-      "mean": 8.36,
-      "min": 5,
-      "max": 9.0,
-      "count": 11,
-      "failing_count": 1,
+      "mean": 6.86,
+      "min": 6,
+      "max": 9,
+      "count": 7,
+      "failing_count": 6,
       "failing_texts": [
+        "a_camping_trip",
+        "berenice",
+        "cask_of_amontillado",
+        "masque_of_red_death",
+        "monkeys_paw",
         "american_sir"
       ]
     },
     "profiles": {
-      "mean": 7.68,
+      "mean": 7.0,
       "min": 5,
-      "max": 8.5,
-      "count": 11,
-      "failing_count": 2,
+      "max": 8,
+      "count": 7,
+      "failing_count": 4,
       "failing_texts": [
-        "american_sir",
-        "frankenstein"
+        "a_camping_trip",
+        "cask_of_amontillado",
+        "monkeys_paw",
+        "american_sir"
       ]
     },
     "summaries": {
-      "mean": 9.18,
-      "min": 8,
-      "max": 10.0,
-      "count": 11,
-      "failing_count": 0,
-      "failing_texts": []
-    },
-    "pronunciation": {
-      "mean": 8.5,
+      "mean": 8.64,
       "min": 7,
-      "max": 9.0,
-      "count": 11,
+      "max": 9,
+      "count": 7,
       "failing_count": 1,
       "failing_texts": [
-        "american_sir"
+        "monkeys_paw"
+      ]
+    },
+    "pronunciation": {
+      "mean": 7.21,
+      "min": 6,
+      "max": 8.5,
+      "count": 7,
+      "failing_count": 5,
+      "failing_texts": [
+        "berenice",
+        "cask_of_amontillado",
+        "gift_of_the_magi",
+        "masque_of_red_death",
+        "monkeys_paw"
       ]
     },
     "presentation": {
-      "mean": 8.86,
+      "mean": 7.93,
       "min": 7,
-      "max": 10.0,
-      "count": 11,
-      "failing_count": 1,
+      "max": 9,
+      "count": 7,
+      "failing_count": 2,
       "failing_texts": [
-        "american_sir"
+        "a_camping_trip",
+        "gift_of_the_magi"
       ]
     }
   }
