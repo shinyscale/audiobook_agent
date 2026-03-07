@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 18
-- **Phase:** awaiting_analysis
+- **Attempt:** 19
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -198,5 +198,12 @@ Fix approach:
   - Smoke test: PASS — substitution logic verified for all 4 field types
   - Modified: `src/analyzer.py` (new Step 6.9, lines ~2527-2561)
 
+## Pipeline Notes (Attempt 19)
+- "Narrator (from V2 pipeline): the narrator" — V2 still returns generic "the narrator"
+- "No definitive narrator identified from plot summary" — narrator_character_id likely still None
+- BLOCKED: 'the narrator' meta-reference blocked as alias for 'Ted' (expected)
+- Step 6.9 substitution should have replaced "the narrator" text in summaries/profiles
+- Output: ../output/i_have_no_mouth/analysis.json and report.html
+
 ## Next Action
-Set phase to awaiting_analysis — re-run pipeline to verify narrator substitution fixes plot summary, active_characters, and personality summary.
+Evaluate output to determine if Step 6.9 narrator substitution resolved plot summary, active_characters, and personality summary issues.
