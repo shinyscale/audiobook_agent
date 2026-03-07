@@ -859,7 +859,7 @@ class OutputCharacterCorrector:
             self._add_text_window_cooccurrence(characters, source_text, window_chars=text_window)
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
-        self.verify_relationships_from_text(characters, source_text)
+        self.verify_relationships_from_text(characters, source_text, chapter_summaries=chapter_summaries)
         self.reject_unfounded_familial_labels(characters, source_text)
         self.reject_unfounded_romantic_labels(characters, source_text)
         # force_parenthetical_relationship_labels overrides any LLM-generated label
@@ -1141,18 +1141,21 @@ class OutputCharacterCorrector:
                 if len(shared) < min_shared:
                     continue
 
-                # Add "associated" bidirectionally.
+                # Add "colleague" bidirectionally — a more informative fallback than
+                # "associated" (which clean_unknown_relationships removes). "colleague"
+                # is a symmetric label appropriate for any pair that genuinely shares
+                # narrative space. It survives downstream cleanup steps.
                 # Write directly to char.relationships (not a temp 'or {}' copy) so that
                 # characters with an empty relationships dict are correctly updated.
                 if not isinstance(getattr(char_a, 'relationships', None), dict):
                     char_a.relationships = {}
                 if not isinstance(getattr(char_b, 'relationships', None), dict):
                     char_b.relationships = {}
-                char_a.relationships[char_b.canonical_name] = "associated"
-                char_b.relationships[char_a.canonical_name] = "associated"
+                char_a.relationships[char_b.canonical_name] = "colleague"
+                char_b.relationships[char_a.canonical_name] = "colleague"
                 logger.info(
                     f"Co-occurrence relationship: '{char_a.canonical_name}' ↔ "
-                    f"'{char_b.canonical_name}': 'associated' ({len(shared)} shared summaries)"
+                    f"'{char_b.canonical_name}': 'colleague' ({len(shared)} shared summaries)"
                 )
 
     def enrich_zero_relationships_from_summaries(self, characters, chapter_summaries: list) -> None:
@@ -1775,7 +1778,9 @@ class OutputCharacterCorrector:
                         f"'{char.canonical_name}' → '{other_name}' = '{rel_desc}' → 'unknown'"
                     )
 
-    def verify_relationships_from_text(self, characters, source_text: str) -> None:
+    def verify_relationships_from_text(
+        self, characters, source_text: str, chapter_summaries: list = None
+    ) -> None:
         """Override LLM relationships with text-evidenced terms.
 
         For each character pair, searches source text for explicit relationship
@@ -1784,6 +1789,11 @@ class OutputCharacterCorrector:
         one, the LLM value is overridden. When the LLM claims a family
         relationship but the characters never co-appear, it is downgraded
         to "acquaintance".
+
+        When chapter_summaries is provided, pairs that co-appear in any chapter
+        summary are protected from downgrade — the summary co-appearance is
+        sufficient evidence that the relationship is real, even if the characters
+        are too far apart in the source text for the 500-char window to catch them.
         """
         if not source_text:
             return
@@ -1791,6 +1801,29 @@ class OutputCharacterCorrector:
         family_set = set(FAMILY_TERMS)
         name_patterns = _build_name_patterns(characters)
         co_window = 500
+
+        # Pre-build summary-evidenced pair set to protect relationships from
+        # erroneous downgrade when characters appear together in summaries but
+        # are far apart in the raw source text (e.g., > 500 chars between mentions).
+        _summary_pairs: set = set()
+        if chapter_summaries:
+            _sp = _build_name_patterns(characters)
+            _presence: dict = {}
+            for char in characters:
+                pat = _sp.get(char.canonical_name)
+                pres: set = set()
+                if pat:
+                    for idx, smry in enumerate(chapter_summaries):
+                        if smry and pat.search(smry):
+                            pres.add(idx)
+                _presence[char.canonical_name] = pres
+            for _i, _ca in enumerate(characters):
+                for _j, _cb in enumerate(characters):
+                    if _j <= _i:
+                        continue
+                    if _presence.get(_ca.canonical_name, set()) & _presence.get(_cb.canonical_name, set()):
+                        _summary_pairs.add((_ca.canonical_name, _cb.canonical_name))
+                        _summary_pairs.add((_cb.canonical_name, _ca.canonical_name))
 
         for char in characters:
             if not char.relationships:
@@ -1912,11 +1945,20 @@ class OutputCharacterCorrector:
                         char.relationships[other_key] = "acquaintance"
                 elif not is_family and comention_count == 0 and cur_lower not in _generic_labels:
                     # Specific non-family label between characters with zero raw-text co-occurrence.
-                    logger.info(
-                        f"Hallucinated specific rel downgraded (zero co-occurrence): "
-                        f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'associated'"
-                    )
-                    char.relationships[other_key] = "associated"
+                    # Exception: if both characters appear in any shared chapter summary, the
+                    # relationship is evidenced even if the raw text window is too small to
+                    # detect them (e.g., characters 5000+ chars apart in a short story).
+                    if (char.canonical_name, other_key) in _summary_pairs:
+                        logger.debug(
+                            f"Keeping '{cur}' (summary co-occurrence evidence): "
+                            f"'{char.canonical_name}' → '{other_key}'"
+                        )
+                    else:
+                        logger.info(
+                            f"Hallucinated specific rel downgraded (zero co-occurrence): "
+                            f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'associated'"
+                        )
+                        char.relationships[other_key] = "associated"
 
     def clean_plot_summary_personality(self, characters, source_text: str = "") -> None:
         """Replace personality.summary that narrates other characters' actions.
