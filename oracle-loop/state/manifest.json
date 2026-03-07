@@ -50,7 +50,10 @@
       "name": "american_sir",
       "file": "Test_Texts/American Sir.txt",
       "complete": false,
-      "attempts": 17
+      "attempts": 26,
+      "final_score": 6.55,
+      "skipped": true,
+      "skip_reason": "Architecturally intractable same-name disambiguation (father/son both named John Donaldson) after 26 attempts. Score oscillated 5.8-8.0, never stable above threshold."
     },
     {
       "name": "john_g",

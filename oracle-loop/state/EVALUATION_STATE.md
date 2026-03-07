@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 26
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -16,63 +16,59 @@
 - Character Extraction: 5/10 ✗ (FAILING)
   - Completeness: 6/10
   - Identity Resolution: 4/10
-  - Alias Grouping: 5/10
-- Character Profiles: 5.5/10 ✗ (FAILING)
+  - Alias Grouping: 5.5/10
+- Character Profiles: 5/10 ✗ (FAILING)
 - Chapter Summaries: 5/10 ✗ (FAILING)
 - Pronunciation Guide: 9/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.6/10** (reference only, from attempt 25)
+- **Overall: 6.55/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
 
 ## What Changed in Attempt 26
 
-**Comma alias fix:** Added universal invariant to `verify_aliases()` — aliases containing commas are blocked as dialogue phrases, not character names. Exception: honorific suffixes (Jr., Sr., II, III, IV). This prevents "American, sir" from surviving as an alias even when the canonical-name comma filter already blocked it from becoming a standalone character.
-
-## Pipeline Notes (Attempt 26)
-- Analysis completed in 15m 48s
-- 4 characters found: Johnny (2 mentions), John (the boy) (70 mentions), Uncle Bill (18 mentions), Ted Frith (5 mentions)
-- "American, sir" alias appears BLOCKED by the comma filter in verify_aliases (success)
-- Narrator: "Johnny" detected as narrator (2 mentions) — 5.8.5 post-guard reset it but summary-based narrator detection later overrode it. Uncle Bill narrator heuristic from attempt 25 may have been bypassed.
-- Father/son still merged (John the boy = 70 mentions single entity)
-- Joe Barron still missing from character list
+Comma alias fix worked — "American, sir" no longer appears as an alias. However:
+- Narrator regressed: Johnny (2 mentions) picked as narrator instead of Uncle Bill (18 mentions)
+- Father/son still merged into single "John (the boy)" entity
+- Summary factual errors persist (Uncle Bill on battlefield, wrong character says "American, sir")
+- Score unchanged from baseline (6.55)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 1. **Father/son "John Donaldson" merged into one entity** [Identity Resolution]
-   - Problem: "John (the boy)" (70 mentions) combines father AND son. Two distinct John Donaldsons: the father (embezzler who faked death, stretcher-bearer who dies) and the son (ambulance driver, Uncle Bill's ward).
-   - This has been intractable for 25 attempts. The split heuristics fire ~40% of runs stochastically.
+   - Problem: "John (the boy)" (70 mentions) combines father AND son. Two distinct characters with the same name.
+   - This has been intractable for 26 attempts. Split heuristics fire ~40% of runs stochastically.
    - Location: `src/pipeline/character_extraction_v2/main_cast.py` (STEP 3.95b/3.95c)
    - **ARCHITECTURALLY INTRACTABLE** with current post-extraction heuristics.
 
 2. **Summary has major factual errors** [Chapter Summaries]
-   - "deceased brother John's" — John is the boy's FATHER (and Uncle Bill's cousin/nephew, not brother)
-   - "the narrator finds his uncle Bill dying on a battlefield" — COMPLETELY WRONG. Uncle Bill is the frame narrator sitting at home in his den. He is NOT on the battlefield.
-   - "Bill revives to declare 'American, sir' before dying" — WRONG. The father (John Donaldson Sr.) says "American, sir" before dying, not Uncle Bill.
-   - Root cause: LLM conflates the frame narrative (Uncle Bill at home telling the story) with the embedded war narrative (the boy's experience). The character merge compounds this.
+   - "Uncle Bill, mortally wounded in the same battlefield" — WRONG. Uncle Bill is the frame narrator at home.
+   - "as he dies, he sits up suddenly and proclaims 'American, sir'" — WRONG. The father says this, not Uncle Bill.
+   - Root cause: LLM conflates frame narrative with embedded war narrative. Character merge compounds this.
 
 ### HIGH
-3. **Johnny is a fragment, not a separate character** [Identity Resolution]
-   - "Johnny" (2 mentions) is Ted Frith's nickname for the boy. Should be an alias of "John (the boy)", not a separate character.
-   - STEP 3.97 should handle this (NICKNAME_TO_FORMAL + STANDARD_DIMINUTIVES maps "johnny"→"john"), but it's not firing.
+3. **Narrator regression: "Johnny" (2 mentions) assigned as narrator** [Identity Resolution]
+   - Was FIXED in attempt 25 (Uncle Bill correctly selected). Regressed in attempt 26.
+   - 5.8.5 post-guard resets narrator, but summary-based narrator detection overrides and picks "Johnny"
 
-4. **Narrator regression: "Johnny" (2 mentions) assigned as narrator**
-   - 5.8.5 post-guard reset the narrator (correctly), but a later summary-based narrator detection step overrides it and picks "Johnny"
-   - Uncle Bill (18 mentions) should be the frame narrator
-   - This is a regression from attempt 25 fix OR the summary-based step runs after and contradicts the heuristic reset
+4. **Johnny is a fragment, not a separate character** [Identity Resolution]
+   - "Johnny" (2 mentions) is Ted Frith's nickname for the boy. Should be alias of "John (the boy)".
+   - STEP 3.97 should handle this (NICKNAME_TO_FORMAL maps "johnny"->"john") but isn't firing.
 
-5. **All character summaries are null** [Character Profiles]
-   - `appearance.summary` is null for most characters
+5. **Profile misattribution** [Character Profiles]
+   - Johnny's appearance ("elderly, grizzled, small man") is Uncle Bill's description
+   - Uncle Bill's appearance ("tall, dark-skinned, shabby") is likely the father's description
+   - Root cause: character merge + wrong narrator assignment cascades into wrong profile attribution
 
 ### MEDIUM
 6. **Joe Barron missing** [Completeness]
-
-7. **Incomplete relationships** [Character Profiles]
+7. **Uncle Bill has no relationships listed** [Character Profiles]
+8. **Johnny<->John listed as "cousin" — wrong** [Character Profiles]
 
 ### LOW
-8. **"Bersagliari" spelling** [Pronunciation]
+9. **"Bersagliari" spelling** [Pronunciation] — source text issue, not pipeline
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -102,7 +98,7 @@
 | 23 | 6.3 | -0.25 | STEP 3.95b fixes no effect |
 | 24 | 6.4 | -0.15 | "American, sir" FIXED, narrator/split broken |
 | 25 | 6.6 | +0.05 | Narrator FIXED (Uncle Bill). Split/summary still broken. |
-| 26 | TBD | TBD | Comma-in-alias filter for verify_aliases; narrator regression observed |
+| 26 | 6.55 | 0 | Comma alias fix OK. Narrator REGRESSED. Score at baseline. |
 
 ## Fix History
 - Attempt 22: STEP 3.95c added (kinship-fragment split). HTML BOM/title fix. 3.95c didn't fire.
@@ -110,7 +106,7 @@
 - Attempt 24 (Fix 1): `main_cast.py:_parse_pass1_results` + `_parse_profiles` — reject canonical names with commas. WORKED.
 - Attempt 24 (Fix 2): `characters.py:_heuristic_narrator_from_mention_count` — exclude <=2-mention candidates. Partial.
 - Attempt 25: `characters.py:_heuristic_narrator_from_mention_count` — switched from `min` to `max` mention count. **WORKED** — Uncle Bill(19) correctly selected as narrator over "the boy"(13).
-- Attempt 26: `main_cast.py:verify_aliases()` — added comma-in-alias check. Aliases containing commas (except Jr./Sr./II/III/IV suffixes) are blocked as dialogue phrases. Targets "American, sir" alias of John (the boy).
+- Attempt 26: `main_cast.py:verify_aliases()` — added comma-in-alias check. Aliases containing commas (except Jr./Sr./II/III/IV suffixes) are blocked. Narrator regressed to Johnny despite attempt 25 fix.
 
 ## Modification History
 
@@ -125,27 +121,27 @@
 | 24 | "American, sir" hallucination | main_cast.py (comma filter) | **Fixed** |
 | 24 | Narrator low-mention guard | characters.py (heuristic narrator) | Partial |
 | 25 | Narrator heuristic min->max | characters.py (heuristic narrator) | **Fixed** |
-| 26 | "American, sir" alias | main_cast.py (verify_aliases comma check) | TBD |
+| 26 | "American, sir" alias | main_cast.py (verify_aliases comma check) | Fixed (no regression) |
 
 ## ESCALATION STATUS
 
-**After 26 attempts, this text remains at ~6.6/10. The two fixable improvements achieved (comma filter, narrator heuristic) brought modest gains but the score remains well below 8.0.**
+**After 26 attempts, this text remains at 6.55/10 (equal to baseline). The score has oscillated between 5.8-8.0 across all attempts, hitting 8.0 only ONCE (attempt 9, stochastically).**
 
 **Remaining blockers are architecturally intractable:**
 
-1. **Father/son same-name merge** (Issue #1) — Stochastic, depends on LLM output variance. Post-extraction heuristics cannot reliably separate two characters with the exact same name.
+1. **Father/son same-name merge** (Issue #1) — Stochastic, depends on LLM output variance. Post-extraction heuristics cannot reliably separate two characters with the exact same name. This is a fundamental limitation of the current architecture.
 
-2. **Summary factual errors** (Issue #2) — The LLM conflates the frame narrator (Uncle Bill at home) with the embedded war narrative. Compound error: character merge + nested narrative structure.
+2. **Summary factual errors** (Issue #2) — LLM conflates frame narrator (Uncle Bill at home) with embedded war narrative. Compound error from character merge + nested narrative structure.
 
-3. **Johnny fragment** (Issue #3) — STEP 3.97 should fix this but isn't firing. Root cause unclear.
+3. **Narrator regression** (Issue #3) — Attempt 25 fix worked but attempt 26 regressed. The summary-based narrator detection overrides the heuristic fix non-deterministically.
 
-4. **Narrator re-detection regression** (Issue #4) — Summary-based narrator detection overrides heuristic reset, picks 2-mention "Johnny" instead of 18-mention Uncle Bill.
+4. **Johnny fragment** (Issue #4) — STEP 3.97 should merge this but isn't firing. Root cause unclear across multiple attempts.
 
-**Recommendation: SKIP this text after attempt 26 evaluation if score does not reach 8.0.**
+**Recommendation: SKIP this text. 26 attempts without stable convergence toward 8.0. The same-name disambiguation problem requires architectural changes (scene-level character tracking, nested narrative awareness) beyond what incremental fixes can achieve.**
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Config: max_tokens=8192, context_length=32768, think_mode=false
 
 ## Next Action
-Evaluate attempt 26 output.
+Recommend skipping american_sir and advancing to next text in manifest. Score is at baseline after 26 attempts with no stable path to 8.0.
