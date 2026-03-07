@@ -20,13 +20,37 @@
 | (none yet) | - | - | - |
 
 ## Notes
-Analysis complete. Pipeline ran successfully.
+Analysis complete (89m 16s, 303 LLM calls, 643K tokens).
 
-### Pipeline Observations
-- Structure: "LLM marker proposer returned non-list: <class 'dict'>" warnings (known issue with qwen3-next model)
-- Character extraction: Alias blocking working correctly (comma phrases, hallucinated aliases, cross-character conflicts all blocked)
-- Notable alias blocks: "The green light" aliases blocked (dock/bay core noun mismatch), "Dan Cody's yacht" blocked as cross-character, comma-phrase aliases for George Wilson blocked
-- Profiling: Secondary LLM call for Doctor T. J. Eckleburg (empty relationships after filtering); Gardener/Butler/Chauffeur had no passages
-- Contradictory relationships removed: Henry C. Gatz↔James Gatz (both labeled parent), Dan Cody↔James Gatz (both labeled mentor)
-- Pronunciation: Several json_mode validation errors (model preamble/refusals); LLM validation failed (got dict), kept batch candidates
-- Gutenberg boilerplate removed: 19320 chars (6.7%)
+### Pipeline Stats
+- 51,257 words extracted; 9 chapters detected (correct)
+- 32 characters found (24 from extraction + 12 added by F6)
+- 150 pronunciation flags
+
+### Known Issues (Pre-Evaluation)
+
+**CRITICAL - False narrator:**
+- V2 pipeline identified `Doctor T. J. Eckleburg` as narrator (a billboard advertisement character, NOT a person)
+- Nick Carraway is the actual first-person narrator of The Great Gatsby
+- Line 129: "Narrator (from V2 pipeline): Doctor T. J. Eckleburg"
+- Line 137: "Narrator already identified by V2 pipeline: Doctor T. J. Eckleburg (skipping re-detection)"
+- Line 145: "No definitive narrator identified from plot summary" (finalizing step also failed)
+
+**SIGNIFICANT - James Gatz alias blocked:**
+- Line 26: "BLOCKED alias: 'James Gatz' and 'Jay Gatsby' appear in summaries but NEVER co-occur in the same chapter and have no name overlap"
+- James Gatz IS Jay Gatsby's real birth name — this is a key identity reveal in the novel
+- Co-occurrence check blocks it because Gatsby's real name is only revealed in one chapter (Ch 6)
+
+**MINOR - Odd alias for Tom Buchanan:**
+- "the Buchanans' house" listed as alias for Tom Buchanan (should not be an alias)
+
+**MINOR - Pronunciation json_mode errors:**
+- Model refused to invent IPA for obscure proper nouns (Croirier, Vladmir, Chrysties)
+- 116 of 150 flags have MEDIUM confidence (model preamble/refusal in json_mode validation)
+
+### Character Summary (key characters)
+- Nick Carraway (aka Nick, Carraway) - 34 mentions — narrator, but NOT tagged as such
+- Daisy Buchanan (aka Daisy, Daisy Fay) - 208 mentions
+- Tom Buchanan (aka Tom, the Buchanans' house) - 198 mentions
+- Jordan Baker (aka Jordan, Baker) - 101 mentions
+- Myrtle Wilson (aka Myrtle, the woman) - 30 mentions
