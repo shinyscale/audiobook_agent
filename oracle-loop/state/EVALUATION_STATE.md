@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 
 ## Latest Scores
@@ -136,21 +136,17 @@
 | 3 | Pronunciation FPs | cmu_proposer.py (7 more words whitelisted) | Pending |
 
 ## Next Action (Attempt 3)
-Re-run analysis to verify:
-1. Duplicate Ted resolved (expect 6 characters, one Ted as narrator)
-2. AM labeled "antagonist" (via post-profile adversarial-relationship detection)
-3. Fewer pronunciation false positives
-
-**Phase:** awaiting_analysis
+Awaiting evaluation.
 
 ## Output Files
 - HTML: ../output/i_have_no_mouth/report.html
 - JSON: ../output/i_have_no_mouth/analysis.json
 
 ## Pipeline Notes
-- Attempt 2 analysis completed successfully in 22m 21s
+- Attempt 3 analysis completed successfully in 21m 35s
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (all agents)
 - Competitive mode: none (baseline behavior)
-- Ted detected as narrator (first-person) — vocative fix worked
-- 7 characters extracted (was 9 in attempt 1, 8 after Benny dedup but now +1 from Ted duplicate)
-- AM: 77 mentions, Benny: 35, Ellen: 30, Gorrister: 29, Nimdok: 17, Ted: 5+5
+- Ted detected as narrator (first-person)
+- 7 characters extracted: AM (77), Ted (5), Ellen (30), Nimdok (17), Gorrister (29), +2 more
+- 16 pronunciation flags (6 homograph, 6 unknown, 4 proper_noun)
+- Fixes pending verification: duplicate Ted guard, AM→antagonist role correction, relationship vocab, pronunciation whitelist
