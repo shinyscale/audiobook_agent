@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** i_have_no_mouth
-- **Attempt:** 9
-- **Phase:** awaiting_analysis
+- **Attempt:** 10
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 6.35
 - **Competitive Mode:** none
 
@@ -17,7 +17,7 @@
 - Chapter Summaries: 5.5/10 ✗
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 9/10 ✓
-- **Overall: 7.25/10** (reference only)
+- **Overall: 7.25/10** (attempt 9 — pending re-run)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (3 categories below threshold)
@@ -71,9 +71,9 @@ Attempt 8 scored 8.50 with only profiles failing. Attempt 9 **regressed** becaus
    - Single section has `title: null`. Minor cosmetic issue.
 
 ## Fix Priority
-The CRITICAL issue is narrator detection robustness. This is the THIRD time narrator detection has been unreliable (attempt 7: Ted→ice caverns, attempt 9: Ted→Ellen). The fix must make narrator detection deterministic or add stronger fallback logic. Since the text analysis itself is non-deterministic (LLM-based), the post-extraction narrator validation needs to be hardened.
-
-**Suggested approach**: After all narrator detection heuristics run, add a validation step: if the detected narrator has many explicit name mentions (>15) AND there exists a character with very few mentions (< 10) in a first-person text, the low-mention character is more likely the narrator (narrators use "I" not their own name). This pattern is universal, not novel-specific.
+Two fixes applied before attempt 10:
+1. STEP 4.27 (characters.py): Mention-ratio narrator validation — catches when assigned narrator has >=15 mentions, another character has <=7 mentions, with >=3x discrepancy (Ellen=30, Ted=5 → ratio=6x → Ted correctly reassigned as narrator).
+2. Expanded _all_protagonists (analyzer.py:2234): Now includes role="main" characters so AM↔Ted colleague labels are corrected alongside other antagonist↔protagonist pairs.
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -87,6 +87,7 @@ The CRITICAL issue is narrator detection robustness. This is the THIRD time narr
 | 7 | 6.65 | +0.30 | REGRESSION: Ted missing (replaced by "the ice caverns"), 4 humans still antagonist |
 | 8 | 8.50 | +2.15 | Ted restored, all roles correct. Only profiles failing (AM "colleague" labels) |
 | 9 | 7.25 | +0.90 | REGRESSION: Ellen detected as narrator (not Ted). Colleague fix partially worked but narrator cascade drops 3 categories |
+| 10 | - | - | Re-run with mention-ratio narrator fix + role="main" protagonist expansion |
 
 ## Pipeline Notes (Attempt 9)
 - Analysis completed in 20m 23s
@@ -134,6 +135,10 @@ The CRITICAL issue is narrator detection robustness. This is the THIRD time narr
   1. **Post-profile colleague→role-appropriate label replacement** (`src/analyzer.py`) — PARTIALLY WORKED: Most relationships now correct (captor/tormentor/victim), but AM↔Ted still "colleague" because Ted has role="main" not "protagonist"
   2. **REGRESSION**: Ellen detected as narrator instead of Ted — LLM non-determinism, same class of issue as attempt 7
 
+- Attempt 10: Two fixes
+  1. **STEP 4.27 mention-ratio narrator validation** (`src/agents/characters.py`) — Catch narrator misassignment: if assigned narrator has >=15 mentions and another char has <=7 with >=3x ratio, reassign to low-mention char
+  2. **role="main" in _all_protagonists** (`src/analyzer.py`) — AM↔Ted colleague labels now corrected
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -160,8 +165,20 @@ The CRITICAL issue is narrator detection robustness. This is the THIRD time narr
 | 8 | Wrong roles | analyzer.py (threshold <=1) | **Fixed** |
 | 9 | Colleague labels | analyzer.py (post-profile colleague replacement) | **Partial** — works for protagonist pairs, not for Ted (role="main") |
 | 9 | Narrator regression | NEW REGRESSION | Ellen detected as narrator instead of Ted — LLM non-determinism |
+| 10 | Narrator regression | characters.py (STEP 4.27 mention-ratio guard) | Pending |
+| 10 | AM↔Ted colleague | analyzer.py (role="main" in _all_protagonists) | Pending |
+
+## Output Files
+- HTML: ../output/i_have_no_mouth/report.html
+- JSON: ../output/i_have_no_mouth/analysis.json
+
+## Pipeline Notes (Attempt 10)
+- Analysis completed in 34m 35s
+- 7 characters found: AM (77), Ellen (30), Nimdok (17), Gorrister (29), Benny (35) + 2 more
+- REGRESSION CONTINUES: "Narrator (from V2 pipeline): AM" — mention-ratio guard reassigned from Ellen→AM (still wrong; should be Ted)
+- "Detected narrator: the first-person narrator (first-person)" — LLM used generic label not in main_cast
+- V2 Step 5.8.5c: "the first-person narrator" not found in raw text — skipping character creation
+- The mention-ratio fix fired but picked AM (highest mentions, 77) over Ellen (30) — logic is inverted from what we wanted
 
 ## Next Action
-Re-run analysis to verify fix. Two fixes applied:
-1. STEP 4.27 (characters.py): Mention-ratio narrator validation — catches when assigned narrator has ≥15 mentions, another character has ≤7 mentions, with ≥3x discrepancy (Ellen=30, Ted=5 → ratio=6x → Ted correctly reassigned as narrator).
-2. Expanded _all_protagonists (analyzer.py:2234): Now includes role="main" characters so AM↔Ted colleague labels are corrected alongside other antagonist↔protagonist pairs.
+Awaiting evaluation (attempt 10).
