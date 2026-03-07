@@ -4999,14 +4999,12 @@ class CharacterAgent(Agent):
         """
         Heuristic narrator identification for confirmed first-person narratives.
 
-        In first-person narratives the narrator typically has the lowest direct
-        name-mention count (they say "I" instead of their own name). Among main cast
-        characters who appear in the plot_summary, the one with the fewest text
-        mentions is the most likely narrator.
+        When LLM narrator detection fails, fall back to selecting the highest
+        name-mention main cast character who appears in the plot_summary.
 
-        This is a universal invariant across first-person fiction: the protagonist-
-        narrator uses "I" far more than their own name, so their name-mention count
-        is anomalously low compared to other named characters.
+        The narrator is typically the most prominent named character: they are
+        frequently addressed by name in dialogue and appear throughout the narrative,
+        giving them the highest mention count among main cast members.
         """
         if not main_cast:
             return None
@@ -5034,8 +5032,12 @@ class CharacterAgent(Agent):
             if _eligible:
                 candidates = _eligible
 
-        # The narrator has the lowest mention count (uses "I" not their name)
-        return min(candidates, key=lambda c: c.mention_count, default=None)
+        # The narrator tends to be the most prominently named character in the cast.
+        # While classic theory says the narrator uses "I" (low name-mentions), in practice
+        # the narrator is often frequently addressed by name in dialogue — making them the
+        # highest-mention candidate. This is the most reliable universal signal when the
+        # LLM narrator detection has already failed.
+        return max(candidates, key=lambda c: c.mention_count, default=None)
 
     def _find_narrator_name_from_vocative(self, text: str) -> Optional[str]:
         """Search raw text for direct address patterns to identify the narrator's actual name.

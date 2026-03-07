@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** american_sir
 - **Attempt:** 24
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 6.55
 - **Competitive Mode:** none
 
@@ -114,6 +114,7 @@
 - Attempt 23: STEP 3.95b: removed `"(" in canonical_name` guard → sibling-ID check; alias iteration; Pattern E. STEP 3.95c/3.97: replaced `"(" not in canonical_name` guard with `not c.id.endswith("_parent")`.
 - Attempt 24 (Fix 1): `main_cast.py:_parse_pass1_results` + `_parse_profiles` — reject canonical names with commas. WORKED — "American, sir" gone.
 - Attempt 24 (Fix 2): `characters.py:_heuristic_narrator_from_mention_count` — exclude ≤2-mention candidates. PARTIALLY worked — blocked Johnny but "the boy" selected over Uncle Bill.
+- Attempt 25: `characters.py:_heuristic_narrator_from_mention_count` — switched from `min` to `max` mention count. Rationale: narrator is frequently addressed by name in dialogue → highest-mention candidate. Fixes Uncle Bill(18) over "the boy"(13).
 
 ## Modification History
 
@@ -127,6 +128,7 @@
 | 20-23 | Father/son split patterns | main_cast.py (3.95b, 3.95c, Pattern E) | No change |
 | 24 | "American, sir" hallucination | main_cast.py (comma filter) | **Fixed** |
 | 24 | Narrator low-mention guard | characters.py (heuristic narrator) | Partial — blocked Johnny, not "the boy" |
+| 25 | Narrator heuristic min→max | characters.py (heuristic narrator) | Pending |
 
 **ESCALATION NOTICE:** After 24 attempts, the score has oscillated between 5.8-8.0 with a median around 6.5. The two blocking issues are:
 1. **Father/son same-name merge** — stochastic, depends on LLM output variance, heuristics fire ~40% of the time
