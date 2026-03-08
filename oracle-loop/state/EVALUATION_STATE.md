@@ -2,13 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 12
-- **Phase:** awaiting_analysis
+- **Attempt:** 13
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+- Timestamped: output/gatsby_20260308_151658/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -251,5 +252,14 @@
 - **Fix KK: F6 single-word name component check** — Added to `_is_likely_alias_of_existing()` in analyzer.py. Single-word candidates (e.g., "Tom") that match a word in an existing multi-word character's canonical name (e.g., "Tom Buchanan") are now correctly identified as existing characters and NOT added as duplicates.
 - **Fix LL: Step 4.5.9 post-extraction word-subset dedup** — Added to analyzer.py between Step 4.5.5 and Step 4.6. After all alias enrichment is complete, merges any character whose canonical words are a strict subset of another character's canonical or alias words. "Wolfshiem" canonical {"wolfshiem"} ⊆ alias "Meyer Wolfshiem" {"meyer","wolfshiem"} → merged. Safety net for any remaining V2 pipeline dedup failures.
 
+## Pipeline Notes (Attempt 13)
+- Runtime: 89m 1s
+- 34 characters found (was higher with duplicate "Tom")
+- Fix KK confirmed: "Tom Buchanan (aka Tom) - 196 mentions" — Tom is now an alias, not a separate character
+- Fix LL (word-subset dedup for Wolfsheim): needs evaluation to confirm
+- Mr. McKee still low confidence (0.30) — JSON parse failure (same as attempt 12)
+- Gatsby→Henry C. Gatz "parent" contradiction removed by post_corrections
+- Pronunciation: 149 flags, some LLM validation errors (non-standard words, dict vs array)
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate output to verify Fix KK (Tom dedup) and Fix LL (Wolfsheim dedup) effectiveness.
