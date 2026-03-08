@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 10
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -241,5 +241,13 @@
 - **Fix:** Rule 0.5c — if alias contains possessive form of any word from canonical name AND the last word is not part of canonical name, block (universal linguistic invariant)
 - **Files:** `src/pipeline/character_extraction_v2/main_cast.py` (before Rule 1)
 
+## Pipeline Notes (Attempt 10)
+- Analysis completed in 91m 28s
+- **WARNING: Narrator detected as "Jay Gatsby" (should be Nick Carraway)** — possible regression
+- Wilson profile failed JSON parse (low confidence 0.30)
+- James Gatz alias still blocked (never co-occurs with Jay Gatsby in same chapter per Rule 2a)
+- 24 characters found (23 + 4 from F6 reconciliation)
+- Output: `../output/gatsby/analysis.json`, `../output/gatsby/report.html`
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate attempt 10 output.
