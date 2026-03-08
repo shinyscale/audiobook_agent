@@ -110,14 +110,14 @@
       }
     },
     "gatsby": {
-      "commit": "c1f5b7795834342cc260b4747ee461e015c1502e",
-      "score": 5.90,
+      "commit": "fbdb622ebb200cbc5ff0dd76284b60103e0aabd5",
+      "score": 7.20,
       "category_scores": {
         "structure": 10,
-        "characters": 4.5,
-        "profiles": 2,
-        "summaries": 8,
-        "pronunciation": 7,
+        "characters": 5,
+        "profiles": 4,
+        "summaries": 8.5,
+        "pronunciation": 8,
         "presentation": 8.5
       }
     }
