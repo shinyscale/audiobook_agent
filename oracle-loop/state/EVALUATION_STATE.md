@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 8
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -233,4 +233,36 @@
 7. **Missing physical descriptions** — Gatsby and Myrtle have clear textual descriptions that the profiler missed. Nick as narrator has less, but still has some. Worth ~0.5 points if fixed.
 
 ## Next Action
-Run PROMPT_fix.md to address green light/owl eyes split (Critical #1) and reciprocal spouse validation (Critical #2) as top priorities.
+Re-run analysis to verify fixes.
+
+## Attempt 9 Fixes
+
+### Fix V: Rule 0.5b — Person/non-person descriptor mismatch in verify_aliases — PENDING
+- Root cause: "The green light" (is_symbolic=False due to LLM capitalization) had no protection against "The owl-eyed man" alias (person noun "man" vs non-person "light")
+- Fix: Added Rule 0.5b in verify_aliases() that blocks "the X" → "the Y" aliases when exactly one of X/Y is a person noun (man, woman, boy, girl, person, figure, stranger, visitor, creature, being, fellow, ghost, spirit, phantom, specter, soul, voice)
+- Location: src/pipeline/character_extraction_v2/main_cast.py:verify_aliases() after Rule 0.5
+- Universal: any book where a non-person entity gets person-type aliases benefits
+
+### Fix W: Reciprocal spouse validation in _enforce_one_spouse_invariant — PENDING
+- Root cause: 6 wrong spousal labels survived because the one-spouse invariant only removes EXTRA spouses (>1), but each wrong character had exactly 1 (wrong) spouse
+- Fix: After the multi-spouse check, added a reciprocal validation: for each A→B spousal label, verify B→A is also spousal. If not reciprocated, downgrade to "associated"
+- Expected to fix: Nick→Tom, The green light→Tom, McKee→Wilson, Sloane→Tom (4 of 6)
+- Expected to keep: Tom↔Daisy, George↔Myrtle (reciprocal = true couples)
+- May NOT fix: Gatsby↔Jordan (both wrong, but mutual → both survive)
+- Location: src/pipeline/character_profiling/post_corrections.py:_enforce_one_spouse_invariant()
+
+### Fix X: Fuzzy matching in Step 5.9.9 for Wolfsheim dedup — PENDING
+- Root cause: Step 5.9.9 only used exact string matching; "Meyer Wolfshiem" (supporting) didn't exactly match alias "Meyer Wolfsheim" (ie/ei transposition)
+- Fix: Added fuzzy alias and fuzzy canonical matching using names_similar() after the exact checks
+- Location: src/agents/characters.py STEP 5.9.9
+
+### Fix Y: F6 proper-noun filter for occupational roles — PENDING
+- Root cause: "gardener", "butler", "chauffeur" (all lowercase) were created as F6 characters
+- Fix: Block F6 candidates with no proper nouns (no capitalized content word). Universal: named characters always have proper nouns; role descriptors don't.
+- Applied to both F6 (active_characters) and F6b (mentioned_characters) paths
+- Location: src/analyzer.py F6 and F6b loops
+
+### Fix Z: "Daisy Fay" maiden-name matching in F6 — PENDING
+- Root cause: "Daisy Fay" had different last name from "Daisy Buchanan" so first/last-name checks didn't catch it
+- Fix: Added check: if first name matches first word of existing multi-word character and last names differ, treat as alternate-surname variant (maiden name pattern)
+- Location: src/analyzer.py _is_likely_alias_of_existing()

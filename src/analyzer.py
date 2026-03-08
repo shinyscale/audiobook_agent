@@ -1509,6 +1509,21 @@ class AudiobookAnalyzer:
                                 )
                                 return True
 
+                            # Does first name match the first name of an existing multi-word character?
+                            # e.g., "Daisy Fay" (maiden name) → matches "Daisy Buchanan" (married name)
+                            # Only match when candidate has a different last name (not just a full-name variant)
+                            char_name_parts = char_canonical.split()
+                            if (
+                                len(char_name_parts) >= 2
+                                and first_name == char_name_parts[0]
+                                and last_name != char_name_parts[-1]
+                            ):
+                                logger.info(
+                                    f"F6: '{name}' shares first name with '{char.canonical_name}' "
+                                    f"(likely alternate-surname variant, e.g. maiden name)"
+                                )
+                                return True
+
                         # Check if summary name has title prefix (e.g., "Sergeant-Major Morris" → "Morris")
                         # Strip common military/professional titles
                         TITLE_PATTERNS = [
@@ -1672,6 +1687,26 @@ class AudiobookAnalyzer:
                                 )
                                 continue
 
+                    # Universal invariant: named characters always contain at least one proper noun
+                    # (a capitalized non-article word). Pure lowercase descriptors like "butler",
+                    # "gardener", "the war veteran" are occupational roles, not named characters.
+                    _f6_name_words = name.split()
+                    _f6_articles_set = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                    _f6_content_words = [
+                        w.strip(".,;:'\"()")
+                        for w in _f6_name_words
+                        if w.strip(".,;:'\"()").lower() not in _f6_articles_set
+                    ]
+                    _f6_has_proper_noun = any(
+                        w and w[0].isupper() for w in _f6_content_words if w
+                    )
+                    if not _f6_has_proper_noun:
+                        logger.info(
+                            f"F6: Skipping '{name}' — no proper noun; "
+                            f"likely an occupational role or generic descriptor"
+                        )
+                        continue
+
                     # Name is truly missing - add it
                     missing_names.append(name)
 
@@ -1777,6 +1812,16 @@ class AudiobookAnalyzer:
                         if _is_synonym_of_existing(name):
                             continue
                         if _is_likely_alias_of_existing(name):
+                            continue
+
+                        # Universal invariant: named characters have at least one proper noun
+                        _f6b_articles = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                        _f6b_content = [
+                            w.strip(".,;:'\"()")
+                            for w in name.split()
+                            if w.strip(".,;:'\"()").lower() not in _f6b_articles
+                        ]
+                        if _f6b_content and not any(w and w[0].isupper() for w in _f6b_content if w):
                             continue
 
                         # Require actual text mentions above threshold

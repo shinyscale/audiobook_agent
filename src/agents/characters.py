@@ -2307,7 +2307,7 @@ class CharacterAgent(Agent):
                         f"(canonical match) into main '{main_char_599.canonical_name}'"
                     )
                     break
-                # Check alias match
+                # Check alias match (exact)
                 aliases_lower_599 = [a.strip().lower() for a in (main_char_599.aliases or [])]
                 if supp_lower_599 in aliases_lower_599:
                     main_char_599.mention_count = max(
@@ -2317,6 +2317,28 @@ class CharacterAgent(Agent):
                     logger.info(
                         f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
                         f"(alias match of '{main_char_599.canonical_name}')"
+                    )
+                    break
+                # Check fuzzy alias match (handles spelling variants like Wolfshiem/Wolfsheim)
+                if any(names_similar(supp_lower_599, a_lower) for a_lower in aliases_lower_599):
+                    main_char_599.mention_count = max(
+                        main_char_599.mention_count, supp_char_599.mention_count
+                    )
+                    supporting_to_absorb_599.add(supp_idx_599)
+                    logger.info(
+                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
+                        f"(fuzzy alias match of '{main_char_599.canonical_name}')"
+                    )
+                    break
+                # Check fuzzy canonical match
+                if names_similar(supp_lower_599, main_char_599.canonical_name.strip().lower()):
+                    main_char_599.mention_count = max(
+                        main_char_599.mention_count, supp_char_599.mention_count
+                    )
+                    supporting_to_absorb_599.add(supp_idx_599)
+                    logger.info(
+                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
+                        f"(fuzzy canonical match of '{main_char_599.canonical_name}')"
                     )
                     break
         if supporting_to_absorb_599:

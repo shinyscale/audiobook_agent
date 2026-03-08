@@ -1075,6 +1075,30 @@ class MainCastExtractor:
                             f"(core nouns: '{alias_noun}' ~ '{canonical_noun}')"
                         )
 
+                # RULE 0.5b: Person/non-person semantic incompatibility for descriptor patterns.
+                # If canonical is "the X" and alias is "the Y", and exactly one of X/Y
+                # is a human-referencing noun, they describe different entity types and
+                # cannot be the same character. E.g., "the green light" ≠ "the man".
+                # Universal invariant: objects and persons are distinct entity categories.
+                _PERSON_NOUNS_R05B = {
+                    "man", "woman", "boy", "girl", "person", "figure", "stranger",
+                    "visitor", "creature", "being", "fellow", "ghost", "spirit", "phantom",
+                    "specter", "soul", "voice",
+                }
+                _canon_lower_05b = profile.canonical_name.lower()
+                if _canon_lower_05b.startswith("the ") and alias_lower.startswith("the "):
+                    _canon_last_05b = _canon_lower_05b.split()[-1]
+                    _alias_last_05b = alias_lower.split()[-1]
+                    _canon_is_person_05b = _canon_last_05b in _PERSON_NOUNS_R05B
+                    _alias_is_person_05b = _alias_last_05b in _PERSON_NOUNS_R05B
+                    if _canon_is_person_05b != _alias_is_person_05b:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' (core: '{_alias_last_05b}') is "
+                            f"semantically incompatible with '{profile.canonical_name}' "
+                            f"(core: '{_canon_last_05b}') — person/non-person mismatch"
+                        )
+                        continue
+
                 # RULE 1: Hard block - different titled names (Mr. X vs Mr. Y)
                 # If both canonical and alias start with a title (Mr./Mrs./Miss/Ms./Dr.)
                 # AND the surnames are different, they CANNOT be the same person

@@ -957,6 +957,30 @@ class OutputCharacterCorrector:
                             f"with {co_counts.get(best_key, 0)} co-mentions)"
                         )
 
+        # Reciprocal spouse validation: true couples are always bidirectional.
+        # If A→B is spousal but B→A is not spousal, A→B is likely a hallucination.
+        # Collect (char_name, other_key) pairs to downgrade before modifying any.
+        _char_by_name = {c.canonical_name: c for c in characters}
+        _to_downgrade: list[tuple[object, str, str]] = []  # (char_obj, other_key, old_label)
+        for char in characters:
+            if not char.relationships:
+                continue
+            for other_key, label in char.relationships.items():
+                if not label or not any(t in label.lower() for t in _spouse_terms):
+                    continue
+                other_char = _char_by_name.get(other_key)
+                if other_char is None:
+                    continue  # can't verify — leave as is
+                reverse_label = (other_char.relationships or {}).get(char.canonical_name, "")
+                if not reverse_label or not any(t in reverse_label.lower() for t in _spouse_terms):
+                    _to_downgrade.append((char, other_key, label))
+        for char, other_key, old_label in _to_downgrade:
+            char.relationships[other_key] = "associated"
+            logger.info(
+                f"Reciprocal spouse check: '{char.canonical_name}' → '{other_key}' "
+                f"downgraded '{old_label}' → 'associated' (not reciprocated by '{other_key}')"
+            )
+
     def _add_text_window_cooccurrence(
         self, characters, source_text: str, window_chars: int = 8000
     ) -> None:
