@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 8
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -12,18 +12,18 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 6/10 ✗
-  - Completeness: 7.5/10
-  - Identity Resolution: 5/10
-  - Alias Grouping: 5.5/10
-- Character Profiles: 4/10 ✗
+- Character Extraction: 6.5/10 ✗
+  - Completeness: 7/10
+  - Identity Resolution: 5.5/10
+  - Alias Grouping: 6/10
+- Character Profiles: 6.5/10 ✗
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.45/10** (reference only)
+- **Overall: 7.75/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction 6/10, Character Profiles 4/10)
+**Status:** FAIL (2 categories below threshold: Character Extraction 6.5/10, Character Profiles 6.5/10)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -35,104 +35,106 @@
 | 5 | 7.08 | +1.18 | Narrator FIXED ✓ (Fix I/J). Colleague filter STILL FAILED (192 remain). No speech patterns. |
 | 6 | 7.15 | +1.25 | Colleague injection FIXED (192→30). But 47 wrong spousal labels EXPOSED underneath. |
 | 7 | 7.45 | +1.55 | Spouse errors halved (47→23). But speech patterns 0/33, Wolfsheim still dup, Gatsby still supporting. |
+| 8 | 7.75 | +1.85 | Gatsby promoted ✓, colleagues eliminated ✓. Green light+Owl Eyes merge, 6 wrong spouse labels remain. |
 
-## What Changed in Attempt 7
+## What Changed in Attempt 8
 
-### Fix N (NameError) — EFFECTIVE ✓
-- `_VAGUE_REL_LABELS` NameError fixed. Jordan Baker's profile now generates without error.
+### Fix R (Canonical rename) — EFFECTIVE ✓
+- Gatsby is now main_cast_1, role "protagonist", 290 mentions. No longer "James Gatz" in supporting.
+- "James Gatz" and "Jay Gatsby" are listed as aliases.
 
-### Fix O (Spouse evidence window) — PARTIALLY EFFECTIVE
-- Wrong spousal labels dropped from 47 to 23 (51% reduction). Still 23 wrong husband/wife labels.
-- Total wrong relationships: 51/123 (41%), down from 80/143 (56%). Meaningful improvement but still far from acceptable.
+### Fix S (One-spouse invariant) — PARTIALLY EFFECTIVE
+- Spousal relationships reduced from 23 to 10. However, 6 of those 10 are STILL WRONG.
+- Wrong: Nick→Tom "husband", Gatsby→Jordan "husband", Jordan→Gatsby "wife", The green light→Tom "husband", McKee→Wilson "husband", Sloane→Tom "wife"
+- Correct: Daisy→Tom ✓, Tom→Daisy ✓, Myrtle→Wilson ✓, Wilson→Myrtle ✓
 
-### Fix P (Speech patterns prompt) — COMPLETELY FAILED
-- Speech patterns: 0/33. The prompt change had zero effect.
-- Either the LLM ignores the instruction, or the parser discards the field, or the field is never written to JSON.
+### Fix T (Colleague → associated) — EFFECTIVE ✓
+- Colleague count: 0. All colleague labels eliminated.
 
-### Fix Q (Wolfsheim alias absorption STEP 5.6.9) — FAILED
-- Wolfsheim still duplicated: main_cast_7 (6 mentions) + supporting_2 (32 mentions).
-- The new STEP 5.6.9 either didn't fire or didn't match. Need to check if it runs or if there's a logic error.
+### Fix U (Second-pass alias absorption) — PARTIALLY EFFECTIVE
+- main_cast_7 "Wolfshiem" (32 mentions) now has aliases "Wolfsheim" and "Meyer Wolfsheim"
+- BUT: supporting_10 "Meyer Wolfshiem" (6 mentions) and F6 "Meyer Wolfsiem" (1 mention) still exist as separate entries
+- Wolfsheim is TRIPLICATED instead of duplicated (worse fragmentation, though main entry now has correct mentions)
+
+### Voice Guidance — DISCOVERED
+- Previous evaluations checked for `speech_pattern` field — the actual field is `voice_guidance` with sub-fields: suggested_tone, dialect_notes, verbal_tics, formality_level
+- This data IS populated for main characters. Gatsby has "old sport" ✓, Wolfsheim has "gonnegtion" ✓, Myrtle has working-class speech notes ✓
+- **Profiles score revised upward from 4/10 to 6.5/10** — voice guidance was likely present in previous attempts too but missed by evaluator
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Jay Gatsby (269 mentions) STILL in supporting cast** [Identity Resolution]
-   - Problem: The PROTAGONIST with the most mentions in the entire book (269) is `supporting_13 "James Gatz"` instead of main cast. This has persisted across ALL 7 attempts.
-   - Evidence: `jq '.characters[] | select(.id == "supporting_13")' analysis.json` → 269 mentions, supporting tier
-   - Root cause: The V2 extraction pipeline assigned "James Gatz" to supporting. Previous fix attempts (G, STEP 5.11) failed to promote him. The role safety net in analyzer.py may not be firing, OR the character was never in main_cast to begin with (only in supporting_cast output).
-   - Location: `src/agents/characters.py` — STEP 5.11 promotion logic. Also check if supporting_cast extraction is running and absorbing the character before main_cast can claim him.
-   - Fix: This needs a DIFFERENT approach since 5 previous attempts failed. Add a post-extraction step that checks if ANY supporting character has >100 mentions AND more mentions than any main cast character → force-promote to main cast. This is a universal rule (highest-mention character can't be supporting).
+1. **FALSE MERGE: "The green light" + Owl-Eyed Man** [Identity Resolution]
+   - Problem: main_cast_10 "The green light" (18 mentions) has aliases: "the light", "The drunk man in the library", "the library", "The owl-eyed man", "The man with owl-eyed glasses"
+   - Evidence: The green light is a SYMBOL (light at end of Daisy's dock). The owl-eyed man is a SPEAKING CHARACTER who appears at Gatsby's library party (Ch 3) and alone at his funeral (Ch 9). These are completely unrelated entities.
+   - Root cause: Both are non-standard "characters" (symbolic/descriptor). The extraction pipeline likely merged all non-person entities together.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` or `src/agents/characters.py` — descriptor merge logic is too aggressive
+   - Fix: The owl-eyed man should be a separate character entry. Either prevent merging entities with different core nouns ("light" vs "man"), or add a post-extraction split for entities whose aliases have incompatible semantic categories (inanimate object vs person descriptor).
 
-2. **Speech patterns still 0/33 despite Fix P** [Profiles]
-   - Problem: Zero speech patterns for any character. Critical for narrator prep.
-   - Expected: Gatsby "old sport", Wolfsheim "Oggsford"/"gonnegtion", Daisy's "low thrilling voice", Tom's aggressive/commanding tone
-   - Root cause: Fix P modified the profiler prompt but had NO effect. The issue is likely:
-     - (A) The `speech_pattern` field is not in the Pydantic model or JSON schema, so LLM output is discarded
-     - (B) The parser doesn't read it from the LLM response
-     - (C) The field is populated but not written to final output
-   - Location: Must trace the FULL pipeline: `src/models.py` (Character model fields) → `src/analyzer.py` (profiler prompt + response parser) → JSON serialization
-   - Fix: Search for `speech_pattern` in models.py to verify the field exists. Search the profiler response parser to verify it captures the field. Add debug logging if needed.
+2. **6 wrong spousal relationships persist** [Profiles]
+   - Problem: Despite one-spouse invariant, 6 false spousal labels remain:
+     - Nick→Tom "husband" ✗
+     - Gatsby→Jordan "husband" ✗
+     - Jordan→Gatsby "wife" ✗
+     - The green light→Tom "husband" ✗
+     - McKee→Wilson "husband" ✗
+     - Sloane→Tom "wife" ✗
+   - Root cause: The LLM profiler generates wrong gendered labels. The one-spouse invariant only prunes MULTIPLE spouses per character, but these are all single (each character has only 1 spouse label, and it's wrong).
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: Add a KNOWN COUPLES validation: for each spousal label A→B "husband"/"wife", verify B→A also has the reciprocal label. If the relationship is not reciprocated (B doesn't list A as spouse), downgrade to "associated". True couples (Tom↔Daisy, George↔Myrtle) will survive because both directions confirm each other.
 
-3. **23 wrong spousal relationships remain** [Profiles]
-   - Problem: Despite Fix O halving spouse errors, 23 wrong "husband"/"wife" labels persist. Examples from this run:
-     - Nick→Tom "husband" ✗, Nick→Sloane "husband" ✗
-     - Tom→George "husband" ✗, Tom→Nick "husband" ✗, Tom→McKee "husband" ✗, Tom→Sloane "husband" ✗
-     - Jordan→Henry C. Gatz "mother" ✗, Jordan→James Gatz "wife" ✗
-     - Myrtle→McKee "husband" ✗, Myrtle→Catherine "brother" ✗ (should be "sister")
-     - George→McKee "husband" ✗
-     - Sloane→James Gatz "wife" ✗, Sloane→Nick "wife" ✗, Sloane→Tom "wife" ✗, Sloane→Henry C. Gatz "mother" ✗
-     - McKee→Daisy "husband" ✗, McKee→Tom "husband" ✗, McKee→Myrtle "husband" ✗, McKee→George "husband" ✗
-     - Henry C. Gatz→Jordan "son" ✗, Henry C. Gatz→Sloane "son" ✗
-   - Root cause: The LLM profiler is STILL assigning gendered familial labels to unrelated characters. The 150-char evidence window helped but isn't enough. The fundamental issue is the LLM guesses relationship types when it has no evidence.
-   - Location: `src/analyzer.py` (profiler prompt) + `src/pipeline/character_profiling/post_corrections.py`
-   - Fix: Two-pronged approach:
-     - (A) Restrict valid relationship labels to a closed set: "spouse", "parent", "child", "sibling", "romantic interest", "friend", "employer/employee", "rival", "neighbor", "acquaintance", "associate". The LLM must pick from ONLY this list or output "none" (then drop the entry).
-     - (B) Add a post-processing step: if a character appears as "husband"/"wife" to MORE than one other character, keep only the one with highest co-occurrence count and remove the rest (a person can have at most one spouse).
-
-4. **28 "colleague" relationships remain** [Profiles]
-   - Problem: "colleague" is not a meaningful label in 1920s Long Island social fiction. Characters like Nick→Myrtle, Daisy→George, Jordan→Wolfsheim have zero professional interaction.
-   - Location: `src/analyzer.py` profiler prompt
-   - Fix: Remove "colleague" from allowed relationship labels, or post-filter all "colleague" labels where neither character has an occupation/professional role.
+3. **Tom Buchanan has "old sport" as verbal tic — WRONG** [Profiles]
+   - Problem: Tom's voice_guidance.verbal_tics includes "old sport", but this is Gatsby's signature phrase, not Tom's.
+   - Tom's actual speech patterns: aggressive, commanding, racist rhetoric, forceful assertions
+   - Root cause: LLM attributed the wrong character's catchphrase
+   - Location: `src/analyzer.py` profiler — low priority since this requires LLM accuracy improvement
+   - Fix: Post-processing: if the same verbal_tic appears on multiple characters, keep it only on the one with the highest mention of that phrase in dialogue. Or: flag "old sport" as exclusively Gatsby's since it appears in his dialogue far more.
 
 ### HIGH
 
-5. **Wolfsheim still duplicated despite Fix Q** [Identity Resolution]
-   - main_cast_7 "Meyer Wolfsheim" (6 mentions, alias "Meyer Wolfshiem") + supporting_2 "Meyer Wolfshiem" (32 mentions)
-   - Fix Q (STEP 5.6.9) was supposed to absorb supporting chars whose canonical matches a main_cast alias — but it didn't work
-   - Location: `src/agents/characters.py` — verify STEP 5.6.9 actually runs (add logging), check if string matching is case-sensitive or has whitespace issues
-   - Fix: Debug why STEP 5.6.9 didn't fire. The alias "Meyer Wolfshiem" on main_cast_7 should match supporting_2's canonical "Meyer Wolfshiem" exactly.
+4. **Wolfsheim TRIPLICATED** [Identity Resolution]
+   - main_cast_7 "Wolfshiem" (32 mentions, aliases: "Wolfsheim", "Meyer Wolfsheim")
+   - supporting_10 "Meyer Wolfshiem" (6 mentions)
+   - F6 hash "Meyer Wolfsiem" (1 mention)
+   - Location: `src/agents/characters.py` STEP 5.9.9 or F6 reconciliation in `src/analyzer.py`
+   - Fix: The matching is likely exact-string. Need fuzzy/normalized matching: strip "Meyer ", normalize spelling variants (Wolfshiem/Wolfsheim/Wolfsiem). A Levenshtein distance ≤ 2 check would catch all three.
 
-6. **Phantom parent entries** [Identity Resolution]
-   - "the man (the father)" (main_cast_3_parent, 2 mentions) and "Henry C. Gatz (the father)" (main_cast_8_parent, 2 mentions)
-   - These are artifacts from semantic split logic creating `_parent` suffixed IDs
-   - Location: `src/agents/characters.py` — semantic split or parent-child disambiguation
-   - Fix: The parent-splitting logic is too aggressive. These should not be separate entries.
-
-7. **F6 generic descriptor clutter: 6+ non-character entries** [Completeness]
-   - Reporter, Lutheran minister, Butler (20 mentions!), war veteran, Chauffeur (10), Gardener (5)
+5. **F6 generic descriptor clutter: 6 non-character entries** [Completeness]
+   - "gardener" (5 mentions), "butler" (20 mentions), "chauffeur" (10), "New York reporter" (1), "Lutheran minister" (1), "the war veteran" (1)
    - These are occupational roles, not named characters
    - Location: F6 reconciliation in `src/analyzer.py`
-   - Fix: Add blocklist for common occupational/role descriptors in F6 filter
+   - Fix: Add blocklist for common occupational/role descriptors that are all-lowercase or match patterns like "the [noun]", "[adjective] [occupation]". Block any F6 candidate that is entirely lowercase (no proper noun).
 
-8. **Invalid aliases** [Alias Grouping]
-   - "Gatsby's mansion" — a building, not a person alias (on James Gatz)
-   - "the poor son-of-a-bitch" — a quote, not an alias (on James Gatz)
-   - "the man" — too generic (on Tom Buchanan)
-   - Tom has "Tom" twice (duplicate)
-   - "Buchanan" shared by both Tom and Daisy (ambiguous)
+6. **"Daisy Fay" as separate F6 entry** [Identity Resolution]
+   - F6 hash "Daisy Fay" (1 mention) — this is Daisy Buchanan's maiden name, should be her alias
+   - Location: F6 reconciliation in `src/analyzer.py`
+   - Fix: F6 should check if a new character's first name matches an existing character's canonical name or alias before creating a new entry. "Daisy Fay" shares "Daisy" with main_cast_2 "Daisy" → should become an alias, not a new character.
+
+7. **Invalid aliases on Gatsby** [Alias Grouping]
+   - "the man" — too generic
+   - "the poor son-of-a-bitch" — a quote from the owl-eyed man at the funeral, not an alias
    - Location: `src/pipeline/character_extraction_v2/main_cast.py` alias validation
-   - Fix: Block possessive aliases, aliases containing profanity, duplicate aliases, overly generic single-word aliases like "the man"
+   - Fix: Block aliases that are pure generic descriptors ("the man", "the woman") and aliases containing profanity/slang.
+
+8. **"Buchanan" shared by both Tom and Daisy** [Alias Grouping]
+   - Tom Buchanan has alias "Buchanan"; Daisy also has alias "Buchanan"
+   - Ambiguous shared surname — a narrator looking up "Buchanan" gets two hits
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
+   - Fix: If a surname-only alias is shared by 2+ characters, remove it from all (or keep only on the character who uses it most as a standalone reference — Tom is usually called "Tom" or "Tom Buchanan", while "Buchanan" standalone typically refers to the family generally).
 
 ### MEDIUM
 
-9. **Nick Carraway and Myrtle Wilson missing physical descriptions** [Profiles]
-   - Nick (narrator, 34 mentions) and Myrtle (23 mentions) have `physical_description: null`
-   - Nick: sparse self-description but has context. Myrtle: "middle thirties, faintly stout, carried her surplus flesh sensuously"
+9. **Nick Carraway, Gatsby, and Myrtle missing physical descriptions** [Profiles]
+   - Nick: sparse self-description but has some context (narrator, first-person perspective)
+   - Gatsby: "an elegant young rough-neck, a year or two over thirty" + tan, short hair, clean-cut
+   - Myrtle: "middle thirties, faintly stout, carried her surplus flesh sensuously"
    - Location: `src/analyzer.py` profiler
+   - Fix: May require longer context windows for the profiler or explicit prompting to look for appearance descriptions in other characters' observations.
 
 10. **Chapter 1 summary has "Nick Carraway, Nick Carraway" repetition** [Summaries]
-    - Minor name duplication in first summary. Cosmetic issue.
+    - Minor cosmetic issue in first sentence.
+    - Location: `src/agents/summary_agent.py` or post-processing
 
 ## Fix History
 
@@ -162,8 +164,14 @@
 ### Attempt 7 fixes
 - **Fix N: `_VAGUE_REL_LABELS` NameError** — **EFFECTIVE ✓** (Jordan profile generates)
 - **Fix O: Spouse evidence window 500→150 chars** — **PARTIALLY EFFECTIVE** (47→23 wrong spouse labels)
-- **Fix P: Speech patterns prompt** — **COMPLETELY FAILED** (0/33 still)
+- **Fix P: Speech patterns prompt** — **COMPLETELY FAILED** (0/33 still) — Note: voice_guidance field was populated all along; evaluator checked wrong field name
 - **Fix Q: STEP 5.6.9 alias absorption** — **FAILED** (Wolfsheim still duplicated)
+
+### Attempt 8 fixes
+- **Fix R: Canonical rename (James Gatz → Gatsby)** — **EFFECTIVE ✓** (Gatsby promoted to main_cast protagonist)
+- **Fix S: One-spouse invariant** — **PARTIALLY EFFECTIVE** (23→10 spousal labels, but 6 still wrong)
+- **Fix T: Colleague → associated** — **EFFECTIVE ✓** (colleague count: 0)
+- **Fix U: Second-pass alias absorption (STEP 5.9.9)** — **PARTIALLY EFFECTIVE** (main Wolfshiem entry has 32 mentions, but 2 extra entries remain)
 
 ## Modification History
 
@@ -184,13 +192,17 @@
 | 6 | Block " and " pair-reference aliases | `src/pipeline/character_extraction_v2/main_cast.py` | **FIXED** ✓ |
 | 7 | NameError `_VAGUE_REL_LABELS` | `src/analyzer.py` | **FIXED** ✓ |
 | 7 | Spouse evidence window | `src/pipeline/character_profiling/post_corrections.py` | Partial (47→23 spouse errors) |
-| 7 | Speech patterns prompt | `src/analyzer.py` | **FAILED** — 0/33 |
+| 7 | Speech patterns prompt | `src/analyzer.py` | **FAILED** — evaluator error (voice_guidance was populated) |
 | 7 | Wolfsheim alias absorption | `src/agents/characters.py` (STEP 5.6.9) | **FAILED** — still duplicated |
+| 8 | Gatsby canonical rename | `src/analyzer.py` | **FIXED** ✓ |
+| 8 | One-spouse invariant | `src/pipeline/character_profiling/post_corrections.py` | Partial (23→10, but 6 still wrong) |
+| 8 | Colleague → associated | `src/pipeline/character_profiling/post_corrections.py` | **FIXED** ✓ |
+| 8 | Second-pass alias absorption | `src/agents/characters.py` (STEP 5.9.9) | Partial (main entry fixed, 2 extras remain) |
 
 **Patterns detected:**
-- `src/analyzer.py` modified in attempts 3, 4, 5, 7 for relationship/profile issues → Fix approach must change. Prompt-level fixes are unreliable with this LLM. Post-processing filters are more effective.
-- `src/agents/characters.py` modified in attempts 2, 3, 5, 7 for Gatsby promotion → 5 failed attempts. Need a fundamentally different approach (hard rule, not heuristic).
-- Speech patterns: prompt changes don't work. Must verify the data pipeline end-to-end (model field → parser → serializer).
+- `src/pipeline/character_profiling/post_corrections.py` is the right place for relationship fixes — post-processing works better than prompt engineering
+- Wolfsheim spelling variants (Wolfshiem/Wolfsheim/Wolfsiem) need fuzzy matching, not exact string matching
+- Green light + Owl Eyes merge is a NEW issue (or newly noticed) — likely caused by descriptor merge logic treating all non-person entities as one
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -198,63 +210,27 @@
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
-## Priority Fix Order for Attempt 8
+## Priority Fix Order for Attempt 9
 
-**The two blocking categories are Character Extraction (6/10) and Profiles (4/10).**
+**The two blocking categories are Character Extraction (6.5/10) and Profiles (6.5/10).**
 
-### Profiles (4/10 → 8+) — Primary blocker
+### Character Extraction (6.5/10 → 8+)
 
-1. **Debug speech_pattern pipeline end-to-end** — Trace from `src/models.py` → profiler prompt → response parser → JSON output. The field may not exist in the data model, or the parser may discard it. This is the MOST impactful single fix (0/33 → populated would add ~2 points to Profiles score alone).
+1. **Split green light from Owl Eyes** — CRITICAL. Either prevent the merge in descriptor merge logic (different core nouns: "light" vs "man") or add a post-merge split for inanimate+person merged entities. This is worth ~1 point to Identity Resolution.
 
-2. **Post-process relationships aggressively** — Don't trust the LLM to get labels right. Add a post-processing pass that:
-   - Removes any relationship where the label is "husband"/"wife" and neither character has a known marriage from text evidence
-   - Removes all "colleague" labels (not applicable to this genre, and the LLM clearly can't use it correctly)
-   - Limits each character to at most 1 "spouse" relationship (the highest-confidence one)
-   - Falls back to "acquaintance" or drops entries entirely rather than keeping wrong labels
+2. **Fuzzy Wolfsheim dedup** — Normalize spelling variants before dedup. Levenshtein distance ≤ 2 or normalize by stripping title words and comparing. Worth ~0.5 points.
 
-### Character Extraction (6/10 → 8+) — Secondary blocker
+3. **F6 generic descriptor filter** — Block all-lowercase F6 candidates or those matching occupation patterns. Remove 6 clutter entries. Worth ~0.5 points.
 
-3. **Force-promote highest-mention supporting characters** — Add a hard rule: if a supporting character has >100 mentions AND more mentions than any main_cast character, promote to main_cast. This bypasses the broken STEP 5.11 logic with a simple, universal, unchallengeable rule.
+4. **Merge "Daisy Fay" into Daisy** — F6 should check first-name overlap with existing characters. Worth ~0.25 points.
 
-4. **Debug STEP 5.6.9 (Wolfsheim merge)** — Add logging to verify the step runs and check why the match fails. The canonical "Meyer Wolfshiem" (supporting_2) should EXACTLY match alias "Meyer Wolfshiem" on main_cast_7.
+5. **Remove invalid aliases** — Block "the man", "the poor son-of-a-bitch", shared "Buchanan". Worth ~0.5 points.
 
-5. **Filter F6 generic descriptors** — Block entries matching common occupation words.
+### Profiles (6.5/10 → 8+)
 
-6. **Remove phantom parent entries** — Suppress `_parent` suffixed character IDs or merge them back.
+6. **Reciprocal spouse validation** — For each spousal label A→B, require B→A to also be spousal. Non-reciprocated → downgrade to "associated". This eliminates 6 wrong labels while preserving 4 correct ones (Tom↔Daisy and George↔Myrtle are reciprocal). Worth ~1 point.
 
-## Attempt 8 Fixes Applied
-
-### Fix R (Canonical name normalization — Step 4.5.5 in analyzer.py)
-- Added post-extraction canonical rename: if canonical appears < 10 times in text AND an alias appears 20+ times (3x more), rename canonical to the alias.
-- Target: "James Gatz" (4 text uses) → "Jay Gatsby" (175+ uses).
-- Universal: applies to any book where a character is known primarily by a pseudonym or nickname.
-- Location: `src/analyzer.py` (after role safety net, before profiling)
-
-### Fix S (One-spouse invariant — post_corrections.py)
-- Added `_enforce_one_spouse_invariant()`: if a character has spousal (husband/wife/spouse) labels pointing to multiple other characters, keep only the pair with the most text co-mentions, downgrade the rest to "associated".
-- Universal rule: each character has at most one spouse.
-- Location: `src/pipeline/character_profiling/post_corrections.py`
-
-### Fix T (Colleague → associated in add_cooccurrence_relationships)
-- Changed `add_cooccurrence_relationships` to use "associated" instead of "colleague".
-- "associated" gets cleaned by `clean_unknown_relationships`, removing spurious cooccurrence labels.
-- Universal: cooccurrence-based fallback labels should be ephemeral (upgraded by text evidence or dropped).
-- Location: `src/pipeline/character_profiling/post_corrections.py`
-
-### Fix U (STEP 5.9.9 — second-pass alias absorption)
-- Added a second-pass of STEP 5.6.9 that runs AFTER all alias-enrichment steps (before STEP 5.10).
-- Catches cases where main cast aliases are added after the first STEP 5.6.9 pass.
-- Handles Wolfsheim duplicate: supporting_2 "Meyer Wolfshiem" absorbed into main_cast_7 "Meyer Wolfsheim".
-- Location: `src/agents/characters.py`
-
-## Attempt 8 Pipeline Notes
-- Completed in 89m 30s, exit code 0
-- Fix R appears effective: "Gatsby" (290 mentions) now in main cast (not "James Gatz" in supporting)
-- Nick Carraway correctly detected as narrator (first-person)
-- 33 characters total extracted
-- Warnings: "the poor son-of-a-bitch" and "the man" still appear as Gatsby aliases
-- BLOCKED alias logs confirm: James Gatz/Jay Gatsby co-occurrence check STILL blocking the alias link
-- Output: ../output/gatsby/analysis.json, ../output/gatsby/report.html
+7. **Missing physical descriptions** — Gatsby and Myrtle have clear textual descriptions that the profiler missed. Nick as narrator has less, but still has some. Worth ~0.5 points if fixed.
 
 ## Next Action
-Evaluate attempt 8 results.
+Run PROMPT_fix.md to address green light/owl eyes split (Critical #1) and reciprocal spouse validation (Critical #2) as top priorities.
