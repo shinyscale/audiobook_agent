@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 12
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -12,18 +12,18 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 6.5/10 ✗
+- Character Extraction: 5.5/10 ✗
   - Completeness: 7/10
-  - Identity Resolution: 6/10
+  - Identity Resolution: 4/10 ← Tom split + Wolfsheim dup
   - Alias Grouping: 7/10
 - Character Profiles: 6/10 ✗
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.93/10** (reference only)
+- **Overall: 7.68/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction 6.5/10, Character Profiles 6/10)
+**Status:** FAIL (3 categories below threshold: Character Extraction 5.5/10, Character Profiles 6/10)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -39,89 +39,101 @@
 | 9 | 8.30 | +2.40 | Green/Owl split ✓, Wolfsheim dedup ✓, F6 clutter ✓, 4/6 wrong spouses fixed. Gatz dup and Gatsby↔Jordan remain. |
 | 10 | 8.05 | +2.15 | Gatz dedup ✓, Gatsby↔Jordan spousal ✓, alias cleanup ✓. BUT narrator REGRESSED, Wolfsheim dup REGRESSED, 11 fabricated family rels. |
 | 11 | 7.93 | +2.03 | Narrator guard overshot (Gatsby→Gatz instead of Nick). Wolfsheim dedup STILL broken. Fabricated rels reduced but not eliminated. |
+| 12 | 7.68 | +1.78 | Narrator FIXED ✓ (Nick). But "Tom" F6 dup (191 mentions) newly identified. Wolfsheim STILL duplicated (5th failure). Fabricated rels persist (Gatsby↔Jordan spouse). |
 
-## What Changed in Attempt 11
+## What Changed in Attempt 12
 
-### Fix EE (Narrator programmatic guard) — PARTIALLY EFFECTIVE / OVERSHOT
-- Correctly blocked Jay Gatsby as narrator (264 mentions, max-mention guard fired ✓)
-- BUT fallback picked Henry C. Gatz (13 mentions, `is_narrator: true`) instead of Nick Carraway (34 mentions)
-- Root cause: The guard clears the narrator but the downstream fallback logic doesn't correctly identify Nick. Nick has 34 mentions but the fallback may be picking the first character below the threshold, or Gatz is being selected by a different heuristic.
-- Nick has `is_narrator: false` — the narrator detection completely misses the actual first-person narrator.
+### Fix GG (Chapter-spread narrator guard) — EFFECTIVE ✓
+- Correctly blocked Henry C. Gatz as narrator (appears only in final chapters)
+- Nick Carraway now correctly identified as narrator with `is_narrator: true`
+- First stable narrator fix in 4 attempts
 
-### Fix FF (Fuzzy Wolfsheim dedup STEP 5.6.9) — COMPLETELY INEFFECTIVE
-- main_cast_7 "Meyer Wolfsheim" (6 mentions) AND supporting_2 "Wolfshiem" (32 mentions) BOTH still exist
-- The fix was supposed to catch "Wolfshiem"/"Wolfsheim" via fuzzy match in STEP 5.6.9
-- Possible causes: (a) the code path isn't reached, (b) names_similar threshold doesn't match, (c) the merge happens but creates a new entry instead of absorbing
-- Meyer Wolfsheim even has alias "Meyer Wolfshiem" and "Wolfsheim" — yet the supporting entry still exists separately
+### Fix HH (Heuristic narrator max-mention guard) — EFFECTIVE ✓
+- Correctly skipped Gatsby (265 mentions) and selected Nick (34 mentions, first_appearance_chapter=0)
+- Works in tandem with Fix GG
 
-### Fabricated relationships — PARTIALLY IMPROVED
-- The 11 fabricated family labels from attempt 10 (Gatsby→Catherine "brother", etc.) are mostly gone
-- But NEW fabrications appeared: Tom→Catherine "brother" (wrong), Wolfshiem→everyone "friend"
-- The narrator fix partially worked (Gatsby no longer narrator) so the narrator bypass no longer shields fabricated rels
-- But Henry C. Gatz as narrator may be shielding HIS fabricated rels instead
+### Fix II (STEP 5.12 cross-cast alias dedup for Wolfsheim) — COMPLETELY INEFFECTIVE
+- supporting_1 "Wolfshiem" (32 mentions) STILL exists alongside main_cast_7 "Meyer Wolfsheim" (6 mentions)
+- This is the 5th consecutive attempt to fix Wolfsheim dedup (attempts 7, 8, 9, 10, 11, 12)
+- main_cast_7 has alias "Meyer Wolfshiem" — the supporting char's canonical should match via word-subset
+- **The code is either not being reached or the match logic is failing silently**
+
+### Fix JJ (Shared single-word alias dedup) — EFFECTIVE ✓
+- "Buchanan" correctly removed from both Tom and Daisy
+
+### NEW ISSUE: "Tom" F6 duplicate (d9ffaca46d59, 191 mentions)
+- F6 reconciliation added "Tom" as a separate character from "Tom Buchanan" (main_cast_3, 196 mentions)
+- This was likely present in previous attempts but not flagged by the evaluator
+- The "Tom" entry has its own profile, relationships (some correct: Tom→Daisy "husband", some wrong: Wilson→Tom "romantic interest")
+- Creates self-referencing relationships: Tom↔Tom Buchanan "associated"
+- This single issue causes massive damage to both Character Extraction AND Character Profiles scores
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Narrator STILL WRONG: Henry C. Gatz instead of Nick Carraway** [Profiles, Characters]
-   - Problem: main_cast_8 "Henry C. Gatz" has `is_narrator: true`. Nick (main_cast_0) has `is_narrator: false`. Nick Carraway is the actual first-person narrator.
-   - Fix EE correctly blocked Gatsby but the fallback selected Gatz instead of Nick.
-   - This is the 4th narrator failure (attempts 4, 10, 11). The narrator pipeline needs a fundamentally different approach for Gatsby.
-   - Nick has 34 mentions (low because he's narrating as "I"), Gatz has 13 mentions.
-   - Location: `src/pipeline/character_extraction_v2/narrator.py` (fallback logic after guard clears wrong narrator), `src/agents/characters.py` (STEP 6.6 narrator assignment)
-   - Fix: The max-mention guard in Fix EE clears the narrator but the fallback doesn't have enough signal to find Nick. The issue is that Nick's 34 mentions are mostly in third-person references BY other characters — but as narrator, most of his "presence" is as "I". Two approaches:
-     (a) In `_parse_result`: after the max-mention guard fires and clears narrator, look for a character whose name appears in the first chapter's first few paragraphs AND has moderate mentions (15-50 range for a 9-chapter novel). Nick is introduced in Ch1's opening.
-     (b) In STEP 6.6 fallback: when `narrator_character_id` is None and narrative is first-person, prefer characters who appear in chapter 1 AND whose mention count is moderate (not the highest, not the lowest). Nick at 34 fits; Gatz at 13 only appears in final chapters.
-     (c) Chapter-spread heuristic: The true narrator should appear across ALL or nearly all chapters. Gatz only appears in Ch9. Nick appears in all 9 chapters.
+1. **"Tom" F6 duplicate: 191 mentions, separate from Tom Buchanan (196 mentions)** [Identity Resolution, Profiles]
+   - Problem: F6 reconciliation (hash ID d9ffaca46d59) added "Tom" as a new character. "Tom Buchanan" already exists as main_cast_3 with 196 mentions. "Tom" is simply how the narrator refers to Tom Buchanan informally.
+   - Evidence: "Tom" has relationships to Gatsby (rival), Daisy (husband), Myrtle (romantic interest) — identical to Tom Buchanan's role. Tom→Tom Buchanan "associated" is self-referencing.
+   - Impact: This single issue destroys Identity Resolution (two entries for same person with ~400 combined mentions) AND Profiles (relationships split across entries, self-referencing).
+   - Location: `src/analyzer.py` F6 reconciliation at ~line 1197. F6 adds characters found in summaries' `active_characters` that don't match existing characters. "Tom" should match "Tom Buchanan" since "Tom" is a first-name component.
+   - Fix: In F6 reconciliation, before adding a new character, check if the candidate name is a **first-name or last-name component** of any existing character's canonical_name or aliases. "Tom" is the first word of "Tom Buchanan" → skip adding it. This is a simple `any(candidate.lower() in existing_name.lower().split() for existing_name in all_known_names)` check.
 
-2. **Wolfsheim STILL duplicated (4th consecutive failure)** [Identity Resolution]
-   - Problem: main_cast_7 "Meyer Wolfsheim" (6 mentions) AND supporting_2 "Wolfshiem" (32 mentions). Same person.
-   - Fix FF (STEP 5.6.9 fuzzy dedup) was COMPLETELY INEFFECTIVE. Fix X (attempt 9) also didn't persist.
-   - Notably, main_cast_7 already has alias "Meyer Wolfshiem" — the exact canonical name of supporting_2 — yet the dedup doesn't catch it.
-   - Location: `src/agents/characters.py` — the STEP 5.6.9 fuzzy match OR a simpler approach: exact alias-to-canonical match
-   - Fix: **Simplest approach that MUST work**: Before STEP 5.8 promotion, iterate all supporting characters. For each supporting char, check if its canonical_name (lowercased) matches ANY alias (lowercased) of any main_cast character. If match found, absorb the supporting char's mention_count into the main_cast char and remove the supporting char. "Wolfshiem" matches main_cast_7's alias "Meyer Wolfshiem" (contains "Wolfshiem"). This is a straightforward substring/exact check, not fuzzy.
-   - **IMPORTANT**: Verify Fix FF code is actually being reached by adding a debug log. The fix may have been applied to wrong step number or has an early-return bug.
+2. **Wolfsheim STILL duplicated (6th consecutive attempt)** [Identity Resolution]
+   - Problem: main_cast_7 "Meyer Wolfsheim" (6 mentions) AND supporting_1 "Wolfshiem" (32 mentions) both exist.
+   - Evidence: main_cast_7 has alias "Meyer Wolfshiem" — the exact canonical of supporting_1 minus the first name.
+   - This has been attempted in attempts 7, 8, 9 (worked then regressed), 10, 11, 12. STEP 5.6.9, 5.9.9, and 5.12 all failed.
+   - Location: `src/agents/characters.py` — multiple dedup steps have been added but none work
+   - Fix: **ESCALATION REQUIRED** — Instead of adding yet another dedup step in characters.py, fix this in `src/analyzer.py` POST-extraction. After `analyze_characters_v2()` returns, iterate all characters: for each pair where one name is a substring of the other's canonical or alias, merge the shorter-named entry into the longer. This bypasses whatever is broken in the V2 pipeline's internal dedup.
+   - **MUST ADD DEBUG LOGGING** to verify whether STEP 5.12 code is actually reached. The pattern of 6 consecutive failures suggests the code path is never executed.
 
 ### HIGH
 
-3. **"James" ghost character (F6 hash d52e32f3a96a)** [Identity Resolution]
-   - Problem: F6 reconciliation added "James" (6 mentions) as a separate character. This is likely "James Gatz" fragments.
-   - James has relationships: Nick=friend, Gatsby=friend — clearly a fragment of James Gatz.
-   - Location: `src/analyzer.py` (F6 reconciliation at ~line 1197)
-   - Fix: F6 should check if a single-word name being added is a component of an existing character's alias. "James" appears in Gatsby's relationship as "James Gatz: previous identity". Either (a) F6 should check existing relationships for identity markers, or (b) "James" should match Henry C. Gatz's alias "Gatz" → not a match. Actually, "James" is a common first name — F6 should skip single common first names that don't have a surname, OR check if the name is a component of any existing character's known aliases.
+3. **Gatsby→Jordan Baker "husband" / Jordan→Gatsby "wife"** [Profiles]
+   - Problem: Gatsby and Jordan are NOT married. This is a completely fabricated spousal relationship.
+   - This was fixed in attempt 10 (Fix BB) but has REGRESSED.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — the reciprocal spouse validation may have been overridden
+   - Fix: The one-spouse invariant (Fix S) should catch this — Gatsby's spouse should be Daisy only. Verify Fix BB/S code is still intact and functional.
 
-4. **"Buchanan" shared alias on both Tom and Daisy** [Alias Grouping]
-   - Problem: Both main_cast_2 (Daisy) and main_cast_3 (Tom Buchanan) have "Buchanan" as alias.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` or `src/agents/characters.py`
-   - Fix: Post-extraction dedup: if a surname-only alias appears on 2+ characters, remove it from all of them.
+4. **Myrtle↔Catherine "brother" — wrong gender** [Profiles]
+   - Problem: Catherine is Myrtle's SISTER, not brother. Both are female.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `enforce_gender_consistency` should fix "brother" → "sister" for two female characters
+   - Fix: Verify that both Myrtle and Catherine have `gender: "female"` set, which would trigger the gender consistency fix. If Catherine's gender is unknown/male, that's the root cause.
 
-5. **Missing physical descriptions for Nick, Gatsby, Myrtle** [Profiles]
-   - Nick: narrator, so self-description is rare — acceptable to be sparse
-   - Gatsby: "an elegant young rough-neck, a year or two over thirty" + "tanned skin, short hair" — text provides description but not captured
-   - Myrtle: "middle thirties, and faintly stout... carried her surplus flesh sensuously" — explicit text description not captured
-   - Location: `src/analyzer.py` profiler prompt/context
-   - Fix: May be an LLM variance issue. Could add a second-pass physical description extraction for main characters with empty descriptions.
+5. **Fabricated relationships persist** [Profiles]
+   - Daisy→Dan Cody "friend" — FABRICATED (they never interact in the text)
+   - Daisy→Wolfshiem "friend" — FABRICATED
+   - Wilson→Tom "romantic interest" — WRONG (business relationship)
+   - Wolfshiem→Meyer Wolfsheim "friend" — self-referencing from Wolfsheim dup (fixes with issue #2)
+   - Wolfshiem→Daisy/Jordan/Tom/Nick "friend" — all fabricated
+   - Location: `src/analyzer.py` profile generation, `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: The Wolfshiem fabrications will be eliminated when Wolfsheim dedup is fixed (#2). For Daisy→Dan Cody and Wilson→Tom "romantic interest", these are LLM hallucinations in the profiler. A text-evidence requirement for non-obvious relationships could help.
 
-6. **Fabricated relationships persist** [Profiles]
-   - Tom→Catherine "brother" — WRONG (Catherine is Myrtle's sister)
-   - Tom→Jordan Baker "romantic interest" — WRONG (no romantic interest)
-   - Daisy→Dan Cody "friend" — FABRICATED (they never meet)
-   - Wolfshiem (supporting_2) has "friend" relationships to Daisy, Tom, Jordan, Nick, Meyer Wolfsheim — all fabricated
-   - Location: `src/pipeline/character_profiling/post_corrections.py`, `src/analyzer.py`
-   - Fix: The Wolfshiem fabrications will be eliminated when Wolfsheim dedup is fixed (issue #2). For Tom→Catherine "brother" and Tom→Jordan "romantic interest", the text-evidence check should catch these but may not have sufficient signal. Consider: for "brother"/"sister" labels, require that the label word appears in the same sentence/paragraph as both characters.
+6. **Tom Buchanan verbal tic "old sport" is WRONG** [Profiles]
+   - Problem: "old sport" is Gatsby's iconic catchphrase, not Tom's. Tom explicitly says "Don't you call me 'old sport'!" — he's reacting to Gatsby using it.
+   - Location: `src/analyzer.py` profile generation (voice_guidance extraction)
+   - Fix: This is an LLM hallucination. Low priority — fixing the Tom duplicate (#1) may resolve it since the profiler would have better context.
 
 ### MEDIUM
 
-7. **F6 clutter: Gardener, Chauffeur, Butler (20 mentions!), Ferdie, Vladmir Tostoff** [Completeness]
-   - These are very minor characters/roles. "Butler" at 20 mentions seems inflated (likely generic "butler" references counted as character mentions).
-   - Not blocking — a narrator might find these useful. But "Butler" and "Chauffeur" are roles, not characters.
-   - Location: `src/analyzer.py` F6 reconciliation
-   - Fix: LOW priority. Could filter generic role words ("butler", "chauffeur", "gardener") from F6 promotion.
+7. **Missing physical descriptions for Nick and Gatsby** [Profiles]
+   - Nick: As narrator, self-description is sparse — acceptable
+   - Gatsby: "an elegant young rough-neck, a year or two over thirty" + "tanned skin and short hair" — text provides description but profiler missed it
+   - Location: `src/analyzer.py` profiler prompt
+   - Fix: LLM variance. May improve with Tom duplicate fix reducing noise.
 
-8. **Wolfshiem duplicate creates nonsense relationships** [Profiles]
-   - Meyer Wolfsheim→Wolfshiem "friend" and Wolfshiem→Meyer Wolfsheim "friend" — same person talking to themselves
-   - This is a downstream effect of issue #2. Fixing the dedup eliminates these.
+8. **Gatsby missing "James Gatz" alias** [Alias Grouping]
+   - Problem: Gatsby's aliases are only ["Jay Gatsby"]. His birth name "James Gatz" is narratively important (Ch6 reveals his real identity).
+   - Location: V2 extraction or alias enrichment in characters.py
+   - Fix: Low priority — narrator would understand from context. Henry C. Gatz has alias "Gatz" which partially covers this.
+
+9. **Ch1 summary duplicated name** [Summaries]
+   - "The chapter opens with Nick Carraway, Nick Carraway, reflecting" — name appears twice
+   - LLM output quirk. Minor.
+
+10. **F6 clutter: Servants (7 mentions), Man with owl-eyed glasses (1)** [Completeness]
+    - "Servants" is a generic role, not a character. "Man with owl-eyed glasses" should ideally be "Owl Eyes".
+    - Low priority.
 
 ## Fix History
 
@@ -177,6 +189,12 @@
 - **Fix EE: Max-mention narrator guard** — **OVERSHOT** (blocked Gatsby ✓ but fallback picked Gatz instead of Nick)
 - **Fix FF: STEP 5.6.9 fuzzy Wolfsheim dedup** — **COMPLETELY INEFFECTIVE** (both entries still exist)
 
+### Attempt 12 fixes
+- **Fix GG: Chapter-spread narrator guard** — **EFFECTIVE ✓** (Gatz blocked, Nick correctly selected)
+- **Fix HH: Heuristic narrator max-mention guard** — **EFFECTIVE ✓** (Nick selected over Gatsby)
+- **Fix II: STEP 5.12 cross-cast alias dedup** — **COMPLETELY INEFFECTIVE** (Wolfsheim still duplicated)
+- **Fix JJ: Shared single-word alias dedup** — **EFFECTIVE ✓** (Buchanan removed from both Tom and Daisy)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -213,49 +231,24 @@
 | 10 | Buchanans' house possessive alias | `src/pipeline/character_extraction_v2/main_cast.py` | **FIXED** ✓ |
 | 11 | Narrator max-mention guard | `src/pipeline/character_extraction_v2/narrator.py` | **OVERSHOT** — blocked Gatsby, fallback picked Gatz |
 | 11 | Fuzzy Wolfsheim dedup STEP 5.6.9 | `src/agents/characters.py` | **COMPLETELY INEFFECTIVE** — both entries remain |
+| 12 | Narrator chapter-spread guard | `src/agents/characters.py` | **FIXED** ✓ |
+| 12 | Heuristic narrator max-mention guard | `src/agents/characters.py` | **FIXED** ✓ |
+| 12 | STEP 5.12 cross-cast alias dedup | `src/agents/characters.py` | **COMPLETELY INEFFECTIVE** — Wolfsheim still duplicated |
+| 12 | Shared single-word alias dedup | `src/agents/characters.py` | **FIXED** ✓ |
 
-**STUCK PATTERN ALERT:** Wolfsheim dedup has been attempted in attempts 7, 8, 9, 10, 11 — all targeting `src/agents/characters.py`. Fix X (attempt 9) worked once but regressed. Fix FF (attempt 11) was completely ineffective. The fix phase MUST verify the code path is reached (add logging) and consider an alternative approach: exact alias-to-canonical matching instead of fuzzy matching.
+**STUCK PATTERN ALERT:** Wolfsheim dedup has been attempted in attempts 7, 8, 9, 10, 11, 12 — all targeting `src/agents/characters.py`. Fix X (attempt 9) worked once but regressed. All subsequent fixes completely ineffective. **ESCALATION MANDATORY**: Fix must move to `src/analyzer.py` post-extraction merge, bypassing V2 pipeline internals entirely. Must add debug logging first to understand why STEP 5.12 isn't working.
 
-**STUCK PATTERN ALERT:** Narrator detection has failed in attempts 1, 2, 4, 10, 11. Fixes have targeted `narrator.py` and `characters.py` STEP 6.6. The narrator pipeline needs a chapter-spread heuristic: the true first-person narrator appears in ALL chapters, not just the final one. Gatz only appears in Ch9; Nick appears in all 9.
+**STUCK PATTERN ALERT:** "Tom" F6 duplicate is a NEW critical issue. F6 reconciliation in `src/analyzer.py` does not check if candidate names are first/last name components of existing characters. This is a straightforward fix in analyzer.py.
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
 - Context length: 32768 — adequate for Gatsby's chapter sizes
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
-
-## Fix History (continued)
-
-### Attempt 12 fixes
-
-- **Fix GG: Chapter-spread narrator guard (STEP 5.8.5 chapter-spread guard)** — Added to `src/agents/characters.py` after post-STEP-5.8.5 low-mention guard
-  - Root cause: STEP 5.8.5 re-runs LLM narrator detection and the LLM returns "Henry C. Gatz" (who narrates in Ch9 but is not the narrator). Gatz has 13 mentions (passes ≤5 guard) so previous guard didn't block him.
-  - Fix: If narrator's first_appearance_chapter > total_chapters//2, disqualify them. Gatz appears first in chapter 8 of 9 → disqualified. Nick (chapter 0) passes.
-  - Smoke test: PASS — Gatz (chap 8) correctly blocked, Nick (chap 0) correctly allowed
-  - Universal: Any first-person narrator must appear from early chapters. A character who first appears in the last half of the book cannot be the narrator throughout.
-
-- **Fix HH: Heuristic narrator max-mention guard** — Modified `_heuristic_narrator_from_mention_count` in `src/agents/characters.py`
-  - Root cause: After Gatz is cleared, STEP 5.8.6 heuristic picks max-mention character (Gatsby 265) not Nick (34). Previously the heuristic used raw max without the same invariant as `_parse_result`.
-  - Fix: Applied same max-mention guard as `_parse_result` — if selected is max-mention, look for plausible lower-mention candidates (>15 mentions, ≤ max/3). Among plausible, prefer those with first_appearance_chapter=0 (appear from chapter 1).
-  - Smoke test: PASS — Gatsby(265) is skipped, plausible=[Nick(34), Wilson(88), Myrtle(30)], from_start=[Nick(34)] → picks Nick
-
-- **Fix II: STEP 5.12 final cross-cast alias dedup** — Added to `src/agents/characters.py` before `_convert_to_pipeline_characters`
-  - Root cause: STEP 5.6.9 and 5.9.9 both have correct logic but fail for unknown reasons (possibly timing of alias population). Added a definitive STEP 5.12 that runs AFTER all alias enrichment.
-  - Fix: For each supporting char, check if canonical matches any main_cast alias (exact or word-subset). "wolfshiem" is a word in "meyer wolfshiem" alias → absorb supporting_2 into main_cast_7.
-  - Smoke test: PASS — "wolfshiem" matches "meyer wolfshiem" via word-subset check
-
-- **Fix JJ: STEP 5.11.5 shared single-word alias dedup** — Added to `src/agents/characters.py` before STEP 5.12
-  - Root cause: Both Daisy and Tom Buchanan had "Buchanan" as alias, making it ambiguous.
-  - Fix: If same single-word alias appears on 2+ main_cast characters, remove from all.
-  - Smoke test: PASS — "buchanan" on both Daisy and Tom → removed from both (universal: ambiguous shared aliases are not useful)
-  - Risk: This also removes "Baker" from Jordan Baker if two characters shared it, etc. Low risk.
-
-## Pipeline Notes (Attempt 12)
-- Narrator correctly detected: Nick Carraway (first-person) — Fix GG/HH worked ✓
-- 23 characters from extraction, +7 from summaries, +2 referenced (James Gatz, Tom) = 28 total
-- Tom profile: LOW CONFIDENCE (0.30) — JSON parse failure during profiling
-- Wolfsheim dedup status: TBD — see evaluation
-- No crash, exit code 0
+- Tom profile: LOW CONFIDENCE (0.30) — JSON parse failure during profiling — but Tom Buchanan profile exists
 
 ## Next Action
-**Phase:** awaiting_evaluation — Evaluate the output.
+Run PROMPT_fix.md to address:
+1. **CRITICAL**: "Tom" F6 duplicate — fix F6 name-component matching in `src/analyzer.py`
+2. **CRITICAL**: Wolfsheim dedup — **ESCALATE** to `src/analyzer.py` post-extraction merge (bypass characters.py entirely)
+3. **HIGH**: Gatsby→Jordan "husband" regression — verify Fix BB still intact
