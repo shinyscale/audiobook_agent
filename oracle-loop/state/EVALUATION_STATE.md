@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 1
-- **Phase:** awaiting_analysis
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -166,9 +166,13 @@
 - Zero LLM retries across all stages — no prompt/schema failures
 - No chunking issues apparent from profiling data
 
+## Pipeline Notes (Attempt 2)
+- Run time: 86m 17s, 300 LLM calls, 631K tokens
+- **Narrator still Eckleburg**: "Narrator already identified by V2 pipeline: Doctor T. J. Eckleburg (skipping re-detection)" — Fix A raised characters.py threshold but V2 pipeline sets narrator before that code runs, causing it to skip re-detection entirely
+- **James Gatz/Jay Gatsby block**: BLOCKED alias message still fires in Pass 2. STEP 5.11 post-extraction promotion should handle this IF mention counts accumulated properly
+- **Relationship contradictions removed**: Dan Cody↔James Gatz both "mentor" (symmetric impossibility), Henry C. Gatz↔James Gatz both "parent" — these were caught and removed
+- 27 characters total (23 V2 + 8 F6); top 5: Nick Carraway (34), Daisy Buchanan (208), Tom Buchanan (196), Jordan Baker (101), Myrtle Wilson (23)
+- Gatsby not in top-5 visible — needs evaluation to confirm cast tier
+
 ## Next Action
-Re-run analysis on gatsby (attempt 2). Fixes applied:
-- CRITICAL #1: False narrator → STEP 4.26 threshold raised (≤2→≤5)
-- CRITICAL #2: Gatsby cast tier + canonical name → STEP 5.11 added
-- CRITICAL #3: Relationship label catastrophe → verify_relationships_from_text guard fixed
-CRITICAL #4 (Wolfsheim duplicate) deferred to attempt 3 if needed.
+Evaluate attempt 2 output.
