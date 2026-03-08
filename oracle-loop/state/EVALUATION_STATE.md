@@ -2,13 +2,21 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 5)
+- Runtime: 87m 33s
+- Narrator: Nick Carraway confirmed ✓ (Fix I/J worked — Ella Kaye blocked by low-mention invariant)
+- Characters: 33 total; Jay Gatsby 269 mentions with aliases [Gatsby, James Gatz] ✓
+- "colleague" filter effectiveness: TBD (awaiting evaluation)
+- LLM marker proposer returned non-list (dict) warnings during chapter detection — non-fatal
+- Pronunciation: 149 flags; some json_mode validation errors (non-fatal, fallback used)
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
