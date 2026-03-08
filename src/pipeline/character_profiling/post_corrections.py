@@ -895,6 +895,67 @@ class OutputCharacterCorrector:
         # gender-mismatched labels (e.g., RELATIONSHIP_REVERSES["son"] = "father"
         # propagated to a female character). Run once more to catch these.
         self.enforce_gender_consistency(characters)
+        # Universal invariant: each character has at most ONE spouse. Remove extra
+        # spousal labels, keeping only the pair with the most text co-mentions.
+        # Also remove "colleague" labels between characters that lack shared
+        # professional context (a co-occurrence fallback, not real relationship data).
+        self._enforce_one_spouse_invariant(characters, source_text)
+
+    def _enforce_one_spouse_invariant(self, characters, source_text: str) -> None:
+        """Universal invariant: each character has at most one spouse.
+
+        If a character has spousal labels (husband/wife/spouse) pointing to more
+        than one other character, keep only the pair with the highest text
+        co-mention count and downgrade the rest to 'associated'.
+
+        Also strips standalone "colleague" labels added by co-occurrence fallback
+        when neither character has any professional occupation in their profile —
+        social acquaintances in fiction are better left with no label than a
+        misleading "colleague".
+        """
+        _spouse_terms = {"husband", "wife", "spouse"}
+        name_patterns = _build_name_patterns(characters) if source_text else {}
+
+        for char in characters:
+            if not char.relationships:
+                continue
+
+            # Collect all spousal relationship keys for this character
+            spousal_keys = [
+                k for k, v in char.relationships.items()
+                if v and any(t in v.lower() for t in _spouse_terms)
+            ]
+            if len(spousal_keys) > 1:
+                # Count co-mentions for each spousal pair (in 500-char window)
+                pat_a = name_patterns.get(char.canonical_name)
+                co_counts: dict[str, int] = {}
+                for other_key in spousal_keys:
+                    other_char = next(
+                        (c for c in characters if c.canonical_name == other_key
+                         or c.canonical_name.lower() == other_key.lower()),
+                        None,
+                    )
+                    pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
+                    count = 0
+                    if pat_a and pat_b and source_text:
+                        for ma in pat_a.finditer(source_text):
+                            ws = max(0, ma.start() - 500)
+                            we = min(len(source_text), ma.end() + 500)
+                            if pat_b.search(source_text[ws:we]):
+                                count += 1
+                    co_counts[other_key] = count
+
+                # Keep only the best-evidenced spouse; downgrade the rest
+                best_key = max(spousal_keys, key=lambda k: co_counts.get(k, 0))
+                for other_key in spousal_keys:
+                    if other_key != best_key:
+                        char.relationships[other_key] = "associated"
+                        logger.info(
+                            f"One-spouse invariant: '{char.canonical_name}' → '{other_key}': "
+                            f"'{char.relationships.get(other_key, '')}' downgraded "
+                            f"(co-mentions: {co_counts.get(other_key, 0)}, kept '{best_key}' "
+                            f"with {co_counts.get(best_key, 0)} co-mentions)"
+                        )
 
     def _add_text_window_cooccurrence(
         self, characters, source_text: str, window_chars: int = 8000
@@ -1155,11 +1216,11 @@ class OutputCharacterCorrector:
                     char_a.relationships = {}
                 if not isinstance(getattr(char_b, 'relationships', None), dict):
                     char_b.relationships = {}
-                char_a.relationships[char_b.canonical_name] = "colleague"
-                char_b.relationships[char_a.canonical_name] = "colleague"
+                char_a.relationships[char_b.canonical_name] = "associated"
+                char_b.relationships[char_a.canonical_name] = "associated"
                 logger.info(
                     f"Co-occurrence relationship: '{char_a.canonical_name}' ↔ "
-                    f"'{char_b.canonical_name}': 'colleague' ({len(shared)} shared summaries)"
+                    f"'{char_b.canonical_name}': 'associated' ({len(shared)} shared summaries)"
                 )
 
     def enrich_zero_relationships_from_summaries(self, characters, chapter_summaries: list) -> None:

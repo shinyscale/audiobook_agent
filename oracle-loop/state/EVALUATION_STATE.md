@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -222,5 +222,30 @@
 
 6. **Remove phantom parent entries** — Suppress `_parent` suffixed character IDs or merge them back.
 
+## Attempt 8 Fixes Applied
+
+### Fix R (Canonical name normalization — Step 4.5.5 in analyzer.py)
+- Added post-extraction canonical rename: if canonical appears < 10 times in text AND an alias appears 20+ times (3x more), rename canonical to the alias.
+- Target: "James Gatz" (4 text uses) → "Jay Gatsby" (175+ uses).
+- Universal: applies to any book where a character is known primarily by a pseudonym or nickname.
+- Location: `src/analyzer.py` (after role safety net, before profiling)
+
+### Fix S (One-spouse invariant — post_corrections.py)
+- Added `_enforce_one_spouse_invariant()`: if a character has spousal (husband/wife/spouse) labels pointing to multiple other characters, keep only the pair with the most text co-mentions, downgrade the rest to "associated".
+- Universal rule: each character has at most one spouse.
+- Location: `src/pipeline/character_profiling/post_corrections.py`
+
+### Fix T (Colleague → associated in add_cooccurrence_relationships)
+- Changed `add_cooccurrence_relationships` to use "associated" instead of "colleague".
+- "associated" gets cleaned by `clean_unknown_relationships`, removing spurious cooccurrence labels.
+- Universal: cooccurrence-based fallback labels should be ephemeral (upgraded by text evidence or dropped).
+- Location: `src/pipeline/character_profiling/post_corrections.py`
+
+### Fix U (STEP 5.9.9 — second-pass alias absorption)
+- Added a second-pass of STEP 5.6.9 that runs AFTER all alias-enrichment steps (before STEP 5.10).
+- Catches cases where main cast aliases are added after the first STEP 5.6.9 pass.
+- Handles Wolfsheim duplicate: supporting_2 "Meyer Wolfshiem" absorbed into main_cast_7 "Meyer Wolfsheim".
+- Location: `src/agents/characters.py`
+
 ## Next Action
-Run PROMPT_fix.md to address speech patterns pipeline (Critical #2), relationship post-processing (Critical #3-4), and Gatsby promotion (Critical #1).
+Re-run analysis to verify fixes.

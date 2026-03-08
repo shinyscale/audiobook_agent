@@ -1935,6 +1935,55 @@ class AudiobookAnalyzer:
                     )
                     _sn_char.role = "main"
 
+        # Step 4.5.5: Canonical name normalization — prefer most-used name over legal/birth name.
+        # Universal invariant: the name a character is primarily called in the text should be
+        # the canonical name. If a character's canonical appears < 10 times in text but an
+        # alias appears 20+ times, the alias is the "real" name for narrator purposes.
+        # This catches cases like "James Gatz" (4 text uses) whose alias "Jay Gatsby" appears
+        # ~175 times — "Jay Gatsby" is the correct canonical for narrator prep.
+        if pipeline_char_map and pipeline_char_map.characters and doc and doc.text:
+            import re as _sn_re
+            def _count_in_text(name: str, text: str) -> int:
+                return len(_sn_re.findall(
+                    rf"(?<![A-Za-z0-9]){_sn_re.escape(name)}(?![A-Za-z0-9])",
+                    text, _sn_re.IGNORECASE
+                ))
+            for _sn55_char in pipeline_char_map.characters:
+                if getattr(_sn55_char, "is_narrator", False):
+                    continue
+                _sn55_aliases = getattr(_sn55_char, "aliases", None) or []
+                if not _sn55_aliases:
+                    continue
+                _sn55_canonical_count = _count_in_text(_sn55_char.canonical_name, doc.text)
+                if _sn55_canonical_count >= 10:
+                    continue  # Canonical is well-used; no need to rename
+                # Find the alias with the highest text count
+                _sn55_best_alias = None
+                _sn55_best_count = 0
+                for _sn55_alias in _sn55_aliases:
+                    _sn55_ac = _count_in_text(_sn55_alias, doc.text)
+                    # Alias must appear > 20 times AND > 3x more than canonical
+                    if _sn55_ac >= 20 and _sn55_ac > _sn55_canonical_count * 3:
+                        if _sn55_best_alias is None:
+                            _sn55_best_alias = _sn55_alias
+                            _sn55_best_count = _sn55_ac
+                        elif len(_sn55_alias.split()) > 1 and len(_sn55_best_alias.split()) == 1:
+                            _sn55_best_alias = _sn55_alias  # Prefer multi-word (fuller name)
+                            _sn55_best_count = _sn55_ac
+                        elif _sn55_ac > _sn55_best_count and len(_sn55_alias.split()) >= len(_sn55_best_alias.split()):
+                            _sn55_best_alias = _sn55_alias
+                            _sn55_best_count = _sn55_ac
+                if _sn55_best_alias:
+                    _sn55_old = _sn55_char.canonical_name
+                    _sn55_char.aliases = [a for a in _sn55_aliases if a.lower() != _sn55_best_alias.lower()]
+                    if _sn55_old.lower() not in {a.lower() for a in _sn55_char.aliases}:
+                        _sn55_char.aliases.append(_sn55_old)
+                    _sn55_char.canonical_name = _sn55_best_alias
+                    logger.info(
+                        f"Step 4.5.5: Renamed '{_sn55_old}' → '{_sn55_best_alias}' "
+                        f"({_sn55_best_count} text uses vs {_sn55_canonical_count} for old canonical)"
+                    )
+
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length
         # For short texts (< 5000 words), use a lower threshold

@@ -2285,6 +2285,49 @@ class CharacterAgent(Agent):
                         f"'{old_role}' → 'protagonist'"
                     )
 
+        # STEP 5.9.9: Second pass of alias-based absorption for supporting chars.
+        # STEP 5.6.9 ran before many alias-enrichment steps (mention search, within-cast
+        # merges). Some aliases (e.g., "Meyer Wolfshiem" misspelling) may be added to
+        # main cast characters AFTER 5.6.9. This second pass catches them.
+        logger.info("V2 Step 5.9.9: Second-pass alias absorption for late-added aliases")
+        supporting_to_absorb_599 = set()
+        for supp_idx_599, supp_char_599 in enumerate(supporting_cast):
+            supp_lower_599 = supp_char_599.canonical_name.strip().lower()
+            if not supp_lower_599:
+                continue
+            for main_char_599 in main_cast:
+                # Check canonical name match first
+                if supp_lower_599 == main_char_599.canonical_name.strip().lower():
+                    main_char_599.mention_count = max(
+                        main_char_599.mention_count, supp_char_599.mention_count
+                    )
+                    supporting_to_absorb_599.add(supp_idx_599)
+                    logger.info(
+                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
+                        f"(canonical match) into main '{main_char_599.canonical_name}'"
+                    )
+                    break
+                # Check alias match
+                aliases_lower_599 = [a.strip().lower() for a in (main_char_599.aliases or [])]
+                if supp_lower_599 in aliases_lower_599:
+                    main_char_599.mention_count = max(
+                        main_char_599.mention_count, supp_char_599.mention_count
+                    )
+                    supporting_to_absorb_599.add(supp_idx_599)
+                    logger.info(
+                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
+                        f"(alias match of '{main_char_599.canonical_name}')"
+                    )
+                    break
+        if supporting_to_absorb_599:
+            supporting_cast = [
+                c for idx, c in enumerate(supporting_cast)
+                if idx not in supporting_to_absorb_599
+            ]
+            logger.info(
+                f"V2 Step 5.9.9: Second-pass absorbed {len(supporting_to_absorb_599)} supporting char(s)"
+            )
+
         # STEP 5.10: Final alias validation
         # Clean up any invalid aliases that may have been added during merge operations
         # This ensures aliases like "the ebony clock" (object) don't appear on non-object characters
