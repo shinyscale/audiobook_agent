@@ -3484,7 +3484,7 @@ Include ONLY relationships where the provided text or summary evidence EXPLICITL
 Use familial labels (parent, child, sibling, spouse, brother, sister) only when the text explicitly uses these words.
 Use other labels ("close friend", "rival", "mentor", "employer", "enemy", "creator", "creation", "captor", "prisoner", "tormentor", "victim") only with direct textual support.
 If two characters merely appear in the same context without explicit relationship words, OMIT them from the relationships dict entirely.
-Do NOT use "acquaintance", "associated", or "unknown" — omit instead."""
+Do NOT use "acquaintance", "associated", "colleague", or "unknown" — omit instead."""
 
         # Helper to parse JSON from LLM response
         def _parse_json_blob(s: str):

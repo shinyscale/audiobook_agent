@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -141,9 +141,42 @@
 - Zero LLM retries — no prompt/schema failures
 - No chunking issues apparent
 
+## Attempt 3 Fixes Applied
+
+**Fix D: False narrator — layered defense (narrator.py + characters.py)**
+- narrator.py: Changed narrator mention-count guard from `<= 2` to `<= 5` (blocks Eckleburg with 5 mentions)
+- characters.py STEP 5.8.4: Added mention-count validation before re-resolving narrator candidate. If candidate has ≤ 5 mentions and another char has ≥ 5x more, clear narrator_name to prevent re-assignment downstream.
+- characters.py post-5.8.5 guard: Changed `<= 2` to `<= 5` for consistency
+- pipeline_metadata: Only export narrator_name when narrator_character_id is also set (prevents unmatched name from being used by analyzer.py)
+
+**Fix E: "colleague" relationship spam in profiler**
+- analyzer.py profiler prompt: Added "colleague" to the forbidden relationship labels (alongside "acquaintance", "associated", "unknown")
+
+**Fix F: STEP 5.11 diagnostic logging**
+- Added detailed logging for every high-mention supporting character at STEP 5.11 to diagnose why James Gatz isn't being promoted
+
+### Fix Classification
+- **Fix D type:** Verification/invariant enforcement — universal mention-ratio guard prevents any low-mention character from being tagged as narrator
+- **Fix E type:** Prompt clarification — removes a fallback label that creates noise across any book
+- **Universality:** Both fixes help any book regardless of genre/vocabulary
+- **Root-cause locations:** narrator.py:update_characters_with_narrator, characters.py:STEP 5.8.4, characters.py:post-5.8.5-guard, analyzer.py:_generate_character_profile
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **V2 narrator assignment** — fix in `src/pipeline/character_extraction_v2/` (not characters.py)
-2. **Debug STEP 5.11** — why isn't 269-mention James Gatz being promoted?
-3. **"colleague" relationship spam** — fix profiler prompt to omit non-relationships
-4. **Speech patterns** — ensure profiler prompt requests them
+Run analysis to verify:
+1. Doctor Eckleburg (5 mentions) no longer tagged as narrator
+2. Nick Carraway correctly identified as narrator
+3. "colleague" no longer appears as default relationship label
+4. STEP 5.11 diagnostic logging reveals why James Gatz isn't promoted
+
+**Phase:** awaiting_analysis
+
+## Modification History (updated)
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 2 | False narrator (Eckleburg) | `src/agents/characters.py` (STEP 4.26 threshold) | No change — wrong layer |
+| 2 | Gatsby wrong cast tier | `src/agents/characters.py` (STEP 5.11 new) | No change — code not firing |
+| 2 | Relationship labels all "husband" | `src/pipeline/character_profiling/post_corrections.py` | Partial fix — main cast improved, "colleague" spam unchanged |
+| 3 | False narrator | `src/pipeline/character_extraction_v2/narrator.py` (<=5 threshold), `src/agents/characters.py` (STEP 5.8.4 guard + post-5.8.5 guard + pipeline_metadata) | TBD |
+| 3 | "colleague" spam | `src/analyzer.py` (profiler prompt) | TBD |
+| 3 | Gatsby promotion diagnostic | `src/agents/characters.py` (STEP 5.11 logging) | TBD |

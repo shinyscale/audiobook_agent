@@ -1808,17 +1808,39 @@ class CharacterAgent(Agent):
                 None,
             )
             if _resolved_584 is not None:
-                narrator_info = NarratorInfo(
-                    pov=narrator_info.pov,
-                    narrator_name=_resolved_584.canonical_name,
-                    narrator_character_id=_resolved_584.id,
-                    confidence=max(narrator_info.confidence, 0.75),
+                # Universal invariant: a narrator candidate with ≤ 5 mentions but another
+                # character has ≥ 5x more is almost certainly NOT the narrator.
+                # This mirrors the STEP 4.26 check to prevent a blocked narrator from being
+                # re-assigned here after being cleared upstream.
+                _resolved_584_count = getattr(_resolved_584, "mention_count", 0) or 0
+                _resolved_584_max_other = max(
+                    (getattr(c, "mention_count", 0) or 0 for c in main_cast if c.id != _resolved_584.id),
+                    default=0,
                 )
-                main_cast = narrator_detector.update_characters_with_narrator(main_cast, narrator_info)
-                logger.info(
-                    f"V2 Step 5.8.4: Resolved narrator '{narrator_info.narrator_name}' "
-                    f"to character ID '{_resolved_584.id}' — skipping LLM re-detection"
-                )
+                if 0 < _resolved_584_count <= 5 and _resolved_584_max_other >= _resolved_584_count * 5:
+                    logger.warning(
+                        f"V2 Step 5.8.4: Narrator candidate '{_resolved_584.canonical_name}' "
+                        f"has only {_resolved_584_count} mention(s) but another character has "
+                        f"{_resolved_584_max_other} — rejecting low-mention narrator; clearing name."
+                    )
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov,
+                        narrator_character_id=None,
+                        narrator_name=None,
+                        confidence=0.3,
+                    )
+                else:
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov,
+                        narrator_name=_resolved_584.canonical_name,
+                        narrator_character_id=_resolved_584.id,
+                        confidence=max(narrator_info.confidence, 0.75),
+                    )
+                    main_cast = narrator_detector.update_characters_with_narrator(main_cast, narrator_info)
+                    logger.info(
+                        f"V2 Step 5.8.4: Resolved narrator '{narrator_info.narrator_name}' "
+                        f"to character ID '{_resolved_584.id}' — skipping LLM re-detection"
+                    )
 
         # STEP 5.8.4b: Self-identification scan with full cast (supporting_cast now populated).
         # STEP 4.24 could not search supporting_cast because it runs before STEP 5. Now that
@@ -1997,7 +2019,7 @@ class CharacterAgent(Agent):
                      if c.id != _recheck_char.id),
                     default=0,
                 )
-                if 0 < _recheck_count <= 2 and _recheck_max_other >= _recheck_count * 5:
+                if 0 < _recheck_count <= 5 and _recheck_max_other >= _recheck_count * 5:
                     logger.warning(
                         f"V2 Step 5.8.5 post-guard: Narrator '{_recheck_char.canonical_name}' "
                         f"({_recheck_count} mentions) still fails low-mention invariant "
@@ -2290,9 +2312,20 @@ class CharacterAgent(Agent):
 
         late_promoted = []
         still_supporting = []
+        logger.info(
+            f"V2 Step 5.11: Checking {len(supporting_cast)} supporting chars for late promotion "
+            f"(effective_protagonist={effective_protagonist}, main_cast_names count={len(main_cast_names_511)})"
+        )
         for char in supporting_cast:
+            _511_blocked_by_name = char.canonical_name.lower() in main_cast_names_511
+            if char.mention_count >= effective_protagonist:
+                logger.info(
+                    f"V2 Step 5.11: '{char.canonical_name}' has {char.mention_count} mentions "
+                    f"(>= {effective_protagonist}), name_in_main_cast={_511_blocked_by_name}, "
+                    f"aliases={char.aliases}"
+                )
             if (char.mention_count >= effective_protagonist
-                    and char.canonical_name.lower() not in main_cast_names_511):
+                    and not _511_blocked_by_name):
                 # Universal invariant: prefer the name the character is most commonly called.
                 # If the canonical has very few text mentions but an alias has many more,
                 # rename to the most common alias (prefer multi-word fullest name).
@@ -2363,7 +2396,12 @@ class CharacterAgent(Agent):
                 "grounded_count": grounding_report.total_grounded,
                 "ungrounded_count": grounding_report.total_ungrounded,
                 "narrator_pov": narrator_info.pov,
-                "narrator_name": narrator_info.narrator_name,
+                # Only export narrator_name when we've confirmed a character match.
+                # An unmatched narrator_name (narrator_character_id=None) means the LLM
+                # identified a name that doesn't correspond to any extracted character —
+                # exporting it would cause downstream stages to incorrectly mark that
+                # character as narrator without a valid character ID to attach it to.
+                "narrator_name": narrator_info.narrator_name if narrator_info.narrator_character_id else None,
             },
         )
 
