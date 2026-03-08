@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 13
-- **Phase:** awaiting_analysis
+- **Attempt:** 14
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260308_151658/
+- Timestamped: output/gatsby_20260308_174827/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -254,5 +254,12 @@ Fixing issues 1-2 would likely push Profiles to 8/10. Issue 3 is a nice-to-have.
   - All 332 tests pass with no regressions
   - Smoke test: Myrtle is_male=False, is_female=True ✓; Catherine is_male=False, is_female=True ✓; Tom is_male=True, is_female=False ✓
 
+## Pipeline Notes (Attempt 14)
+- Fix MM applied: `" man "` word-boundary in MALE_INDICATORS (post_corrections.py:92)
+- Also fixed: early-return path in `_generate_character_profile()` (analyzer.py:3517) returning 6 values instead of 7 — caused crash in attempt 14 first run
+- 28 characters, 18 profiles, 149 pronunciation flags
+- Nick Carraway narrator correctly detected ✓
+- Gatsby with aliases James Gatz, Jay Gatsby ✓
+
 ## Next Action
-Re-run analysis to verify Fix MM (Myrtle/Catherine "brother"→"sister" correction)
+Evaluate attempt 14 output to verify Fix MM fixed Myrtle/Catherine "brother"→"sister"

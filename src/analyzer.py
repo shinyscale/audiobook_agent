@@ -3514,7 +3514,7 @@ class AudiobookAnalyzer:
 
         if not contexts:
             logger.warning(f"No context available for {character.canonical_name}")
-            return "", [], 0.0, None, None, None
+            return "", [], 0.0, None, None, None, None
 
         context_text = "\n\n".join(
             [
