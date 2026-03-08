@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 11
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -224,9 +224,31 @@
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
+## Fix History (continued)
+
+### Attempt 12 fixes
+
+- **Fix GG: Chapter-spread narrator guard (STEP 5.8.5 chapter-spread guard)** — Added to `src/agents/characters.py` after post-STEP-5.8.5 low-mention guard
+  - Root cause: STEP 5.8.5 re-runs LLM narrator detection and the LLM returns "Henry C. Gatz" (who narrates in Ch9 but is not the narrator). Gatz has 13 mentions (passes ≤5 guard) so previous guard didn't block him.
+  - Fix: If narrator's first_appearance_chapter > total_chapters//2, disqualify them. Gatz appears first in chapter 8 of 9 → disqualified. Nick (chapter 0) passes.
+  - Smoke test: PASS — Gatz (chap 8) correctly blocked, Nick (chap 0) correctly allowed
+  - Universal: Any first-person narrator must appear from early chapters. A character who first appears in the last half of the book cannot be the narrator throughout.
+
+- **Fix HH: Heuristic narrator max-mention guard** — Modified `_heuristic_narrator_from_mention_count` in `src/agents/characters.py`
+  - Root cause: After Gatz is cleared, STEP 5.8.6 heuristic picks max-mention character (Gatsby 265) not Nick (34). Previously the heuristic used raw max without the same invariant as `_parse_result`.
+  - Fix: Applied same max-mention guard as `_parse_result` — if selected is max-mention, look for plausible lower-mention candidates (>15 mentions, ≤ max/3). Among plausible, prefer those with first_appearance_chapter=0 (appear from chapter 1).
+  - Smoke test: PASS — Gatsby(265) is skipped, plausible=[Nick(34), Wilson(88), Myrtle(30)], from_start=[Nick(34)] → picks Nick
+
+- **Fix II: STEP 5.12 final cross-cast alias dedup** — Added to `src/agents/characters.py` before `_convert_to_pipeline_characters`
+  - Root cause: STEP 5.6.9 and 5.9.9 both have correct logic but fail for unknown reasons (possibly timing of alias population). Added a definitive STEP 5.12 that runs AFTER all alias enrichment.
+  - Fix: For each supporting char, check if canonical matches any main_cast alias (exact or word-subset). "wolfshiem" is a word in "meyer wolfshiem" alias → absorb supporting_2 into main_cast_7.
+  - Smoke test: PASS — "wolfshiem" matches "meyer wolfshiem" via word-subset check
+
+- **Fix JJ: STEP 5.11.5 shared single-word alias dedup** — Added to `src/agents/characters.py` before STEP 5.12
+  - Root cause: Both Daisy and Tom Buchanan had "Buchanan" as alias, making it ambiguous.
+  - Fix: If same single-word alias appears on 2+ main_cast characters, remove from all.
+  - Smoke test: PASS — "buchanan" on both Daisy and Tom → removed from both (universal: ambiguous shared aliases are not useful)
+  - Risk: This also removes "Baker" from Jordan Baker if two characters shared it, etc. Low risk.
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL #1**: Narrator fix — add chapter-spread heuristic (narrator must appear in most chapters; Gatz only in Ch9 → disqualified)
-2. **CRITICAL #2**: Wolfsheim dedup — use exact alias-to-canonical match (not fuzzy), verify code path reached with logging
-3. **HIGH #3**: "James" ghost — F6 should skip single common first names or check against existing character aliases
-4. **HIGH #4**: Shared "Buchanan" alias dedup
+**Phase:** awaiting_analysis — Run analysis to verify fixes.

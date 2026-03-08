@@ -2116,6 +2116,42 @@ class CharacterAgent(Agent):
                         confidence=0.3,
                     )
 
+        # STEP 5.8.5 chapter-spread guard: A first-person narrator must appear in early chapters.
+        # Universal invariant: the narrator's voice is present from the first chapter. A character
+        # who only appears in the second half (or final chapter) of the story cannot have been the
+        # first-person voice throughout — they are a late-appearing character, not the narrator.
+        # This specifically catches cases where a character appears only at the end (e.g., a parent
+        # who shows up in the final chapter) and is wrongly selected by LLM or heuristic as narrator.
+        if (
+            narrator_info.pov in ("first-person", "epistolary")
+            and narrator_info.narrator_character_id is not None
+            and len(chapter_summaries) >= 3
+        ):
+            _spread_char_585 = next(
+                (c for c in main_cast if c.id == narrator_info.narrator_character_id), None
+            )
+            if _spread_char_585 is not None:
+                _first_chap_585 = getattr(_spread_char_585, "first_appearance_chapter", None)
+                _total_chaps_585 = len(chapter_summaries)
+                if (
+                    _first_chap_585 is not None
+                    and _first_chap_585 > _total_chaps_585 // 2
+                ):
+                    logger.warning(
+                        f"V2 Step 5.8.5 chapter-spread guard: Proposed narrator "
+                        f"'{_spread_char_585.canonical_name}' first appears in chapter "
+                        f"{_first_chap_585} of {_total_chaps_585} (past the halfway mark) "
+                        f"— a first-person narrator must appear from early chapters; resetting."
+                    )
+                    _spread_char_585.is_narrator = False
+                    _spread_char_585.narrative_role = None
+                    narrator_info = NarratorInfo(
+                        pov=narrator_info.pov,
+                        narrator_character_id=None,
+                        narrator_name=None,
+                        confidence=0.3,
+                    )
+
         # STEP 5.8.5b: Search supporting_cast for narrator name fragments.
         # When narrator_name was identified but not matched to any main_cast
         # character, the narrator may exist in supporting_cast as fragments
@@ -2520,6 +2556,86 @@ class CharacterAgent(Agent):
             main_cast.extend(late_promoted)
             supporting_cast = still_supporting
             logger.info(f"V2 Step 5.11: Late-promoted {len(late_promoted)} character(s) to main cast")
+
+        # STEP 5.11.5: Remove shared single-word aliases from main_cast.
+        # Universal invariant: if the same single-word alias (e.g., a surname) appears on
+        # 2+ characters, it is ambiguous and unhelpful for identification. Remove it from
+        # all characters. This prevents married-name ambiguity (e.g., "Buchanan" on both
+        # Tom Buchanan and Daisy Buchanan) from confusing alias-based lookups.
+        if len(main_cast) >= 2:
+            from collections import defaultdict as _defaultdict_5115
+            _alias_owners_5115: dict[str, list] = _defaultdict_5115(list)
+            for _char_5115 in main_cast:
+                for _alias_5115 in (_char_5115.aliases or []):
+                    _a_lower_5115 = _alias_5115.strip().lower()
+                    # Only consider single-word aliases (surname-only or first-name-only)
+                    if _a_lower_5115 and " " not in _a_lower_5115:
+                        _alias_owners_5115[_a_lower_5115].append(_char_5115)
+            for _a_word_5115, _owners_5115 in _alias_owners_5115.items():
+                if len(_owners_5115) >= 2:
+                    # Remove this ambiguous alias from all owners
+                    for _owner_5115 in _owners_5115:
+                        _owner_5115.aliases = [
+                            a for a in (_owner_5115.aliases or [])
+                            if a.strip().lower() != _a_word_5115
+                        ]
+                        logger.info(
+                            f"V2 Step 5.11.5: Removed shared alias '{_a_word_5115}' "
+                            f"from '{_owner_5115.canonical_name}' (appeared on {len(_owners_5115)} characters)"
+                        )
+
+        # STEP 5.12: Final cross-cast alias dedup (pre-conversion).
+        # Universal invariant: if a supporting character's canonical name exactly matches
+        # any alias of a main cast character, they are the same person. Absorb the supporting
+        # character into the main cast character and update mention count.
+        # This runs last (after all alias enrichment) so all aliases are fully populated.
+        logger.info("V2 Step 5.12: Final cross-cast alias dedup (pre-conversion)")
+        _to_remove_512: set[str] = set()
+        for _supp_char_512 in supporting_cast:
+            _supp_lower_512 = _supp_char_512.canonical_name.strip().lower()
+            if not _supp_lower_512:
+                continue
+            for _main_char_512 in main_cast:
+                # Exact canonical match
+                if _supp_lower_512 == _main_char_512.canonical_name.strip().lower():
+                    _main_char_512.mention_count = max(
+                        _main_char_512.mention_count, _supp_char_512.mention_count
+                    )
+                    _to_remove_512.add(_supp_char_512.id)
+                    logger.info(
+                        f"V2 Step 5.12: '{_supp_char_512.canonical_name}' absorbed into "
+                        f"'{_main_char_512.canonical_name}' (canonical match)"
+                    )
+                    break
+                # Alias match: supporting canonical == main alias (exact or word-subset)
+                _main_aliases_512 = [a.strip().lower() for a in (_main_char_512.aliases or [])]
+                _matched_512 = False
+                for _alias_512 in _main_aliases_512:
+                    # Exact alias match
+                    if _supp_lower_512 == _alias_512:
+                        _matched_512 = True
+                        break
+                    # Word-subset: every word of the shorter appears in the longer
+                    # (handles "wolfshiem" ↔ "meyer wolfshiem")
+                    if len(_supp_lower_512) >= 4 and len(_alias_512) >= 4:
+                        _supp_words_512 = set(_supp_lower_512.split())
+                        _alias_words_512 = set(_alias_512.split())
+                        if _supp_words_512.issubset(_alias_words_512) or _alias_words_512.issubset(_supp_words_512):
+                            _matched_512 = True
+                            break
+                if _matched_512:
+                    _main_char_512.mention_count = max(
+                        _main_char_512.mention_count, _supp_char_512.mention_count
+                    )
+                    _to_remove_512.add(_supp_char_512.id)
+                    logger.info(
+                        f"V2 Step 5.12: '{_supp_char_512.canonical_name}' absorbed into "
+                        f"'{_main_char_512.canonical_name}' (alias match)"
+                    )
+                    break
+        if _to_remove_512:
+            supporting_cast = [c for c in supporting_cast if c.id not in _to_remove_512]
+            logger.info(f"V2 Step 5.12: Removed {len(_to_remove_512)} duplicate supporting char(s)")
 
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
@@ -5872,12 +5988,34 @@ class CharacterAgent(Agent):
             if _eligible:
                 candidates = _eligible
 
-        # The narrator tends to be the most prominently named character in the cast.
-        # While classic theory says the narrator uses "I" (low name-mentions), in practice
-        # the narrator is often frequently addressed by name in dialogue — making them the
-        # highest-mention candidate. This is the most reliable universal signal when the
-        # LLM narrator detection has already failed.
-        return max(candidates, key=lambda c: c.mention_count, default=None)
+        # Apply max-mention guard: in first-person stories the narrator uses "I" so their
+        # name appears LESS frequently than the characters they describe (e.g., Gatsby).
+        # If the candidate with the most mentions would be selected, check if there are
+        # plausible lower-mention candidates — those are more likely the actual narrator.
+        # This mirrors the same invariant applied in narrator.py _parse_result.
+        _selected = max(candidates, key=lambda c: c.mention_count, default=None)
+        if _selected and len(candidates) > 1:
+            _sel_count = _selected.mention_count
+            _others = [c for c in candidates if c.id != _selected.id]
+            _max_other = max((c.mention_count for c in _others), default=0)
+            if _sel_count > _max_other:
+                # Selected is the max-mention character — possibly the story's subject
+                _plausible = [
+                    c for c in _others
+                    if c.mention_count > 15 and c.mention_count <= _sel_count // 3
+                ]
+                if _plausible and _sel_count >= 5 * min(c.mention_count for c in _plausible):
+                    # Among plausible, prefer characters who appear from chapter 0 (early appearance)
+                    # Universal invariant: the narrator is present from the beginning.
+                    _from_start = [
+                        c for c in _plausible
+                        if getattr(c, "first_appearance_chapter", None) == 0
+                    ]
+                    if _from_start:
+                        _selected = max(_from_start, key=lambda c: c.mention_count)
+                    else:
+                        _selected = max(_plausible, key=lambda c: c.mention_count)
+        return _selected
 
     def _find_narrator_name_from_vocative(self, text: str) -> Optional[str]:
         """Search raw text for direct address patterns to identify the narrator's actual name.
