@@ -37,8 +37,8 @@ class NarratorInfo:
 NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of view.
 
 Based on the summaries below, determine:
-1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are written in third-person regardless of the original story's style. To detect POV: first-person means the story uses "I"/"we" from a character's direct perspective; third-person/omniscient describes events using "he"/"she"/"they" even if one character's emotions are the focus. A character whose feelings are described but who is referred to as "he/she" is NOT the first-person narrator.
-2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. If a summary explicitly names the narrator (e.g., "the narrator, known as [Name]" or "[Name], the narrator"), that IS the narrator. For frame/nested narratives, the OUTER narrator (whose "I" appears outside quotation marks) is the primary narrator; the inner narrator (whose first-person voice appears within quoted dialogue) is secondary. KEY: If a summary says "X recounts/tells their story/experiences to Y" or "X describes events to Y", then X is the INNER narrator and Y is the OUTER primary narrator — output Y's name.
+1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are written in third-person regardless of the original story's style. To detect POV: first-person means the story uses "I"/"we" from a character's direct perspective; third-person/omniscient uses "he"/"she"/"they" even if one character's emotions are the focus. A character referred to as "he/she" is NOT the first-person narrator. IMPORTANT: In first-person stories, the narrator uses "I" for themselves, so their proper name appears LESS FREQUENTLY than the characters they describe. If your proposed narrator is the most-mentioned character, reconsider — the most-mentioned character is usually the SUBJECT of the story, not the narrator.
+2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. For frame/nested narratives, the OUTER narrator (whose "I" appears outside quotation marks) is the primary narrator; the inner narrator (whose first-person voice appears within quoted dialogue) is secondary. KEY: If a summary says "X recounts/tells their story/experiences to Y" or "X describes events to Y", then X is the INNER narrator and Y is the OUTER primary narrator — output Y's name.
 3. Is this a nested/frame narrative with multiple narrators?
 
 CHAPTER SUMMARIES:
@@ -180,6 +180,35 @@ class NarratorDetector:
         narrator_name = result.get("narrator_name")
         is_nested = result.get("is_nested", False)
         nested_narrators = result.get("nested_narrators", [])
+
+        # Universal invariant: in first-person narration the narrator uses "I" so their
+        # proper name appears LESS frequently than the characters they describe (the narrator
+        # says "I went" not "[Name] went"). If the proposed narrator is the MOST-MENTIONED
+        # character with ≥5x more mentions than a plausible lower-mention candidate (who
+        # has >15 mentions but ≤ proposed_count/3), the assignment is almost certainly wrong:
+        # the LLM mistook the story's subject for its narrator. Override narrator_name to
+        # clear the assignment so downstream correction steps can recover the true narrator.
+        if pov in ("first-person", "epistolary") and narrator_name and main_cast:
+            _proposed_id = self._match_to_character(narrator_name, main_cast)
+            _proposed = next((c for c in main_cast if c.id == _proposed_id), None) if _proposed_id else None
+            if _proposed is not None:
+                _proposed_count = getattr(_proposed, "mention_count", 0) or 0
+                _others = [(c, getattr(c, "mention_count", 0) or 0) for c in main_cast if c.id != _proposed.id]
+                if _others and _proposed_count > 0:
+                    _max_other = max(cnt for _, cnt in _others)
+                    if _proposed_count > _max_other:
+                        # Proposed narrator is the max-mention character — suspicious
+                        _plausible = [(c, cnt) for c, cnt in _others if cnt > 15 and cnt <= _proposed_count // 3]
+                        if _plausible and _proposed_count >= 5 * min(cnt for _, cnt in _plausible):
+                            logger.warning(
+                                f"NarratorDetector: Proposed narrator '{narrator_name}' "
+                                f"({_proposed_count} mentions) is the most-mentioned character "
+                                f"and has ≥5x the mentions of plausible narrator candidates. "
+                                f"In first-person stories the narrator uses 'I' so their name "
+                                f"appears rarely — this assignment is likely wrong. "
+                                f"Clearing narrator_name so fallback steps can recover true narrator."
+                            )
+                            narrator_name = None
 
         # Match narrator to main cast character.
         # Universal invariant: only first-person or epistolary narratives have a narrator

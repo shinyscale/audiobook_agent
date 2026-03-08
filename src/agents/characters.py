@@ -1699,9 +1699,8 @@ class CharacterAgent(Agent):
         # STEP 5.6.9: Absorb supporting characters whose canonical name matches a main cast alias.
         # Universal invariant: if a supporting character's canonical name IS an alias of a main
         # cast character, they are the same person. This catches spelling variants (e.g.,
-        # "Meyer Wolfshiem" as supporting canonical when "Meyer Wolfshiem" is already an alias
-        # of "Meyer Wolfsheim" in main cast). This step runs AFTER all alias-adding steps so
-        # aliases accumulated throughout the pipeline are visible.
+        # "Wolfshiem" as supporting canonical when "Wolfsheim" is already an alias of "Meyer
+        # Wolfsheim" in main cast). Checks both exact and fuzzy alias matches.
         logger.info("V2 Step 5.6.9: Absorbing supporting chars that match main cast aliases")
         supporting_to_absorb = set()
         for supp_idx, supp_char in enumerate(supporting_cast):
@@ -1709,10 +1708,18 @@ class CharacterAgent(Agent):
             if not supp_lower:
                 continue
             for main_char in main_cast:
-                # Check if supporting canonical matches any alias of main cast char
-                aliases_lower = [a.lower() for a in (main_char.aliases or [])]
+                # Check if supporting canonical matches main canonical (exact)
+                if supp_lower == main_char.canonical_name.strip().lower():
+                    main_char.mention_count = max(main_char.mention_count, supp_char.mention_count)
+                    supporting_to_absorb.add(supp_idx)
+                    logger.info(
+                        f"V2 Step 5.6.9: Absorbed supporting '{supp_char.canonical_name}' "
+                        f"(canonical match) into main '{main_char.canonical_name}'"
+                    )
+                    break
+                # Check if supporting canonical matches any alias of main cast char (exact)
+                aliases_lower = [a.strip().lower() for a in (main_char.aliases or [])]
                 if supp_lower in aliases_lower:
-                    # Absorb: merge mention count into main cast character
                     old_count = main_char.mention_count
                     main_char.mention_count = max(main_char.mention_count, supp_char.mention_count)
                     supporting_to_absorb.add(supp_idx)
@@ -1720,6 +1727,24 @@ class CharacterAgent(Agent):
                         f"V2 Step 5.6.9: Absorbed supporting '{supp_char.canonical_name}' "
                         f"({supp_char.mention_count} mentions) into main '{main_char.canonical_name}' "
                         f"(mentions: {old_count} → {main_char.mention_count})"
+                    )
+                    break
+                # Fuzzy alias match: catches spelling variants like "Wolfshiem"/"Wolfsheim"
+                if any(names_similar(supp_lower, a_lower) for a_lower in aliases_lower):
+                    main_char.mention_count = max(main_char.mention_count, supp_char.mention_count)
+                    supporting_to_absorb.add(supp_idx)
+                    logger.info(
+                        f"V2 Step 5.6.9: Absorbed supporting '{supp_char.canonical_name}' "
+                        f"(fuzzy alias match of '{main_char.canonical_name}')"
+                    )
+                    break
+                # Fuzzy canonical match
+                if names_similar(supp_lower, main_char.canonical_name.strip().lower()):
+                    main_char.mention_count = max(main_char.mention_count, supp_char.mention_count)
+                    supporting_to_absorb.add(supp_idx)
+                    logger.info(
+                        f"V2 Step 5.6.9: Absorbed supporting '{supp_char.canonical_name}' "
+                        f"(fuzzy canonical match of '{main_char.canonical_name}')"
                     )
                     break
         if supporting_to_absorb:

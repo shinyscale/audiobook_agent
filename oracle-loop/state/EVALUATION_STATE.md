@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 10
-- **Phase:** awaiting_fix
+- **Attempt:** 11
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -203,23 +203,26 @@
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
-## Priority Fix Order for Attempt 11
+## Attempt 11 Fixes
 
-**The two blocking categories are Character Extraction (7/10) and Profiles (6/10).**
+### Fix EE: Narrator programmatic guard (narrator.py) — PENDING VALIDATION
+- **Prompt change**: Added warning that narrator's name appears LESS frequently than characters they describe; if proposed narrator is most-mentioned, reconsider.
+- **Programmatic guard in `_parse_result`**: If proposed narrator is the max-mention character AND has ≥5x mentions over any plausible lower-mention candidate (>15 mentions, ≤ proposed_count/3), clear `narrator_name` so downstream fallback can recover the true narrator.
+- For Gatsby: Gatsby(264) vs Nick(34). 264 ≥ 5×23=115 (Myrtle is plausible at 23), 264 ≥ 5×34=170. Guard fires → clears Gatsby as narrator.
+- **Impact**: If narrator is correctly set to Nick (not Gatsby), then `is_narrator=True` won't protect Gatsby's fabricated family relationships from the text-evidence checks in `verify_relationships_from_text` and `reject_unfounded_familial_labels`.
 
-### Profiles (6 → 8+) — HIGHEST PRIORITY
+### Fix FF: STEP 5.6.9 fuzzy alias dedup (characters.py) — PENDING VALIDATION
+- Extended STEP 5.6.9 (pre-promotion alias absorption) with:
+  1. Fuzzy alias match: `names_similar(supp_lower, a_lower)` for each alias of main cast
+  2. Fuzzy canonical match: `names_similar(supp_lower, main_char.canonical_name)` as fallback
+- Catches "Wolfshiem"/"Wolfsheim" (ei↔ie transposition, 0.889 similarity > 0.8 threshold)
+- Runs BEFORE STEP 5.8 promotion so supporting chars are absorbed before any can be promoted to main_cast as duplicates.
 
-1. **Fix narrator regression** — The narrator keeps breaking. Need a ROBUST fix that survives LLM variance. The current narrator detection assigns narrator to high-mention characters. For Gatsby, the highest-mention character IS Gatsby (264 mentions) but he's referred to in third person. Nick (34 mentions) is the actual first-person narrator. Fix approach: in narrator.py, add a hard check — if narrative is first-person and the candidate narrator is referenced overwhelmingly in third person in the text, reject them. Only accept a narrator whose text references include first-person pronouns near their name.
-
-2. **Fix fabricated family relationships** — 11 fabricated "brother"/"sister"/"nephew"/"husband" labels. Add a post-correction kinship filter: for any family label (brother, sister, nephew, uncle, cousin, husband, wife, parent, child, son, daughter), verify the label appears in source text near both character names. If no textual evidence, downgrade to "associated".
-
-### Character Extraction (7 → 8+)
-
-3. **Fix Wolfsheim duplication** — This needs a more robust approach. The spelling variants "Wolfsheim"/"Wolfshiem" (ei↔ie transposition) should be caught by edit-distance matching. Ensure the dedup runs on BOTH main_cast and supporting_cast entries, not just within one tier.
-
-4. **Merge James Gatz into Jay Gatsby** — F6 should check existing character relationships for "previous identity"/"birth name" labels before creating new entries. Or add "James Gatz" as a known alias of Gatsby when the relationship exists.
-
-5. **Remove shared "Buchanan" alias** — When a surname-only alias appears on 2+ characters, remove from all.
+### Fabricated kinship — handled by narrator fix
+- The existing `reject_unfounded_familial_labels` and `verify_relationships_from_text` already have kinship text-evidence checks.
+- Those checks have a narrator bypass: when `char.is_narrator=True`, fabricated family labels are kept without text verification.
+- Once narrator is fixed (Gatsby no longer marked narrator), the existing checks will properly downgrade the 11 fabricated family labels.
+- No additional code needed for this category.
 
 ## Next Action
-Run PROMPT_fix.md to address narrator regression (Critical #1) and fabricated relationships (Critical #2) as top priorities.
+Run analysis on gatsby and evaluate attempt 11.
