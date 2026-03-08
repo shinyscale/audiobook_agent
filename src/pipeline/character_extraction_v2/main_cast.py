@@ -894,6 +894,16 @@ class MainCastExtractor:
                         )
                         continue
 
+                # Universal invariant: aliases containing " and " are pair/group references,
+                # not aliases for a single character. "Tom and Daisy" refers to two people;
+                # it cannot be an alias for Tom alone. This applies to any book.
+                if " and " in alias_lower:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is a pair/group reference (contains ' and '), "
+                        f"not a valid alias for '{profile.canonical_name}'"
+                    )
+                    continue
+
                 # RULE 0.4: Block meta-references that are never character aliases
                 # "narrator" is a storytelling voice/device, not a character reference
                 # "reader" / "audience" are similar meta-references

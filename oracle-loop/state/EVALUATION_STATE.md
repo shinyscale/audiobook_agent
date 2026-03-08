@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Attempt:** 6
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -142,6 +142,10 @@
 - **Fix J: Step 6.6 narrator fallback minimum raised to 20** — EFFECTIVE ✓ (backstop for low-mention candidates)
 - **Fix K: Colleague substring filter** — INEFFECTIVE (192 remain, down from 198 — negligible improvement)
 
+### Attempt 6 fixes
+- **Fix L: Disabled `add_text_window_cooccurrence_relationships()` call in `post_corrections.py:run_all()`** — Root cause of 192 "colleague" entries: this function runs AFTER profile generation filter and adds "colleague" to all co-occurring character pairs. Disabled by removing call from run_all(). All 3 previous attempts filtered LLM output; the real source was this post-profile function. Expect ~192 fewer "colleague" entries.
+- **Fix M: Block " and " pair-reference aliases in `verify_aliases()`** — "Tom and Daisy" (and similar) blocked by new invariant check before Rule 0.4. Universal: "X and Y" is never a valid alias for a single character in any book.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -157,6 +161,8 @@
 | 5 | Narrator mention guard | `src/pipeline/character_extraction_v2/narrator.py` | **FIXED** ✓ |
 | 5 | Narrator fallback minimum | `src/agents/characters.py` (STEP 6.6) | **FIXED** ✓ |
 | 5 | Colleague substring filter | `src/analyzer.py` (two locations) | **FAILED** — 192 "colleague" remain |
+| 6 | Disable cooccurrence colleague injection | `src/pipeline/character_profiling/post_corrections.py` | Expected: eliminate 192 "colleague" entries |
+| 6 | Block " and " pair-reference aliases | `src/pipeline/character_extraction_v2/main_cast.py` | Expected: remove "Tom and Daisy" alias for Tom |
 
 **Pattern detected:** "colleague" filtering has FAILED 3 times across 3 attempts (prompt: attempt 3, startswith: attempt 4, substring: attempt 5). The filter code is either not in the execution path, or relationships are set AFTER the filter runs. The fix phase MUST trace the actual execution to find where relationships are finalized and place the filter there.
 
@@ -186,4 +192,4 @@
 Items 1-2 are essential to cross 8.0 on Profiles. Items 3-5 are needed to cross 8.0 on Character Extraction.
 
 ## Next Action
-Run PROMPT_fix.md to trace "colleague" filter execution path and add speech patterns.
+Re-run analysis (PROMPT_analyze.md) to verify fixes L and M.

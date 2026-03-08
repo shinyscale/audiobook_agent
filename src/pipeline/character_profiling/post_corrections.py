@@ -337,7 +337,11 @@ class PipelineCharacterCorrector:
         self.inject_narrator_appearance(characters, source_text)
         self.remove_contradictory_relationships(characters)
         self.infer_bidirectional_relationships(characters)
-        self.add_text_window_cooccurrence_relationships(characters, source_text)
+        # NOTE: add_text_window_cooccurrence_relationships() is intentionally not called.
+        # Spatial co-occurrence within a text window is an unreliable relationship signal —
+        # in social/ensemble novels it would label virtually every character pair as
+        # "colleague", drowning out the real LLM-derived labels. Relationships should
+        # come from explicit textual evidence only (LLM profile generation).
         self.fix_same_name_contamination(characters)
         self.remove_unsupported_death_claims(characters)
         self.correct_description_relationships(characters, source_text)
