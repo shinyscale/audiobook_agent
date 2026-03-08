@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -229,5 +229,14 @@ Items 1-3 target Profiles (3.5→8+). Items 4-6 target Character Extraction (6�
   - Modified: `src/agents/characters.py`
   - Universality: Universal — if a character's name IS an alias, they're the same person
 
+## Pipeline Notes (Attempt 7)
+- Analysis completed in 88m 5s
+- 33 characters found, 22 profiles generated
+- Key observations from stdout:
+  - `James Gatz` still blocked as alias for Jay Gatsby (never co-occur in same chapter)
+  - `_VAGUE_REL_LABELS` NameError fixed (Jordan Baker profile generated successfully)
+  - Pronunciation: 149 flagged words (81 unknown, 39 proper_noun, 15 foreign, 14 homograph)
+  - Output: `../output/gatsby/analysis.json`, `../output/gatsby/report.html`
+
 ## Next Action
-Run analysis to verify fixes.
+Awaiting evaluation.
