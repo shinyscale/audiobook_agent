@@ -1549,6 +1549,27 @@ class AudiobookAnalyzer:
                                         )
                                         return True
 
+                    # Check if single-word candidate is a name component of a multi-word character.
+                    # Universal invariant: if summaries say "Tom" and "Tom Buchanan" already exists,
+                    # "Tom" is just a first-name reference — do NOT add a second character.
+                    if len(name_parts) == 1:
+                        _f6_cand_word = name_parts[0]
+                        _f6_char_parts = char_canonical.split()
+                        if len(_f6_char_parts) >= 2 and _f6_cand_word in _f6_char_parts:
+                            logger.info(
+                                f"F6: '{name}' matches '{char.canonical_name}' "
+                                f"(single-word name component '{_f6_cand_word}')"
+                            )
+                            return True
+                        for alias in char.aliases:
+                            _f6_alias_parts = alias.lower().strip().split()
+                            if len(_f6_alias_parts) >= 2 and _f6_cand_word in _f6_alias_parts:
+                                logger.info(
+                                    f"F6: '{name}' matches alias '{alias}' of '{char.canonical_name}' "
+                                    f"(single-word name component '{_f6_cand_word}')"
+                                )
+                                return True
+
                     # Check for partial alias matches (e.g., "the masked figure" vs alias "the figure")
                     # This handles cases where the summary uses a more descriptive variant of an existing alias
                     # Extract significant words (nouns) from the summary name
@@ -2028,6 +2049,56 @@ class AudiobookAnalyzer:
                         f"Step 4.5.5: Renamed '{_sn55_old}' → '{_sn55_best_alias}' "
                         f"({_sn55_best_count} text uses vs {_sn55_canonical_count} for old canonical)"
                     )
+
+        # Step 4.5.9: Post-extraction word-subset dedup.
+        # Universal invariant: if a character's canonical name words are a strict subset of
+        # another character's canonical or alias words, they are partial references to the same
+        # entity. Merge the shorter-named character into the longer-named one.
+        # This runs AFTER Step 4.5.5 so all aliases are fully enriched, and catches cases where
+        # the V2 pipeline's internal dedup (STEP 5.12) could not match due to alias ordering.
+        if pipeline_char_map and pipeline_char_map.characters:
+            try:
+                _459_to_remove: set[str] = set()
+                _459_chars = list(pipeline_char_map.characters)
+                for _459_i, _459_a in enumerate(_459_chars):
+                    if _459_a.id in _459_to_remove:
+                        continue
+                    _459_a_words = set(_459_a.canonical_name.lower().split())
+                    if not _459_a_words:
+                        continue
+                    for _459_j, _459_b in enumerate(_459_chars):
+                        if _459_i == _459_j or _459_b.id in _459_to_remove:
+                            continue
+                        # Check if _459_a canonical words are strict subset of _459_b canonical words
+                        _459_b_words = set(_459_b.canonical_name.lower().split())
+                        if _459_a_words < _459_b_words:
+                            _459_b.mention_count = max(_459_b.mention_count, _459_a.mention_count)
+                            _459_to_remove.add(_459_a.id)
+                            logger.info(
+                                f"Step 4.5.9: '{_459_a.canonical_name}' merged into "
+                                f"'{_459_b.canonical_name}' (word-subset of canonical)"
+                            )
+                            break
+                        # Check if _459_a canonical words are strict subset of any _459_b alias words
+                        for _459_alias in (_459_b.aliases or []):
+                            _459_alias_words = set(_459_alias.lower().split())
+                            if _459_a_words <= _459_alias_words and len(_459_a_words) < len(_459_alias_words):
+                                _459_b.mention_count = max(_459_b.mention_count, _459_a.mention_count)
+                                _459_to_remove.add(_459_a.id)
+                                logger.info(
+                                    f"Step 4.5.9: '{_459_a.canonical_name}' merged into "
+                                    f"'{_459_b.canonical_name}' (word-subset of alias '{_459_alias}')"
+                                )
+                                break
+                        if _459_a.id in _459_to_remove:
+                            break
+                if _459_to_remove:
+                    pipeline_char_map.characters = [
+                        c for c in _459_chars if c.id not in _459_to_remove
+                    ]
+                    logger.info(f"Step 4.5.9: Removed {len(_459_to_remove)} word-subset duplicate(s)")
+            except Exception as _459_e:
+                logger.warning(f"Step 4.5.9 post-extraction dedup failed: {_459_e}")
 
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length

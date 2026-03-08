@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 12
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -247,8 +247,9 @@
 - Zero LLM retries — no prompt/schema failures
 - Tom profile: LOW CONFIDENCE (0.30) — JSON parse failure during profiling — but Tom Buchanan profile exists
 
+### Attempt 13 fixes
+- **Fix KK: F6 single-word name component check** — Added to `_is_likely_alias_of_existing()` in analyzer.py. Single-word candidates (e.g., "Tom") that match a word in an existing multi-word character's canonical name (e.g., "Tom Buchanan") are now correctly identified as existing characters and NOT added as duplicates.
+- **Fix LL: Step 4.5.9 post-extraction word-subset dedup** — Added to analyzer.py between Step 4.5.5 and Step 4.6. After all alias enrichment is complete, merges any character whose canonical words are a strict subset of another character's canonical or alias words. "Wolfshiem" canonical {"wolfshiem"} ⊆ alias "Meyer Wolfshiem" {"meyer","wolfshiem"} → merged. Safety net for any remaining V2 pipeline dedup failures.
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **CRITICAL**: "Tom" F6 duplicate — fix F6 name-component matching in `src/analyzer.py`
-2. **CRITICAL**: Wolfsheim dedup — **ESCALATE** to `src/analyzer.py` post-extraction merge (bypass characters.py entirely)
-3. **HIGH**: Gatsby→Jordan "husband" regression — verify Fix BB still intact
+Re-run analysis to verify fixes.
