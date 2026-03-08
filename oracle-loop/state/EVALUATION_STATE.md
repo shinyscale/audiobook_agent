@@ -3,135 +3,133 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- Fix D confirmed working: "V2 Step 5.8.5 post-guard: Narrator 'Doctor T. J. Eckleburg' (5 mentions) still fails low-mention invariant (max_other=264). Resetting narrator."
-- Nick Carraway correctly detected as narrator (first-person) ✓
-- Gatsby/James Gatz: not in top 5 characters by mention count in summary — needs evaluation
-- "colleague" spam: unclear if Fix E eliminated it — needs evaluation
-- STEP 5.11 diagnostic logging: needs evaluation to see if promotion occurred
-- 41 characters total, 149 pronunciation flags
-- Runtime: 88m 42s
-
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 4.5/10 ✗
+- Character Extraction: 5/10 ✗
   - Completeness: 7/10
-  - Identity Resolution: 3/10
+  - Identity Resolution: 4/10
   - Alias Grouping: 6/10
-- Character Profiles: 3/10 ✗
-- Chapter Summaries: 8/10 ✓
-- Pronunciation Guide: 7/10 ✗
+- Character Profiles: 4/10 ✗
+- Chapter Summaries: 8.5/10 ✓
+- Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 6.73/10** (reference only)
+- **Overall: 7.20/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (3 categories below threshold)
+**Status:** FAIL (2 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 5.90 | - | Baseline. Profiles catastrophic, character identity broken |
 | 2 | 6.73 | +0.83 | Relationships partially improved for main cast. Core narrator/Gatsby issues UNFIXED |
+| 3 | 7.20 | +1.30 | Narrator FIXED (Nick ✓). Gatsby still supporting. "colleague" spam persists |
+
+## What Improved in Attempt 3
+- **Fix D WORKED**: Nick Carraway correctly identified as narrator (is_narrator: true). Doctor T. J. Eckleburg is no longer narrator.
+- **Chapter 1 doubled name fixed**: Summary no longer repeats "Nick Carraway, Nick Carraway"
+- George Wilson canonical name is now "George Wilson" (not "George B. Wilson") — "George B. Wilson" moved to alias
+
+## What Did NOT Improve
+- **Fix E FAILED**: "colleague" still appears in ~75-90% of all relationship entries. The prompt forbidding "colleague" was ignored by the LLM.
+- **STEP 5.11 still not promoting Gatsby**: James Gatz remains supporting_15 with role "minor" and 268 mentions. Diagnostic logging was added but the promotion didn't fire.
+- **Speech patterns still all null**: Zero speech_pattern entries across all 41 characters.
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **False narrator: Doctor T. J. Eckleburg still tagged as narrator — Fix A ineffective** [Identity Resolution]
-   - Problem: `main_cast_11` "Doctor T. J. Eckleburg" has `is_narrator: true`. Nick Carraway (`main_cast_0`) has `is_narrator: false`.
-   - Why Fix A failed: Pipeline notes confirm "Narrator already identified by V2 pipeline: Doctor T. J. Eckleburg (skipping re-detection)". The V2 pipeline (`src/pipeline/character_extraction_v2/`) sets the narrator BEFORE `characters.py` runs, and `characters.py` sees an already-set narrator and skips its own detection (STEP 4.26 threshold change never fires).
-   - Fix approach: The fix must be in the V2 pipeline itself, not in characters.py. Find where V2 sets `is_narrator=True` and fix the heuristic there. A billboard/symbolic entity (5 mentions) should never be chosen as narrator over a first-person pronoun character like Nick. Alternatively, the "skip re-detection" guard in characters.py should be removed or weakened so its improved logic can override bad V2 narrator picks.
-   - Location: Search `src/pipeline/character_extraction_v2/` for narrator assignment logic; also check `src/agents/characters.py` for the "Narrator already identified by V2 pipeline" skip guard
+1. **Protagonist in wrong cast tier: Gatsby is supporting_15 "James Gatz" with role "minor" (268 mentions)** [Identity Resolution]
+   - Problem: Jay Gatsby — the TITLE CHARACTER with 268 mentions (most in the book) — is `supporting_15` with canonical name "James Gatz", role "minor", null physical_description, null speech_pattern, null personality_traits.
+   - His aliases ARE correct: ["Jay Gatsby", "Gatsby"]. So the system knows who he is, but he's in the wrong tier.
+   - STEP 5.11 (added in attempt 2) was supposed to promote high-mention supporting characters. It didn't fire despite 268 >> 200 threshold. Fix F added diagnostic logging but we can't see logs in the output — need to check what happened.
+   - This is attempt 3 with same file modified (`src/agents/characters.py` STEP 5.11). **Pattern alert: same file modified 2x without success.** Need different approach.
+   - Cascading impact: Without promotion, Gatsby gets no profile, no physical description, no speech patterns. This single issue tanks both Character Extraction AND Profiles scores.
+   - **New fix approach:** Instead of trying to fix STEP 5.11 (which may have structural issues preventing execution), add a FINAL safety net in `src/analyzer.py` AFTER the character extraction pipeline returns. If any character has >100 mentions and role="minor", force-promote to main cast with role="protagonist". This bypasses whatever is blocking STEP 5.11 in characters.py.
+   - Location: `src/analyzer.py` — add post-extraction promotion before profiling begins
 
-2. **Protagonist in wrong cast tier: Gatsby still `supporting_14` "James Gatz" with role "minor" — Fix B ineffective** [Identity Resolution]
-   - Problem: Jay Gatsby (269 mentions — THE most mentioned character) remains in supporting cast as "James Gatz" with role "minor". He has zero profile data (null physical_description, null speech_pattern, null personality_traits) and ALL 23 relationships are "colleague".
-   - Why Fix B failed: STEP 5.11 was supposed to re-check supporting characters after alias-aware mention counts. Either: (a) the code isn't being reached, (b) the mention count threshold isn't being met, or (c) the canonical name rename logic isn't firing. The pipeline notes say "BLOCKED alias" still fires in Pass 2, suggesting James Gatz and Jay Gatsby are still treated as potentially separate characters.
-   - Fix approach: Debug why STEP 5.11 isn't promoting. Add logging. The 269 mentions >> 200 threshold should easily trigger promotion. If STEP 5.11 code exists but isn't executing, there may be an early return or the supporting character list isn't being iterated.
-   - Location: `src/agents/characters.py` STEP 5.11
-
-3. **Gatsby's profile is completely empty** [Profiles]
-   - Problem: James Gatz (Gatsby) — the title character with 269 mentions — has: physical_description=null, speech_pattern=null, personality_traits=null, and ALL 23 relationships labeled "colleague".
-   - Root cause: As a `supporting_14` "minor" role character, the profiler likely generates minimal/no profiles for supporting-minor characters. The profiler may also fail to match "James Gatz" to text passages about "Gatsby" or "Jay Gatsby".
-   - Fix: This issue is downstream of Critical #2. Once Gatsby is correctly promoted to main cast with canonical name "Jay Gatsby", the profiler should generate a full profile.
-   - Location: Downstream of `src/agents/characters.py` → `src/analyzer.py` profile generation
+2. **"colleague" relationship spam still pervasive (~80% of all relationships)** [Profiles]
+   - Problem: Fix E added "colleague" to forbidden labels in the profiler prompt, but the LLM still defaults to "colleague" for any pair without a strong relationship. Examples:
+     - Nick→Tom: "colleague" (should be "friend" or "cousin-in-law")
+     - Nick→Myrtle: "colleague" (should be omitted — barely interacts)
+     - Daisy→Catherine: "colleague" (no relationship)
+     - James Gatz→Ferdie: "colleague" (no relationship)
+   - Root cause: Simply listing "colleague" as forbidden doesn't work — the LLM needs a different instruction structure. Instead of "don't use colleague", the prompt should say "ONLY include characters who have a named, meaningful relationship. If no specific relationship exists, DO NOT list them."
+   - Additional fix: Post-process to strip any relationship labeled "colleague" from the output.
+   - Location: `src/analyzer.py` `_generate_character_profile()` prompt; also add post-processing filter
 
 ### HIGH
 
-4. **Relationship labels still broken for several pairs** [Profiles]
-   - Problem: Fix C partially worked — main cast core relationships improved (Daisy→Tom "spouse", Tom→Gatsby "rival"). But several wrong labels remain:
-     - Nick → Mr. Sloane: "wife" (nonsensical)
-     - Tom → George Wilson: "husband" (should be none or "business contact")
-     - Myrtle → Catherine: "husband" (should be "sister" — Catherine is Myrtle's sister)
-     - Tom → Daisy: "husband" (correct meaning but should be "spouse" for consistency)
-     - "colleague" used as default filler for ~80% of all relationships
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — the "husband" override still leaks through in some cases; also the LLM profile prompt produces "colleague" as catch-all
-   - Fix: The "colleague" spam is an LLM prompt issue — the profiler prompt likely instructs listing all relationships, and the LLM defaults to "colleague" when no real relationship exists. Fix: instruct the LLM to OMIT characters with no meaningful relationship rather than listing them as "colleague". The remaining "husband"/"wife" mislabels suggest the co-mention window is still picking up spousal terms near unrelated character pairs.
+3. **Speech patterns null for ALL 41 characters** [Profiles]
+   - Problem: Zero speech_pattern entries. Critical missing data for narrator prep.
+   - Notable missing: Gatsby's "old sport" catchphrase, Wolfshiem's dialect ("Oggsford", "gonnegtion"), Tom's aggressive/domineering tone, Daisy's "low, thrilling voice"
+   - Location: Profile generation in `src/analyzer.py` — the prompt may not explicitly request speech patterns, or the LLM response parser drops them
+   - Fix: Ensure the profile prompt explicitly asks "What are this character's distinctive speech patterns, verbal tics, catchphrases, accent, or dialect?" and that the response parser captures the field
 
-5. **"George B. Wilson" — fabricated middle initial** [Identity Resolution]
-   - Problem: `main_cast_6` canonical name is "George B. Wilson" but Fitzgerald never uses a middle initial. The text uses "George Wilson" and "Wilson".
-   - Location: V2 Pass 1 extraction — the LLM hallucinated the middle initial
-   - Fix: Post-extraction validation could check if middle initials appear in the source text
+4. **Incorrect relationship labels persist** [Profiles]
+   - Tom→George Wilson: "husband" (completely wrong — Tom sold George a car, Tom is Myrtle's lover)
+   - Myrtle→Catherine: "husband" (should be "sister" — Catherine is Myrtle's sister)
+   - George→Myrtle: "husband" (correct relationship but wrong gender label — should be "wife" or "spouse")
+   - Tom→Daisy: "husband" (correct meaning but inconsistent — Daisy→Tom uses "spouse")
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — co-mention window still picking up wrong labels
 
-6. **Owl-eyed man duplicated as two F6 entries** [Identity Resolution]
-   - Problem: `048c90e0dfda` "Owl-eyed man" and `3e931d5e0f1f` "the drunken guest with owl-eyed spectacles" — same character
-   - Location: F6 reconciliation in `src/analyzer.py` — no dedup of descriptive entries
-   - Fix: F6 should check substring/semantic overlap before creating new entries
+5. **Wolfsheim/Wolfshiem duplicate** [Identity Resolution]
+   - `supporting_10` "Meyer Wolfshiem" (32 mentions) and `5a81392a280e` "Meyer Wolfsheim" (2 mentions) — same character, different spellings
+   - Fitzgerald uses "Wolfshiem" in the text but F6 reconciliation created a second entry with the standard spelling "Wolfsheim"
+   - Location: F6 reconciliation in `src/analyzer.py` — needs fuzzy string matching for near-identical names
 
-7. **F6 generic descriptor clutter** [Completeness]
-   - Problem: butler (20 mentions), chauffeur (10), gardener (5), reporter (2), war veteran (1) — generic occupational roles, not named characters
-   - Location: F6 reconciliation in `src/analyzer.py`
-   - Fix: Filter single-word lowercase occupational descriptors in F6
+6. **Owl-eyed man duplicated** [Identity Resolution]
+   - `f2d0505f9af9` "The man with owl-eyed spectacles" (1 mention) and `f189a657a225` "The man with owl-eyed glasses" (1 mention)
+   - Same character with slightly different descriptions
+   - Location: F6 reconciliation — needs substring/overlap dedup
 
-8. **Speech patterns null for ALL characters** [Profiles]
-   - Problem: Zero speech_pattern entries across all 27 characters
-   - Notable missing: Gatsby's "old sport" catchphrase, Wolfshiem's dialect ("Oggsford", "gonnegtion"), Tom's aggressive/domineering tone
-   - Location: Profile generation prompt in `src/analyzer.py` — likely not requesting speech patterns or the LLM ignores that field
-   - Fix: Ensure the profile prompt explicitly asks for speech patterns, verbal tics, and distinctive phrases
+7. **Montenegro listed as character** [Completeness]
+   - `4e92f9d2cdf0` "Montenegro" (7 mentions) — this is a country, not a character. Gatsby claims a medal from Montenegro but it's a place name.
+   - Location: F6 reconciliation — needs to filter geographic entities (cross-reference with NER labels)
+
+8. **F6 generic descriptor clutter** [Completeness]
+   - Butler (20 mentions), Chauffeur (10), Gardener (5), reporter (2), "The war veteran" (1), "The postman" (1), "The passenger in the coupé" (1), "The man in the duster" (1), "The woman in yellow" (1), "The red-haired chorus girl" (1)
+   - These are generic descriptors, not named characters. Inflates character count from ~15 real characters to 41.
+   - Location: F6 reconciliation in `src/analyzer.py` — needs filtering for generic descriptors and single-mention ephemeral references
 
 ### MEDIUM
 
 9. **"Buchanan" alias shared between Tom and Daisy** [Alias Grouping]
-   - Problem: Both main_cast_2 (Daisy) and main_cast_3 (Tom) have "Buchanan" as alias
+   - Both main_cast_2 (Daisy) and main_cast_3 (Tom) have "Buchanan" as alias
    - Fix: Remove shared surname alias when multiple characters claim it
 
-10. **Chapter 1 summary has doubled name** [Summaries]
-    - Problem: "Nick Carraway, Nick Carraway, reflecting on..." — name repeated
-    - Location: Summary generation or post-processing concatenation
+10. **Nick Carraway has no physical_description** [Profiles]
+    - As first-person narrator, physical details are sparse in text, but Nick does mention being "thirty" and describes himself briefly
+    - The profiler should note narrator self-description limitations
 
-11. **Common English words in pronunciation guide** [Pronunciation]
-    - Problem: "chauffeur", "scepticism", "silhouette" etc. are standard English, not unusual
-    - Location: `src/pipeline/pronunciation/cmu_proposer.py` COMMON_WORDS_WHITELIST
+11. **Relationship references use inconsistent names** [Profiles]
+    - Some relationships reference "Gatsby", others "Jay Gatsby", others "James Gatz" — all the same person but the profiler doesn't normalize
+    - Jordan→"Gatsby": "intermediary"; Wolfshiem→"Gatsby": "close friend"; Daisy→"Jay Gatsby": "romantic interest"; Daisy→"James Gatz": "romantic interest" (duplicate!)
+    - This creates phantom relationship entries for the same person
 
-### LOW
-
-12. **"The green light" relationships nonsensical** [Profiles]
-    - Daisy → green light: "colleague"; the green light shouldn't have relationship entries at all
-    - Symbolic entities should have relationships stripped or flagged differently
+12. **"George B. Wilson" — fabricated middle initial still in aliases** [Identity Resolution]
+    - Canonical is now "George Wilson" (improvement) but "George B. Wilson" remains as alias
+    - Fitzgerald never uses a middle initial for George Wilson
+    - Location: V2 Pass 1 extraction hallucinated it; post-extraction validation should strip initials not in source text
 
 ## Fix History
 
-### Attempt 2 fixes (applied, PARTIALLY effective)
+### Attempt 2 fixes
+- **Fix A: STEP 4.26 narrator threshold** — INEFFECTIVE (wrong layer)
+- **Fix B: STEP 5.11 promotion** — INEFFECTIVE (code not firing)
+- **Fix C: Relationship label override guard** — PARTIALLY EFFECTIVE
 
-**Fix A: False narrator threshold in characters.py** — INEFFECTIVE
-- Changed STEP 4.26 threshold from <=2 to <=5
-- Result: No change. V2 pipeline sets narrator before characters.py runs; characters.py skips re-detection entirely.
-- Root cause: Fix was in the wrong layer. Must fix V2 narrator assignment directly.
-
-**Fix B: STEP 5.11 final promotion pass** — INEFFECTIVE
-- Added post-alias promotion logic for supporting characters with >= 200 mentions
-- Result: James Gatz still supporting_14 with role "minor". STEP 5.11 either not reached or not firing.
-- Root cause: Needs debugging — the threshold should easily be met with 269 mentions.
-
-**Fix C: Relationship label override guard** — PARTIALLY EFFECTIVE
-- Changed post_corrections.py to only override when both current and found are family labels
-- Result: Core main-cast relationships improved (Daisy→Tom "spouse", Tom→Gatsby "rival"). But "husband"/"wife" mislabels remain for some pairs, and "colleague" spam is unchanged (LLM prompt issue, not post-correction).
+### Attempt 3 fixes
+- **Fix D: Narrator layered defense (narrator.py + characters.py)** — EFFECTIVE ✓
+- **Fix E: "colleague" forbidden in profiler prompt** — INEFFECTIVE (LLM ignores forbidden list)
+- **Fix F: STEP 5.11 diagnostic logging** — ADDED but promotion still didn't fire
 
 ## Modification History
 
@@ -139,9 +137,14 @@
 |---------|-------|----------------|--------|
 | 2 | False narrator (Eckleburg) | `src/agents/characters.py` (STEP 4.26 threshold) | No change — wrong layer |
 | 2 | Gatsby wrong cast tier | `src/agents/characters.py` (STEP 5.11 new) | No change — code not firing |
-| 2 | Relationship labels all "husband" | `src/pipeline/character_profiling/post_corrections.py` | Partial fix — main cast improved, "colleague" spam unchanged |
+| 2 | Relationship labels all "husband" | `src/pipeline/character_profiling/post_corrections.py` | Partial fix — main cast improved |
+| 3 | False narrator | `src/pipeline/character_extraction_v2/narrator.py`, `src/agents/characters.py` | **FIXED** ✓ |
+| 3 | "colleague" spam | `src/analyzer.py` (profiler prompt) | No change — LLM ignores forbidden list |
+| 3 | Gatsby promotion diagnostic | `src/agents/characters.py` (STEP 5.11 logging) | No change — promotion still doesn't fire |
 
-**Pattern detected:** Fixes in `src/agents/characters.py` are not effective because V2 pipeline decisions override them. Critical narrator and cast-tier issues must be fixed in `src/pipeline/character_extraction_v2/` directly.
+**Pattern detected:** `src/agents/characters.py` STEP 5.11 has been modified 2x without success for Gatsby promotion. Fix phase MUST use a different approach — either fix the root cause in characters.py by debugging why STEP 5.11 doesn't execute, or add a safety-net promotion in `src/analyzer.py` post-extraction.
+
+**Pattern detected:** Prompt-level forbidden labels (Fix E) are ineffective for "colleague". Fix phase MUST use a structural approach — either rewrite the relationship prompt to only request meaningful relationships (not list all characters), or add post-processing to strip "colleague" entries.
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -150,42 +153,13 @@
 - Zero LLM retries — no prompt/schema failures
 - No chunking issues apparent
 
-## Attempt 3 Fixes Applied
+## Priority Fix Order for Attempt 4
+1. **Gatsby promotion** (Critical #1) — fixes Character Extraction AND Profiles scores. Use analyzer.py safety net, not characters.py STEP 5.11.
+2. **"colleague" spam** (Critical #2) — rewrite relationship prompt structure + add post-processing filter. Fixes Profiles score.
+3. **Speech patterns** (High #3) — ensure prompt requests and parser captures speech_pattern field. Fixes Profiles score.
+4. **Wrong relationship labels** (High #4) — Tom→George "husband", Myrtle→Catherine "husband"
 
-**Fix D: False narrator — layered defense (narrator.py + characters.py)**
-- narrator.py: Changed narrator mention-count guard from `<= 2` to `<= 5` (blocks Eckleburg with 5 mentions)
-- characters.py STEP 5.8.4: Added mention-count validation before re-resolving narrator candidate. If candidate has ≤ 5 mentions and another char has ≥ 5x more, clear narrator_name to prevent re-assignment downstream.
-- characters.py post-5.8.5 guard: Changed `<= 2` to `<= 5` for consistency
-- pipeline_metadata: Only export narrator_name when narrator_character_id is also set (prevents unmatched name from being used by analyzer.py)
-
-**Fix E: "colleague" relationship spam in profiler**
-- analyzer.py profiler prompt: Added "colleague" to the forbidden relationship labels (alongside "acquaintance", "associated", "unknown")
-
-**Fix F: STEP 5.11 diagnostic logging**
-- Added detailed logging for every high-mention supporting character at STEP 5.11 to diagnose why James Gatz isn't being promoted
-
-### Fix Classification
-- **Fix D type:** Verification/invariant enforcement — universal mention-ratio guard prevents any low-mention character from being tagged as narrator
-- **Fix E type:** Prompt clarification — removes a fallback label that creates noise across any book
-- **Universality:** Both fixes help any book regardless of genre/vocabulary
-- **Root-cause locations:** narrator.py:update_characters_with_narrator, characters.py:STEP 5.8.4, characters.py:post-5.8.5-guard, analyzer.py:_generate_character_profile
+Items 1-3 together should bring Character Extraction to ~7-8 and Profiles to ~7-8, potentially crossing the 8.0 threshold.
 
 ## Next Action
-Run analysis to verify:
-1. Doctor Eckleburg (5 mentions) no longer tagged as narrator
-2. Nick Carraway correctly identified as narrator
-3. "colleague" no longer appears as default relationship label
-4. STEP 5.11 diagnostic logging reveals why James Gatz isn't promoted
-
-**Phase:** awaiting_analysis
-
-## Modification History (updated)
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| 2 | False narrator (Eckleburg) | `src/agents/characters.py` (STEP 4.26 threshold) | No change — wrong layer |
-| 2 | Gatsby wrong cast tier | `src/agents/characters.py` (STEP 5.11 new) | No change — code not firing |
-| 2 | Relationship labels all "husband" | `src/pipeline/character_profiling/post_corrections.py` | Partial fix — main cast improved, "colleague" spam unchanged |
-| 3 | False narrator | `src/pipeline/character_extraction_v2/narrator.py` (<=5 threshold), `src/agents/characters.py` (STEP 5.8.4 guard + post-5.8.5 guard + pipeline_metadata) | TBD |
-| 3 | "colleague" spam | `src/analyzer.py` (profiler prompt) | TBD |
-| 3 | Gatsby promotion diagnostic | `src/agents/characters.py` (STEP 5.11 logging) | TBD |
+Run PROMPT_fix.md to address Gatsby promotion (new approach via analyzer.py), "colleague" spam (structural prompt rewrite + post-processing), and speech patterns.
