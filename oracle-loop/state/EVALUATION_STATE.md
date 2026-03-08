@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -179,5 +179,21 @@ Items 1-3 together should bring Character Extraction to ~7-8 and Profiles to ~7-
 - **Universality:** Yes — "colleague" is always a vague non-relationship in any novel
 - **Tests:** 332 passed, 10 skipped
 
+## Attempt 4 Analysis Notes
+
+### Pipeline Observations
+- Analysis completed in 87m 7s (301 LLM calls, 643K tokens)
+- 36 characters found (was 41 in attempt 3)
+- Jay Gatsby now appears in main character summary with 268 mentions — Fix G may have worked
+- **CRITICAL REGRESSION:** Narrator identified as "Henry C. Gatz" (Gatsby's father, appears only at end) instead of Nick Carraway
+  - Pipeline output: "Narrator (from V2 pipeline): Henry C. Gatz" and "Confirmed narrator: Henry C. Gatz (first-person)"
+  - Fix D (attempt 3) fixed this — but something in attempt 4 fixes caused it to regress
+  - Henry C. Gatz has very few text mentions; Nick Carraway (34 shown) is the actual first-person narrator
+- Nick Carraway shows only 34 mentions in summary (suspicious — he narrates the entire book)
+
+### Output Files
+- HTML: ../output/gatsby/report.html ✓
+- JSON: ../output/gatsby/analysis.json ✓
+
 ## Next Action
-Run PROMPT_analyze.md to re-analyze gatsby with the fixes applied.
+Run PROMPT_evaluate.md to evaluate attempt 4 output.
