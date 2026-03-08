@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -203,6 +203,12 @@
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
+## Pipeline Notes (Attempt 11)
+- Narrator detected as "Henry C. Gatz" — NEW REGRESSION. Fix EE overshot: the guard cleared Jay Gatsby as narrator (correct) but then the fallback picked Henry C. Gatz (wrong). Nick Carraway still not detected.
+- James Gatz still added as separate F6 character (line 84: "Added 2 referenced character(s) from summaries: ['James Gatz', 'James']")
+- Analysis completed in 88m 13s, 27 characters found
+- Output: ../output/gatsby/analysis.json, ../output/gatsby/report.html
+
 ## Attempt 11 Fixes
 
 ### Fix EE: Narrator programmatic guard (narrator.py) — PENDING VALIDATION
@@ -225,4 +231,4 @@
 - No additional code needed for this category.
 
 ## Next Action
-Run analysis on gatsby and evaluate attempt 11.
+Evaluate attempt 11 output.
