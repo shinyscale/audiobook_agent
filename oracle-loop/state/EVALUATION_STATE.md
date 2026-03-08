@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 11
-- **Phase:** awaiting_analysis
+- **Attempt:** 12
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -250,5 +250,12 @@
   - Smoke test: PASS — "buchanan" on both Daisy and Tom → removed from both (universal: ambiguous shared aliases are not useful)
   - Risk: This also removes "Baker" from Jordan Baker if two characters shared it, etc. Low risk.
 
+## Pipeline Notes (Attempt 12)
+- Narrator correctly detected: Nick Carraway (first-person) — Fix GG/HH worked ✓
+- 23 characters from extraction, +7 from summaries, +2 referenced (James Gatz, Tom) = 28 total
+- Tom profile: LOW CONFIDENCE (0.30) — JSON parse failure during profiling
+- Wolfsheim dedup status: TBD — see evaluation
+- No crash, exit code 0
+
 ## Next Action
-**Phase:** awaiting_analysis — Run analysis to verify fixes.
+**Phase:** awaiting_evaluation — Evaluate the output.
