@@ -2,13 +2,22 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 9)
+- Completed successfully in 82m 2s, exit code 0
+- 27 characters found
+- Fix V confirmed working: "Owl Eyes" and "The drunken man with owl-eyed spectacles" blocked from merging with "The man with owl-eyed glasses"
+- Gatsby canonical: "Gatsby (aka James Gatz, Jay Gatsby)" — 268 mentions ✓
+- Daisy shows "Daisy Fay" as alias — Fix Z appears to have worked
+- WARNING: Tom Buchanan has alias "the Buchanans' house" — bad alias (new issue)
+- 9 chapters, 150 pronunciation flags
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -233,7 +242,7 @@
 7. **Missing physical descriptions** — Gatsby and Myrtle have clear textual descriptions that the profiler missed. Nick as narrator has less, but still has some. Worth ~0.5 points if fixed.
 
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate attempt 9 output.
 
 ## Attempt 9 Fixes
 
