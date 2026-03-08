@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 7
-- **Phase:** awaiting_analysis
+- **Attempt:** 8
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -247,5 +247,14 @@
 - Handles Wolfsheim duplicate: supporting_2 "Meyer Wolfshiem" absorbed into main_cast_7 "Meyer Wolfsheim".
 - Location: `src/agents/characters.py`
 
+## Attempt 8 Pipeline Notes
+- Completed in 89m 30s, exit code 0
+- Fix R appears effective: "Gatsby" (290 mentions) now in main cast (not "James Gatz" in supporting)
+- Nick Carraway correctly detected as narrator (first-person)
+- 33 characters total extracted
+- Warnings: "the poor son-of-a-bitch" and "the man" still appear as Gatsby aliases
+- BLOCKED alias logs confirm: James Gatz/Jay Gatsby co-occurrence check STILL blocking the alias link
+- Output: ../output/gatsby/analysis.json, ../output/gatsby/report.html
+
 ## Next Action
-Re-run analysis to verify fixes.
+Evaluate attempt 8 results.
