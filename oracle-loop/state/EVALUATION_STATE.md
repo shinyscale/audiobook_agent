@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Attempt:** 4
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -161,5 +161,23 @@
 
 Items 1-3 together should bring Character Extraction to ~7-8 and Profiles to ~7-8, potentially crossing the 8.0 threshold.
 
+## Attempt 4 Fixes Applied
+
+### Fix G: Role safety net in analyzer.py (CRITICAL #1 — Gatsby promotion)
+- **Root cause:** James Gatz (supporting_15, 268 mentions, role "minor") wasn't being promoted by STEP 5.11 in characters.py for unclear reasons. The characters.py pipeline likely promotes "Jay Gatsby" (supporting NER entry with alias "Gatsby") to main_cast by STEP 5.8, but "James Gatz" (3-5 raw NER mentions, separate entry) stays in supporting_cast. Aliases ["Jay Gatsby", "Gatsby"] are added to "James Gatz" only AFTER promotion logic runs, so the alias-aware 268-mention count arrives too late.
+- **Fix:** Added a safety net BEFORE profiling in `src/analyzer.py` that upgrades any character with role "minor"/"supporting" and ≥200 mentions to "protagonist", ≥100 mentions to "main". Runs on `pipeline_char_map.characters` before Step 4.6.
+- **Files modified:** `src/analyzer.py` (before Step 4.6)
+- **Classification:** Algorithmic / universal invariant enforcement
+- **Universality:** Yes — any character with 200+ mentions in a 50K+ word novel is a protagonist
+
+### Fix H: "colleague" filter in relationship post-processing (CRITICAL #2)
+- **Root cause:** `_VAGUE_REL_LABELS` set in `_generate_character_profile()` at line ~3774 filtered "associated"/"acquaintance"/"unknown" but NOT "colleague". LLM uses "colleague" as default fallback for 213/256 relationships.
+- **Fix 1:** Added "colleague" to `_VAGUE_REL_LABELS` and added `startswith("colleague")` check to catch variants like "colleague in observation". Location: `src/analyzer.py:_generate_character_profile()`.
+- **Fix 2:** Added same filtering at relationship assignment point (~line 2131) to catch any "colleague" labels that bypass the primary filter.
+- **Files modified:** `src/analyzer.py` (two locations)
+- **Classification:** Post-processing filter (deterministic cleanup)
+- **Universality:** Yes — "colleague" is always a vague non-relationship in any novel
+- **Tests:** 332 passed, 10 skipped
+
 ## Next Action
-Run PROMPT_fix.md to address Gatsby promotion (new approach via analyzer.py), "colleague" spam (structural prompt rewrite + post-processing), and speech patterns.
+Run PROMPT_analyze.md to re-analyze gatsby with the fixes applied.

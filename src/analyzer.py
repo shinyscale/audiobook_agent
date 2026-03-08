@@ -1903,6 +1903,38 @@ class AudiobookAnalyzer:
                 logger.warning(f"Early narrator detection failed: {e}")
                 print(f"   Narrator detection skipped (error: {e})")
 
+        # Safety net: enforce role correctness by mention count before profiling.
+        # Universal invariant: a character's role must reflect narrative significance.
+        # This catches cases where the extraction pipeline assigned "minor" to a
+        # high-mention character (e.g., when the protagonist was only found by NER,
+        # not by LLM extraction from summaries, and promotion logic didn't fire).
+        if pipeline_char_map and pipeline_char_map.characters:
+            _sn_word_count = len(doc.text.split()) if doc and doc.text else 100_000
+            if _sn_word_count >= 20_000:
+                _sn_protagonist_threshold = 200
+                _sn_main_threshold = 100
+            else:
+                _sn_scale = 100_000 / max(_sn_word_count, 1000)
+                _sn_protagonist_threshold = max(10, int(200 / _sn_scale))
+                _sn_main_threshold = max(5, int(100 / _sn_scale))
+            for _sn_char in pipeline_char_map.characters:
+                if getattr(_sn_char, "is_narrator", False):
+                    continue
+                _sn_role = getattr(_sn_char, "role", None) or "minor"
+                _sn_mentions = getattr(_sn_char, "mention_count", 0) or 0
+                if _sn_role in ("minor", "supporting") and _sn_mentions >= _sn_protagonist_threshold:
+                    logger.info(
+                        f"Role safety net: '{_sn_char.canonical_name}' upgraded from "
+                        f"'{_sn_role}' to 'protagonist' ({_sn_mentions} mentions)"
+                    )
+                    _sn_char.role = "protagonist"
+                elif _sn_role == "minor" and _sn_mentions >= _sn_main_threshold:
+                    logger.info(
+                        f"Role safety net: '{_sn_char.canonical_name}' upgraded from "
+                        f"'minor' to 'main' ({_sn_mentions} mentions)"
+                    )
+                    _sn_char.role = "main"
+
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length
         # For short texts (< 5000 words), use a lower threshold
@@ -2094,11 +2126,14 @@ class AudiobookAnalyzer:
                     # Always assign relationships, even if None (will use model default {})
                     # This ensures we don't silently skip assignment when LLM provides data
                     if relationships is not None:
-                        # Remove self-references: a character cannot be in its own relationship map
+                        # Remove self-references and vague fallback labels
                         char_name_lower = char.canonical_name.lower()
                         relationships = {
                             k: v for k, v in relationships.items()
                             if k.lower() != char_name_lower
+                            and isinstance(v, str)
+                            and not v.lower().startswith("colleague")
+                            and v.lower() not in {"acquaintance", "associated", "associate", "unknown", "unrelated"}
                         }
                         char.relationships = relationships
                         logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
@@ -3739,10 +3774,12 @@ Do NOT use "acquaintance", "associated", "colleague", or "unknown" — omit inst
                         # The LLM sometimes ignores the prohibition and uses "associated"/
                         # "acquaintance"/"unknown" as fallbacks. Post-filter them here so
                         # the secondary call can replace with specific labels (or omit cleanly).
-                        _VAGUE_REL_LABELS = {"associated", "acquaintance", "unknown", "associate", "unrelated"}
+                        _VAGUE_REL_LABELS = {"associated", "acquaintance", "unknown", "associate", "unrelated", "colleague"}
                         if isinstance(relationships, dict):
                             relationships = {k: v for k, v in relationships.items()
-                                             if isinstance(v, str) and v.lower() not in _VAGUE_REL_LABELS}
+                                             if isinstance(v, str)
+                                             and v.lower() not in _VAGUE_REL_LABELS
+                                             and not v.lower().startswith("colleague")}
                             # Empty dict (not None) — triggers secondary call below for specific labels
 
                         # Debug logging
