@@ -2,13 +2,22 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- Fix D confirmed working: "V2 Step 5.8.5 post-guard: Narrator 'Doctor T. J. Eckleburg' (5 mentions) still fails low-mention invariant (max_other=264). Resetting narrator."
+- Nick Carraway correctly detected as narrator (first-person) ✓
+- Gatsby/James Gatz: not in top 5 characters by mention count in summary — needs evaluation
+- "colleague" spam: unclear if Fix E eliminated it — needs evaluation
+- STEP 5.11 diagnostic logging: needs evaluation to see if promotion occurred
+- 41 characters total, 149 pronunciation flags
+- Runtime: 88m 42s
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
