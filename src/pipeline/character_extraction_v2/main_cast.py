@@ -1099,6 +1099,30 @@ class MainCastExtractor:
                         )
                         continue
 
+                # RULE 0.5c: Possessive-reference blocker.
+                # An alias of the form "{CharacterName}'s {noun}" describes a POSSESSION
+                # of the character (e.g., "the Buchanans' house"), not a way to refer to
+                # the character as a person. Block these universally.
+                # Universal linguistic invariant: "{Name}'s X" references X, not Name.
+                _canon_words_05c = set(
+                    w.strip(".,;:!?\"'").lower()
+                    for w in profile.canonical_name.split()
+                    if len(w.strip(".,;:!?\"'").lower()) >= 3
+                )
+                _alias_norm_05c = alias_lower.replace("\u2019s", "'s").replace("\u2018s", "'s")
+                _has_possessive_05c = any(
+                    f"{w}'" in _alias_norm_05c or f"{w}s'" in _alias_norm_05c
+                    for w in _canon_words_05c
+                )
+                if _has_possessive_05c:
+                    _alias_last_05c = alias_lower.split()[-1].rstrip("'s").strip("s'")
+                    if _alias_last_05c not in _canon_words_05c:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' is a possessive reference "
+                            f"(describes '{profile.canonical_name}'s possession, not the character)"
+                        )
+                        continue
+
                 # RULE 1: Hard block - different titled names (Mr. X vs Mr. Y)
                 # If both canonical and alias start with a title (Mr./Mrs./Miss/Ms./Dr.)
                 # AND the surnames are different, they CANNOT be the same person

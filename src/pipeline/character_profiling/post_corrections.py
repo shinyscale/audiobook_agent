@@ -981,6 +981,59 @@ class OutputCharacterCorrector:
                 f"downgraded '{old_label}' → 'associated' (not reciprocated by '{other_key}')"
             )
 
+        # Marriage-evidence check: for surviving reciprocal spousal pairs, verify
+        # that marriage-related keywords appear in the source text near both characters.
+        # Universal invariant: true spouses in prose always appear near marriage words
+        # ("married", "wife", "husband", "wedding", etc.). A reciprocal spousal pair
+        # with no marriage-keyword evidence is almost certainly a hallucination.
+        _MARRIAGE_KW = frozenset({
+            "married", "wedding", "wife", "husband", "wed ", "marriage",
+            "spouse", "marry", "ceremony", "remarried",
+        })
+        if source_text and name_patterns:
+            _evidence_checked: set = set()
+            for char in list(characters):
+                if not char.relationships:
+                    continue
+                for other_key, label in list(char.relationships.items()):
+                    if not label or not any(t in label.lower() for t in _spouse_terms):
+                        continue
+                    # Only check reciprocal pairs (non-reciprocal already handled above)
+                    other_char = _char_by_name.get(other_key)
+                    if other_char is None:
+                        continue
+                    reverse_label = (other_char.relationships or {}).get(char.canonical_name, "")
+                    if not reverse_label or not any(t in reverse_label.lower() for t in _spouse_terms):
+                        continue
+                    # Deduplicate: check each pair once
+                    pair_key = tuple(sorted([char.canonical_name, other_key]))
+                    if pair_key in _evidence_checked:
+                        continue
+                    _evidence_checked.add(pair_key)
+                    pat_a = name_patterns.get(char.canonical_name)
+                    pat_b = name_patterns.get(other_char.canonical_name)
+                    if not pat_a or not pat_b:
+                        continue
+                    has_evidence = False
+                    for ma in pat_a.finditer(source_text):
+                        ws = max(0, ma.start() - 600)
+                        we = min(len(source_text), ma.end() + 600)
+                        window = source_text[ws:we].lower()
+                        if pat_b.search(window) and any(kw in window for kw in _MARRIAGE_KW):
+                            has_evidence = True
+                            break
+                    if not has_evidence:
+                        old_a = char.relationships.get(other_key, "")
+                        old_b = (other_char.relationships or {}).get(char.canonical_name, "")
+                        char.relationships[other_key] = "associated"
+                        if other_char.relationships and char.canonical_name in other_char.relationships:
+                            other_char.relationships[char.canonical_name] = "associated"
+                        logger.info(
+                            f"Spousal evidence check: '{char.canonical_name}'↔'{other_key}' "
+                            f"downgraded ('{old_a}'↔'{old_b}' → 'associated') — "
+                            f"no marriage-keyword evidence in source text"
+                        )
+
     def _add_text_window_cooccurrence(
         self, characters, source_text: str, window_chars: int = 8000
     ) -> None:

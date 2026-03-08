@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 9
-- **Phase:** awaiting_fix
+- **Attempt:** 10
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -217,5 +217,29 @@
 6. **Fix Myrtle→Wilson gender label** — Myrtle (female) lists Wilson as "husband" in the "A's role relative to B" sense, but if the convention is "B's role to A", then it's correct. Clarify and fix.
 7. **Remove fabricated Daisy relationships** — Daisy→Dan Cody, Daisy→Myrtle "romantic interest", Tom→Wilson "romantic interest" are all wrong. These may require tighter evidence requirements in the profiler.
 
+## Attempt 10 fixes
+
+### Fix AA: STEP 3.95b Pattern C/D guard (Henry C. Gatz duplication)
+- **Root cause:** STEP 3.95b Pattern C fires on "Henry C. Gatz's son" (normal parent reference), wrongly splitting Henry C. Gatz into "Henry C. Gatz" + "Henry C. Gatz (the father)"
+- **Fix:** Separated strong (A/B/E) from weak (C/D) patterns. If only weak patterns match AND the character has no child-tier aliases, skip the split.
+- **Files:** `src/agents/characters.py` (lines ~607-700)
+- **Smoke test:** All 332 tests pass
+
+### Fix BB: Spousal text-evidence check (Gatsby↔Jordan false spousal)
+- **Root cause:** Gatsby↔Jordan are both labeled "husband"/"wife" reciprocally, so reciprocal check preserves them. No marriage evidence exists in text.
+- **Fix:** After reciprocal check, for surviving reciprocal spousal pairs verify marriage-keyword evidence ("married", "wife", "husband", "wedding", etc.) in source text near both names. No evidence → downgrade both to "associated".
+- **Files:** `src/pipeline/character_profiling/post_corrections.py` (after line 982)
+- **Smoke test:** All 332 tests pass
+
+### Fix CC: Alias dedup (Jordan duplicate "Jordan" alias)
+- **Root cause:** No deduplication of alias lists before output
+- **Fix:** `aliases=list(dict.fromkeys(char.aliases or []))` in `_convert_to_pipeline_characters`
+- **Files:** `src/agents/characters.py` (line ~5624, 5669)
+
+### Fix DD: Possessive-reference blocker (Buchanans' house alias)
+- **Root cause:** "the Buchanans' house" passed verify_aliases because no rule checks possessive-reference structure
+- **Fix:** Rule 0.5c — if alias contains possessive form of any word from canonical name AND the last word is not part of canonical name, block (universal linguistic invariant)
+- **Files:** `src/pipeline/character_extraction_v2/main_cast.py` (before Rule 1)
+
 ## Next Action
-Run PROMPT_fix.md to address Henry C. Gatz duplication, Gatsby↔Jordan spousal, and alias cleanup.
+Re-run analysis to verify fixes.

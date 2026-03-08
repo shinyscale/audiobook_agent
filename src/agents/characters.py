@@ -606,6 +606,7 @@ class CharacterAgent(Agent):
                 ]
                 _m_395b = None
                 _matched_base_395b = _char_395b.canonical_name
+                _strong_match_395b = False  # True if Pattern A, B, or E matched (strong false-merge evidence)
                 for _sn_395b in _search_names_395b:
                     _sn_esc_395b = _re395b.escape(_sn_395b)
                     _sfn_395b = _sn_395b.split()[0]
@@ -657,19 +658,45 @@ class CharacterAgent(Agent):
                         r"(?:long.{0,6})?"
                         r"(?:father|mother|parent)\b"
                     )
-                    _m_395b = (
+                    # Strong patterns (A/B/E): revelation or introduction — high-confidence
+                    # evidence the character was merged from distinct parent+child roles.
+                    _strong_395b = (
                         _pat_A_395b.search(_summary_all_395b)
                         or _pat_B_395b.search(_summary_all_395b)
-                        or _pat_C_395b.search(_summary_all_395b)
-                        or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
                         or _pat_E_395b.search(_summary_all_395b)
                     )
-                    if _m_395b:
+                    if _strong_395b:
+                        _m_395b = _strong_395b
                         _matched_base_395b = _sn_395b
+                        _strong_match_395b = True
                         break
+                    # Weak patterns (C/D): possessive references — confirm the character IS
+                    # a parent but do not prove a false merge without corroboration.
+                    _weak_395b = (
+                        _pat_C_395b.search(_summary_all_395b)
+                        or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
+                    )
+                    if _weak_395b and _m_395b is None:
+                        _m_395b = _weak_395b
+                        _matched_base_395b = _sn_395b
+                        # Don't break — keep searching for a strong pattern
 
                 if not _m_395b:
                     continue
+
+                # Guard: possessive patterns (C/D) alone confirm the character IS a parent
+                # but do NOT prove a false merge (the character may simply be a named parent).
+                # Require child-tier aliases as corroboration before splitting.
+                if not _strong_match_395b:
+                    _child_guard_395b = [
+                        a for a in (_char_395b.aliases or []) if _alias_tier_395(a) == "child"
+                    ]
+                    if not _child_guard_395b:
+                        logger.debug(
+                            f"V2 Step 3.95b: Skipping split for '{_char_395b.canonical_name}' — "
+                            f"only weak possessive pattern (C/D) matched, no child-tier alias corroboration"
+                        )
+                        continue
 
                 # Determine gender from matched text
                 _matched_395b = _m_395b.group(0).lower()
@@ -5594,7 +5621,7 @@ class CharacterAgent(Agent):
             pc = PipelineCharacter(
                 id=char.id,
                 canonical_name=char.canonical_name,
-                aliases=char.aliases,
+                aliases=list(dict.fromkeys(char.aliases or [])),
                 mentions=mentions_list,  # Use actual mentions from search
                 first_appearance_chapter=char.first_appearance_chapter or 0,
                 mention_count=char.mention_count,
@@ -5639,7 +5666,7 @@ class CharacterAgent(Agent):
             pc = PipelineCharacter(
                 id=char.id,
                 canonical_name=char.canonical_name,
-                aliases=char.aliases,
+                aliases=list(dict.fromkeys(char.aliases or [])),
                 mentions=mentions_list,
                 first_appearance_chapter=char.first_appearance_chapter or 0,
                 mention_count=char.mention_count,
