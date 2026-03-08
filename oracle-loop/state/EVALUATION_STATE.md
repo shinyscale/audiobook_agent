@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -207,5 +207,27 @@
 
 Items 1-3 target Profiles (3.5→8+). Items 4-6 target Character Extraction (6→8+).
 
+## Fix History (Attempt 7)
+
+### Attempt 7 fixes
+- **Fix N: `_VAGUE_REL_LABELS` NameError** — Defined missing variable as local constant in secondary call block (line 3938 of analyzer.py). This unblocks Jordan Baker's profile generation.
+  - Root cause: Line 3939 referenced `_VAGUE_REL_LABELS` which was never defined; `try/except` caught it silently
+  - Modified: `src/analyzer.py`
+  - Smoke test: Tests pass ✓
+
+- **Fix O: Tighten spouse evidence window** — Changed `evidence_window` for spouse terms in `reject_unfounded_familial_labels()` from 500 chars to 150 chars. A 150-char window (~20-25 words) requires the family phrase to appear within the same short passage as both character names, preventing "his wife Daisy" in one sentence from validating a Gatsby→Wolfsheim "husband" label when they co-appear in a distant business passage.
+  - Root cause: 500-char window is too loose; allows incidental family phrases (referring to third parties) to satisfy the evidence check
+  - Modified: `src/pipeline/character_profiling/post_corrections.py`
+  - Universality: Threshold change, not book-specific
+
+- **Fix P: Speech patterns / verbal_tics prompt clarification** — Added explicit instruction to extract recurring phrases from dialogue for `verbal_tics` field. Changed from generic "otherwise use {}" to actionable guidance: "For verbal_tics, copy any recurring phrases or speech patterns from the character's dialogue."
+  - Root cause: The fallback instruction allowed empty `verbal_tics: []` without requiring search of dialogue text
+  - Modified: `src/analyzer.py` (CRITICAL INSTRUCTIONS section)
+
+- **Fix Q: Wolfsheim alias-absorption step (STEP 5.6.9)** — Added new merge step to absorb supporting characters whose canonical name exactly matches an alias of a main cast character. This catches the case where "Meyer Wolfshiem" (32 mentions, supporting) is already an alias of "Meyer Wolfsheim" (main cast) but wasn't being merged because the alias was added after STEP 5.5 ran.
+  - Root cause: STEP 5.5 checks supporting-vs-main-aliases, but some aliases are added to main cast characters AFTER 5.5 runs; the new STEP 5.6.9 runs after all alias-adding steps
+  - Modified: `src/agents/characters.py`
+  - Universality: Universal — if a character's name IS an alias, they're the same person
+
 ## Next Action
-Run PROMPT_fix.md to address Critical #1-3 (relationships, speech patterns, NameError bug) and High #4-5 (Wolfsheim merge, F6 filter).
+Run analysis to verify fixes.

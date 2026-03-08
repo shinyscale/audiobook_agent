@@ -2516,10 +2516,11 @@ class OutputCharacterCorrector:
                 if getattr(char, 'is_narrator', False) or other_is_narrator:
                     continue  # Keep the label for narrator characters.
 
-                # Spouse labels use a wider window than extended family: spouses often
-                # appear in the same scene/passage but not in the same tight sentence.
-                # A 500-char window mirrors verify_relationships_from_text's evidence check.
-                evidence_window = 500 if is_spouse else tight_window
+                # Spouse labels use a tighter window to avoid false positives: a 150-char
+                # window (~20-25 words) requires both character names AND a family phrase
+                # to appear within the same short passage. This prevents "his wife Daisy"
+                # from satisfying a Gatsby-Wolfsheim co-mention that spans a paragraph.
+                evidence_window = 150 if is_spouse else tight_window
                 pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
                 has_evidence = False
                 if pat_a and pat_b:
