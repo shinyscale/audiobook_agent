@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 13
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -244,5 +244,15 @@ Fixing issues 1-2 would likely push Profiles to 8/10. Issue 3 is a nice-to-have.
 - Zero LLM retries — no prompt/schema failures
 - Mr. McKee still LOW CONFIDENCE (0.30) — JSON parse failure during profiling
 
+## Fix History (continued)
+
+### Attempt 14 fixes
+- **Fix MM: `" man "` word-boundary in MALE_INDICATORS** — `post_corrections.py:92`
+  - Bug: `"man"` (no spaces) is a substring of `"woman"`, so any character described as "a woman who..." had `is_male=True` AND `is_female=True` simultaneously
+  - Effect: Both Myrtle and Catherine showed `is_male=is_female=True`, so `enforce_gender_consistency` never fired to correct "brother"→"sister"
+  - Fix: Changed `"man"` → `" man "` (with surrounding spaces) to enforce word boundaries
+  - All 332 tests pass with no regressions
+  - Smoke test: Myrtle is_male=False, is_female=True ✓; Catherine is_male=False, is_female=True ✓; Tom is_male=True, is_female=False ✓
+
 ## Next Action
-Run PROMPT_fix.md to address Character Profiles issues (gender inference for Myrtle/Catherine, fabricated relationship pruning, Tom's "old sport" misattribution).
+Re-run analysis to verify Fix MM (Myrtle/Catherine "brother"→"sister" correction)

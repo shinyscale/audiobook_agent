@@ -89,7 +89,7 @@ PHYS_DESCRIPTOR_WORDS = {
     "athletic", "stocky", "lanky", "wiry", "gaunt", "plump", "heavyset",
 }
 
-MALE_INDICATORS = {"man", " he ", " his ", "himself", "boy", "gentleman", "mr."}
+MALE_INDICATORS = {" man ", " he ", " his ", "himself", "boy", "gentleman", "mr."}
 FEMALE_INDICATORS = {"woman", " she ", " her ", "herself", "girl", "lady", "mrs.", "miss"}
 FEMALE_ONLY_RELS = {"mother", "sister", "wife", "daughter", "grandmother", "granddaughter", "aunt", "niece"}
 MALE_ONLY_RELS = {"father", "brother", "husband", "son", "grandfather", "grandson", "uncle", "nephew"}
