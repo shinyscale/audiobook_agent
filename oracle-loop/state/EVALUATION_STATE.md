@@ -3,36 +3,27 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 9
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
 
-## Pipeline Notes (Attempt 9)
-- Completed successfully in 82m 2s, exit code 0
-- 27 characters found
-- Fix V confirmed working: "Owl Eyes" and "The drunken man with owl-eyed spectacles" blocked from merging with "The man with owl-eyed glasses"
-- Gatsby canonical: "Gatsby (aka James Gatz, Jay Gatsby)" — 268 mentions ✓
-- Daisy shows "Daisy Fay" as alias — Fix Z appears to have worked
-- WARNING: Tom Buchanan has alias "the Buchanans' house" — bad alias (new issue)
-- 9 chapters, 150 pronunciation flags
-
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 6.5/10 ✗
-  - Completeness: 7/10
-  - Identity Resolution: 5.5/10
-  - Alias Grouping: 6/10
-- Character Profiles: 6.5/10 ✗
-- Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 8/10 ✓
+- Character Extraction: 7.5/10 ✗
+  - Completeness: 8.5/10
+  - Identity Resolution: 7/10
+  - Alias Grouping: 7/10
+- Character Profiles: 7/10 ✗
+- Chapter Summaries: 9/10 ✓
+- Pronunciation Guide: 8.5/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 7.75/10** (reference only)
+- **Overall: 8.30/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction 6.5/10, Character Profiles 6.5/10)
+**Status:** FAIL (2 categories below threshold: Character Extraction 7.5/10, Character Profiles 7/10)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -45,105 +36,88 @@
 | 6 | 7.15 | +1.25 | Colleague injection FIXED (192→30). But 47 wrong spousal labels EXPOSED underneath. |
 | 7 | 7.45 | +1.55 | Spouse errors halved (47→23). But speech patterns 0/33, Wolfsheim still dup, Gatsby still supporting. |
 | 8 | 7.75 | +1.85 | Gatsby promoted ✓, colleagues eliminated ✓. Green light+Owl Eyes merge, 6 wrong spouse labels remain. |
+| 9 | 8.30 | +2.40 | Green/Owl split ✓, Wolfsheim dedup ✓, F6 clutter ✓, 4/6 wrong spouses fixed. Gatz dup and Gatsby↔Jordan remain. |
 
-## What Changed in Attempt 8
+## What Changed in Attempt 9
 
-### Fix R (Canonical rename) — EFFECTIVE ✓
-- Gatsby is now main_cast_1, role "protagonist", 290 mentions. No longer "James Gatz" in supporting.
-- "James Gatz" and "Jay Gatsby" are listed as aliases.
+### Fix V (Rule 0.5b person/non-person mismatch) — EFFECTIVE ✓
+- Green light and Owl Eyes are now SEPARATE entries. main_cast_13 "The green light" has only alias "the light" (correct). F6 "Owl Eyes" (1 mention) exists independently.
 
-### Fix S (One-spouse invariant) — PARTIALLY EFFECTIVE
-- Spousal relationships reduced from 23 to 10. However, 6 of those 10 are STILL WRONG.
-- Wrong: Nick→Tom "husband", Gatsby→Jordan "husband", Jordan→Gatsby "wife", The green light→Tom "husband", McKee→Wilson "husband", Sloane→Tom "wife"
-- Correct: Daisy→Tom ✓, Tom→Daisy ✓, Myrtle→Wilson ✓, Wilson→Myrtle ✓
+### Fix W (Reciprocal spouse validation) — PARTIALLY EFFECTIVE
+- Removed 4 non-reciprocated wrong spousal labels: Nick→Tom ✓, green light→Tom ✓, McKee→Wilson ✓, Sloane→Tom ✓
+- But Gatsby↔Jordan ("husband"/"wife") survived because BOTH are wrong AND reciprocal — the check preserves mutual pairs
+- Myrtle→Wilson "husband" also survived (wrong gender label — should be "wife") because Wilson→Myrtle "husband" reciprocates
 
-### Fix T (Colleague → associated) — EFFECTIVE ✓
-- Colleague count: 0. All colleague labels eliminated.
+### Fix X (Fuzzy Wolfsheim dedup) — EFFECTIVE ✓
+- Triplication → single entry: supporting_10 "Wolfshiem" (32 mentions, alias: "Meyer Wolfshiem")
+- NOTE: Merged character ended up in supporting_cast instead of main_cast (ID: supporting_10). With 32 mentions this should be main_cast, but it's a minor classification issue.
 
-### Fix U (Second-pass alias absorption) — PARTIALLY EFFECTIVE
-- main_cast_7 "Wolfshiem" (32 mentions) now has aliases "Wolfsheim" and "Meyer Wolfsheim"
-- BUT: supporting_10 "Meyer Wolfshiem" (6 mentions) and F6 "Meyer Wolfsiem" (1 mention) still exist as separate entries
-- Wolfsheim is TRIPLICATED instead of duplicated (worse fragmentation, though main entry now has correct mentions)
+### Fix Y (F6 proper-noun filter) — EFFECTIVE ✓
+- "gardener", "butler", "chauffeur", "New York reporter", "Lutheran minister", "the war veteran" — all eliminated
 
-### Voice Guidance — DISCOVERED
-- Previous evaluations checked for `speech_pattern` field — the actual field is `voice_guidance` with sub-fields: suggested_tone, dialect_notes, verbal_tics, formality_level
-- This data IS populated for main characters. Gatsby has "old sport" ✓, Wolfsheim has "gonnegtion" ✓, Myrtle has working-class speech notes ✓
-- **Profiles score revised upward from 4/10 to 6.5/10** — voice guidance was likely present in previous attempts too but missed by evaluator
+### Fix Z (Daisy Fay maiden-name matching) — EFFECTIVE ✓
+- "Daisy Fay" is now an alias of Daisy (main_cast_2), not a separate F6 entry
+
+### Tom "old sport" verbal tic — FIXED (possibly by LLM variance)
+- Tom's verbal_tics are now: "old man", "I've got my man working on it now", "You think I'm pretty dumb, don't you?" — all correct for Tom
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **FALSE MERGE: "The green light" + Owl-Eyed Man** [Identity Resolution]
-   - Problem: main_cast_10 "The green light" (18 mentions) has aliases: "the light", "The drunk man in the library", "the library", "The owl-eyed man", "The man with owl-eyed glasses"
-   - Evidence: The green light is a SYMBOL (light at end of Daisy's dock). The owl-eyed man is a SPEAKING CHARACTER who appears at Gatsby's library party (Ch 3) and alone at his funeral (Ch 9). These are completely unrelated entities.
-   - Root cause: Both are non-standard "characters" (symbolic/descriptor). The extraction pipeline likely merged all non-person entities together.
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` or `src/agents/characters.py` — descriptor merge logic is too aggressive
-   - Fix: The owl-eyed man should be a separate character entry. Either prevent merging entities with different core nouns ("light" vs "man"), or add a post-extraction split for entities whose aliases have incompatible semantic categories (inanimate object vs person descriptor).
-
-2. **6 wrong spousal relationships persist** [Profiles]
-   - Problem: Despite one-spouse invariant, 6 false spousal labels remain:
-     - Nick→Tom "husband" ✗
-     - Gatsby→Jordan "husband" ✗
-     - Jordan→Gatsby "wife" ✗
-     - The green light→Tom "husband" ✗
-     - McKee→Wilson "husband" ✗
-     - Sloane→Tom "wife" ✗
-   - Root cause: The LLM profiler generates wrong gendered labels. The one-spouse invariant only prunes MULTIPLE spouses per character, but these are all single (each character has only 1 spouse label, and it's wrong).
+1. **Gatsby↔Jordan false spousal relationship (reciprocal but wrong)** [Profiles]
+   - Problem: Gatsby→Jordan "husband" and Jordan→Gatsby "wife". They are NOT married. Jordan is Nick's romantic interest, not Gatsby's.
+   - Why Fix W didn't catch it: Both characters list the other as spouse, so the reciprocal check preserves them.
    - Location: `src/pipeline/character_profiling/post_corrections.py`
-   - Fix: Add a KNOWN COUPLES validation: for each spousal label A→B "husband"/"wife", verify B→A also has the reciprocal label. If the relationship is not reciprocated (B doesn't list A as spouse), downgrade to "associated". True couples (Tom↔Daisy, George↔Myrtle) will survive because both directions confirm each other.
+   - Fix: Add a **mention-based plausibility check**: before accepting a reciprocal spousal pair, verify that both characters appear together in at least N chapters or have "married"/"wife"/"husband" keywords in their shared summary context. Alternatively: post-process to check that spousal pairs are NOT also in each other's "romantic interest" set — a "romantic interest" label from the LLM contradicts "married" (you wouldn't call your spouse a "romantic interest" in a novel context; that label implies pursuit, not marriage).
 
-3. **Tom Buchanan has "old sport" as verbal tic — WRONG** [Profiles]
-   - Problem: Tom's voice_guidance.verbal_tics includes "old sport", but this is Gatsby's signature phrase, not Tom's.
-   - Tom's actual speech patterns: aggressive, commanding, racist rhetoric, forceful assertions
-   - Root cause: LLM attributed the wrong character's catchphrase
-   - Location: `src/analyzer.py` profiler — low priority since this requires LLM accuracy improvement
-   - Fix: Post-processing: if the same verbal_tic appears on multiple characters, keep it only on the one with the highest mention of that phrase in dialogue. Or: flag "old sport" as exclusively Gatsby's since it appears in his dialogue far more.
+2. **Henry C. Gatz duplicated** [Identity Resolution]
+   - Problem: main_cast_8 "Henry C. Gatz" (11 mentions) AND main_cast_8_parent "Henry C. Gatz (the father)" (2 mentions). These are the same person — Gatsby's father who arrives for the funeral.
+   - The "parent" suffix on the ID suggests a semantic split went wrong.
+   - Location: `src/agents/characters.py` — likely the semantic split logic created this
+   - Fix: The split logic should not split a character whose only distinguishing feature is a parenthetical clarifier "(the father)". If the canonical names differ only by a parenthetical, they should remain merged.
 
 ### HIGH
 
-4. **Wolfsheim TRIPLICATED** [Identity Resolution]
-   - main_cast_7 "Wolfshiem" (32 mentions, aliases: "Wolfsheim", "Meyer Wolfsheim")
-   - supporting_10 "Meyer Wolfshiem" (6 mentions)
-   - F6 hash "Meyer Wolfsiem" (1 mention)
-   - Location: `src/agents/characters.py` STEP 5.9.9 or F6 reconciliation in `src/analyzer.py`
-   - Fix: The matching is likely exact-string. Need fuzzy/normalized matching: strip "Meyer ", normalize spelling variants (Wolfshiem/Wolfsheim/Wolfsiem). A Levenshtein distance ≤ 2 check would catch all three.
+3. **Invalid alias "the Buchanans' house" on Tom Buchanan** [Alias Grouping]
+   - Problem: main_cast_3 Tom Buchanan has alias "the Buchanans' house" — a location, not a person reference
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` verify_aliases
+   - Fix: Block aliases containing location/building words ("house", "mansion", "home", "estate", "property", "place") when the canonical name is a person. A person alias should reference the person, not their property.
 
-5. **F6 generic descriptor clutter: 6 non-character entries** [Completeness]
-   - "gardener" (5 mentions), "butler" (20 mentions), "chauffeur" (10), "New York reporter" (1), "Lutheran minister" (1), "the war veteran" (1)
-   - These are occupational roles, not named characters
-   - Location: F6 reconciliation in `src/analyzer.py`
-   - Fix: Add blocklist for common occupational/role descriptors that are all-lowercase or match patterns like "the [noun]", "[adjective] [occupation]". Block any F6 candidate that is entirely lowercase (no proper noun).
+4. **"Buchanan" shared alias on both Tom and Daisy** [Alias Grouping]
+   - Problem: Both main_cast_2 (Daisy) and main_cast_3 (Tom) have "Buchanan" as alias. This creates ambiguity.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` or `src/agents/characters.py`
+   - Fix: If a surname-only alias appears on 2+ characters, remove it from all of them (or keep only on the character most commonly referred to by surname alone — in Gatsby, "Buchanan" standalone usually means the family generally, not one person specifically).
 
-6. **"Daisy Fay" as separate F6 entry** [Identity Resolution]
-   - F6 hash "Daisy Fay" (1 mention) — this is Daisy Buchanan's maiden name, should be her alias
-   - Location: F6 reconciliation in `src/analyzer.py`
-   - Fix: F6 should check if a new character's first name matches an existing character's canonical name or alias before creating a new entry. "Daisy Fay" shares "Daisy" with main_cast_2 "Daisy" → should become an alias, not a new character.
+5. **Myrtle→Wilson labeled "husband" (wrong gender)** [Profiles]
+   - Problem: Myrtle lists Wilson as "husband" but she IS the wife. Should be Myrtle→Wilson "wife".
+   - This is a gender consistency issue — `enforce_gender_consistency` should catch this but may not if it only looks at the label holder's gender, not the relationship direction.
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: In `enforce_gender_consistency`, when A→B is "husband" and A is female, flip to "wife". The "husband" label on Myrtle means "B is my husband" — but the data structure stores it as "A's relationship TO B" where the value is A's ROLE, not B's role. Need to clarify which convention is in use and ensure consistency.
 
-7. **Invalid aliases on Gatsby** [Alias Grouping]
-   - "the man" — too generic
-   - "the poor son-of-a-bitch" — a quote from the owl-eyed man at the funeral, not an alias
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py` alias validation
-   - Fix: Block aliases that are pure generic descriptors ("the man", "the woman") and aliases containing profanity/slang.
-
-8. **"Buchanan" shared by both Tom and Daisy** [Alias Grouping]
-   - Tom Buchanan has alias "Buchanan"; Daisy also has alias "Buchanan"
-   - Ambiguous shared surname — a narrator looking up "Buchanan" gets two hits
-   - Location: `src/pipeline/character_extraction_v2/main_cast.py`
-   - Fix: If a surname-only alias is shared by 2+ characters, remove it from all (or keep only on the character who uses it most as a standalone reference — Tom is usually called "Tom" or "Tom Buchanan", while "Buchanan" standalone typically refers to the family generally).
+6. **Jordan Baker has duplicate "Jordan" alias** [Alias Grouping]
+   - Problem: Alias list is `["Jordan", "Jordan", "Baker"]` — "Jordan" appears twice
+   - Location: Post-processing dedup in `src/agents/characters.py`
+   - Fix: Simple `list(set(...))` dedup on aliases before final output.
 
 ### MEDIUM
 
-9. **Nick Carraway, Gatsby, and Myrtle missing physical descriptions** [Profiles]
-   - Nick: sparse self-description but has some context (narrator, first-person perspective)
-   - Gatsby: "an elegant young rough-neck, a year or two over thirty" + tan, short hair, clean-cut
-   - Myrtle: "middle thirties, faintly stout, carried her surplus flesh sensuously"
-   - Location: `src/analyzer.py` profiler
-   - Fix: May require longer context windows for the profiler or explicit prompting to look for appearance descriptions in other characters' observations.
+7. **Fabricated relationships on Daisy** [Profiles]
+   - Daisy→Dan Cody "friend" — Daisy and Dan Cody never meet (Cody dies before Gatsby meets Daisy)
+   - Daisy→Myrtle "romantic interest" — incorrect (they barely interact; Tom's affair with Myrtle is the connection)
+   - Tom→Wilson "romantic interest" — incorrect (Tom's affair is with Myrtle, not George Wilson)
+   - These are LLM fabrications from co-occurrence proximity.
+   - Location: `src/analyzer.py` profiler or `src/pipeline/character_profiling/post_corrections.py`
 
-10. **Chapter 1 summary has "Nick Carraway, Nick Carraway" repetition** [Summaries]
-    - Minor cosmetic issue in first sentence.
-    - Location: `src/agents/summary_agent.py` or post-processing
+8. **Missing physical descriptions for Gatsby and Myrtle** [Profiles]
+   - Gatsby: "an elegant young roughneck, a year or two over thirty" + tan, short hair
+   - Myrtle: "middle thirties, faintly stout, carried her surplus flesh sensuously"
+   - These descriptions exist in the text but weren't captured.
+   - Location: `src/analyzer.py` profiler context window or prompting
+
+9. **Doctor Eckleburg and Green Light both labeled "protagonist"** [Character Extraction]
+   - These are symbolic entities, not protagonists. Should be labeled "symbolic" or "minor".
+   - Minor impact — doesn't affect narrator preparation significantly.
 
 ## Fix History
 
@@ -182,6 +156,13 @@
 - **Fix T: Colleague → associated** — **EFFECTIVE ✓** (colleague count: 0)
 - **Fix U: Second-pass alias absorption (STEP 5.9.9)** — **PARTIALLY EFFECTIVE** (main Wolfshiem entry has 32 mentions, but 2 extra entries remain)
 
+### Attempt 9 fixes
+- **Fix V: Rule 0.5b person/non-person mismatch** — **EFFECTIVE ✓** (green light and Owl Eyes separated)
+- **Fix W: Reciprocal spouse validation** — **PARTIALLY EFFECTIVE** (10→6 spousal labels; 4 removed, but Gatsby↔Jordan and Myrtle gender wrong persist)
+- **Fix X: Fuzzy Wolfsheim dedup** — **EFFECTIVE ✓** (3 entries → 1)
+- **Fix Y: F6 proper-noun filter** — **EFFECTIVE ✓** (6 clutter entries removed)
+- **Fix Z: Daisy Fay maiden-name match** — **EFFECTIVE ✓** (Daisy Fay → alias of Daisy)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -207,11 +188,11 @@
 | 8 | One-spouse invariant | `src/pipeline/character_profiling/post_corrections.py` | Partial (23→10, but 6 still wrong) |
 | 8 | Colleague → associated | `src/pipeline/character_profiling/post_corrections.py` | **FIXED** ✓ |
 | 8 | Second-pass alias absorption | `src/agents/characters.py` (STEP 5.9.9) | Partial (main entry fixed, 2 extras remain) |
-
-**Patterns detected:**
-- `src/pipeline/character_profiling/post_corrections.py` is the right place for relationship fixes — post-processing works better than prompt engineering
-- Wolfsheim spelling variants (Wolfshiem/Wolfsheim/Wolfsiem) need fuzzy matching, not exact string matching
-- Green light + Owl Eyes merge is a NEW issue (or newly noticed) — likely caused by descriptor merge logic treating all non-person entities as one
+| 9 | Green light / Owl Eyes split | `src/pipeline/character_extraction_v2/main_cast.py` | **FIXED** ✓ |
+| 9 | Reciprocal spouse validation | `src/pipeline/character_profiling/post_corrections.py` | Partial (10→6 labels; 4 removed) |
+| 9 | Fuzzy Wolfsheim dedup | `src/agents/characters.py` (STEP 5.9.9) | **FIXED** ✓ |
+| 9 | F6 proper-noun filter | `src/analyzer.py` | **FIXED** ✓ |
+| 9 | Daisy Fay maiden-name match | `src/analyzer.py` | **FIXED** ✓ |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -219,59 +200,22 @@
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
-## Priority Fix Order for Attempt 9
+## Priority Fix Order for Attempt 10
 
-**The two blocking categories are Character Extraction (6.5/10) and Profiles (6.5/10).**
+**The two blocking categories are Character Extraction (7.5/10) and Profiles (7/10).**
 
-### Character Extraction (6.5/10 → 8+)
+### Character Extraction (7.5 → 8+)
 
-1. **Split green light from Owl Eyes** — CRITICAL. Either prevent the merge in descriptor merge logic (different core nouns: "light" vs "man") or add a post-merge split for inanimate+person merged entities. This is worth ~1 point to Identity Resolution.
+1. **Fix Henry C. Gatz duplication** — The `main_cast_8_parent` split needs to be prevented or merged. This is ~0.5 points to Identity Resolution.
+2. **Block "the Buchanans' house" alias** — Location-word filter in alias validation. ~0.25 points.
+3. **Remove shared "Buchanan" alias** — Dedup shared surname aliases. ~0.25 points.
+4. **Dedup "Jordan" duplicate alias** — Trivial `set()` dedup. ~0.1 points.
 
-2. **Fuzzy Wolfsheim dedup** — Normalize spelling variants before dedup. Levenshtein distance ≤ 2 or normalize by stripping title words and comparing. Worth ~0.5 points.
+### Profiles (7 → 8+)
 
-3. **F6 generic descriptor filter** — Block all-lowercase F6 candidates or those matching occupation patterns. Remove 6 clutter entries. Worth ~0.5 points.
-
-4. **Merge "Daisy Fay" into Daisy** — F6 should check first-name overlap with existing characters. Worth ~0.25 points.
-
-5. **Remove invalid aliases** — Block "the man", "the poor son-of-a-bitch", shared "Buchanan". Worth ~0.5 points.
-
-### Profiles (6.5/10 → 8+)
-
-6. **Reciprocal spouse validation** — For each spousal label A→B, require B→A to also be spousal. Non-reciprocated → downgrade to "associated". This eliminates 6 wrong labels while preserving 4 correct ones (Tom↔Daisy and George↔Myrtle are reciprocal). Worth ~1 point.
-
-7. **Missing physical descriptions** — Gatsby and Myrtle have clear textual descriptions that the profiler missed. Nick as narrator has less, but still has some. Worth ~0.5 points if fixed.
+5. **Fix Gatsby↔Jordan false spousal** — Add a cross-validation: if A→B is "romantic interest" AND A→B is "spouse" (or vice versa), the spousal label contradicts the romantic interest. Downgrade spouse to romantic interest. Alternatively: for reciprocal spouse pairs, verify "married"/"wedding"/"wife"/"husband" appears in shared chapter summaries.
+6. **Fix Myrtle→Wilson gender label** — Myrtle (female) lists Wilson as "husband" in the "A's role relative to B" sense, but if the convention is "B's role to A", then it's correct. Clarify and fix.
+7. **Remove fabricated Daisy relationships** — Daisy→Dan Cody, Daisy→Myrtle "romantic interest", Tom→Wilson "romantic interest" are all wrong. These may require tighter evidence requirements in the profiler.
 
 ## Next Action
-Evaluate attempt 9 output.
-
-## Attempt 9 Fixes
-
-### Fix V: Rule 0.5b — Person/non-person descriptor mismatch in verify_aliases — PENDING
-- Root cause: "The green light" (is_symbolic=False due to LLM capitalization) had no protection against "The owl-eyed man" alias (person noun "man" vs non-person "light")
-- Fix: Added Rule 0.5b in verify_aliases() that blocks "the X" → "the Y" aliases when exactly one of X/Y is a person noun (man, woman, boy, girl, person, figure, stranger, visitor, creature, being, fellow, ghost, spirit, phantom, specter, soul, voice)
-- Location: src/pipeline/character_extraction_v2/main_cast.py:verify_aliases() after Rule 0.5
-- Universal: any book where a non-person entity gets person-type aliases benefits
-
-### Fix W: Reciprocal spouse validation in _enforce_one_spouse_invariant — PENDING
-- Root cause: 6 wrong spousal labels survived because the one-spouse invariant only removes EXTRA spouses (>1), but each wrong character had exactly 1 (wrong) spouse
-- Fix: After the multi-spouse check, added a reciprocal validation: for each A→B spousal label, verify B→A is also spousal. If not reciprocated, downgrade to "associated"
-- Expected to fix: Nick→Tom, The green light→Tom, McKee→Wilson, Sloane→Tom (4 of 6)
-- Expected to keep: Tom↔Daisy, George↔Myrtle (reciprocal = true couples)
-- May NOT fix: Gatsby↔Jordan (both wrong, but mutual → both survive)
-- Location: src/pipeline/character_profiling/post_corrections.py:_enforce_one_spouse_invariant()
-
-### Fix X: Fuzzy matching in Step 5.9.9 for Wolfsheim dedup — PENDING
-- Root cause: Step 5.9.9 only used exact string matching; "Meyer Wolfshiem" (supporting) didn't exactly match alias "Meyer Wolfsheim" (ie/ei transposition)
-- Fix: Added fuzzy alias and fuzzy canonical matching using names_similar() after the exact checks
-- Location: src/agents/characters.py STEP 5.9.9
-
-### Fix Y: F6 proper-noun filter for occupational roles — PENDING
-- Root cause: "gardener", "butler", "chauffeur" (all lowercase) were created as F6 characters
-- Fix: Block F6 candidates with no proper nouns (no capitalized content word). Universal: named characters always have proper nouns; role descriptors don't.
-- Applied to both F6 (active_characters) and F6b (mentioned_characters) paths
-- Location: src/analyzer.py F6 and F6b loops
-
-### Fix Z: "Daisy Fay" maiden-name matching in F6 — PENDING
-- Root cause: "Daisy Fay" had different last name from "Daisy Buchanan" so first/last-name checks didn't catch it
-- Fix: Added check: if first name matches first word of existing multi-word character and last names differ, treat as alternate-surname variant (maiden name pattern)
-- Location: src/analyzer.py _is_likely_alias_of_existing()
+Run PROMPT_fix.md to address Henry C. Gatz duplication, Gatsby↔Jordan spousal, and alias cleanup.
