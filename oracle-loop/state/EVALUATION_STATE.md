@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -191,5 +191,14 @@
 
 Items 1-2 are essential to cross 8.0 on Profiles. Items 3-5 are needed to cross 8.0 on Character Extraction.
 
+## Pipeline Notes (Attempt 6)
+- Analysis completed in 91m 31s
+- 42 characters extracted (up from 33 in attempt 5)
+- Fix M confirmed: "Tom and Daisy" blocked as pair alias ✓
+- Fix L: colleague injection disabled — result unknown until evaluation
+- Warning: `Failed to structure profile for Jordan Baker: name '_VAGUE_REL_LABELS' is not defined` — Jordan profile may be incomplete
+- Gatsby→Henry C. Gatz contradictory parent labels detected and removed
+- Output: output/gatsby/analysis.json, output/gatsby/report.html
+
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify fixes L and M.
+Evaluate output (PROMPT_evaluate.md).
