@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -145,6 +145,11 @@
 ### Attempt 4 fixes
 - **Fix G: Role safety net in analyzer.py** — PARTIALLY EFFECTIVE (Gatsby promoted ✓, but may have caused narrator regression and role inflation for other characters)
 - **Fix H: "colleague" filter in post-processing** — COMPLETELY INEFFECTIVE (198 "colleague" entries remain, nearly unchanged from 213)
+
+### Attempt 5 fixes
+- **Fix I: Relative mention guard in narrator.py `update_characters_with_narrator`** — Added guard: narrator candidate rejected if mention_count < 8% of max-mention character (when max > 20). Blocked characters clear narrator_info so downstream stages don't inherit wrong narrator. Root cause: Henry C. Gatz (13 mentions) was above the old ≤5 guard but below 8% of Gatsby's 268 = 21.4 threshold. Smoke test: Henry (13/268 = 4.9%) blocked, Nick (34/268 = 12.7%) passes.
+- **Fix J: Step 6.6 narrator fallback minimum raised from 3 to 20 mentions** — The fallback that picks narrator as "fewest mentions in plot summary" now requires ≥20 mentions. This prevents low-mention background characters from being picked when primary detection fails. Henry (13) would be excluded from candidates.
+- **Fix K: Colleague substring filter (both locations)** — Changed `startswith("colleague")` to `any("colleague" in v.lower())` at both filter locations (lines 2135 and 3782). Root cause: LLM outputs "business colleague", "former colleague", etc. which don't start with "colleague". Now uses substring containment for both "colleague" and "acquaintance" vague labels.
 
 ## Modification History
 

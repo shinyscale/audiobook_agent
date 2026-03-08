@@ -2126,14 +2126,19 @@ class AudiobookAnalyzer:
                     # Always assign relationships, even if None (will use model default {})
                     # This ensures we don't silently skip assignment when LLM provides data
                     if relationships is not None:
-                        # Remove self-references and vague fallback labels
+                        # Remove self-references and vague fallback labels.
+                        # Use substring containment for "colleague" and "acquaintance" because
+                        # LLMs often output compound forms like "business colleague" or "social
+                        # acquaintance" that don't start with the vague word but are equally vague.
                         char_name_lower = char.canonical_name.lower()
+                        _VAGUE_CONTAINS = {"colleague", "acquaintance"}
+                        _VAGUE_EXACT = {"associated", "associate", "unknown", "unrelated"}
                         relationships = {
                             k: v for k, v in relationships.items()
                             if k.lower() != char_name_lower
                             and isinstance(v, str)
-                            and not v.lower().startswith("colleague")
-                            and v.lower() not in {"acquaintance", "associated", "associate", "unknown", "unrelated"}
+                            and not any(vague in v.lower() for vague in _VAGUE_CONTAINS)
+                            and v.lower() not in _VAGUE_EXACT
                         }
                         char.relationships = relationships
                         logger.info(f"Assigned relationships for {char.canonical_name}: {relationships}")
@@ -2537,7 +2542,7 @@ class AudiobookAnalyzer:
                     _narrator_candidates_66 = [
                         c for c in pipeline_char_map.characters
                         if c.canonical_name.lower() in _plot_lower_66
-                        and (getattr(c, "mention_count", 0) or 0) >= 3
+                        and (getattr(c, "mention_count", 0) or 0) >= 20
                     ]
                     if _narrator_candidates_66:
                         _narrator_pick_66 = min(
@@ -3774,12 +3779,13 @@ Do NOT use "acquaintance", "associated", "colleague", or "unknown" — omit inst
                         # The LLM sometimes ignores the prohibition and uses "associated"/
                         # "acquaintance"/"unknown" as fallbacks. Post-filter them here so
                         # the secondary call can replace with specific labels (or omit cleanly).
-                        _VAGUE_REL_LABELS = {"associated", "acquaintance", "unknown", "associate", "unrelated", "colleague"}
+                        _VAGUE_CONTAINS_2 = {"colleague", "acquaintance"}
+                        _VAGUE_EXACT_2 = {"associated", "associate", "unknown", "unrelated"}
                         if isinstance(relationships, dict):
                             relationships = {k: v for k, v in relationships.items()
                                              if isinstance(v, str)
-                                             and v.lower() not in _VAGUE_REL_LABELS
-                                             and not v.lower().startswith("colleague")}
+                                             and not any(vague in v.lower() for vague in _VAGUE_CONTAINS_2)
+                                             and v.lower() not in _VAGUE_EXACT_2}
                             # Empty dict (not None) — triggers secondary call below for specific labels
 
                         # Debug logging

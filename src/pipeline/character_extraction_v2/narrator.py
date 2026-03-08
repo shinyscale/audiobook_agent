@@ -314,11 +314,34 @@ class NarratorDetector:
                 # We only block when mention_count > 0 (i.e., when count was actually computed).
                 # mention_count == 0 means "not yet counted" (test/mock scenario), so we allow it.
                 mention_count = getattr(char, "mention_count", 0) or 0
+                _narrator_blocked = False
                 if 0 < mention_count <= 5:
                     logger.warning(
                         f"Narrator '{char.canonical_name}' has only {mention_count} mention(s) — "
                         f"too few to be a first-person narrator (need > 5); skipping narrator assignment"
                     )
+                    _narrator_blocked = True
+                else:
+                    # Relative guard: narrator must have >= 8% of the highest-mention character's count.
+                    # Universal invariant: a character whose name-mention count is tiny compared to
+                    # the main cast is a background figure, not the storytelling voice.
+                    # (First-person narrators use "I" so they have fewer name mentions than characters
+                    # they describe — but they still need a meaningful presence in name-based search.)
+                    # Only applies when the cast has a high-mention "anchor" character (> 20 mentions),
+                    # so this doesn't falsely block narrators in short texts with a flat mention profile.
+                    _all_mention_counts = [getattr(c, "mention_count", 0) or 0 for c in characters]
+                    _max_mentions = max(_all_mention_counts, default=0)
+                    if _max_mentions > 20 and mention_count < _max_mentions * 0.08:
+                        logger.warning(
+                            f"Narrator '{char.canonical_name}' has only {mention_count} mentions "
+                            f"(< 8% of highest-mention character's {_max_mentions}); "
+                            f"likely not the narrator — skipping narrator assignment"
+                        )
+                        _narrator_blocked = True
+                if _narrator_blocked:
+                    # Clear narrator_info so subsequent pipeline stages don't use this wrong narrator
+                    narrator_info.narrator_character_id = None
+                    narrator_info.narrator_name = None
                 else:
                     char.is_narrator = True
                     char.narrative_role = f"{narrator_info.pov.title()} narrator"
