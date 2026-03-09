@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 14
-- **Phase:** awaiting_fix
+- **Attempt:** 15
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -221,6 +221,11 @@ Fixing issues 1-3 (fabricated relationships pruned + sibling detection) should p
 ### Attempt 14 fixes
 - **Fix MM: `" man "` word-boundary in MALE_INDICATORS** — **PARTIALLY EFFECTIVE** (gender inference correct, but LLM generated "close friend" instead of "brother" so gender-correction path not exercised)
 
+### Attempt 15 fixes
+- **Fix NN: Word-boundary matching in `_infer_rel`** (`extract_relationships_from_evidence`) — prevents "affairs" substring matching "affair" and "loved" matching "love". Root cause: "Dan Cody trusted Gatsby to manage his affairs" was generating "romantic interest" for Cody↔Gatsby.
+- **Fix OO: Tighter romantic keyword window in `reject_unfounded_romantic_labels`** — require romantic keyword within 150 chars of name_B (not just anywhere in 500-char window around name_A). Prevents false "love" signal from unrelated text polluting the romantic evidence check.
+- **Fix PP: Allow strong family evidence to override vague labels in `verify_relationships_from_text`** — when a family term appears 2+ times in co-mention windows, override any non-family label (e.g., "close friend" → "sister" for Myrtle↔Catherine). Universal invariant: repeated explicit family terminology in source text is authoritative.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -264,6 +269,7 @@ Fixing issues 1-3 (fabricated relationships pruned + sibling detection) should p
 | 13 | Tom F6 duplicate | `src/analyzer.py` | **FIXED** ✓ |
 | 13 | Wolfsheim post-extraction dedup | `src/analyzer.py` | **FIXED** ✓ |
 | 14 | Gender word-boundary (" man ") | `src/pipeline/character_profiling/post_corrections.py` | **PARTIALLY EFFECTIVE** — gender correct but LLM didn't generate "brother" this run |
+| 15 | Word-boundary matching + tighter romantic window + strong family override | `src/pipeline/character_profiling/post_corrections.py` | TBD |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)

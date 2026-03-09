@@ -1120,7 +1120,9 @@ class OutputCharacterCorrector:
 
         def _infer_rel(stmt: str) -> str:
             sl = stmt.lower()
-            if any(w in sl for w in _ROMANTIC_WORDS):
+            # Use word-boundary matching to prevent partial-word false positives
+            # (e.g. "affairs" triggering "affair", "loved" triggering "love").
+            if any(re.search(r'\b' + re.escape(w) + r'\b', sl) for w in _ROMANTIC_WORDS):
                 return "romantic interest"
             if any(w in sl for w in _RIVAL_WORDS):
                 return "rival"
@@ -2021,9 +2023,11 @@ class OutputCharacterCorrector:
                         # not the pair being analyzed. Allow overrides when:
                         #   (a) current label is generic (upgrade placeholder to specific), OR
                         #   (b) both current AND best are family terms (correct within-family: brother → cousin)
-                        # NEVER use a family term from context to override a specific non-family label
-                        # (e.g., "friend" → "husband") — those co-mention family terms refer to others.
-                        if cur_lower in _generic_labels or (is_best_family and is_family):
+                        #   (c) best is a family term appearing 2+ times in co-mention windows
+                        #       (repeated explicit family evidence overrides vague non-family labels
+                        #        like "close friend" → "sister" when text repeatedly states "her sister")
+                        _strong_family_evidence = is_best_family and found.get(best, 0) >= 2
+                        if cur_lower in _generic_labels or (is_best_family and is_family) or _strong_family_evidence:
                             # Universal invariant: never override a parent/child label with a
                             # spousal label based on co-mention window evidence. A "his wife"
                             # phrase in a parent-child co-mention window refers to the parent's
@@ -2734,16 +2738,26 @@ class OutputCharacterCorrector:
                     continue
 
                 # Search for strong romantic evidence in co-mention windows.
+                # Require the romantic keyword to appear within 150 chars of
+                # name B in the window — not just anywhere in the 500-char span.
+                # This avoids false positives where "love" appears in the window
+                # but refers to a different relationship (e.g., "loved the life").
                 has_evidence = False
+                _TIGHT = 150
                 for ma in pat_a.finditer(source_text):
                     ws = max(0, ma.start() - co_window)
                     we = min(len(source_text), ma.end() + co_window)
                     win = source_text[ws:we]
                     if not pat_b.search(win):
                         continue
-                    win_lower = win.lower()
-                    if any(w in win_lower for w in _STRONG_ROMANTIC):
-                        has_evidence = True
+                    for mb in pat_b.finditer(win):
+                        b_ws = max(0, mb.start() - _TIGHT)
+                        b_we = min(len(win), mb.end() + _TIGHT)
+                        tight = win[b_ws:b_we].lower()
+                        if any(w in tight for w in _STRONG_ROMANTIC):
+                            has_evidence = True
+                            break
+                    if has_evidence:
                         break
 
                 if not has_evidence:
