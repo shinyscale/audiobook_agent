@@ -916,6 +916,37 @@ class OutputCharacterCorrector:
         _spouse_terms = {"husband", "wife", "spouse"}
         name_patterns = _build_name_patterns(characters) if source_text else {}
 
+        # Universal invariant: same-gender characters cannot be spouses.
+        # In virtually all literary fiction, "husband"/"wife"/"spouse" between two
+        # characters of the same gender is an LLM hallucination — the LLM mistakes
+        # possessive phrases like "Tom's wife Daisy" appearing near Gatsby for a
+        # direct Gatsby↔Tom spousal relationship.  Block early so the one-spouse
+        # comparison below doesn't incorrectly prefer the hallucinated pair.
+        _gender_map: dict = {}
+        for _c in characters:
+            _g = getattr(_c, 'gender', None)
+            if _g:
+                _gender_map[_c.canonical_name] = _g
+                for _alias in (getattr(_c, 'aliases', None) or []):
+                    _gender_map[_alias] = _g
+        for char in characters:
+            if not char.relationships:
+                continue
+            char_gender = getattr(char, 'gender', None)
+            if char_gender not in ('male', 'female'):
+                continue
+            for other_key in list(char.relationships.keys()):
+                label = char.relationships.get(other_key) or ""
+                if not any(t in label.lower() for t in _spouse_terms):
+                    continue
+                other_gender = _gender_map.get(other_key)
+                if other_gender == char_gender:
+                    char.relationships[other_key] = "associated"
+                    logger.info(
+                        f"Same-gender spousal guard: '{char.canonical_name}' → '{other_key}': "
+                        f"'{label}' downgraded to 'associated' (both {char_gender})"
+                    )
+
         for char in characters:
             if not char.relationships:
                 continue
@@ -1493,9 +1524,16 @@ class OutputCharacterCorrector:
                 if rels_b is None:
                     rels_b = {}
                     char_b.relationships = rels_b
-                if isinstance(rels_b, dict) and char_a.canonical_name not in rels_b:
+                _GENERIC = {"associated", "acquaintance", "associate", ""}
+                existing = (rels_b.get(char_a.canonical_name) or "").lower().strip()
+                if isinstance(rels_b, dict) and (
+                    char_a.canonical_name not in rels_b or existing in _GENERIC
+                ):
                     rels_b[char_a.canonical_name] = reverse_rel
                     logger.info(
+                        f"Propagated missing reverse: "
+                        f"'{other_name}' → '{char_a.canonical_name}' = '{reverse_rel}' "
+                        f"(overwrote '{existing}')" if existing else
                         f"Propagated missing reverse: "
                         f"'{other_name}' → '{char_a.canonical_name}' = '{reverse_rel}'"
                     )

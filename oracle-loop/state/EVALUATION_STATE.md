@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 15
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -213,6 +213,10 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 - **Fix OO: Tighter romantic keyword window** — **EFFECTIVE ✓** (Tom→Jordan/Catherine "romantic interest" eliminated)
 - **Fix PP: Strong family evidence override** — **EFFECTIVE ✓** (Catherine→Myrtle "sister" ✓, but reciprocal missing)
 
+### Attempt 16 fixes
+- **Fix QQ: Same-gender spousal guard in `_enforce_one_spouse_invariant`** — removes Gatsby↔Tom "husband" (both male → impossible)
+- **Fix RR: `_propagate_missing_reverses` overwrites generic labels** — Myrtle→Catherine "associated" → "sister"; also enables Daisy→Tom propagation
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -259,6 +263,8 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 | 15 | Word-boundary in _infer_rel | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Cody↔Gatsby romantic → mentor) |
 | 15 | Tighter romantic keyword window | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Tom romantic false positives removed) |
 | 15 | Strong family evidence override | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Catherine→Myrtle "sister", but no reciprocal) |
+| 16 | Same-gender spousal guard | `src/pipeline/character_profiling/post_corrections.py` | Pending |
+| 16 | _propagate_missing_reverses overwrites generics | `src/pipeline/character_profiling/post_corrections.py` | Pending |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -268,4 +274,4 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 - Mr. McKee still LOW CONFIDENCE (0.30) — JSON parse failure during profiling
 
 ## Next Action
-Run PROMPT_fix.md to address: (1) same-gender spousal guard for Gatsby↔Tom "husband", (2) reciprocal family-evidence override for Myrtle↔Catherine, (3) lower spousal evidence threshold for Daisy↔Tom
+Run PROMPT_analyze.md to verify fixes QQ and RR.
