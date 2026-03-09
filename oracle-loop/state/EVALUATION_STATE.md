@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 16
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -16,7 +16,7 @@
 - Character Extraction: 8/10 ✓
   - Completeness: 7.5/10 (George Wilson still missing)
   - Identity Resolution: 9/10
-  - Alias Grouping: 8/10 (Gatsby missing "James Gatz" alias — LLM variance)
+  - Alias Grouping: 7.5/10 (Tom has "the Buchanans' house" alias; Gatsby missing "James Gatz")
 - Character Profiles: 7.5/10 ✗ (FAILING)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓
@@ -44,102 +44,112 @@
 | 13 | 8.40 | +2.50 | **BREAKTHROUGH**: Tom F6 dup FIXED ✓, Wolfsheim dedup FINALLY FIXED ✓. Character Extraction passes 8.0. Only Profiles (7/10) remains below threshold. |
 | 14 | 8.40 | +2.50 | Fix MM (gender word-boundary) worked: Myrtle/Catherine gender correct. But "close friend" instead of "sister" (LLM variance). NEW fabrication: Gatsby↔Cody "romantic interest". Net: same score. |
 | 15 | 8.53 | +2.63 | Fix NN/OO/PP effective: Cody↔Gatsby "mentor/protégé" ✓, Catherine→Myrtle "sister" ✓, Tom→Catherine romantic GONE ✓. But NEW: Gatsby↔Tom "husband" fabricated. Profiles 7→7.5. |
+| 16 | 8.53 | +2.63 | Fix QQ effective (same-gender guard): Gatsby↔Tom "husband" GONE ✓. But spousal label SHIFTED to Gatsby↔Daisy "husband"/"wife" — wrong pair. Net: no change. |
 
-## What Changed in Attempt 15
+## What Changed in Attempt 16
 
-### Fix NN (word-boundary in `_infer_rel`) — EFFECTIVE ✓
-- "affairs" no longer substring-matches "affair" → Dan Cody↔Gatsby "romantic interest" ELIMINATED
-- Gatsby→Dan Cody now correctly "protégé", Dan Cody→Gatsby now "mentor"
+### Fix QQ (same-gender spousal guard) — EFFECTIVE ✓
+- Gatsby↔Tom "husband" → "associated" (blocked: both gender=male)
+- Same-gender spousal guard works correctly
 
-### Fix OO (tighter romantic keyword window) — EFFECTIVE ✓
-- Tom→Jordan Baker no longer "romantic interest" (now "associated")
-- Tom→Catherine "romantic interest" GONE entirely
-
-### Fix PP (strong family evidence override) — EFFECTIVE ✓
-- Catherine→Myrtle now correctly "sister"
-- BUT Myrtle→Catherine is "associated" (reciprocal not generated)
-
-### Previous fixes holding stable
-- Narrator: Nick Carraway ✓ (5th consecutive stable attempt)
-- Gatsby: main_cast protagonist ✓ (but "James Gatz" alias LOST this run — LLM variance)
-- Daisy: aliases include Daisy Fay ✓
-- Tom: alias "Tom" ✓, no F6 dup ✓
-- Wolfsheim: single entry with aliases ✓
+### Fix RR (_propagate_missing_reverses overwrites generics) — PARTIALLY EFFECTIVE
+- Catherine→Myrtle "sister" persists ✓
+- BUT Myrtle→Catherine still "associated" — propagation didn't fire for this pair
+- Unclear why: possibly the reverse relationship already existed as "associated" and RR didn't overwrite
 
 ### NEW issues this run
-- Gatsby→Tom Buchanan "husband" — FABRICATED. They are rivals/antagonists. Gatsby is having an affair with Tom's wife.
-- Tom Buchanan→Gatsby "husband" — same fabrication, reciprocal
-- Daisy↔Tom "associated" — should be "wife"/"husband" (key relationship mislabeled as vague)
-- Tom→Myrtle "associated" — should be "affair" or "romantic interest"
-- Wolfshiem→Tom "friend", Wolfshiem→Jordan "friend" — fabricated (no interactions in text)
-- The green light→Mr. McKee "associated" — nonsensical
+- **Gatsby→Daisy "husband"** — FABRICATED. Gatsby is NOT Daisy's husband; Tom is. Gatsby is Daisy's lover/romantic interest. The spousal label shifted from the Gatsby↔Tom pair (blocked by Fix QQ) to the Gatsby↔Daisy pair (not blocked because they're different genders).
+- **Daisy→Gatsby "wife"** — same fabrication, reciprocal
+- **Tom↔Daisy "associated"** — WRONG. They ARE married. The actual husband-wife pair gets "associated" while the wrong pair gets "husband"/"wife".
+- **Dan Cody→Daisy "friend"** — FABRICATED. Dan Cody died before Gatsby met Daisy.
+- **Wolfshiem→{Tom, Jordan, Daisy, Nick} "friend"** — FABRICATED. Wolfshiem interacts only with Gatsby (and briefly Nick at the funeral).
+- **Tom→green light "associated"** — Nonsensical.
+
+### Root Cause Analysis: Spousal Label Whack-a-Mole
+
+The same "husband"/"wife" fabrication has now appeared on THREE different character pairs across attempts:
+- Attempt 8-12: Various characters labeled "husband"/"wife" (47→23→10→6)
+- Attempt 15: Gatsby↔Tom "husband" (fixed by QQ in attempt 16)
+- Attempt 16: Gatsby↔Daisy "husband"/"wife" (NEW)
+
+The pattern: the LLM profiler or `_infer_rel`/`verify_relationships_from_text` detects "husband" in text windows containing Gatsby+Daisy. But "husband" in those windows refers to TOM ("her husband"), not Gatsby. Blocking the label on one pair just shifts it to another.
+
+**The fix must address the ROOT CAUSE:** text-window spousal detection doesn't distinguish WHO the spousal term refers to when a third character is the actual referent.
 
 ## Current Issues (Priority Order)
 
 ### HIGH
 
-1. **Fabricated relationship: Gatsby↔Tom "husband"** [Profiles]
-   - Problem: Both Gatsby and Tom list each other as "husband". This is completely wrong — they are rivals. Gatsby is pursuing Tom's wife Daisy.
-   - Root cause: LLM profiler hallucinating. The word "husband" appears frequently near Tom (as Daisy's husband) and the LLM incorrectly assigns it to the Gatsby↔Tom pair.
-   - Location: `src/pipeline/character_profiling/post_corrections.py`
-   - Fix: **Same-gender spousal guard**. If two characters both have `gender: "male"` (or both "female"), block "husband"/"wife"/"spouse" labels between them. Both Gatsby and Tom have `gender: "male"`. This is a universal invariant for pre-modern literature (which this tool primarily processes). Alternatively, use the one-spouse invariant: if Tom is already Daisy's husband, he can't also be Gatsby's husband.
+1. **Gatsby→Daisy "husband" / Daisy→Gatsby "wife" — WRONG** [Profiles]
+   - Problem: Gatsby is labeled as Daisy's husband. In the novel, TOM is Daisy's husband. Gatsby is her former lover and current romantic interest.
+   - Root cause: Text windows with Gatsby+Daisy mentions contain "her husband" (referring to Tom). `_infer_rel` or the LLM profiler attributes the "husband" label to Gatsby instead of Tom.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `verify_relationships_from_text` and/or `_infer_rel`
+   - Fix approach: **Third-party spousal attribution check.** When "husband"/"wife" is found in a text window between characters A and B, check if a THIRD character's name also appears in the same window near the spousal term. If "her husband" is followed by/preceded by "Tom" (or any other character name), attribute the spousal relationship to Tom↔Daisy instead of Gatsby↔Daisy. This is universal: "her husband [NAME]" should attribute to [NAME], not the other character in the window.
 
-2. **Daisy↔Tom mislabeled as "associated"** [Profiles]
-   - Problem: The most central relationship in the novel (married couple) is labeled "associated" instead of "wife"/"husband"
+2. **Tom↔Daisy "associated" — should be "husband"/"wife"** [Profiles]
+   - Problem: The novel's central married couple gets a vague "associated" label
    - Evidence: "her husband" appears dozens of times near Tom+Daisy co-mentions
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `verify_relationships_from_text` should be catching explicit spousal evidence
-   - Fix: The family-evidence override (Fix PP) should work here too — "husband"/"wife" terms near co-mentions should override "associated". May need to lower the threshold from 2 occurrences to 1 for spousal terms.
+   - Location: Same as above — if fix #1 correctly attributes "husband" to Tom↔Daisy instead of Gatsby↔Daisy, this resolves automatically
+   - Fix: Ensure `verify_relationships_from_text` checks Tom↔Daisy windows and finds strong "husband"/"wife" evidence
 
-3. **Myrtle→Catherine "associated" (should be "sister")** [Profiles]
-   - Problem: Fix PP correctly set Catherine→Myrtle to "sister" but didn't set the reciprocal
-   - Fix: When Fix PP detects family evidence and overrides a label, also check and override the reciprocal relationship. If A→B is "sister", then B→A should also be "sister".
+3. **Myrtle→Catherine still "associated" (should be "sister")** [Profiles]
+   - Problem: Fix RR was supposed to propagate Catherine→Myrtle "sister" to the reverse, but didn't
+   - Evidence: Catherine→Myrtle correctly shows "sister", but Myrtle→Catherine shows "associated"
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `_propagate_missing_reverses`
+   - Fix: Debug why propagation didn't fire. Likely the reverse relationship already existed as "associated" and the function doesn't overwrite existing labels. Must overwrite generic labels ("associated") with specific ones ("sister").
 
 ### MEDIUM
 
-4. **Nick and Gatsby physical_description: null** [Profiles]
-   - Problem: Two protagonists lack physical descriptions. Gatsby is described ("elegant young rough-neck," "rare smile," "tanned skin"). Nick describes himself less but has some details.
-   - Location: `src/analyzer.py` — `_generate_character_profile()` — LLM variance
-   - Fix: Low priority. This is LLM non-determinism. Could add a fallback re-prompt for null descriptions.
+4. **Fabricated Wolfshiem friendships** [Profiles]
+   - Problem: Wolfshiem→Tom "friend", Wolfshiem→Jordan "friend", Wolfshiem→Daisy "friend", Wolfshiem→Nick "friend" — none of these interactions exist in the text (except brief Nick encounter)
+   - Location: LLM profiler generates these; `verify_relationships_from_text` should catch and remove unsupported labels
+   - Low individual impact but contributes to overall profile noise
 
-5. **Wolfshiem fabricated friendships** [Profiles]
-   - Problem: Wolfshiem→Tom "friend" and Wolfshiem→Jordan "friend" — these characters don't interact in the text
-   - Low impact — "friend" is vague and Wolfshiem is a minor character
+5. **Dan Cody→Daisy "friend"** [Profiles]
+   - Problem: Dan Cody died years before Gatsby met Daisy. They cannot be friends.
+   - Location: LLM profiler fabrication
+   - Low individual impact
 
-6. **Green light→Mr. McKee "associated"** [Profiles]
-   - Problem: Nonsensical relationship between a symbol and a minor character
-   - Low impact
+6. **Nick and Gatsby physical_description: null** [Profiles]
+   - Problem: Two protagonists lack physical descriptions. Gatsby is described in the text.
+   - Location: LLM variance in `_generate_character_profile()`
 
-7. **George Wilson missing from character list** [Completeness]
-   - Problem: Significant character not extracted (appears in Ch 2, 7, 8, 9; kills Gatsby)
-   - Note: George Wilson IS mentioned in chapter summaries ("garage owner George Wilson") so the text contains him
-   - This is LLM variance in character extraction — no code change targeted this
+7. **Tom alias "the Buchanans' house"** [Alias Grouping]
+   - Problem: Possessive building reference incorrectly grouped as Tom's alias
+   - Note: Fix DD was supposed to block this; likely LLM variance re-introduced it
 
 ### LOW
 
 8. **Gatsby missing "James Gatz" alias** [Alias Grouping]
-   - Was present in attempt 14, gone in attempt 15 — LLM variance
-   - Henry C. Gatz has "Gatz" alias which is correct, but Gatsby should also have "James Gatz"
+   - LLM variance (was present in attempt 14, absent in 15-16)
 
-## Fix Guidance for Attempt 16
+9. **George Wilson missing from character list** [Completeness]
+   - LLM variance in extraction — mentioned in summaries but not extracted as character
+
+## Fix Guidance for Attempt 17
 
 **Focus ONLY on getting Character Profiles from 7.5/10 to 8/10.** All other categories pass.
 
-**Fix 1 (CRITICAL): Same-gender spousal guard in post_corrections.py**
-- In the one-spouse invariant or as a new check: if character A and character B both have the same gender (both male or both female), block "husband"/"wife"/"spouse" labels between them
-- This eliminates the Gatsby↔Tom "husband" fabrication
-- Universal: valid for all literature this tool processes
+**The spousal label has now shifted across 3 different pairs over multiple attempts. Targeted blocks (same-gender guard, one-spouse invariant) just move the problem. The fix must address the ROOT CAUSE.**
 
-**Fix 2 (HIGH): Reciprocal family-evidence override**
-- When Fix PP detects family evidence and overrides A→B's label (e.g., Catherine→Myrtle "sister"), also override B→A's label (Myrtle→Catherine should become "sister")
-- This is in `verify_relationships_from_text` in post_corrections.py
-- Universal: if textual evidence says A is B's sister, B is also A's sister
+**Fix 1 (CRITICAL): Third-party spousal attribution in `verify_relationships_from_text`**
+When checking a text window between characters A and B and finding a spousal keyword ("husband", "wife", "spouse"):
+1. Check if ANY other character's name appears in the same window within ~30 chars of the spousal keyword
+2. If yes (e.g., "her husband Tom" in a Gatsby+Daisy window), attribute the spousal relationship to that third character + the relevant party, NOT to A↔B
+3. If no third character, proceed with normal attribution to A↔B
+4. This is universal: disambiguates possessive spousal references across all texts
 
-**Fix 3 (HIGH): Lower family-evidence threshold for spousal terms**
-- Fix PP requires 2+ family term occurrences to override. For "husband"/"wife", even 1 explicit mention near co-occurring names should suffice, because these labels are rarely ambiguous
-- This should fix Daisy↔Tom "associated" → "wife"/"husband"
-- OR: ensure the one-spouse invariant runs AFTER verify_relationships_from_text so that textual evidence has a chance to set the correct spousal label first
+**Fix 2 (HIGH): Debug and fix `_propagate_missing_reverses` for Myrtle→Catherine**
+- Catherine→Myrtle = "sister" but Myrtle→Catherine = "associated"
+- The propagation function should overwrite "associated" with "sister" (specific > generic)
+- Check if the function skips when a reverse relationship already exists, even if it's a vague label
+- Fix: only skip propagation if the existing reverse label is SPECIFIC (not "associated"/"unknown"/"acquaintance")
 
-Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That should push profiles to 8/10.
+**Fix 3 (MEDIUM): If Fix 1 correctly attributes "husband" to Tom↔Daisy, verify the one-spouse invariant doesn't then REMOVE it**
+- The one-spouse invariant from Fix S (attempt 8) may conflict if Gatsby↔Daisy still has "husband" from LLM
+- Ensure ordering: verify_relationships_from_text runs FIRST (corrects attribution), THEN one-spouse invariant cleans up any remaining duplicates
+
+Fixing #1 and #2 removes 2 fabricated labels (Gatsby↔Daisy "husband"/"wife"), adds 2 correct labels (Tom↔Daisy "husband"/"wife"), and adds 1 correct label (Myrtle→Catherine "sister"). That's a net improvement of +5 correct relationship entries, which should push profiles to 8/10.
 
 ## Fix History
 
@@ -214,8 +224,8 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 - **Fix PP: Strong family evidence override** — **EFFECTIVE ✓** (Catherine→Myrtle "sister" ✓, but reciprocal missing)
 
 ### Attempt 16 fixes
-- **Fix QQ: Same-gender spousal guard in `_enforce_one_spouse_invariant`** — removes Gatsby↔Tom "husband" (both male → impossible)
-- **Fix RR: `_propagate_missing_reverses` overwrites generic labels** — Myrtle→Catherine "associated" → "sister"; also enables Daisy→Tom propagation
+- **Fix QQ: Same-gender spousal guard in `_enforce_one_spouse_invariant`** — **EFFECTIVE ✓** (Gatsby↔Tom "husband" blocked)
+- **Fix RR: `_propagate_missing_reverses` overwrites generic labels** — **PARTIALLY EFFECTIVE** (Myrtle→Catherine still "associated")
 
 ## Modification History
 
@@ -263,8 +273,8 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 | 15 | Word-boundary in _infer_rel | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Cody↔Gatsby romantic → mentor) |
 | 15 | Tighter romantic keyword window | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Tom romantic false positives removed) |
 | 15 | Strong family evidence override | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Catherine→Myrtle "sister", but no reciprocal) |
-| 16 | Same-gender spousal guard | `src/pipeline/character_profiling/post_corrections.py` | Pending |
-| 16 | _propagate_missing_reverses overwrites generics | `src/pipeline/character_profiling/post_corrections.py` | Pending |
+| 16 | Same-gender spousal guard | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Gatsby↔Tom "husband" blocked) |
+| 16 | _propagate_missing_reverses overwrites generics | `src/pipeline/character_profiling/post_corrections.py` | **PARTIALLY EFFECTIVE** (reciprocal still missing for Myrtle→Catherine) |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -274,4 +284,4 @@ Fixing issues 1-3 removes 2 fabricated labels and adds 2-3 correct labels. That 
 - Mr. McKee still LOW CONFIDENCE (0.30) — JSON parse failure during profiling
 
 ## Next Action
-Run PROMPT_analyze.md to verify fixes QQ and RR.
+Run PROMPT_fix.md to address spousal attribution root cause (Fix 1: third-party spousal attribution) and reciprocal propagation (Fix 2).
