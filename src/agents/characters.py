@@ -2373,71 +2373,6 @@ class CharacterAgent(Agent):
                         f"'{old_role}' → 'protagonist'"
                     )
 
-        # STEP 5.9.9: Second pass of alias-based absorption for supporting chars.
-        # STEP 5.6.9 ran before many alias-enrichment steps (mention search, within-cast
-        # merges). Some aliases (e.g., "Meyer Wolfshiem" misspelling) may be added to
-        # main cast characters AFTER 5.6.9. This second pass catches them.
-        logger.info("V2 Step 5.9.9: Second-pass alias absorption for late-added aliases")
-        supporting_to_absorb_599 = set()
-        for supp_idx_599, supp_char_599 in enumerate(supporting_cast):
-            supp_lower_599 = supp_char_599.canonical_name.strip().lower()
-            if not supp_lower_599:
-                continue
-            for main_char_599 in main_cast:
-                # Check canonical name match first
-                if supp_lower_599 == main_char_599.canonical_name.strip().lower():
-                    main_char_599.mention_count = max(
-                        main_char_599.mention_count, supp_char_599.mention_count
-                    )
-                    supporting_to_absorb_599.add(supp_idx_599)
-                    logger.info(
-                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
-                        f"(canonical match) into main '{main_char_599.canonical_name}'"
-                    )
-                    break
-                # Check alias match (exact)
-                aliases_lower_599 = [a.strip().lower() for a in (main_char_599.aliases or [])]
-                if supp_lower_599 in aliases_lower_599:
-                    main_char_599.mention_count = max(
-                        main_char_599.mention_count, supp_char_599.mention_count
-                    )
-                    supporting_to_absorb_599.add(supp_idx_599)
-                    logger.info(
-                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
-                        f"(alias match of '{main_char_599.canonical_name}')"
-                    )
-                    break
-                # Check fuzzy alias match (handles spelling variants like Wolfshiem/Wolfsheim)
-                if any(names_similar(supp_lower_599, a_lower) for a_lower in aliases_lower_599):
-                    main_char_599.mention_count = max(
-                        main_char_599.mention_count, supp_char_599.mention_count
-                    )
-                    supporting_to_absorb_599.add(supp_idx_599)
-                    logger.info(
-                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
-                        f"(fuzzy alias match of '{main_char_599.canonical_name}')"
-                    )
-                    break
-                # Check fuzzy canonical match
-                if names_similar(supp_lower_599, main_char_599.canonical_name.strip().lower()):
-                    main_char_599.mention_count = max(
-                        main_char_599.mention_count, supp_char_599.mention_count
-                    )
-                    supporting_to_absorb_599.add(supp_idx_599)
-                    logger.info(
-                        f"V2 Step 5.9.9: Absorbed supporting '{supp_char_599.canonical_name}' "
-                        f"(fuzzy canonical match of '{main_char_599.canonical_name}')"
-                    )
-                    break
-        if supporting_to_absorb_599:
-            supporting_cast = [
-                c for idx, c in enumerate(supporting_cast)
-                if idx not in supporting_to_absorb_599
-            ]
-            logger.info(
-                f"V2 Step 5.9.9: Second-pass absorbed {len(supporting_to_absorb_599)} supporting char(s)"
-            )
-
         # STEP 5.10: Final alias validation
         # Clean up any invalid aliases that may have been added during merge operations
         # This ensures aliases like "the ebony clock" (object) don't appear on non-object characters
@@ -2583,59 +2518,6 @@ class CharacterAgent(Agent):
                             f"V2 Step 5.11.5: Removed shared alias '{_a_word_5115}' "
                             f"from '{_owner_5115.canonical_name}' (appeared on {len(_owners_5115)} characters)"
                         )
-
-        # STEP 5.12: Final cross-cast alias dedup (pre-conversion).
-        # Universal invariant: if a supporting character's canonical name exactly matches
-        # any alias of a main cast character, they are the same person. Absorb the supporting
-        # character into the main cast character and update mention count.
-        # This runs last (after all alias enrichment) so all aliases are fully populated.
-        logger.info("V2 Step 5.12: Final cross-cast alias dedup (pre-conversion)")
-        _to_remove_512: set[str] = set()
-        for _supp_char_512 in supporting_cast:
-            _supp_lower_512 = _supp_char_512.canonical_name.strip().lower()
-            if not _supp_lower_512:
-                continue
-            for _main_char_512 in main_cast:
-                # Exact canonical match
-                if _supp_lower_512 == _main_char_512.canonical_name.strip().lower():
-                    _main_char_512.mention_count = max(
-                        _main_char_512.mention_count, _supp_char_512.mention_count
-                    )
-                    _to_remove_512.add(_supp_char_512.id)
-                    logger.info(
-                        f"V2 Step 5.12: '{_supp_char_512.canonical_name}' absorbed into "
-                        f"'{_main_char_512.canonical_name}' (canonical match)"
-                    )
-                    break
-                # Alias match: supporting canonical == main alias (exact or word-subset)
-                _main_aliases_512 = [a.strip().lower() for a in (_main_char_512.aliases or [])]
-                _matched_512 = False
-                for _alias_512 in _main_aliases_512:
-                    # Exact alias match
-                    if _supp_lower_512 == _alias_512:
-                        _matched_512 = True
-                        break
-                    # Word-subset: every word of the shorter appears in the longer
-                    # (handles "wolfshiem" ↔ "meyer wolfshiem")
-                    if len(_supp_lower_512) >= 4 and len(_alias_512) >= 4:
-                        _supp_words_512 = set(_supp_lower_512.split())
-                        _alias_words_512 = set(_alias_512.split())
-                        if _supp_words_512.issubset(_alias_words_512) or _alias_words_512.issubset(_supp_words_512):
-                            _matched_512 = True
-                            break
-                if _matched_512:
-                    _main_char_512.mention_count = max(
-                        _main_char_512.mention_count, _supp_char_512.mention_count
-                    )
-                    _to_remove_512.add(_supp_char_512.id)
-                    logger.info(
-                        f"V2 Step 5.12: '{_supp_char_512.canonical_name}' absorbed into "
-                        f"'{_main_char_512.canonical_name}' (alias match)"
-                    )
-                    break
-        if _to_remove_512:
-            supporting_cast = [c for c in supporting_cast if c.id not in _to_remove_512]
-            logger.info(f"V2 Step 5.12: Removed {len(_to_remove_512)} duplicate supporting char(s)")
 
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
