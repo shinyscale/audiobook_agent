@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 16
-- **Phase:** awaiting_fix
+- **Attempt:** 17
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260308_210438/
+- Timestamped: output/gatsby_20260310_161224/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -283,5 +283,23 @@ Fixing #1 and #2 removes 2 fabricated labels (Gatsby↔Daisy "husband"/"wife"), 
 - Zero LLM retries — no prompt/schema failures
 - Mr. McKee still LOW CONFIDENCE (0.30) — JSON parse failure during profiling
 
+## What Changed in Attempt 17
+
+### External commit 75a3078 (shinyscale, applied before FIX phase ran):
+- **Fix SS: Third-party spousal attribution in `verify_relationships_from_text`** — When a spousal keyword is found in a co-mention window between A and B, checks if a THIRD character's name appears within 30 chars of the keyword. If so, attributes the spousal relationship to the third party instead of A↔B. This is the root-cause fix for the "husband" whack-a-mole across 3 attempts.
+- **Cleanup: Removed 3 dead code blocks** — STEP 5.9.9 (second-pass alias absorption, marked COMPLETELY INEFFECTIVE), STEP 5.12 (cross-cast alias dedup, marked COMPLETELY INEFFECTIVE), and a marriage-keyword evidence check band-aid from earlier iterations. Net -150 lines. Modified: `src/agents/characters.py`, `src/pipeline/character_profiling/post_corrections.py`.
+
+**NOTE:** Fix RR from attempt 16 (`_propagate_missing_reverses` overwrites generics) was supposed to fix Myrtle→Catherine "associated" but was only partially effective. Still needs investigation if score doesn't reach 8/10.
+
+## Pipeline Notes (Attempt 17)
+- Analysis completed in 83m 6s
+- 26 characters found (Nick, Gatsby, Daisy, Tom, Jordan + 21 more)
+- Added 6 from summary reconciliation + "Tom" and "James Gatz" from F6b
+- Narrator correctly detected: Nick Carraway (first-person) ✓
+- Ella Kaye correctly rejected as narrator (3 mentions, low-mention invariant) ✓
+- 18 character profiles generated
+- 149 pronunciation flags
+- No pipeline errors
+
 ## Next Action
-Run PROMPT_fix.md to address spousal attribution root cause (Fix 1: third-party spousal attribution) and reciprocal propagation (Fix 2).
+Evaluate output to test Fix SS (third-party spousal attribution).
