@@ -3663,7 +3663,7 @@ Return a JSON response matching this example format exactly:
     "example_quotes": ["quote1", "quote2"]
   }},
   "relationships": {{
-    "character_name_1": "relationship label (e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'employer', 'parent', 'child', 'sibling', 'spouse')"
+    "character_name_1": "relationship label (e.g., 'romantic interest', 'close friend', 'rival', 'mentor', 'employer', 'parent', 'child', 'sibling', 'cousin', 'spouse')"
   }},
   "evidence": [
     {{"statement": "Character is newly relocated", "quote": "I had just arrived in the city that spring", "position": 1234}},
@@ -3686,7 +3686,7 @@ CRITICAL INSTRUCTIONS:
 
 RELATIONSHIPS EXTRACTION:
 Include ONLY relationships where the provided text or summary evidence EXPLICITLY describes how these characters interact or relate to each other.
-Use familial labels (parent, child, sibling, spouse, brother, sister) only when the text explicitly uses these words.
+Use familial labels (parent, child, sibling, cousin, spouse, brother, sister) only when the text explicitly uses these words.
 Use other labels ("close friend", "rival", "mentor", "employer", "enemy", "creator", "creation", "captor", "prisoner", "tormentor", "victim") only with direct textual support.
 If two characters merely appear in the same context without explicit relationship words, OMIT them from the relationships dict entirely.
 Do NOT use "acquaintance", "associated", "colleague", or "unknown" — omit instead."""

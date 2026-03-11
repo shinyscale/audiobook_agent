@@ -160,7 +160,7 @@ _NONFAMILY_REL_TERMS = (
 _all_rel_terms = list(FAMILY_TERMS) + list(_NONFAMILY_REL_TERMS)
 _all_rel_phrase_re = re.compile(
     r'\b(?:a|an|(?:his|her|my|our|their|your)\s+'
-    r'(?:late\s+|dear\s+|dearest\s+|best\s+|close\s+|old\s+|trusted\s+)?)\s*('
+    r'(?:second\s+|third\s+|late\s+|dear\s+|dearest\s+|best\s+|close\s+|old\s+|trusted\s+)?)\s*('
     + '|'.join(sorted(_all_rel_terms, key=len, reverse=True)) + r')\b',
     re.IGNORECASE,
 )
@@ -2060,13 +2060,30 @@ class OutputCharacterCorrector:
                                     f"evidence belongs to a different relationship"
                                 )
                             else:
-                                # Family evidence: override any label (e.g., "brother" → "cousin"
-                                # when text confirms "cousin"). Generic labels: upgrade to any term.
-                                logger.info(
-                                    f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
-                                    f"'{cur}' → '{best}' (evidence: {found})"
-                                )
-                                char.relationships[other_key] = best
+                                # Universal invariant: spousal labels must NOT be created from
+                                # generic co-occurrence placeholders ("associated"/"acquaintance")
+                                # using text proximity evidence alone. Spousal keywords
+                                # ("his wife", "her husband") in co-mention windows frequently
+                                # refer to a THIRD character's marriage, not the pair being
+                                # analyzed. Only allow spousal upgrades when the LLM profiler
+                                # already established a non-generic label (indicating it detected
+                                # a direct romantic/spousal connection in the narrative).
+                                if best_is_spousal and cur_lower in _generic_labels:
+                                    logger.debug(
+                                        f"Spousal creation from generic label blocked: "
+                                        f"'{char.canonical_name}' → '{other_key}': "
+                                        f"text found '{best}' but current is generic '{cur}' — "
+                                        f"spousal requires prior LLM confirmation"
+                                    )
+                                else:
+                                    # Family evidence: override any label (e.g., "brother" → "cousin"
+                                    # when text confirms "cousin"). Generic labels: upgrade to any
+                                    # non-spousal term.
+                                    logger.info(
+                                        f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
+                                        f"'{cur}' → '{best}' (evidence: {found})"
+                                    )
+                                    char.relationships[other_key] = best
                         elif (
                             cur_lower not in _generic_labels
                             and not is_family

@@ -285,8 +285,21 @@ If `_infer_rel` detects "cousin" keyword evidence, use "cousin" instead of "brot
 - Zero LLM retries — no prompt/schema failures
 
 ## Next Action
-Run PROMPT_fix.md to implement Fix VV (restrict spousal creation to LLM-confirmed pairs only).
+Re-run analysis to verify Fix VV + Fix WW.
 
-**CRITICAL INSIGHT for Fix VV:** The `post_corrections.py` file has been modified in 12 of 18 attempts. The spousal whack-a-mole pattern shows that `verify_relationships_from_text` is fundamentally too aggressive — it creates relationships the LLM didn't suggest. The fix should RESTRICT its power: text evidence can CONFIRM existing labels but NOT create new spousal/family labels. This is a one-line philosophical change, not a new heuristic.
+### Attempt 19 fixes
+- **Fix VV: Block generic→spousal upgrade in `verify_relationships_from_text`** — addresses issues #1 and #2
+  - Root cause: `verify_relationships_from_text` was upgrading "associated" (set by `add_cooccurrence_relationships`) to "husband"/"wife" when co-mention windows contained spousal keywords referring to a THIRD character's marriage
+  - Fix: In the `else` block (line 2062), added guard: if `best_is_spousal and cur_lower in _generic_labels`, block upgrade and log debug message
+  - Expected fix: Nick↔Myrtle "husband/wife" GONE ✓, George↔Catherine "husband/wife" GONE ✓, George↔Myrtle "husband/wife" PRESERVED (LLM gives directly) ✓
+  - Modified: `src/pipeline/character_profiling/post_corrections.py` (~line 2062)
+  - Smoke test: 332 passed, 0 failed
 
-**Phase:** awaiting_fix
+- **Fix WW: Add "second"/"third" to `_all_rel_phrase_re` modifiers + "cousin" to profiler prompt** — addresses issue #3
+  - Root cause: "my second cousin once removed" didn't match `_all_rel_phrase_re` (pattern only handled "late/dear/best/close/old/trusted" modifiers, not "second"). LLM profiler also didn't have "cousin" as an example label.
+  - Fix: Added `second\s+|third\s+` to optional modifiers in `_all_rel_phrase_re`; added "cousin" to profiler prompt examples and familial labels list
+  - Expected fix: Nick→Daisy "cousin" (was "brother"), Daisy→Nick "cousin" (was "sister")
+  - Modified: `src/pipeline/character_profiling/post_corrections.py` (line 163), `src/analyzer.py` (lines 3666, 3689)
+  - Smoke test: 332 passed, 0 failed
+
+**Phase:** awaiting_analysis
