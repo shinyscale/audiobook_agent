@@ -322,6 +322,15 @@ The same file has been modified 3+ times without success. The fix phase MUST use
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
+## Pipeline Notes (Attempt 24)
+- **26 characters found** (up from 21 in attempt 23) — F6c safety-net added 8 from chapter summaries
+- Nick Carraway confirmed as narrator ✓
+- 149 pronunciation flags
+- James Gatz reappeared as referenced character (from summaries)
+- 1 low-confidence character profile
+- Tom Buchanan still has "the Buchanans' house" alias (cosmetic)
+- Runtime: 84m 23s
+
 ## Pipeline Notes (Attempt 23)
 - 21 characters found — George Wilson: STILL MISSING (23rd attempt)
 - Nick Carraway confirmed as narrator ✓
