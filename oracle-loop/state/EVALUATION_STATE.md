@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 1
-- **Phase:** awaiting_fix
+- **Attempt:** 2
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Latest Scores
@@ -121,10 +121,33 @@
 |---------|-------|----------------|--------|
 | (none yet) | - | - | - |
 
-## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL #1: Summary narrator misattribution (biggest single impact — affects 25% of summaries)
-2. CRITICAL #2: Fabricated/wrong relationships in profiles
-3. HIGH #3: Relationship direction reversals
+## Fix History
+- Attempt 1:
+  - **Summarizer narrator attribution**: Changed narrator instruction in all 3 summarizer prompts (CHUNK_SUMMARY_PROMPT, CONSOLIDATE_PROMPT, SINGLE_CHAPTER_PROMPT). New instruction: "Use a character's name ONLY if that name appears explicitly in the provided text. If the 'I' narrator is unnamed in this section, refer to them as 'the narrator.'" Prevents LLM from using prior knowledge to attribute Victor's/Creature's actions to "Robert Walton."
+    - Root cause: `src/pipeline/chapter_summary/summarizer.py` lines 62, 113, 182 — ambiguous instruction "If the narrator's name is revealed, USE THAT NAME" was interpreted as permission to use prior knowledge.
+    - Smoke test: PASS — prompt change is correct and targeted.
+  - **Fabricated relationships (canonical-only anchoring)**: Changed `reject_unfounded_familial_labels`, `reject_unfounded_romantic_labels`, and `reject_unfounded_friend_labels` to use canonical-name-only regex patterns for the anchor character (not aliases). This prevents generic aliases like "the stranger" (Victor's alias matching Safie in the De Lacey chapters) from creating false evidence for hallucinated family/romantic relationships.
+    - Root cause: `src/pipeline/character_profiling/post_corrections.py` — all three reject functions used alias-inclusive name patterns as anchors, causing false evidence from generic aliases that match other characters.
+    - Also: added "lover" to `romantic_labels` in `reject_unfounded_romantic_labels` (was missing, only "romantic interest"/"love interest" were checked).
+    - Also: `reject_unfounded_romantic_labels` now uses canonical-only for pat_b too, fixing Safie→De Lacey "lover" (canonical "the old man (De Lacey)" doesn't appear in text as written).
+    - Also: `reject_unfounded_friend_labels` now requires "friend" to appear within 60 chars of the target character's name (not just anywhere in 150-char window), fixing Clerval→Creature "friend" false positive.
+    - Smoke test: PASS — Victor→Safie "brother", Safie→Victor "sister", Clerval→Creature "friend", creature→Clerval "friend", Safie→De Lacey "lover" all removed after Phase B.
+  - Modified: `src/pipeline/chapter_summary/summarizer.py`, `src/pipeline/character_profiling/post_corrections.py`
 
-Focus on issues #1 and #2 first as they are the primary blockers for Summaries (6/10→8) and Profiles (5/10→8).
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1 | Summary narrator misattribution + fabricated relationships | summarizer.py, post_corrections.py | Re-analysis complete (attempt 2) |
+
+## Output Files
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
+## Pipeline Notes
+- Analysis completed in 112m 30s
+- 22 characters extracted, 28 chapters
+- 1 low-confidence character profile warning
+
+## Next Action
+Evaluate attempt 2 output against scoring criteria.

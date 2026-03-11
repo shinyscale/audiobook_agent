@@ -59,7 +59,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
 - Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: If the text is told in first person and the narrator's name is revealed, USE THAT NAME. When a character within the story tells their own past experience in first person (an embedded story, flashback, or oral account), attribute those events to THAT character — not to the frame narrator.
+- **FIRST-PERSON NARRATORS**: Use a character's name ONLY if that name appears explicitly in the provided text. If the "I" narrator is unnamed in this section, refer to them as "the narrator." When a character within the story recounts their own past in first person (an embedded story, flashback, or oral account), attribute those events to THAT character — using their name only if stated in the text.
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
@@ -110,7 +110,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - When events/objects are referenced, ALWAYS include context from the sections
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
 - Use characters' proper names when stated in the section summaries (e.g., "his father John" → write "John"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently. When a character in the story recounts their own past in first person (embedded story, flashback, oral account), attribute those events to THAT character — not the frame narrator.
+- **FIRST-PERSON NARRATORS**: Use a character's name ONLY if it appears explicitly in the section summaries. If the "I" narrator is unnamed in the summaries, refer to them as "the narrator." When a character recounts their own past in first person (embedded story, flashback, oral account), attribute those events to THAT character — using their name only if stated.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
@@ -179,7 +179,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
 - Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: If the text is told in first person and the narrator's name is revealed, USE THAT NAME. Do not attribute the narrator's actions ("I killed", "I survived", "I decided") to any other character.
+- **FIRST-PERSON NARRATORS**: Use a character's name ONLY if that name appears explicitly in the provided text. If the "I" narrator is unnamed in this section, refer to them as "the narrator." Do not attribute the narrator's actions to any other character.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:

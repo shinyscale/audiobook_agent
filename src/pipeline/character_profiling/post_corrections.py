@@ -2302,9 +2302,11 @@ class OutputCharacterCorrector:
         for char in characters:
             if not char.relationships:
                 continue
-            pat_a = name_patterns.get(char.canonical_name)
-            if pat_a is None:
-                continue
+            # Use canonical-name-only pattern for anchoring to avoid false evidence
+            # from generic aliases matching other characters in the text.
+            pat_a = re.compile(
+                r'\b' + re.escape(char.canonical_name) + r'\b', re.IGNORECASE
+            )
             for other_key in list(char.relationships.keys()):
                 label = (char.relationships.get(other_key) or "").strip().lower()
                 if label != "friend":
@@ -2321,23 +2323,43 @@ class OutputCharacterCorrector:
                 if pat_b is None:
                     continue
 
-                # Check A→B: any occurrence of A within _direct_window of B + "friend"
+                # Universal invariant: require "friend" to appear within a tight
+                # sub-window of pat_b (the target) to avoid false positives where
+                # "friend" describes a third party in the same passage.
+                # E.g., "my friend Clerval, murdered by the creature" — "friend"
+                # is adjacent to "Clerval", not to "the creature".
+                _friend_proximity = 60
                 has_evidence = False
-                for ma in pat_a.finditer(source_text):
-                    ws = max(0, ma.start() - _direct_window)
-                    we = min(len(source_text), ma.end() + _direct_window)
-                    win = source_text[ws:we]
-                    if pat_b.search(win) and friend_re.search(win):
+                for mb in pat_b.finditer(source_text):
+                    ws = max(0, mb.start() - _friend_proximity)
+                    we = min(len(source_text), mb.end() + _friend_proximity)
+                    subwin = source_text[ws:we]
+                    if friend_re.search(subwin) and pat_a.search(
+                        source_text[
+                            max(0, mb.start() - _direct_window):
+                            min(len(source_text), mb.end() + _direct_window)
+                        ]
+                    ):
                         has_evidence = True
                         break
                 if not has_evidence:
-                    # Check B→A direction too
-                    for mb in pat_b.finditer(source_text):
-                        ws = max(0, mb.start() - _direct_window)
-                        we = min(len(source_text), mb.end() + _direct_window)
+                    # Also check from A's side: "friend [B's name]"
+                    for ma in pat_a.finditer(source_text):
+                        ws = max(0, ma.start() - _direct_window)
+                        we = min(len(source_text), ma.end() + _direct_window)
                         win = source_text[ws:we]
-                        if pat_a.search(win) and friend_re.search(win):
-                            has_evidence = True
+                        if not friend_re.search(win) or not pat_b.search(win):
+                            continue
+                        # Require "friend" within _friend_proximity of pat_b in this window
+                        for mb2 in pat_b.finditer(win):
+                            sub2 = win[
+                                max(0, mb2.start() - _friend_proximity):
+                                min(len(win), mb2.end() + _friend_proximity)
+                            ]
+                            if friend_re.search(sub2):
+                                has_evidence = True
+                                break
+                        if has_evidence:
                             break
 
                 if not has_evidence:
@@ -2845,7 +2867,11 @@ class OutputCharacterCorrector:
             char_surnames = _surnames(char.canonical_name)
             for _alias in (getattr(char, 'aliases', None) or []):
                 char_surnames |= _surnames(_alias)
-            pat_a = name_patterns.get(char.canonical_name)
+            # Use canonical-name-only pattern for anchoring to avoid false evidence
+            # from generic aliases (e.g. "the stranger") that match other characters.
+            pat_a = re.compile(
+                r'\b' + re.escape(char.canonical_name) + r'\b', re.IGNORECASE
+            )
 
             for other_key in list(char.relationships.keys()):
                 rel = char.relationships.get(other_key) or ""
@@ -2945,16 +2971,18 @@ class OutputCharacterCorrector:
             "courtship", "courting",
             "fiancée", "fiancé", "fiance",
         })
-        romantic_labels = {"romantic interest", "love interest"}
+        romantic_labels = {"romantic interest", "love interest", "lover"}
         co_window = 500
         name_patterns = _build_name_patterns(characters)
 
         for char in characters:
             if not char.relationships:
                 continue
-            pat_a = name_patterns.get(char.canonical_name)
-            if pat_a is None:
-                continue
+            # Use canonical-name-only pattern for anchoring to avoid false evidence
+            # from generic aliases matching other characters in the text.
+            pat_a = re.compile(
+                r'\b' + re.escape(char.canonical_name) + r'\b', re.IGNORECASE
+            )
 
             for other_key in list(char.relationships.keys()):
                 rel = char.relationships.get(other_key) or ""
@@ -2968,9 +2996,12 @@ class OutputCharacterCorrector:
                 )
                 if other_char is None:
                     continue
-                pat_b = name_patterns.get(other_char.canonical_name)
-                if pat_b is None:
-                    continue
+                # Use canonical-name-only for both anchor and target to avoid
+                # false evidence from generic aliases matching other characters.
+                pat_b = re.compile(
+                    r'\b' + re.escape(other_char.canonical_name) + r'\b',
+                    re.IGNORECASE,
+                )
 
                 # Search for strong romantic evidence in co-mention windows.
                 # Require the romantic keyword to appear within 150 chars of
