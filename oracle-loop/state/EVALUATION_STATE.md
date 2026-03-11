@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 19
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -13,18 +13,18 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 8/10 ✓
-  - Completeness: 8.5/10 (George Wilson now present ✓, James Gatz alias ✓)
-  - Identity Resolution: 8/10 (green light has Owl Eyes aliases merged in — persistent)
-  - Alias Grouping: 8.5/10
-- Character Profiles: 7/10 ✗ (FAILING — spousal whack-a-mole continues)
+- Character Extraction: 7.5/10 ✗ (George Wilson missing, Montenegro false positive)
+  - Completeness: 7/10 (George Wilson missing — key character in climax)
+  - Identity Resolution: 8/10 (Owl Eyes still split into 2 entries)
+  - Alias Grouping: 9/10 (clean: James Gatz ✓, Daisy Fay ✓, Wolfshiem spelling ✓)
+- Character Profiles: 6.5/10 ✗ (Tom↔Daisy REGRESSED to "associated", multiple wrong labels)
 - Chapter Summaries: 8.5/10 ✓
-- Pronunciation Guide: 8.5/10 ✓
+- Pronunciation Guide: 8.5/10 ✓ (148/149 with IPA)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 8.10/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold: Character Profiles 7/10)
+**Status:** FAIL (2 categories below threshold: Character Extraction 7.5, Character Profiles 6.5)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -46,99 +46,137 @@
 | 15 | 8.53 | +2.63 | Fix NN/OO/PP effective: Cody↔Gatsby "mentor/protégé" ✓, Catherine→Myrtle "sister" ✓, Tom→Catherine romantic GONE ✓. But NEW: Gatsby↔Tom "husband" fabricated. Profiles 7→7.5. |
 | 16 | 8.53 | +2.63 | Fix QQ effective (same-gender guard): Gatsby↔Tom "husband" GONE ✓. But spousal label SHIFTED to Gatsby↔Daisy "husband"/"wife" — wrong pair. Net: no change. |
 | 17 | 8.53 | +2.63 | Fix SS (third-party spousal) + Myrtle→Catherine "sister" FIXED ✓. But Gatsby↔Daisy "husband"/"wife" PERSISTS. NEW: green light↔McKee "husband" (nonsensical). Net: no change. |
-| 18 | 8.45 | +2.55 | Fix TT (spousal overhaul): Tom↔Daisy "husband/wife" CORRECT ✓. Gatsby↔Daisy spousal GONE ✓. BUT NEW: Nick↔Myrtle "husband/wife", George↔Catherine "husband/wife", Nick↔Daisy "brother/sister". Net: slight regression. |
+| 18 | 8.45 | +2.55 | Fix TT (spousal overhaul): Tom↔Daisy "husband/wife" CORRECT ✓. Gatsby↔Daisy spousal GONE ✓. BUT NEW: Nick↔Myrtle, George↔Catherine false spousals. Net: slight regression. |
+| 19 | 8.10 | +2.20 | Fix VV (block generic→spousal upgrade) solved false spousals BUT also blocked legitimate Tom↔Daisy. George Wilson MISSING (LLM variance). Net: regression from 8.45. |
 
-## What Changed in Attempt 18
+## What Changed in Attempt 19
 
-### Fix TT (Remove third-party check + competitive spousal selection) — MIXED
-- Tom↔Daisy "husband"/"wife" — NOW CORRECT ✓ (was "associated" for 4+ attempts)
-- Gatsby↔Daisy spousal — GONE ✓ (competitive selection correctly chose Tom over Gatsby)
-- Green light↔McKee spousal — GONE ✓ (Fix UU unknown-gender guard worked)
-- BUT removing the third-party check allowed `verify_relationships_from_text` to assign "husband"/"wife" to ANY pair that co-occurs near a spousal keyword, even when the keyword refers to a third character
+### Fix VV (Block generic→spousal upgrade) — TOO AGGRESSIVE
+- **Intended**: Block false spousals where "associated" pairs get upgraded to "husband"/"wife" from third-party keyword proximity
+- **Actual effect**: Blocked ALL generic→spousal upgrades, including the LEGITIMATE Tom↔Daisy upgrade
+- Nick↔Myrtle false spousal: GONE ✓
+- George↔Catherine false spousal: GONE ✓
+- **Tom↔Daisy: REGRESSED from "husband"/"wife" to "associated"** — because the LLM profiler gave them "associated" (a generic label), and Fix VV blocks all generic→spousal upgrades
+- Mr. McKee→Myrtle Wilson: "husband" — NEW false spousal (likely came from LLM profiler, not text-evidence)
+- Net: traded 2 false spousals for 1 major correct spousal regression
 
-### NEW Regressions from Fix TT
-- **Nick→Myrtle "husband" / Myrtle→Nick "wife"** — COMPLETELY WRONG. In Ch. 2 apartment scene, Nick and Myrtle co-occur near "husband" text (referring to George Wilson), and the text-evidence step incorrectly assigns spousal to Nick↔Myrtle.
-- **Nick→Daisy "brother" / Daisy→Nick "sister"** — WRONG. Nick is Daisy's second cousin once removed, not brother/sister. The LLM profiler likely generated this (not from text-evidence), but it's inaccurate.
-- **George→Catherine "husband" / Catherine→George "wife"** — WRONG. Catherine is Myrtle's sister. George and Catherine co-occur in Ch. 2 and Ch. 9 near spousal keywords referring to George↔Myrtle.
-- **George↔Myrtle "associated"** — WRONG. Should be "husband"/"wife". The actual married couple lost their spousal label, possibly because competitive selection awarded spousal to George↔Catherine instead.
+### Fix WW (Cousin label support) — DID NOT TAKE EFFECT
+- Nick↔Daisy has NO relationship at all in the output
+- The cousin regex fix in `_all_rel_phrase_re` only works if `verify_relationships_from_text` finds Nick and Daisy co-occurring in a text window with "cousin" — but Nick and Daisy may not co-occur near "my second cousin once removed" (Nick narrates this about himself)
+- The profiler prompt change adding "cousin" also didn't produce a cousin label — LLM variance
 
-### Fix UU (Unknown-gender spousal guard) — EFFECTIVE ✓
-- Green light↔McKee "associated" ✓ (was "husband")
+### George Wilson MISSING — LLM VARIANCE
+- George Wilson appears by name in chapter 2, 7, 8 summaries but NOT in `active_characters` metadata
+- Without `active_characters` listing, F6 reconciliation doesn't detect him
+- This is NOT a code bug — it's LLM variance in the summarizer's character list generation
+- George Wilson was present in attempt 18; disappeared in attempt 19
+
+### Other Issues
+- Gatsby→Henry C. Gatz: "daughter" — WRONG (should be "son"; gender inference failed)
+- Daisy→Dan Cody: "friend" — FABRICATED (no direct relationship in novel)
+- Myrtle→Catherine: "associated" — should be "sister" (reciprocal of Catherine→Myrtle "sister")
+- Montenegro: listed as character (it's a country — Wolfsheim's medal context)
 
 ## Current Issues (Priority Order)
 
+### CRITICAL
+
+1. **Fix VV REGRESSION: Tom↔Daisy "associated" instead of "husband"/"wife"** [Profiles]
+   - Problem: Fix VV blocks ALL generic→spousal upgrades. The LLM profiler gives Tom↔Daisy "associated" (a generic label). When `verify_relationships_from_text` finds spousal keywords near Tom+Daisy co-mentions, the upgrade is blocked because "associated" is in `_generic_labels`.
+   - Evidence: Attempt 18 had Tom↔Daisy "husband"/"wife" CORRECT. Attempt 19 has "associated".
+   - Root cause: Fix VV's guard `if best_is_spousal and cur_lower in _generic_labels: block` is too broad. It should block upgrades ONLY when the spousal keyword refers to a THIRD character, not when it genuinely refers to the A↔B pair.
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — `verify_relationships_from_text` (~line 2062)
+   - **Fix approach (Fix XX): Replace the blanket generic-label block with a NAMED-SPOUSE check.**
+     Instead of blocking all generic→spousal upgrades, check if either character's NAME appears within ~30 chars of the spousal keyword ("husband"/"wife"/"spouse"/"married"):
+     - If the spousal keyword appears as "her husband [NAME_B]" or "[NAME_A]'s wife" or "married to [NAME]", ALLOW the upgrade (the text directly attributes the spousal role to this pair)
+     - If the spousal keyword appears WITHOUT either character's name nearby (just "husband" or "wife" floating in the co-mention window), BLOCK the upgrade (likely refers to a third party)
+     - This preserves Fix VV's protection against false attribution while allowing legitimate spousal evidence
+
+2. **Mr. McKee→Myrtle Wilson "husband" — false spousal from LLM** [Profiles]
+   - Problem: LLM profiler generated "husband" for McKee→Myrtle Wilson. McKee is a photographer, not Myrtle's husband.
+   - Evidence: Mr. McKee appears only in Ch. 2 apartment scene. George Wilson is Myrtle's husband.
+   - Root cause: LLM hallucination in profiler output — the text-evidence step is NOT the source here (McKee→"Myrtle Wilson" uses full name which isn't a character ID)
+   - Location: LLM profiler output — hard to fix with post-correction alone
+   - Fix: This may resolve naturally if Fix XX allows George Wilson (when present) to win the spousal slot via competitive selection
+
 ### HIGH
 
-1. **`verify_relationships_from_text` CREATES false spousal labels from keyword proximity** [Profiles]
-   - Problem: When characters A and B co-occur near "husband"/"wife" text, the function assigns spousal labels even when the keyword refers to character C (not present in that text window). Removing the third-party check (Fix TT) made this WORSE.
-   - Evidence: Nick↔Myrtle "husband/wife" (keyword refers to George), George↔Catherine "husband/wife" (keyword refers to George↔Myrtle relationship)
-   - Root cause: The text-evidence step should NOT create spousal labels that the LLM profiler didn't suggest. It should only VALIDATE/UPGRADE existing labels.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `verify_relationships_from_text`
-   - **Fix approach (Fix VV): Restrict spousal upgrades to LLM-confirmed pairs only.**
-     In `verify_relationships_from_text`, when a spousal keyword is found in a co-mention window for pair A↔B:
-     - Check if the LLM profiler's ORIGINAL output (before post-corrections) included a spousal or romantic label for A↔B
-     - If the LLM gave "associated", "neighbor", or nothing for A↔B, do NOT upgrade to "husband"/"wife"
-     - If the LLM gave "romantic interest", "lover", "husband", "wife", or similar, THEN the text evidence can confirm/upgrade to spousal
-     - This prevents the text-evidence step from fabricating relationships the LLM didn't detect
-   - Alternative: **Re-add the third-party check with a wider window (100-150 chars)** and ALSO keep competitive selection. The combination should work: third-party check blocks most false attributions, competitive selection handles the remaining Tom-vs-Gatsby competition.
+3. **George Wilson missing from character list** [Completeness]
+   - Problem: George Wilson — Myrtle's husband, kills Gatsby, kills himself — is not extracted as a character
+   - Evidence: Named in chapter 2, 7, 8 summaries. Not in `active_characters` metadata.
+   - Root cause: LLM variance in both character extraction AND summary `active_characters` list. Not a code bug.
+   - Impact: Major completeness gap. George Wilson is essential to the plot.
+   - Fix: This is LLM variance and may self-correct on re-run. No code change needed specifically — but if it persists, consider: a text-scan fallback in F6 that searches summary TEXT (not just active_characters metadata) for proper nouns that match known character name patterns.
 
-2. **George↔Myrtle "associated" instead of "husband"/"wife"** [Profiles]
-   - Problem: The novel's most important murdered couple has a generic label
-   - Evidence: George kills himself after Myrtle's death. "Her husband" appears dozens of times
-   - Root cause: Competitive selection may be awarding George's spousal slot to Catherine instead of Myrtle
-   - Fix: Fixing issue #1 (preventing false George↔Catherine spousal) should free up the spousal label for George↔Myrtle
+4. **Gatsby→Henry C. Gatz "daughter" — wrong gender** [Profiles]
+   - Problem: Gatsby is Henry C. Gatz's SON, not daughter. Gender inference failed.
+   - Evidence: Henry C. Gatz→Gatsby correctly says "father"
+   - Root cause: `_propagate_missing_reverses` or `enforce_gender_consistency` generated "daughter" instead of "son" — likely because Gatsby's gender wasn't inferred correctly in this direction
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
+   - Fix: When propagating a "father" reverse, the child label should default to "son" if the child character has male indicators (Mr., masculine name patterns), or check the reciprocal relationship direction
 
-3. **Nick↔Daisy "brother"/"sister" instead of "cousin"** [Profiles]
-   - Problem: Nick is Daisy's second cousin once removed, not her brother
-   - Evidence: Ch. 1: "Daisy was my second cousin once removed"
-   - Root cause: Likely LLM profiler output — the LLM chose "brother/sister" instead of "cousin"
-   - Location: LLM profiler prompt or `_infer_rel` keyword matching
-   - Fix: If the text contains "cousin" near a character pair, prefer "cousin" over "brother"/"sister". Or: add "cousin" as a valid family relationship label in the profiler prompt.
+5. **Nick↔Daisy: no relationship (should be "cousin")** [Profiles]
+   - Problem: Fix WW added cousin support but no Nick↔Daisy relationship exists at all
+   - Evidence: Ch. 1 narrator: "Daisy was my second cousin once removed"
+   - Root cause: Nick narrates about Daisy in first person — the co-mention window may not contain both names near "cousin" (Nick says "my second cousin" referring to Daisy, but "Nick" doesn't appear — he's the narrator using "I")
+   - Fix: First-person narrator text-evidence is inherently hard. Alternative: ensure the LLM profiler generates this relationship. The profiler prompt already includes "cousin" (Fix WW), so re-running may help. If persistent, add a narrator-specific heuristic: when the narrator uses "my cousin/my second cousin" near a character name, attribute a cousin relationship.
 
 ### MEDIUM
 
-4. **Gatsby→Klipspringer/Lucille "employee" — wrong label** [Profiles]
-   - Klipspringer is a freeloader, Lucille is a party guest. Neither is employed by Gatsby.
-   - Impact: Minor characters, low severity
+6. **Myrtle→Catherine "associated" (should be "sister")** [Profiles]
+   - Catherine→Myrtle correctly says "sister" but the reverse is just "associated"
+   - `_propagate_missing_reverses` should have fixed this — may not be firing for this pair
+   - Location: `src/pipeline/character_profiling/post_corrections.py`
 
-5. **Green light has Owl Eyes aliases ("The drunken man in the library", "the library")** [Identity Resolution]
-   - These aliases belong to Owl Eyes, not the green light
-   - Persistent issue across multiple attempts
-   - Impact: Low — symbolic entity, minor confusion
+7. **Daisy→Dan Cody "friend" — fabricated relationship** [Profiles]
+   - Daisy and Dan Cody have no direct relationship in the novel. Dan Cody is Gatsby's mentor from his youth.
+   - Source: LLM profiler hallucination
+   - Impact: Minor — Dan Cody is a minor character
 
-6. **"Man with owl-eyed glasses" and "Owl Eyes" are separate F6 entries** [Identity Resolution]
-   - These refer to the same character; should be merged
-   - Impact: Low — both have 1 mention
+8. **Montenegro listed as character** [Completeness]
+   - Montenegro is a country (context: Wolfsheim's decoration from Montenegro)
+   - 7 mentions as an entity but it's a place, not a person/character
+   - Impact: Low — minor clutter
 
-7. **Nick Carraway physical_description: null** [Profiles]
-   - Persistent — Nick describes himself minimally
+9. **"Man with owl-eyed glasses" and "Owl Eyes" are separate entries** [Identity Resolution]
+   - Persistent across multiple attempts. Both have 1 mention.
+   - Impact: Low — minor character duplication
 
-### LOW
+## Fix Guidance for Attempt 20
 
-8. **Chapter I summary repeats "Nick Carraway, Nick Carraway"** [Summaries]
-   - Minor formatting issue in summary text
+**Two categories need fixing: Character Extraction (7.5→8.0) and Character Profiles (6.5→8.0).**
 
-## Fix Guidance for Attempt 19
+The profile score is the primary blocker. Character Extraction 7.5 is borderline — if George Wilson returns on re-run (LLM variance), it could reach 8.0 without code changes.
 
-**Focus ONLY on getting Character Profiles from 7/10 to 8/10.** All other categories pass.
+**Fix XX (CRITICAL — addresses issue #1): Named-spouse check in `verify_relationships_from_text`**
 
-**The spousal whack-a-mole is now in its 5th iteration (attempts 14-18). Each fix solves the targeted pair but creates new false spousals on different pairs. The root cause is clear: `verify_relationships_from_text` should NOT create new spousal labels — it should only validate existing ones.**
+Replace the blanket `_generic_labels` block from Fix VV with a smarter check:
 
-**Fix VV (HIGH — addresses issues #1, #2): Restrict spousal creation in `verify_relationships_from_text`**
+```python
+# Instead of: if best_is_spousal and cur_lower in _generic_labels: BLOCK
+# Do: if best_is_spousal and cur_lower in _generic_labels:
+#       Check if either character's name appears within 30 chars of the spousal keyword
+#       If yes: ALLOW (genuine attribution)
+#       If no: BLOCK (third-party reference)
+```
 
-The function currently detects "husband"/"wife" keywords in co-mention windows and UPGRADES any relationship to spousal. This is wrong — it should only CONFIRM spousal labels that the LLM profiler already suggested.
+Implementation sketch:
+1. When a spousal keyword is found in a co-mention window, record its position in the text
+2. Check ±30 characters around the spousal keyword for either character's name (first name, last name, or canonical name)
+3. If a name IS found near the keyword → the text is directly attributing the spousal role to this pair → ALLOW the upgrade
+4. If NO name is found near the keyword → the keyword likely refers to a third character → BLOCK
 
-Implementation:
-1. In `verify_relationships_from_text`, track which relationships came from the LLM profiler's original output vs. post-correction additions
-2. When a spousal keyword is found in a co-mention window for pair A↔B, check if the LLM's original label for A↔B was romantic or spousal (e.g., "husband", "wife", "spouse", "romantic interest", "lover", "fiancé/fiancée")
-3. If the LLM gave a non-romantic label ("associated", "neighbor", "friend", etc.) or no label at all, do NOT upgrade to "husband"/"wife" — keep the original label
-4. This prevents Nick↔Myrtle (LLM: no relationship), George↔Catherine (LLM: no relationship) from getting false spousal labels
-5. Tom↔Daisy should still work because the LLM profiler likely gives them a spousal or romantic label already
+Example: "her husband George Wilson's run-down garage" — "husband" + "George Wilson" nearby → if George↔Myrtle pair, ALLOW. If Nick↔Myrtle pair, Nick's name NOT near "husband" → BLOCK.
 
-**Alternative simpler approach**: Re-add the third-party check but with a MUCH wider window (150 chars instead of 30/50). Keep competitive selection. The wider window should catch cases where the actual spouse's name appears further from the keyword.
+Example: "Tom Buchanan... his wife Daisy" — "wife" + "Daisy" nearby → Tom↔Daisy pair, ALLOW.
 
-**Fix WW (MEDIUM — addresses issue #3): Cousin label support**
-If `_infer_rel` detects "cousin" keyword evidence, use "cousin" instead of "brother"/"sister". Add "cousin" to the set of valid family relationship types.
+**Fix YY (MEDIUM — addresses issue #4): Gender-correct child label propagation**
+
+In `_propagate_missing_reverses` or `enforce_gender_consistency`: when generating the reverse of "father"→"son"/"daughter", check the child character's gender indicators before defaulting. If child has male indicators (name "Gatsby"/"Jay Gatsby", no feminine markers), use "son" not "daughter".
+
+**No code fix for George Wilson (issue #3)** — LLM variance. Re-running analysis may restore him. If he's still missing after attempt 20, escalate.
+
+**No code fix for Nick↔Daisy cousin (issue #5)** — First-person narrator limitation. May resolve with LLM variance on re-run now that "cousin" is in the profiler prompt.
 
 ## Fix History
 
@@ -225,6 +263,10 @@ If `_infer_rel` detects "cousin" keyword evidence, use "cousin" instead of "brot
 - **Fix UU: Unknown-gender spousal guard** — **EFFECTIVE ✓** (green light↔McKee "associated")
 - **Fix TT-bonus: Spousal-keyword competitive selection** — **EFFECTIVE for Gatsby↔Daisy** but doesn't prevent false spousals on unrelated pairs
 
+### Attempt 19 fixes
+- **Fix VV: Block generic→spousal upgrade** — **TOO AGGRESSIVE** (blocked false spousals ✓ but also blocked legitimate Tom↔Daisy ✗)
+- **Fix WW: Cousin label support** — **DID NOT TAKE EFFECT** (no Nick↔Daisy relationship generated at all)
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -277,6 +319,8 @@ If `_infer_rel` detects "cousin" keyword evidence, use "cousin" instead of "brot
 | 17 | Dead code cleanup (STEP 5.9.9, 5.12) | `src/agents/characters.py` | **EFFECTIVE** ✓ (-150 lines) |
 | 18 | Remove third-party check + competitive selection | `src/pipeline/character_profiling/post_corrections.py` | **MIXED** (Tom↔Daisy ✓, but new false spousals) |
 | 18 | Unknown-gender spousal guard | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ |
+| 19 | Block generic→spousal upgrade | `src/pipeline/character_profiling/post_corrections.py` | **TOO AGGRESSIVE** (blocked false + legitimate spousals) |
+| 19 | Cousin label support | `src/pipeline/character_profiling/post_corrections.py`, `src/analyzer.py` | **DID NOT TAKE EFFECT** |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -285,21 +329,7 @@ If `_infer_rel` detects "cousin" keyword evidence, use "cousin" instead of "brot
 - Zero LLM retries — no prompt/schema failures
 
 ## Next Action
-Re-run analysis to verify Fix VV + Fix WW.
+Run PROMPT_fix.md to implement Fix XX (named-spouse check) replacing Fix VV's blanket block.
 
-### Attempt 19 fixes
-- **Fix VV: Block generic→spousal upgrade in `verify_relationships_from_text`** — addresses issues #1 and #2
-  - Root cause: `verify_relationships_from_text` was upgrading "associated" (set by `add_cooccurrence_relationships`) to "husband"/"wife" when co-mention windows contained spousal keywords referring to a THIRD character's marriage
-  - Fix: In the `else` block (line 2062), added guard: if `best_is_spousal and cur_lower in _generic_labels`, block upgrade and log debug message
-  - Expected fix: Nick↔Myrtle "husband/wife" GONE ✓, George↔Catherine "husband/wife" GONE ✓, George↔Myrtle "husband/wife" PRESERVED (LLM gives directly) ✓
-  - Modified: `src/pipeline/character_profiling/post_corrections.py` (~line 2062)
-  - Smoke test: 332 passed, 0 failed
-
-- **Fix WW: Add "second"/"third" to `_all_rel_phrase_re` modifiers + "cousin" to profiler prompt** — addresses issue #3
-  - Root cause: "my second cousin once removed" didn't match `_all_rel_phrase_re` (pattern only handled "late/dear/best/close/old/trusted" modifiers, not "second"). LLM profiler also didn't have "cousin" as an example label.
-  - Fix: Added `second\s+|third\s+` to optional modifiers in `_all_rel_phrase_re`; added "cousin" to profiler prompt examples and familial labels list
-  - Expected fix: Nick→Daisy "cousin" (was "brother"), Daisy→Nick "cousin" (was "sister")
-  - Modified: `src/pipeline/character_profiling/post_corrections.py` (line 163), `src/analyzer.py` (lines 3666, 3689)
-  - Smoke test: 332 passed, 0 failed
-
-**Phase:** awaiting_evaluation
+**KEY INSIGHT from 6 attempts at spousal attribution (attempts 14-19):**
+The `verify_relationships_from_text` function's co-mention window approach is fundamentally flawed for spousal detection. The window captures "husband"/"wife" keywords but cannot reliably determine WHO the keyword refers to. Each fix has traded one set of wrong pairs for another. Fix XX (checking if a character's name appears near the keyword) is the most promising approach because it uses direct textual attribution rather than proximity alone.
