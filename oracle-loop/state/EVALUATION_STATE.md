@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Attempt:** 22
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -25,6 +25,26 @@
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold: Character Extraction 7.0, Character Profiles 7.5)
+
+## What Changed in Attempt 22
+
+### Fix BBB (George Wilson F6 blocker — last_name single-word exception) — APPLIED
+- Modified `_is_likely_alias_of_existing` in `src/analyzer.py`: the `last_name == char_canonical` check now only fires when the existing char has a MULTI-WORD canonical name (`len(char_canonical.split()) > 1`).
+- Previously: "George Wilson" was blocked because `last_name = "wilson"` matched single-word existing char "Wilson"
+- Now: single-word existing chars like "Wilson" no longer block multi-word F6 candidates
+- Step 4.5.9 will then absorb the single-word "Wilson" into "George Wilson" (canonical word-subset match)
+- Expected: George Wilson appears in final character list
+
+### Fix CCC (Myrtle→Catherine "associated" — sibling↔spousal cross-tier guard) — APPLIED
+- Root cause (diagnosed): `verify_relationships_from_text` changed Myrtle→Catherine from "sister" to "husband" because a 500-char co-mention window contained "her husband" (referring to George Wilson's marriage, not Myrtle-Catherine). `enforce_gender_consistency` then changed "husband"→"wife". `_enforce_one_spouse_invariant` then downgraded to "associated".
+- Fix: Added `_SIBLING_TIER` to `verify_relationships_from_text` cross-tier guards. "sister/brother/cousin/aunt/uncle/nephew/niece" labels cannot be overridden by spousal terms from co-mention window evidence, and vice versa.
+- Verified: After fix, Myrtle→Catherine correctly = "sister"
+
+### Fix DDD (Wolfshiem fabricated friendships — reject_unfounded_friend_labels) — APPLIED
+- Added new `reject_unfounded_friend_labels()` method to `OutputCharacterCorrector` in `post_corrections.py`
+- Logic: For each "friend" label A→B, check if both A's name, B's name, AND the word "friend" appear within 150 chars in source text. If not: downgrade to "associated".
+- Runs after `verify_relationships_from_text` but before `reject_unfounded_familial_labels`
+- Verified: Wolfshiem→Daisy/Tom/Jordan removed ✓; Wolfshiem→Nick (Gatsby's lunch scene) preserved ✓; Nick→Wolfshiem preserved ✓; Daisy↔Dan Cody removed ✓
 
 ## What Changed in Attempt 21
 
@@ -186,6 +206,7 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 | 19 | 8.10 | +2.20 | Fix VV (block generic→spousal upgrade) solved false spousals BUT also blocked legitimate Tom↔Daisy. George Wilson MISSING (LLM variance). Net: regression from 8.45. |
 | 20 | 8.40 | +2.50 | Fix XX EFFECTIVE ✓ (Tom↔Daisy husband/wife restored). No false spousals. But George Wilson still missing (F6 bug). Profiles improved 6.5→7.5 but fabricated Wolfshiem friendships persist. |
 | 21 | 8.18 | +2.28 | Fix ZZ partially effective (description-phrase blocker removed). Fix AAA not exercised. BUT George Wilson STILL missing (Fix KK component check remains). Owl Eyes REGRESSION (2→0 entries). Gatz↔Gatsby father/son FIXED ✓. |
+| 22 | TBD | TBD | Fix BBB (George Wilson last_name single-word exception), Fix CCC (sibling↔spousal guard), Fix DDD (reject_unfounded_friend_labels). |
 
 ## Fix History
 
@@ -285,6 +306,11 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 - **Fix ZZ Part 2: Proper-noun guard in description-phrase check** — **EFFECTIVE** (description-phrase blocker removed for proper names)
 - **Fix ZZ Part 3: F6-protection transfer in STEP 4.5.9** — **EFFECTIVE** (F6 chars survive absorption)
 - **Fix AAA: Alias-aware char_by_name in propagate_missing_reverses** — **NOT EFFECTIVE** (Myrtle→Catherine still "associated")
+
+### Attempt 22 fixes
+- **Fix BBB: F6 last_name single-word exception** — APPLIED; modified `last_name == char_canonical` check to only fire for multi-word existing chars; single-word surname-only chars no longer block multi-word F6 candidates
+- **Fix CCC: Sibling↔spousal cross-tier guard in verify_relationships_from_text** — APPLIED; added `_SIBLING_TIER` set; sibling labels cannot be overridden by spousal terms from co-mention windows
+- **Fix DDD: `reject_unfounded_friend_labels` post-correction** — APPLIED; new method requires both names + "friend" within 150 chars in source text; removes fabricated Wolfshiem friendships
 
 ## Modification History
 

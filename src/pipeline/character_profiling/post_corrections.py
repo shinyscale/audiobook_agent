@@ -864,6 +864,13 @@ class OutputCharacterCorrector:
         self.clean_orphaned_relationships(characters)
         self.fix_same_person_relationships(characters)
         self.verify_relationships_from_text(characters, source_text, chapter_summaries=chapter_summaries)
+        # Reject "friend" labels lacking direct text co-proximity: both names AND the
+        # word "friend" must appear within 150 chars in source text. LLM profilers
+        # frequently hallucinate "friend" for characters who merely co-appear in the
+        # novel. Must run AFTER verify_relationships_from_text (which may legitimately
+        # confirm "friend" via text evidence) but BEFORE reject_unfounded_familial_labels.
+        if source_text:
+            self.reject_unfounded_friend_labels(characters, source_text)
         self.reject_unfounded_familial_labels(characters, source_text)
         self.reject_unfounded_romantic_labels(characters, source_text)
         # force_parenthetical_relationship_labels overrides any LLM-generated label
@@ -2050,6 +2057,10 @@ class OutputCharacterCorrector:
                 # Tier sets for cross-tier override guard (universal invariant).
                 _PARENT_CHILD_TIER = {"parent", "child", "father", "mother", "son", "daughter"}
                 _SPOUSAL_TIER = {"spouse", "husband", "wife"}
+                _SIBLING_TIER = {
+                    "sibling", "brother", "sister", "cousin",
+                    "aunt", "uncle", "nephew", "niece",
+                }
                 if found:
                     best = max(found, key=found.get)
                     is_best_family = any(t in best for t in family_set)
@@ -2072,6 +2083,8 @@ class OutputCharacterCorrector:
                             best_is_spousal = any(t in best for t in _SPOUSAL_TIER)
                             cur_is_spousal = any(t in cur_lower for t in _SPOUSAL_TIER)
                             best_is_pc = any(t in best for t in _PARENT_CHILD_TIER)
+                            cur_is_sibling = any(t in cur_lower for t in _SIBLING_TIER)
+                            best_is_sibling = any(t in best for t in _SIBLING_TIER)
                             if cur_is_pc and best_is_spousal:
                                 logger.debug(
                                     f"Cross-tier override blocked: "
@@ -2090,6 +2103,29 @@ class OutputCharacterCorrector:
                                     f"'{char.canonical_name}' → '{other_key}': "
                                     f"'{cur}' (spousal) not replaced by "
                                     f"'{best}' (parent/child) — co-mention window "
+                                    f"evidence belongs to a different relationship"
+                                )
+                            elif cur_is_sibling and best_is_spousal:
+                                # Universal invariant: never override a sibling/cousin label with
+                                # a spousal label. "her husband" in a co-mention window of two
+                                # sisters refers to one sister's marriage, not their mutual
+                                # relationship.
+                                logger.debug(
+                                    f"Cross-tier override blocked: "
+                                    f"'{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' (sibling) not replaced by "
+                                    f"'{best}' (spousal) — co-mention window "
+                                    f"evidence belongs to a different pair"
+                                )
+                            elif cur_is_spousal and best_is_sibling:
+                                # Universal invariant: never override a spousal label with a
+                                # sibling label from co-mention windows. "her sister" near a
+                                # married couple refers to one spouse's sibling.
+                                logger.debug(
+                                    f"Cross-tier override blocked: "
+                                    f"'{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' (spousal) not replaced by "
+                                    f"'{best}' (sibling) — co-mention window "
                                     f"evidence belongs to a different relationship"
                                 )
                             else:
@@ -2176,6 +2212,75 @@ class OutputCharacterCorrector:
                             f"'{char.canonical_name}' → '{other_key}': '{cur}' → 'associated'"
                         )
                         char.relationships[other_key] = "associated"
+
+    def reject_unfounded_friend_labels(self, characters, source_text: str) -> None:
+        """Remove 'friend' relationship labels unsupported by direct text proximity.
+
+        Universal invariant: a "friend" label between two characters is accepted only
+        when both characters' names AND the word "friend" appear within 150 chars of
+        each other in the source text.  This distinguishes direct attribution
+        ("my friend Wolfshiem" said to the other character present) from third-party
+        references ("my friend Wolfshiem" said in a scene that also mentions Daisy
+        but not as the referent of "friend").
+
+        LLM profilers frequently hallucinate "friend" for characters who merely
+        co-appear in the same novel.  This check requires literal co-proximity of
+        both names and the word "friend" in the raw text.
+        """
+        if not source_text:
+            return
+        name_patterns = _build_name_patterns(characters)
+        friend_re = re.compile(r'\bfriend\b', re.IGNORECASE)
+        _direct_window = 150
+
+        for char in characters:
+            if not char.relationships:
+                continue
+            pat_a = name_patterns.get(char.canonical_name)
+            if pat_a is None:
+                continue
+            for other_key in list(char.relationships.keys()):
+                label = (char.relationships.get(other_key) or "").strip().lower()
+                if label != "friend":
+                    continue
+                other_char = next(
+                    (c for c in characters
+                     if c.canonical_name == other_key
+                     or c.canonical_name.lower() == other_key.lower()),
+                    None,
+                )
+                if other_char is None:
+                    continue
+                pat_b = name_patterns.get(other_char.canonical_name)
+                if pat_b is None:
+                    continue
+
+                # Check A→B: any occurrence of A within _direct_window of B + "friend"
+                has_evidence = False
+                for ma in pat_a.finditer(source_text):
+                    ws = max(0, ma.start() - _direct_window)
+                    we = min(len(source_text), ma.end() + _direct_window)
+                    win = source_text[ws:we]
+                    if pat_b.search(win) and friend_re.search(win):
+                        has_evidence = True
+                        break
+                if not has_evidence:
+                    # Check B→A direction too
+                    for mb in pat_b.finditer(source_text):
+                        ws = max(0, mb.start() - _direct_window)
+                        we = min(len(source_text), mb.end() + _direct_window)
+                        win = source_text[ws:we]
+                        if pat_a.search(win) and friend_re.search(win):
+                            has_evidence = True
+                            break
+
+                if not has_evidence:
+                    char.relationships[other_key] = "associated"
+                    logger.info(
+                        f"Unfounded friend label removed: "
+                        f"'{char.canonical_name}' → '{other_key}': "
+                        f"'friend' → 'associated' (no direct text proximity evidence)"
+                    )
 
     def clean_plot_summary_personality(self, characters, source_text: str = "") -> None:
         """Replace personality.summary that narrates other characters' actions.

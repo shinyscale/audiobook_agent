@@ -1506,7 +1506,14 @@ class AudiobookAnalyzer:
                                 return True
 
                             # Does last name match existing character?
-                            if last_name == char_canonical:
+                            # Exception: if the existing character is a single-word name (e.g.
+                            # "Wilson") and the candidate is multi-word (e.g. "George Wilson"),
+                            # do NOT block.  The single-word entry is a surname-only fragment;
+                            # Step 4.5.9 word-subset dedup will absorb it into the full-name
+                            # character after F6 adds the correct entity.  Blocking here would
+                            # prevent "George Wilson" from ever entering the pipeline when a
+                            # bare "Wilson" supporting character already exists.
+                            if last_name == char_canonical and len(char_canonical.split()) > 1:
                                 logger.info(
                                     f"F6: '{name}' is likely full name variant of '{char.canonical_name}' (last name match)"
                                 )
