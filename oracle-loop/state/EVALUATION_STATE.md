@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 18
-- **Phase:** awaiting_fix
+- **Attempt:** 19
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260310_161224/
+- Timestamped: output/gatsby_20260310_225523/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -302,4 +302,4 @@ Re-run analysis to verify Fix VV + Fix WW.
   - Modified: `src/pipeline/character_profiling/post_corrections.py` (line 163), `src/analyzer.py` (lines 3666, 3689)
   - Smoke test: 332 passed, 0 failed
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
