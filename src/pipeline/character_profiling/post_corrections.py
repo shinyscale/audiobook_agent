@@ -1490,9 +1490,29 @@ class OutputCharacterCorrector:
                     rels_b = {}
                     char_b.relationships = rels_b
                 _GENERIC = {"associated", "acquaintance", "associate", ""}
+                # Fix YY: gender-opposite pairs. If the reverse label is a
+                # gender-directional term (son/daughter/father/mother/etc.) and the
+                # existing label is the wrong-gender variant (e.g., "daughter" for a
+                # male child when the source is "father"→reverse "son"), override it.
+                # Universal invariant: if A→B = "father", B→A must be "son" or
+                # "daughter" — not the wrong one. The LLM sometimes assigns the
+                # wrong-gender variant; propagation here corrects it.
+                _GENDER_OPPOSITE = {
+                    "son": "daughter", "daughter": "son",
+                    "father": "mother", "mother": "father",
+                    "brother": "sister", "sister": "brother",
+                    "husband": "wife", "wife": "husband",
+                    "grandfather": "grandmother", "grandmother": "grandfather",
+                    "grandson": "granddaughter", "granddaughter": "grandson",
+                    "uncle": "aunt", "aunt": "uncle",
+                    "nephew": "niece", "niece": "nephew",
+                }
                 existing = (rels_b.get(char_a.canonical_name) or "").lower().strip()
+                _is_gender_opposite = _GENDER_OPPOSITE.get(reverse_rel) == existing
                 if isinstance(rels_b, dict) and (
-                    char_a.canonical_name not in rels_b or existing in _GENERIC
+                    char_a.canonical_name not in rels_b
+                    or existing in _GENERIC
+                    or _is_gender_opposite
                 ):
                     rels_b[char_a.canonical_name] = reverse_rel
                     logger.info(
@@ -2002,6 +2022,9 @@ class OutputCharacterCorrector:
 
                 found: dict = {}
                 comention_count = 0
+                # Fix XX: track (window, match_start, match_end) for spousal-keyword
+                # hits so we can check name proximity in the block decision below.
+                _spousal_kw_hits: list = []
                 for ma in pat_a.finditer(source_text):
                     ws = max(0, ma.start() - co_window)
                     we = min(len(source_text), ma.end() + co_window)
@@ -2012,6 +2035,8 @@ class OutputCharacterCorrector:
                     for rm in _all_rel_phrase_re.finditer(win):
                         term = rm.group(1).lower()
                         found[term] = found.get(term, 0) + 1
+                        if term in ("husband", "wife", "spouse", "married"):
+                            _spousal_kw_hits.append((win, rm.start(), rm.end()))
 
                 _generic_labels = {"associated", "acquaintance", "associate"}
                 # Tier sets for cross-tier override guard (universal invariant).
@@ -2060,21 +2085,32 @@ class OutputCharacterCorrector:
                                     f"evidence belongs to a different relationship"
                                 )
                             else:
-                                # Universal invariant: spousal labels must NOT be created from
-                                # generic co-occurrence placeholders ("associated"/"acquaintance")
-                                # using text proximity evidence alone. Spousal keywords
-                                # ("his wife", "her husband") in co-mention windows frequently
-                                # refer to a THIRD character's marriage, not the pair being
-                                # analyzed. Only allow spousal upgrades when the LLM profiler
-                                # already established a non-generic label (indicating it detected
-                                # a direct romantic/spousal connection in the narrative).
+                                # Fix XX: Named-spouse check. Allow generic→spousal upgrades
+                                # only when the OTHER character's name appears within 30 chars
+                                # of the spousal keyword in a co-mention window. This
+                                # distinguishes direct attribution ("her husband Tom Buchanan")
+                                # from third-party references ("her husband George" in a window
+                                # that also happens to mention Nick).
                                 if best_is_spousal and cur_lower in _generic_labels:
-                                    logger.debug(
-                                        f"Spousal creation from generic label blocked: "
-                                        f"'{char.canonical_name}' → '{other_key}': "
-                                        f"text found '{best}' but current is generic '{cur}' — "
-                                        f"spousal requires prior LLM confirmation"
+                                    _named_near_spouse = any(
+                                        pat_b.search(
+                                            w[max(0, ks - 30): min(len(w), ke + 30)]
+                                        )
+                                        for (w, ks, ke) in _spousal_kw_hits
                                     )
+                                    if not _named_near_spouse:
+                                        logger.debug(
+                                            f"Spousal creation from generic blocked (no name near kw): "
+                                            f"'{char.canonical_name}' → '{other_key}': "
+                                            f"text found '{best}' but '{other_key}' not within "
+                                            f"30 chars of spousal keyword — likely third-party"
+                                        )
+                                    else:
+                                        logger.info(
+                                            f"Text-based rel override: '{char.canonical_name}' → '{other_key}': "
+                                            f"'{cur}' → '{best}' (named-spouse: '{other_key}' near '{best}')"
+                                        )
+                                        char.relationships[other_key] = best
                                 else:
                                     # Family evidence: override any label (e.g., "brother" → "cousin"
                                     # when text confirms "cousin"). Generic labels: upgrade to any

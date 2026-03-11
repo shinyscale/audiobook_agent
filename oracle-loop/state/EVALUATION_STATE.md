@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 19
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -267,6 +267,10 @@ In `_propagate_missing_reverses` or `enforce_gender_consistency`: when generatin
 - **Fix VV: Block generic→spousal upgrade** — **TOO AGGRESSIVE** (blocked false spousals ✓ but also blocked legitimate Tom↔Daisy ✗)
 - **Fix WW: Cousin label support** — **DID NOT TAKE EFFECT** (no Nick↔Daisy relationship generated at all)
 
+### Attempt 20 fixes
+- **Fix XX: Named-spouse check in `verify_relationships_from_text`** — replaces Fix VV's blanket block with proximity check: spousal upgrade from generic allowed only when the OTHER character's name appears within 30 chars of the spousal keyword in a co-mention window. Tracks `_spousal_kw_hits` during scan and checks `pat_b.search(nearby)` at decision point. Modified: `src/pipeline/character_profiling/post_corrections.py`
+- **Fix YY: Gender-opposite override in `_propagate_missing_reverses`** — extends override condition to include gender-mismatched labels (e.g., if LLM set "daughter" but reverse of "father" should be "son", override it). Universal invariant: A→B = "father" requires B→A = "son" or "daughter", never the wrong-gender variant. Modified: `src/pipeline/character_profiling/post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -329,7 +333,7 @@ In `_propagate_missing_reverses` or `enforce_gender_consistency`: when generatin
 - Zero LLM retries — no prompt/schema failures
 
 ## Next Action
-Run PROMPT_fix.md to implement Fix XX (named-spouse check) replacing Fix VV's blanket block.
+Run analysis to verify Fix XX + Fix YY effectiveness.
 
 **KEY INSIGHT from 6 attempts at spousal attribution (attempts 14-19):**
 The `verify_relationships_from_text` function's co-mention window approach is fundamentally flawed for spousal detection. The window captures "husband"/"wife" keywords but cannot reliably determine WHO the keyword refers to. Each fix has traded one set of wrong pairs for another. Fix XX (checking if a character's name appears near the keyword) is the most promising approach because it uses direct textual attribution rather than proximity alone.
