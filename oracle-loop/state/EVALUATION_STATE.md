@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 23
-- **Phase:** awaiting_analysis
+- **Attempt:** 24
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260311_070241/
+- Generated: 2026-03-11 09:02 (runtime ~84 minutes)
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
