@@ -1012,6 +1012,72 @@ class OutputCharacterCorrector:
                             f"downgraded (spousal windows: {co_counts.get(other_key, 0)}, "
                             f"kept '{best_key}' with {co_counts.get(best_key, 0)})"
                         )
+            elif len(spousal_keys) == 1:
+                # Single spouse candidate — validate against all other relationships.
+                # Universal invariant: a character's labeled spouse must have text evidence
+                # (co-mentions with spousal keywords). If the current spouse has 0 evidence
+                # but another relationship has strong spousal evidence, correct the pairing.
+                _current_spouse_key = spousal_keys[0]
+                pat_a = name_patterns.get(char.canonical_name)
+                _SPOUSE_EVIDENCE = {"husband", "wife", "married", "spouse", "wedding", "marriage"}
+                current_evidence = 0
+                if pat_a and source_text:
+                    _pat_current = name_patterns.get(_current_spouse_key)
+                    if _pat_current:
+                        for ma in pat_a.finditer(source_text):
+                            ws = max(0, ma.start() - 500)
+                            we = min(len(source_text), ma.end() + 500)
+                            win = source_text[ws:we]
+                            if _pat_current.search(win) and any(
+                                t in win.lower() for t in _SPOUSE_EVIDENCE
+                            ):
+                                current_evidence += 1
+
+                if pat_a and source_text:
+                    # Check other relationships for stronger spousal evidence.
+                    # Fire when alternative has >= 1.5x evidence AND >= 5 windows
+                    # (handles both zero-evidence and competing-evidence cases).
+                    char_gender = getattr(char, 'gender', None)
+                    for _alt_key, _alt_label in char.relationships.items():
+                        if _alt_key == _current_spouse_key:
+                            continue
+                        other_gender = _gender_map.get(_alt_key)
+                        # Gender compatibility: husband↔wife must be opposite genders
+                        if (
+                            char_gender in ('male', 'female')
+                            and other_gender is not None
+                            and other_gender == char_gender
+                        ):
+                            continue
+                        _pat_alt = name_patterns.get(_alt_key)
+                        if not _pat_alt:
+                            continue
+                        alt_evidence = 0
+                        for ma in pat_a.finditer(source_text):
+                            ws = max(0, ma.start() - 500)
+                            we = min(len(source_text), ma.end() + 500)
+                            win = source_text[ws:we]
+                            if _pat_alt.search(win) and any(
+                                t in win.lower() for t in _SPOUSE_EVIDENCE
+                            ):
+                                alt_evidence += 1
+                        # Swap if alternative evidence is clearly stronger:
+                        # at least 1.5x the current evidence AND at least 5 windows
+                        if alt_evidence >= max(current_evidence * 1.5, 5):
+                            # Correct the pairing: demote current, promote alternative
+                            _correct = (
+                                "husband" if char_gender == "male"
+                                else "wife" if char_gender == "female"
+                                else "spouse"
+                            )
+                            char.relationships[_current_spouse_key] = "associated"
+                            char.relationships[_alt_key] = _correct
+                            logger.info(
+                                f"Spouse correction: '{char.canonical_name}' → "
+                                f"'{_current_spouse_key}' demoted ({current_evidence} spousal windows); "
+                                f"→ '{_alt_key}' promoted ({alt_evidence} windows)"
+                            )
+                            break
 
         # Reciprocal spouse validation: true couples are always bidirectional.
         # If A→B is spousal but B→A is not spousal, A→B is likely a hallucination.

@@ -1755,45 +1755,44 @@ class AudiobookAnalyzer:
                     # Name is truly missing - add it
                     missing_names.append(name)
 
+                # Helper used by F6 and F6c safety-net
+                import hashlib as _hashlib_f6
+                import re as _re_f6
+
+                def _f6_add_character(name: str, chapters_present: list, confidence: float = 0.75) -> bool:
+                    """Add a character from F6 reconciliation. Returns True if added."""
+                    char_id = _hashlib_f6.md5(name.encode()).hexdigest()[:12]
+                    new_character = Character(
+                        id=char_id,
+                        canonical_name=name,
+                        aliases=[],
+                        mentions=[],
+                        first_appearance_chapter=(
+                            min(chapters_present) if chapters_present else 0
+                        ),
+                        mention_count=len(chapters_present),
+                        chapters_present=chapters_present,
+                        confidence=confidence,
+                        supporting_strategies=["chapter_summary_reconciliation"],
+                        description="",
+                        character_type=CharacterType.STORY,
+                    )
+                    # Count actual text mentions via regex
+                    name_pattern = rf"\b{_re_f6.escape(name)}(?:'?s)?\b"
+                    actual_mentions = len(_re_f6.findall(name_pattern, doc.text, _re_f6.IGNORECASE))
+                    if actual_mentions > 0:
+                        new_character.mention_count = actual_mentions
+                        logger.info(
+                            f"F6: '{name}' actual text mentions: {actual_mentions} "
+                            f"(was {len(chapters_present)} from chapter count)"
+                        )
+                    pipeline_char_map.characters.append(new_character)
+                    return True
+
                 if missing_names:
                     logger.info(
                         f"F6: Found {len(missing_names)} character(s) in summaries but not in character list: {missing_names}"
                     )
-
-                    # Create minimal character entries for missing names
-                    # We'll give them medium confidence since they come from LLM summaries
-                    import hashlib
-                    import re as _re_f6
-
-                    def _f6_add_character(name: str, chapters_present: list, confidence: float = 0.75) -> bool:
-                        """Add a character from F6 reconciliation. Returns True if added."""
-                        char_id = hashlib.md5(name.encode()).hexdigest()[:12]
-                        new_character = Character(
-                            id=char_id,
-                            canonical_name=name,
-                            aliases=[],
-                            mentions=[],
-                            first_appearance_chapter=(
-                                min(chapters_present) if chapters_present else 0
-                            ),
-                            mention_count=len(chapters_present),
-                            chapters_present=chapters_present,
-                            confidence=confidence,
-                            supporting_strategies=["chapter_summary_reconciliation"],
-                            description="",
-                            character_type=CharacterType.STORY,
-                        )
-                        # Count actual text mentions via regex
-                        name_pattern = rf"\b{_re_f6.escape(name)}(?:'?s)?\b"
-                        actual_mentions = len(_re_f6.findall(name_pattern, doc.text, _re_f6.IGNORECASE))
-                        if actual_mentions > 0:
-                            new_character.mention_count = actual_mentions
-                            logger.info(
-                                f"F6: '{name}' actual text mentions: {actual_mentions} "
-                                f"(was {len(chapters_present)} from chapter count)"
-                            )
-                        pipeline_char_map.characters.append(new_character)
-                        return True
 
                     for name in missing_names:
                         chapters_present = []
@@ -1811,6 +1810,102 @@ class AudiobookAnalyzer:
                     logger.info(f"F6: Added characters: {', '.join(missing_names)}")
                 else:
                     logger.info("F6: All characters from summaries already in character list")
+
+                # F6c: Safety-net for characters appearing as active in 2+ distinct chapters.
+                # If a character appears in multiple chapters' active_characters but was NOT
+                # added by F6 (possibly due to an alias/similarity filter false-positive),
+                # force-add them. Universal invariant: appearing as active in 2+ chapters is
+                # strong evidence of a real, plot-relevant character.
+                try:
+                    _f6c_name_chapters: dict = {}
+                    for _f6c_summary in summary_map.summaries:
+                        _f6c_active = (
+                            getattr(_f6c_summary, "active_characters", None)
+                            or _f6c_summary.characters_present
+                            or []
+                        )
+                        for _f6c_name in _f6c_active:
+                            _f6c_name = _f6c_name.strip()
+                            if _f6c_name:
+                                _f6c_name_chapters.setdefault(_f6c_name, []).append(
+                                    _f6c_summary.chapter_index
+                                )
+
+                    # Build lookup sets from current character list (includes F6 additions)
+                    _f6c_existing_canonical = set()
+                    _f6c_existing_aliases = set()
+                    _f6c_canonical_words: set = set()  # individual words from canonical names
+                    for _f6c_char in pipeline_char_map.characters:
+                        _cn = _f6c_char.canonical_name.lower().strip()
+                        _f6c_existing_canonical.add(_cn)
+                        # Track individual words (len > 3) so we can detect name components
+                        # Example: "gatsby" is a word of canonical "Gatsby" → block "Jay Gatsby"
+                        for _w in _cn.split():
+                            _w = _w.strip(".,;:'\"()")
+                            if len(_w) > 3:
+                                _f6c_canonical_words.add(_w)
+                        for _alias in getattr(_f6c_char, "aliases", []):
+                            _f6c_existing_aliases.add(_alias.lower().strip())
+
+                    _f6c_added = []
+                    _f6c_articles = {"the", "a", "an", "of", "in", "from", "at", "by", "with"}
+                    for _f6c_name, _f6c_chapters in _f6c_name_chapters.items():
+                        # Must appear in 2+ distinct chapters
+                        if len(set(_f6c_chapters)) < 2:
+                            continue
+                        _f6c_lower = _f6c_name.lower().strip()
+                        # Skip if already a canonical character
+                        if _f6c_lower in _f6c_existing_canonical:
+                            continue
+                        # Skip if already a known alias (e.g., "Myrtle Wilson" is Myrtle's alias)
+                        if _f6c_lower in _f6c_existing_aliases:
+                            continue
+                        # Skip if any substantive word of this name appears as a canonical name word.
+                        # Universal invariant: a name variant/fragment of an existing character
+                        # (e.g., "Daisy" from "Daisy Buchanan", "Jay Gatsby" from "Gatsby") is
+                        # not a new character — it's the same entity referred to differently.
+                        _f6c_cand_words = {
+                            w.strip(".,;:'\"()").lower()
+                            for w in _f6c_name.split()
+                            if len(w.strip(".,;:'\"()")) > 3
+                        }
+                        if _f6c_cand_words & _f6c_canonical_words:
+                            continue
+                        # Skip generic descriptors
+                        if _is_generic_descriptor(_f6c_name):
+                            continue
+                        # Must have at least one proper noun
+                        _f6c_content = [
+                            w.strip(".,;:'\"()")
+                            for w in _f6c_name.split()
+                            if w.strip(".,;:'\"()").lower() not in _f6c_articles
+                        ]
+                        if not any(w and w[0].isupper() for w in _f6c_content if w):
+                            continue
+                        # Skip pronouns
+                        if _f6c_lower in _F6_PRONOUN_FILTER:
+                            continue
+                        # Require at least 2 actual text mentions
+                        _f6c_pattern = rf"\b{_re_f6.escape(_f6c_name)}(?:'?s)?\b"
+                        _f6c_mentions = len(
+                            _re_f6.findall(_f6c_pattern, doc.text, _re_f6.IGNORECASE)
+                        )
+                        if _f6c_mentions < 2:
+                            continue
+                        # Force-add the character
+                        _f6_add_character(_f6c_name, list(set(_f6c_chapters)), confidence=0.75)
+                        _f6c_existing_canonical.add(_f6c_lower)
+                        _f6c_added.append(_f6c_name)
+                        logger.info(
+                            f"F6c: Force-added '{_f6c_name}' "
+                            f"({len(set(_f6c_chapters))} chapters, {_f6c_mentions} text mentions)"
+                        )
+
+                    if _f6c_added:
+                        print(f"   F6c safety-net added {len(_f6c_added)} character(s): {_f6c_added}")
+                        logger.info(f"F6c: Safety-net characters: {', '.join(_f6c_added)}")
+                except Exception as _f6c_err:
+                    logger.warning(f"F6c safety-net failed: {_f6c_err}")
 
                 # F6b: Also scan mentioned_characters (referenced but not physically present).
                 # Characters only referenced in dialogue often land in mentioned_characters but

@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 23
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -279,6 +279,10 @@ If co-mention analysis shows Gatsby and Daisy co-appear frequently with romantic
 ### Attempt 23 fixes
 - **Fix EEE: F6 first-name single-word exception** — **DID NOT RESOLVE** (George Wilson still missing; third failed attempt at this issue)
 
+### Attempt 24 fixes
+- **Fix GGG: F6c safety-net pass** (`src/analyzer.py`) — Adds characters appearing as `active_characters` in 2+ distinct chapters that are NOT already in character list (by canonical name, alias, or shared word component). Bypasses `_is_likely_alias_of_existing` entirely. George Wilson (3 chapters, 3+ text mentions) should pass.
+- **Fix HHH: Ratio-based spouse correction in `_enforce_one_spouse_invariant`** (`src/pipeline/character_profiling/post_corrections.py`) — Extends `len == 1` spousal key case to swap labeled spouse when alternative has `alt_evidence >= max(current_evidence * 1.5, 5)`. Tom→Jordan (18 windows) vs Tom→Daisy (37 windows): 37 >= 27 → swap fires.
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -306,6 +310,8 @@ If co-mention analysis shows Gatsby and Daisy co-appear frequently with romantic
 | 22 | Sibling↔spousal cross-tier guard | `src/pipeline/character_profiling/post_corrections.py` | **FIXED** ✓ |
 | 22 | reject_unfounded_friend_labels | `src/pipeline/character_profiling/post_corrections.py` | **FIXED** ✓ |
 | 23 | F6 first-name single-word exception | `src/analyzer.py` | **DID NOT RESOLVE** |
+| 24 | F6c safety-net (2+ chapter active chars) | `src/analyzer.py` | Pending |
+| 24 | Ratio-based spouse correction | `src/pipeline/character_profiling/post_corrections.py` | Pending |
 
 **George Wilson F6 blocker: 3 fix attempts (BBB, EEE, +prior) across `src/analyzer.py` — ESCALATION NEEDED**
 The same file has been modified 3+ times without success. The fix phase MUST use diagnostic logging to identify the exact blocker before attempting another code fix.
@@ -327,7 +333,9 @@ The same file has been modified 3+ times without success. The fix phase MUST use
 - Runtime: ~87 minutes
 
 ## Next Action
-Run PROMPT_fix.md to:
-1. **Fix GGG (CRITICAL)**: Add diagnostic logging to `_is_likely_alias_of_existing` for Wilson-related candidates, run analysis, identify exact blocker, then fix. If diagnostics too slow, use bypass approach (force-add characters_present entries appearing in 2+ chapters).
-2. **Fix HHH (HIGH)**: Stabilize Tom↔Daisy spousal against LLM variance — strengthen competitive spousal selection or add a post-correction that validates known married couples via co-mention + "wife"/"husband" proximity.
-3. **Fix III (HIGH)**: Inject Gatsby↔Daisy romantic relationship via co-mention analysis with romantic keywords.
+Run PROMPT_analyze.md for attempt 24.
+
+**Fixes applied for attempt 24:**
+- Fix GGG: F6c safety-net in `src/analyzer.py` — George Wilson should appear for the first time
+- Fix HHH: Ratio-based spouse swap in `_enforce_one_spouse_invariant` — Tom↔Daisy "husband/wife" should be restored
+- Fix III (NOT YET FIXED): Gatsby↔Daisy relationship still missing — will revisit if attempt 24 still fails on Profiles
