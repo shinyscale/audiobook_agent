@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 19
-- **Phase:** awaiting_analysis
+- **Attempt:** 20
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260310_225523/
+- Timestamped: output/gatsby_20260311_003630/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -332,8 +332,16 @@ In `_propagate_missing_reverses` or `enforce_gender_consistency`: when generatin
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
+## Pipeline Notes (Attempt 20)
+- Completed in 87m 57s
+- 25 characters found (check if George Wilson present)
+- Nick Carraway confirmed as narrator ✓
+- James Gatz added as referenced character ✓
+- 149 pronunciation flags
+- Fix XX + Fix YY applied — evaluate Tom↔Daisy relationship and Gatsby→Gatz gender
+
 ## Next Action
-Run analysis to verify Fix XX + Fix YY effectiveness.
+Evaluate attempt 20 output to verify Fix XX (Tom↔Daisy husband/wife) and Fix YY (Gatsby→Gatz gender).
 
 **KEY INSIGHT from 6 attempts at spousal attribution (attempts 14-19):**
 The `verify_relationships_from_text` function's co-mention window approach is fundamentally flawed for spousal detection. The window captures "husband"/"wife" keywords but cannot reliably determine WHO the keyword refers to. Each fix has traded one set of wrong pairs for another. Fix XX (checking if a character's name appears near the keyword) is the most promising approach because it uses direct textual attribution rather than proximity alone.
