@@ -2,14 +2,14 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 22
-- **Phase:** awaiting_analysis
+- **Attempt:** 23
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260311_051335/
+- Timestamped: output/gatsby_20260311_070241/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -351,16 +351,15 @@ After F6 adds characters and Step 4.5.9 runs, add a check:
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
-## Pipeline Notes (Attempt 22)
-- 26 characters found — George Wilson: STILL MISSING
+## Pipeline Notes (Attempt 23)
+- 21 characters found — George Wilson: STILL MISSING (23rd attempt)
 - Nick Carraway confirmed as narrator ✓
-- 149 pronunciation flags (148 with IPA)
-- Fix BBB applied but George Wilson NOT resolved
-- Fix CCC effective (Myrtle→Catherine sister ✓)
-- Fix DDD effective (Wolfshiem friendships cleaned ✓)
-- Owl Eyes recovered (1 mention, F6 reconciled)
-- James Gatz new false split from Gatsby (4 mentions, F6 reconciled)
-- Profiles now at 8.0 threshold ✓ — only Character Extraction remains below
+- 149 pronunciation flags
+- Fix EEE (first-name single-word exception) applied but George Wilson NOT resolved
+- James Gatz NOT in character list (referenced but absorbed or filtered out)
+- Montenegro appears as character with 7 mentions (false positive — it's a country)
+- Myrtle listed as "Myrtle" (no last name Wilson)
+- Runtime: 87 minutes
 
 ## Fix History (Attempt 23)
 
