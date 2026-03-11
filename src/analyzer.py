@@ -1438,6 +1438,14 @@ class AudiobookAnalyzer:
                     """
                     import re
 
+                    # Diagnostic logging for Wilson-family debugging (Bug B)
+                    if "wilson" in name.lower():
+                        logger.warning(
+                            f"DIAG-WILSON: _is_likely_alias_of_existing called with '{name}', "
+                            f"num characters in pipeline: {len(pipeline_char_map.characters)}, "
+                            f"canonical names: {[c.canonical_name for c in pipeline_char_map.characters]}"
+                        )
+
                     # Strip parenthetical annotations first (e.g., "Herbert (mentioned)" → "Herbert")
                     clean_name = name
                     parenthetical_content = None
@@ -1486,6 +1494,8 @@ class AudiobookAnalyzer:
 
                         # Check exact match after cleaning
                         if clean_lower == char_canonical:
+                            if "wilson" in name.lower():
+                                logger.warning(f"DIAG-WILSON: blocked by exact match against '{char.canonical_name}'")
                             logger.debug(
                                 f"F6: '{name}' matches existing '{char.canonical_name}' after cleaning"
                             )
@@ -1507,6 +1517,8 @@ class AudiobookAnalyzer:
                             # "George Wilson" from ever entering the pipeline when a bare
                             # "George" supporting character already exists.
                             if first_name == char_canonical and len(char_canonical.split()) > 1:
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by first-name match against '{char.canonical_name}'")
                                 logger.info(
                                     f"F6: '{name}' is likely full name variant of '{char.canonical_name}' (first name match)"
                                 )
@@ -1521,6 +1533,8 @@ class AudiobookAnalyzer:
                             # prevent "George Wilson" from ever entering the pipeline when a
                             # bare "Wilson" supporting character already exists.
                             if last_name == char_canonical and len(char_canonical.split()) > 1:
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by last-name match against '{char.canonical_name}'")
                                 logger.info(
                                     f"F6: '{name}' is likely full name variant of '{char.canonical_name}' (last name match)"
                                 )
@@ -1535,6 +1549,8 @@ class AudiobookAnalyzer:
                                 and first_name == char_name_parts[0]
                                 and last_name != char_name_parts[-1]
                             ):
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by alternate-surname match against '{char.canonical_name}'")
                                 logger.info(
                                     f"F6: '{name}' shares first name with '{char.canonical_name}' "
                                     f"(likely alternate-surname variant, e.g. maiden name)"
@@ -1569,23 +1585,32 @@ class AudiobookAnalyzer:
                     # Check if single-word candidate is a name component of a multi-word character.
                     # Universal invariant: if summaries say "Tom" and "Tom Buchanan" already exists,
                     # "Tom" is just a first-name reference — do NOT add a second character.
-                    if len(name_parts) == 1:
-                        _f6_cand_word = name_parts[0]
-                        _f6_char_parts = char_canonical.split()
-                        if len(_f6_char_parts) >= 2 and _f6_cand_word in _f6_char_parts:
-                            logger.info(
-                                f"F6: '{name}' matches '{char.canonical_name}' "
-                                f"(single-word name component '{_f6_cand_word}')"
-                            )
-                            return True
-                        for alias in char.aliases:
-                            _f6_alias_parts = alias.lower().strip().split()
-                            if len(_f6_alias_parts) >= 2 and _f6_cand_word in _f6_alias_parts:
+                    # NOTE: This block needs its own for-char loop because it was previously
+                    # outside the main for-char loop (Bug A indentation fix).
+                    name_parts = clean_lower.split()
+                    for char in pipeline_char_map.characters:
+                        char_canonical = char.canonical_name.lower().strip()
+                        if len(name_parts) == 1:
+                            _f6_cand_word = name_parts[0]
+                            _f6_char_parts = char_canonical.split()
+                            if len(_f6_char_parts) >= 2 and _f6_cand_word in _f6_char_parts:
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by single-word match against '{char.canonical_name}'")
                                 logger.info(
-                                    f"F6: '{name}' matches alias '{alias}' of '{char.canonical_name}' "
+                                    f"F6: '{name}' matches '{char.canonical_name}' "
                                     f"(single-word name component '{_f6_cand_word}')"
                                 )
                                 return True
+                            for alias in char.aliases:
+                                _f6_alias_parts = alias.lower().strip().split()
+                                if len(_f6_alias_parts) >= 2 and _f6_cand_word in _f6_alias_parts:
+                                    if "wilson" in name.lower():
+                                        logger.warning(f"DIAG-WILSON: blocked by single-word alias match against '{alias}' of '{char.canonical_name}'")
+                                    logger.info(
+                                        f"F6: '{name}' matches alias '{alias}' of '{char.canonical_name}' "
+                                        f"(single-word name component '{_f6_cand_word}')"
+                                    )
+                                    return True
 
                     # Check for partial alias matches (e.g., "the masked figure" vs alias "the figure")
                     # This handles cases where the summary uses a more descriptive variant of an existing alias
@@ -1597,18 +1622,22 @@ class AudiobookAnalyzer:
                     core_words = clean_words - stopwords - adjectives
 
                     # Check against all aliases of all characters
-                    for alias in char.aliases:
-                        alias_lower = alias.lower().strip()
-                        alias_words = set(alias_lower.split())
-                        alias_core = alias_words - stopwords - adjectives
+                    # NOTE: This block needs its own for-char loop (Bug A indentation fix).
+                    for char in pipeline_char_map.characters:
+                        for alias in char.aliases:
+                            alias_lower = alias.lower().strip()
+                            alias_words = set(alias_lower.split())
+                            alias_core = alias_words - stopwords - adjectives
 
-                        # If the summary name contains all core words from an existing alias,
-                        # it's likely a more descriptive variant (e.g., "the masked figure" contains "figure")
-                        if alias_core and alias_core.issubset(core_words):
-                            logger.info(
-                                f"F6: '{name}' is likely variant of '{char.canonical_name}' (contains alias '{alias}' core words: {alias_core})"
-                            )
-                            return True
+                            # If the summary name contains all core words from an existing alias,
+                            # it's likely a more descriptive variant (e.g., "the masked figure" contains "figure")
+                            if alias_core and alias_core.issubset(core_words):
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by partial alias core-word match against '{alias}' of '{char.canonical_name}'")
+                                logger.info(
+                                    f"F6: '{name}' is likely variant of '{char.canonical_name}' (contains alias '{alias}' core words: {alias_core})"
+                                )
+                                return True
 
                     # Check if summary name appears in character's description
                     # This handles cases where the LLM proposed an alias but grounding filtered it out
@@ -1620,24 +1649,28 @@ class AudiobookAnalyzer:
                     # lowercase descriptors (epithets, roles), never to capitalized proper names.
                     _name_words_orig = [w for w in name.split() if w]
                     _name_has_proper_noun = any(w[0].isupper() for w in _name_words_orig if w)
-                    if char.description and not _name_has_proper_noun:
-                        desc_lower = char.description.lower()
+                    # NOTE: This block needs its own for-char loop (Bug A indentation fix).
+                    for char in pipeline_char_map.characters:
+                        if char.description and not _name_has_proper_noun:
+                            desc_lower = char.description.lower()
 
-                        # Build the cleaned phrase (strip articles but keep adjectives and nouns)
-                        # Example: "the masked figure" → "masked figure"
-                        name_without_articles = clean_lower
-                        for article in ["the ", "a ", "an "]:
-                            if name_without_articles.startswith(article):
-                                name_without_articles = name_without_articles[len(article):].strip()
-                                break
+                            # Build the cleaned phrase (strip articles but keep adjectives and nouns)
+                            # Example: "the masked figure" → "masked figure"
+                            name_without_articles = clean_lower
+                            for article in ["the ", "a ", "an "]:
+                                if name_without_articles.startswith(article):
+                                    name_without_articles = name_without_articles[len(article):].strip()
+                                    break
 
-                        # Check if the phrase appears verbatim in the description
-                        # Example: "masked figure" in "manifests as a masked figure"
-                        if len(name_without_articles.split()) >= 2 and name_without_articles in desc_lower:
-                            logger.info(
-                                f"F6: '{name}' matches '{char.canonical_name}' (phrase '{name_without_articles}' found in description)"
-                            )
-                            return True
+                            # Check if the phrase appears verbatim in the description
+                            # Example: "masked figure" in "manifests as a masked figure"
+                            if len(name_without_articles.split()) >= 2 and name_without_articles in desc_lower:
+                                if "wilson" in name.lower():
+                                    logger.warning(f"DIAG-WILSON: blocked by description phrase match in '{char.canonical_name}'")
+                                logger.info(
+                                    f"F6: '{name}' matches '{char.canonical_name}' (phrase '{name_without_articles}' found in description)"
+                                )
+                                return True
 
                     return False
 
@@ -2230,6 +2263,70 @@ class AudiobookAnalyzer:
                     logger.info(f"Step 4.5.9: Removed {len(_459_to_remove)} word-subset duplicate(s)")
             except Exception as _459_e:
                 logger.warning(f"Step 4.5.9 post-extraction dedup failed: {_459_e}")
+
+        # Post-4.5.9 F6 re-check: characters that were blocked during F6 may now be
+        # unblocked after 4.5.9 merged/removed the blocker (e.g., a bare "Wilson" that
+        # blocked "George Wilson" was absorbed into "Myrtle Wilson" by 4.5.9).
+        # Re-scan summary characters and add any that now pass all checks.
+        if summary_map and pipeline_char_map and pipeline_char_map.characters:
+            try:
+                import hashlib as _hashlib_post459
+
+                # Rebuild lookup sets from current (post-4.5.9) character list
+                _post459_existing = set()
+                for _c in pipeline_char_map.characters:
+                    _post459_existing.add(_c.canonical_name.lower().strip())
+                    for _a in getattr(_c, 'aliases', []):
+                        _post459_existing.add(_a.lower().strip())
+
+                _post459_added = []
+                _post459_name_chapters = {}
+                for _s in summary_map.summaries:
+                    _active = getattr(_s, 'active_characters', None) or _s.characters_present or []
+                    for _n in _active:
+                        _n = _n.strip()
+                        if _n:
+                            _post459_name_chapters.setdefault(_n, []).append(_s.chapter_index)
+
+                for _name, _chapters in _post459_name_chapters.items():
+                    if len(set(_chapters)) < 2:
+                        continue
+                    _lower = _name.lower().strip()
+                    if _lower in _post459_existing:
+                        continue
+                    # Must have proper noun
+                    _content = [w for w in _name.split() if w.strip(".,;:'\"()")]
+                    if not any(w[0].isupper() for w in _content if w):
+                        continue
+                    # Must have 2+ text mentions
+                    _pattern = rf"\b{re.escape(_name)}(?:'?s)?\b"
+                    _mentions = len(re.findall(_pattern, doc.text, re.IGNORECASE))
+                    if _mentions < 2:
+                        continue
+                    # Create the character inline (since _f6_add_character is out of scope)
+                    _char_id = _hashlib_post459.md5(_name.encode()).hexdigest()[:12]
+                    _new_char = Character(
+                        id=_char_id,
+                        canonical_name=_name,
+                        aliases=[],
+                        mentions=[],
+                        first_appearance_chapter=(min(set(_chapters)) if _chapters else 0),
+                        mention_count=_mentions,
+                        chapters_present=list(set(_chapters)),
+                        confidence=0.70,
+                        supporting_strategies=["chapter_summary_reconciliation"],
+                        description="",
+                        character_type=CharacterType.STORY,
+                    )
+                    pipeline_char_map.characters.append(_new_char)
+                    _post459_existing.add(_lower)
+                    _post459_added.append(_name)
+                    logger.info(f"Post-4.5.9 F6 re-check: Added '{_name}' ({len(set(_chapters))} chapters, {_mentions} mentions)")
+
+                if _post459_added:
+                    print(f"   Post-4.5.9 re-check added {len(_post459_added)} character(s): {_post459_added}")
+            except Exception as _e:
+                logger.warning(f"Post-4.5.9 F6 re-check failed: {_e}")
 
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length

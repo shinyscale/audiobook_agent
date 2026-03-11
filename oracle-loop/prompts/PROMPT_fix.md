@@ -682,5 +682,49 @@ If Phase 1 fails to identify a clear root cause:
 3. Set phase to `awaiting_analysis` with a note to run with diagnostics
 4. DO NOT make speculative code changes without root cause confidence
 
+### Diagnostic-First Debugging (MANDATORY after 2+ failed fix attempts)
+
+When the EVALUATION_STATE.md shows that a fix has been attempted 2+ times for the same issue without success, you MUST switch to diagnostic-first debugging:
+
+1. **DO NOT guess at another code fix.** You've already tried guessing and it failed.
+
+2. **Add diagnostic logging** to the relevant code path:
+   - Use `logger.warning(f"DIAG-{ISSUE_ID}: ...")` with a unique tag
+   - Log the inputs, intermediate values, and decision points
+   - Log which branch/check is triggered
+   - Make sure the tag is unique and grepable (e.g., `DIAG-GGG`, `DIAG-MERGE`, `DIAG-ALIAS`)
+
+3. **Run the analysis** to capture the diagnostic output:
+   ```bash
+   cd ~/Tools/audiobook_agent
+   audiobook-prep analyze <text_file> --html /tmp/diag.html --output /tmp/diag.json \
+       --structure-model "qwen3-next:80b-a3b-instruct-q8_0" \
+       --character-model "qwen3-next:80b-a3b-instruct-q8_0" \
+       --summary-model "qwen3-next:80b-a3b-instruct-q8_0" \
+       --pronunciation-model "qwen3-next:80b-a3b-instruct-q8_0" 2>&1 | grep "DIAG-"
+   ```
+
+4. **Read the diagnostics** and identify the EXACT root cause. You now have evidence showing:
+   - Which function was called with which arguments
+   - Which conditional branch was taken
+   - What the intermediate values were
+   - Why the output was wrong
+
+5. **Apply a targeted fix** based on the diagnostic evidence, not guesswork
+
+6. **Remove the diagnostic logging** after the fix is confirmed working
+
+This approach takes longer (one extra analysis run) but is FAR more effective than repeated guessing. After 2+ failed attempts, the problem is almost certainly not where you think it is — diagnostics reveal the actual code path.
+
+**Example workflow:**
+```
+Attempt 3 failed → same issue persists
+→ Add: logger.warning(f"DIAG-GGG: _is_likely_alias called with '{name}', chars={[c.canonical_name for c in chars]}")
+→ Add: logger.warning(f"DIAG-GGG: returning True because {reason}")  # before each return True
+→ Run analysis, grep for DIAG-GGG
+→ See: "DIAG-GGG: returning True because last-name match against 'Wilson'"
+→ Now you know EXACTLY which check is wrong → fix that specific check
+```
+
 ### Avoid Over-Engineering
 The goal is to cross the 8.0 quality threshold, not to achieve perfection. If the score is 7.8, make the minimum change needed to pass.
