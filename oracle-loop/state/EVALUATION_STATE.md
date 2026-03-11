@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 22
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -362,5 +362,14 @@ After F6 adds characters and Step 4.5.9 runs, add a check:
 - James Gatz new false split from Gatsby (4 mentions, F6 reconciled)
 - Profiles now at 8.0 threshold ✓ — only Character Extraction remains below
 
+## Fix History (Attempt 23)
+
+### Fix EEE: First-name single-word exception in _is_likely_alias_of_existing
+- **Root cause:** F6 `_is_likely_alias_of_existing` had a first-name check `if first_name == char_canonical: return True` with no single-word exception. NER extracts bare "George" (14 text occurrences) as a supporting character. When F6 processes "George Wilson", `first_name="george"` matches `char_canonical="george"` → BLOCKED. The bare "George" is later filtered out (< 5 mentions threshold), leaving neither character in the output.
+- **Fix:** Added `and len(char_canonical.split()) > 1` exception to first-name check (symmetric to Fix BBB for last-name check). Single-word first-name fragments never block multi-word full names; Step 4.5.9 will absorb the fragment after F6 adds the full name.
+- **File:** `src/analyzer.py:_is_likely_alias_of_existing():line 1509`
+- **Smoke test:** PASS — "George Wilson" no longer blocked when bare "George" exists; 332/332 tests pass
+- **Universality:** Universal — any book where NER extracts bare first names (common) benefits from this fix
+
 ## Next Action
-Run PROMPT_fix.md to diagnose and fix George Wilson F6 blocker (Fix EEE: diagnostic logging + targeted fix). Secondary: James Gatz false split (Fix FFF).
+Run PROMPT_analyze.md to re-run analysis with Fix EEE applied.
