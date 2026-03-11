@@ -1574,6 +1574,17 @@ class AudiobookAnalyzer:
                                     )
                                     return True
 
+                                # Check if the part after title is the LAST NAME of a
+                                # multi-word character (e.g., "Captain Walton" → "Walton"
+                                # matches last name of "Robert Walton").
+                                char_parts = char_canonical.split()
+                                if len(char_parts) >= 2 and name_without_title == char_parts[-1]:
+                                    logger.info(
+                                        f"F6: '{name}' matches '{char.canonical_name}' "
+                                        f"(title + surname '{name_without_title}')"
+                                    )
+                                    return True
+
                                 # Also check if the part after title matches an alias
                                 for alias in char.aliases:
                                     if name_without_title == alias.lower().strip():
@@ -1675,6 +1686,23 @@ class AudiobookAnalyzer:
                                     f"F6: '{name}' matches '{char.canonical_name}' (phrase '{name_without_articles}' found in description)"
                                 )
                                 return True
+
+                    # Check if name is an initials abbreviation (e.g., "R.W." → "Robert Walton").
+                    # Pattern: one or more "X." segments where each X is a single uppercase letter.
+                    initials_match = re.match(r'^([A-Z]\.)+$', clean_name)
+                    if initials_match:
+                        initials = [c for c in clean_name if c.isupper()]
+                        for char in pipeline_char_map.characters:
+                            char_words = [
+                                w for w in char.canonical_name.split()
+                                if w and w[0].isupper()
+                            ]
+                            if len(char_words) >= len(initials) >= 2:
+                                if [w[0] for w in char_words[:len(initials)]] == initials:
+                                    logger.info(
+                                        f"F6: '{name}' matches '{char.canonical_name}' via initials"
+                                    )
+                                    return True
 
                     return False
 

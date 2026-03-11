@@ -2917,11 +2917,19 @@ class OutputCharacterCorrector:
                     continue
 
                 # Check 1: Shared surname → probably a real family relationship.
+                # Exception: sibling and cousin labels (brother/sister/cousin/sibling)
+                # are NOT bypassed even with shared surnames, because siblings share
+                # surnames by definition yet the label may still be wrong (e.g.,
+                # Victor→Alphonse are father/son with shared surname "Frankenstein",
+                # but the LLM labels them "brother").  These must go through text
+                # evidence with the SPECIFIC term check to confirm the label.
                 other_char = char_by_lower.get(other_key.lower())
                 other_surnames = _surnames(other_char.canonical_name) if other_char else set()
                 for _alias in (getattr(other_char, 'aliases', None) or []) if other_char else []:
                     other_surnames |= _surnames(_alias)
-                if char_surnames & other_surnames:
+                _sibling_cousin_terms = {"brother", "sister", "cousin", "sibling"}
+                is_sibling_or_cousin = any(t in rel_lower for t in _sibling_cousin_terms)
+                if char_surnames & other_surnames and not is_sibling_or_cousin:
                     continue
 
                 # Option B: Allow text evidence exception for extended family and spouse terms.
@@ -2973,14 +2981,30 @@ class OutputCharacterCorrector:
                 # to appear within the same short passage. This prevents "his wife Daisy"
                 # from satisfying a Gatsby-Wolfsheim co-mention that spans a paragraph.
                 evidence_window = 150 if is_spouse else tight_window
-                pat_b = name_patterns.get(other_char.canonical_name) if other_char else None
+                # Use canonical-name-only pattern for pat_b to avoid false evidence
+                # from single-word aliases (e.g., "Henry" for "Henry Clerval") that
+                # appear near the anchor character in unrelated passages.
+                pat_b = re.compile(
+                    r'\b' + re.escape(other_char.canonical_name) + r'\b', re.IGNORECASE
+                ) if other_char else None
+                # Also require the SPECIFIC relationship term (not just any family phrase)
+                # in the window.  This prevents "his father Alphonse" near Victor from
+                # confirming a "brother" label — the text evidence must contain the
+                # actual claimed relationship word.
+                specific_term = next(
+                    (t for t in family_set if t in rel_lower), None
+                )
+                specific_re = re.compile(
+                    r'\b' + re.escape(specific_term) + r'\b', re.IGNORECASE
+                ) if specific_term else None
                 has_evidence = False
                 if pat_a and pat_b:
                     for match_a in pat_a.finditer(source_text):
                         ws = max(0, match_a.start() - evidence_window)
                         we = min(len(source_text), match_a.end() + evidence_window)
                         win = source_text[ws:we]
-                        if pat_b.search(win) and _rel_phrase_re.search(win):
+                        if (pat_b.search(win) and _rel_phrase_re.search(win)
+                                and (specific_re is None or specific_re.search(win))):
                             has_evidence = True
                             break
 

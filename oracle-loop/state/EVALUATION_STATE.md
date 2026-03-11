@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Latest Scores (Attempt 3)

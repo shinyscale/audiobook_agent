@@ -398,16 +398,23 @@ class ChapterSummarizer:
 
         # Use competitive mode if enabled and we have competitor clients
         if self._use_competitive_summaries() and self._competitor_clients:
-            return self._competitive_summarize_chapter(
+            result = self._competitive_summarize_chapter(
                 chapter_text, chapter_index, title, word_count
             )
+            self._fix_narrator_attribution(result, chapter_text)
+            return result
 
         # Short chapter: summarize directly
         if word_count <= self.chunk_size * 1.2:  # Allow 20% buffer before chunking
-            return self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
+            result = self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
+        else:
+            # Long chapter: chunk and consolidate
+            result = self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
 
-        # Long chapter: chunk and consolidate
-        return self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
+        # Post-process: fix narrator misattribution using structural text evidence
+        self._fix_narrator_attribution(result, chapter_text)
+
+        return result
 
     def _competitive_summarize_chapter(
         self,
@@ -958,6 +965,241 @@ class ChapterSummarizer:
             estimated_duration_minutes=word_count / 150,
             confidence=0.0,
         )
+
+    @staticmethod
+    def _detect_letter_signatory(chapter_text: str) -> Optional[str]:
+        """
+        Detect if chapter text is (or follows) an epistolary letter and return
+        the letter-writer's name.
+
+        Two detection paths:
+        A) The chapter text begins with the closing of a PREVIOUS letter followed
+           by the header of the CURRENT letter (e.g., "R. Walton\\nLetter 2\\nTo Mrs. Saville").
+           The signatory is the short proper-name line immediately before "Letter N".
+        B) Standalone letter: salutation ("To X," or "Dear X,") in the head AND
+           a closing signature ("Your... \\nName") in the tail.
+
+        Returns the signatory name, or None if not detected.
+        """
+        head = chapter_text[:600]
+
+        # Path A: "Letter N" header inside the head (preceded by a signature)
+        letter_header_m = re.search(r'\bLetter\s+\w+\s*\n', head)
+        if letter_header_m:
+            pre_header = head[: letter_header_m.start()]
+            # The signatory is the last short proper-name line before the header
+            lines = [ln.strip() for ln in pre_header.split("\n") if ln.strip()]
+            if lines:
+                candidate = lines[-1].strip()
+                if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}\.?$", candidate):
+                    # Expand initials (e.g., "R.W." → "Robert Walton") if full name
+                    # appears in the chapter text
+                    if re.match(r"^[A-Z]\.[A-Za-z.]+$", candidate):
+                        initials = [c for c in candidate if c.isupper()]
+                        for m in re.finditer(
+                            r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", chapter_text[:10000]
+                        ):
+                            name_words = m.group(1).split()
+                            if [w[0] for w in name_words] == initials:
+                                return m.group(1)
+                    return candidate
+
+        # Path B: Standalone letter — salutation in head + closing in tail
+        has_salutation = bool(
+            re.search(r"^\s*(?:To\s+\w|Dear\s+\w)", head, re.IGNORECASE | re.MULTILINE)
+        )
+        if has_salutation:
+            tail = chapter_text[-600:]
+            sig_m = re.search(
+                r"(?:Your|Yours|Ever\s+yours|Affectionately|Sincerely|Faithfully)"
+                r"[^\n]{0,50}\n\s*([A-Z][A-Za-z\s.]{2,40})",
+                tail,
+            )
+            if sig_m:
+                name = sig_m.group(1).strip().rstrip(".")
+                name = re.split(r"\n", name)[0].strip()
+                return name if len(name.split()) <= 4 else None
+
+        return None
+
+    @staticmethod
+    def _apply_letter_narrator(summary: str, signatory: str) -> str:
+        """
+        Replace an incorrect narrator name in a letter chapter summary.
+
+        Handles:
+        - Dual attribution: "Name1, Name2, verb..." → if Name2 matches signatory, strip Name1
+          (works mid-sentence, e.g., "In this letter, Name1, Name2, verb...")
+        - Single wrong leading name: "Name, verb..." → replace with signatory
+        """
+        if not summary:
+            return summary
+
+        sig_lower = set(signatory.lower().split())
+
+        # Look for dual attribution "[Name1], [Name2], [verb]..." anywhere in first sentence
+        first_period = summary.find(".")
+        first_sentence_end = first_period if first_period != -1 else len(summary)
+        first_sentence = summary[:first_sentence_end]
+
+        # Both name groups must be multi-word (e.g., "Victor Frankenstein, Robert Walton")
+        # to avoid matching single-word place/month names (e.g., "March, Victor Frankenstein")
+        dual_re = re.compile(
+            r"((?:[A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)),\s+"
+            r"((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)),\s+"
+        )
+        for m in dual_re.finditer(first_sentence):
+            name1, name2 = m.group(1), m.group(2)
+            n1_lower = set(name1.lower().split())
+            n2_lower = set(name2.lower().split())
+            if sig_lower & n2_lower:
+                # Name2 matches signatory — remove "Name1, " from the match
+                remove_span = name1 + ", "
+                return summary[:m.start()] + summary[m.start() + len(remove_span):]
+            elif sig_lower & n1_lower:
+                # Name1 matches signatory — remove ", Name2" from the match
+                remove_span = ", " + name2
+                before = summary[:m.start() + len(name1)]
+                after = summary[m.start() + len(name1) + len(remove_span):]
+                return before + after
+            else:
+                # Neither overlaps with signatory — replace both with signatory
+                return summary[:m.start()] + signatory + ", " + summary[m.end():]
+
+        # Single leading attribution: "Name, verb..." or "Name verb..."
+        single_match = re.match(
+            r"^((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*))(,\s+|\s+)",
+            summary,
+        )
+        if single_match:
+            found_name = single_match.group(1)
+            found_lower = set(found_name.lower().split())
+            if not (sig_lower & found_lower):
+                # Name doesn't match signatory — replace it
+                return signatory + single_match.group(2) + summary[single_match.end():]
+
+        return summary
+
+    @staticmethod
+    def _fix_self_referential_narrator(summary: str) -> str:
+        """
+        Fix summaries where the same name appears as both the acting subject
+        and the target of a "creator/confront" action — indicating the first
+        occurrence (as agent) is a narrator misattribution.
+
+        E.g., "Victor Frankenstein, a created being, burns the cottage...
+               to confront his creator, Victor Frankenstein"
+        → "the narrator, a created being, burns the cottage...
+               to confront his creator, Victor Frankenstein"
+        """
+        # Find all multi-word proper names
+        names = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', summary)
+        if not names:
+            return summary
+
+        name_counts = Counter(names)
+
+        for name, count in name_counts.most_common():
+            if count < 2:
+                break
+            # Check: name as agent at start AND as target of creator/confront later
+            creator_re = re.compile(
+                r'\b' + re.escape(name) + r'\b'
+                r'.{10,300}'
+                r'(?:creator|created\s+by|confront(?:ed|ing)?)'
+                r'.{0,80}\b' + re.escape(name) + r'\b',
+                re.IGNORECASE | re.DOTALL,
+            )
+            if creator_re.search(summary):
+                # Replace only the FIRST occurrence (the wrongly-named agent)
+                fixed = summary.replace(name, 'the narrator', 1)
+                # Lowercase if it now starts "the narrator" after a capital
+                return re.sub(r'^The narrator', 'The narrator', fixed)
+
+        return summary
+
+    @staticmethod
+    def _fix_created_being_attribution(summary: str) -> str:
+        """
+        Fix summaries where a human character name is immediately followed by
+        an appositive describing a non-human narrator ("a created being",
+        "a solitary creature", "earliest conscious experiences", etc.).
+
+        Replaces the wrong name in the first sentence with "the narrator".
+        """
+        # Pattern: "[Name], a created/conscious/solitary being/creature"
+        # NOTE: do NOT use re.IGNORECASE — [A-Z] must only match uppercase so that
+        # common words like "the", "a", "chapter" are not captured as names.
+        appositive_re = re.compile(
+            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s+'
+            r'a\s+(?:(?:newly\s+|recently\s+)?(?:created|conscious)\s+(?:being|creature)'
+            r'|solitary\s+(?:creature|being))',
+        )
+        # Pattern: "[Name]'s earliest conscious/sensory experiences" or "awakening"
+        # Use [\u2018\u2019'] to match both ASCII apostrophe and Unicode curly quotes.
+        awakening_re = re.compile(
+            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)[' r"'\u2018\u2019]?s?\s+"
+            r'(?:earliest\s+(?:conscious|sensory)\s+experiences?'
+            r'|awakening\s+to\s+(?:consciousness|sensory\s+overload))',
+        )
+
+        match = appositive_re.search(summary) or awakening_re.search(summary)
+        if not match:
+            return summary
+
+        wrong_name = match.group(1)
+
+        # Only replace in the first sentence
+        first_dot = summary.find('.')
+        end = first_dot + 1 if first_dot != -1 else len(summary)
+        first_sentence = summary[:end]
+        rest = summary[end:]
+
+        fixed_sentence = first_sentence.replace(wrong_name, 'the narrator', 1)
+        return fixed_sentence + rest
+
+    def _fix_narrator_attribution(self, result: "ChapterSummary", chapter_text: str) -> None:
+        """
+        Post-process a ChapterSummary in-place to fix narrator misattribution.
+
+        Uses structural text evidence (letter signatures, non-human descriptors,
+        self-referential contradictions) to override LLM narrator guesses.
+
+        Does NOT use any knowledge of specific novels or characters.
+        """
+        if not result.summary:
+            return
+
+        summary = result.summary
+
+        # Fix 1: Letter chapters — extract signatory from text structure
+        signatory = self._detect_letter_signatory(chapter_text)
+        if signatory:
+            fixed = self._apply_letter_narrator(summary, signatory)
+            if fixed != summary:
+                logger.info(
+                    f"Narrator fix (letter signatory '{signatory}'): "
+                    f"{summary[:60]!r} → {fixed[:60]!r}"
+                )
+                result.summary = fixed
+                return
+
+        # Fix 2: Self-referential contradiction — same name as agent and target
+        fixed = self._fix_self_referential_narrator(summary)
+        if fixed != summary:
+            logger.info(
+                f"Narrator fix (self-referential): {summary[:60]!r} → {fixed[:60]!r}"
+            )
+            result.summary = fixed
+            return
+
+        # Fix 3: Non-human descriptor — "a created being", awakening language
+        fixed = self._fix_created_being_attribution(summary)
+        if fixed != summary:
+            logger.info(
+                f"Narrator fix (created being): {summary[:60]!r} → {fixed[:60]!r}"
+            )
+            result.summary = fixed
 
     @staticmethod
     def _valid_tones() -> set[str]:
