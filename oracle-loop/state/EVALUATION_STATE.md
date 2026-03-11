@@ -3,151 +3,149 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
 - Character Extraction: 8/10 ✓
   - Completeness: 9/10
-  - Identity Resolution: 8/10
+  - Identity Resolution: 7.5/10
   - Alias Grouping: 7.5/10
-- Character Profiles: 5/10 ✗ (FAILING)
-- Chapter Summaries: 6/10 ✗ (FAILING)
+- Character Profiles: 6.5/10 ✗ (FAILING)
+- Chapter Summaries: 7/10 ✗ (FAILING)
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.35/10** (reference only)
+- **Overall: 7.75/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
 **Status:** FAIL (2 categories below threshold)
+
+## Progress Since Attempt 1 (Δ+0.40)
+
+**Fixed in attempt 2:**
+- Victor's own chapters (4, 8, 10, 21) no longer misattributed to "Robert Walton" ✓
+- Victor→Safie "brother" removed ✓
+- Safie→Victor "sister" removed ✓
+- Safie→De Lacey "lover" removed ✓
+- Clerval→Creature "friend" removed ✓
+- Creature→Clerval "friend" → now correctly "victim" ✓
+- Creature role changed from "supporting" to "antagonist" ✓
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Systematic narrator misattribution in chapter summaries** [Summaries]
-   - Problem: ~7 of 28 chapter summaries wrongly attribute actions to "Robert Walton" instead of the actual acting character (Victor or the Creature)
+1. **Creature's chapters (11-16) misattributed to Victor Frankenstein** [Summaries]
+   - Problem: All 6 chapters narrated by the Creature (indices 14-19) say "Victor Frankenstein" as the acting character instead of "the Creature" or "the narrator"
    - Evidence:
-     - Ch 8 (Chapter 4): "Robert Walton's obsessive dedication to natural philosophy" — this is VICTOR at Ingolstadt
-     - Ch 12 (Chapter 8): "Robert Walton travels with his father" — this is VICTOR going to Justine's trial
-     - Ch 14 (Chapter 10): "Robert Walton spends a day wandering the valley" — this is VICTOR at the glacier
-     - Ch 15 (Chapter 11): "Robert Walton's earliest experiences of consciousness" — this is THE CREATURE
-     - Ch 16 (Chapter 12): "Robert Walton, living in a hovel" — this is THE CREATURE
-     - Ch 17-18 (Chapters 13-14): "Robert Walton" — this is THE CREATURE observing cottagers
-     - Ch 25 (Chapter 21): "Robert Walton is brought before Magistrate Kirwin" — this is VICTOR
-   - Root cause: Frankenstein has nested narration (Walton frames Victor's story, which frames the Creature's story). The summarizer treats Walton as the narrator of everything since he's the frame narrator. The summary pipeline doesn't understand nested first-person narration.
-   - Location: Summary generation in `src/pipeline/summarization/` or `src/agents/summary_agent.py`. The narrator attribution logic doesn't handle nested narrators.
-   - Fix approach: The summaries need to identify the ACTING character within each chapter, not the frame narrator. For Frankenstein: Letters 1-4 = Walton, Chapters 1-10 = Victor, Chapters 11-16 = Creature (within Victor's narration), Chapters 17-24 = Victor. This is a structural understanding issue — the pipeline knows Walton is narrator but doesn't track when Victor or the Creature takes over narration.
+     - Ch 11 (index 14): "Victor Frankenstein, a newly conscious being, recounts his earliest sensory experiences" — this is THE CREATURE describing its awakening
+     - Ch 12 (index 15): "Victor Frankenstein, living in a hovel near a cottage, spends the winter observing the cottagers" — this is THE CREATURE in the hovel
+     - Ch 13 (index 16): "Victor Frankenstein's observations as a beautiful stranger named Safie arrives" — CREATURE watching Safie arrive
+     - Ch 14 (index 17): "Victor Frankenstein recounts the tragic history of the De Lacey family" — CREATURE telling De Lacey's backstory
+     - Ch 15 (index 18): "Victor Frankenstein, having discovered a leathern portmanteau containing Paradise Lost" — CREATURE discovering books
+     - Ch 16 (index 19): "Victor Frankenstein, having been rejected by the De Lacey family, burning down their cottage... to confront his creator, Victor Frankenstein" — internally contradictory (the Creature goes to confront VICTOR, but summary names both as "Victor Frankenstein")
+   - Root cause: Victor Frankenstein's name DOES appear in the Creature's chapters (the Creature refers to him as "my creator" and "Victor Frankenstein"). The fix to "use names only from the text" doesn't help because Victor is mentioned. The LLM then uses Victor's name as the narrator because his name is present.
+   - Location: `src/pipeline/chapter_summary/summarizer.py` — all three prompts need stronger instruction distinguishing NARRATOR from MENTIONED characters
+   - Fix approach: Add explicit instruction that the first-person "I" narrator is the acting subject. If "I" resolves to a character different from the frame narrator, use that character's name. The key distinguisher: Creature chapters describe "I" experiencing things no human could (awakening to new senses, living in the woods, observing humans from hiding). Adding a note like "The acting subject is who says 'I' in this text — not necessarily the character most often mentioned" may help. Alternatively, instruct the model: "If 'I' describes awakening, observing from hiding, or being rejected by humans, attribute to 'the narrator' (not Victor Frankenstein)."
 
-2. **Multiple critical relationship errors** [Profiles]
-   - Problem: Several relationships are factually wrong or direction-reversed
+2. **Letters 1-3 have wrong or dual attribution** [Summaries]
+   - Problem: Letters 1-2 say "Victor Frankenstein, Robert Walton, writes/reflects" (dual comma attribution). Letter 3 says "Victor Frankenstein, writing from a ship" — wrong character entirely.
    - Evidence:
-     - Victor→Safie: "brother" — COMPLETELY WRONG. Victor has no familial relationship with Safie
-     - Safie→Victor: "sister" — WRONG (reverse of above fabrication)
-     - Safie→De Lacey: "lover" — WRONG. Safie is Felix's beloved, not De Lacey's. De Lacey is Felix's blind father
-     - Clerval→the creature: "friend" — WRONG. The creature MURDERS Clerval
-     - the creature→Clerval: "friend" — WRONG (same error, reverse)
-     - the creature→Felix: "beloved" — Misleading. The creature observes Felix from hiding; there is no romantic relationship
-   - Location: `src/pipeline/character_profiling/` or post-corrections in `src/pipeline/post_corrections.py`
-   - Fix approach: These are LLM hallucinations during profile generation. The profiler is inventing relationships that don't exist in the text. This may require tighter prompting or stricter text-evidence requirements.
+     - Letter 1 (index 0): "Victor Frankenstein, Robert Walton, writes to his sister Margaret from St. Petersburg" — Victor's name does not appear in Letter 1 (predates meeting him)
+     - Letter 2 (index 1): "Victor Frankenstein, Robert Walton, reflects on his isolation" — same issue
+     - Letter 3 (index 2): "Victor Frankenstein, writing from a ship advancing through high-latitude Arctic waters" — should be Robert Walton (Victor is not on the ship)
+     - Letter 4 (index 3): "Captain Walton and his crew witness" ✓ correct
+   - Root cause: The LLM is prepending "Victor Frankenstein" when uncertain about who the narrator is, possibly because "Victor Frankenstein" is the most prominent name in its training data for this text. For letters 1-2, the dual attribution suggests the model is providing both names as a hedge. For letter 3, the model confuses the unnamed narrator with Victor.
+   - Location: Same as above — summarizer.py narrator attribution prompts
+   - Fix approach: The prompt change needs stronger guidance for frame-narrator letters. These letters are signed "R.W." or "Robert Walton" and addressed to "Margaret Saville" — the summarizer should extract the author from the letter header/signature.
 
 ### HIGH
 
-3. **Relationship direction reversals** [Profiles]
-   - Problem: Several relationships have the wrong label direction
-   - Evidence:
-     - Victor→Alphonse: "father" — REVERSED. Alphonse is Victor's father, so from Victor's perspective this should be "son" (or the entry on Alphonse should say "father")
-     - Alphonse→Victor: "associated" — Should be "father" (Alphonse IS Victor's father)
-     - Victor→M. Waldman: "protégé" — REVERSED. Victor is Waldman's protégé, so from Victor's side it should be "student" or "mentee"; Waldman is the mentor
-     - Victor→M. Krempe: "protégé" — Same reversal
-   - Location: `src/pipeline/post_corrections.py` — relationship direction logic
-   - Fix approach: enforce_inverse_consistency should handle directional labels (parent↔child, mentor↔protégé)
+3. **Victor→Alphonse relationship direction wrong** [Profiles]
+   - Problem: Victor→Alphonse: "brother" (WRONG — should be "father") and Alphonse→Victor: "brother" (WRONG — should be "son")
+   - Evidence: Alphonse Frankenstein is Victor's father throughout the novel. This is even worse than attempt 1 (which had "father" reversed; now it says "brother")
+   - Location: Profile generation hallucination or `reject_unfounded_familial_labels` over-rejection. The "brother" label may have been introduced because "father" was flagged as unverified (the word "father" appears near many different characters in the text)
+   - Fix approach: Check if `reject_unfounded_familial_labels` is now rejecting the correct "father/son" labels for Alphonse/Victor. If so, the canonical-only anchoring may be too restrictive (Alphonse's canonical "Alphonse Frankenstein" may not appear near "father" in text, even though their relationship is clearly father-son)
 
-4. **Incorrect Elizabeth↔Justine relationship** [Profiles]
-   - Problem: Both labeled as "cousin" to each other
-   - Evidence: Justine Moritz is a servant/adopted family member in the Frankenstein household, not Elizabeth's cousin. They are close friends, but "cousin" is factually wrong.
-   - Location: Profile generation hallucination
+4. **Victor→Margaret: "brother" fabricated** [Profiles]
+   - Problem: Victor→Margaret: "brother" and Margaret→Victor: "brother" — Victor has no familial relationship with Margaret Saville (she is Walton's sister, not Victor's)
+   - Evidence: Victor meets Walton; Walton's sister is Margaret. Victor and Margaret never interact directly in the novel
+   - Location: Profile generation hallucination. Victor's profile likely included "Margaret" in context because Walton mentions her in his letters to Victor
+   - Fix approach: `reject_unfounded_familial_labels` should catch this — but may need to check if it's running for Margaret
 
-5. **R.W. duplicate of Robert Walton** [Identity Resolution]
-   - Problem: "R.W." (id: f1b39c083608, 1 mention) is a separate entry from "Robert Walton" (id: main_cast_0)
-   - Evidence: R.W. is just the initials used in letter signatures — same person
-   - Location: F6 reconciliation (`src/analyzer.py` ~line 1220). F6 picked up "R.W." from a summary and didn't match it to Robert Walton
-   - Fix approach: Initials matching in `_is_likely_alias_of_existing` — check if initials match a character's first/last name initials
+5. **De Lacey family relationship errors** [Profiles]
+   - Problem: Multiple wrong labels within the De Lacey family:
+     - Felix→Agatha: "son" — WRONG (they are siblings; should be "sister" or "sibling")
+     - Agatha→De Lacey: "mother" — WRONG (De Lacey is Agatha's father, not mother)
+   - Evidence: De Lacey is the blind old man; Felix and Agatha are his son and daughter respectively
+   - Location: Profile generation hallucination; the "son" and "mother" labels may be directional confusion in the profiler
+
+6. **Caroline Beaufort self-referential relationship** [Profiles]
+   - Problem: Caroline Beaufort→Caroline Beaufort: "daughter" — self-referential entry
+   - Evidence: A character cannot have a relationship with herself
+   - Location: Profile generation or `_propagate_missing_reverses` logic; may be creating a reverse entry that points back to itself
+
+7. **Creature→Felix: "beloved" persists** [Profiles]
+   - Problem: The creature labels Felix as "beloved" — misleading/wrong relationship
+   - Evidence: The creature observes Felix from hiding and develops admiration, but there is no romantic or beloved relationship. "Beloved" implies romantic attachment.
+   - Location: Profile generation; `reject_unfounded_romantic_labels` should catch this but "beloved" may not be in the romantic_labels set
+   - Fix approach: Add "beloved" to the `romantic_labels` set in `reject_unfounded_romantic_labels`
 
 ### MEDIUM
 
-6. **Creature labeled as "supporting" role** [Character Extraction]
-   - Problem: The creature (78 mentions, central antagonist) has `role: "supporting"` instead of "main" or "antagonist"
-   - Evidence: The creature is the second most important character, narrates 6 chapters, and drives the entire plot
-   - Location: Role assignment logic, possibly related to the `split_` prefix on its ID
+8. **Victor→M. Waldman: "protégé" direction reversal** [Profiles]
+   - Problem: Victor→Waldman: "protégé" — if A→B: label means "B is A's [label]", then this reads "Waldman is Victor's protégé" which is WRONG. Victor is Waldman's protégé.
+   - Evidence: Waldman→Victor: "mentor" (correct), but the reverse is wrong
+   - Fix approach: `enforce_inverse_consistency` should map mentor↔student; protégé is not in the inverse map
 
-7. **"the old man (De Lacey)" parenthetical in canonical name** [Alias Grouping]
-   - Problem: Canonical name contains a parenthetical qualifier, which is unusual and may cause parsing issues downstream
-   - Better canonical: "De Lacey" with alias "the old man"
-   - Location: main_cast extraction or alias resolution
+9. **Alphonse→Kirwin: "rival" hallucination** [Profiles]
+   - Problem: Alphonse→Kirwin: "rival" and Kirwin→Alphonse: "rival" — wrong. Kirwin is the magistrate who eventually helps Alphonse and Victor
+   - Evidence: Kirwin is sympathetic to Victor; no rivalry exists with Alphonse
 
-8. **"his father" as alias for Alphonse** [Alias Grouping]
-   - Problem: Relational descriptor "his father" is listed as an alias. This is a relationship label, not a name alias.
-   - Location: Alias extraction in `src/pipeline/character_extraction_v2/`
+10. **"De Lacey" alias shared by both Felix and the old man** [Alias Grouping]
+    - Problem: Felix has alias "De Lacey" AND the old man has alias "De Lacey" — both share the same alias
+    - Evidence: Felix's full name is Felix De Lacey, but when "De Lacey" is used alone in the text it almost always refers to the blind father, not Felix. Having both claim this alias is confusing.
+    - Fix approach: The old man's canonical should be "De Lacey" with "the old man" as alias. Felix's canonical should remain "Felix" or "Felix De Lacey" without "De Lacey" as a standalone alias.
 
-9. **Missing creature alias variants** [Alias Grouping]
-   - Problem: "the demon" and "the daemon" (ASCII spellings) are missing from creature's aliases. Only "the dæmon" (with ligature) is present.
-   - Location: Alias resolution — should normalize æ→ae variants
-
-10. **3 pronunciations missing IPA** [Pronunciation]
-    - Roncesvalles, resume, alternate — no IPA provided
-    - Minor: "delirium" flagged as "foreign" (Latin-origin but common English)
-    - Minor: "entreat", "promontory" flagged as "unknown" (common English words)
+11. **"Captain Walton" and "R.W." are F6 duplicates of Robert Walton** [Identity Resolution]
+    - Problem: Two 1-mention entries from F6 reconciliation duplicate Robert Walton: "Captain Walton" (hash id b2158f484fa9) and "R.W." (hash id f1b39c083608)
+    - Fix approach: `_is_likely_alias_of_existing` in analyzer.py should match:
+      - "Captain Walton" → last name "Walton" matches Robert Walton
+      - "R.W." → initials match Robert Walton
 
 ### LOW
 
-11. **Letter 1 has null title** [Structure]
-    - First structural element (index 1) has `title: null` — should be "Letter 1"
+12. **Letter 1 has null title** [Structure]
+    - First structural element (index 0) has `title: null` — should be "Letter 1"
+    - This was a pre-existing issue from attempt 1
 
-12. **Some summaries use awkward dual attribution** [Summaries]
-    - Ch 5: "Robert Walton, Victor Frankenstein, reflecting..." — comma-separated names suggest confusion about who is narrating vs acting
+13. **"his father" as alias for Alphonse** [Alias Grouping]
+    - Relational descriptor is listed as a name alias
+
+14. **3 pronunciations missing IPA** [Pronunciation]
+    - Roncesvalles, resume, alternate — no IPA provided (pre-existing issue from attempt 1)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | 7.35 | - | Baseline. Profiles (5/10) and Summaries (6/10) failing |
-
-## Fix History
-- (No fixes yet — this is attempt 1)
-
-## Modification History
-
-| Attempt | Issue | Files Modified | Result |
-|---------|-------|----------------|--------|
-| (none yet) | - | - | - |
+| 2 | 7.75 | +0.40 | Profiles improved (5→6.5): fabrications fixed. Summaries improved (6→7): Victor chapters correct, Creature chapters still wrong |
 
 ## Fix History
 - Attempt 1:
-  - **Summarizer narrator attribution**: Changed narrator instruction in all 3 summarizer prompts (CHUNK_SUMMARY_PROMPT, CONSOLIDATE_PROMPT, SINGLE_CHAPTER_PROMPT). New instruction: "Use a character's name ONLY if that name appears explicitly in the provided text. If the 'I' narrator is unnamed in this section, refer to them as 'the narrator.'" Prevents LLM from using prior knowledge to attribute Victor's/Creature's actions to "Robert Walton."
-    - Root cause: `src/pipeline/chapter_summary/summarizer.py` lines 62, 113, 182 — ambiguous instruction "If the narrator's name is revealed, USE THAT NAME" was interpreted as permission to use prior knowledge.
-    - Smoke test: PASS — prompt change is correct and targeted.
-  - **Fabricated relationships (canonical-only anchoring)**: Changed `reject_unfounded_familial_labels`, `reject_unfounded_romantic_labels`, and `reject_unfounded_friend_labels` to use canonical-name-only regex patterns for the anchor character (not aliases). This prevents generic aliases like "the stranger" (Victor's alias matching Safie in the De Lacey chapters) from creating false evidence for hallucinated family/romantic relationships.
-    - Root cause: `src/pipeline/character_profiling/post_corrections.py` — all three reject functions used alias-inclusive name patterns as anchors, causing false evidence from generic aliases that match other characters.
-    - Also: added "lover" to `romantic_labels` in `reject_unfounded_romantic_labels` (was missing, only "romantic interest"/"love interest" were checked).
-    - Also: `reject_unfounded_romantic_labels` now uses canonical-only for pat_b too, fixing Safie→De Lacey "lover" (canonical "the old man (De Lacey)" doesn't appear in text as written).
-    - Also: `reject_unfounded_friend_labels` now requires "friend" to appear within 60 chars of the target character's name (not just anywhere in 150-char window), fixing Clerval→Creature "friend" false positive.
-    - Smoke test: PASS — Victor→Safie "brother", Safie→Victor "sister", Clerval→Creature "friend", creature→Clerval "friend", Safie→De Lacey "lover" all removed after Phase B.
+  - **Summarizer narrator attribution**: Changed narrator instruction in all 3 summarizer prompts (CHUNK_SUMMARY_PROMPT, CONSOLIDATE_PROMPT, SINGLE_CHAPTER_PROMPT). New instruction: "Use a character's name ONLY if that name appears explicitly in the provided text. If the 'I' narrator is unnamed in this section, refer to them as 'the narrator.'"
+    - Result: PARTIAL. Fixed Victor's own chapters (no longer says Robert Walton). But Creature's chapters now say "Victor Frankenstein" (his name appears as creator reference). Letters 1-2 now show dual attribution.
+  - **Fabricated relationships (canonical-only anchoring)**: Changed `reject_unfounded_familial_labels`, `reject_unfounded_romantic_labels`, and `reject_unfounded_friend_labels` to use canonical-name-only regex patterns.
+    - Result: SUCCESS. Victor→Safie "brother", Safie→Victor "sister", Clerval→Creature "friend", creature→Clerval "friend", Safie→De Lacey "lover" all removed.
   - Modified: `src/pipeline/chapter_summary/summarizer.py`, `src/pipeline/character_profiling/post_corrections.py`
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1 | Summary narrator misattribution + fabricated relationships | summarizer.py, post_corrections.py | Re-analysis complete (attempt 2) |
-
-## Output Files
-- HTML: ../output/frankenstein/report.html
-- JSON: ../output/frankenstein/analysis.json
-
-## Pipeline Notes
-- Analysis completed in 112m 30s
-- 22 characters extracted, 28 chapters
-- 1 low-confidence character profile warning
+| 1 | Summary narrator misattribution | summarizer.py | Partial — Victor chapters fixed, Creature chapters still wrong attribution |
+| 1 | Fabricated relationships | post_corrections.py | Success — 5 fabrications removed |
 
 ## Next Action
-Evaluate attempt 2 output against scoring criteria.
+Fix: (1) Narrator attribution for nested narration — Creature chapters still wrong. Need to distinguish first-person narrator from mentioned characters. (2) Fix remaining relationship errors in profiles. Phase: awaiting_fix.
